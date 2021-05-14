@@ -193,7 +193,6 @@ class PSession:
         # a useful approach for many utility scripts."
         pass
 
-
     class SessionBuilder:
         """The SessionBuilder holds all the configuration properties
         and is used to create a Session. """

@@ -22,6 +22,43 @@ class DataFrame:
                 return self.session.conn.execute(self.__plan)
             return self.session.conn.execute(self)
 
+    # TODO
+    def filter(self, expr):
+        if self.session.use_jvm_for_plans:
+            return self.__filter_with_jvm_dfs(expr)
+
+        raise Exception("Not implemented. Filter()")
+
+    def select(self, expr):
+        if self.session.use_jvm_for_plans:
+            return self.__select_with_jvm_dfs(expr)
+
+        raise Exception("Not implemented. Select()")
+
     def _get_sql_queries_for_df(self):
         queries = self.session._get_queries_for_df(self.__jvm_df)
         return queries
+
+    def __ref_scala_object(self, jvm, object_name):
+        clazz = jvm.java.lang.Class.forName(object_name + "$")
+        ff = clazz.getDeclaredField("MODULE$")
+        o = ff.get(None)
+        return o
+
+    def __filter_with_jvm_dfs(self, expr):
+        if type(expr) == str:
+            j_column = self.__ref_scala_object(self.session._PSession__jvm,
+                                               'com.snowflake.snowpark.Column').expr(expr)
+            j_df = self.__jvm_df.filter(j_column)
+            return DataFrame(session=self.session,
+                             plan=self.__plan,
+                             jvm_df=j_df)
+
+    def __select_with_jvm_dfs(self, expr):
+        if type(expr) == str:
+            j_column = self.__ref_scala_object(self.session._PSession__jvm,
+                                               'com.snowflake.snowpark.Column').expr(expr)
+            j_df = self.__jvm_df.select(j_column)
+            return DataFrame(session=self.session,
+                             plan=self.__plan,
+                             jvm_df=j_df)
