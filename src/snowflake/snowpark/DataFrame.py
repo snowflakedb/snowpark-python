@@ -15,7 +15,8 @@ class DataFrame:
 
     def collect(self):
         if self.session.use_jvm_for_network:
-            return [Row([row.get(i) for i in range(row.size())]) for row in self.__jvm_df.collect()]
+            return [Row([row.get(i) for i in range(row.size())])
+                    for row in self.__jvm_df.collect()]
         else:
             # TODO change to plan when we have separate python ASTs etc
             if self.__plan:
@@ -62,3 +63,7 @@ class DataFrame:
             return DataFrame(session=self.session,
                              plan=self.__plan,
                              jvm_df=j_df)
+        if type(expr) == list:
+            j_df = self.__jvm_df.select(expr)
+            return DataFrame(session=self.session, plan=self.__plan, jvm_df=j_df)
+

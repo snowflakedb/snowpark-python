@@ -6,10 +6,51 @@
 
 # Playground file to run & debug different code snippets.
 
-from typing import Dict
+## MVP Demo
+
+# Create session and connect
+from snowflake.snowpark.PSession import PSession
+conf = {"url": "mludf.preprod3.int.snowflakecomputing.com",
+        "account": "mludf",
+        "port": 8085,
+        'user': 'admin',
+        'password': ''}
+
+
+#####
+
+
+p_session = PSession(conf, True, True)
+
+# Setup VWH and schemas
+p_session.sql('use warehouse JAVA_UDF_ARIMA_WAREHOUSE').collect()
+output = p_session.sql('select current_warehouse()').collect()
+print(output)
+
+
+df = p_session.range(1, 10, 2).select('ID').filter('id > 4')
+output = df.collect()
+print(output)
+
+
+df2 = p_session.table('JAVA_UDF_RPOC_DATABASE.JAVA_UDF_RPOC_SCHEMA.AIRPASSENGERS')
+
+output = df2.filter("month >= '1950'").select(['Passengers']).collect()
+print(output)
+
+
+output = df2.select(['month', 'Passengers']).filter("month >= '1950'").collect()
+print(output)
+print(type(output[0].get(0)))
+print(type(output[0].get(1)))
+
+
+## End of MVP demo
+
+#####################################################################
+#####################################################################
 
 from py4j.java_gateway import JavaGateway, GatewayParameters, java_import
-
 
 def ref_scala_object(jvm, object_name):
     clazz = jvm.java.lang.Class.forName(object_name + "$")
@@ -20,9 +61,9 @@ def ref_scala_object(jvm, object_name):
 
 def getSession(jvm):
     config = jvm.java.util.HashMap()
-    config["URL"] = "mludf.preprod3.int.snowflakecomputing.com:8085"
-    config["USER"] = ""
-    config["PASSWORD"] = ""
+    config["URL"] = conf['url'] + ':' + str(conf['port'])
+    config["USER"] = conf['user']
+    config["PASSWORD"] = conf['password']
     session = jvm.com.snowflake.snowpark.Session.builder().configs(config).create()
     return session
 
@@ -37,6 +78,7 @@ session = getSession(jvm)
 
 # In lieu of imports
 java_import(jvm, 'com.snowflake.snowpark.functions.col')
+java_import(jvm, 'com.snowflake.snowpark.Column')
 col = gateway.jvm.col
 java_import(jvm, 'import scala.collection.JavaConverters.*')
 
@@ -59,6 +101,27 @@ print(df_v2)
 res = scala_df2.collect()
 df2_v2 = [[r.get(i) for i in range(r.length())] for r in res]
 print(df2_v2)
+
+# Get column names from scala_df
+schema = scala_df.schema()
+namesSeq = schema.names().toSeq()
+names = [namesSeq.apply(i) for i in range(namesSeq.size())]
+# Try to filter based on the first column
+# expr = jvm.org.apache.spark.sql.catalyst.expressions.Literal(names[0]+"> 5")
+Column_ref = ref_scala_object(jvm, 'com.snowflake.snowpark.Column')
+c1 = Column_ref.expr(names[0])
+c2 = Column_ref.expr(names[0] + "> 5")
+
+# col = jvm.com.snowflake.snowpark.Column(names[0] + "> 5")
+res = scala_df.select(c1).filter(c2).collect()
+filter_output = [[r.get(i) for i in range(r.length())] for r in res]
+
+######
+# This fails:
+# res = session.sql("select 1; select 2; ").collect()
+res = session.sql("select 1;").collect()
+output = [[r.get(i) for i in range(r.length())] for r in res]
+
 
 ########################################
 # A few more complicated operations on DFs
@@ -107,12 +170,6 @@ output = results_to_python_lists(res)
 print("##########\n\tUSE PSession")
 # Use PSession
 from snowflake.snowpark.PSession import PSession
-
-conf: Dict[str, str] = {"url": "mludf.preprod3.int.snowflakecomputing.com",
-                        "account": "mludf",
-                        "port": 8085,
-                        'user': '',
-                        'password': ''}
 
 p_session = PSession(conf, True, True)
 
