@@ -16,6 +16,14 @@ conf = {"url": "mludf.preprod3.int.snowflakecomputing.com",
         'user': 'admin',
         'password': ''}
 
+# conf = {"url": "snowflake.test19.int.snowflakecomputing.com",
+#         "port": 8084,
+#         'account': 'snowflake',
+#         'user': 'jdu',
+#         'password': '',
+#         'protocol': 'http',
+#         'role': 'accountadmin',
+#         'ssl': 'off'}
 
 #####
 
@@ -38,12 +46,10 @@ df2 = p_session.table('JAVA_UDF_RPOC_DATABASE.JAVA_UDF_RPOC_SCHEMA.AIRPASSENGERS
 output = df2.filter("month >= '1950'").select(['Passengers']).collect()
 print(output)
 
-
-output = df2.select(['month', 'Passengers']).filter("month >= '1950'").collect()
-print(output)
-print(type(output[0].get(0)))
-print(type(output[0].get(1)))
-
+# test different types -- run a debugger
+df3 = p_session.table('JAVA_UDF_RPOC_DATABASE.JAVA_UDF_RPOC_SCHEMA.TEST').collect()
+res = [[r.get(i) for i in range(r.length())] for r in df3]
+print(res)
 
 ## End of MVP demo
 

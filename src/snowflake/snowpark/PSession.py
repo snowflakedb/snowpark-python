@@ -48,7 +48,8 @@ class PSession:
     def __init_conn(self, config):
         print("Connecting python-connector to SF...")
         connector_conn = snowflake.connector.connect(host=config['url'], account=config['account'],
-                                                     port=config['port'], protocol='https',
+                                                     port=config['port'],
+                                                     protocol=config['protocol'] if 'protocol' in config else 'https',
                                                      user=config['user'],
                                                      password=config['password'])
         self.conn = ServerConnection(connector_conn)
@@ -68,6 +69,9 @@ class PSession:
         jvm_config["URL"] = config['url'] + ':' + str(config['port'])
         jvm_config["USER"] = config['user']
         jvm_config["PASSWORD"] = config['password']
+        jvm_config["PROTOCOL"] = config['protocol']
+        if 'ssl' in config:
+            jvm_config['ssl'] = 'off'
         self.__jvm_session = self.__jvm.com.snowflake.snowpark.Session.builder().configs(
             jvm_config).create()
 
