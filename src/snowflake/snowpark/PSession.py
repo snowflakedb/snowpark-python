@@ -6,13 +6,17 @@
 
 from .DataFrame import DataFrame
 from .ServerConnection import ServerConnection
-from .SnowflakePlan import SnowflakePlan, SnowflakePlanBuilder
+from src.snowflake.snowpark.internal.analyzer.SnowflakePlan import SnowflakePlanBuilder
 
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
 import pathlib
 
 import snowflake.connector
+
+from .plans.logical.BasicLogicalOperators import Range
+from .internal.Analyzer import Analyzer
+from .plans.logical.LogicalPlan import UnresolvedRelation
 
 
 class PSession:
@@ -31,6 +35,8 @@ class PSession:
 
         self.__last_action_id = 0
         self.__last_canceled_id = 0
+
+        self.analyzer = Analyzer(self)
 
         # TODO
         # self.factory
@@ -60,6 +66,8 @@ class PSession:
         self.__gateway = JavaGateway(
             gateway_parameters=GatewayParameters(port=25335, auto_convert=True))
         self.__jvm = self.__gateway.jvm
+        global jvm
+        jvm = self.__jvm
         self.__set_jvm_session(config)
 
     # TODO need to rewrite for SSO, keys etc.
@@ -153,11 +161,18 @@ class PSession:
             fqdn = name
         else:
             raise Exception("Table name should be str or list of strings.")
-        return self.__table(fqdn)
+        if self.use_jvm_for_plans:
+            return self.__table_with_jvm_dfs(fqdn)
+        else:
+            return self.__table_with_py_dfs(fqdn)
 
-    def __table(self, name) -> DataFrame:
+    def __table_with_jvm_dfs(self, name) -> DataFrame:
         jvm_df = self.__jvm_session.table(name)
         return DataFrame(session=self, jvm_df=jvm_df)
+
+    def __table_with_py_dfs(self, fqdn) -> DataFrame:
+        return DataFrame(self, UnresolvedRelation(fqdn))
+
 
     def sql(self, query) -> DataFrame:
         if self.use_jvm_for_plans:
@@ -179,7 +194,10 @@ class PSession:
         else:
             raise Exception(f"Range requires one to three arguments. {len(args)} provided.")
 
-        return DataFrame(session=self, jvm_df=self.__jvm_session.range(start, end, step))
+        if self.use_jvm_for_plans:
+            return DataFrame(session=self, jvm_df=self.__jvm_session.range(start, end, step))
+        else:
+            return DataFrame(session=self, plan=Range(start, end, step))
 
     def _get_queries_for_df(self, jdf):
         """ Takes as input a pointer to a Scala DF in the JVM and returns the SQL queries to be

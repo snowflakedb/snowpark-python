@@ -14,9 +14,10 @@ def test_something():
 
 
 @pytest.mark.parametrize("use_jvm_for_network", [True, False])
-def test_new_df_from_range(session_cnx, db_parameters, use_jvm_for_network):
+@pytest.mark.parametrize("use_jvm_for_plans", [True, False])
+def test_new_df_from_range(session_cnx, db_parameters, use_jvm_for_network, use_jvm_for_plans):
     """Tests retrieving a negative number of results."""
-    with session_cnx(db_parameters, use_jvm_for_network, True) as session:
+    with session_cnx(db_parameters, use_jvm_for_network, use_jvm_for_plans) as session:
         session.sql('use warehouse tests_pysnowpark').collect()
 
         # range(start, end, step)

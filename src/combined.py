@@ -5,16 +5,23 @@
 #
 
 # Playground file to run & debug different code snippets.
+from pprint import pprint
+
+from functools import partial
+def add(a,b,c):
+    return 100*a
 
 ## MVP Demo
 
 # Create session and connect
-from snowflake.snowpark.PSession import PSession
+
 conf = {"url": "mludf.preprod3.int.snowflakecomputing.com",
         "account": "mludf",
         "port": 8085,
-        'user': 'admin',
-        'password': ''}
+        'user': '',
+        'password': '',
+        'protocol': 'https'
+        }
 
 # conf = {"url": "snowflake.test19.int.snowflakecomputing.com",
 #         "port": 8084,
@@ -27,8 +34,8 @@ conf = {"url": "mludf.preprod3.int.snowflakecomputing.com",
 
 #####
 
-
-p_session = PSession(conf, True, True)
+from src.snowflake.snowpark.PSession import PSession
+p_session = PSession(conf, False, True)
 
 # Setup VWH and schemas
 p_session.sql('use warehouse JAVA_UDF_ARIMA_WAREHOUSE').collect()
@@ -46,14 +53,66 @@ df2 = p_session.table('JAVA_UDF_RPOC_DATABASE.JAVA_UDF_RPOC_SCHEMA.AIRPASSENGERS
 output = df2.filter("month >= '1950'").select(['Passengers']).collect()
 print(output)
 
+df_pax = df2.filter("month >= '1950'").to_df(['d', 'pax'])
+output = df_pax.select(['d', 'pax']).collect()
+print(output)
+
+output = df_pax.drop('d').collect()
+print(output)
+
 # test different types -- run a debugger
-df3 = p_session.table('JAVA_UDF_RPOC_DATABASE.JAVA_UDF_RPOC_SCHEMA.TEST').collect()
+df3 = p_session.table('JAVA_UDF_RPOC_DATABASE.JAVA_UDF_RPOC_SCHEMA.TEST_DataType').collect()
 res = [[r.get(i) for i in range(r.length())] for r in df3]
-print(res)
+pprint(res)
 
 ## End of MVP demo
 
+
+
+
+
+
+
+
 #####################################################################
+#####################################################################
+
+#####################################################################
+# Try dataframes with Python plans
+
+p_session = PSession(conf, False, False)
+
+# Setup VWH and schemas
+p_session.sql('use warehouse JAVA_UDF_ARIMA_WAREHOUSE').collect()
+output = p_session.sql('select current_warehouse()').collect()
+print(output)
+
+
+df = p_session.range(1, 10, 2).select('ID').filter('id > 4')
+output = df.collect()
+print(output)
+
+
+df2 = p_session.table('JAVA_UDF_RPOC_DATABASE.JAVA_UDF_RPOC_SCHEMA.AIRPASSENGERS')
+
+output = df2.filter("month >= '1950'").select(['Passengers']).collect()
+print(output)
+
+output = df2.filter("month >= '1950'").drop('month').collect()
+print(output)
+
+df_pax = df2.filter("month >= '1950'").to_df(['d', 'pax'])
+output = df_pax.select(['d', 'pax']).collect()
+print(output)
+
+output = df_pax.drop('d').collect()
+print(output)
+
+# test different types -- run a debugger
+df3 = p_session.table('JAVA_UDF_RPOC_DATABASE.JAVA_UDF_RPOC_SCHEMA.TEST_DataType').collect()
+res = [[r.get(i) for i in range(r.length())] for r in df3]
+pprint(res)
+
 #####################################################################
 
 from py4j.java_gateway import JavaGateway, GatewayParameters, java_import
