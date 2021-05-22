@@ -1,8 +1,8 @@
-from src.snowflake.snowpark.internal.Expression import Expression, UnresolvedAttribute, \
+from src.snowflake.snowpark.internal.sp_expressions import Expression, UnresolvedAttribute, \
     UnresolvedStar, UnresolvedAlias, NamedExpression
 
 
-class PColumn:
+class Column:
 
     def __init__(self, expr):
         if type(expr) == str:
@@ -39,5 +39,5 @@ class PColumn:
         return cls(new_expr)
 
 # TODO
-# class CaseExp(PColumn):
+# class CaseExp(Column):
 #

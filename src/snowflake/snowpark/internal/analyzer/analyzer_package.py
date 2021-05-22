@@ -1,4 +1,10 @@
-class Package:
+from .datatype_mapper import DataTypeMapper
+
+import re
+import random
+
+
+class AnalyzerPackage:
     _LeftParenthesis = "("
     _RightParenthesis = ")"
     _LeftBracket = "["
@@ -113,8 +119,8 @@ class Package:
     _GroupingSets = " GROUPING SETS "
 
     def result_scan_statement(self, uuid_place_holder):
-        return self._Select + self._Star + self._From + self._Table + self._LeftParenthesis +\
-               self._ResultScan + self._LeftParenthesis + self._SingleQuote + uuid_place_holder +\
+        return self._Select + self._Star + self._From + self._Table + self._LeftParenthesis + \
+               self._ResultScan + self._LeftParenthesis + self._SingleQuote + uuid_place_holder + \
                self._SingleQuote + self._RightParenthesis + self._RightParenthesis
 
     def project_statement(self, project=None, child=None, is_distinct=False):
@@ -138,10 +144,16 @@ class Package:
         return self.project_statement([
             self._LeftParenthesis + self._RowNumber + self._Over + self._LeftParenthesis + self._OrderBy + self._Seq8 +
             self._RightParenthesis + self._Minus + self._One + self._RightParenthesis + self._Star + self._LeftParenthesis +
-            str(step) + self._RightParenthesis + self._Plus + self._LeftParenthesis + str(start) + self._RightParenthesis +
+            str(step) + self._RightParenthesis + self._Plus + self._LeftParenthesis + str(
+                start) + self._RightParenthesis +
             self._As + column_name
         ],
             self.table(self.generator(0 if (count < 0) else count)))
+
+    def schema_value_statement(self, output):
+        return self._Select +\
+               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type,attr.nullable) +
+                                 self._As + self.quote_name(attr.name) for attr in output])
 
     def generator(self, row_count):
         return self._Generator + self._LeftParenthesis + self._RowCount + self._RightArrow + \
@@ -149,3 +161,36 @@ class Package:
 
     def table(self, content):
         return self._Table + self._LeftParenthesis + content + self._RightParenthesis
+
+    def single_quote(self, value: str):
+        if value.startswith(self._SingleQuote) and value.endswith(self._SingleQuote):
+            return value
+        else:
+            return self._SingleQuote + value + self._SingleQuote
+
+    def quote_name(self, name: str):
+        already_quoted = re.compile("^(\".+\")$")
+        unquoted_case_insensitive = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
+        if already_quoted.match(name):
+            return name
+        elif unquoted_case_insensitive.match(name):
+            return self._DoubleQuote + self._escape_quotes(name.upper()) + self._DoubleQuote
+        else:
+            return self._DoubleQuote + self._escape_quotes(name) + self._DoubleQuote
+
+    def quote_name_without_upper_casing(self, name):
+        return self._DoubleQuote + self._escape_quotes(name) + self._DoubleQuote
+
+    def _escape_quotes(self, unescaped):
+        return unescaped.replace('\"', '\"\"')
+
+    # Most integer types map to number(38,0)
+    # https://docs.snowflake.com/en/sql-reference/
+    # data-types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
+    def number(self, precision: int = 38, scale: int = 0):
+        return self._Number + self._LeftParenthesis + str(precision) + self._Comma + str(
+            scale) + self._RightParenthesis
+
+    @staticmethod
+    def randomNameForTempObject():
+        return f"SN_TEMP_OBJECT_${random.randint(0, pow(2, 31))}"

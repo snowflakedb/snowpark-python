@@ -3,10 +3,11 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from .PColumn import PColumn
-from .Row import Row
-from .internal.Expression import NamedExpression
-from .plans.logical.LogicalPlan import Project, Filter
+from .column import Column
+from .row import Row
+from .internal.sp_expressions import NamedExpression
+from .internal.analyzer.analyzer_package import AnalyzerPackage
+from .plans.logical.logical_plan import Project, Filter
 
 
 class DataFrame:
@@ -93,7 +94,7 @@ class DataFrame:
 
     def __filter_with_jvm_dfs(self, expr):
         if type(expr) == str:
-            j_column = self.__ref_scala_object(self.session._PSession__jvm,
+            j_column = self.__ref_scala_object(self.session._Session__jvm,
                                                'com.snowflake.snowpark.Column').expr(expr)
             j_df = self.__jvm_df.filter(j_column)
             return DataFrame(session=self.session,
@@ -102,12 +103,12 @@ class DataFrame:
 
     def __filter_with_py_dfs(self, condition):
         if type(condition) == str:
-            column = PColumn(condition)
+            column = Column(condition)
             return self.__with_plan(Filter(column.expression, self.__plan))
 
     def __select_with_jvm_dfs(self, expr):
         if type(expr) == str:
-            j_column = self.__ref_scala_object(self.session._PSession__jvm,
+            j_column = self.__ref_scala_object(self.session._Session__jvm,
                                                'com.snowflake.snowpark.Column').expr(expr)
             j_df = self.__jvm_df.select(j_column)
             return DataFrame(session=self.session,
@@ -119,10 +120,10 @@ class DataFrame:
 
     def __select_with_py_dfs(self, expr):
         if type(expr) == str:
-            cols = [PColumn(expr)]
+            cols = [Column(expr)]
         elif type(expr) == list:
-            cols = [e if type(e) == PColumn else PColumn(e) for e in expr]
-        elif type(expr) == PColumn:
+            cols = [e if type(e) == Column else Column(e) for e in expr]
+        elif type(expr) == Column:
             cols = [expr]
         else:
             raise Exception("Select input must be str or list")
@@ -138,16 +139,25 @@ class DataFrame:
     # TODO complete. requires plan.output
     def __drop_with_py_dfs(self, cols):
         names = []
-        for c in cols:
-            if type(c) is str:
-                names.append(c)
-            elif type(c) is PColumn and isinstance(c.expression, NamedExpression):
-                names.append(c.expression.name)
-            else:
-                raise Exception(f"Could not drop column {str(c)}. Can only drop columns by name.")
+        if type(cols) is str:
+            names.append(cols)
+        elif type(cols) is list:
+            for c in cols:
+                if type(c) is str:
+                    names.append(c)
+                elif type(c) is Column and isinstance(c.expression, NamedExpression):
+                    names.append(c.expression.name)
+                else:
+                    raise Exception(f"Could not drop column {str(c)}. Can only drop columns by name.")
 
-        #normalized = set([quote_name(n) for n in names])
-        #keep_col_names = set([ output]
+        analyzer_package = AnalyzerPackage()
+        normalized = set(analyzer_package.quote_name(n) for n in names)
+        existing = set(attr.name for attr in self.__output())
+        keep_col_names = existing - normalized
+        if not keep_col_names:
+            raise Exception("Cannot drop all columns")
+        else:
+            self.__select_with_py_dfs(list(keep_col_names))
 
     def __output(self):
         return self.__plan.output()

@@ -4,9 +4,9 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from .DataFrame import DataFrame
-from .ServerConnection import ServerConnection
-from src.snowflake.snowpark.internal.analyzer.SnowflakePlan import SnowflakePlanBuilder
+from .dataframe import DataFrame
+from .server_connection import ServerConnection
+from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
@@ -14,12 +14,12 @@ import pathlib
 
 import snowflake.connector
 
-from .plans.logical.BasicLogicalOperators import Range
-from .internal.Analyzer import Analyzer
-from .plans.logical.LogicalPlan import UnresolvedRelation
+from .plans.logical.basic_logical_operators import Range
+from .internal.analyzer_obj import Analyzer
+from .plans.logical.logical_plan import UnresolvedRelation
 
 
-class PSession:
+class Session:
     __STAGE_PREFIX = "@"
 
     def __init__(self, config, use_jvm_for_network, use_jvm_for_plans):
@@ -55,7 +55,8 @@ class PSession:
         print("Connecting python-connector to SF...")
         connector_conn = snowflake.connector.connect(host=config['url'], account=config['account'],
                                                      port=config['port'],
-                                                     protocol=config['protocol'] if 'protocol' in config else 'https',
+                                                     protocol=config[
+                                                         'protocol'] if 'protocol' in config else 'https',
                                                      user=config['user'],
                                                      password=config['password'])
         self.conn = ServerConnection(connector_conn)
@@ -173,7 +174,6 @@ class PSession:
     def __table_with_py_dfs(self, fqdn) -> DataFrame:
         return DataFrame(self, UnresolvedRelation(fqdn))
 
-
     def sql(self, query) -> DataFrame:
         if self.use_jvm_for_plans:
             jdf = self.__jvm_session.sql(query)
@@ -229,5 +229,5 @@ class PSession:
             if conn:
                 return
             if not conn:
-                # return setActiveSession(PSession(ServerConnection(conn)))
+                # return setActiveSession(Session(ServerConnection(conn)))
                 pass

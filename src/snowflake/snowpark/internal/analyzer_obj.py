@@ -1,10 +1,10 @@
-from src.snowflake.snowpark.internal.Expression import UnresolvedAttribute
-from src.snowflake.snowpark.plans.logical.BasicLogicalOperators import Range
+from src.snowflake.snowpark.internal.sp_expressions import UnresolvedAttribute
+from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range
 
 # TODO fix import
-import src.snowflake.snowpark.internal.analyzer.SnowflakePlan as SP
-from src.snowflake.snowpark.internal.analyzer.package import Package
-from src.snowflake.snowpark.plans.logical.LogicalPlan import Project, Filter, UnresolvedRelation
+import src.snowflake.snowpark.internal.analyzer.snowflake_plan as SP
+from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from src.snowflake.snowpark.plans.logical.logical_plan import Project, Filter, UnresolvedRelation
 
 
 class Analyzer:
@@ -14,7 +14,7 @@ class Analyzer:
         self.subquery_plans = []
         self.session = session
         self.plan_builder = SP.SnowflakePlanBuilder(self.session)
-        self.package = Package()
+        self.package = AnalyzerPackage()
 
 
     def analyze(self, expr):

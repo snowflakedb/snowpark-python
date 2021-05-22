@@ -1,4 +1,4 @@
-from .LogicalPlan import LeafNode
+from .logical_plan import LeafNode
 
 
 class Range(LeafNode):

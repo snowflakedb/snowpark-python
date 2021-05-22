@@ -6,7 +6,7 @@
 import pytest
 
 # TODO fix 'src.' in imports
-from src.snowflake.snowpark.Row import Row
+from src.snowflake.snowpark.row import Row
 
 
 def test_something():

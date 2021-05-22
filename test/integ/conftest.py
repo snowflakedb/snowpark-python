@@ -20,7 +20,7 @@ from snowflake.connector.connection import DefaultConverterClass
 
 # TODO fix '.src'
 import src.snowflake.snowpark
-from src.snowflake.snowpark.PSession import PSession
+from src.snowflake.snowpark.session import Session
 
 from .. import running_on_public_ci
 from ..parameters import CONNECTION_PARAMETERS
@@ -235,7 +235,7 @@ def negative_conn_cnx() -> Callable[..., Generator["SnowflakeConnection", None, 
 
 
 @pytest.fixture()
-def session_cnx() -> Callable[..., "PSession"]:
+def session_cnx() -> Callable[..., "Session"]:
     return get_psession
 
 @contextmanager
@@ -244,7 +244,7 @@ def get_psession(conn_params, use_jvm_for_network, use_jvm_for_plans):
         conn_params["timezone"] = "UTC"
     if not conn_params.get("converter_class"):
         conn_params["converter_class"] = DefaultConverterClass()
-    session = PSession(conn_params, use_jvm_for_network, use_jvm_for_plans)
+    session = Session(conn_params, use_jvm_for_network, use_jvm_for_plans)
     try:
         yield session
     finally:

@@ -1,8 +1,8 @@
-from src.snowflake.snowpark.internal.Expression import AttributeReference
-from src.snowflake.snowpark.plans.logical.LogicalPlan import LogicalPlan
-from src.snowflake.snowpark.internal.analyzer.package import Package
-
-from functools import partial
+from src.snowflake.snowpark.internal.sp_expressions import AttributeReference
+from src.snowflake.snowpark.internal.schema_utils import SchemaUtils
+from src.snowflake.snowpark.plans.logical.logical_plan import LogicalPlan
+from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from src.snowflake.snowpark.types.types_package import TypesPackage
 
 
 class SnowflakePlan(LogicalPlan):
@@ -15,7 +15,7 @@ class SnowflakePlan(LogicalPlan):
                  source_plan=None):
         super().__init__()
         self.queries = queries
-        self.schema_query = schema_query
+        self._schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
         self.session = session
@@ -29,21 +29,30 @@ class SnowflakePlan(LogicalPlan):
     def analyze_if_needed(self):
         pass
 
-    def output(self):
-        return [AttributeReference(a.name, snowTypeToSpType(a.dataType), a.nullable) for a in
-                self.attributes]
+    def attributes(self):
+        output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
+        pkg = AnalyzerPackage()
+        self._schema_query = pkg.schema_value_statement(output)
+        return output
+
+    # Convert to 'Spark' AttributeReference
+    def output(self) -> list:
+        return [AttributeReference(a.name, TypesPackage.snow_type_to_sp_type(a.dataType),
+                                   a.nullable)
+                for a in self.attributes()]
 
 
 class SnowflakePlanBuilder:
 
     def __init__(self, session):
         self.__session = session
-        self.pkg = Package()
+        self.pkg = AnalyzerPackage()
 
     def build(self, sql_generator, child, source_plan, schema_query=None):
         select_child = self._add_result_scan_if_not_select(child)
-        queries = select_child.queries[:-1] + [Query(sql_generator(select_child.queries[-1].sql), "")]
-        new_schema_query = schema_query if schema_query else sql_generator(child.schema_query)
+        queries = select_child.queries[:-1] + [
+            Query(sql_generator(select_child.queries[-1].sql), "")]
+        new_schema_query = schema_query if schema_query else sql_generator(child._schema_query)
 
         return SnowflakePlan(queries, new_schema_query, select_child.post_actions,
                              select_child.expr_to_alias, self.__session, source_plan)
