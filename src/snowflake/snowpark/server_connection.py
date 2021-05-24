@@ -3,9 +3,9 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from src.snowflake.snowpark.internal.analyzer.SnowflakePlan import SnowflakePlan
-from .DataFrame import DataFrame
-from .Row import Row
+from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
+from .dataframe import DataFrame
+from .row import Row
 
 from snowflake.connector import SnowflakeConnection
 
