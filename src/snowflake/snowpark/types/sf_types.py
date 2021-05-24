@@ -4,13 +4,16 @@ import re
 class DataType:
 
     @property
-    def type_name(self):
+    def type_name(self) -> str:
         """ Returns a data type name. """
-        return self.__class__.__name__
+        # Strip the suffix 'type'
+        return self.__class__.__name__[:-4]
 
-    @property
-    def to_string(self):
+    def to_string(self) -> str:
         """ Returns a data type name. Alias of [[type_name]] """
+        return self.type_name
+
+    def __repr__(self) -> str:
         return self.type_name
 
 
@@ -27,6 +30,13 @@ class MapType(DataType):
 
     def to_string(self):
         return f"MapType[{self.key_type.to_string()},{self.value_type.to_string()}]"
+
+    @property
+    def type_name(self):
+        return self.to_string()
+
+    def __repr__(self):
+        self.to_string()
 
 
 class VariantType(DataType):
@@ -119,10 +129,13 @@ class DecimalType(FractionalType):
         """Returns Decimal Info. Decimal(precision, scale)"""
         return f"Decimal({self.precision},{self.scale})"
 
+    @property
     def type_name(self):
         """Returns Decimal Info. Decimal(precision, scale), Alias of [[toString]]"""
         return self.to_string()
 
+    def __repr__(self):
+        return self.to_string()
 
 class StructType(DataType):
 
@@ -147,10 +160,14 @@ class ColumnIdentifier:
 
     @staticmethod
     def strip_unnecessary_quotes(string: str) -> str:
+        """Removes the unnecessary quotes from name.
+
+        Remove quotes if name starts with _A-Z and only contains _0-9A-Z$, or starts with $ and
+        is followed by digits.
+        """
         remove_quote = re.compile("^\"(([_A-Z]+[_A-Z0-9$]*)|(\\$\\d+))\"$")
         result = remove_quote.search(string)
-        # TODO maybe need to parse result to provide string output
-        return result if result else string
+        return string[1:-1] if result else string
 
 
 # TODO complete
@@ -161,11 +178,15 @@ class StructField:
         self.data_type = data_type
         self.nullable = nullable
 
+    @property
     def name(self):
         return self.column_identifier.name()
 
     def to_string(self):
-        return f"StructField({self.name()}, {self.data_type}, Nullable={self.nullable})"
+        return f"StructField({self.name}, {self.data_type.type_name}, Nullable={self.nullable})"
+
+    def __repr__(self):
+        return self.to_string()
 
     # TODO
     def tree_string(self, layer: int):

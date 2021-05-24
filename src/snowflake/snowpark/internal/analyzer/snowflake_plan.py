@@ -2,7 +2,7 @@ from src.snowflake.snowpark.internal.sp_expressions import AttributeReference
 from src.snowflake.snowpark.internal.schema_utils import SchemaUtils
 from src.snowflake.snowpark.plans.logical.logical_plan import LogicalPlan
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from src.snowflake.snowpark.types.types_package import TypesPackage
+from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
 
 class SnowflakePlan(LogicalPlan):
@@ -37,8 +37,7 @@ class SnowflakePlan(LogicalPlan):
 
     # Convert to 'Spark' AttributeReference
     def output(self) -> list:
-        return [AttributeReference(a.name, TypesPackage.snow_type_to_sp_type(a.dataType),
-                                   a.nullable)
+        return [AttributeReference(a.name, snow_type_to_sp_type(a.dataType), a.nullable)
                 for a in self.attributes()]
 
 
