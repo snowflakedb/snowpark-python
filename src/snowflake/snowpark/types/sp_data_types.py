@@ -6,12 +6,20 @@ class DataType(AbstractDataType):
     @property
     def type_name(self):
         """ Returns a data type name. """
-        return self.__class__.__name__
+        return self.__class__.__name__[:-4]
 
     @property
     def to_string(self):
         """ Returns a data type name. Alias of [[type_name]] """
         return self.type_name
+
+    @property
+    def simple_string(self):
+        return self.type_name
+
+    @property
+    def sql(self):
+        return self.simple_string.upper()
 
 
 # Data types
@@ -32,6 +40,10 @@ class MapType(DataType):
         self.value_contains_null = value_contains_null
 
 
+class NullType(DataType):
+    pass
+
+
 # TODO might require more work
 class StructType(DataType):
     def __init__(self, fields: list):
@@ -48,18 +60,39 @@ class StructField:
 
 
 class VariantType(DataType):
+    @property
     def sql(self):
         return "VARIANT"
 
+    @property
     def simple_string(self):
         return "variant"
 
+    @property
     def catalog_string(self):
         return "variant"
 
 
 class GeographyType(DataType):
-    pass
+    def __init__(self, element_type: DataType):
+        self.element_type = element_type
+
+    @property
+    def type_name(self) -> str:
+        return f"GeographyType[${self.element_type.to_string}]"
+
+    @property
+    def to_string(self) -> str:
+        """ Returns a data type name. Alias of [[type_name]] """
+        return self.type_name
+
+    @property
+    def simple_string(self) -> str:
+        return self.type_name
+
+    @property
+    def sql(self) -> str:
+        return self.simple_string.upper()
 
 
 # Atomic Types
