@@ -11,6 +11,7 @@ from ...types.sp_data_types import NullType as SPNullType, \
     GeographyType as SPGeographyType, DataType as SPDataType
 
 from decimal import Decimal
+from datetime import date, timedelta, datetime, timezone
 import binascii
 import math
 
@@ -101,12 +102,16 @@ class DataTypeMapper:
             package = AnalyzerPackage()
             return f"{value} :: {package.number(spark_data_type.precision, spark_data_type.scale)}"
 
-        # TODO do we have a SnowflakeDateTimeFormat class?
-        if type(spark_data_type) is SPDateType:
-            pass
+        if type(spark_data_type) is SPDateType and type(value) is int:
+            # add value as number of days to 1970-01-01
+            target_date = date(1970, 1, 1) + timedelta(days=value)
+            return f"DATE '{target_date.isoformat()}'"
 
-        if type(spark_data_type) is SPTimestampType:
-            pass
+        if type(spark_data_type) is SPTimestampType and type(value) is int:
+            # add value as microseconds to 1970-01-01 00:00:00.00.
+            target_time = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(microseconds=value)
+            trimmed_ms = target_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            return f'TIMESTAMP \'{trimmed_ms}\''
 
         if type(value) in [list, bytearray] and type(spark_data_type) is SPBinaryType:
             # f"{''.join(format(x,'02x') for x in value)} :: binary"

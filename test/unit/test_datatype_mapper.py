@@ -9,6 +9,7 @@ from src.snowflake.snowpark.types.sp_data_types import NullType as SPNullType, \
     GeographyType as SPGeographyType, DataType as SPDataType
 
 from decimal import Decimal
+import pytest
 
 def test_to_sql():
     to_sql = DataTypeMapper.to_sql
@@ -51,7 +52,15 @@ def test_to_sql():
 
     assert to_sql(Decimal(0.5), SPDecimalType(2, 1)) == '0.5 ::  NUMBER (2, 1)'
 
-    # TODO complete for SPDateTime and SPTimestampType
+    assert to_sql(397, SPDateType()) == "DATE '1971-02-02'"
+    # value type must be int
+    with pytest.raises(Exception):
+        to_sql(.397, SPDateType())
+
+    assert to_sql(1622002533000000, SPTimestampType()) == "TIMESTAMP '2021-05-26 04:15:33.000'"
+    # value type must be int
+    with pytest.raises(Exception):
+        to_sql(.2, SPTimestampType())
 
     assert to_sql(bytearray.fromhex('2Ef0 F1f2 '), SPBinaryType()) == b'2ef0f1f2'
 
