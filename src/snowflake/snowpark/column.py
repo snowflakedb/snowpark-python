@@ -7,7 +7,7 @@ class Column:
     def __init__(self, expr):
         if type(expr) == str:
             self.expression = self.__get_expr(expr)
-        elif issubclass(expr, Expression):
+        elif isinstance(expr, Expression):
             self.expression = expr
         else:
             raise Exception("Column ctor takes only str or expression.")

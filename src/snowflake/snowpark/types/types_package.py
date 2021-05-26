@@ -1,4 +1,9 @@
-from array import ArrayType
+from array import array
+import ctypes
+import decimal
+import datetime
+import sys
+
 
 from .sf_types import BinaryType, BooleanType, DataType, DateType, IntegerType, LongType, DoubleType, \
     FloatType, ShortType, ByteType, DecimalType, StringType, TimeType, VariantType, TimestampType, \
@@ -10,7 +15,7 @@ from .sp_data_types import DataType as SPDataType, BooleanType as SPBooleanType,
     LongType as SPLongType, FloatType as SPFloatType, DoubleType as SPDoubleType, \
     DateType as SPDateType, TimeType as SPTimeType, TimestampType as SPTimestampType, \
     BinaryType as SPBinaryType, ArrayType as SPArrayType, MapType as SPMapType, \
-    VariantType as SPVariantType, DecimalType as SPDecimalType
+    VariantType as SPVariantType, DecimalType as SPDecimalType, NullType as SPNullType
 
 
 def udf_option_supported(data_type: DataType) -> bool:
@@ -126,3 +131,134 @@ def sp_type_to_snow_type(data_type: SPDateType) -> DataType:
 
 def to_snow_struct_type(struct_type: SPStructType) -> StructType:
     return sp_type_to_snow_type(struct_type)
+
+
+# #####################################################################################
+# Converting python types to SP-types
+
+# Mapping Python types to Spark SQL DataType
+_type_mappings = {
+    #type(None): NullType,
+    bool: SPBooleanType,
+    int: SPLongType,
+    float: SPDoubleType,
+    str: SPStringType,
+    bytearray: SPBinaryType,
+    decimal.Decimal: SPDecimalType,
+    datetime.date: SPDateType,
+    datetime.datetime: SPTimestampType,
+    datetime.time: SPTimestampType,
+    bytes: SPBinaryType,
+}
+
+# Mapping Python array types to Spark SQL DataType
+# We should be careful here. The size of these types in python depends on C
+# implementation. We need to make sure that this conversion does not lose any
+# precision. Also, JVM only support signed types, when converting unsigned types,
+# keep in mind that it require 1 more bit when stored as signed types.
+#
+# Reference for C integer size, see:
+# ISO/IEC 9899:201x specification, chapter 5.2.4.2.1 Sizes of integer types <limits.h>.
+# Reference for python array typecode, see:
+# https://docs.python.org/2/library/array.html
+# https://docs.python.org/3.6/library/array.html
+# Reference for JVM's supported integral types:
+# http://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.3.1
+
+_array_signed_int_typecode_ctype_mappings = {
+    'b': ctypes.c_byte,
+    'h': ctypes.c_short,
+    'i': ctypes.c_int,
+    'l': ctypes.c_long,
+}
+
+_array_unsigned_int_typecode_ctype_mappings = {
+    'B': ctypes.c_ubyte,
+    'H': ctypes.c_ushort,
+    'I': ctypes.c_uint,
+    'L': ctypes.c_ulong
+}
+
+
+def _int_size_to_type(size):
+    """
+    Return the Catalyst datatype from the size of integers.
+    """
+    if size <= 8:
+        return SPByteType
+    if size <= 16:
+        return SPShortType
+    if size <= 32:
+        return SPIntegerType
+    if size <= 64:
+        return SPLongType
+
+# The list of all supported array typecodes, is stored here
+_array_type_mappings = {
+    # Warning: Actual properties for float and double in C is not specified in C.
+    # On almost every system supported by both python and JVM, they are IEEE 754
+    # single-precision binary floating-point format and IEEE 754 double-precision
+    # binary floating-point format. And we do assume the same thing here for now.
+    'f': SPFloatType,
+    'd': SPDoubleType
+}
+
+# compute array typecode mappings for signed integer types
+for _typecode in _array_signed_int_typecode_ctype_mappings.keys():
+    size = ctypes.sizeof(_array_signed_int_typecode_ctype_mappings[_typecode]) * 8
+    dt = _int_size_to_type(size)
+    if dt is not None:
+        _array_type_mappings[_typecode] = dt
+
+# compute array typecode mappings for unsigned integer types
+for _typecode in _array_unsigned_int_typecode_ctype_mappings.keys():
+    # JVM does not have unsigned types, so use signed types that is at least 1
+    # bit larger to store
+    size = ctypes.sizeof(_array_unsigned_int_typecode_ctype_mappings[_typecode]) * 8 + 1
+    dt = _int_size_to_type(size)
+    if dt is not None:
+        _array_type_mappings[_typecode] = dt
+
+# Type code 'u' in Python's array is deprecated since version 3.3, and will be
+# removed in version 4.0. See: https://docs.python.org/3/library/array.html
+if sys.version_info[0] < 4:
+    _array_type_mappings['u'] = SPStringType
+
+
+def _infer_type(obj):
+    """Infer the DataType from obj
+    """
+    if obj is None:
+        return SPNullType()
+
+    if hasattr(obj, '__UDT__'):
+        return obj.__UDT__
+
+    dataType = _type_mappings.get(type(obj))
+    if dataType is SPDecimalType:
+        # the precision and scale of `obj` may be different from row to row.
+        return SPDecimalType(38, 18)
+    elif dataType is not None:
+        return dataType()
+
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if key is not None and value is not None:
+                return SPMapType(_infer_type(key), _infer_type(value), True)
+        return SPMapType(SPNullType(), SPNullType(), True)
+    elif isinstance(obj, list):
+        for v in obj:
+            if v is not None:
+                return SPArrayType(_infer_type(obj[0]), True)
+        return SPArrayType(SPNullType(), True)
+    elif isinstance(obj, array):
+        if obj.typecode in _array_type_mappings:
+            return SPArrayType(_array_type_mappings[obj.typecode](), False)
+        else:
+            raise TypeError("not supported type: array(%s)" % obj.typecode)
+    else:
+        #try:
+        #    return _infer_schema(obj)
+        #except TypeError:
+        raise TypeError("not supported type: %s" % type(obj))
+

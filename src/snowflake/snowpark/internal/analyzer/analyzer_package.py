@@ -123,6 +123,9 @@ class AnalyzerPackage:
                self._ResultScan + self._LeftParenthesis + self._SingleQuote + uuid_place_holder + \
                self._SingleQuote + self._RightParenthesis + self._RightParenthesis
 
+    def function_expression(self, name: str, children: list, is_distinct: bool):
+        return name + self._LeftParenthesis + f"{self._Distinct if is_distinct else self._EmptyString}" + self._Comma.join(children) + self._RightParenthesis
+
     def project_statement(self, project=None, child=None, is_distinct=False):
         return self._Select + \
                f"{self._Distinct if is_distinct else ''}" + \
@@ -187,6 +190,7 @@ class AnalyzerPackage:
     # Most integer types map to number(38,0)
     # https://docs.snowflake.com/en/sql-reference/
     # data-types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
+    # TODO static
     def number(self, precision: int = 38, scale: int = 0):
         return self._Number + self._LeftParenthesis + str(precision) + self._Comma + str(
             scale) + self._RightParenthesis

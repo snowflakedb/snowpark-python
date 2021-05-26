@@ -137,6 +137,7 @@ class DecimalType(FractionalType):
     def __repr__(self):
         return self.to_string()
 
+
 class StructType(DataType):
 
     def __init__(self, fields):
