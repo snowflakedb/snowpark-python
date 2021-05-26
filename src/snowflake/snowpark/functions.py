@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
 from .column import Column
 from .internal.sp_expressions import Expression as SPExpression, Literal as SPLiteral, \
     UnresolvedFunction as SPUnresolvedFunction
@@ -15,7 +20,7 @@ def column(col_name):
 
 def call_builtin(function_name, *args):
     """Invokes a built-in snowflake function with the specified name and arguments.
-        Arguments can be of two types
+    Arguments can be of two types
         a. [[Column]], or
         b. Basic types such as Int, Long, Double, Decimal etc. which are converted to Snowpark
         literals.
@@ -36,13 +41,13 @@ def call_builtin(function_name, *args):
 def builtin(function_name, *args):
     """
     Function object to invoke a Snowflake builtin. Use this to invoke
-   * any builtins not explicitly listed in this object.
-   *
-   * Example
-   * {{{
-   *    val repeat = functions.builtin("repeat")
-   *    df.select(repeat(col("col_1"), 3))
-   * }}}
+    any builtins not explicitly listed in this object.
+
+    Example
+    {{{
+       avg = functions.builtin('avg')
+       df.select(avg(col("col_1")))
+    }}}
     :param function_name: Name of built-in Snowflake function
     :param args: arguments to function_name
     :return: Column

@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
 from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
 
 from src.snowflake.snowpark.types.sp_data_types import NullType as SPNullType, \
@@ -6,10 +12,11 @@ from src.snowflake.snowpark.types.sp_data_types import NullType as SPNullType, \
     TimestampType as SPTimestampType, IntegerType as SPIntegerType, ShortType as SPShortType, \
     FloatType as SPFloatType, ArrayType as SPArrayType, MapType as SPMapType, \
     StructType as SPStructType, ByteType as SPByteType, BooleanType as SPBooleanType, \
-    GeographyType as SPGeographyType, DataType as SPDataType
+    GeographyType as SPGeographyType
 
 from decimal import Decimal
 import pytest
+
 
 def test_to_sql():
     to_sql = DataTypeMapper.to_sql

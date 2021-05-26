@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
 from ...types.types_package import convert_to_sf_type
 from ...types.sf_types import BinaryType, BooleanType, DateType, NumericType, StringType, \
     VariantType, TimeType, TimestampType, MapType
@@ -76,7 +81,7 @@ class DataTypeMapper:
             return str(value) + f":: boolean"
 
         # TODO revisit after SNOW-165195 : Add support for all valid SparkSQL and SnowflakeSQL types
-        if type(value) == float and type(spark_data_type) is SPFloatType:
+        if type(value) is float and type(spark_data_type) is SPFloatType:
             if math.isnan(float(value)):
                 cast_value = "'Nan'"
             elif math.isinf(value) and value > 0:
@@ -96,7 +101,7 @@ class DataTypeMapper:
                 return "'-Infinity' :: DOUBLE"
             return f"'{value}' :: DOUBLE"
 
-        if type(value) in [Decimal] and type(spark_data_type) is SPDecimalType:
+        if type(value) is Decimal and type(spark_data_type) is SPDecimalType:
             # TODO fix circular dependency
             from .analyzer_package import AnalyzerPackage
             package = AnalyzerPackage()

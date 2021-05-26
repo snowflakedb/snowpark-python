@@ -1,13 +1,17 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
 from array import array
 import ctypes
 import decimal
 import datetime
 import sys
 
-
-from .sf_types import BinaryType, BooleanType, DataType, DateType, IntegerType, LongType, DoubleType, \
-    FloatType, ShortType, ByteType, DecimalType, StringType, TimeType, VariantType, TimestampType, \
-    StructType, MapType
+from .sf_types import BinaryType, BooleanType, DataType, DateType, IntegerType, LongType, \
+    DoubleType, FloatType, ShortType, ByteType, DecimalType, StringType, TimeType, VariantType, \
+    TimestampType, StructType, MapType
 
 from .sp_data_types import DataType as SPDataType, BooleanType as SPBooleanType, \
     StructType as SPStructType, StructField as SPStructField, StringType as SPStringType, \
@@ -135,10 +139,11 @@ def to_snow_struct_type(struct_type: SPStructType) -> StructType:
 
 # #####################################################################################
 # Converting python types to SP-types
+# Taken from: https://spark.apache.org/docs/3.1.1/api/python/_modules/pyspark/sql/types.html
 
 # Mapping Python types to Spark SQL DataType
 _type_mappings = {
-    #type(None): NullType,
+    type(None): SPNullType,
     bool: SPBooleanType,
     int: SPLongType,
     float: SPDoubleType,
@@ -193,6 +198,7 @@ def _int_size_to_type(size):
     if size <= 64:
         return SPLongType
 
+
 # The list of all supported array typecodes, is stored here
 _array_type_mappings = {
     # Warning: Actual properties for float and double in C is not specified in C.
@@ -231,15 +237,16 @@ def _infer_type(obj):
     if obj is None:
         return SPNullType()
 
+    # user-defined types
     if hasattr(obj, '__UDT__'):
         return obj.__UDT__
 
-    dataType = _type_mappings.get(type(obj))
-    if dataType is SPDecimalType:
+    data_type = _type_mappings.get(type(obj))
+    if data_type is SPDecimalType:
         # the precision and scale of `obj` may be different from row to row.
         return SPDecimalType(38, 18)
-    elif dataType is not None:
-        return dataType()
+    elif data_type is not None:
+        return data_type()
 
     if isinstance(obj, dict):
         for key, value in obj.items():
@@ -257,8 +264,7 @@ def _infer_type(obj):
         else:
             raise TypeError("not supported type: array(%s)" % obj.typecode)
     else:
-        #try:
+        # try:
         #    return _infer_schema(obj)
-        #except TypeError:
+        # except TypeError:
         raise TypeError("not supported type: %s" % type(obj))
-
