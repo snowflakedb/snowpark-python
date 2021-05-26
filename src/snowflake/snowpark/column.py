@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
 from src.snowflake.snowpark.internal.sp_expressions import Expression, UnresolvedAttribute, \
     UnresolvedStar, UnresolvedAlias, NamedExpression
 
@@ -7,7 +13,7 @@ class Column:
     def __init__(self, expr):
         if type(expr) == str:
             self.expression = self.__get_expr(expr)
-        elif issubclass(expr, Expression):
+        elif isinstance(expr, Expression):
             self.expression = expr
         else:
             raise Exception("Column ctor takes only str or expression.")

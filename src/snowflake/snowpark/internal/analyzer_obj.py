@@ -1,4 +1,8 @@
-from src.snowflake.snowpark.internal.sp_expressions import UnresolvedAttribute
+from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
+from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression, \
+    UnresolvedAttribute as SPUnresolvedAttribute, UnresolvedFunction as SPUnresolvedFunction, \
+    UnresolvedAlias as SPUnresolvedAlias, UnaryExpression as SPUnaryExpression, \
+    LeafExpression as SPLeafExpression, Literal as SPLiteral
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range
 
 # TODO fix import
@@ -16,16 +20,91 @@ class Analyzer:
         self.plan_builder = SP.SnowflakePlanBuilder(self.session)
         self.package = AnalyzerPackage()
 
-
     def analyze(self, expr):
 
+        if type(expr) is SPLiteral:
+            return DataTypeMapper.to_sql(expr.value, expr.datatype)
+
         # unresolved expression
-        if type(expr) is UnresolvedAttribute:
+        if type(expr) is SPUnresolvedAttribute:
             if len(expr.name_parts) == 1:
                 return expr.name_parts[0]
             else:
                 raise Exception(f"Invalid name {'.'.join(expr.name_parts)}")
+        if type(expr) is SPUnresolvedFunction:
+            # TODO expr.name should return FunctionIdentifier, and we should pass expr.name.funcName
+            return self.package.function_expression(expr.name,
+                                                    list(map(self.analyze, expr.children)),
+                                                    expr.is_distinct)
+
+        # Extractors
+
+        res = self.unary_expression_extractor(expr)
+        if res:
+            return res
+
         raise Exception(f"Invalid type, analyze. {str(expr)}")
+
+    # TODO
+    def table_function_expression_extractor(self, expr):
+        pass
+
+    # TODO
+    def leaf_expression_extractor(self, expr):
+        if not isinstance(expr, SPLeafExpression):
+            return None
+
+    # TODO
+    def string_to_trim_expression_extractor(self, expr):
+        pass
+
+    # TODO
+    def complex_type_merging_expressing_extractor(self, expr):
+        pass
+
+    # TODO
+    def ternary_expression_extractor(self, expr):
+        pass
+
+    # TODO complete
+    def unary_expression_extractor(self, expr):
+        if not isinstance(expr, SPUnaryExpression):
+            return None
+
+        if isinstance(expr, SPUnresolvedAlias):
+            return self.analyze(expr.child)
+
+    # TODO
+    def special_frame_boundary_extractor(self, expr):
+        pass
+
+    # TODO
+    def offset_window_function_extractor(self, expr):
+        pass
+
+    # TODO
+    def binary_operator_extractor(self, expr):
+        pass
+
+    # TODO
+    def spark_binary_operator_extractor(self, expr):
+        pass
+
+    # TODO
+    def aggregate_extractor(self, expr):
+        pass
+
+    # TODO
+    def grouping_extractor(self, expr: SPExpression):
+        pass
+
+    # TODO
+    def window_frame_boundary(self, offset: str) -> str:
+        pass
+
+    # TODO
+    def to_sql_avoid_offset(self, expr: SPExpression) -> str:
+        pass
 
     # TODO
     def resolve(self, logical_plan):
@@ -76,5 +155,3 @@ class Analyzer:
 
         if type(lp) == UnresolvedRelation:
             return self.plan_builder.table('.'.join(lp.multipart_identifier))
-
-

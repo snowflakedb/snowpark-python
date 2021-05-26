@@ -1,4 +1,5 @@
 #  File containing the Expression definitions for ASTs (Spark).
+from src.snowflake.snowpark.types.types_package import _infer_type
 
 
 class Expression:
@@ -33,6 +34,22 @@ class Attribute(LeafExpression, NamedExpression):
         return Attribute(name)
 
 
+class Literal(LeafExpression):
+    def __init__(self, value, datatype):
+        self.value = value
+        self.datatype = datatype
+
+    @classmethod
+    def create(cls, value):
+        return cls(value, _infer_type(value))
+
+
+class UnresolvedFunction(Expression):
+    def __init__(self, name, arguments, is_distinct = False):
+        self.name = name
+        self.children = arguments
+        self.is_distinct = is_distinct
+
 class AttributeReference(Attribute):
     def __init__(self, name: str, data_type, nullable: bool):
         super().__init__(name)
@@ -42,7 +59,7 @@ class AttributeReference(Attribute):
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     def __init__(self, child, alias_func):
-        super().__init__()
+        super().__init__(child.name)
         self.child = child
         self.alias_func = alias_func
 
