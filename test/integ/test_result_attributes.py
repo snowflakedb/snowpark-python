@@ -157,9 +157,3 @@ def test_describe_schema_matches_execute_schema_for_show_queries(session_cnx, db
             show_query_schema_execute = session.conn._cursor.description
             assert len(show_query_schema_execute) > 0
             assert show_query_schema_execute == show_query_schema_execute
-
-
-
-
-
-
