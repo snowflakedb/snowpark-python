@@ -156,4 +156,5 @@ def test_describe_schema_matches_execute_schema_for_show_queries(session_cnx, db
             session._run_query(query)
             show_query_schema_execute = session.conn._cursor.description
             assert len(show_query_schema_execute) > 0
-            assert show_query_schema_execute == show_query_schema_execute
+            assert [attribute.name for attribute in show_query_schema_describe] \
+                   == [column[0] for column in show_query_schema_execute]
