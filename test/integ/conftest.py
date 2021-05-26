@@ -46,7 +46,7 @@ logger = getLogger(__name__)
 if RUNNING_ON_GH:
     TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 else:
-    TEST_SCHEMA = "python_connector_tests_" + str(uuid.uuid4()).replace("-", "_")
+    TEST_SCHEMA = "snowpark_python_tests_" + str(uuid.uuid4()).replace("-", "_")
 
 DEFAULT_PARAMETERS = {
     "account": "<account_name>",
@@ -236,10 +236,10 @@ def negative_conn_cnx() -> Callable[..., Generator["SnowflakeConnection", None, 
 
 @pytest.fixture()
 def session_cnx() -> Callable[..., "Session"]:
-    return get_psession
+    return get_session
 
 @contextmanager
-def get_psession(conn_params, use_jvm_for_network, use_jvm_for_plans):
+def get_session(conn_params, use_jvm_for_network=False, use_jvm_for_plans=False):
     if not conn_params.get("timezone"):
         conn_params["timezone"] = "UTC"
     if not conn_params.get("converter_class"):
