@@ -11,7 +11,7 @@ from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from typing import (
     List,
 )
-# from py4j.java_gateway import JavaGateway, GatewayParameters
+from py4j.java_gateway import JavaGateway, GatewayParameters
 
 import pathlib
 
@@ -20,7 +20,6 @@ import snowflake.connector
 from .plans.logical.basic_logical_operators import Range
 from .internal.analyzer_obj import Analyzer
 from .plans.logical.logical_plan import UnresolvedRelation
-
 
 
 class Session:
