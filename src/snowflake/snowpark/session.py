@@ -11,7 +11,7 @@ from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from typing import (
     List,
 )
-from py4j.java_gateway import JavaGateway, GatewayParameters
+# from py4j.java_gateway import JavaGateway, GatewayParameters
 
 import pathlib
 

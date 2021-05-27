@@ -12,57 +12,7 @@ from .types.sf_types import DataType, ArrayType, StringType, VariantType, MapTyp
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.constants import FIELD_ID_TO_NAME
-from typing import (
-    Any,
-    List,
-    Tuple,
-)
-
-
-def _get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
-    if column_type_name == 'ARRAY':
-        return ArrayType(StringType)
-    if column_type_name == 'VARIANT':
-        return VariantType
-    if column_type_name == 'OBJECT':
-        return MapType(StringType, StringType)
-    if column_type_name == 'GEOGRAPHY':  # not supported by python connector
-        return GeographyType
-    if column_type_name == 'BOOLEAN':
-        return BooleanType
-    if column_type_name == 'BINARY':
-        return BinaryType
-    if column_type_name == 'TEXT':
-        return StringType
-    if column_type_name == 'TIME':
-        return TimeType
-    if column_type_name == 'TIMESTAMP' or column_type_name == 'TIMESTAMP_LTZ' or column_type_name == 'TIMESTAMP_TZ' or \
-            column_type_name == 'TIMESTAMP_NTZ':
-        return TimestampType
-    if column_type_name == 'DATE':
-        return DateType
-    if column_type_name == 'DECIMAL' or (column_type_name == 'FIXED' and scale != 0):
-        if precision != 0 or scale != 0:
-            if precision > DecimalType.MAX_PRECISION:
-                return DecimalType(DecimalType.MAX_PRECISION, scale + precision - DecimalType.MAX_SCALE)
-            else:
-                return DecimalType(precision, scale)
-        else:
-            return DecimalType(38, 15)  # Spark 1.5.0 default
-    if column_type_name == 'REAL':
-        return DoubleType
-    if column_type_name == 'FIXED' and scale == 0:
-        return LongType
-    raise NotImplementedError("Unsupported type: {}, precision: {}, scale: {}".format(column_type_name, precision,
-                                                                                      scale))
-
-
-def convert_result_meta_to_attribute(meta: List[Tuple[Any, ...]]) -> List['Attribute']:
-    attributes = []
-    for column_name, type_value, _, _, precision, scale, nullable in meta:
-        attributes.append(Attribute(column_name, _get_data_type(FIELD_ID_TO_NAME[type_value], precision, scale),
-                                    nullable))
-    return attributes
+from typing import Any, List, Tuple
 
 
 class ServerConnection:
@@ -77,6 +27,53 @@ class ServerConnection:
     def get_session_id(self):
         return self.__conn.session_id
 
+    @staticmethod
+    def _get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
+        """Convert the Snowflake logical type to the Snowpark type. """
+        if column_type_name == 'ARRAY':
+            return ArrayType(StringType)
+        if column_type_name == 'VARIANT':
+            return VariantType
+        if column_type_name == 'OBJECT':
+            return MapType(StringType, StringType)
+        if column_type_name == 'GEOGRAPHY':  # not supported by python connector
+            return GeographyType
+        if column_type_name == 'BOOLEAN':
+            return BooleanType
+        if column_type_name == 'BINARY':
+            return BinaryType
+        if column_type_name == 'TEXT':
+            return StringType
+        if column_type_name == 'TIME':
+            return TimeType
+        if column_type_name == 'TIMESTAMP' or column_type_name == 'TIMESTAMP_LTZ' \
+                or column_type_name == 'TIMESTAMP_TZ' or column_type_name == 'TIMESTAMP_NTZ':
+            return TimestampType
+        if column_type_name == 'DATE':
+            return DateType
+        if column_type_name == 'DECIMAL' or (column_type_name == 'FIXED' and scale != 0):
+            if precision != 0 or scale != 0:
+                if precision > DecimalType.MAX_PRECISION:
+                    return DecimalType(DecimalType.MAX_PRECISION, scale + precision - DecimalType.MAX_SCALE)
+                else:
+                    return DecimalType(precision, scale)
+            else:
+                return DecimalType(38, 15)  # Spark 1.5.0 default
+        if column_type_name == 'REAL':
+            return DoubleType
+        if column_type_name == 'FIXED' and scale == 0:
+            return LongType
+        raise NotImplementedError("Unsupported type: {}, precision: {}, scale: {}".format(column_type_name, precision,
+                                                                                          scale))
+
+    @staticmethod
+    def convert_result_meta_to_attribute(meta: List[Tuple[Any, ...]]) -> List['Attribute']:
+        attributes = []
+        for column_name, type_value, _, _, precision, scale, nullable in meta:
+            attributes.append(Attribute(column_name, ServerConnection._get_data_type(FIELD_ID_TO_NAME[type_value],
+                                                                                     precision, scale), nullable))
+        return attributes
+
     def get_result_attributes(self, query: str) -> List['Attribute']:
         lowercase = query.strip().lower()
         if lowercase.startswith("put") or lowercase.startswith("get"):
@@ -87,7 +84,7 @@ class ServerConnection:
                 self._cursor.describe(query)
             else:
                 self._cursor.execute(query)
-            return convert_result_meta_to_attribute(self._cursor.description)
+            return ServerConnection.convert_result_meta_to_attribute(self._cursor.description)
 
     def run_query(self, query):
         results_cursor = self._cursor.execute(query)
