@@ -11,7 +11,7 @@ import sys
 
 from .sf_types import BinaryType, BooleanType, DataType, DateType, IntegerType, LongType, \
     DoubleType, FloatType, ShortType, ByteType, DecimalType, StringType, TimeType, VariantType, \
-    TimestampType, StructType, MapType
+    TimestampType, StructType, MapType, ArrayType
 
 from .sp_data_types import DataType as SPDataType, BooleanType as SPBooleanType, \
     StructType as SPStructType, StructField as SPStructField, StringType as SPStringType, \
