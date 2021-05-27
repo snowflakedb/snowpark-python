@@ -16,6 +16,15 @@ class DataType:
     def __repr__(self) -> str:
         return self.type_name
 
+    def __hash__(self):
+        return hash(str(self))
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
 
 # Data types
 
@@ -138,6 +147,23 @@ class DecimalType(FractionalType):
         return self.to_string()
 
 
+class ArrayType(DataType):
+
+    def __init__(self, element_type: DataType):
+        self.element_type = element_type
+
+    def to_string(self):
+        return f'ArrayType[{self.element_type.to_string()}]'
+
+    @property
+    def type_name(self):
+        """Returns Array Info. ArrayType(DataType), Alias of [[toString]]"""
+        return self.to_string()
+
+    def __repr__(self):
+        return self.to_string()
+
+
 class StructType(DataType):
 
     def __init__(self, fields):
@@ -192,3 +218,17 @@ class StructField:
     # TODO
     def tree_string(self, layer: int):
         raise Exception("Not Implemented tree_string()")
+
+
+class GeographyType(AtomicType):
+    def to_string(self):
+        """Returns GeographyType Info. Decimal(precision, scale)"""
+        return "GeographyType"
+
+    @property
+    def type_name(self):
+        """Returns GeographyType Info. GeographyType, Alias of [[toString]]"""
+        return self.to_string()
+
+    def __repr__(self):
+        return self.to_string()

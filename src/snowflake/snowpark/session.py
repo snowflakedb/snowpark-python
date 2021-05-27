@@ -7,8 +7,11 @@
 from .dataframe import DataFrame
 from .server_connection import ServerConnection
 from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlanBuilder
-
-from py4j.java_gateway import JavaGateway, GatewayParameters
+from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from typing import (
+    List,
+)
+# from py4j.java_gateway import JavaGateway, GatewayParameters
 
 import pathlib
 
@@ -53,12 +56,7 @@ class Session:
 
     def __init_conn(self, config):
         print("Connecting python-connector to SF...")
-        connector_conn = snowflake.connector.connect(host=config['url'], account=config['account'],
-                                                     port=config['port'],
-                                                     protocol=config[
-                                                         'protocol'] if 'protocol' in config else 'https',
-                                                     user=config['user'],
-                                                     password=config['password'])
+        connector_conn = snowflake.connector.connect(**config)
         self.conn = ServerConnection(connector_conn)
         self.__session_id = self.conn.get_session_id()
 
@@ -181,6 +179,12 @@ class Session:
         else:
             # TODO entry point for non-jvm logical plans
             return DataFrame(session=self, jvm_df=None, plan=self.__plan_builder.query(query, None))
+
+    def _run_query(self, query):
+        return self.conn.run_query(query)
+
+    def get_result_attributes(self, query: str) -> List['Attribute']:
+        return self.conn.get_result_attributes(query)
 
     def range(self, *args) -> DataFrame:
         start, step = 0, 1
