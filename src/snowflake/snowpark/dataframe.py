@@ -105,6 +105,8 @@ class DataFrame:
         if type(condition) == str:
             column = Column(condition)
             return self.__with_plan(Filter(column.expression, self.__plan))
+        if type(condition) == Column:
+            return self.__with_plan(Filter(condition.expression, self.__plan))
 
     def __select_with_jvm_dfs(self, expr):
         if type(expr) == str:
@@ -157,7 +159,7 @@ class DataFrame:
         if not keep_col_names:
             raise Exception("Cannot drop all columns")
         else:
-            self.__select_with_py_dfs(list(keep_col_names))
+            return self.__select_with_py_dfs(list(keep_col_names))
 
     def __output(self):
         return self.__plan.output()

@@ -5,6 +5,8 @@ from src.snowflake.snowpark.types.types_package import _infer_type
 class Expression:
     pass
 
+class Star(Expression):
+    pass
 
 class NamedExpression(Expression):
     def __init__(self, name):
@@ -19,6 +21,26 @@ class LeafExpression(Expression):
     pass
 
 
+class BinaryExpression(Expression):
+    def __init__(self):
+        self.left = None
+        self.right = None
+
+
+class UnresolvedFunction(Expression):
+    def __init__(self, name, arguments, is_distinct=False):
+        self.name = name
+        self.children = arguments
+        self.is_distinct = is_distinct
+
+
+# Stars
+class UnresolvedStar(Star):
+    def __init__(self, name):
+        self.name = name
+
+
+# Named Expressions
 class Alias(UnaryExpression, NamedExpression):
     def __init__(self, child, name):
         super().__init__(name=name)
@@ -34,6 +56,14 @@ class Attribute(LeafExpression, NamedExpression):
         return Attribute(name)
 
 
+class UnresolvedAlias(UnaryExpression, NamedExpression):
+    def __init__(self, child, alias_func):
+        super().__init__(child.name)
+        self.child = child
+        self.alias_func = alias_func
+
+
+# Leaf Expressions
 class Literal(LeafExpression):
     def __init__(self, value, datatype):
         self.value = value
@@ -44,24 +74,55 @@ class Literal(LeafExpression):
         return cls(value, _infer_type(value))
 
 
-class UnresolvedFunction(Expression):
-    def __init__(self, name, arguments, is_distinct = False):
-        self.name = name
-        self.children = arguments
-        self.is_distinct = is_distinct
+# Binary Expressions
+class BinaryOperator(BinaryExpression):
+    pass
 
+
+class BinaryComparison(BinaryOperator):
+    #Note for BinaryComparison expression we have to assign its symbol value.
+    pass
+
+
+class EqualTo(BinaryComparison):
+    symbol = '='
+
+    def __init__(self, left, right):
+        assert isinstance(left, Expression)
+        assert isinstance(right, Expression)
+        super().__init__()
+        self.left = left
+        self.right = right
+
+
+class GreaterThan(BinaryComparison):
+    symbol = '>'
+
+    def __init__(self, left, right):
+        assert isinstance(left, Expression)
+        assert isinstance(right, Expression)
+        super().__init__()
+        self.left = left
+        self.right = right
+
+
+class GreaterThanOrEqual(BinaryComparison):
+    symbol = '>='
+
+    def __init__(self, left, right):
+        assert isinstance(left, Expression)
+        assert isinstance(right, Expression)
+        super().__init__()
+        self.left = left
+        self.right = right
+
+
+# Attributes
 class AttributeReference(Attribute):
     def __init__(self, name: str, data_type, nullable: bool):
         super().__init__(name)
         self.data_type = data_type
         self.nullable = nullable
-
-
-class UnresolvedAlias(UnaryExpression, NamedExpression):
-    def __init__(self, child, alias_func):
-        super().__init__(child.name)
-        self.child = child
-        self.alias_func = alias_func
 
 
 class UnresolvedAttribute(Attribute):
@@ -84,12 +145,3 @@ class UnresolvedAttribute(Attribute):
     def parse_attribute_name(name):
         # TODO
         return name
-
-
-class Star(Expression):
-    pass
-
-
-class UnresolvedStar(Star):
-    def __init__(self, name):
-        self.name = name

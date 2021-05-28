@@ -37,7 +37,7 @@ class SnowflakePlan(LogicalPlan):
 
     # Convert to 'Spark' AttributeReference
     def output(self) -> list:
-        return [AttributeReference(a.name, snow_type_to_sp_type(a.dataType), a.nullable)
+        return [AttributeReference(a.name, snow_type_to_sp_type(a.data_type), a.nullable)
                 for a in self.attributes()]
 
 

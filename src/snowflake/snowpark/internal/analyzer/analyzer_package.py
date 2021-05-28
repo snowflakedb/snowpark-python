@@ -129,7 +129,12 @@ class AnalyzerPackage:
                self._SingleQuote + self._RightParenthesis + self._RightParenthesis
 
     def function_expression(self, name: str, children: list, is_distinct: bool):
-        return name + self._LeftParenthesis + f"{self._Distinct if is_distinct else self._EmptyString}" + self._Comma.join(children) + self._RightParenthesis
+        return name + self._LeftParenthesis + \
+               f"{self._Distinct if is_distinct else self._EmptyString}" + \
+               self._Comma.join(children) + self._RightParenthesis
+
+    def binary_comparison(self, left: str, right: str, symbol: str) -> str:
+        return left + self._Space + symbol + self._Space + right
 
     def project_statement(self, project=None, child=None, is_distinct=False):
         return self._Select + \
@@ -159,8 +164,8 @@ class AnalyzerPackage:
             self.table(self.generator(0 if (count < 0) else count)))
 
     def schema_value_statement(self, output):
-        return self._Select +\
-               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type,attr.nullable) +
+        return self._Select + \
+               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type, attr.nullable) +
                                  self._As + self.quote_name(attr.name) for attr in output])
 
     def generator(self, row_count):
@@ -189,7 +194,8 @@ class AnalyzerPackage:
     def quote_name_without_upper_casing(self, name):
         return self._DoubleQuote + self._escape_quotes(name) + self._DoubleQuote
 
-    def _escape_quotes(self, unescaped):
+    @staticmethod
+    def _escape_quotes(unescaped):
         return unescaped.replace('\"', '\"\"')
 
     # Most integer types map to number(38,0)

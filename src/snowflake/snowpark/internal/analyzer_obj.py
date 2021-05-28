@@ -2,7 +2,7 @@ from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMap
 from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression, \
     UnresolvedAttribute as SPUnresolvedAttribute, UnresolvedFunction as SPUnresolvedFunction, \
     UnresolvedAlias as SPUnresolvedAlias, UnaryExpression as SPUnaryExpression, \
-    LeafExpression as SPLeafExpression, Literal as SPLiteral
+    LeafExpression as SPLeafExpression, Literal as SPLiteral, BinaryExpression as SPBinaryExpression
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range
 
 # TODO fix import
@@ -40,6 +40,9 @@ class Analyzer:
         # Extractors
 
         res = self.unary_expression_extractor(expr)
+        if res:
+            return res
+        res = self.spark_binary_operator_extractor(expr)
         if res:
             return res
 
@@ -88,7 +91,12 @@ class Analyzer:
 
     # TODO
     def spark_binary_operator_extractor(self, expr):
-        pass
+        if not isinstance(expr, SPBinaryExpression):
+            return None
+
+        if isinstance(expr, SPBinaryExpression):
+            return self.package.binary_comparison(self.analyze(expr.left), self.analyze(expr.right),
+                                                  expr.symbol)
 
     # TODO
     def aggregate_extractor(self, expr):

@@ -42,35 +42,35 @@ def to_udf_argument_type(datatype) -> str:
 
 # TODO maybe change to isinstance()
 def convert_to_sf_type(data_type: DataType) -> str:
-    if type(data_type) is DecimalType:
+    if data_type is DecimalType:
         return f"NUMBER(${data_type.precision}, ${data_type.scale})"
-    if type(data_type) is IntegerType:
+    if data_type is IntegerType:
         return "INT"
-    if type(data_type) is ShortType:
+    if data_type is ShortType:
         return "SMALLINT"
-    if type(data_type) is ByteType:
+    if data_type is ByteType:
         return "BYTEINT"
-    if type(data_type) is LongType:
+    if data_type is LongType:
         return "BIGINT"
-    if type(data_type) is FloatType:
+    if data_type is FloatType:
         return "FLOAT"
-    if type(data_type) is DoubleType:
+    if data_type is DoubleType:
         return "DOUBLE"
-    if type(data_type) is StringType:
+    if data_type is StringType:
         return "STRING"
-    if type(data_type) is BooleanType:
+    if data_type is BooleanType:
         return "BOOLEAN"
-    if type(data_type) is DateType:
+    if data_type is DateType:
         return "DATE"
-    if type(data_type) is TimeType:
+    if data_type is TimeType:
         return "TIME"
-    if type(data_type) is TimestampType:
+    if data_type is TimestampType:
         return "TIMESTAMP"
-    if type(data_type) is BinaryType:
+    if data_type is BinaryType:
         return "BINARY"
-    if type(data_type) is ArrayType:
+    if data_type is ArrayType:
         return "ARRAY"
-    if type(data_type) is VariantType:
+    if data_type is VariantType:
         return "VARIANT"
     # if type(data_type) is GeographyType:
     #    return "GEOGRAPHY"
