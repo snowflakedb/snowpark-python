@@ -1,16 +1,14 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-import pytest
 import uuid
 
 # TODO fix 'src.' in imports
-from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.session import Session
 from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from src.snowflake.snowpark.types.sf_types import DataType, ArrayType, StringType, VariantType, MapType, GeographyType, \
+from src.snowflake.snowpark.types.sf_types import DataType, ArrayType, StringType, VariantType, MapType, GeographyType,\
     BooleanType, BinaryType, TimeType, TimestampType, DateType, DecimalType, DoubleType, LongType
 from typing import (
     List,
