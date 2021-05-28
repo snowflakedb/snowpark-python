@@ -96,39 +96,12 @@ class ServerConnection:
         rows = [Row(row) for row in result_set]
         return rows
 
-    def execute(self, input):
+    def execute(self, input: 'SnowflakePlan'):
         # Handle scenarios for whether we pass queries or a DF
-        if type(input) == DataFrame:
-            return self.result_set_to_rows(self.get_result_set_from_DF(input))
         if type(input) == SnowflakePlan:
             return self.result_set_to_rows(self.get_result_set_from_plan(input))
         # TODO cleanup
         raise Exception("Should not have reached here. Serverconnection.execute")
-
-    def get_result_set_from_DF(self, df):
-        queries = df._get_sql_queries_for_df()
-        action_id = df.session._generate_new_action_id()
-
-        result = None
-        try:
-            placeholders = {}
-            for query in queries:
-                final_query = query
-                for holder, Id in placeholders.items():
-                    # TODO revisit
-                    final_query = final_query.replace(holder, Id)
-                if action_id < df.session.get_last_canceled_id():
-                    raise Exception("Query was canceled by user")
-                result = self.run_query(final_query)
-                # TODO revisit
-                # last_id = result.get_query_id()
-                # placeholders[query.query_id_placeholder] = last_id
-        finally:
-            # delete create tmp object
-            # TODO get plan.postActions
-            pass
-
-        return result
 
     def get_result_set_from_plan(self, plan):
         action_id = plan.session._generate_new_action_id()
@@ -157,7 +130,7 @@ class ServerConnection:
     def get_result_and_metadata(self, plan: SnowflakePlan) -> (List['Row'], List['Attribute']):
         result_set = self.get_result_set_from_plan(plan)
         result = self.result_set_to_rows(result_set)
-        meta = convert_result_meta_to_attribute(self._cursor.description)
+        meta = ServerConnection.convert_result_meta_to_attribute(self._cursor.description)
         return result, meta
 
     # TODO

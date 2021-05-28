@@ -1,12 +1,15 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
 from src.snowflake.snowpark.functions import builtin, col, call_builtin
 from src.snowflake.snowpark.row import Row
 
 
 def test_builtin_avg_from_range(session_cnx, db_parameters):
     """Tests the builtin functionality, using avg()."""
-    with session_cnx(db_parameters, False, False) as session:
-        session.sql('use warehouse tests_pysnowpark').collect()
-
+    with session_cnx(db_parameters) as session:
         avg = builtin('avg')
 
         df = session.range(1, 10, 2).select(avg(col('id')))
@@ -35,9 +38,7 @@ def test_builtin_avg_from_range(session_cnx, db_parameters):
 
 def test_call_builtin_avg_from_range(session_cnx, db_parameters):
     """Tests the builtin functionality, using avg()."""
-    with session_cnx(db_parameters, False, False) as session:
-        session.sql('use warehouse tests_pysnowpark').collect()
-
+    with session_cnx(db_parameters) as session:
         df = session.range(1, 10, 2).select(call_builtin('avg', col('id')))
         res = df.collect()
         expected = [Row([5.000])]
