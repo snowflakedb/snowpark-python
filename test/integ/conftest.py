@@ -19,7 +19,6 @@ from snowflake.connector.compat import IS_WINDOWS
 from snowflake.connector.connection import DefaultConverterClass
 
 # TODO fix '.src'
-import src.snowflake.snowpark
 from src.snowflake.snowpark.session import Session
 
 from .. import running_on_public_ci
@@ -238,13 +237,14 @@ def negative_conn_cnx() -> Callable[..., Generator["SnowflakeConnection", None, 
 def session_cnx() -> Callable[..., "Session"]:
     return get_session
 
+
 @contextmanager
-def get_session(conn_params, use_jvm_for_network=False, use_jvm_for_plans=False):
+def get_session(conn_params):
     if not conn_params.get("timezone"):
         conn_params["timezone"] = "UTC"
     if not conn_params.get("converter_class"):
         conn_params["converter_class"] = DefaultConverterClass()
-    session = Session(conn_params, use_jvm_for_network, use_jvm_for_plans)
+    session = Session(conn_params)
     try:
         yield session
     finally:

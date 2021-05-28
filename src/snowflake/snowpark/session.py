@@ -11,7 +11,6 @@ from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from typing import (
     List,
 )
-# from py4j.java_gateway import JavaGateway, GatewayParameters
 
 import pathlib
 
@@ -25,7 +24,7 @@ from .plans.logical.logical_plan import UnresolvedRelation
 class Session:
     __STAGE_PREFIX = "@"
 
-    def __init__(self, config, use_jvm_for_network, use_jvm_for_plans):
+    def __init__(self, config):
         self._config = config
         self.query_tag = None
         self.__claspathURIs = {}
@@ -47,40 +46,11 @@ class Session:
         # Setup SF-connector connections
         self.__init_conn(config)
 
-        # JVM Stuff
-        self.use_jvm_for_network = use_jvm_for_network
-        self.use_jvm_for_plans = True if use_jvm_for_network else use_jvm_for_plans
-
-        if self.use_jvm_for_network or self.use_jvm_for_plans:
-            self.__start_jvm(config)
-
     def __init_conn(self, config):
         print("Connecting python-connector to SF...")
         connector_conn = snowflake.connector.connect(**config)
         self.conn = ServerConnection(connector_conn)
         self.__session_id = self.conn.get_session_id()
-
-    # TODO should be removed eventually, same for __set_jvm_session
-    def __start_jvm(self, config):
-        self.__gateway = JavaGateway(
-            gateway_parameters=GatewayParameters(port=25335, auto_convert=True))
-        self.__jvm = self.__gateway.jvm
-        global jvm
-        jvm = self.__jvm
-        self.__set_jvm_session(config)
-
-    # TODO need to rewrite for SSO, keys etc.
-    def __set_jvm_session(self, config):
-        print("Connecting JVM to SF...")
-        jvm_config = self.__jvm.java.util.HashMap()
-        jvm_config["URL"] = config['url'] + ':' + str(config['port'])
-        jvm_config["USER"] = config['user']
-        jvm_config["PASSWORD"] = config['password']
-        jvm_config["PROTOCOL"] = config['protocol']
-        if 'ssl' in config:
-            jvm_config['ssl'] = 'off'
-        self.__jvm_session = self.__jvm.com.snowflake.snowpark.Session.builder().configs(
-            jvm_config).create()
 
     def _generate_new_action_id(self):
         self.__last_action_id += 1
@@ -138,7 +108,7 @@ class Session:
         self.query_tag = query_tag
 
     # TODO
-    def _resolve_jav_dependencies(self, stage_location):
+    def _resolve_jar_dependencies(self, stage_location):
         pass
 
     # TODO
@@ -160,25 +130,10 @@ class Session:
             fqdn = name
         else:
             raise Exception("Table name should be str or list of strings.")
-        if self.use_jvm_for_plans:
-            return self.__table_with_jvm_dfs(fqdn)
-        else:
-            return self.__table_with_py_dfs(fqdn)
-
-    def __table_with_jvm_dfs(self, name) -> DataFrame:
-        jvm_df = self.__jvm_session.table(name)
-        return DataFrame(session=self, jvm_df=jvm_df)
-
-    def __table_with_py_dfs(self, fqdn) -> DataFrame:
         return DataFrame(self, UnresolvedRelation(fqdn))
 
     def sql(self, query) -> DataFrame:
-        if self.use_jvm_for_plans:
-            jdf = self.__jvm_session.sql(query)
-            return DataFrame(session=self, jvm_df=jdf)
-        else:
-            # TODO entry point for non-jvm logical plans
-            return DataFrame(session=self, jvm_df=None, plan=self.__plan_builder.query(query, None))
+        return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
 
     def _run_query(self, query):
         return self.conn.run_query(query)
@@ -198,17 +153,7 @@ class Session:
         else:
             raise Exception(f"Range requires one to three arguments. {len(args)} provided.")
 
-        if self.use_jvm_for_plans:
-            return DataFrame(session=self, jvm_df=self.__jvm_session.range(start, end, step))
-        else:
-            return DataFrame(session=self, plan=Range(start, end, step))
-
-    def _get_queries_for_df(self, jdf):
-        """ Takes as input a pointer to a Scala DF in the JVM and returns the SQL queries to be
-        sent to the SF backend. """
-        scala_list = self.__jvm_session.queries(jdf)
-        java_list = self.__jvm.scala.collection.JavaConverters.seqAsJavaList(scala_list)
-        return [el for el in java_list]
+        return DataFrame(session=self, plan=Range(start, end, step))
 
     # TODO complete
     def __disable_stderr(self):
