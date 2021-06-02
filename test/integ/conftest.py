@@ -245,7 +245,6 @@ def get_session(conn_params):
     if not conn_params.get("converter_class"):
         conn_params["converter_class"] = DefaultConverterClass()
     session = Session(conn_params)
-    session.sql('use warehouse tests_pysnowpark').collect()
     try:
         yield session
     finally:
