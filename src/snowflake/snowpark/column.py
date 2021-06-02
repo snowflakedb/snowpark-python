@@ -26,23 +26,23 @@ class Column:
     # TODO make subscriptable
 
     # Overload operators.
-    def __eq__(self, other):
+    def __eq__(self, other) -> 'Column':
         right = self.__to_expr(other)
         return self.with_expr(SPEqualTo(self.expression, right))
 
-    def __gt__(self, other):
+    def __gt__(self, other) -> 'Column':
         return self.with_expr(SPGreaterThan(self.expression, self.__to_expr(other)))
 
-    def __ge__(self, other):
+    def __ge__(self, other) -> 'Column':
         return self.with_expr(SPGreaterThanOrEqual(self.expression, self.__to_expr(other)))
 
-    def named(self):
+    def named(self) -> SPExpression:
         if isinstance(self.expression, SPNamedExpression):
             return self.expression
         else:
             return SPUnresolvedAlias(self.expression, None)
 
-    def getName(self):
+    def getName(self) -> str:
         """Returns the column name if it has one."""
         if isinstance(self.expression, SPNamedExpression):
             return self.expression.name
@@ -53,11 +53,11 @@ class Column:
     def __repr__(self):
         return f"Column[{self.expression.toString()}]"
 
-    def alias(self, alias: str):
+    def alias(self, alias: str) -> 'Column':
         """Returns a new renamed Column. Alias of [[name]]."""
         return self.name(alias)
 
-    def name(self, alias):
+    def name(self, alias) -> 'Column':
         """Returns a new renamed Column."""
         return self.with_expr(SPAlias(self.expression, self.analyzer_package.quote_name(alias)))
 

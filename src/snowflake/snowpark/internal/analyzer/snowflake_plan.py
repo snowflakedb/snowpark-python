@@ -4,6 +4,8 @@ from src.snowflake.snowpark.plans.logical.logical_plan import LogicalPlan
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
+from typing import List
+
 
 class SnowflakePlan(LogicalPlan):
     # for read_file()
@@ -36,7 +38,7 @@ class SnowflakePlan(LogicalPlan):
         return output
 
     # Convert to 'Spark' AttributeReference
-    def output(self) -> list:
+    def output(self) -> List[SPAttributeReference]:
         return [SPAttributeReference(a.name, snow_type_to_sp_type(a.data_type), a.nullable)
                 for a in self.attributes()]
 

@@ -11,43 +11,43 @@ class SchemaUtils:
 
     @staticmethod
     def command_attributes():
-        return [Attribute("\"status\"", StringType)]
+        return [Attribute("\"status\"", StringType())]
 
     @staticmethod
     def list_stage_attributes():
         return [
-            Attribute("\"name\"", StringType),
-            Attribute("\"size\"", LongType),
-            Attribute("\"md5\"", StringType),
-            Attribute("\"last_modified\"", StringType)
+            Attribute("\"name\"", StringType()),
+            Attribute("\"size\"", LongType()),
+            Attribute("\"md5\"", StringType()),
+            Attribute("\"last_modified\"", StringType())
         ]
 
     @staticmethod
     def remove_state_file_attributes():
-        return [Attribute("\"name\"", StringType), Attribute("\"result\"", StringType)]
+        return [Attribute("\"name\"", StringType()), Attribute("\"result\"", StringType())]
 
     @staticmethod
     def put_attributes():
         return [
-            Attribute("\"source\"", StringType, nullable=False),
-            Attribute("\"target\"", StringType, nullable=False),
+            Attribute("\"source\"", StringType(), nullable=False),
+            Attribute("\"target\"", StringType(), nullable=False),
             Attribute("\"source_size\"", DecimalType(10, 0), nullable=False),
             Attribute("\"target_size\"", DecimalType(10, 0), nullable=False),
-            Attribute("\"source_compression\"", StringType, nullable=False),
-            Attribute("\"target_compression\"", StringType, nullable=False),
-            Attribute("\"status\"", StringType, nullable=False),
-            Attribute("\"encryption\"", StringType, nullable=False),
-            Attribute("\"message\"", StringType, nullable=False)
+            Attribute("\"source_compression\"", StringType(), nullable=False),
+            Attribute("\"target_compression\"", StringType(), nullable=False),
+            Attribute("\"status\"", StringType(), nullable=False),
+            Attribute("\"encryption\"", StringType(), nullable=False),
+            Attribute("\"message\"", StringType(), nullable=False)
         ]
 
     @staticmethod
     def get_attributes():
         return [
-            Attribute("\"file\"", StringType, nullable=False),
+            Attribute("\"file\"", StringType(), nullable=False),
             Attribute("\"size\"", DecimalType(10, 0), nullable=False),
-            Attribute("\"status\"", StringType, nullable=False),
-            Attribute("\"encryption\"", StringType, nullable=False),
-            Attribute("\"message\"", StringType, nullable=False)
+            Attribute("\"status\"", StringType(), nullable=False),
+            Attribute("\"encryption\"", StringType(), nullable=False),
+            Attribute("\"message\"", StringType(), nullable=False)
         ]
 
     @staticmethod
