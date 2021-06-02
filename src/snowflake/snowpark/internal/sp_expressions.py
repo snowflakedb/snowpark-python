@@ -1,23 +1,29 @@
 #  File containing the Expression definitions for ASTs (Spark).
 from src.snowflake.snowpark.types.types_package import _infer_type
 
+import uuid
+
 
 class Expression:
     pass
 
-class Star(Expression):
-    pass
 
 class NamedExpression(Expression):
     def __init__(self, name):
         self.name = name
 
 
-class UnaryExpression(Expression):
+class LeafExpression(Expression):
     pass
 
 
-class LeafExpression(Expression):
+class Star(LeafExpression, NamedExpression):
+    @property
+    def name(self):
+        raise Exception("UnresolvedException - Invalid call to name on unresolved object")
+
+
+class UnaryExpression(Expression):
     pass
 
 
@@ -36,15 +42,16 @@ class UnresolvedFunction(Expression):
 
 # Stars
 class UnresolvedStar(Star):
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, target):
+        self.target = target
 
 
 # Named Expressions
 class Alias(UnaryExpression, NamedExpression):
-    def __init__(self, child, name):
+    def __init__(self, child, name, expr_id=None):
         super().__init__(name=name)
         self.child = child
+        self.expr_id = expr_id if expr_id else uuid.uuid4()
 
 
 class Attribute(LeafExpression, NamedExpression):
@@ -80,7 +87,7 @@ class BinaryOperator(BinaryExpression):
 
 
 class BinaryComparison(BinaryOperator):
-    #Note for BinaryComparison expression we have to assign its symbol value.
+    # Note for BinaryComparison expressions we have to assign their symbol values.
     pass
 
 
@@ -130,6 +137,10 @@ class UnresolvedAttribute(Attribute):
     def __init__(self, name_parts):
         super().__init__(name_parts if type(name_parts) == str else name_parts[-1])
         self.name_parts = [name_parts] if type(name_parts) == str else name_parts
+
+    @property
+    def expr_id(self) -> None:
+        raise Exception("UnresolvedException - expr_id")
 
     @classmethod
     def quoted(cls, name):

@@ -5,7 +5,7 @@
 #
 from ...types.types_package import convert_to_sf_type
 from ...types.sf_types import BinaryType, BooleanType, DateType, NumericType, StringType, \
-    VariantType, TimeType, TimestampType, MapType
+    VariantType, TimeType, TimestampType, MapType, ArrayType, LongType
 
 from ...types.sp_data_types import NullType as SPNullType, \
     LongType as SPLongType, StringType as SPStringType, DoubleType as SPDoubleType, \
@@ -132,7 +132,7 @@ class DataTypeMapper:
             return "NULL :: " + convert_to_sf_type(data_type)
 
         if isinstance(data_type, NumericType):
-            return "0 :: " + convert_to_sf_type(data_type)
+            return "0 :: " + convert_to_sf_type(type(data_type))
         if isinstance(data_type, StringType):
             return "'a' :: STRING"
         if isinstance(data_type, BinaryType):
@@ -153,7 +153,7 @@ class DataTypeMapper:
             return "to_variant(0)"
         # if isinstance(data_type, GeographyType):
         #    return "true"
-        raise Exception(f"Unsupported data type: {data_type.type_name()}")
+        raise Exception(f"Unsupported data type: {data_type.type_name}")
 
     @staticmethod
     def to_sql_without_cast(value, data_type):

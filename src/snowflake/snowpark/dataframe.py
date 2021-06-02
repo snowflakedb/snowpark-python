@@ -80,6 +80,8 @@ class DataFrame:
         if type(expr) == str:
             column = Column(expr)
             return self.__with_plan(Filter(column.expression, self.__plan))
+        if type(expr) == Column:
+            return self.__with_plan(Filter(expr.expression, self.__plan))
 
     def where(self, expr):
         self.filter(expr)

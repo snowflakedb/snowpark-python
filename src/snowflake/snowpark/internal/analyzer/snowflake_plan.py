@@ -1,4 +1,4 @@
-from src.snowflake.snowpark.internal.sp_expressions import AttributeReference
+from ..sp_expressions import AttributeReference as SPAttributeReference
 from src.snowflake.snowpark.internal.schema_utils import SchemaUtils
 from src.snowflake.snowpark.plans.logical.logical_plan import LogicalPlan
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
@@ -37,8 +37,11 @@ class SnowflakePlan(LogicalPlan):
 
     # Convert to 'Spark' AttributeReference
     def output(self) -> list:
-        return [AttributeReference(a.name, snow_type_to_sp_type(a.data_type), a.nullable)
+        return [SPAttributeReference(a.name, snow_type_to_sp_type(a.data_type), a.nullable)
                 for a in self.attributes()]
+
+    def add_aliases(self, to_add: dict):
+        self.expr_to_alias.update(to_add)
 
 
 class SnowflakePlanBuilder:

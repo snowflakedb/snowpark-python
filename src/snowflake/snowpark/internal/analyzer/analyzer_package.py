@@ -136,6 +136,9 @@ class AnalyzerPackage:
     def binary_comparison(self, left: str, right: str, symbol: str) -> str:
         return left + self._Space + symbol + self._Space + right
 
+    def alias_expression(self, origin: str, alias: str) -> str:
+        return origin + self._As + alias
+
     def project_statement(self, project=None, child=None, is_distinct=False):
         return self._Select + \
                f"{self._Distinct if is_distinct else ''}" + \
@@ -165,7 +168,7 @@ class AnalyzerPackage:
 
     def schema_value_statement(self, output):
         return self._Select + \
-               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type, attr.nullable) +
+               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type(), attr.nullable) +
                                  self._As + self.quote_name(attr.name) for attr in output])
 
     def generator(self, row_count):
