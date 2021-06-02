@@ -123,24 +123,32 @@ class AnalyzerPackage:
     _Get = " GET "
     _GroupingSets = " GROUPING SETS "
 
-    def result_scan_statement(self, uuid_place_holder):
+    def result_scan_statement(self, uuid_place_holder) -> str:
         return self._Select + self._Star + self._From + self._Table + self._LeftParenthesis + \
                self._ResultScan + self._LeftParenthesis + self._SingleQuote + uuid_place_holder + \
                self._SingleQuote + self._RightParenthesis + self._RightParenthesis
 
-    def function_expression(self, name: str, children: list, is_distinct: bool):
-        return name + self._LeftParenthesis + f"{self._Distinct if is_distinct else self._EmptyString}" + self._Comma.join(children) + self._RightParenthesis
+    def function_expression(self, name: str, children: list, is_distinct: bool) -> str:
+        return name + self._LeftParenthesis + \
+               f"{self._Distinct if is_distinct else self._EmptyString}" + \
+               self._Comma.join(children) + self._RightParenthesis
 
-    def project_statement(self, project=None, child=None, is_distinct=False):
+    def binary_comparison(self, left: str, right: str, symbol: str) -> str:
+        return left + self._Space + symbol + self._Space + right
+
+    def alias_expression(self, origin: str, alias: str) -> str:
+        return origin + self._As + alias
+
+    def project_statement(self, project=None, child=None, is_distinct=False) -> str:
         return self._Select + \
                f"{self._Distinct if is_distinct else ''}" + \
                f"{self._Star if not project else self._Comma.join(project)}" + \
                self._From + self._LeftParenthesis + child + self._RightParenthesis
 
-    def filter_statement(self, condition, child):
+    def filter_statement(self, condition, child) -> str:
         return self.project_statement([], child) + self._Where + condition
 
-    def range_statement(self, start, end, step, column_name):
+    def range_statement(self, start, end, step, column_name) -> str:
         range = end - start
 
         if range * step < 0:
@@ -158,25 +166,25 @@ class AnalyzerPackage:
         ],
             self.table(self.generator(0 if (count < 0) else count)))
 
-    def schema_value_statement(self, output):
-        return self._Select +\
-               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type,attr.nullable) +
+    def schema_value_statement(self, output) -> str:
+        return self._Select + \
+               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type(), attr.nullable) +
                                  self._As + self.quote_name(attr.name) for attr in output])
 
-    def generator(self, row_count):
+    def generator(self, row_count) -> str:
         return self._Generator + self._LeftParenthesis + self._RowCount + self._RightArrow + \
                str(row_count) + self._RightParenthesis
 
-    def table(self, content):
+    def table(self, content) -> str:
         return self._Table + self._LeftParenthesis + content + self._RightParenthesis
 
-    def single_quote(self, value: str):
+    def single_quote(self, value: str) -> str:
         if value.startswith(self._SingleQuote) and value.endswith(self._SingleQuote):
             return value
         else:
             return self._SingleQuote + value + self._SingleQuote
 
-    def quote_name(self, name: str):
+    def quote_name(self, name: str) -> str:
         already_quoted = re.compile("^(\".+\")$")
         unquoted_case_insensitive = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
         if already_quoted.match(name):
@@ -186,20 +194,21 @@ class AnalyzerPackage:
         else:
             return self._DoubleQuote + self._escape_quotes(name) + self._DoubleQuote
 
-    def quote_name_without_upper_casing(self, name):
+    def quote_name_without_upper_casing(self, name) -> str:
         return self._DoubleQuote + self._escape_quotes(name) + self._DoubleQuote
 
-    def _escape_quotes(self, unescaped):
+    @staticmethod
+    def _escape_quotes(unescaped) -> str:
         return unescaped.replace('\"', '\"\"')
 
     # Most integer types map to number(38,0)
     # https://docs.snowflake.com/en/sql-reference/
     # data-types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
     # TODO static
-    def number(self, precision: int = 38, scale: int = 0):
+    def number(self, precision: int = 38, scale: int = 0) -> str:
         return self._Number + self._LeftParenthesis + str(precision) + self._Comma + str(
             scale) + self._RightParenthesis
 
     @staticmethod
-    def randomNameForTempObject():
+    def random_name_for_temp_object() -> str:
         return f"SN_TEMP_OBJECT_${random.randint(0, pow(2, 31))}"

@@ -9,6 +9,7 @@ from .dataframe import DataFrame
 from .row import Row
 from .types.sf_types import DataType, ArrayType, StringType, VariantType, MapType, GeographyType, BooleanType,\
     BinaryType, TimeType, TimestampType, DateType, DecimalType, DoubleType, LongType
+from .internal.analyzer.analyzer_package import AnalyzerPackage
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.constants import FIELD_ID_TO_NAME
@@ -69,8 +70,10 @@ class ServerConnection:
     @staticmethod
     def convert_result_meta_to_attribute(meta: List[Tuple[Any, ...]]) -> List['Attribute']:
         attributes = []
+        analyzer_package = AnalyzerPackage()
         for column_name, type_value, _, _, precision, scale, nullable in meta:
-            attributes.append(Attribute(column_name, ServerConnection._get_data_type(FIELD_ID_TO_NAME[type_value],
+            quoted_name = analyzer_package.quote_name_without_upper_casing(column_name)
+            attributes.append(Attribute(quoted_name, ServerConnection._get_data_type(FIELD_ID_TO_NAME[type_value],
                                                                                      precision, scale), nullable))
         return attributes
 

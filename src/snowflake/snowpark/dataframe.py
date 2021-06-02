@@ -40,7 +40,7 @@ class DataFrame:
     def col(self, col_name):
         pass
 
-    def select(self, expr):
+    def select(self, expr) -> 'DataFrame':
         if type(expr) == str:
             cols = [Column(expr)]
         elif type(expr) == list:
@@ -53,7 +53,7 @@ class DataFrame:
         return self.__with_plan(Project([c.named() for c in cols], self.__plan))
 
     # TODO complete. requires plan.output
-    def drop(self, cols):
+    def drop(self, cols) -> 'DataFrame':
         names = []
         if type(cols) is str:
             names.append(cols)
@@ -73,16 +73,18 @@ class DataFrame:
         if not keep_col_names:
             raise Exception("Cannot drop all columns")
         else:
-            self.select(list(keep_col_names))
+            return self.select(list(keep_col_names))
 
     # TODO
-    def filter(self, expr):
+    def filter(self, expr) -> 'DataFrame':
         if type(expr) == str:
             column = Column(expr)
             return self.__with_plan(Filter(column.expression, self.__plan))
+        if type(expr) == Column:
+            return self.__with_plan(Filter(expr.expression, self.__plan))
 
-    def where(self, expr):
-        self.filter(expr)
+    def where(self, expr) -> 'DataFrame':
+        return self.filter(expr)
 
     def __output(self):
         return self.__plan.output()
