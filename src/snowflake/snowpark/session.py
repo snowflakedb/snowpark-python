@@ -9,13 +9,15 @@ from .server_connection import ServerConnection
 from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from typing import (
+    Dict,
     List,
+    Optional,
+    Union,
 )
 
 import pathlib
 
-import snowflake.connector
-
+from snowflake.connector import SnowflakeConnection
 from .plans.logical.basic_logical_operators import Range
 from .internal.analyzer_obj import Analyzer
 from .plans.logical.logical_plan import UnresolvedRelation
@@ -24,14 +26,14 @@ from .plans.logical.logical_plan import UnresolvedRelation
 class Session:
     __STAGE_PREFIX = "@"
 
-    def __init__(self, config):
-        self._config = config
-        self.query_tag = None
-        self.__claspathURIs = {}
+    def __init__(self, conn: ServerConnection):
+        self.conn = conn
+        self.__query_tag = None
+        self.__classpath_URIs = {}
         self.__stage_created = False
-        self._sessionId = -1  # TODO
         self._snowpark_jar_in_deps = False
-        self.__session_stage = "snowSession_" + str(self._sessionId)
+        self._session_id = self.conn.get_session_id()
+        self.__session_stage = "snowSession_" + str(self._session_id)
 
         self.__plan_builder = SnowflakePlanBuilder(self)
 
@@ -43,22 +45,13 @@ class Session:
         # TODO
         # self.factory
 
-        # Setup SF-connector connections
-        self.__init_conn(config)
-
-    def __init_conn(self, config):
-        print("Connecting python-connector to SF...")
-        connector_conn = snowflake.connector.connect(**config)
-        self.conn = ServerConnection(connector_conn)
-        self.__session_id = self.conn.get_session_id()
-
     def _generate_new_action_id(self):
         self.__last_action_id += 1
         return self.__last_action_id
 
     def close(self):
         # TODO revisit
-        self.connection.close()
+        self.conn.close()
 
     def get_last_canceled_id(self):
         return self.__last_canceled_id
@@ -70,14 +63,14 @@ class Session:
         :return: None
         """
         self.__last_canceled_id = self.__last_action_id
-        self.conn.run_query(f"select system$$cancel_all_queries({self.conn.get_session_id()})")
+        self.conn.run_query(f"select system$$cancel_all_queries({self._session_id})")
 
     def get_dependencies(self):
         """
         Returns all the dependencies added for user defined functions. Includes any automatically
         added jars. :return: set
         """
-        return set(self.__claspathURIs.keys())
+        return set(self.__classpath_URIs.keys())
 
     def _get_local_file_dependencies(self):
         result = set()
@@ -87,8 +80,8 @@ class Session:
         return result
 
     @property
-    def connection(self):
-        return self.conn
+    def get_python_connector_connection(self):
+        return self.conn.connection
 
     # TODO
     def add_dependency(self, path):
@@ -105,7 +98,11 @@ class Session:
             self.__claspathURIs.pop(pathlib.Path(trimmed_path).as_uri())
 
     def set_query_tag(self, query_tag):
-        self.query_tag = query_tag
+        self.__query_tag = query_tag
+
+    @property
+    def query_tag(self):
+        return self.__query_tag
 
     # TODO
     def _resolve_jar_dependencies(self, stage_location):
@@ -155,6 +152,18 @@ class Session:
 
         return DataFrame(session=self, plan=Range(start, end, step))
 
+    def get_default_database(self) -> Optional[str]:
+        return self.conn.get_default_database()
+
+    def get_default_schema(self) -> Optional[str]:
+        return self.conn.get_default_schema()
+
+    def get_current_database(self) -> Optional[str]:
+        return self.conn.get_current_database()
+
+    def get_current_schema(self) -> Optional[str]:
+        return self.conn.get_current_schema()
+
     # TODO complete
     def __disable_stderr(self):
         # Look into https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stderr
@@ -164,19 +173,32 @@ class Session:
         # a useful approach for many utility scripts."
         pass
 
+    @staticmethod
+    def builder():
+        return Session.SessionBuilder()
+
     class SessionBuilder:
         """The SessionBuilder holds all the configuration properties
         and is used to create a Session. """
 
-        __options = {}
+        def __init__(self):
+            self.__options = {}
+
+        def _remove_config(self, key: str):
+            self.__options.pop(key, None)
+            return self
+
+        def config(self, key: str, value: Union[int, str]):
+            self.__options[key] = value
+            return self
+
+        def configs(self, options: Dict[str, Union[int, str]]):
+            self.__options = {**self.__options, **options}
+            return self
 
         def create(self):
-            self.__create_internal(None)
+            return self.__create_internal(conn=None)
 
-        # TODO complete, requires: creating Session only from Connector-connection
-        def __create_internal(self, conn):
-            if conn:
-                return
-            if not conn:
-                # return setActiveSession(Session(ServerConnection(conn)))
-                pass
+        def __create_internal(self, conn: Optional[SnowflakeConnection] = None):
+            # TODO: log and setActiveSession
+            return Session(ServerConnection({}, conn) if conn else ServerConnection(self.__options))
