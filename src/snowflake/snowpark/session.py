@@ -79,7 +79,6 @@ class Session:
                 result.add(dep)
         return result
 
-    @property
     def get_python_connector_connection(self):
         return self.conn.connection
 
