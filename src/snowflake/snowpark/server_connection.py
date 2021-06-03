@@ -179,9 +179,6 @@ class ServerConnection:
             # TODO get plan.postActions
             pass
 
-        if not result:
-            raise SnowparkClientException("Last query should return a ResultSet")
-
         return result
 
     def get_result_and_metadata(self, plan: SnowflakePlan) -> (List['Row'], List['Attribute']):
