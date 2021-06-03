@@ -169,7 +169,7 @@ class ServerConnection:
                     # TODO revisit
                     final_query = final_query.replace(holder, Id)
                 if action_id < plan.session.get_last_canceled_id():
-                    raise Exception("Query was canceled by user")
+                    raise SnowparkClientException("Query was canceled by user")
                 result = self.run_query(final_query)
                 # TODO revisit
                 # last_id = result.get_query_id()
@@ -178,6 +178,9 @@ class ServerConnection:
             # delete create tmp object
             # TODO get plan.postActions
             pass
+
+        if not result:
+            raise SnowparkClientException("Last query should return a ResultSet")
 
         return result
 
