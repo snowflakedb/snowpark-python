@@ -11,7 +11,9 @@ from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePla
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.plans.logical.logical_plan import Project as SPProject, Filter as \
     SPFilter, UnresolvedRelation as SPUnresolvedRelation
+
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import Join as SPJoin
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
 class Analyzer:
@@ -39,7 +41,7 @@ class Analyzer:
             if len(expr.name_parts) == 1:
                 return expr.name_parts[0]
             else:
-                raise Exception(f"Invalid name {'.'.join(expr.name_parts)}")
+                raise SnowparkClientException(f"Invalid name {'.'.join(expr.name_parts)}")
         if type(expr) is SPUnresolvedFunction:
             # TODO expr.name should return FunctionIdentifier, and we should pass expr.name.funcName
             return self.package.function_expression(expr.name,
@@ -61,7 +63,7 @@ class Analyzer:
         if res:
             return res
 
-        raise Exception(f"Invalid type, analyze. {str(expr)}")
+        raise SnowparkClientException(f"Invalid type, analyze. {str(expr)}")
 
     # TODO
     def table_function_expression_extractor(self, expr):

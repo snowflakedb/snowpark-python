@@ -17,6 +17,8 @@ from typing import List
 from random import choice
 import string
 
+from .snowpark_client_exception import SnowparkClientException
+
 
 class DataFrame:
     NUM_PREFIX_DIGITS = 4
@@ -68,7 +70,7 @@ class DataFrame:
         elif type(expr) == Column:
             cols = [expr]
         else:
-            raise Exception("Select input must be str or list")
+            raise SnowparkClientException("Select input must be str or list")
 
         return self.__with_plan(SPProject([c.named() for c in cols], self.__plan))
 
@@ -84,14 +86,13 @@ class DataFrame:
                 elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
                     names.append(c.expression.name)
                 else:
-                    raise Exception(
-                        f"Could not drop column {str(c)}. Can only drop columns by name.")
+                    raise SnowparkClientException(f"Could not drop column {str(c)}. Can only drop columns by name.")
 
         normalized = set(self.analyzer_package.quote_name(n) for n in names)
         existing = set(attr.name for attr in self.__output())
         keep_col_names = existing - normalized
         if not keep_col_names:
-            raise Exception("Cannot drop all columns")
+            raise SnowparkClientException("Cannot drop all columns")
         else:
             return self.select(list(keep_col_names))
 

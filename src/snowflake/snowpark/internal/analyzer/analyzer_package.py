@@ -251,18 +251,20 @@ class AnalyzerPackage:
         else:
             return self._SingleQuote + value + self._SingleQuote
 
-    def quote_name(self, name: str) -> str:
+    @classmethod
+    def quote_name(cls, name: str) -> str:
         already_quoted = re.compile("^(\".+\")$")
         unquoted_case_insensitive = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
         if already_quoted.match(name):
             return name
         elif unquoted_case_insensitive.match(name):
-            return self._DoubleQuote + self._escape_quotes(name.upper()) + self._DoubleQuote
+            return cls._DoubleQuote + cls._escape_quotes(name.upper()) + cls._DoubleQuote
         else:
-            return self._DoubleQuote + self._escape_quotes(name) + self._DoubleQuote
+            return cls._DoubleQuote + cls._escape_quotes(name) + cls._DoubleQuote
 
-    def quote_name_without_upper_casing(self, name) -> str:
-        return self._DoubleQuote + self._escape_quotes(name) + self._DoubleQuote
+    @classmethod
+    def quote_name_without_upper_casing(cls, name) -> str:
+        return cls._DoubleQuote + cls._escape_quotes(name) + cls._DoubleQuote
 
     @staticmethod
     def _escape_quotes(unescaped) -> str:
