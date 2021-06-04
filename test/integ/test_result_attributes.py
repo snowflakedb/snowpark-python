@@ -13,19 +13,7 @@ from src.snowflake.snowpark.types.sf_types import DataType, ArrayType, StringTyp
 from typing import (
     List,
 )
-
-
-# TODO move these functions to util
-def random_table_name():
-    return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_"))
-
-
-def create_table(session: 'Session', name: str, schema: str):
-    session.sql("create or replace table {name} ({schema})".format(name=name, schema=schema)).collect()
-
-
-def drop_table(session: 'Session', name: str):
-    session.sql("drop table if exists {name}".format(name=name)).collect()
+from ..utils import Utils as utils
 
 
 def get_table_attributes(session: 'Session', name: str) -> List['Attribute']:
@@ -36,16 +24,16 @@ def get_attributes_with_types(session: 'Session', name: str, types: List[str]) -
     attributes = []
     try:
         schema = ",".join(["col_{} {}".format(idx, tp) for idx, tp in enumerate(types)])
-        create_table(session, name, schema)
+        utils.create_table(session, name, schema)
         attributes = get_table_attributes(session, name)
     finally:
-        drop_table(session, name)
+        utils.drop_table(session, name)
     return attributes
 
 
 def test_integer_type(session_cnx, db_parameters):
     integers = ["number", "decimal", "numeric", "bigint", "int", "integer", "smallint"]
-    table_name = random_table_name()
+    table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, integers)
     for attribute in attributes:
@@ -54,7 +42,7 @@ def test_integer_type(session_cnx, db_parameters):
 
 def test_float_type(session_cnx, db_parameters):
     floats = ["float", "float4", "double", "real"]
-    table_name = random_table_name()
+    table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, floats)
     for attribute in attributes:
@@ -63,7 +51,7 @@ def test_float_type(session_cnx, db_parameters):
 
 def test_string_type(session_cnx, db_parameters):
     strings = ["varchar", "char", "character", "string", "text"]
-    table_name = random_table_name()
+    table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, strings)
     for attribute in attributes:
@@ -72,7 +60,7 @@ def test_string_type(session_cnx, db_parameters):
 
 def test_binary_type(session_cnx, db_parameters):
     binarys = ["binary", "varbinary"]
-    table_name = random_table_name()
+    table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, binarys)
     for attribute in attributes:
@@ -81,7 +69,7 @@ def test_binary_type(session_cnx, db_parameters):
 
 def test_logical_type(session_cnx, db_parameters):
     logicals = ["boolean"]
-    table_name = random_table_name()
+    table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, logicals)
     for attribute in attributes:
@@ -96,7 +84,7 @@ def test_date_and_time_type(session_cnx, db_parameters):
              "timestamp_ltz": TimestampType,
              "timestamp_ntz": TimestampType,
              "timestamp_tz": TimestampType}
-    table_name = random_table_name()
+    table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, list(dates.keys()))
     for attribute, expected_type in zip(attributes, dates.values()):
@@ -105,7 +93,7 @@ def test_date_and_time_type(session_cnx, db_parameters):
 
 def test_semi_structured_type(session_cnx, db_parameters):
     semi_structures = ["variant", "object"]
-    table_name = random_table_name()
+    table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, semi_structures)
     assert attributes[0].data_type == VariantType
@@ -114,7 +102,7 @@ def test_semi_structured_type(session_cnx, db_parameters):
 
 def test_array_type(session_cnx, db_parameters):
     semi_structures = ["array"]
-    table_name = random_table_name()
+    table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, semi_structures)
     assert attributes[0].data_type == ArrayType(StringType)

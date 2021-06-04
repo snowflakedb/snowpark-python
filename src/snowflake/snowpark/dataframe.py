@@ -8,6 +8,7 @@ from .row import Row
 from .internal.sp_expressions import NamedExpression
 from .internal.analyzer.analyzer_package import AnalyzerPackage
 from .plans.logical.logical_plan import Project, Filter
+from .snowpark_client_exception import SnowparkClientException
 
 
 class DataFrame:
@@ -48,7 +49,7 @@ class DataFrame:
         elif type(expr) == Column:
             cols = [expr]
         else:
-            raise Exception("Select input must be str or list")
+            raise SnowparkClientException("Select input must be str or list")
 
         return self.__with_plan(Project([c.named() for c in cols], self.__plan))
 
@@ -64,14 +65,14 @@ class DataFrame:
                 elif type(c) is Column and isinstance(c.expression, NamedExpression):
                     names.append(c.expression.name)
                 else:
-                    raise Exception(f"Could not drop column {str(c)}. Can only drop columns by name.")
+                    raise SnowparkClientException(f"Could not drop column {str(c)}. Can only drop columns by name.")
 
         analyzer_package = AnalyzerPackage()
         normalized = set(analyzer_package.quote_name(n) for n in names)
         existing = set(attr.name for attr in self.__output())
         keep_col_names = existing - normalized
         if not keep_col_names:
-            raise Exception("Cannot drop all columns")
+            raise SnowparkClientException("Cannot drop all columns")
         else:
             return self.select(list(keep_col_names))
 

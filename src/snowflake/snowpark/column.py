@@ -21,8 +21,6 @@ class Column:
         else:
             raise Exception("Column ctor takes only str or expression.")
 
-        self.analyzer_package = AnalyzerPackage()
-
     # TODO make subscriptable
 
     # Overload operators.
@@ -59,7 +57,7 @@ class Column:
 
     def name(self, alias) -> 'Column':
         """Returns a new renamed Column."""
-        return self.with_expr(SPAlias(self.expression, self.analyzer_package.quote_name(alias)))
+        return self.with_expr(SPAlias(self.expression, AnalyzerPackage.quote_name(alias)))
 
     @staticmethod
     def __to_expr(expr) -> SPExpression:
