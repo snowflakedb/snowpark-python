@@ -8,6 +8,9 @@ from .datatype_mapper import DataTypeMapper
 import re
 import random
 
+from ...types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
+    LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, NaturalJoin as SPNaturalJoin
+
 
 class AnalyzerPackage:
     _LeftParenthesis = "("
@@ -166,6 +169,70 @@ class AnalyzerPackage:
         ],
             self.table(self.generator(0 if (count < 0) else count)))
 
+    def left_semi_or_anti_join_statement(self, left: str, right: str, join_type: type,
+                                         condition: str) -> str:
+        left_alias = self.random_name_for_temp_object()
+        right_alias = self.random_name_for_temp_object()
+
+        if join_type == SPLeftSemi:
+            where_condition = self._Where + self._Exists
+        else:  # join_type == SPLeftAnti:
+            where_condition = self._Where + self._Not + self._Exists
+
+        # this generates sql like "Where a = b"
+        join_condition = self._Where + condition
+
+        return self._Select + self._Star + self._From + self._LeftParenthesis + left + \
+            self._RightParenthesis + self._As + left_alias + where_condition + \
+            self._LeftParenthesis + self._Select + self._Star + self._From + \
+            self._LeftParenthesis + right + self._RightParenthesis + self._As + right_alias + \
+            f"{join_condition if join_condition else self._EmptyString}" + self._RightParenthesis
+
+    def snowflake_supported_join_statement(self, left: str, right: str, join_type: SPJoinType, condition: str) -> str:
+        left_alias = self.random_name_for_temp_object()
+        right_alias = self.random_name_for_temp_object()
+
+        if type(join_type) == SPUsingJoin:
+            join_sql = join_type.tpe.sql
+        elif type(join_type) == SPNaturalJoin:
+            join_sql = self._Natural + join_type.tpe
+        else:
+            join_sql = join_type.sql
+
+        # This generates sql like "USING(a, b)"
+        using_condition = None
+        if type(join_type) == SPUsingJoin:
+            if len(join_type.using_columns) != 0:
+                using_condition = self._Using + self._LeftParenthesis + self._Comma.join(join_type.using_columns) + self._RightParenthesis
+
+        # This generates sql like "ON a = b"
+        join_condition = None
+        if condition:
+            join_condition = self._On + condition
+
+        if using_condition and join_condition:
+            raise Exception("A join should either have using clause or a join condition")
+
+        source = self._LeftParenthesis + left + self._RightParenthesis + self._As + left_alias + \
+            self._Space + join_sql + self._Join + self._LeftParenthesis + right + \
+            self._RightParenthesis + self._As + right_alias + \
+            f"{using_condition if using_condition else self._EmptyString}" + \
+            f"{join_condition if join_condition else self._EmptyString}"
+
+        return self.project_statement(None, source)
+
+    def join_statement(self, left: str, right: str, join_type: SPJoinType, condition: str) -> str:
+        if type(join_type) == SPLeftSemi:
+            return self.left_semi_or_anti_join_statement(left, right, SPLeftSemi, condition)
+        if type(join_type) == SPLeftAnti:
+            return self.left_semi_or_anti_join_statement(left, right, SPLeftAnti, condition)
+        if type(join_type) == SPUsingJoin:
+            if type(join_type.tpe) == SPLeftSemi:
+                raise Exception("Internal error: Unexpected Using clause in left semi join")
+            if type(join_type.tpe) == SPLeftAnti:
+                raise Exception("Internal error: Unexpected Using clause in left anti join")
+        return self.snowflake_supported_join_statement(left, right, join_type, condition)
+
     def schema_value_statement(self, output) -> str:
         return self._Select + \
                self._Comma.join([DataTypeMapper.schema_expression(attr.data_type(), attr.nullable) +
@@ -211,4 +278,4 @@ class AnalyzerPackage:
 
     @staticmethod
     def random_name_for_temp_object() -> str:
-        return f"SN_TEMP_OBJECT_${random.randint(0, pow(2, 31))}"
+        return f"SN_TEMP_OBJECT_{random.randint(0, pow(2, 31))}"

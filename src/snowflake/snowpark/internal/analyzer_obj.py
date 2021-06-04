@@ -11,21 +11,28 @@ from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePla
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.plans.logical.logical_plan import Project as SPProject, Filter as \
     SPFilter, UnresolvedRelation as SPUnresolvedRelation
+from src.snowflake.snowpark.plans.logical.basic_logical_operators import Join as SPJoin
 
 
 class Analyzer:
 
     def __init__(self, session):
-        self.generate_alias_maps = []
-        self.subquery_plans = []
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
         self.package = AnalyzerPackage()
+
+        self.generated_alias_maps = {}
+        self.subquery_plans = {}
+        self.alias_maps_to_use = None
 
     def analyze(self, expr):
 
         if type(expr) is SPLiteral:
             return DataTypeMapper.to_sql(expr.value, expr.datatype)
+
+        if type(expr) is SPAttributeReference:
+            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            return self.package.quote_name(name)
 
         # unresolved expression
         if type(expr) is SPUnresolvedAttribute:
@@ -42,7 +49,7 @@ class Analyzer:
         if type(expr) == SPAlias:
             quoted_name = self.package.quote_name(expr.name)
             if isinstance(expr.child, SPAttributeReference):
-                self.generate_alias_maps[expr.child.expr_id] = quoted_name
+                self.generated_alias_maps[expr.child.expr_id] = quoted_name
             return self.package.alias_expression(self.analyze(expr.child), quoted_name)
 
         # Extractors
@@ -125,10 +132,10 @@ class Analyzer:
     # TODO
     def resolve(self, logical_plan) -> SnowflakePlan:
         self.subquery_plans = []
-        self.generate_alias_maps = []
+        self.generated_alias_maps = {}
         result = self.do_resolve(logical_plan, is_lazy_mode=True)
 
-        result.add_aliases(self.generate_alias_maps)
+        result.add_aliases(self.generated_alias_maps)
 
         # TODO add subquery plans
 
@@ -139,8 +146,13 @@ class Analyzer:
         resolved_children = {}
         for c in logical_plan.children:
             resolved_children[c] = self.resolve(c)
-        # TODO maps
 
+        use_maps = {}
+        for k, v in resolved_children.items():
+            if v.expr_to_alias:
+                use_maps.update(v.expr_to_alias)
+
+        self.alias_maps_to_use = use_maps
         return self.do_resolve_inner(logical_plan, resolved_children)
 
     def do_resolve_inner(self, logical_plan, resolved_children) -> SnowflakePlan:
@@ -158,6 +170,11 @@ class Analyzer:
         if type(lp) == SPFilter:
             return self.plan_builder.filter(
                 self.analyze(lp.condition), resolved_children[lp.child], lp)
+
+        if type(lp) == SPJoin:
+            return self.plan_builder.join(
+                resolved_children[lp.left], resolved_children[lp.right], lp.join_type,
+                self.analyze(lp.condition) if lp.condition else '', lp)
 
         if type(lp) == SPRange:
             # The column name id lower-case is hard-coded by Spark as the output

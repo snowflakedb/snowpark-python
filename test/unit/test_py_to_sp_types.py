@@ -20,6 +20,7 @@ from array import array
 
 
 # TODO complete for schema case
+@pytest.mark.xfail
 def test_py_to_sp_type():
     assert type(_infer_type(None)) == SPNullType
     assert type(_infer_type(1)) == SPLongType
