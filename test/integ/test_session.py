@@ -10,6 +10,7 @@ from snowflake.connector.errors import DatabaseError
 from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.session import Session
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from ..utils import Utils as utils
 
 
 def test_select_1(session_cnx, db_parameters):
@@ -36,7 +37,7 @@ def test_no_default_database_and_schema(session_cnx, db_parameters):
         assert not session.get_default_schema()
 
 
-def test_default_and_current_database_and_schema(session_cnx, db_parameters, utils):
+def test_default_and_current_database_and_schema(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         default_database = session.get_default_database()
         default_schema = session.get_default_schema()
@@ -58,10 +59,10 @@ def test_default_and_current_database_and_schema(session_cnx, db_parameters, uti
 
 def test_quote_all_database_and_schema_names(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        def is_quote(name: str) -> bool:
+        def is_quoted(name: str) -> bool:
             return name[0] == '"' and name[-1] == '"'
 
-        assert is_quote(session.get_default_database())
-        assert is_quote(session.get_default_schema())
-        assert is_quote(session.get_current_database())
-        assert is_quote(session.get_current_schema())
+        assert is_quoted(session.get_default_database())
+        assert is_quoted(session.get_default_schema())
+        assert is_quoted(session.get_current_database())
+        assert is_quoted(session.get_current_schema())
