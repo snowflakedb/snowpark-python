@@ -11,7 +11,7 @@ from .plans.logical.logical_plan import Project as SPProject, Filter as SPFilter
 from .plans.logical.basic_logical_operators import Join as SPJoin
 from .plans.logical.hints import JoinHint as SPJoinHint
 from .types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
-    LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin
+    LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, Cross as SPCrossJoin
 
 from typing import List
 from random import choice
@@ -45,17 +45,46 @@ class DataFrame:
     def explain(self):
         raise Exception("Not implemented. df.explain()")
 
-    def to_df(self, names):
-        raise Exception("Not implemented. df.to_df()")
+    def toDF(self, col_names: List[str]) -> 'DataFrame':
+        assert len(self.__output()) == len(col_names), \
+            f"The number of columns doesn't match. " + \
+            f"Old column names ({len(self.__output())}): " + \
+            f"{','.join(attr.name for attr in self.__output())}" + \
+            f"New column names ({len(col_names)}): {','.join(col_names)}"
+
+        new_cols = []
+        for attr, name in zip(self.__output(), col_names):
+            new_cols.append(Column(attr).alias(name))
+        return self.select(new_cols)
 
     # TODO
     def sort(self, exprs):
         pass
 
-    # TODO
-    # apply() equivalent. subscriptable
+    def __getitem__(self, item):
+        if isinstance(item, str):
+            return self.col(item)
+        elif isinstance(item, Column):
+            return self.filter(item)
+        elif isinstance(item, (list, tuple)):
+            return self.select(*item)
+        elif isinstance(item, int):
+            self.__getitem__(self.columns[item])
+        else:
+            raise TypeError(f"unexpected item type: {type(item)}")
 
-    # TODO wrap column to python object?
+    def __getattr__(self, name):
+        # TODO revisit, do we want to uppercase the name?
+        if AnalyzerPackage.quote_name(name) not in self.columns:
+            raise AttributeError(f"{self.__class__.__name__} object has no attribute {name}")
+        return self.col(name)
+
+    @property
+    def columns(self) -> List[str]:
+        """ Returns all column names as a list"""
+        # Does not exist in scala snowpark.
+        return [attr.name for attr in self.__output()]
+
     def col(self, col_name: str) -> 'Column':
         if col_name == '*':
             return Column(SPResolvedStar(self.__plan.output()))
@@ -86,7 +115,8 @@ class DataFrame:
                 elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
                     names.append(c.expression.name)
                 else:
-                    raise SnowparkClientException(f"Could not drop column {str(c)}. Can only drop columns by name.")
+                    raise SnowparkClientException(
+                        f"Could not drop column {str(c)}. Can only drop columns by name.")
 
         normalized = set(self.analyzer_package.quote_name(n) for n in names)
         existing = set(attr.name for attr in self.__output())
@@ -113,6 +143,11 @@ class DataFrame:
                 raise Exception(
                     "Joining a DataFrame to itself can lead to incorrect results due to ambiguity of column references. Instead, join this DataFrame to a clone() of itself.")
 
+            if type(join_type) == SPCrossJoin or \
+                    (type(join_type) == str and join_type.strip().lower().replace('_', '').startswith('cross')):
+                if using_columns:
+                    raise Exception("Cross joins cannot take columns as input.")
+
             if using_columns is not None and not isinstance(using_columns, list):
                 using_columns = [using_columns]
 
@@ -125,6 +160,9 @@ class DataFrame:
         # if isinstance(other, TableFunction):
         #    return self.__join_dataframe_table_function(other, using_columns)
         raise Exception("Invalid type for join. Must be Dataframe")
+
+    def crossJoin(self, other: 'DataFrame'):
+        return self.__join_dataframes_internal(other, SPJoinType.from_string('cross'), None)
 
     def __join_dataframes(self, other: 'DataFrame', using_columns: List[str],
                           join_type: SPJoinType) -> 'DataFrame':
@@ -144,8 +182,9 @@ class DataFrame:
     def __join_dataframes_internal(self, right: 'DataFrame', join_type: SPJoinType,
                                    join_exprs: Column) -> 'DataFrame':
         (lhs, rhs) = self.__disambiguate(self, right, join_type, [])
+        expression = join_exprs.expression if join_exprs else None
         return self.__with_plan(
-            SPJoin(lhs.__plan, rhs.__plan, join_type, join_exprs.expression, SPJoinHint.none()))
+            SPJoin(lhs.__plan, rhs.__plan, join_type, expression, SPJoinHint.none()))
 
     # TODO complete function. Requires TableFunction
     def __join_dataframe_table_function(self, table_function, columns) -> 'DataFrame':

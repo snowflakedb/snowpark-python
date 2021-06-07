@@ -132,7 +132,7 @@ class DataTypeMapper:
             return "NULL :: " + convert_to_sf_type(data_type)
 
         if isinstance(data_type, NumericType):
-            return "0 :: " + convert_to_sf_type(type(data_type))
+            return "0 :: " + convert_to_sf_type(data_type)
         if isinstance(data_type, StringType):
             return "'a' :: STRING"
         if isinstance(data_type, BinaryType):
