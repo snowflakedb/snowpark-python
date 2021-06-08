@@ -41,10 +41,14 @@ class UnresolvedFunction(Expression):
 
 # Stars
 class UnresolvedStar(Star):
+    # https://github.com/apache/spark/blob/1226b9badd2bc6681e4c533e0dfbc09443a86167/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/unresolved.scala#L352
     def __init__(self, target):
         super().__init__('UnresolvedStar')
         self.target = target
 
+    def to_string(self):
+        prefix = '.'.join(self.target)+'.' if self.target else ''
+        return prefix + '*'
 
 class ResolvedStar(Star):
     def __init__(self, expressions):

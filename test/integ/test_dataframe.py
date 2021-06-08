@@ -15,7 +15,7 @@ from src.snowflake.snowpark.functions import col
 
 
 def test_new_df_from_range(session_cnx, db_parameters):
-    """Tests retrieving a negative number of results."""
+    """Tests df.range()."""
     with session_cnx(db_parameters) as session:
         # range(start, end, step)
         df = session.range(1, 10, 2)
@@ -39,7 +39,7 @@ def test_new_df_from_range(session_cnx, db_parameters):
 
 
 def test_select_single_column(session_cnx, db_parameters):
-    """Tests retrieving a negative number of results."""
+    """Tests df.select() on dataframes with a single column."""
     with session_cnx(db_parameters) as session:
         df = session.range(1, 10, 2)
         res = df.filter("id > 4").select("id").collect()
@@ -61,6 +61,72 @@ def test_select_single_column(session_cnx, db_parameters):
 
         res = session.range(1, 10, 2).select("id").filter("id <= 0").collect()
         expected = []
+        assert res == expected
+
+
+def test_select_star(session_cnx, db_parameters):
+    """Tests df.select('*')."""
+    with session_cnx(db_parameters) as session:
+
+        # Single column
+        res = session.range(3, 8).select('*').collect()
+        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        assert res == expected
+
+        # Two columns
+        df = session.range(3, 8).select([col('id'), col('id').alias('id_prime')])
+        res = df.select('*').collect()
+        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        assert res == expected
+
+
+def test_df_subscriptable(session_cnx, db_parameters):
+    """Tests select & filter as df[...]"""
+    with session_cnx(db_parameters) as session:
+
+        # Star, single column
+        res = session.range(3, 8)[['*']].collect()
+        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        assert res == expected
+
+        # Star, two columns
+        df = session.range(3, 8).select([col('id'), col('id').alias('id_prime')])
+        res = df[['*']].collect()
+        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        assert res == expected
+        # without double brackets should refer to a Column object
+        assert type(df['*']) == Column
+
+        # single column, str type
+        df = session.range(3, 8)
+        res = df[['ID']].collect()
+        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        assert res == expected
+        assert type(df['ID']) == Column
+
+        # single column, int type
+        df = session.range(3, 8)
+        res = df[df[0] > 5].collect()
+        expected = [Row([6]), Row([7])]
+        assert res == expected
+        assert type(df[0]) == Column
+
+        # two columns, list type
+        df = session.range(3, 8).select([col('id'), col('id').alias('id_prime')])
+        res = df[['ID', 'ID_PRIME']].collect()
+        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        assert res == expected
+
+        # two columns, tuple type
+        df = session.range(3, 8).select([col('id'), col('id').alias('id_prime')])
+        res = df[('ID', 'ID_PRIME')].collect()
+        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        assert res == expected
+
+        # two columns, int type
+        df = session.range(3, 8).select([col('id'), col('id').alias('id_prime')])
+        res = df[[df[1].getName()]].collect()
+        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
         assert res == expected
 
 

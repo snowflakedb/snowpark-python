@@ -26,7 +26,6 @@ class DataFrame:
     def __init__(self, session=None, plan=None):
         self.session = session
         self.__plan = session.analyzer.resolve(plan)
-        self.analyzer_package = AnalyzerPackage()
 
         # Use this to simulate scala's lazy val
         self.__placeholder_output = None
@@ -57,10 +56,10 @@ class DataFrame:
         :return: a Dataframe
         """
         assert len(self.__output()) == len(col_names), \
-            f"The number of columns doesn't match. " + \
-            f"Old column names ({len(self.__output())}): " + \
-            f"{','.join(attr.name for attr in self.__output())}. " + \
-            f"New column names ({len(col_names)}): {','.join(col_names)}."
+            (f"The number of columns doesn't match. "
+             f"Old column names ({len(self.__output())}): "
+             f"{','.join(attr.name for attr in self.__output())}. "
+             f"New column names ({len(col_names)}): {','.join(col_names)}.")
 
         new_cols = []
         for attr, name in zip(self.__output(), col_names):
@@ -72,14 +71,14 @@ class DataFrame:
         pass
 
     def __getitem__(self, item):
-        if isinstance(item, str):
+        if type(item) == str:
             return self.col(item)
         elif isinstance(item, Column):
             return self.filter(item)
-        elif isinstance(item, (list, tuple)):
-            return self.select(*item)
-        elif isinstance(item, int):
-            self.__getitem__(self.columns[item])
+        elif type(item) in [list, tuple]:
+            return self.select(item)
+        elif type(item) == int:
+            return self.__getitem__(self.columns[item])
         else:
             raise TypeError(f"unexpected item type: {type(item)}")
 
@@ -104,7 +103,7 @@ class DataFrame:
     def select(self, expr) -> 'DataFrame':
         if type(expr) == str:
             cols = [Column(expr)]
-        elif type(expr) == list:
+        elif type(expr) in [list, tuple]:
             cols = [e if type(e) == Column else Column(e) for e in expr]
         elif type(expr) == Column:
             cols = [expr]
@@ -128,7 +127,7 @@ class DataFrame:
                     raise SnowparkClientException(
                         f"Could not drop column {str(c)}. Can only drop columns by name.")
 
-        normalized = set(self.analyzer_package.quote_name(n) for n in names)
+        normalized = set(AnalyzerPackage.quote_name(n) for n in names)
         existing = set(attr.name for attr in self.__output())
         keep_col_names = existing - normalized
         if not keep_col_names:
@@ -211,7 +210,7 @@ class DataFrame:
             # Create a Column with expression 'true AND <expr> AND <expr> .."
             join_cond = Column(SPLiteral.create(True))
             for c in using_columns:
-                quoted = self.analyzer_package.quote_name(c)
+                quoted = AnalyzerPackage.quote_name(c)
                 join_cond = join_cond & (self.col(quoted) == other.col(quoted))
             return self.__join_dataframes_internal(other, join_type, join_cond)
         else:
@@ -233,10 +232,10 @@ class DataFrame:
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:
-        normalized_col_name = self.analyzer_package.quote_name(col_name)
-        col = list(filter(lambda attr: attr.name == normalized_col_name, self.__output()))
-        if len(col) == 1:
-            return col[0].with_name(normalized_col_name)
+        normalized_col_name = AnalyzerPackage.quote_name(col_name)
+        cols = list(filter(lambda attr: attr.name == normalized_col_name, self.__output()))
+        if len(cols) == 1:
+            return cols[0].with_name(normalized_col_name)
         else:
             raise Exception(f"Cannot resolve column name {col_name}")
 
@@ -244,9 +243,7 @@ class DataFrame:
     def __alias_if_needed(df: 'DataFrame', c: str, prefix: str, common_col_names: List[str]):
         col = df.col(c)
         if c in common_col_names:
-            unquoted = c
-            while unquoted.startswith('\"') and unquoted.endswith('\"'):
-                unquoted = unquoted[1:-1]
+            unquoted = c.strip('"')
             return col.alias(f"{prefix}{unquoted}")
         else:
             return col
@@ -254,7 +251,7 @@ class DataFrame:
     def __disambiguate(self, lhs: 'DataFrame', rhs: 'DataFrame', join_type: SPJoinType,
                        using_columns: List[str]):
         # Normalize the using columns.
-        normalized_using_columns = set(self.analyzer_package.quote_name(c) for c in using_columns)
+        normalized_using_columns = set(AnalyzerPackage.quote_name(c) for c in using_columns)
         #  Check if the LHS and RHS have columns in common. If they don't just return them as-is. If
         #  they do have columns in common, alias the common columns with randomly generated l_
         #  and r_ prefixes for the left and right sides respectively.

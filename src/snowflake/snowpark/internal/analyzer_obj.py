@@ -3,7 +3,8 @@ from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpre
     UnresolvedAttribute as SPUnresolvedAttribute, UnresolvedFunction as SPUnresolvedFunction, \
     UnresolvedAlias as SPUnresolvedAlias, UnaryExpression as SPUnaryExpression, \
     LeafExpression as SPLeafExpression, Literal as SPLiteral, BinaryExpression as \
-    SPBinaryExpression, Alias as SPAlias, AttributeReference as SPAttributeReference
+    SPBinaryExpression, Alias as SPAlias, AttributeReference as SPAttributeReference, UnresolvedStar\
+    as SPUnresolvedStar, ResolvedStar as SPResolvedStar
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range as SPRange
 
 # TODO fix import
@@ -53,6 +54,11 @@ class Analyzer:
             if isinstance(expr.child, SPAttributeReference):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
             return self.package.alias_expression(self.analyze(expr.child), quoted_name)
+
+        if type(expr) == SPResolvedStar:
+            return '*'
+        if type(expr) == SPUnresolvedStar:
+            return expr.to_string()
 
         # Extractors
 
