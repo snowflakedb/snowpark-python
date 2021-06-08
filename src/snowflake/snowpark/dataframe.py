@@ -21,7 +21,7 @@ from .snowpark_client_exception import SnowparkClientException
 
 
 class DataFrame:
-    NUM_PREFIX_DIGITS = 4
+    __NUM_PREFIX_DIGITS = 4
 
     def __init__(self, session=None, plan=None):
         self.session = session
@@ -31,26 +31,36 @@ class DataFrame:
         # Use this to simulate scala's lazy val
         self.__placeholder_output = None
 
-    def generate_prefix(self, prefix: str) -> str:
+    @staticmethod
+    def __generate_prefix(prefix: str) -> str:
         alphanumeric = string.ascii_lowercase + string.digits
-        return f"{prefix}_{''.join(choice(alphanumeric) for _ in range(self.NUM_PREFIX_DIGITS))}_"
+        return f"{prefix}_{''.join(choice(alphanumeric) for _ in range(DataFrame.__NUM_PREFIX_DIGITS))}_"
 
     def collect(self):
         return self.session.conn.execute(self.__plan)
 
+    # TODO
     def cache_result(self):
         raise Exception("Not implemented. df.cache_result()")
 
-    # TODO - for JMV, it prints to stdout
+    # TODO
     def explain(self):
         raise Exception("Not implemented. df.explain()")
 
     def toDF(self, col_names: List[str]) -> 'DataFrame':
+        """
+        Creates a new DataFrame containing columns with the specified names.
+
+        The number of column names that you pass in must match the number of columns in the existing
+        DataFrame.
+        :param col_names: list of new column names
+        :return: a Dataframe
+        """
         assert len(self.__output()) == len(col_names), \
             f"The number of columns doesn't match. " + \
             f"Old column names ({len(self.__output())}): " + \
-            f"{','.join(attr.name for attr in self.__output())}" + \
-            f"New column names ({len(col_names)}): {','.join(col_names)}"
+            f"{','.join(attr.name for attr in self.__output())}. " + \
+            f"New column names ({len(col_names)}): {','.join(col_names)}."
 
         new_cols = []
         for attr, name in zip(self.__output(), col_names):
@@ -74,7 +84,7 @@ class DataFrame:
             raise TypeError(f"unexpected item type: {type(item)}")
 
     def __getattr__(self, name):
-        # TODO revisit, do we want to uppercase the name?
+        # TODO revisit, do we want to uppercase the name, or should the user do that?
         if AnalyzerPackage.quote_name(name) not in self.columns:
             raise AttributeError(f"{self.__class__.__name__} object has no attribute {name}")
         return self.col(name)
@@ -99,7 +109,7 @@ class DataFrame:
         elif type(expr) == Column:
             cols = [expr]
         else:
-            raise SnowparkClientException("Select input must be str or list")
+            raise SnowparkClientException("Select input must be Column, str, or list")
 
         return self.__with_plan(SPProject([c.named() for c in cols], self.__plan))
 
@@ -135,9 +145,26 @@ class DataFrame:
             return self.__with_plan(SPFilter(expr.expression, self.__plan))
 
     def where(self, expr) -> 'DataFrame':
+        """Filters rows based on given condition. This is equivalent to calling [[filter]]. """
         return self.filter(expr)
 
     def join(self, other, using_columns=None, join_type=None) -> 'DataFrame':
+        """ Performs a join of the specified type (`join_type`) with the current DataFrame and
+        another DataFrame (`other`) on a list of columns (`using_columns`).
+
+        The method assumes that the columns in `usingColumns` have the same meaning in the left and
+        right DataFrames.
+
+        For example:
+            dfLeftJoin = df1.join(df2, "a", "left")
+            dfOuterJoin = df.join(df2, ["a","b"], "outer")
+
+        :param other: The other Dataframe to join.
+        :param using_columns: A list of names of the columns, or the column objects, to use for the
+        join.
+        :param join_type: The type of join (e.g. "right", "outer", etc.).
+        :return: a DataFrame
+        """
         if isinstance(other, DataFrame):
             if self is other or self.__plan is other.__plan:
                 raise Exception(
@@ -162,6 +189,20 @@ class DataFrame:
         raise Exception("Invalid type for join. Must be Dataframe")
 
     def crossJoin(self, other: 'DataFrame'):
+        """ Performs a cross join, which returns the cartesian product of the current DataFrame and
+        another DataFrame (`other`).
+
+        If the current and `right` DataFrames have columns with the same name, and you need to refer
+        to one of these columns in the returned DataFrame, use the [[coll]] function
+        on the current or `other` DataFrame to disambiguate references to these columns.
+
+        For example:
+        df_cross = this.crossJoin(other)
+        project = df.df_cross.select([this("common_col"), other("common_col")])
+
+        :param other The other Dataframe to join.
+        :return a Dataframe
+        """
         return self.__join_dataframes_internal(other, SPJoinType.from_string('cross'), None)
 
     def __join_dataframes(self, other: 'DataFrame', using_columns: List[str],
@@ -228,12 +269,12 @@ class DataFrame:
         if type(join_type) in [SPLeftSemi, SPLeftAnti]:
             lhs_remapped = lhs
         else:
-            lhs_prefix = self.generate_prefix('l')
+            lhs_prefix = self.__generate_prefix('l')
             lhs_remapped = lhs.select(
                 [self.__alias_if_needed(lhs, name, lhs_prefix, common_col_names) for name in
                  lhs_names])
 
-        rhs_prefix = self.generate_prefix('r')
+        rhs_prefix = self.__generate_prefix('r')
         rhs_remapped = rhs.select(
             [self.__alias_if_needed(rhs, name, rhs_prefix, common_col_names) for name in rhs_names])
         return lhs_remapped, rhs_remapped

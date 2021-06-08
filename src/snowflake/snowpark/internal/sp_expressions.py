@@ -42,26 +42,14 @@ class UnresolvedFunction(Expression):
 # Stars
 class UnresolvedStar(Star):
     def __init__(self, target):
-        super().__init__(None)
+        super().__init__('UnresolvedStar')
         self.target = target
-
-    @property
-    def name(self):
-        raise Exception("UnresolvedException - Invalid call to name on unresolved object")
-
-    @name.setter
-    def name(self, value):
-        self.name = value
 
 
 class ResolvedStar(Star):
     def __init__(self, expressions):
         super().__init__('ResolvedStar')
         self.expressions = expressions
-
-    @property
-    def name(self):
-        raise Exception("UnresolvedException - Invalid call to name on unresolved object")
 
 
 # Named Expressions

@@ -24,6 +24,7 @@ class SnowflakePlan(LogicalPlan):
         self.source_plan = source_plan
 
         # use this to simulate scala's lazy val
+        self.__placeholder_for_attributes = None
         self.__placeholder_for_output = None
 
     # TODO
@@ -35,10 +36,12 @@ class SnowflakePlan(LogicalPlan):
         pass
 
     def attributes(self):
-        output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
-        pkg = AnalyzerPackage()
-        self._schema_query = pkg.schema_value_statement(output)
-        return output
+        if not self.__placeholder_for_attributes:
+            output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
+            pkg = AnalyzerPackage()
+            self._schema_query = pkg.schema_value_statement(output)
+            self.__placeholder_for_attributes = output
+        return self.__placeholder_for_attributes
 
     # Convert to 'Spark' AttributeReference
     def output(self) -> List[SPAttributeReference]:
@@ -67,12 +70,15 @@ class SnowflakePlanBuilder:
         return SnowflakePlan(queries, new_schema_query, select_child.post_actions,
                              select_child.expr_to_alias, self.__session, source_plan)
 
-    def __build_binary(self, sql_generator: Callable[[str, str], str], left: SnowflakePlan, right: SnowflakePlan, source_plan: LogicalPlan):
+    def __build_binary(self, sql_generator: Callable[[str, str], str], left: SnowflakePlan,
+                       right: SnowflakePlan, source_plan: LogicalPlan):
         try:
             select_left = self._add_result_scan_if_not_select(left)
             select_right = self._add_result_scan_if_not_select(right)
             queries = select_left.queries[:-1] + select_left.queries[:-1] + \
-                [Query(sql_generator(select_left.queries[-1].sql, select_right.queries[-1].sql), None)]
+                      [Query(
+                          sql_generator(select_left.queries[-1].sql, select_right.queries[-1].sql),
+                          None)]
 
             left_schema_query = self.pkg.schema_value_statement(select_left.attributes())
             right_schema_query = self.pkg.schema_value_statement(select_right.attributes())
@@ -117,7 +123,8 @@ class SnowflakePlanBuilder:
             return plan
         else:
             new_queries = plan.queries + [
-                Query(self.pkg.result_scan_statement(plan.queries[-1].query_id_plance_holder), None)]
+                Query(self.pkg.result_scan_statement(plan.queries[-1].query_id_plance_holder),
+                      None)]
             return SnowflakePlan(new_queries, self.pkg.schema_value_statement(plan.attributes),
                                  plan.post_actions, plan.expr_to_alias, self.__session,
                                  plan.source_plan)

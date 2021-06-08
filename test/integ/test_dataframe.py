@@ -7,6 +7,9 @@ import pytest
 from itertools import product
 
 # TODO fix 'src.' in imports
+from src.snowflake.snowpark.column import Column
+from src.snowflake.snowpark.internal.sp_expressions import \
+    AttributeReference as SPAttributeReference, ResolvedStar as SPResolvedStar
 from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.functions import col
 
@@ -339,11 +342,19 @@ def test_join_cross(session_cnx, db_parameters):
         df2 = session.range(5, 10).select([col('id'), col('id').alias('id_prime2')])
         expected = [Row([x, x, y, y]) for x, y in product(range(3, 8), range(5, 10))]
         res = df1.crossJoin(df2).collect()
-        assert sorted(res, key=lambda r: (r.get(0), r.get(1))) == expected
+        assert sorted(res, key=lambda r: (r.get(0), r.get(2))) == expected
 
         with pytest.raises(Exception) as ex:
             df1.join(df2, col('id'), 'cross')
         assert 'Cross joins cannot take columns as input.' in str(ex.value)
+
+        # Case, join on same-name column, other columns have different name, select common column.
+        this = session.range(3, 8).select([col('id'), col('id').alias('id_prime1')])
+        other = session.range(5, 10).select([col('id'), col('id').alias('id_prime2')])
+        df_cross = this.crossJoin(other).select([this.col("id"), other.col("id")])
+        res = df_cross.collect()
+        expected = [Row([x, y]) for x, y in product(range(3, 8), range(5, 10))]
+        assert sorted(res, key=lambda r: (r.get(0), r.get(1))) == expected
 
 
 def test_join_outer(session_cnx, db_parameters):
@@ -370,3 +381,39 @@ def test_join_outer(session_cnx, db_parameters):
                     Row([7, 7, 7]), Row([8, None, 8]), Row([9, None, 9])]
         res = df1.join(df2, 'id', 'outer').collect()
         assert sorted(res, key=lambda r: r.get(0)) == expected
+
+
+def test_toDF(session_cnx, db_parameters):
+    """Test df.toDF()."""
+    with session_cnx(db_parameters) as session:
+        df = session.range(3, 8).select([col('id'), col('id').alias('id_prime')])
+
+        # calling toDF() with fewer new names than columns should fail
+        with pytest.raises(Exception) as ex:
+            df.toDF(['new_name'])
+        assert "The number of columns doesn't match. Old column names (2):" in str(ex.value)
+
+        res = df.toDF(['rename1', 'rename2']).select([col('rename1'), col('rename2')]).collect()
+        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        assert sorted(res, key=lambda r: r.get(0)) == expected
+
+        res = df.toDF(['rename1', 'rename2']).columns
+        assert res == ['"RENAME1"', '"RENAME2"']
+
+        df_prime = df.toDF(['rename1', 'rename2'])
+        res = df_prime.select(df_prime.RENAME1).collect()
+        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        assert sorted(res, key=lambda r: r.get(0)) == expected
+
+
+def test_df_col(session_cnx, db_parameters):
+    """Test df.col()"""
+    with session_cnx(db_parameters) as session:
+        df = session.range(3, 8).select([col('id'), col('id').alias('id_prime')])
+        c = df.col('id')
+        assert type(c) == Column
+        assert type(c.expression) == SPAttributeReference
+
+        c = df.col('*')
+        assert type(c) == Column
+        assert type(c.expression) == SPResolvedStar
