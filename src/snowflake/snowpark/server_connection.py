@@ -144,9 +144,12 @@ class ServerConnection:
             return ServerConnection.convert_result_meta_to_attribute(self._cursor.description)
 
     @_Decorator.wrap_exception
-    def run_query(self, query):
+    def run_query(self, query, to_pandas=False, **kwargs,):
         results_cursor = self._cursor.execute(query)
-        data = results_cursor.fetchall()
+        if to_pandas:
+            data = results_cursor.fetch_pandas_all(**kwargs)
+        else:
+            data = results_cursor.fetchall()
         return data
 
     # TODO revisit
@@ -154,10 +157,13 @@ class ServerConnection:
         rows = [Row(row) for row in result_set]
         return rows
 
-    def execute(self, plan: 'SnowflakePlan'):
-        return self.result_set_to_rows(self.get_result_set(plan))
+    def execute(self, plan: 'SnowflakePlan', to_pandas=False, **kwargs):
+        if to_pandas:
+            return self.get_result_set(plan, to_pandas=True, **kwargs)
+        else:
+            return self.result_set_to_rows(self.get_result_set(plan))
 
-    def get_result_set(self, plan):
+    def get_result_set(self, plan, to_pandas=False, **kwargs,):
         action_id = plan.session._generate_new_action_id()
 
         result = None
@@ -170,7 +176,7 @@ class ServerConnection:
                     final_query = final_query.replace(holder, Id)
                 if action_id < plan.session.get_last_canceled_id():
                     raise SnowparkClientException("Query was canceled by user")
-                result = self.run_query(final_query)
+                result = self.run_query(final_query, to_pandas, **kwargs)
                 # TODO revisit
                 # last_id = result.get_query_id()
                 # placeholders[query.query_id_placeholder] = last_id
