@@ -38,11 +38,11 @@ class DataFrame:
     def collect(self):
         return self.session.conn.execute(self.__plan)
 
-    def toPandas(self):
+    def toPandas(self, **kwargs):
         """Returns the contents of this DataFrame as Pandas pandas.DataFrame.
 
         This is only available if Pandas is installed and available."""
-        return self.session.conn.execute(self.__plan, to_pandas=True)
+        return self.session.conn.execute(self.__plan, to_pandas=True, **kwargs)
 
     # TODO
     def cache_result(self):
