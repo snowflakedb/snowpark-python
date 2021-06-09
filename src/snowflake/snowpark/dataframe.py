@@ -38,6 +38,9 @@ class DataFrame:
     def collect(self):
         return self.session.conn.execute(self.__plan)
 
+    def toPandas(self):
+        return self.session.conn.execute(self.__plan, to_pandas=True)
+
     # TODO
     def cache_result(self):
         raise Exception("Not implemented. df.cache_result()")
@@ -187,7 +190,7 @@ class DataFrame:
         #    return self.__join_dataframe_table_function(other, using_columns)
         raise Exception("Invalid type for join. Must be Dataframe")
 
-    def crossJoin(self, other: 'DataFrame'):
+    def crossJoin(self, other: 'DataFrame') -> 'DataFrame':
         """ Performs a cross join, which returns the cartesian product of the current DataFrame and
         another DataFrame (`other`).
 
