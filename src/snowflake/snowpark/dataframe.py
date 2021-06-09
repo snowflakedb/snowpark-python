@@ -39,6 +39,9 @@ class DataFrame:
         return self.session.conn.execute(self.__plan)
 
     def toPandas(self):
+        """Returns the contents of this DataFrame as Pandas pandas.DataFrame.
+
+        This is only available if Pandas is installed and available."""
         return self.session.conn.execute(self.__plan, to_pandas=True)
 
     # TODO
