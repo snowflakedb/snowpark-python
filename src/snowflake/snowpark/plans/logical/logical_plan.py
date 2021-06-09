@@ -7,6 +7,10 @@ class LeafNode(LogicalPlan):
     pass
 
 
+class BinaryNode(LogicalPlan):
+    pass
+
+
 class NamedRelation(LogicalPlan):
     pass
 
@@ -40,3 +44,4 @@ class Filter(OrderPreservingUnaryNode):
         self.condition = condition
         self.child = child
         self.children.append(child)
+

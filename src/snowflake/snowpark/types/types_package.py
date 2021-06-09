@@ -41,40 +41,40 @@ def to_udf_argument_type(datatype) -> str:
 
 
 # TODO maybe change to isinstance()
-def convert_to_sf_type(data_type: DataType) -> str:
-    if data_type is DecimalType:
-        return f"NUMBER(${data_type.precision}, ${data_type.scale})"
-    if data_type is IntegerType:
+def convert_to_sf_type(datatype: DataType) -> str:
+    if type(datatype) == DecimalType:
+        return f"NUMBER(${datatype.precision}, ${datatype.scale})"
+    if type(datatype) == IntegerType:
         return "INT"
-    if data_type is ShortType:
+    if type(datatype) == ShortType:
         return "SMALLINT"
-    if data_type is ByteType:
+    if type(datatype) == ByteType:
         return "BYTEINT"
-    if data_type is LongType:
+    if type(datatype) == LongType:
         return "BIGINT"
-    if data_type is FloatType:
+    if type(datatype) == FloatType:
         return "FLOAT"
-    if data_type is DoubleType:
+    if type(datatype) == DoubleType:
         return "DOUBLE"
-    if data_type is StringType:
+    if type(datatype) == StringType:
         return "STRING"
-    if data_type is BooleanType:
+    if type(datatype) == BooleanType:
         return "BOOLEAN"
-    if data_type is DateType:
+    if type(datatype) == DateType:
         return "DATE"
-    if data_type is TimeType:
+    if type(datatype) == TimeType:
         return "TIME"
-    if data_type is TimestampType:
+    if type(datatype) == TimestampType:
         return "TIMESTAMP"
-    if data_type is BinaryType:
+    if type(datatype) == BinaryType:
         return "BINARY"
-    if data_type is ArrayType:
+    if type(datatype) == ArrayType:
         return "ARRAY"
-    if data_type is VariantType:
+    if type(datatype) == VariantType:
         return "VARIANT"
     # if type(data_type) is GeographyType:
     #    return "GEOGRAPHY"
-    raise Exception(f"Unsupported data type: {data_type.type_name}")
+    raise Exception(f"Unsupported data type: {datatype.type_name}")
 
 
 def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
