@@ -11,6 +11,7 @@ class Expression:
 class NamedExpression(Expression):
     def __init__(self, name):
         self.name = name
+        self.expr_id = uuid.uuid4()
 
 
 class LeafExpression(Expression):
@@ -18,9 +19,7 @@ class LeafExpression(Expression):
 
 
 class Star(LeafExpression, NamedExpression):
-    @property
-    def name(self):
-        raise Exception("UnresolvedException - Invalid call to name on unresolved object")
+    pass
 
 
 class UnaryExpression(Expression):
@@ -42,8 +41,19 @@ class UnresolvedFunction(Expression):
 
 # Stars
 class UnresolvedStar(Star):
+    # https://github.com/apache/spark/blob/1226b9badd2bc6681e4c533e0dfbc09443a86167/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/unresolved.scala#L352
     def __init__(self, target):
+        super().__init__('UnresolvedStar')
         self.target = target
+
+    def to_string(self):
+        prefix = '.'.join(self.target)+'.' if self.target else ''
+        return prefix + '*'
+
+class ResolvedStar(Star):
+    def __init__(self, expressions):
+        super().__init__('ResolvedStar')
+        self.expressions = expressions
 
 
 # Named Expressions
@@ -84,6 +94,18 @@ class Literal(LeafExpression):
 # Binary Expressions
 class BinaryOperator(BinaryExpression):
     pass
+
+
+# also inherits from Predicate, omitted
+class And(BinaryOperator):
+    symbol = sql_operator = 'AND'
+
+    def __init__(self, left: Expression, right: Expression):
+        assert isinstance(left, Expression)
+        assert isinstance(right, Expression)
+        super().__init__()
+        self.left = left
+        self.right = right
 
 
 class BinaryComparison(BinaryOperator):
@@ -131,6 +153,12 @@ class AttributeReference(Attribute):
         self.data_type = data_type
         self.nullable = nullable
 
+    def with_name(self, new_name):
+        if self.name == new_name:
+            return self
+        else:
+            return AttributeReference(self.name, self.data_type, self.nullable)
+
 
 class UnresolvedAttribute(Attribute):
 
@@ -138,9 +166,9 @@ class UnresolvedAttribute(Attribute):
         super().__init__(name_parts if type(name_parts) == str else name_parts[-1])
         self.name_parts = [name_parts] if type(name_parts) == str else name_parts
 
-    @property
-    def expr_id(self) -> None:
-        raise Exception("UnresolvedException - expr_id")
+    #@property
+    #def expr_id(self) -> None:
+    #    raise Exception("UnresolvedException - expr_id")
 
     @classmethod
     def quoted(cls, name):

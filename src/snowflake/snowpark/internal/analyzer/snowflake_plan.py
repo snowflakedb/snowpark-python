@@ -4,7 +4,7 @@ from src.snowflake.snowpark.plans.logical.logical_plan import LogicalPlan
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
-from typing import List
+from typing import List, Callable
 
 
 class SnowflakePlan(LogicalPlan):
@@ -23,6 +23,10 @@ class SnowflakePlan(LogicalPlan):
         self.session = session
         self.source_plan = source_plan
 
+        # use this to simulate scala's lazy val
+        self.__placeholder_for_attributes = None
+        self.__placeholder_for_output = None
+
     # TODO
     def wrap_exception(self):
         pass
@@ -32,15 +36,20 @@ class SnowflakePlan(LogicalPlan):
         pass
 
     def attributes(self):
-        output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
-        pkg = AnalyzerPackage()
-        self._schema_query = pkg.schema_value_statement(output)
-        return output
+        if not self.__placeholder_for_attributes:
+            output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
+            pkg = AnalyzerPackage()
+            self._schema_query = pkg.schema_value_statement(output)
+            self.__placeholder_for_attributes = output
+        return self.__placeholder_for_attributes
 
     # Convert to 'Spark' AttributeReference
     def output(self) -> List[SPAttributeReference]:
-        return [SPAttributeReference(a.name, snow_type_to_sp_type(a.data_type), a.nullable)
-                for a in self.attributes()]
+        if not self.__placeholder_for_output:
+            self.__placeholder_for_output = \
+                [SPAttributeReference(a.name, snow_type_to_sp_type(a.data_type), a.nullable)
+                 for a in self.attributes()]
+        return self.__placeholder_for_output
 
     def add_aliases(self, to_add: dict):
         self.expr_to_alias.update(to_add)
@@ -61,6 +70,31 @@ class SnowflakePlanBuilder:
         return SnowflakePlan(queries, new_schema_query, select_child.post_actions,
                              select_child.expr_to_alias, self.__session, source_plan)
 
+    def __build_binary(self, sql_generator: Callable[[str, str], str], left: SnowflakePlan,
+                       right: SnowflakePlan, source_plan: LogicalPlan):
+        try:
+            select_left = self._add_result_scan_if_not_select(left)
+            select_right = self._add_result_scan_if_not_select(right)
+            queries = select_left.queries[:-1] + select_left.queries[:-1] + \
+                      [Query(
+                          sql_generator(select_left.queries[-1].sql, select_right.queries[-1].sql),
+                          None)]
+
+            left_schema_query = self.pkg.schema_value_statement(select_left.attributes())
+            right_schema_query = self.pkg.schema_value_statement(select_right.attributes())
+            schema_query = sql_generator(left_schema_query, right_schema_query)
+
+            return SnowflakePlan(
+                queries, schema_query,
+                select_left.post_actions + select_right.post_actions,
+                {**select_left.expr_to_alias, **select_right.expr_to_alias},
+                self.__session, source_plan)
+
+        except Exception as ex:
+            # TODO
+            # self.__wrap_exception(ex, left, right)
+            raise ex
+
     def query(self, sql, source_plan):
         """
         :rtype: SnowflakePlan
@@ -80,12 +114,17 @@ class SnowflakePlanBuilder:
         return self.build(
             lambda x: self.pkg.filter_statement(condition, x), child, source_plan)
 
+    def join(self, left, right, join_type, condition, source_plan):
+        return self.__build_binary(lambda x, y: self.pkg.join_statement(x, y, join_type, condition),
+                                   left, right, source_plan)
+
     def _add_result_scan_if_not_select(self, plan):
         if plan.queries[-1].sql.strip().lower().startswith("select"):
             return plan
         else:
             new_queries = plan.queries + [
-                Query(self.pkg.result_scan_statement(plan.queries[-1].query_id_plance_holder))]
+                Query(self.pkg.result_scan_statement(plan.queries[-1].query_id_plance_holder),
+                      None)]
             return SnowflakePlan(new_queries, self.pkg.schema_value_statement(plan.attributes),
                                  plan.post_actions, plan.expr_to_alias, self.__session,
                                  plan.source_plan)
@@ -95,4 +134,5 @@ class Query:
 
     def __init__(self, query_string, query_placeholder):
         self.sql = query_string
-        self.place_holder = query_placeholder
+        self.place_holder = query_placeholder if query_placeholder else \
+            f"query_id_place_holder_{SchemaUtils.random_string()}"

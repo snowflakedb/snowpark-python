@@ -8,7 +8,7 @@ from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpre
     UnresolvedAttribute as SPUnresolvedAttribute, UnresolvedStar as SPUnresolvedStar, \
     UnresolvedAlias as SPUnresolvedAlias, NamedExpression as SPNamedExpression, Alias as SPAlias, \
     Literal as SPLiteral, EqualTo as SPEqualTo, GreaterThan as SPGreaterThan, GreaterThanOrEqual \
-    as SPGreaterThanOrEqual
+    as SPGreaterThanOrEqual, And as SPAnd
 
 
 class Column:
@@ -33,6 +33,9 @@ class Column:
 
     def __ge__(self, other) -> 'Column':
         return self.with_expr(SPGreaterThanOrEqual(self.expression, self.__to_expr(other)))
+
+    def __and__(self, other) -> 'Column':
+        return self.with_expr(SPAnd(self.expression, self.__to_expr(other)))
 
     def named(self) -> SPExpression:
         if isinstance(self.expression, SPNamedExpression):
