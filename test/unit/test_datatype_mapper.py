@@ -70,7 +70,7 @@ def test_to_sql():
     with pytest.raises(Exception):
         to_sql(.2, SPTimestampType())
 
-    assert to_sql(bytearray.fromhex('2Ef0 F1f2 '), SPBinaryType()) == "2ef0f1f2"
+    assert to_sql(bytearray.fromhex('2Ef0 F1f2 '), SPBinaryType()) == "'2ef0f1f2' :: binary"
 
 
 def test_to_sql_without_cast():
