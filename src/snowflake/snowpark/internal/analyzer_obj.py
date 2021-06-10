@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
 from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
 from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression, \
     UnresolvedAttribute as SPUnresolvedAttribute, UnresolvedFunction as SPUnresolvedFunction, \
@@ -8,7 +14,7 @@ from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpre
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range as SPRange
 
 # TODO fix import
-from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan, SnowflakePlanBuilder
+from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan, SnowflakePlanBuilder, SnowflakeValues
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.plans.logical.logical_plan import Project as SPProject, Filter as \
     SPFilter, UnresolvedRelation as SPUnresolvedRelation
@@ -196,3 +202,9 @@ class Analyzer:
         if type(lp) == SPUnresolvedRelation:
             return self.plan_builder.table('.'.join(lp.multipart_identifier))
 
+        if type(lp) == SnowflakeValues:
+            if lp.data:
+                # TODO: handle large values
+                return self.plan_builder.query(self.package.values_statement(lp.output, lp.data), lp)
+            else:
+                return self.plan_builder.query(self.package.empty_values_statement(lp.output), lp)

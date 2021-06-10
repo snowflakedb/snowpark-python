@@ -6,21 +6,34 @@
 
 from .dataframe import DataFrame
 from .server_connection import ServerConnection
-from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from .row import Row
+from .snowpark_client_exception import SnowparkClientException
+from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlanBuilder, SnowflakeValues
 from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from typing import (
     Dict,
     List,
     Optional,
+    Iterable,
     Union,
 )
-
+import decimal
+import datetime
+from array import array
 import pathlib
 
 from snowflake.connector import SnowflakeConnection
 from .plans.logical.basic_logical_operators import Range
-from .internal.analyzer_obj import Analyzer
 from .plans.logical.logical_plan import UnresolvedRelation
+from .internal.analyzer.analyzer_package import AnalyzerPackage
+from .internal.analyzer.type_to_schema_converter import TypeToSchemaConverter
+from .internal.analyzer_obj import Analyzer
+from .internal.sp_expressions import AttributeReference as SPAttributeReference
+from .types.sf_types import StructType, VariantType, ArrayType, MapType, GeographyType, TimeType, DateType, \
+    TimestampType, DecimalType, AtomicType, Variant, Geography
+from .types.types_package import snow_type_to_sp_type
+from .types.sp_data_types import StringType as SPStringType
+from .functions import column, parse_json, to_decimal, to_timestamp, to_date, to_time, to_array, to_variant, to_object
 
 
 class Session:
@@ -91,10 +104,10 @@ class Session:
     def remove_dependency(self, path):
         trimmed_path = path.strip()
         if trimmed_path.startswith(self.__STAGE_PREFIX):
-            self.__claspathURIs.pop(pathlib.Path(trimmed_path).as_uri())
+            self.__classpath_URIs.pop(pathlib.Path(trimmed_path).as_uri())
         else:
             # Should be the equivalent of scala.File() here
-            self.__claspathURIs.pop(pathlib.Path(trimmed_path).as_uri())
+            self.__classpath_URIs.pop(pathlib.Path(trimmed_path).as_uri())
 
     def set_query_tag(self, query_tag):
         self.__query_tag = query_tag
@@ -136,6 +149,86 @@ class Session:
 
     def get_result_attributes(self, query: str) -> List['Attribute']:
         return self.conn.get_result_attributes(query)
+
+    # TODO: currently only support List[Optional[Iterable]], should support Any
+    def create_dataframe(self, data: List[Optional[Iterable]], schema: StructType = None) -> DataFrame:
+        if len(data) == 0:
+            return DataFrame(self)
+
+        rows = []
+        for row in data:
+            if not row:
+                rows.append(Row([None]))
+            elif type(row) == Row:
+                rows.append(row)
+            else:
+                rows.append(Row(row))
+
+        # TODO: how can we infer when the first row has None?
+        if not schema:
+            schema = TypeToSchemaConverter.infer_schema(rows[0].to_list())
+
+        sp_attrs, data_types = [], []
+        for field in schema.fields:
+            sp_type = SPStringType() if type(field.data_type) == VariantType or type(field.data_type) == ArrayType or \
+                                        type(field.data_type) == MapType or type(field.data_type) == GeographyType or \
+                                        type(field.data_type) == TimeType or type(field.data_type) == DateType or \
+                                        type(field.data_type) == TimestampType else snow_type_to_sp_type(field.data_type)
+            sp_attrs.append(SPAttributeReference(AnalyzerPackage.quote_name(field.name), sp_type, field.nullable))
+            data_types.append(field.data_type)
+
+        converted = []
+        for row in rows:
+            converted_row = []
+            for value, data_type in zip(row.to_list(), data_types):
+                if value is None:
+                    converted_row.append(None)
+                elif type(value) == decimal.Decimal and type(data_type) == DecimalType:
+                    converted_row.append(value)
+                elif type(value) == datetime.datetime and type(data_type) == TimestampType:
+                    converted_row.append(str(value))
+                elif type(value) == datetime.time and type(data_type) == TimeType:
+                    converted_row.append(str(value))
+                elif type(value) == datetime.date and type(data_type) == DateType:
+                    converted_row.append(str(value))
+                elif isinstance(data_type, AtomicType):  # consider inheritance
+                    converted_row.append(value)
+                elif type(value) == Variant and type(data_type) == VariantType:
+                    converted_row.append(value.as_json_string())
+                elif type(value) == Geography and type(data_type) == GeographyType:
+                    converted_row.append(value.as_geo_json())
+                elif type(value) == array and type(data_type) == ArrayType:
+                    converted_row.append(Variant(value).as_json_string())
+                elif type(value) == dict and type(data_type) == MapType:
+                    converted_row.append(Variant(value).as_json_string())
+                else:
+                    raise SnowparkClientException("{} {} can't be converted to {}".format(type(value), value,
+                                                                                          data_type.to_string()))
+            converted.append(Row.from_list(converted_row))
+
+        project_columns = []
+        for field in schema.fields:
+            if type(field.data_type) == DecimalType:
+                project_columns.append(to_decimal(column(field.name), field.data_type.precision,
+                                                  field.data_type.scale).as_(field.name))
+            elif type(field.data_type) == TimestampType:
+                project_columns.append(to_timestamp(column(field.name)).as_(field.name))
+            elif type(field.data_type) == TimeType:
+                project_columns.append(to_time(column(field.name)).as_(field.name))
+            elif type(field.data_type) == DateType:
+                project_columns.append(to_date(column(field.name)).as_(field.name))
+            elif type(field.data_type) == VariantType:
+                project_columns.append(to_variant(parse_json(column(field.name))).as_(field.name))
+            elif type(field.data_type) == ArrayType:
+                project_columns.append(to_array(parse_json(column(field.name))).as_(field.name))
+            elif type(field.data_type) == MapType:
+                project_columns.append(to_object(parse_json(column(field.name))).as_(field.name))
+            # TODO: support geo type
+            # elif type(field.data_type) == Geography:
+            else:
+                project_columns.append(column(field.name))
+
+        return DataFrame(self, SnowflakeValues(sp_attrs, converted)).select(project_columns)
 
     def range(self, *args) -> DataFrame:
         start, step = 0, 1

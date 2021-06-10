@@ -9,6 +9,9 @@ from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpre
     UnresolvedAlias as SPUnresolvedAlias, NamedExpression as SPNamedExpression, Alias as SPAlias, \
     Literal as SPLiteral, EqualTo as SPEqualTo, GreaterThan as SPGreaterThan, GreaterThanOrEqual \
     as SPGreaterThanOrEqual, And as SPAnd
+from typing import (
+    Optional,
+)
 
 
 class Column:
@@ -43,16 +46,17 @@ class Column:
         else:
             return SPUnresolvedAlias(self.expression, None)
 
-    def getName(self) -> str:
+    def get_name(self) -> Optional[str]:
         """Returns the column name if it has one."""
-        if isinstance(self.expression, SPNamedExpression):
-            return self.expression.name
-        else:
-            return None
+        return self.expression.name if isinstance(self.expression, SPNamedExpression) else None
 
     # TODO revisit toString() functionality
     def __repr__(self):
         return f"Column[{self.expression.toString()}]"
+
+    def as_(self, alias: str) -> 'Column':
+        """Returns a new renamed Column. Alias of [[name]]."""
+        return self.name(alias)
 
     def alias(self, alias: str) -> 'Column':
         """Returns a new renamed Column. Alias of [[name]]."""

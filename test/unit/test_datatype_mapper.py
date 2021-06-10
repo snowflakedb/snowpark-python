@@ -44,6 +44,7 @@ def test_to_sql():
     assert to_sql(1, SPByteType()) == "1:: tinyint"
     assert to_sql(1, SPShortType()) == "1:: smallint"
     assert to_sql(1, SPIntegerType()) == "1:: int"
+    assert to_sql(0, SPLongType()) == "0:: bigint"
     assert to_sql(1, SPLongType()) == "1:: bigint"
     assert to_sql(1, SPBooleanType()) == "1:: boolean"
 
@@ -69,7 +70,7 @@ def test_to_sql():
     with pytest.raises(Exception):
         to_sql(.2, SPTimestampType())
 
-    assert to_sql(bytearray.fromhex('2Ef0 F1f2 '), SPBinaryType()) == b'2ef0f1f2'
+    assert to_sql(bytearray.fromhex('2Ef0 F1f2 '), SPBinaryType()) == "2ef0f1f2"
 
 
 def test_to_sql_without_cast():

@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
+from typing import List
+
+
 class Row:
 
     def __init__(self, values):
@@ -129,6 +138,13 @@ class Row:
     def to_list(self):
         return [self.get(i) for i in range(self.size())]
 
+    @staticmethod
+    def from_list(values: List):
+        return Row(values)
+
     # TODO
     def __repr__(self):
         return self.to_string()
+
+    def __iter__(self):
+        yield from self.values

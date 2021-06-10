@@ -5,11 +5,15 @@
 #
 import pytest
 from itertools import product
+import datetime
+from decimal import Decimal
 
 # TODO fix 'src.' in imports
 from src.snowflake.snowpark.column import Column
 from src.snowflake.snowpark.internal.sp_expressions import \
     AttributeReference as SPAttributeReference, ResolvedStar as SPResolvedStar
+from src.snowflake.snowpark.types.sf_types import LongType, StringType, DoubleType, TimestampType, DateType, TimeType,\
+    BooleanType, BinaryType, DecimalType
 from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.functions import col
 
@@ -125,7 +129,7 @@ def test_df_subscriptable(session_cnx, db_parameters):
 
         # two columns, int type
         df = session.range(3, 8).select([col('id'), col('id').alias('id_prime')])
-        res = df[[df[1].getName()]].collect()
+        res = df[[df[1].get_name()]].collect()
         expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
         assert res == expected
 
@@ -483,3 +487,22 @@ def test_df_col(session_cnx, db_parameters):
         c = df.col('*')
         assert type(c) == Column
         assert type(c.expression) == SPResolvedStar
+
+
+def test_create_dataframe(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        # different data types
+        # TODO: SNOW-366940 test array, dict, variant and geo type after we support Variant
+        data = [0, "one", 1.0, datetime.datetime.now(), datetime.date.today(), datetime.time(), True,
+                bytearray('a', 'utf-8'), Decimal(0.5)]
+        none_data = [None] * len(data)
+        df = session.create_dataframe([data, none_data])
+        assert [field.name for field in df.schema.fields] == ["_{}".format(idx + 1) for idx in range(len(data))]
+        assert [type(field.data_type) for field in df.schema.fields] == \
+               [LongType, StringType, DoubleType, TimestampType, DateType, TimeType, BooleanType,
+                BinaryType, DecimalType]
+        assert df.collect() == [Row(data), Row(none_data)]
+
+        # multiple rows
+        df = session.create_dataframe([range(100)])
+        assert df.collect() == [Row(range(100))]
