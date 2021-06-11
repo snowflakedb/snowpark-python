@@ -13,8 +13,9 @@ from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from typing import (
     Dict,
     List,
+    NamedTuple,
     Optional,
-    Iterable,
+    Tuple,
     Union,
 )
 import decimal
@@ -26,12 +27,11 @@ from snowflake.connector import SnowflakeConnection
 from .plans.logical.basic_logical_operators import Range
 from .plans.logical.logical_plan import UnresolvedRelation
 from .internal.analyzer.analyzer_package import AnalyzerPackage
-from .internal.analyzer.type_to_schema_converter import TypeToSchemaConverter
 from .internal.analyzer_obj import Analyzer
 from .internal.sp_expressions import AttributeReference as SPAttributeReference
 from .types.sf_types import StructType, VariantType, ArrayType, MapType, GeographyType, TimeType, DateType, \
     TimestampType, DecimalType, AtomicType, Variant, Geography
-from .types.types_package import snow_type_to_sp_type
+from .types.types_package import snow_type_to_sp_type, _infer_schema
 from .types.sp_data_types import StringType as SPStringType
 from .functions import column, parse_json, to_decimal, to_timestamp, to_date, to_time, to_array, to_variant, to_object
 
@@ -150,23 +150,50 @@ class Session:
     def get_result_attributes(self, query: str) -> List['Attribute']:
         return self.conn.get_result_attributes(query)
 
-    # TODO: currently only support List[Optional[Iterable]], should support Any
-    def create_dataframe(self, data: List[Optional[Iterable]], schema: StructType = None) -> DataFrame:
+    def createDataFrame(self, data: Union[List, NamedTuple, Tuple, Dict],
+                        schema: Optional[StructType] = None) -> DataFrame:
+        # check the type of data
+        if type(data) != list and type(data) != tuple and type(data) != dict:
+            raise SnowparkClientException("createDataFrame() function only accepts data in List, NamedTuple,"
+                                          " Tuple or Dict type.")
+
+        # check whether data is empty
         if len(data) == 0:
             return DataFrame(self)
 
+        # convert data to be a list of Rows
+        # also checks the type of every row, which should be same across data
         rows = []
+        names = None
+        tpe = None
         for row in data:
+            if not tpe:
+                tpe = type(row)
+            elif tpe != type(row):
+                raise SnowparkClientException("Data consists of rows with different types {} and {}."
+                                              .format(tpe, type(row)))
             if not row:
-                rows.append(Row([None]))
-            elif type(row) == Row:
+                rows.append(Row(None))
+            elif isinstance(row, Row):
                 rows.append(row)
-            else:
+            elif isinstance(row, dict):
+                if not names:
+                    names = list(row.keys())
+                rows.append(Row(row.values()))
+            elif isinstance(row, (tuple, list)):
+                if hasattr(row, "_fields") and not names:  # namedtuple
+                    names = list(row._fields)
                 rows.append(Row(row))
+            else:
+                rows.append(Row([row]))
 
-        # TODO: how can we infer when the first row has None?
+        # check the length of every row, which should be same across data
+        if len(set(row.size() for row in rows)) != 1:
+            raise SnowparkClientException("Data consists of rows with different lengths.")
+
+        # infer the schema based the first row
         if not schema:
-            schema = TypeToSchemaConverter.infer_schema(rows[0].to_list())
+            schema = _infer_schema(rows[0].to_list(), names)
 
         sp_attrs, data_types = [], []
         for field in schema.fields:

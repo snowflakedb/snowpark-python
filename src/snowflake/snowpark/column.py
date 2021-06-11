@@ -46,7 +46,7 @@ class Column:
         else:
             return SPUnresolvedAlias(self.expression, None)
 
-    def get_name(self) -> Optional[str]:
+    def getName(self) -> Optional[str]:
         """Returns the column name if it has one."""
         return self.expression.name if isinstance(self.expression, SPNamedExpression) else None
 

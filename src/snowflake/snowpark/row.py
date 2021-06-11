@@ -11,7 +11,7 @@ class Row:
 
     def __init__(self, values):
         # TODO input validation
-        self.values = [i for i in values]
+        self.values = [i for i in values] if isinstance(values, (tuple, list)) else [values]
 
     def size(self):
         return self.length()

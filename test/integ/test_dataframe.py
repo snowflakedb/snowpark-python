@@ -7,15 +7,18 @@ import pytest
 from itertools import product
 import datetime
 from decimal import Decimal
+from collections import namedtuple
 
 # TODO fix 'src.' in imports
 from src.snowflake.snowpark.column import Column
 from src.snowflake.snowpark.internal.sp_expressions import \
     AttributeReference as SPAttributeReference, ResolvedStar as SPResolvedStar
-from src.snowflake.snowpark.types.sf_types import LongType, StringType, DoubleType, TimestampType, DateType, TimeType,\
+from src.snowflake.snowpark.types.sf_types import LongType, StringType, DoubleType, TimestampType, DateType, TimeType, \
     BooleanType, BinaryType, DecimalType
 from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.functions import col
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from ..utils import Utils as utils
 
 
 def test_new_df_from_range(session_cnx, db_parameters):
@@ -71,7 +74,6 @@ def test_select_single_column(session_cnx, db_parameters):
 def test_select_star(session_cnx, db_parameters):
     """Tests df.select('*')."""
     with session_cnx(db_parameters) as session:
-
         # Single column
         res = session.range(3, 8).select('*').collect()
         expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
@@ -87,7 +89,6 @@ def test_select_star(session_cnx, db_parameters):
 def test_df_subscriptable(session_cnx, db_parameters):
     """Tests select & filter as df[...]"""
     with session_cnx(db_parameters) as session:
-
         # Star, single column
         res = session.range(3, 8)[['*']].collect()
         expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
@@ -129,7 +130,7 @@ def test_df_subscriptable(session_cnx, db_parameters):
 
         # two columns, int type
         df = session.range(3, 8).select([col('id'), col('id').alias('id_prime')])
-        res = df[[df[1].get_name()]].collect()
+        res = df[[df[1].getName()]].collect()
         expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
         assert res == expected
 
@@ -489,20 +490,79 @@ def test_df_col(session_cnx, db_parameters):
         assert type(c.expression) == SPResolvedStar
 
 
-def test_create_dataframe(session_cnx, db_parameters):
+def test_create_dataframe_with_different_data_types(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        # different data types
         # TODO: SNOW-366940 test array, dict, variant and geo type after we support Variant
         data = [0, "one", 1.0, datetime.datetime.now(), datetime.date.today(), datetime.time(), True,
                 bytearray('a', 'utf-8'), Decimal(0.5)]
         none_data = [None] * len(data)
-        df = session.create_dataframe([data, none_data])
-        assert [field.name for field in df.schema.fields] == ["_{}".format(idx + 1) for idx in range(len(data))]
+        expected_names = ["_{}".format(idx + 1) for idx in range(len(data))]
+        expected_rows = [Row(data), Row(none_data)]
+        df = session.createDataFrame([data, none_data])
+        assert [field.name for field in df.schema.fields] == expected_names
         assert [type(field.data_type) for field in df.schema.fields] == \
                [LongType, StringType, DoubleType, TimestampType, DateType, TimeType, BooleanType,
                 BinaryType, DecimalType]
-        assert df.collect() == [Row(data), Row(none_data)]
+        assert df.collect() == expected_rows
+        assert df.select(expected_names).collect() == expected_rows
 
-        # multiple rows
-        df = session.create_dataframe([range(100)])
-        assert df.collect() == [Row(range(100))]
+
+def test_create_dataframe_with_dict(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
+        expected_names = list(data.keys())
+        expected_rows = [Row(data.values())]
+        df = session.createDataFrame([data])
+        for field, expected_name in zip(df.schema.fields, expected_names):
+            assert utils.equals_ignore_case(field.name, expected_name)
+        assert df.collect() == expected_rows
+        assert df.select(expected_names).collect() == expected_rows
+
+
+def test_create_dataframe_with_namedtuple(session_cnx, db_parameters):
+    Data = namedtuple("Data", ["snow_{}".format(idx + 1) for idx in range(5)])
+    with session_cnx(db_parameters) as session:
+        data = Data(*[idx ** 3 for idx in range(5)])
+        expected_names = list(data._fields)
+        expected_rows = [Row(data)]
+        df = session.createDataFrame([data])
+        for field, expected_name in zip(df.schema.fields, expected_names):
+            assert utils.equals_ignore_case(field.name, expected_name)
+        assert df.collect() == expected_rows
+        assert df.select(expected_names).collect() == expected_rows
+
+
+def test_create_dataframe_with_single_value(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        data = [1, 2, 3]
+        expected_names = ["_1"]
+        expected_rows = [Row(d) for d in data]
+        df = session.createDataFrame(data)
+        assert [field.name for field in df.schema.fields] == expected_names
+        assert df.collect() == expected_rows
+        assert df.select(expected_names).collect() == expected_rows
+
+
+def test_create_dataframe_empty(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        data = [[]]
+        df = session.createDataFrame(data)
+        expected_rows = [Row(None)]
+        assert df.collect() == expected_rows
+
+
+def test_create_dataframe_with_invalid_format(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        # inconsistent type
+        data = [1, "1"]
+        with pytest.raises(SnowparkClientException):
+            session.createDataFrame(data)
+
+        # inconsistent length
+        data = [[1], [1, 2]]
+        with pytest.raises(SnowparkClientException):
+            session.createDataFrame(data)
+
+
+
+

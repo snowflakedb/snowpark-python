@@ -204,7 +204,7 @@ class Analyzer:
 
         if type(lp) == SnowflakeValues:
             if lp.data:
-                # TODO: handle large values
+                # TODO: SNOW-367105 handle large values with largeLocalRelationPlan
                 return self.plan_builder.query(self.package.values_statement(lp.output, lp.data), lp)
             else:
                 return self.plan_builder.query(self.package.empty_values_statement(lp.output), lp)
