@@ -562,7 +562,3 @@ def test_create_dataframe_with_invalid_format(session_cnx, db_parameters):
         data = [[1], [1, 2]]
         with pytest.raises(SnowparkClientException):
             session.createDataFrame(data)
-
-
-
-
