@@ -138,9 +138,9 @@ class Row:
     def to_list(self):
         return [self.get(i) for i in range(self.size())]
 
-    @staticmethod
-    def from_list(values: List):
-        return Row(values)
+    @classmethod
+    def from_list(cls, values: List):
+        return cls(values)
 
     # TODO
     def __repr__(self):

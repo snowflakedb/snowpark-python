@@ -140,7 +140,7 @@ class Query:
             f"query_id_place_holder_{SchemaUtils.random_string()}"
 
 
-# TODO: move to a new file
+# TODO: this class was taken from SnowflakePlanNonde.scala, we might have to move it to a new file
 class SnowflakeValues(LeafNode):
     def __init__(self, output: List['SPAttribute'], data: List['Row']):
         super(SnowflakeValues, self).__init__()

@@ -557,6 +557,9 @@ def test_create_dataframe_with_invalid_format(session_cnx, db_parameters):
         data = [1, "1"]
         with pytest.raises(SnowparkClientException):
             session.createDataFrame(data)
+        data = [[1, "1"], Row([2, "2"])]
+        with pytest.raises(SnowparkClientException):
+            session.createDataFrame(data)
 
         # inconsistent length
         data = [[1], [1, 2]]

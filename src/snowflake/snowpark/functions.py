@@ -20,10 +20,13 @@ def column(col_name) -> Column:
 
 
 def sql_expr(sql: str) -> Column:
+    """Creates a [[Column]] expression from raw SQL text.
+    Note that the function does not interpret or check the SQL text. """
     return Column.expr(sql)
 
 
 def parse_json(s: Column) -> Column:
+    """Parse the value of the specified column as a JSON string and returns the resulting JSON document. """
     return builtin("parse_json")(s)
 
 

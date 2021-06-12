@@ -31,7 +31,7 @@ from .internal.analyzer_obj import Analyzer
 from .internal.sp_expressions import AttributeReference as SPAttributeReference
 from .types.sf_types import StructType, VariantType, ArrayType, MapType, GeographyType, TimeType, DateType, \
     TimestampType, DecimalType, AtomicType, Variant, Geography
-from .types.types_package import snow_type_to_sp_type, _infer_schema
+from .types.types_package import snow_type_to_sp_type, _infer_schema_from_list
 from .types.sp_data_types import StringType as SPStringType
 from .functions import column, parse_json, to_decimal, to_timestamp, to_date, to_time, to_array, to_variant, to_object
 
@@ -150,10 +150,19 @@ class Session:
     def get_result_attributes(self, query: str) -> List['Attribute']:
         return self.conn.get_result_attributes(query)
 
-    def createDataFrame(self, data: Union[List, NamedTuple, Tuple, Dict],
+    def createDataFrame(self, data: Union[List, Tuple, NamedTuple, Dict],
                         schema: Optional[StructType] = None) -> DataFrame:
+        """
+        Creates a new DataFrame containing the specified values.
+        Currently this function only accepts data from a List, Tuple, NameTuple or Dict, and performs type and length
+        check across rows.
+        When schema is None, the schema will be inferred from the first row of the data.
+        """
+        if data is None:
+            raise SnowparkClientException("Data could not be None. ")
+
         # check the type of data
-        if type(data) != list and type(data) != tuple and type(data) != dict:
+        if not isinstance(data, (list, tuple, dict)):
             raise SnowparkClientException("createDataFrame() function only accepts data in List, NamedTuple,"
                                           " Tuple or Dict type.")
 
@@ -193,17 +202,18 @@ class Session:
 
         # infer the schema based the first row
         if not schema:
-            schema = _infer_schema(rows[0].to_list(), names)
+            schema = _infer_schema_from_list(rows[0].to_list(), names)
 
+        # get spark attributes and data types
         sp_attrs, data_types = [], []
         for field in schema.fields:
-            sp_type = SPStringType() if type(field.data_type) == VariantType or type(field.data_type) == ArrayType or \
-                                        type(field.data_type) == MapType or type(field.data_type) == GeographyType or \
-                                        type(field.data_type) == TimeType or type(field.data_type) == DateType or \
-                                        type(field.data_type) == TimestampType else snow_type_to_sp_type(field.data_type)
+            sp_type = SPStringType() if type(field.data_type) in \
+                                        [VariantType, ArrayType, MapType, GeographyType, TimeType, DateType,
+                                         TimestampType] else snow_type_to_sp_type(field.data_type)
             sp_attrs.append(SPAttributeReference(AnalyzerPackage.quote_name(field.name), sp_type, field.nullable))
             data_types.append(field.data_type)
 
+        # convert all variant/time/geography/array/map data to string
         converted = []
         for row in rows:
             converted_row = []
@@ -233,6 +243,7 @@ class Session:
                                                                                           data_type.to_string()))
             converted.append(Row.from_list(converted_row))
 
+        # construct a project statement to convert string value back to variant
         project_columns = []
         for field in schema.fields:
             if type(field.data_type) == DecimalType:

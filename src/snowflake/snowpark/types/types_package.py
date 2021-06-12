@@ -8,7 +8,7 @@ import ctypes
 import decimal
 import datetime
 import sys
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional
 
 from .sf_types import BinaryType, BooleanType, DataType, DateType, IntegerType, LongType, \
     DoubleType, FloatType, ShortType, ByteType, DecimalType, StringType, TimeType, VariantType, \
@@ -20,7 +20,7 @@ from .sp_data_types import DataType as SPDataType, BooleanType as SPBooleanType,
     DateType as SPDateType, TimeType as SPTimeType, TimestampType as SPTimestampType, \
     BinaryType as SPBinaryType, ArrayType as SPArrayType, MapType as SPMapType, \
     VariantType as SPVariantType, DecimalType as SPDecimalType, NullType as SPNullType
-
+from ..snowpark_client_exception import SnowparkClientException
 
 def udf_option_supported(datatype: DataType) -> bool:
     return type(datatype) in [IntegerType, LongType, DoubleType, FloatType, ShortType, ByteType, BooleanType]
@@ -122,7 +122,7 @@ def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
     # if type(datatype) == GeographyType:
     #    return GeographyType(snow_type_to_sp_type(valueType))
     # raise internal error
-    raise Exception("Could not convert snowflake type {}".format(datatype))
+    raise SnowparkClientException("Could not convert snowflake type {}".format(datatype))
 
 
 def to_sp_struct_type(struct_type: StructType) -> SPStructType:
@@ -311,7 +311,7 @@ def _infer_type(obj):
         raise TypeError("not supported type: %s" % type(obj))
 
 
-def _infer_schema(row: List, names: Optional[Union[List, Tuple]] = None) -> StructType:
+def _infer_schema_from_list(row: List, names: Optional[List] = None) -> StructType:
     """Infer the schema from list"""
     if names is None:
         names = ['_%d' % i for i in range(1, len(row) + 1)]
