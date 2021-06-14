@@ -251,12 +251,12 @@ class AnalyzerPackage:
 
     def schema_value_statement(self, output) -> str:
         return self._Select + \
-               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type, attr.nullable) +
+               self._Comma.join([DataTypeMapper.schema_expression(attr.datatype, attr.nullable) +
                                  self._As + self.quote_name(attr.name) for attr in output])
 
     def values_statement(self, output: List['SPAttribute'], data: List['Row']) -> str:
         table_name = AnalyzerPackage.random_name_for_temp_object()
-        data_types = [attr.data_type for attr in output]
+        data_types = [attr.datatype for attr in output]
         names = [AnalyzerPackage.quote_name(attr.name) for attr in output]
         rows = []
         for row in data:
