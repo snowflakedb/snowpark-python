@@ -1,17 +1,27 @@
 #  File containing the Expression definitions for ASTs (Spark).
+from src.snowflake.snowpark.types.sp_data_types import DataType, NullType, LongType
 from src.snowflake.snowpark.types.types_package import _infer_type
+
+from typing import Optional
 
 import uuid
 
 
 class Expression:
-    pass
+    # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/Expression.scala#L86
+    def __init__(self):
+        self.expr_id = uuid.uuid4()
+
+    def pretty_name(self) -> str:
+        """Returns a user-facing string representation of this expression's name.
+        This should usually match the name of the function in SQL. """
+        return self.__class__.__name__
 
 
 class NamedExpression(Expression):
     def __init__(self, name):
+        super().__init__()
         self.name = name
-        self.expr_id = uuid.uuid4()
 
 
 class LeafExpression(Expression):
@@ -28,15 +38,101 @@ class UnaryExpression(Expression):
 
 class BinaryExpression(Expression):
     def __init__(self):
+        super().__init__()
         self.left = None
         self.right = None
 
 
 class UnresolvedFunction(Expression):
     def __init__(self, name, arguments, is_distinct=False):
+        super().__init__()
         self.name = name
         self.children = arguments
         self.is_distinct = is_distinct
+
+
+# ##### AggregateModes
+class AggregateMode:
+    pass
+
+
+class Complete(AggregateMode):
+    pass
+
+
+# TODO complete AggregateModes
+######
+
+
+class AggregateExpression(Expression):
+    # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/interfaces.scala#L99
+    def __init__(self, aggregate_function, mode: AggregateMode, is_distinct: bool,
+                 filter: Expression, result_id: uuid.UUID = None):
+        super().__init__()
+        self.aggregate_function = aggregate_function
+        self.mode = mode
+        self.is_distinct = is_distinct
+        self.filter = filter
+        self.result_id = result_id if result_id else uuid.uuid4()
+
+        # Original: self.children = aggregate_function +: filter.toSeq
+        children = [aggregate_function]
+        if filter:
+            children.append(filter)
+        self.children = children
+
+        self.datatype = aggregate_function.datatype
+        # TODO nullable needed?
+        # self.nullable = aggregate_function.nullable
+
+    def name(self):
+        return self.aggregate_function.name
+
+
+class TypedAggregateExpression(AggregateExpression):
+    pass
+
+
+class AggregateFunction(Expression):
+    # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/interfaces.scala#L207
+
+    def to_aggregate_expression(self, is_distinct=False, filter=None) -> AggregateExpression:
+        return AggregateExpression(self, Complete(), is_distinct, filter)
+
+
+class DeclarativeAggregate(AggregateFunction):
+    # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/interfaces.scala#L394
+    pass
+
+
+class Count(DeclarativeAggregate):
+    # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Count.scala
+    name = 'COUNT'
+
+    def __init__(self, children):
+        super().__init__()
+        self.children = children if type(children) == list else [children]
+        self.datatype = LongType()
+
+
+# Grouping sets
+class BaseGroupingSets(Expression):
+    # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/grouping.scala#L30
+    pass
+
+
+class Cube(BaseGroupingSets):
+    def __init__(self, grouping_set_indexes, children=[]):
+        super().__init__()
+        self.grouping_set_indexes = grouping_set_indexes
+        self.children = children
+
+
+class Rollup(BaseGroupingSets):
+    def __init__(self, grouping_set_indexes, children=[]):
+        super().__init__()
+        self.grouping_set_indexes = grouping_set_indexes
+        self.children = children
 
 
 # Stars
@@ -47,8 +143,9 @@ class UnresolvedStar(Star):
         self.target = target
 
     def to_string(self):
-        prefix = '.'.join(self.target)+'.' if self.target else ''
+        prefix = '.'.join(self.target) + '.' if self.target else ''
         return prefix + '*'
+
 
 class ResolvedStar(Star):
     def __init__(self, expressions):
@@ -83,6 +180,7 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
 # Leaf Expressions
 class Literal(LeafExpression):
     def __init__(self, value, datatype):
+        super().__init__()
         self.value = value
         self.datatype = datatype
 
@@ -148,16 +246,16 @@ class GreaterThanOrEqual(BinaryComparison):
 
 # Attributes
 class AttributeReference(Attribute):
-    def __init__(self, name: str, data_type, nullable: bool):
+    def __init__(self, name: str, datatype, nullable: bool):
         super().__init__(name)
-        self.data_type = data_type
+        self.datatype = datatype
         self.nullable = nullable
 
     def with_name(self, new_name):
         if self.name == new_name:
             return self
         else:
-            return AttributeReference(self.name, self.data_type, self.nullable)
+            return AttributeReference(self.name, self.datatype, self.nullable)
 
 
 class UnresolvedAttribute(Attribute):
@@ -166,8 +264,8 @@ class UnresolvedAttribute(Attribute):
         super().__init__(name_parts if type(name_parts) == str else name_parts[-1])
         self.name_parts = [name_parts] if type(name_parts) == str else name_parts
 
-    #@property
-    #def expr_id(self) -> None:
+    # @property
+    # def expr_id(self) -> None:
     #    raise Exception("UnresolvedException - expr_id")
 
     @classmethod
@@ -184,3 +282,26 @@ class UnresolvedAttribute(Attribute):
     def parse_attribute_name(name):
         # TODO
         return name
+
+
+class PrettyAttribute(Attribute):
+    def __init__(self, name: str, datatype: Optional[DataType]):
+        super().__init__(name=name)
+        self.datatype = datatype
+
+    @classmethod
+    def this(cls, attribute: Attribute):
+        if type(attribute) == AttributeReference:
+            tpe = attribute.datatype
+        elif type(attribute) == PrettyAttribute:
+            tpe = attribute.datatype
+        else:
+            tpe = NullType()
+
+        return cls(attribute.name, tpe)
+
+    def to_string(self) -> str:
+        return self.name
+
+    def sql(self) -> str:
+        return self.name

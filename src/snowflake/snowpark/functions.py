@@ -5,8 +5,10 @@
 #
 from .column import Column
 from .internal.sp_expressions import Expression as SPExpression, Literal as SPLiteral, \
-    UnresolvedFunction as SPUnresolvedFunction
+    UnresolvedFunction as SPUnresolvedFunction, AggregateFunction as SPAggregateFunction, Star as \
+    SPStar, Count as SPCount
 
+from .types.sp_data_types import IntegerType as SPIntegerType
 
 def col(col_name):
     """Returns the [[Column]] with the specified name. """
@@ -16,6 +18,15 @@ def col(col_name):
 def column(col_name):
     """Returns a [[Column]] with the specified name. Alias for col. """
     return Column(col_name)
+
+
+def count(e: Column) -> Column:
+    exp = SPCount(SPLiteral(1, SPIntegerType())) if isinstance(e, SPStar) else SPCount(e.expression)
+    return with_aggregate_function(exp)
+
+
+def with_aggregate_function(func: SPAggregateFunction, is_distinct:bool=True) -> Column:
+    return Column(func.to_aggregate_expression(is_distinct))
 
 
 def call_builtin(function_name, *args):
@@ -38,7 +49,7 @@ def call_builtin(function_name, *args):
     return Column(SPUnresolvedFunction(function_name, sp_expressions, is_distinct=False))
 
 
-def builtin(function_name, *args):
+def builtin(function_name):
     """
     Function object to invoke a Snowflake builtin. Use this to invoke
     any builtins not explicitly listed in this object.

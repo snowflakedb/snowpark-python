@@ -72,7 +72,7 @@ def convert_to_sf_type(datatype: DataType) -> str:
         return "ARRAY"
     if type(datatype) == VariantType:
         return "VARIANT"
-    # if type(data_type) is GeographyType:
+    # if type(datatype) is GeographyType:
     #    return "GEOGRAPHY"
     raise Exception(f"Unsupported data type: {datatype.type_name}")
 
