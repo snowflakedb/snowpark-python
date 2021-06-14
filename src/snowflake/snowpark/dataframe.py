@@ -12,6 +12,7 @@ from .plans.logical.basic_logical_operators import Join as SPJoin
 from .plans.logical.hints import JoinHint as SPJoinHint
 from .types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
     LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, Cross as SPCrossJoin
+from .types.sf_types import StructType
 
 from typing import List, Union
 from random import choice
@@ -28,6 +29,7 @@ class DataFrame:
         self.__plan = session.analyzer.resolve(plan)
 
         # Use this to simulate scala's lazy val
+        self.__placeholder_schema = None
         self.__placeholder_output = None
 
     @staticmethod
@@ -345,6 +347,12 @@ class DataFrame:
         if not self.__placeholder_output:
             self.__placeholder_output = self.__plan.output()
         return self.__placeholder_output
+
+    @property
+    def schema(self) -> StructType:
+        if not self.__placeholder_schema:
+            self.__placeholder_schema = StructType.from_attributes(self.__plan.attributes())
+        return self.__placeholder_schema
 
     def __with_plan(self, plan):
         return DataFrame(self.session, plan)

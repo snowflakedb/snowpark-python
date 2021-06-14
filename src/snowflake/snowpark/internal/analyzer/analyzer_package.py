@@ -6,10 +6,13 @@
 from .datatype_mapper import DataTypeMapper
 from ...types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
     LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, NaturalJoin as SPNaturalJoin
+from ..sp_expressions import Attribute as SPAttribute
+from src.snowflake.snowpark.row import Row
 
 from typing import List
 import re
 import random
+from typing import List
 
 
 class AnalyzerPackage:
@@ -126,7 +129,7 @@ class AnalyzerPackage:
     _Get = " GET "
     _GroupingSets = " GROUPING SETS "
 
-    def result_scan_statement(self, uuid_place_holder) -> str:
+    def result_scan_statement(self, uuid_place_holder: str) -> str:
         return self._Select + self._Star + self._From + self._Table + self._LeftParenthesis + \
                self._ResultScan + self._LeftParenthesis + self._SingleQuote + uuid_place_holder + \
                self._SingleQuote + self._RightParenthesis + self._RightParenthesis
@@ -178,7 +181,7 @@ class AnalyzerPackage:
                 start) + self._RightParenthesis +
             self._As + column_name
         ],
-            self.table(self.generator(0 if (count < 0) else count)))
+            self.table(self.generator(0 if count < 0 else count)))
 
     def left_semi_or_anti_join_statement(self, left: str, right: str, join_type: type,
                                          condition: str) -> str:
@@ -232,7 +235,7 @@ class AnalyzerPackage:
                  f"{using_condition if using_condition else self._EmptyString}" + \
                  f"{join_condition if join_condition else self._EmptyString}"
 
-        return self.project_statement(None, source)
+        return self.project_statement([], source)
 
     def join_statement(self, left: str, right: str, join_type: SPJoinType, condition: str) -> str:
         if type(join_type) == SPLeftSemi:
@@ -248,14 +251,30 @@ class AnalyzerPackage:
 
     def schema_value_statement(self, output) -> str:
         return self._Select + \
-               self._Comma.join([DataTypeMapper.schema_expression(attr.datatype(), attr.nullable) +
+               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type, attr.nullable) +
                                  self._As + self.quote_name(attr.name) for attr in output])
 
-    def generator(self, row_count) -> str:
+    def values_statement(self, output: List['SPAttribute'], data: List['Row']) -> str:
+        table_name = AnalyzerPackage.random_name_for_temp_object()
+        data_types = [attr.data_type for attr in output]
+        names = [AnalyzerPackage.quote_name(attr.name) for attr in output]
+        rows = []
+        for row in data:
+            cells = [DataTypeMapper.to_sql(value, data_type) for value, data_type in zip(row.to_list(), data_types)]
+            rows.append(self._LeftParenthesis + self._Comma.join(cells) + self._RightParenthesis)
+        query_source = self._Values + self._Comma.join(rows) + self._As + table_name + self._LeftParenthesis + \
+                       self._Comma.join(names) + self._RightParenthesis
+        return self.project_statement([], query_source)
+
+    def empty_values_statement(self, output: List['SPAttribute']):
+        data = [Row.from_list([None] * len(output))]
+        self.filter_statement(self._UnsatFilter, self.values_statement(output, data))
+
+    def generator(self, row_count: int) -> str:
         return self._Generator + self._LeftParenthesis + self._RowCount + self._RightArrow + \
                str(row_count) + self._RightParenthesis
 
-    def table(self, content) -> str:
+    def table(self, content: str) -> str:
         return self._Table + self._LeftParenthesis + content + self._RightParenthesis
 
     def single_quote(self, value: str) -> str:
@@ -276,11 +295,11 @@ class AnalyzerPackage:
             return cls._DoubleQuote + cls._escape_quotes(name) + cls._DoubleQuote
 
     @classmethod
-    def quote_name_without_upper_casing(cls, name) -> str:
+    def quote_name_without_upper_casing(cls, name: str) -> str:
         return cls._DoubleQuote + cls._escape_quotes(name) + cls._DoubleQuote
 
     @staticmethod
-    def _escape_quotes(unescaped) -> str:
+    def _escape_quotes(unescaped: str) -> str:
         return unescaped.replace('\"', '\"\"')
 
     # Most integer types map to number(38,0)

@@ -37,7 +37,7 @@ def test_integer_type(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, integers)
     for attribute in attributes:
-        assert attribute.datatype == LongType
+        assert type(attribute.data_type) == LongType
 
 
 def test_float_type(session_cnx, db_parameters):
@@ -46,7 +46,11 @@ def test_float_type(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, floats)
     for attribute in attributes:
+<<<<<<< HEAD
         assert attribute.datatype == DoubleType
+=======
+        assert type(attribute.data_type) == DoubleType
+>>>>>>> 3154e41ffa4a7227ad142a17f5a9648a69f9b50e
 
 
 def test_string_type(session_cnx, db_parameters):
@@ -55,7 +59,11 @@ def test_string_type(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, strings)
     for attribute in attributes:
+<<<<<<< HEAD
         assert attribute.datatype == StringType
+=======
+        assert type(attribute.data_type) == StringType
+>>>>>>> 3154e41ffa4a7227ad142a17f5a9648a69f9b50e
 
 
 def test_binary_type(session_cnx, db_parameters):
@@ -64,7 +72,11 @@ def test_binary_type(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, binarys)
     for attribute in attributes:
+<<<<<<< HEAD
         assert attribute.datatype == BinaryType
+=======
+        assert type(attribute.data_type) == BinaryType
+>>>>>>> 3154e41ffa4a7227ad142a17f5a9648a69f9b50e
 
 
 def test_logical_type(session_cnx, db_parameters):
@@ -73,7 +85,11 @@ def test_logical_type(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, logicals)
     for attribute in attributes:
+<<<<<<< HEAD
         assert attribute.datatype == BooleanType
+=======
+        assert type(attribute.data_type) == BooleanType
+>>>>>>> 3154e41ffa4a7227ad142a17f5a9648a69f9b50e
 
 
 def test_date_and_time_type(session_cnx, db_parameters):
@@ -88,7 +104,11 @@ def test_date_and_time_type(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, list(dates.keys()))
     for attribute, expected_type in zip(attributes, dates.values()):
+<<<<<<< HEAD
         assert attribute.datatype == expected_type
+=======
+        assert type(attribute.data_type) == expected_type
+>>>>>>> 3154e41ffa4a7227ad142a17f5a9648a69f9b50e
 
 
 def test_semi_structured_type(session_cnx, db_parameters):
@@ -96,8 +116,13 @@ def test_semi_structured_type(session_cnx, db_parameters):
     table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, semi_structures)
+<<<<<<< HEAD
     assert attributes[0].datatype == VariantType
     assert attributes[1].datatype == MapType(StringType, StringType)
+=======
+    assert type(attributes[0].data_type) == VariantType
+    assert type(attributes[1].data_type) == MapType
+>>>>>>> 3154e41ffa4a7227ad142a17f5a9648a69f9b50e
 
 
 def test_array_type(session_cnx, db_parameters):
@@ -105,7 +130,11 @@ def test_array_type(session_cnx, db_parameters):
     table_name = utils.random_name()
     with session_cnx(db_parameters) as session:
         attributes = get_attributes_with_types(session, table_name, semi_structures)
+<<<<<<< HEAD
     assert attributes[0].datatype == ArrayType(StringType)
+=======
+    assert type(attributes[0].data_type) == ArrayType
+>>>>>>> 3154e41ffa4a7227ad142a17f5a9648a69f9b50e
 
 
 def test_describe_schema_matches_execute_schema_for_show_queries(session_cnx, db_parameters):

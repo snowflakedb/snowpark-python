@@ -86,26 +86,26 @@ class ServerConnection:
     def _get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
         """Convert the Snowflake logical type to the Snowpark type. """
         if column_type_name == 'ARRAY':
-            return ArrayType(StringType)
+            return ArrayType(StringType())
         if column_type_name == 'VARIANT':
-            return VariantType
+            return VariantType()
         if column_type_name == 'OBJECT':
-            return MapType(StringType, StringType)
+            return MapType(StringType(), StringType())
         if column_type_name == 'GEOGRAPHY':  # not supported by python connector
-            return GeographyType
+            return GeographyType()
         if column_type_name == 'BOOLEAN':
-            return BooleanType
+            return BooleanType()
         if column_type_name == 'BINARY':
-            return BinaryType
+            return BinaryType()
         if column_type_name == 'TEXT':
-            return StringType
+            return StringType()
         if column_type_name == 'TIME':
-            return TimeType
+            return TimeType()
         if column_type_name == 'TIMESTAMP' or column_type_name == 'TIMESTAMP_LTZ' \
                 or column_type_name == 'TIMESTAMP_TZ' or column_type_name == 'TIMESTAMP_NTZ':
-            return TimestampType
+            return TimestampType()
         if column_type_name == 'DATE':
-            return DateType
+            return DateType()
         if column_type_name == 'DECIMAL' or (column_type_name == 'FIXED' and scale != 0):
             if precision != 0 or scale != 0:
                 if precision > DecimalType.MAX_PRECISION:
@@ -115,9 +115,9 @@ class ServerConnection:
             else:
                 return DecimalType(38, 15)  # Spark 1.5.0 default
         if column_type_name == 'REAL':
-            return DoubleType
+            return DoubleType()
         if column_type_name == 'FIXED' and scale == 0:
-            return LongType
+            return LongType()
         raise NotImplementedError("Unsupported type: {}, precision: {}, scale: {}".format(column_type_name, precision,
                                                                                           scale))
 

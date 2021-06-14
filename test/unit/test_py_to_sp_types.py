@@ -12,7 +12,7 @@ from src.snowflake.snowpark.types.sp_data_types import NullType as SPNullType, \
     BinaryType as SPBinaryType, DecimalType as SPDecimalType, DateType as SPDateType, \
     TimestampType as SPTimestampType, MapType as SPMapType, ArrayType as SPArrayType, \
     ByteType as SPByteType, ShortType as SPShortType, IntegerType as SPIntegerType, \
-    FloatType as SPFloatType
+    FloatType as SPFloatType, TimeType as SPTimeType
 
 from decimal import Decimal
 from datetime import date, datetime, time
@@ -29,7 +29,7 @@ def test_py_to_sp_type():
     assert type(_infer_type(Decimal(0.00000000000000000000000000000000000000233))) == SPDecimalType
     assert type(_infer_type(date(2021, 5, 25))) == SPDateType
     assert type(_infer_type(datetime(2021, 5, 25, 0, 47, 41))) == SPTimestampType
-    assert type(_infer_type(time(17, 57, 10))) == SPTimestampType
+    assert type(_infer_type(time(17, 57, 10))) == SPTimeType
     assert type(_infer_type((1024).to_bytes(2, byteorder='big')))
 
     res = _infer_type({1: "abc"})

@@ -1,4 +1,14 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
 import re
+from typing import (
+    List,
+    Union,
+)
 
 
 class DataType:
@@ -27,6 +37,10 @@ class DataType:
 
 
 # Data types
+
+class NullType(DataType):
+    pass
+
 
 class AtomicType(DataType):
     pass
@@ -164,19 +178,6 @@ class ArrayType(DataType):
         return self.to_string()
 
 
-class StructType(DataType):
-
-    def __init__(self, fields):
-        self.fields = fields
-
-    @classmethod
-    def from_attributes(cls, attributes: list):
-        cls([StructField(a.name, a.datatype, a.nullable) for a in attributes])
-
-    def to_attributes(self):
-        raise Exception("Not implemented StructType.toAttributes()")
-
-
 # TODO complete
 class ColumnIdentifier:
     def __init__(self, normalized_name):
@@ -199,9 +200,9 @@ class ColumnIdentifier:
 
 # TODO complete
 class StructField:
-    def __init__(self, column_identifier: ColumnIdentifier, data_type: DataType,
+    def __init__(self, column_identifier: Union[ColumnIdentifier, str], data_type: DataType,
                  nullable: bool = True):
-        self.column_identifier = column_identifier
+        self.column_identifier = ColumnIdentifier(column_identifier) if type(column_identifier) == str else column_identifier
         self.data_type = data_type
         self.nullable = nullable
 
@@ -220,6 +221,19 @@ class StructField:
         raise Exception("Not Implemented tree_string()")
 
 
+class StructType(DataType):
+
+    def __init__(self, fields: List['StructField']):
+        self.fields = fields
+
+    @classmethod
+    def from_attributes(cls, attributes: list):
+        return cls([StructField(a.name, a.data_type, a.nullable) for a in attributes])
+
+    def to_attributes(self):
+        raise Exception("Not implemented StructType.toAttributes()")
+
+
 class GeographyType(AtomicType):
     def to_string(self):
         """Returns GeographyType Info. Decimal(precision, scale)"""
@@ -232,3 +246,18 @@ class GeographyType(AtomicType):
 
     def __repr__(self):
         return self.to_string()
+
+
+# TODO
+class Variant:
+    def __init__(self, value):
+        pass
+
+    def as_json_string(self):
+        pass
+
+
+# TODO
+class Geography:
+    def as_geo_json(self):
+        pass

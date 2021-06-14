@@ -1,8 +1,10 @@
-from ..sp_expressions import AttributeReference as SPAttributeReference
+from ..sp_expressions import Attribute as SPAttribute, AttributeReference as SPAttributeReference
+from .sf_attribute import Attribute
 from src.snowflake.snowpark.internal.schema_utils import SchemaUtils
-from src.snowflake.snowpark.plans.logical.logical_plan import LogicalPlan
+from src.snowflake.snowpark.plans.logical.logical_plan import LogicalPlan, LeafNode
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
+from src.snowflake.snowpark.row import Row
 
 from typing import List, Callable, Optional
 
@@ -35,7 +37,7 @@ class SnowflakePlan(LogicalPlan):
     def analyze_if_needed(self):
         pass
 
-    def attributes(self):
+    def attributes(self) -> List['Attribute']:
         if not self.__placeholder_for_attributes:
             output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
             pkg = AnalyzerPackage()
@@ -142,3 +144,11 @@ class Query:
         self.sql = query_string
         self.place_holder = query_placeholder if query_placeholder else \
             f"query_id_place_holder_{SchemaUtils.random_string()}"
+
+
+# TODO: this class was taken from SnowflakePlanNonde.scala, we might have to move it to a new file
+class SnowflakeValues(LeafNode):
+    def __init__(self, output: List['SPAttribute'], data: List['Row']):
+        super(SnowflakeValues, self).__init__()
+        self.output = output
+        self.data = data
