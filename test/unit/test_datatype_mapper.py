@@ -46,6 +46,11 @@ def test_to_sql():
     assert to_sql(1, SPIntegerType()) == "1:: int"
     assert to_sql(1, SPLongType()) == "1:: bigint"
     assert to_sql(1, SPBooleanType()) == "1:: boolean"
+    assert to_sql(0, SPByteType()) == "0:: tinyint"
+    assert to_sql(0, SPShortType()) == "0:: smallint"
+    assert to_sql(0, SPIntegerType()) == "0:: int"
+    assert to_sql(0, SPLongType()) == "0:: bigint"
+    assert to_sql(0, SPBooleanType()) == "0:: boolean"
 
     assert to_sql(float('nan'), SPFloatType()) == "'Nan' :: FLOAT"
     assert to_sql(float('inf'), SPFloatType()) == "'Infinity' :: FLOAT"
@@ -69,7 +74,7 @@ def test_to_sql():
     with pytest.raises(Exception):
         to_sql(.2, SPTimestampType())
 
-    assert to_sql(bytearray.fromhex('2Ef0 F1f2 '), SPBinaryType()) == b'2ef0f1f2'
+    assert to_sql(bytearray.fromhex('2Ef0 F1f2 '), SPBinaryType()) == "'2ef0f1f2' :: binary"
 
 
 def test_to_sql_without_cast():

@@ -1,8 +1,17 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
+from typing import List
+
+
 class Row:
 
     def __init__(self, values):
         # TODO input validation
-        self.values = [i for i in values]
+        self.values = [i for i in values] if hasattr(values, '__iter__') else [values]
 
     def size(self):
         return self.length()
@@ -129,6 +138,13 @@ class Row:
     def to_list(self):
         return [self.get(i) for i in range(self.size())]
 
+    @classmethod
+    def from_list(cls, values: List):
+        return cls(values)
+
     # TODO
     def __repr__(self):
         return self.to_string()
+
+    def __iter__(self):
+        yield from self.values

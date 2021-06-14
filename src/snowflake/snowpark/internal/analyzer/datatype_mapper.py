@@ -33,33 +33,33 @@ class DataTypeMapper:
         # Handle null values
         if type(spark_data_type) in [SPNullType, SPArrayType, SPMapType, SPStructType,
                                      SPGeographyType]:
-            if not value:
+            if value is None:
                 return "NULL"
         if type(spark_data_type) is SPIntegerType:
-            if not value:
+            if value is None:
                 return "NULL :: int"
         if type(spark_data_type) is SPShortType:
-            if not value:
+            if value is None:
                 return "NULL :: smallint"
         if type(spark_data_type) is SPByteType:
-            if not value:
+            if value is None:
                 return "NULL :: tinyint"
         if type(spark_data_type) is SPLongType:
-            if not value:
+            if value is None:
                 return "NULL :: bigint"
         if type(spark_data_type) is SPFloatType:
-            if not value:
+            if value is None:
                 return "NULL :: float"
         if type(spark_data_type) is SPStringType:
-            if not value:
+            if value is None:
                 return "NULL :: string"
         if type(spark_data_type) is SPDoubleType:
-            if not value:
+            if value is None:
                 return "NULL :: double"
         if type(spark_data_type) is SPBooleanType:
-            if not value:
+            if value is None:
                 return "NULL :: boolean"
-        if not value:
+        if value is None:
             return "NULL"
 
         # Not nulls
@@ -119,10 +119,9 @@ class DataTypeMapper:
             return f'TIMESTAMP \'{trimmed_ms}\''
 
         if type(value) in [list, bytearray] and type(spark_data_type) is SPBinaryType:
-            # f"{''.join(format(x,'02x') for x in value)} :: binary"
-            return binascii.hexlify(value)
+            return "'{}' :: binary".format(binascii.hexlify(value).decode())
 
-        raise Exception("Unsupported datatype by to_sql()")
+        raise Exception("Unsupported datatype {}, value {} by to_sql()".format(spark_data_type, value))
 
     @staticmethod
     def schema_expression(data_type, is_nullable):
@@ -157,7 +156,7 @@ class DataTypeMapper:
 
     @staticmethod
     def to_sql_without_cast(value, data_type):
-        if not value:
+        if value is None:
             return "NULL"
         if isinstance(data_type, SPStringType):
             return f"""{value}"""

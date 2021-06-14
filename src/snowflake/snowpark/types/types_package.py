@@ -8,11 +8,11 @@ import ctypes
 import decimal
 import datetime
 import sys
+from typing import List, Optional
 
 from .sf_types import BinaryType, BooleanType, DataType, DateType, IntegerType, LongType, \
     DoubleType, FloatType, ShortType, ByteType, DecimalType, StringType, TimeType, VariantType, \
-    TimestampType, StructType, MapType, ArrayType
-
+    TimestampType, StructType, MapType, ArrayType, StructField, NullType
 from .sp_data_types import DataType as SPDataType, BooleanType as SPBooleanType, \
     StructType as SPStructType, StructField as SPStructField, StringType as SPStringType, \
     ByteType as SPByteType, ShortType as SPShortType, IntegerType as SPIntegerType, \
@@ -20,14 +20,10 @@ from .sp_data_types import DataType as SPDataType, BooleanType as SPBooleanType,
     DateType as SPDateType, TimeType as SPTimeType, TimestampType as SPTimestampType, \
     BinaryType as SPBinaryType, ArrayType as SPArrayType, MapType as SPMapType, \
     VariantType as SPVariantType, DecimalType as SPDecimalType, NullType as SPNullType
+from ..snowpark_client_exception import SnowparkClientException
 
-
-def udf_option_supported(data_type: DataType) -> bool:
-    if type(data_type) in [IntegerType, LongType, DoubleType, FloatType, ShortType, ByteType,
-                           BooleanType]:
-        return True
-    else:
-        return False
+def udf_option_supported(datatype: DataType) -> bool:
+    return type(datatype) in [IntegerType, LongType, DoubleType, FloatType, ShortType, ByteType, BooleanType]
 
 
 # TODO revisit when dealing with Java UDFs. We'll probably hard-code the return values.
@@ -70,15 +66,19 @@ def convert_to_sf_type(datatype: DataType) -> str:
         return "BINARY"
     if type(datatype) == ArrayType:
         return "ARRAY"
+    if type(datatype) == MapType:
+        return "OBJECT"
     if type(datatype) == VariantType:
         return "VARIANT"
-    # if type(data_type) is GeographyType:
+    # if type(datatype) is GeographyType:
     #    return "GEOGRAPHY"
     raise Exception(f"Unsupported data type: {datatype.type_name}")
 
 
 def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
     """ Mapping from snowflake data-types, to SP data-types """
+    if type(datatype) == NullType:
+        return SPNullType()
     if type(datatype) == BooleanType:
         return SPBooleanType()
     if type(datatype) == StringType:
@@ -100,7 +100,7 @@ def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
         return SPFloatType()
     if type(datatype) == DoubleType:
         return SPDoubleType()
-    if type(datatype) == DateType():
+    if type(datatype) == DateType:
         return SPDateType()
     if type(datatype) == TimeType:
         return SPTimeType()
@@ -120,17 +120,61 @@ def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
     if type(datatype) == DecimalType:
         return SPDecimalType(datatype.precision, datatype.scale)
     # if type(datatype) == GeographyType:
-    #    return SPGeographyType(snowTypeToSpType(valueType))
-    return None
+    #    return GeographyType(snow_type_to_sp_type(valueType))
+    # raise internal error
+    raise SnowparkClientException("Could not convert snowflake type {}".format(datatype))
 
 
 def to_sp_struct_type(struct_type: StructType) -> SPStructType:
     return snow_type_to_sp_type(struct_type)
 
 
-# TODO
-def sp_type_to_snow_type(data_type: SPDateType) -> DataType:
-    pass
+def sp_type_to_snow_type(datatype: SPDateType) -> DataType:
+    """ Mapping from SP data-types, to snowflake data-types """
+    if type(datatype) == SPNullType:
+        return NullType()
+    if type(datatype) == SPBooleanType:
+        return BooleanType()
+    if type(datatype) == SPStringType:
+        return StringType()
+    if type(datatype) == SPStructType:
+        return StructType([
+            StructField(field.name, sp_type_to_snow_type(field.dataType),
+                          field.nullable)
+            for field in datatype.fields])
+    if type(datatype) == SPByteType:
+        return ByteType()
+    if type(datatype) == SPShortType:
+        return ShortType()
+    if type(datatype) == SPIntegerType:
+        return IntegerType()
+    if type(datatype) == SPLongType:
+        return LongType()
+    if type(datatype) == SPFloatType:
+        return FloatType()
+    if type(datatype) == SPDoubleType:
+        return DoubleType()
+    if type(datatype) == SPDateType:
+        return DateType()
+    if type(datatype) == SPTimeType:
+        return TimeType()
+    if type(datatype) == SPTimestampType:
+        return TimestampType()
+    if type(datatype) == SPBinaryType:
+        return BinaryType()
+    if type(datatype) == SPArrayType:
+        return ArrayType(sp_type_to_snow_type(datatype.element_type))
+    if type(datatype) == SPMapType:
+        return MapType(sp_type_to_snow_type(datatype.key_type),
+                       sp_type_to_snow_type(datatype.value_type))
+    if type(datatype) == SPVariantType:
+        return VariantType()
+    if type(datatype) == SPDecimalType:
+        return DecimalType(datatype.precision, datatype.scale)
+    # if type(datatype) == GeographyType:
+    #    return GeographyType(sp_type_to_snow_type(valueType))
+    # raise internal error
+    raise Exception("Could not convert spark type {}".format(datatype))
 
 
 def to_snow_struct_type(struct_type: SPStructType) -> StructType:
@@ -152,7 +196,7 @@ _type_mappings = {
     decimal.Decimal: SPDecimalType,
     datetime.date: SPDateType,
     datetime.datetime: SPTimestampType,
-    datetime.time: SPTimestampType,
+    datetime.time: SPTimeType,
     bytes: SPBinaryType,
 }
 
@@ -241,12 +285,12 @@ def _infer_type(obj):
     if hasattr(obj, '__UDT__'):
         return obj.__UDT__
 
-    data_type = _type_mappings.get(type(obj))
-    if data_type is SPDecimalType:
+    datatype = _type_mappings.get(type(obj))
+    if datatype is SPDecimalType:
         # the precision and scale of `obj` may be different from row to row.
         return SPDecimalType(38, 18)
-    elif data_type is not None:
-        return data_type()
+    elif datatype is not None:
+        return datatype()
 
     if isinstance(obj, dict):
         for key, value in obj.items():
@@ -264,7 +308,20 @@ def _infer_type(obj):
         else:
             raise TypeError("not supported type: array(%s)" % obj.typecode)
     else:
-        # try:
-        #    return _infer_schema(obj)
-        # except TypeError:
         raise TypeError("not supported type: %s" % type(obj))
+
+
+def _infer_schema_from_list(row: List, names: Optional[List] = None) -> StructType:
+    """Infer the schema from list"""
+    if names is None:
+        names = ['_%d' % i for i in range(1, len(row) + 1)]
+    elif len(names) < len(row):
+        names.extend('_%d' % i for i in range(len(names) + 1, len(row) + 1))
+
+    fields = []
+    for k, v in zip(names, row):
+        try:
+            fields.append(StructField(k, sp_type_to_snow_type(_infer_type(v)), True))
+        except TypeError as e:
+            raise TypeError("Unable to infer the type of the field {}.".format(k)) from e
+    return StructType(fields)
