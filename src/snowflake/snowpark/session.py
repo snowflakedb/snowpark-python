@@ -159,7 +159,7 @@ class Session:
         When schema is None, the schema will be inferred from the first row of the data.
         """
         if data is None:
-            raise SnowparkClientException("Data could not be None. ")
+            raise SnowparkClientException("Data can not be None. ")
 
         # check the type of data
         if not isinstance(data, (list, tuple, dict)):

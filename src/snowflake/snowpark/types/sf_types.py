@@ -228,7 +228,7 @@ class StructType(DataType):
 
     @classmethod
     def from_attributes(cls, attributes: list):
-        return cls([StructField(a.name, a.data_type, a.nullable) for a in attributes])
+        return cls([StructField(a.name, a.datatype, a.nullable) for a in attributes])
 
     def to_attributes(self):
         raise Exception("Not implemented StructType.toAttributes()")

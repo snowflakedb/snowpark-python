@@ -6,13 +6,12 @@
 from .column import Column
 from .internal.sp_expressions import Expression as SPExpression, Literal as SPLiteral, \
     UnresolvedFunction as SPUnresolvedFunction, AggregateFunction as SPAggregateFunction, Star as \
-    SPStar, Count as SPCount
+    SPStar, Count as SPCount, Max as SPMax, Min as SPMin, Avg as SPAverage, Sum as SPSum
 from typing import Optional
-
-
 from .types.sp_data_types import IntegerType as SPIntegerType
 
-def col(col_name) -> Column:
+
+def col(col_name: str) -> Column:
     """Returns the [[Column]] with the specified name. """
     return Column(col_name)
 
@@ -22,13 +21,20 @@ def column(col_name) -> Column:
     return Column(col_name)
 
 
+def lit(literal) -> Column:
+    return typedLit(literal)
+
+
+def typedLit(literal) -> Column:
+    if type(literal) == Column:
+        return literal
+    else:
+        return Column(SPLiteral.create(literal))
+
+
 def count(e: Column) -> Column:
     exp = SPCount(SPLiteral(1, SPIntegerType())) if isinstance(e, SPStar) else SPCount(e.expression)
     return with_aggregate_function(exp)
-
-
-def with_aggregate_function(func: SPAggregateFunction, is_distinct:bool=True) -> Column:
-    return Column(func.to_aggregate_expression(is_distinct))
 
 
 def sql_expr(sql: str) -> Column:
@@ -37,8 +43,76 @@ def sql_expr(sql: str) -> Column:
     return Column.expr(sql)
 
 
+def avg(e: Column) -> Column:
+    """Returns the average of non-NULL records. If all records inside a group are NULL, the function
+     returns NULL."""
+    return with_aggregate_function(SPAverage(e.expression))
+
+
+def max(e: Column) -> Column:
+    """Returns the maximum value for the records in a group. NULL values are ignored unless all
+    the records are NULL, in which case a NULL value is returned."""
+    return with_aggregate_function(SPMax(e.expression))
+
+
+def mean(e: Column) -> Column:
+    """Return the average for the specific numeric columns. Alias of avg"""
+    return avg(e)
+
+
+def median(e: Column) -> Column:
+    """Returns the median value for the records in a group. NULL values are ignored unless all the
+    records are NULL, in which case a NULL value is returned."""
+    return builtin('median')(e)
+
+
+def min(e: Column) -> Column:
+    """Returns the minimum value for the records in a group. NULL values are ignored unless all
+    the records are NULL, in which case a NULL value is returned."""
+    return with_aggregate_function(SPMin(e.expression))
+
+
+def skew(e: Column):
+    """Returns the sample skewness of non-NULL records. If all records inside a group are NULL,
+    the function returns NULL."""
+    return builtin('skew')(e)
+
+
+def stddev(e: Column) -> Column:
+    """Returns the sample standard deviation (square root of sample variance) of non-NULL values.
+    If all records inside a group are NULL, returns NULL."""
+    return builtin('stddev')(e)
+
+
+def stddev_samp(e: Column) -> Column:
+    """Returns the sample standard deviation (square root of sample variance) of non-NULL values.
+    If all records inside a group are NULL, returns NULL. Alias of stddev"""
+    return builtin('stddev_samp')(e)
+
+
+def stddev_pop(e: Column) -> Column:
+    """Returns the population standard deviation (square root of variance) of non-NULL values.
+    If all records inside a group are NULL, returns NULL."""
+    return builtin('stddev_pop')(e)
+
+
+def sum(e: Column) -> Column:
+    """Returns the sum of non-NULL records in a group. You can use the DISTINCT keyword to compute
+    the sum of unique non-null values. If all records inside a group are NULL, the function returns
+    NULL."""
+    return with_aggregate_function(SPSum(e.expression))
+
+
+def sum_distinct(e: Column) -> Column:
+    """ Returns the sum of non-NULL distinct records in a group. You can use the DISTINCT keyword to
+    compute the sum of unique non-null values. If all records inside a group are NULL,
+    the function returns NULL."""
+    return with_aggregate_function(SPSum(e.expression), is_distinct=True)
+
+
 def parse_json(s: Column) -> Column:
-    """Parse the value of the specified column as a JSON string and returns the resulting JSON document. """
+    """Parse the value of the specified column as a JSON string and returns the resulting JSON
+    document. """
     return builtin("parse_json")(s)
 
 
@@ -75,6 +149,10 @@ def to_variant(s: Column) -> Column:
 def to_object(s: Column) -> Column:
     """Converts any value to a OBJECT value or NULL (if input is NULL). """
     return builtin("to_object")(s)
+
+
+def with_aggregate_function(func: SPAggregateFunction, is_distinct: bool = False) -> Column:
+    return Column(func.to_aggregate_expression(is_distinct))
 
 
 def call_builtin(function_name, *args):

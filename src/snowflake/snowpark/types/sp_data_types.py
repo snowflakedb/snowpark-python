@@ -161,6 +161,9 @@ class DoubleType(FractionalType):
 
 
 class DecimalType(FractionalType):
+    MAX_PRECISION = 38
+    MAX_SCALE = 38
+
     def __init__(self, precision, scale):
         self.precision = precision
         self.scale = scale

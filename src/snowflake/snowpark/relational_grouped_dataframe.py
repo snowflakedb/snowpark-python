@@ -68,22 +68,30 @@ class RelationalGroupedDataFrame:
         aliased_agg = []
         for grouping_expr in self.grouping_exprs:
             if isinstance(grouping_expr, GroupingSets):
-                aliased_agg.extend(list(set(grouping_expr.args)))
+                # avoid doing list(set(grouping_expr.args)) because it will change the order
+                gr_used = set()
+                gr_uniq = [arg for arg in grouping_expr.args\
+                           if arg not in gr_used and (gr_used.add(arg) or True)]
+                aliased_agg.extend(gr_uniq)
             else:
                 aliased_agg.append(grouping_expr)
 
         aliased_agg.extend(agg_exprs)
-        aliases_agg = [self.alias(a) for a in list(set(aliased_agg))]
+
+        # Avoid doing aliased_agg = [self.alias(a) for a in list(set(aliased_agg))], to keep order
+        used = set()
+        unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
+        aliased_agg = [self.alias(a) for a in unique]
 
         if type(self.group_type) == GroupByType:
             return DataFrame(self.df.session,
-                             SPAggregate(self.grouping_exprs, aliases_agg, self.df._DataFrame__plan))
+                             SPAggregate(self.grouping_exprs, aliased_agg, self.df._DataFrame__plan))
         if type(self.group_type) == RollupType:
             return DataFrame(self.df.session,
-                             SPAggregate([SPRollup(self.grouping_exprs)], aliases_agg, self.df.__plan))
+                             SPAggregate([SPRollup(self.grouping_exprs)], aliased_agg, self.df.__plan))
         if type(self.group_type) == CubeType:
             return DataFrame(self.df.session,
-                             SPAggregate([SPCube(self.grouping_exprs)], aliases_agg, self.df.__plan))
+                             SPAggregate([SPCube(self.grouping_exprs)], aliased_agg, self.df.__plan))
         if type(self.group_type) == PivotType:
             if len(agg_exprs) != 1:
                 raise SnowparkClientException("Only one aggregate is supported with pivot")
@@ -120,28 +128,31 @@ class RelationalGroupedDataFrame:
     def __expr_to_func(expr: str, input_expr: SPExpression):
         lowered = expr.lower()
         if lowered in ['avg', 'average', 'mean']:
-            return SPUnresolvedFunction('avg', None, is_distinct=False)
+            return SPUnresolvedFunction('avg', [input_expr], is_distinct=False)
         elif lowered in ['stddev', 'std']:
-            return SPUnresolvedFunction('stddev', None, is_distinct=False)
+            return SPUnresolvedFunction('stddev', [input_expr], is_distinct=False)
         elif lowered in ['count', 'size']:
             if isinstance(input_expr, SPStar):
                 return SPCount(SPLiteral(1, SPInteger())).to_aggregate_expression()
             else:
                 return SPCount(input_expr).to_aggregate_expression()
         else:
-            return SPUnresolvedFunction(expr, None, is_distinct=False)
+            return SPUnresolvedFunction(expr, [input_expr], is_distinct=False)
 
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]):
+        if not type(exprs) in (list, tuple):
+            exprs = [exprs]
+
         if all(type(e) == Column for e in exprs):
             return self.toDF([e.expression for e in exprs])
         elif all(type(e) == tuple and type(e[0]) == Column and type(e[1]) == str for e in exprs):
-            return self.toDF([self.__str_to_expr(expr)(col.expr) for col, expr in exprs])
+            return self.toDF([self.__str_to_expr(expr)(col.expression) for col, expr in exprs])
         else:
             raise SnowparkClientException("Invalid input types for agg()")
 
     def avg(self, *cols: Column):
         """Return the average for the specified numeric columns. """
-        return self.__non_empty_argument_function("avg", list(cols))
+        return self.__non_empty_argument_function("avg", *cols)
 
     def mean(self, *cols: Column):
         """Return the average for the specified numeric columns. Alias of avg."""
@@ -149,31 +160,34 @@ class RelationalGroupedDataFrame:
 
     def sum(self, *cols: Column):
         """Return the sum for the specified numeric columns."""
-        return self.__non_empty_argument_function("sum", list(cols))
+        return self.__non_empty_argument_function("sum", *cols)
 
     def median(self, *cols: Column):
         """Return the median for the specified numeric columns."""
-        return self.__non_empty_argument_function("median", list(cols))
+        return self.__non_empty_argument_function("median", *cols)
 
     def min(self, *cols: Column):
-        return self.__non_empty_argument_function("min", list(cols))
+        return self.__non_empty_argument_function("min", *cols)
 
     def max(self, *cols: Column):
-        return self.__non_empty_argument_function("max", list(cols))
+        return self.__non_empty_argument_function("max", *cols)
 
     def count(self):
         return self.toDF(
             [SPAlias(SPCount(SPLiteral(1, SPInteger())).to_aggregate_expression(), "count")])
 
-    def builtin(self, agg_name: str, *cols: Column):
+    def builtin(self, agg_name: str):
+        return lambda *cols: self.__builtin_internal(agg_name, *cols)
+
+    def __builtin_internal(self, agg_name, *cols):
         agg_exprs = []
         for c in cols:
             expr = functions.builtin(agg_name)(c.expression).expression
             agg_exprs.append(expr)
         return self.toDF(agg_exprs)
 
-    def __non_empty_argument_function(self, func_name: str, cols: List[Column]):
+    def __non_empty_argument_function(self, func_name: str, *cols: List[Column]):
         if not cols:
             raise SnowparkClientException(f"the argument of {func_name} function can't be empty")
         else:
-            return self.builtin(func_name, *cols)
+            return self.builtin(func_name)(*cols)

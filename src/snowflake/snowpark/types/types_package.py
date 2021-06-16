@@ -39,7 +39,7 @@ def to_udf_argument_type(datatype) -> str:
 # TODO maybe change to isinstance()
 def convert_to_sf_type(datatype: DataType) -> str:
     if type(datatype) == DecimalType:
-        return f"NUMBER(${datatype.precision}, ${datatype.scale})"
+        return f"NUMBER({datatype.precision}, {datatype.scale})"
     if type(datatype) == IntegerType:
         return "INT"
     if type(datatype) == ShortType:

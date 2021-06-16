@@ -6,9 +6,9 @@ from ...types.sp_data_types import StringType as SPStringType, NumericType as SP
 
 
 def use_pretty_expression(e: SPExpression) -> SPExpression:
-    if type(e) == SPAttribute:
+    if isinstance(e, SPAttribute):
         return SPPrettyAttribute.this(e)
-    if type(e) == SPLiteral:
+    if isinstance(e, SPLiteral):
         if type(e.datatype) == SPStringType:
             return SPPrettyAttribute(str(e.value), SPStringType())
         if isinstance(e.datatype, SPNumericType):
@@ -28,4 +28,7 @@ def to_pretty_sql(e: SPExpression) -> str:
     try:
         return use_pretty_expression(e).sql()
     except:
-        return e.name()
+        try:
+            return e.to_string()
+        except:
+            return e.name

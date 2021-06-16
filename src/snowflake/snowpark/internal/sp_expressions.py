@@ -1,7 +1,8 @@
 #  File containing the Expression definitions for ASTs (Spark).
-from src.snowflake.snowpark.types.sp_data_types import DataType, NullType, LongType
+from src.snowflake.snowpark.types.sp_data_types import DataType, NullType, LongType, DoubleType, \
+    DecimalType, IntegralType
 from src.snowflake.snowpark.types.types_package import _infer_type
-
+from .analyzer.datatype_mapper import DataTypeMapper
 from typing import Optional
 
 import uuid
@@ -50,6 +51,15 @@ class UnresolvedFunction(Expression):
         self.children = arguments
         self.is_distinct = is_distinct
 
+    def pretty_name(self) -> str:
+        return self.name.strip('"')
+
+    def to_string(self) -> str:
+        return f"{self.name}({', '.join((c.to_string() for c  in self.children))})"
+
+    def __repr__(self):
+        return self.to_string()
+
 
 # ##### AggregateModes
 class AggregateMode:
@@ -85,8 +95,12 @@ class AggregateExpression(Expression):
         # TODO nullable needed?
         # self.nullable = aggregate_function.nullable
 
+    @property
     def name(self):
         return self.aggregate_function.name
+
+    def to_string(self):
+        return f"{self.aggregate_function.name}({', '.join((c.to_string() for c in self.aggregate_function.children))})"
 
 
 class TypedAggregateExpression(AggregateExpression):
@@ -109,11 +123,68 @@ class Count(DeclarativeAggregate):
     # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Count.scala
     name = 'COUNT'
 
-    def __init__(self, children):
+    def __init__(self, child: Expression):
         super().__init__()
-        self.children = children if type(children) == list else [children]
+        self.child = child
+        self.children = [child]
         self.datatype = LongType()
 
+
+class Max(DeclarativeAggregate):
+    # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Max.scala
+    name = 'MAX'
+
+    def __init__(self, child: Expression):
+        super().__init__()
+        self.child = child
+        self.children = [child]
+        self.datatype = getattr(child, 'datatype', None)
+
+class Min(DeclarativeAggregate):
+    # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Max.scala
+    name = 'MIN'
+
+    def __init__(self, child: Expression):
+        super().__init__()
+        self.child = child
+        self.children = [child]
+        self.datatype = getattr(child, 'datatype', None)
+
+
+class Avg(DeclarativeAggregate):
+    # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Average.scala
+    name = 'AVG'
+
+    def __init__(self, child: Expression):
+        super().__init__()
+        self.child = child
+        self.children = [child]
+        self.datatype = self.__get_type(child)
+
+    @staticmethod
+    def __get_type(child: Expression) -> DataType:
+        if type(child) == DecimalType:
+            return DecimalType(DecimalType.MAX_PRECISION, DecimalType.MAX_SCALE)
+        else:
+            return DoubleType()
+
+class Sum(DeclarativeAggregate):
+    name = 'SUM'
+
+    def __init__(self, child: Expression):
+        super().__init__()
+        self.child = child
+        self.children = [child]
+        self.datatype = self.__get_type(child)
+
+    @staticmethod
+    def __get_type(child: Expression) -> DataType:
+        if type(child) == DecimalType:
+            return DecimalType(DecimalType.MAX_PRECISION, DecimalType.MAX_SCALE)
+        elif type(child) == IntegralType:
+            return LongType()
+        else:
+            return DoubleType()
 
 # Grouping sets
 class BaseGroupingSets(Expression):
@@ -188,6 +259,14 @@ class Literal(LeafExpression):
     def create(cls, value):
         return cls(value, _infer_type(value))
 
+    def to_string(self):
+        return DataTypeMapper.to_sql_without_cast(self.value, self.datatype)
+
+    def sql(self):
+        return self.to_string()
+
+    def __repr__(self):
+        return self.to_string()
 
 # Binary Expressions
 class BinaryOperator(BinaryExpression):
@@ -282,6 +361,12 @@ class UnresolvedAttribute(Attribute):
     def parse_attribute_name(name):
         # TODO
         return name
+
+    def to_string(self):
+        return '.'.join(self.name_parts)
+
+    def sql(self):
+        return self.to_string()
 
 
 class PrettyAttribute(Attribute):

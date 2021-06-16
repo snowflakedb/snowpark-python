@@ -167,7 +167,7 @@ class Analyzer:
         # otherwise process as normal
         if type(expr) == SPLiteral:
             if isinstance(expr.datatype, (SPIntegerType, SPLongType, SPShortType, SPByteType)):
-                DataTypeMapper.to_sql_without_cast(expr.value, expr.datatype)
+                return DataTypeMapper.to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(expr)
 
