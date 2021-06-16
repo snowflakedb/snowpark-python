@@ -461,17 +461,17 @@ def test_toDF(session_cnx, db_parameters):
 
         # calling toDF() with fewer new names than columns should fail
         with pytest.raises(Exception) as ex:
-            df.__toDF(['new_name'])
+            df.toDF(['new_name'])
         assert "The number of columns doesn't match. Old column names (2):" in str(ex.value)
 
-        res = df.__toDF(['rename1', 'rename2']).select([col('rename1'), col('rename2')]).collect()
+        res = df.toDF(['rename1', 'rename2']).select([col('rename1'), col('rename2')]).collect()
         expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
         assert sorted(res, key=lambda r: r.get(0)) == expected
 
-        res = df.__toDF(['rename1', 'rename2']).columns
+        res = df.toDF(['rename1', 'rename2']).columns
         assert res == ['"RENAME1"', '"RENAME2"']
 
-        df_prime = df.__toDF(['rename1', 'rename2'])
+        df_prime = df.toDF(['rename1', 'rename2'])
         res = df_prime.select(df_prime.RENAME1).collect()
         expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
         assert sorted(res, key=lambda r: r.get(0)) == expected
