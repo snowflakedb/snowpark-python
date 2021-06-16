@@ -22,19 +22,16 @@ def column(col_name) -> Column:
 
 
 def lit(literal) -> Column:
+    """Creates a [[Column]] expression for a literal value."""
     return typedLit(literal)
 
 
 def typedLit(literal) -> Column:
+    """Creates a [[Column]] expression for a literal value."""
     if type(literal) == Column:
         return literal
     else:
         return Column(SPLiteral.create(literal))
-
-
-def count(e: Column) -> Column:
-    exp = SPCount(SPLiteral(1, SPIntegerType())) if isinstance(e, SPStar) else SPCount(e.expression)
-    return with_aggregate_function(exp)
 
 
 def sql_expr(sql: str) -> Column:
@@ -46,13 +43,20 @@ def sql_expr(sql: str) -> Column:
 def avg(e: Column) -> Column:
     """Returns the average of non-NULL records. If all records inside a group are NULL, the function
      returns NULL."""
-    return with_aggregate_function(SPAverage(e.expression))
+    return __with_aggregate_function(SPAverage(e.expression))
+
+
+def count(e: Column) -> Column:
+    """Returns either the number of non-NULL records for the specified columns, or the total number
+     of records."""
+    exp = SPCount(SPLiteral(1, SPIntegerType())) if isinstance(e, SPStar) else SPCount(e.expression)
+    return __with_aggregate_function(exp)
 
 
 def max(e: Column) -> Column:
     """Returns the maximum value for the records in a group. NULL values are ignored unless all
     the records are NULL, in which case a NULL value is returned."""
-    return with_aggregate_function(SPMax(e.expression))
+    return __with_aggregate_function(SPMax(e.expression))
 
 
 def mean(e: Column) -> Column:
@@ -69,10 +73,10 @@ def median(e: Column) -> Column:
 def min(e: Column) -> Column:
     """Returns the minimum value for the records in a group. NULL values are ignored unless all
     the records are NULL, in which case a NULL value is returned."""
-    return with_aggregate_function(SPMin(e.expression))
+    return __with_aggregate_function(SPMin(e.expression))
 
 
-def skew(e: Column):
+def skew(e: Column) -> Column:
     """Returns the sample skewness of non-NULL records. If all records inside a group are NULL,
     the function returns NULL."""
     return builtin('skew')(e)
@@ -100,14 +104,14 @@ def sum(e: Column) -> Column:
     """Returns the sum of non-NULL records in a group. You can use the DISTINCT keyword to compute
     the sum of unique non-null values. If all records inside a group are NULL, the function returns
     NULL."""
-    return with_aggregate_function(SPSum(e.expression))
+    return __with_aggregate_function(SPSum(e.expression))
 
 
 def sum_distinct(e: Column) -> Column:
     """ Returns the sum of non-NULL distinct records in a group. You can use the DISTINCT keyword to
     compute the sum of unique non-null values. If all records inside a group are NULL,
     the function returns NULL."""
-    return with_aggregate_function(SPSum(e.expression), is_distinct=True)
+    return __with_aggregate_function(SPSum(e.expression), is_distinct=True)
 
 
 def parse_json(s: Column) -> Column:
@@ -151,7 +155,7 @@ def to_object(s: Column) -> Column:
     return builtin("to_object")(s)
 
 
-def with_aggregate_function(func: SPAggregateFunction, is_distinct: bool = False) -> Column:
+def __with_aggregate_function(func: SPAggregateFunction, is_distinct: bool = False) -> Column:
     return Column(func.to_aggregate_expression(is_distinct))
 
 

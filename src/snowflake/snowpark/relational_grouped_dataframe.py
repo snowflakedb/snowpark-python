@@ -43,19 +43,16 @@ class PivotType(GroupType):
 
 
 class RelationalGroupedDataFrame:
-    """ Represents an underlying DataFrame with rows that are grouped by ccommon values. Can be used
-     to define aggregations on these groupedbDataFrames.
+    """ Represents an underlying DataFrame with rows that are grouped by common values. Can be used
+    to define aggregations on these grouped DataFrames.
 
+    Examples:
+        grouped_df = df.groupBy("dept")
+        agg_df = grouped_df.agg(groupedDf("salary") -> "mean")
 
-     Example:
-        val groupedDf: RelationalGroupedDataFrame = df.groupBy("dept")
-   valaggDf: DataFrame = groupedDf.agg(groupedDf("salary") -> "mean")
- }}}
-
-  The methods [[DataFrame.groupBy(cols* DataFrame.groupBy]],
-  [[DataFrame.cube(cols* DataFrame.cube]] and
-  [[DataFrame.rollup(cols* DataFrame.rollup]]
-  return an instance of type [[RelationalGroupedDataFrame]]"""
+    The methods [[DataFrame.groupBy()]],
+    [[DataFrame.cube()]] and [[DataFrame.rollup()]]
+    return an instance of type [[RelationalGroupedDataFrame]]"""
 
     def __init__(self, df, grouping_exprs : List[SPExpression], group_type: GroupType):
         self.df = df
@@ -64,7 +61,7 @@ class RelationalGroupedDataFrame:
 
     # subscriptable returns new object
 
-    def toDF(self, agg_exprs: List[SPExpression]):
+    def __toDF(self, agg_exprs: List[SPExpression]):
         aliased_agg = []
         for grouping_expr in self.grouping_exprs:
             if isinstance(grouping_expr, GroupingSets):
@@ -81,7 +78,7 @@ class RelationalGroupedDataFrame:
         # Avoid doing aliased_agg = [self.alias(a) for a in list(set(aliased_agg))], to keep order
         used = set()
         unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
-        aliased_agg = [self.alias(a) for a in unique]
+        aliased_agg = [self.__alias(a) for a in unique]
 
         if type(self.group_type) == GroupByType:
             return DataFrame(self.df.session,
@@ -96,16 +93,13 @@ class RelationalGroupedDataFrame:
             if len(agg_exprs) != 1:
                 raise SnowparkClientException("Only one aggregate is supported with pivot")
             return DataFrame(self.df.session,
-                             SPPivot([self.alias(e) for e in grouping_expr],
+                             SPPivot([self.__alias(e) for e in grouping_expr],
                                      self.group_type.pivot_col,
                                      self.group_type.values,
                                      agg_exprs,
                                      self.df.__plan))
 
-    def as_(self, expr: SPExpression) -> SPNamedExpression:
-        return self.alias(expr)
-
-    def alias(self, expr: SPExpression) -> SPNamedExpression:
+    def __alias(self, expr: SPExpression) -> SPNamedExpression:
         if isinstance(expr, SPUnresolvedAttribute):
             return SPUnresolvedAlias(expr, None)
         elif isinstance(expr, SPNamedExpression):
@@ -140,13 +134,33 @@ class RelationalGroupedDataFrame:
             return SPUnresolvedFunction(expr, [input_expr], is_distinct=False)
 
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]):
+        """Returns a DataFrame with computed aggregates. The first element of the 'expr' pair is the
+         column to aggregate and the second element is the aggregate function to compute. The
+         following example computes the mean of the price column and the sum of the sales column.
+         The name of the aggregate function to compute must be a valid Snowflake
+         [[https://docs.snowflake.com/en/sql-reference/functions-aggregation.html]] aggregate
+         function.
+        "average" and "mean" can be used to specify "avg".
+
+        Valid input:
+        - A Column object
+        - A tuple where the first element is a column and the second element is a name (str) of the
+        aggregate function
+        - A list of the above
+
+        Example:
+            import com.snowflake.snowpark.functions.col
+            df.groupBy("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
+
+        :return a [[DataFrame]]
+        """
         if not type(exprs) in (list, tuple):
             exprs = [exprs]
 
         if all(type(e) == Column for e in exprs):
-            return self.toDF([e.expression for e in exprs])
+            return self.__toDF([e.expression for e in exprs])
         elif all(type(e) == tuple and type(e[0]) == Column and type(e[1]) == str for e in exprs):
-            return self.toDF([self.__str_to_expr(expr)(col.expression) for col, expr in exprs])
+            return self.__toDF([self.__str_to_expr(expr)(col.expression) for col, expr in exprs])
         else:
             raise SnowparkClientException("Invalid input types for agg()")
 
@@ -167,16 +181,21 @@ class RelationalGroupedDataFrame:
         return self.__non_empty_argument_function("median", *cols)
 
     def min(self, *cols: Column):
+        """Return the min for the specified numeric columns."""
         return self.__non_empty_argument_function("min", *cols)
 
     def max(self, *cols: Column):
+        """Return the max for the specified numeric columns."""
         return self.__non_empty_argument_function("max", *cols)
 
     def count(self):
-        return self.toDF(
+        """Return the number of rows for each group."""
+        return self.__toDF(
             [SPAlias(SPCount(SPLiteral(1, SPInteger())).to_aggregate_expression(), "count")])
 
     def builtin(self, agg_name: str):
+        """Computes the builtin aggregate 'aggName' over the specified columns. Use this function to
+         invoke any aggregates not explicitly listed in this class."""
         return lambda *cols: self.__builtin_internal(agg_name, *cols)
 
     def __builtin_internal(self, agg_name, *cols):
@@ -184,7 +203,7 @@ class RelationalGroupedDataFrame:
         for c in cols:
             expr = functions.builtin(agg_name)(c.expression).expression
             agg_exprs.append(expr)
-        return self.toDF(agg_exprs)
+        return self.__toDF(agg_exprs)
 
     def __non_empty_argument_function(self, func_name: str, *cols: List[Column]):
         if not cols:

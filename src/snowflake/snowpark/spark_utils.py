@@ -7,7 +7,7 @@ from .internal.analyzer.sp_utils import to_pretty_sql
 from .internal.sp_expressions import Expression, AggregateExpression
 from .types.sp_data_types import DataType, IntegralType
 
-
+# utils function to allow package properties accessible from outside
 class SparkUtils:
 
     @staticmethod

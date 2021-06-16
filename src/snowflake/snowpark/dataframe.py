@@ -159,13 +159,13 @@ class DataFrame:
         """Aggregate the data in the DataFrame. Use this method if you don't need to group the
         data (`groupBy`).
 
-        For the input value, pass in expressions that apply aggregation functions to columns
-        (functions that are defined in the [[functions]] object).
+        For the input value, pass in a list of expressions that apply aggregation functions to
+         columns (functions that are defined in the [[functions]] file).
 
-        Alternatively, pass in a list of pairs that specifies the column names and
+        Alternatively, pass in a list of pairs that specify the column names and
         aggregation functions. For each pair in the list:
-        - Set the key to the name of the column to aggregate.
-        - Set the value to the name of the aggregation function to use on that column.
+        - Set the first pair-value to the name of the column to aggregate.
+        - Set the second pair-value to the name of the aggregation function to use on that column.
 
         :return DataFrame
         """
@@ -192,6 +192,18 @@ class DataFrame:
         return self.groupBy([]).agg(groupping_exprs)
 
     def groupBy(self, *cols: Union[str, Column]):
+        """ Groups rows by the columns specified by expressions (similar to GROUP BY in SQL).
+
+        This method returns a [[RelationalGroupedDataFrame]] that you can use to perform aggregations
+        on each group of data.
+
+        Valid inputs are:
+        - Empty input
+        - A Column object or a column name (str)
+        - A list of Column objects or column names (str)
+
+        :return: RelationalGroupedDataFrame
+        """
         # TODO fix dependency cycle
         from .relational_grouped_dataframe import RelationalGroupedDataFrame, GroupByType
 

@@ -18,7 +18,7 @@ from .test_data import integer1, data2, data3, data4, decimal_data
 
 def test_rel_grouped_dataframe_agg(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[1, "One"], [2, "Two"], [3, "Three"]]).toDF(
+        df = session.createDataFrame([[1, "One"], [2, "Two"], [3, "Three"]]).__toDF(
             ['empid', 'name']).groupBy()
 
         # Agg() on 1 column
@@ -37,8 +37,8 @@ def test_rel_grouped_dataframe_agg(session_cnx, db_parameters):
 def test_rel_grouped_dataframe_max(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df1 = session.createDataFrame(
-            [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]).\
-            toDF(["key", "value1", "value2", "rest"])
+            [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]). \
+            __toDF(["key", "value1", "value2", "rest"])
 
         # below 2 ways to call max() must return the same result.
         expected = [Row(['a', 3, 33]), Row(['b', 4, 44])]
@@ -50,7 +50,7 @@ def test_rel_grouped_dataframe_avg_mean(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df1 = session.createDataFrame(
             [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]). \
-            toDF(["key", "value1", "value2", "rest"])
+            __toDF(["key", "value1", "value2", "rest"])
 
         expected = [Row(['a', 2.0, 22.0]), Row(['b', 3, 33.0])]
         assert df1.groupBy('key').avg(col('value1'), col('value2')).collect() == expected
@@ -64,7 +64,7 @@ def test_rel_grouped_dataframe_median(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df1 = session.createDataFrame(
             [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e"),
-             ("b", 4, 44, "f")]).toDF(["key", "value1", "value2", "rest"])
+             ("b", 4, 44, "f")]).__toDF(["key", "value1", "value2", "rest"])
 
         expected = [Row(['a', 2.0, 22.0]), Row(['b', 4, 44.0])]
         assert df1.groupBy('key').median(col('value1'), col('value2')).collect() == expected
@@ -73,7 +73,7 @@ def test_rel_grouped_dataframe_median(session_cnx, db_parameters):
 
 def test_builtin_functions(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([(1, 11), (2, 12), (1, 13)]).toDF(['a', 'b'])
+        df = session.createDataFrame([(1, 11), (2, 12), (1, 13)]).__toDF(['a', 'b'])
 
         assert df.groupBy('a').builtin('max')(col('a'), col('b')).collect() == \
            [Row([1, 1, 13]), Row([2, 2, 12])]
@@ -127,8 +127,8 @@ def test_groupBy(session_cnx, db_parameters):
         assert data2(session).groupBy('a').agg([(col('b'), 'sum')]).collect() == \
                [Row([1, 3]), Row([2, 3]), Row([3, 3])]
 
-        df1 = session.createDataFrame([("a", 1, 0, "b"), ("b", 2, 4, "c"), ("a", 2, 3, "d")]).\
-            toDF(["key", "value1", "value2", "rest"])
+        df1 = session.createDataFrame([("a", 1, 0, "b"), ("b", 2, 4, "c"), ("a", 2, 3, "d")]). \
+            __toDF(["key", "value1", "value2", "rest"])
 
         assert df1.groupBy('key').min(col('value2')).collect() == [Row(['a', 0]), Row(['b', 4])]
 
@@ -213,7 +213,7 @@ def test_null_average(session_cnx, db_parameters):
 
 def test_zero_average(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[]]).toDF(['a'])
+        df = session.createDataFrame([[]]).__toDF(['a'])
         assert df.agg(avg(col('a'))).collect() == [Row([None])]
 
         assert df.agg([avg(col('a')), sum_distinct(col('a'))]).collect() == [Row([None, None])]
@@ -221,24 +221,24 @@ def test_zero_average(session_cnx, db_parameters):
 
 def test_zero_count(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        empty_table = session.createDataFrame([[]]).toDF(['a'])
+        empty_table = session.createDataFrame([[]]).__toDF(['a'])
         assert empty_table.agg([count(col('a')), sum_distinct(col('a'))]).collect() == [Row([0, None])]
 
 
 def test_zero_stddev(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[]]).toDF(['a'])
+        df = session.createDataFrame([[]]).__toDF(['a'])
         assert df.agg([stddev(col('a')), stddev_pop(col('a')), stddev_samp(col('a'))]).collect() \
                == [Row([None, None, None])]
 
 
 def test_zero_sum(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[]]).toDF(['a'])
+        df = session.createDataFrame([[]]).__toDF(['a'])
         assert df.agg([sum(col('a'))]).collect() == [Row([None])]
 
 
 def test_zero_sum_distinct(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[]]).toDF(['a'])
+        df = session.createDataFrame([[]]).__toDF(['a'])
         assert df.agg([sum_distinct(col('a'))]).collect() == [Row([None])]

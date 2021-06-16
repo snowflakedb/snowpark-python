@@ -11,7 +11,7 @@ from src.snowflake.snowpark.row import Row
 
 def test_df_agg_tuples_basic(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(['first', 'second'])
+        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).__toDF(['first', 'second'])
 
         # Aggregations on 'first' column
         res = df.agg([('first', 'min')]).collect()
@@ -63,7 +63,7 @@ def test_df_agg_tuples_basic(session_cnx, db_parameters):
 def test_df_agg_tuples_avg_basic(session_cnx, db_parameters):
     """ Test for making sure all avg word-variations work as expected"""
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(['first', 'second'])
+        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).__toDF(['first', 'second'])
         # Aggregations on 'first' column
         res = df.agg([('first', 'avg')]).collect()
         assert res == [Row([1.5])]
@@ -78,7 +78,7 @@ def test_df_agg_tuples_avg_basic(session_cnx, db_parameters):
 def test_df_agg_tuples_std_basic(session_cnx, db_parameters):
     """ Test for making sure all stddev variations work as expected"""
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(['first', 'second'])
+        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).__toDF(['first', 'second'])
         # Aggregations on 'first' column
         res = df.agg([('first', 'stddev')]).collect()
         assert res == [Row([0.577349980514419])]
@@ -90,7 +90,7 @@ def test_df_agg_tuples_std_basic(session_cnx, db_parameters):
 def test_df_agg_tuples_count_basic(session_cnx, db_parameters):
     """ Test for making sure all count variations work as expected"""
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(['first', 'second'])
+        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).__toDF(['first', 'second'])
         # Aggregations on 'first' column
         res = df.agg([('first', 'count')]).collect()
         assert res == [Row([4])]
