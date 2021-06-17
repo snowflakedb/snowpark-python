@@ -52,9 +52,9 @@ class StructType(DataType):
 
 # TODO might require more work
 class StructField:
-    def __init__(self, name: str, data_type: DataType, nullable: bool, metadata=None):
+    def __init__(self, name: str, datatype: DataType, nullable: bool, metadata=None):
         self.name = name
-        self.data_type = data_type
+        self.datatype = datatype
         self.nullable = nullable
         self.metadata = metadata
 
@@ -161,6 +161,9 @@ class DoubleType(FractionalType):
 
 
 class DecimalType(FractionalType):
+    MAX_PRECISION = 38
+    MAX_SCALE = 38
+
     def __init__(self, precision, scale):
         self.precision = precision
         self.scale = scale

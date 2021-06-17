@@ -4,15 +4,14 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 from .datatype_mapper import DataTypeMapper
+from ...types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
+    LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, NaturalJoin as SPNaturalJoin
 from ..sp_expressions import Attribute as SPAttribute
 from src.snowflake.snowpark.row import Row
 
 import re
 import random
 from typing import List
-
-from ...types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
-    LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, NaturalJoin as SPNaturalJoin
 
 
 class AnalyzerPackage:
@@ -145,6 +144,9 @@ class AnalyzerPackage:
     def alias_expression(self, origin: str, alias: str) -> str:
         return origin + self._As + alias
 
+    def limit_expression(self, num: int) -> str:
+        return self._Limit + str(num)
+
     def project_statement(self, project: List[str], child: str, is_distinct=False) -> str:
         return self._Select + \
                f"{self._Distinct if is_distinct else ''}" + \
@@ -153,6 +155,14 @@ class AnalyzerPackage:
 
     def filter_statement(self, condition, child) -> str:
         return self.project_statement([], child) + self._Where + condition
+
+    def aggregate_statement(self, grouping_exprs: List[str], aggregate_exprs: List[str],
+                            child: str) -> str:
+        # add limit 1 because Spark may aggregate on non-aggregate function in a scalar aggregation
+        # for example, df.agg(lit(1))
+        return self.project_statement(aggregate_exprs, child) + \
+               (self.limit_expression(1) if not grouping_exprs else (
+                self._GroupBy + self._Comma.join(grouping_exprs)))
 
     def range_statement(self, start, end, step, column_name) -> str:
         range = end - start
@@ -186,12 +196,13 @@ class AnalyzerPackage:
         join_condition = self._Where + condition
 
         return self._Select + self._Star + self._From + self._LeftParenthesis + left + \
-            self._RightParenthesis + self._As + left_alias + where_condition + \
-            self._LeftParenthesis + self._Select + self._Star + self._From + \
-            self._LeftParenthesis + right + self._RightParenthesis + self._As + right_alias + \
-            f"{join_condition if join_condition else self._EmptyString}" + self._RightParenthesis
+               self._RightParenthesis + self._As + left_alias + where_condition + \
+               self._LeftParenthesis + self._Select + self._Star + self._From + \
+               self._LeftParenthesis + right + self._RightParenthesis + self._As + right_alias + \
+               f"{join_condition if join_condition else self._EmptyString}" + self._RightParenthesis
 
-    def snowflake_supported_join_statement(self, left: str, right: str, join_type: SPJoinType, condition: str) -> str:
+    def snowflake_supported_join_statement(self, left: str, right: str, join_type: SPJoinType,
+                                           condition: str) -> str:
         left_alias = self.random_name_for_temp_object()
         right_alias = self.random_name_for_temp_object()
 
@@ -206,7 +217,8 @@ class AnalyzerPackage:
         using_condition = None
         if type(join_type) == SPUsingJoin:
             if len(join_type.using_columns) != 0:
-                using_condition = self._Using + self._LeftParenthesis + self._Comma.join(join_type.using_columns) + self._RightParenthesis
+                using_condition = self._Using + self._LeftParenthesis + self._Comma.join(
+                    join_type.using_columns) + self._RightParenthesis
 
         # This generates sql like "ON a = b"
         join_condition = None
@@ -217,10 +229,10 @@ class AnalyzerPackage:
             raise Exception("A join should either have using clause or a join condition")
 
         source = self._LeftParenthesis + left + self._RightParenthesis + self._As + left_alias + \
-            self._Space + join_sql + self._Join + self._LeftParenthesis + right + \
-            self._RightParenthesis + self._As + right_alias + \
-            f"{using_condition if using_condition else self._EmptyString}" + \
-            f"{join_condition if join_condition else self._EmptyString}"
+                 self._Space + join_sql + self._Join + self._LeftParenthesis + right + \
+                 self._RightParenthesis + self._As + right_alias + \
+                 f"{using_condition if using_condition else self._EmptyString}" + \
+                 f"{join_condition if join_condition else self._EmptyString}"
 
         return self.project_statement([], source)
 
@@ -238,12 +250,12 @@ class AnalyzerPackage:
 
     def schema_value_statement(self, output) -> str:
         return self._Select + \
-               self._Comma.join([DataTypeMapper.schema_expression(attr.data_type, attr.nullable) +
+               self._Comma.join([DataTypeMapper.schema_expression(attr.datatype, attr.nullable) +
                                  self._As + self.quote_name(attr.name) for attr in output])
 
     def values_statement(self, output: List['SPAttribute'], data: List['Row']) -> str:
         table_name = AnalyzerPackage.random_name_for_temp_object()
-        data_types = [attr.data_type for attr in output]
+        data_types = [attr.datatype for attr in output]
         names = [AnalyzerPackage.quote_name(attr.name) for attr in output]
         rows = []
         for row in data:
