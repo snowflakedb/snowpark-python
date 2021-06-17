@@ -6,7 +6,7 @@
 """ See
 https://github.com/apache/spark/blob/master/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/plans/logical/basicLogicalOperators.scala"""
 
-from .logical_plan import LogicalPlan, LeafNode, BinaryNode
+from .logical_plan import LogicalPlan, LeafNode, BinaryNode, UnaryNode
 
 
 class Join(BinaryNode):
@@ -27,3 +27,24 @@ class Range(LeafNode):
         self.end = end
         self.step = step
         self.num_slices = num_slices
+
+
+class Aggregate(UnaryNode):
+    def __init__(self, grouping_expressions, aggregate_expressions, child):
+        super().__init__()
+        self.grouping_expressions = grouping_expressions
+        self.aggregate_expressions = aggregate_expressions
+        self.child = child
+        self.children.append(child)
+
+
+class Pivot(UnaryNode):
+    def __init__(self, group_by_exprs_opt, pivot_column, pivot_values, aggregates, child):
+        super().__init__()
+        self.group_by_exprs_opt = group_by_exprs_opt
+        self.pivot_column = pivot_column
+        self.pivot_values = pivot_values
+        self.aggregate = aggregates
+        self.child = child
+
+

@@ -126,7 +126,7 @@ class DataTypeMapper:
     @staticmethod
     def schema_expression(data_type, is_nullable):
         if is_nullable:
-            #if isinstance(data_type) == GeographyType:
+            #if isinstance(datatype) == GeographyType:
             #     return "TRY_TO_GEOGRAPHY(NULL)"
             return "NULL :: " + convert_to_sf_type(data_type)
 
@@ -150,7 +150,7 @@ class DataTypeMapper:
             return "to_object(parse_json('0'))"
         if isinstance(data_type, VariantType):
             return "to_variant(0)"
-        # if isinstance(data_type, GeographyType):
+        # if isinstance(datatype, GeographyType):
         #    return "true"
         raise Exception(f"Unsupported data type: {data_type.type_name}")
 

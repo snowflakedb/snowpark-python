@@ -10,8 +10,11 @@ from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpre
     UnresolvedAlias as SPUnresolvedAlias, UnaryExpression as SPUnaryExpression, \
     LeafExpression as SPLeafExpression, Literal as SPLiteral, BinaryExpression as \
     SPBinaryExpression, Alias as SPAlias, AttributeReference as SPAttributeReference, UnresolvedStar\
-    as SPUnresolvedStar, ResolvedStar as SPResolvedStar
-from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range as SPRange
+    as SPUnresolvedStar, ResolvedStar as SPResolvedStar, AggregateExpression as SPAggregateExpression, AggregateFunction as SPAggregateFunction
+from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range as SPRange, Aggregate as SPAggregate
+
+from src.snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType, \
+    LongType as SPLongType, ShortType as SPShortType, ByteType as SPByteType
 
 # TODO fix import
 from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan, SnowflakePlanBuilder, SnowflakeValues
@@ -35,6 +38,10 @@ class Analyzer:
         self.alias_maps_to_use = None
 
     def analyze(self, expr):
+
+        # aggregate
+        if type(expr) == SPAggregateExpression:
+            return self.aggr_extractor_convert_expr(expr.aggregate_function, expr.is_distinct)
 
         if type(expr) is SPLiteral:
             return DataTypeMapper.to_sql(expr.value, expr.datatype)
@@ -129,7 +136,22 @@ class Analyzer:
 
     # TODO
     def aggregate_extractor(self, expr):
-        pass
+        if not isinstance(expr, SPAggregateFunction):
+            return None
+        else:
+            return self.aggr_extractor_convert_expr(expr, is_distinct=False)
+
+    def aggr_extractor_convert_expr(self, expr: SPAggregateFunction, is_distinct: bool) -> str:
+        # if type(expr) == SPSkewness:
+        #   TODO
+        # if type(expr) == SPNTile:
+        #   TODO
+        # if type(expr) == aggregateWindow:
+        #   TODO
+        # else:
+        return self.package.function_expression(expr.pretty_name(),
+                                                [self.analyze(c) for c in expr.children],
+                                                is_distinct)
 
     # TODO
     def grouping_extractor(self, expr: SPExpression):
@@ -139,9 +161,14 @@ class Analyzer:
     def window_frame_boundary(self, offset: str) -> str:
         pass
 
-    # TODO
-    def to_sql_avoid_offset(self, expr: SPExpression) -> str:
-        pass
+    def __to_sql_avoid_offset(self, expr: SPExpression) -> str:
+        # if expression is integral literal, return the number without casting,
+        # otherwise process as normal
+        if type(expr) == SPLiteral:
+            if isinstance(expr.datatype, (SPIntegerType, SPLongType, SPShortType, SPByteType)):
+                return DataTypeMapper.to_sql_without_cast(expr.value, expr.datatype)
+        else:
+            return self.analyze(expr)
 
     # TODO
     def resolve(self, logical_plan) -> SnowflakePlan:
@@ -175,11 +202,16 @@ class Analyzer:
         if type(lp) == SnowflakePlan:
             return lp
 
+        if type(lp) == SPAggregate:
+            return self.plan_builder.aggregate(
+                list(map(self.__to_sql_avoid_offset, lp.grouping_expressions)),
+                list(map(self.analyze, lp.aggregate_expressions)),
+                resolved_children[lp.child], lp)
+
         if type(lp) == SPProject:
             return self.plan_builder.project(
                 list(map(self.analyze, lp.project_list)),
-                resolved_children[lp.child],
-                lp)
+                resolved_children[lp.child], lp)
 
         if type(lp) == SPFilter:
             return self.plan_builder.filter(

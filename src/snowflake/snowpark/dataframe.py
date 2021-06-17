@@ -14,7 +14,7 @@ from .types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi,
     LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, Cross as SPCrossJoin
 from .types.sf_types import StructType
 
-from typing import List
+from typing import List, Union
 from random import choice
 import string
 
@@ -154,6 +154,84 @@ class DataFrame:
     def where(self, expr) -> 'DataFrame':
         """Filters rows based on given condition. This is equivalent to calling [[filter]]. """
         return self.filter(expr)
+
+    def agg(self, exprs: Union[str, Column, List[Union[str, Column]]]) -> 'DataFrame':
+        """Aggregate the data in the DataFrame. Use this method if you don't need to group the
+        data (`groupBy`).
+
+        For the input value, pass in a list of expressions that apply aggregation functions to
+         columns (functions that are defined in the [[functions]] file).
+
+        Alternatively, pass in a list of pairs that specify the column names and
+        aggregation functions. For each pair in the list:
+        - Set the first pair-value to the name of the column to aggregate.
+        - Set the second pair-value to the name of the aggregation function to use on that column.
+
+        :return DataFrame
+        """
+        groupping_exprs = None
+        if type(exprs) == str:
+            groupping_exprs = [self.col(exprs)]
+        elif type(exprs) == Column:
+            groupping_exprs = [exprs]
+        elif type(exprs) == tuple:
+            if len(tuple) == 2:
+                groupping_exprs = [exprs]
+        elif type(exprs) == list:
+            if all(type(e) == str for e in exprs):
+                groupping_exprs = [self.col(e) for e in exprs]
+            if all(type(e) == Column for e in exprs):
+                groupping_exprs = [e for e in exprs]
+            if all(type(e) in [list, tuple] and len(e) == 2 and
+                   type(e[0]) == type(e[1]) == str for e in exprs):
+                groupping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
+
+        if groupping_exprs is None:
+            raise SnowparkClientException(f"Invalid type passed to DataFrame.agg(): {type(exprs)}")
+
+        return self.groupBy([]).agg(groupping_exprs)
+
+    def groupBy(self, *cols: Union[str, Column]):
+        """ Groups rows by the columns specified by expressions (similar to GROUP BY in SQL).
+
+        This method returns a [[RelationalGroupedDataFrame]] that you can use to perform aggregations
+        on each group of data.
+
+        Valid inputs are:
+        - Empty input
+        - A Column object or a column name (str)
+        - A list of Column objects or column names (str)
+
+        :return: RelationalGroupedDataFrame
+        """
+        # TODO fix dependency cycle
+        from .relational_grouped_dataframe import RelationalGroupedDataFrame, GroupByType
+
+        grouping_exprs = None
+
+        # Case empty input
+        try:
+            if len(cols) == 0:
+                grouping_exprs = []
+            elif len(cols) == 1:
+                if type(cols[0]) == str:
+                    grouping_exprs = [self.__resolve(cols[0])]
+                elif type(cols[0]) == Column:
+                    grouping_exprs = [cols.expression]
+                elif type(cols[0]) in [list, tuple]:
+                    if not cols[0]:
+                        grouping_exprs = []
+                    elif all(type(c) == str for c in cols[0]):
+                        grouping_exprs = [self.__resolve(c) for c in cols[0]]
+                    elif all(type(c) == Column for c in cols[0]):
+                        grouping_exprs = [c.expression for c in cols[0]]
+        except Exception:
+            raise SnowparkClientException(f"Not a valid groupBy expression")
+
+        if grouping_exprs is None:
+            raise SnowparkClientException(f"Invalid type passed to DataFrame.groupBy().")
+
+        return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
 
     def join(self, other, using_columns=None, join_type=None) -> 'DataFrame':
         """ Performs a join of the specified type (`join_type`) with the current DataFrame and

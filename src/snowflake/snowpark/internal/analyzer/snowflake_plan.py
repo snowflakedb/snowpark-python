@@ -6,7 +6,7 @@ from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPa
 from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
 from src.snowflake.snowpark.row import Row
 
-from typing import List, Callable
+from typing import List, Callable, Optional
 
 
 class SnowflakePlan(LogicalPlan):
@@ -49,7 +49,7 @@ class SnowflakePlan(LogicalPlan):
     def output(self) -> List[SPAttributeReference]:
         if not self.__placeholder_for_output:
             self.__placeholder_for_output = \
-                [SPAttributeReference(a.name, snow_type_to_sp_type(a.data_type), a.nullable)
+                [SPAttributeReference(a.name, snow_type_to_sp_type(a.datatype), a.nullable)
                  for a in self.attributes()]
         return self.__placeholder_for_output
 
@@ -110,6 +110,12 @@ class SnowflakePlanBuilder:
     def project(self, project_list, child, source_plan, is_distinct=False):
         return self.build(
             lambda x: self.pkg.project_statement(project_list, x, is_distinct=is_distinct),
+            child, source_plan)
+
+    def aggregate(self, grouping_exprs: List[str], aggregate_exprs: List[str], child: SnowflakePlan,
+                  source_plan: Optional[LogicalPlan]) -> SnowflakePlan:
+        return self.build(
+            lambda x: self.pkg.aggregate_statement(grouping_exprs, aggregate_exprs, x),
             child, source_plan)
 
     def filter(self, condition, child, source_plan):
