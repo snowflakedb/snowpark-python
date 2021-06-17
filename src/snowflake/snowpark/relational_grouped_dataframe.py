@@ -5,9 +5,14 @@
 #
 from src.snowflake.snowpark.column import Column
 from src.snowflake.snowpark.internal.analyzer.sp_utils import to_pretty_sql
-from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression, NamedExpression as SPNamedExpression, UnresolvedAttribute as SPUnresolvedAttribute, UnresolvedAlias as SPUnresolvedAlias, Alias as SPAlias, Cube as SPCube, Rollup as SPRollup, AggregateExpression as SPAggregateExpression, TypedAggregateExpression as SPTypedAggregateExpression, Literal as SPLiteral, Count as SPCount, UnresolvedFunction as SPUnresolvedFunction, Star as SPStar
-from src.snowflake.snowpark.plans.logical.basic_logical_operators import Aggregate as SPAggregate, Pivot as SPPivot
-from src.snowflake.snowpark.internal.analyzer.expression import GroupingSets
+from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression, \
+    NamedExpression as SPNamedExpression, UnresolvedAttribute as SPUnresolvedAttribute, \
+    UnresolvedAlias as SPUnresolvedAlias, Alias as SPAlias, Cube as SPCube, Rollup as SPRollup, \
+    AggregateExpression as SPAggregateExpression, \
+    TypedAggregateExpression as SPTypedAggregateExpression, Literal as SPLiteral, Count as SPCount, \
+    UnresolvedFunction as SPUnresolvedFunction, Star as SPStar, GroupingSets as SPGroupingSets
+from src.snowflake.snowpark.plans.logical.basic_logical_operators import Aggregate as SPAggregate, \
+    Pivot as SPPivot
 from src.snowflake.snowpark.dataframe import DataFrame
 from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.spark_utils import SparkUtils
@@ -21,7 +26,7 @@ from typing import List, Tuple, Union
 class GroupType:
     def to_string(self):
         # TODO revisit
-        return self.__class__.__name__.strip('$').strip('Type')
+        return self.__class__.__name__[:-4]
 
 
 class GroupByType(GroupType):
@@ -37,7 +42,7 @@ class RollupType(GroupType):
 
 
 class PivotType(GroupType):
-    def __init__(self, pivot_col: SPExpression, values:List[SPExpression]):
+    def __init__(self, pivot_col: SPExpression, values: List[SPExpression]):
         self.pivot_col = pivot_col
         self.values = values
 
@@ -54,7 +59,7 @@ class RelationalGroupedDataFrame:
     [[DataFrame.cube()]] and [[DataFrame.rollup()]]
     return an instance of type [[RelationalGroupedDataFrame]]"""
 
-    def __init__(self, df, grouping_exprs : List[SPExpression], group_type: GroupType):
+    def __init__(self, df, grouping_exprs: List[SPExpression], group_type: GroupType):
         self.df = df
         self.grouping_exprs = grouping_exprs
         self.group_type = group_type
@@ -64,10 +69,10 @@ class RelationalGroupedDataFrame:
     def __toDF(self, agg_exprs: List[SPExpression]):
         aliased_agg = []
         for grouping_expr in self.grouping_exprs:
-            if isinstance(grouping_expr, GroupingSets):
+            if isinstance(grouping_expr, SPGroupingSets):
                 # avoid doing list(set(grouping_expr.args)) because it will change the order
                 gr_used = set()
-                gr_uniq = [arg for arg in grouping_expr.args\
+                gr_uniq = [arg for arg in grouping_expr.args \
                            if arg not in gr_used and (gr_used.add(arg) or True)]
                 aliased_agg.extend(gr_uniq)
             else:
@@ -82,13 +87,16 @@ class RelationalGroupedDataFrame:
 
         if type(self.group_type) == GroupByType:
             return DataFrame(self.df.session,
-                             SPAggregate(self.grouping_exprs, aliased_agg, self.df._DataFrame__plan))
+                             SPAggregate(self.grouping_exprs, aliased_agg,
+                                         self.df._DataFrame__plan))
         if type(self.group_type) == RollupType:
             return DataFrame(self.df.session,
-                             SPAggregate([SPRollup(self.grouping_exprs)], aliased_agg, self.df.__plan))
+                             SPAggregate([SPRollup(self.grouping_exprs)], aliased_agg,
+                                         self.df.__plan))
         if type(self.group_type) == CubeType:
             return DataFrame(self.df.session,
-                             SPAggregate([SPCube(self.grouping_exprs)], aliased_agg, self.df.__plan))
+                             SPAggregate([SPCube(self.grouping_exprs)], aliased_agg,
+                                         self.df.__plan))
         if type(self.group_type) == PivotType:
             if len(agg_exprs) != 1:
                 raise SnowparkClientException("Only one aggregate is supported with pivot")
@@ -104,11 +112,14 @@ class RelationalGroupedDataFrame:
             return SPUnresolvedAlias(expr, None)
         elif isinstance(expr, SPNamedExpression):
             return expr
-        elif isinstance(expr, SPAggregateExpression) and isinstance(expr.aggregate_function, SPTypedAggregateExpression):
+        elif isinstance(expr, SPAggregateExpression) and isinstance(expr.aggregate_function,
+                                                                    SPTypedAggregateExpression):
             return SPUnresolvedAlias(expr,
-                                     lambda s: self.__strip_invalid_sf_identifier_chars(SparkUtils.column_generate_alias(s)))
+                                     lambda s: self.__strip_invalid_sf_identifier_chars(
+                                         SparkUtils.column_generate_alias(s)))
         else:
-            return SPAlias(expr, self.__strip_invalid_sf_identifier_chars(to_pretty_sql(expr).upper()))
+            return SPAlias(expr,
+                           self.__strip_invalid_sf_identifier_chars(to_pretty_sql(expr).upper()))
 
     @staticmethod
     def __strip_invalid_sf_identifier_chars(identifier: str):
@@ -205,7 +216,7 @@ class RelationalGroupedDataFrame:
             agg_exprs.append(expr)
         return self.__toDF(agg_exprs)
 
-    def __non_empty_argument_function(self, func_name: str, *cols: List[Column]):
+    def __non_empty_argument_function(self, func_name: str, *cols: Column):
         if not cols:
             raise SnowparkClientException(f"the argument of {func_name} function can't be empty")
         else:

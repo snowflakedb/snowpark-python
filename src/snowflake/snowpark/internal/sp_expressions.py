@@ -3,16 +3,13 @@ from src.snowflake.snowpark.types.sp_data_types import DataType, NullType, LongT
     DecimalType, IntegralType
 from src.snowflake.snowpark.types.types_package import _infer_type
 from .analyzer.datatype_mapper import DataTypeMapper
-from typing import Optional
+from typing import Optional, List
 
 import uuid
 
 
 class Expression:
     # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/Expression.scala#L86
-    def __init__(self):
-        self.expr_id = uuid.uuid4()
-
     def pretty_name(self) -> str:
         """Returns a user-facing string representation of this expression's name.
         This should usually match the name of the function in SQL. """
@@ -23,6 +20,7 @@ class NamedExpression(Expression):
     def __init__(self, name):
         super().__init__()
         self.name = name
+        self.expr_id = uuid.uuid4()
 
 
 class LeafExpression(Expression):
@@ -390,3 +388,92 @@ class PrettyAttribute(Attribute):
 
     def sql(self) -> str:
         return self.name
+
+
+class Like(Expression):
+    def __init__(self, expr: Expression, pattern: Expression):
+        self.expr = expr
+        self.pattern = pattern
+
+
+class RegExp(Expression):
+    def __init__(self, expr: Expression, pattern: Expression):
+        self.expr = expr
+        self.pattern = pattern
+
+
+class Collate(Expression):
+    def __init__(self, expr: Expression, collationSpec: str):
+        self.expr = expr
+        self.collationSpec = collationSpec
+
+
+class SubfieldString(Expression):
+    def __init__(self, expr: Expression, field: str):
+        self.expr = expr
+        self.field = field
+
+
+class SubfieldInt(Expression):
+    def __init__(self, expr: Expression, field: int):
+        self.expr = expr
+        self.field = field
+
+
+class TableFunctionExpression(Expression):
+    def __init__(self):
+        self.datatype = None
+
+
+class Cast(UnaryExpression):
+    def __init__(self, child: Expression, to: DataType):
+        super().__init__()
+        self.child = child
+        self.children = [child]
+        self.to = to
+        self.datatype = child.datatype
+
+
+class UnaryMinus(UnaryExpression):
+    def __init__(self, child: Expression):
+        super().__init__()
+        self.child = child
+        self.children = [child]
+        self.datatype = child.datatype
+
+
+class FlattenFunction(TableFunctionExpression):
+    def __init__(self, input: Expression, path: str, outer: bool, recursive: bool, mode: str):
+        super.__init__()
+        self.input = input
+        self.path = path
+        self.outer = outer
+        self.recursive = recursive
+        self.mode = mode
+
+
+class TableFunction(TableFunctionExpression):
+    def __init__(self, func_name: str, args: List[Expression]):
+        super.__init__()
+        self.func_name = func_name
+        self.args = args
+
+
+class NamedArgumentsTableFunction(TableFunctionExpression):
+    def __init__(self, func_name: str, args: List[Expression]):
+        super.__init__()
+        self.func_name = func_name
+        self.args = args
+
+
+class GroupingSets(Expression):
+    def __init__(self, args: List[Expression]):
+        self.args = args
+        self.datatype = None
+
+
+class WithinGroup(Expression):
+    def __init__(self, expr: Expression, order_by_cols: List[Expression]):
+        self.expr = expr
+        self.order_by_cols = order_by_cols
+

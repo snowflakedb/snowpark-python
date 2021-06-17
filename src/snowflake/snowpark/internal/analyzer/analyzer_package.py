@@ -9,7 +9,6 @@ from ...types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSem
 from ..sp_expressions import Attribute as SPAttribute
 from src.snowflake.snowpark.row import Row
 
-from typing import List
 import re
 import random
 from typing import List
@@ -148,7 +147,7 @@ class AnalyzerPackage:
     def limit_expression(self, num: int) -> str:
         return self._Limit + str(num)
 
-    def project_statement(self, project=None, child=None, is_distinct=False) -> str:
+    def project_statement(self, project: List[str], child: str, is_distinct=False) -> str:
         return self._Select + \
                f"{self._Distinct if is_distinct else ''}" + \
                f"{self._Star if not project else self._Comma.join(project)}" + \

@@ -161,7 +161,6 @@ class Analyzer:
     def window_frame_boundary(self, offset: str) -> str:
         pass
 
-    # TODO
     def __to_sql_avoid_offset(self, expr: SPExpression) -> str:
         # if expression is integral literal, return the number without casting,
         # otherwise process as normal
