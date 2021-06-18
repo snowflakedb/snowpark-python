@@ -5,6 +5,7 @@
 #
 
 from typing import List
+from decimal import Decimal
 
 
 class Row:
@@ -24,6 +25,9 @@ class Row:
 
     def get(self, index):
         return self.values[index]
+
+    def __getitem__(self, item: int):
+        return self.get(item)
 
     def copy(self):
         return Row(self.values)
@@ -82,7 +86,7 @@ class Row:
 
     # TODO 
     def get_decimal(self, index):
-        pass
+        return Decimal(self.get(index))
 
     # TODO 
     def get_date(self, index):

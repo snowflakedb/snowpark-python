@@ -9,8 +9,11 @@ from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpre
     UnresolvedAttribute as SPUnresolvedAttribute, UnresolvedFunction as SPUnresolvedFunction, \
     UnresolvedAlias as SPUnresolvedAlias, UnaryExpression as SPUnaryExpression, \
     LeafExpression as SPLeafExpression, Literal as SPLiteral, BinaryExpression as \
-    SPBinaryExpression, Alias as SPAlias, AttributeReference as SPAttributeReference, UnresolvedStar\
-    as SPUnresolvedStar, ResolvedStar as SPResolvedStar, AggregateExpression as SPAggregateExpression, AggregateFunction as SPAggregateFunction
+    SPBinaryExpression, Alias as SPAlias, AttributeReference as SPAttributeReference, UnresolvedStar \
+    as SPUnresolvedStar, ResolvedStar as SPResolvedStar, AggregateExpression as SPAggregateExpression, \
+    AggregateFunction as SPAggregateFunction, UnaryMinus as SPUnaryMinus, Not as SPNot, \
+    BinaryArithmeticExpression as SPBinaryArithmeticExpression, IsNaN as SPIsNaN, IsNull as SPIsNull, \
+    IsNotNull as SPIsNotNull
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range as SPRange, Aggregate as SPAggregate
 
 from src.snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType, \
@@ -24,6 +27,7 @@ from src.snowflake.snowpark.plans.logical.logical_plan import Project as SPProje
 
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import Join as SPJoin
 from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from typing import Optional
 
 
 class Analyzer:
@@ -74,13 +78,11 @@ class Analyzer:
             return expr.to_string()
 
         # Extractors
+        if isinstance(expr, SPUnaryExpression):
+            return self.unary_expression_extractor(expr)
 
-        res = self.unary_expression_extractor(expr)
-        if res:
-            return res
-        res = self.spark_binary_operator_extractor(expr)
-        if res:
-            return res
+        if isinstance(expr, SPBinaryExpression):
+            return self.binary_operator_extractor(expr)
 
         raise SnowparkClientException(f"Invalid type, analyze. {str(expr)}")
 
@@ -105,13 +107,22 @@ class Analyzer:
     def ternary_expression_extractor(self, expr):
         pass
 
-    # TODO complete
-    def unary_expression_extractor(self, expr):
-        if not isinstance(expr, SPUnaryExpression):
-            return None
-
-        if isinstance(expr, SPUnresolvedAlias):
+    def unary_expression_extractor(self, expr) -> Optional[str]:
+        if type(expr) == SPUnresolvedAlias:
             return self.analyze(expr.child)
+        elif type(expr) == SPUnaryMinus:
+            return self.package.unary_minus_expression(self.analyze(expr.child))
+        elif type(expr) == SPNot:
+            return self.package.not_expression(self.analyze(expr.child))
+        elif type(expr) == SPIsNaN:
+            return self.package.is_nan_expression(self.analyze(expr.child))
+        elif type(expr) == SPIsNull:
+            return self.package.is_null_expression(self.analyze(expr.child))
+        elif type(expr) == SPIsNotNull:
+            return self.package.is_not_null_expression(self.analyze(expr.child))
+        else:
+            # TODO: SNOW-369125: pretty_name of Expression
+            return self.package.function_expression(expr.pretty_name, [self.analyze(expr.child)], False)
 
     # TODO
     def special_frame_boundary_extractor(self, expr):
@@ -121,18 +132,13 @@ class Analyzer:
     def offset_window_function_extractor(self, expr):
         pass
 
-    # TODO
     def binary_operator_extractor(self, expr):
-        pass
-
-    # TODO
-    def spark_binary_operator_extractor(self, expr):
-        if not isinstance(expr, SPBinaryExpression):
-            return None
-
-        if isinstance(expr, SPBinaryExpression):
-            return self.package.binary_comparison(self.analyze(expr.left), self.analyze(expr.right),
-                                                  expr.symbol)
+        if isinstance(expr, SPBinaryArithmeticExpression):
+            return self.package.binary_arithmetic_expression(expr.sql_operator, self.analyze(expr.left),
+                                                             self.analyze(expr.right))
+        else:
+            return self.package.function_expression(expr.sql_operator, [self.analyze(expr.left),
+                                                                        self.analyze(expr.right)], False)
 
     # TODO
     def aggregate_extractor(self, expr):
