@@ -22,6 +22,8 @@ import decimal
 import datetime
 from array import array
 import pathlib
+import logging
+from logging import getLogger
 
 from snowflake.connector import SnowflakeConnection
 from .plans.logical.basic_logical_operators import Range
@@ -34,6 +36,8 @@ from .types.sf_types import StructType, VariantType, ArrayType, MapType, Geograp
 from .types.types_package import snow_type_to_sp_type, _infer_schema_from_list
 from .types.sp_data_types import StringType as SPStringType
 from .functions import column, parse_json, to_decimal, to_timestamp, to_date, to_time, to_array, to_variant, to_object
+
+logger = getLogger(__name__)
 
 
 class Session:
@@ -75,6 +79,7 @@ class Session:
         Cancel all running action functions, and no effect on the future action request.
         :return: None
         """
+        logger.info("Canceling all running queries")
         self.__last_canceled_id = self.__last_action_id
         self.conn.run_query(f"select system$$cancel_all_queries({self._session_id})")
 
@@ -330,5 +335,7 @@ class Session:
             return self.__create_internal(conn=None)
 
         def __create_internal(self, conn: Optional[SnowflakeConnection] = None):
-            # TODO: log and setActiveSession
+            # TODO: setActiveSession
+            # set the log level of the conncector logger to ERROR to avoid massive logging
+            logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
             return Session(ServerConnection({}, conn) if conn else ServerConnection(self.__options))
