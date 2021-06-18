@@ -7,6 +7,7 @@
 import pytest
 
 from src.snowflake.snowpark.row import Row
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
 def test_df_agg_tuples_basic(session_cnx, db_parameters):
@@ -97,3 +98,16 @@ def test_df_agg_tuples_count_basic(session_cnx, db_parameters):
 
         res = df.agg([('second', 'size')]).collect()
         assert res == [Row([4])]
+
+
+def test_df_groupBy_invalid_input(session_cnx, db_parameters):
+    """ Test for check invalid input for groupBy function"""
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(['first', 'second'])
+        with pytest.raises(SnowparkClientException) as ex_info:
+            df.groupBy([], []).count().collect()
+        assert 'DataFrame.groupBy() only accepts one list, but got 2' in str(ex_info)
+        with pytest.raises(SnowparkClientException) as ex_info:
+            df.groupBy(1).count().collect()
+        assert 'DataFrame.groupBy() only accepts str and Column objects,' \
+               ' or the list containing str and Column objects' in str(ex_info)

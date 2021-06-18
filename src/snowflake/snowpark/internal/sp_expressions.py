@@ -10,10 +10,12 @@ import uuid
 
 class Expression:
     # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/Expression.scala#L86
+    nullable: bool
+
     def pretty_name(self) -> str:
         """Returns a user-facing string representation of this expression's name.
         This should usually match the name of the function in SQL. """
-        return self.__class__.__name__
+        return self.__class__.__name__.upper()
 
 
 class NamedExpression(Expression):
@@ -36,10 +38,18 @@ class UnaryExpression(Expression):
 
 
 class BinaryExpression(Expression):
-    def __init__(self):
-        super().__init__()
-        self.left = None
-        self.right = None
+    left: Expression
+    right: Expression
+    sql_operator: str
+
+    def __repr__(self):
+        return "{} {} {}".format(self.left, self.sql_operator, self.right)
+
+    def children(self):
+        return [self.left, self.right]
+
+    def nullable(self):
+        return self.left.nullable or self.right.nullable
 
 
 class UnresolvedFunction(Expression):
@@ -241,7 +251,6 @@ class Attribute(LeafExpression, NamedExpression):
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     def __init__(self, child, alias_func):
-        super().__init__(child.name)
         self.child = child
         self.alias_func = alias_func
 
@@ -266,59 +275,169 @@ class Literal(LeafExpression):
     def __repr__(self):
         return self.to_string()
 
-# Binary Expressions
-class BinaryOperator(BinaryExpression):
+class BinaryArithmeticExpression(BinaryExpression):
     pass
+
+
+class EqualTo(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = '='
+
+
+class NotEqualTo(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = '!='
+
+
+class GreaterThan(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = '>'
+
+
+class LessThan(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = '<'
+
+
+class GreaterThanOrEqual(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = '>='
+
+
+class LessThanOrEqual(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = '<='
+
+
+class EqualNullSafe(BinaryExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = 'EQUAL_NULL'
 
 
 # also inherits from Predicate, omitted
-class And(BinaryOperator):
-    symbol = sql_operator = 'AND'
-
+class And(BinaryArithmeticExpression):
     def __init__(self, left: Expression, right: Expression):
-        assert isinstance(left, Expression)
-        assert isinstance(right, Expression)
-        super().__init__()
         self.left = left
         self.right = right
+        self.sql_operator = 'AND'
 
 
-class BinaryComparison(BinaryOperator):
-    # Note for BinaryComparison expressions we have to assign their symbol values.
-    pass
-
-
-class EqualTo(BinaryComparison):
-    symbol = '='
-
-    def __init__(self, left, right):
-        assert isinstance(left, Expression)
-        assert isinstance(right, Expression)
-        super().__init__()
+class Or(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
         self.left = left
         self.right = right
+        self.sql_operator = 'OR'
 
 
-class GreaterThan(BinaryComparison):
-    symbol = '>'
-
-    def __init__(self, left, right):
-        assert isinstance(left, Expression)
-        assert isinstance(right, Expression)
-        super().__init__()
+class Add(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
         self.left = left
         self.right = right
+        self.sql_operator = '+'
 
 
-class GreaterThanOrEqual(BinaryComparison):
-    symbol = '>='
-
-    def __init__(self, left, right):
-        assert isinstance(left, Expression)
-        assert isinstance(right, Expression)
-        super().__init__()
+class Subtract(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
         self.left = left
         self.right = right
+        self.sql_operator = '-'
+
+
+class Multiply(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = '*'
+
+
+class Divide(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = '/'
+
+
+class Remainder(BinaryArithmeticExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = '%'
+
+
+class Pow(BinaryExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = 'POWER'
+
+
+class BitwiseAnd(BinaryExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = 'BITAND'
+
+
+class BitwiseOr(BinaryExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = 'BITOR'
+
+
+class BitwiseXor(BinaryExpression):
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.sql_operator = 'BITXOR'
+
+
+class UnaryMinus(UnaryExpression):
+    def __init__(self, child: Expression):
+        self.child = child
+
+    def __repr__(self):
+        return "-{}".format(self.child)
+
+
+class Not(UnaryExpression):
+    def __init__(self, child: Expression):
+        self.child = child
+
+    def __repr__(self):
+        return "~{}".format(self.child)
+
+
+class IsNaN(UnaryExpression):
+    def __init__(self, child: Expression):
+        self.child = child
+        self.nullable = False
+
+
+class IsNull(UnaryExpression):
+    def __init__(self, child: Expression):
+        self.child = child
+        self.nullable = False
+
+
+class IsNotNull(UnaryExpression):
+    def __init__(self, child: Expression):
+        self.child = child
+        self.nullable = False
 
 
 # Attributes

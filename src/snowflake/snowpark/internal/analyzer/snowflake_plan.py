@@ -6,7 +6,7 @@ from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPa
 from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
 from src.snowflake.snowpark.row import Row
 
-from typing import List, Callable, Optional
+from typing import List, Callable, Dict, Optional
 
 
 class SnowflakePlan(LogicalPlan):
@@ -60,8 +60,9 @@ class SnowflakePlan(LogicalPlan):
                              dict(self.expr_to_alias) if self.expr_to_alias else None,
                              self.session, self.source_plan)
 
-    def add_aliases(self, to_add: dict):
-        self.expr_to_alias.update(to_add)
+    def add_aliases(self, to_add: Dict):
+        self.expr_to_alias = {**self.expr_to_alias, **to_add}
+
 
 
 class SnowflakePlanBuilder:

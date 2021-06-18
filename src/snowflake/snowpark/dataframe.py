@@ -14,7 +14,7 @@ from .types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi,
     LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, Cross as SPCrossJoin
 from .types.sf_types import StructType
 
-from typing import List, Union
+from typing import List, Union, Tuple
 from random import choice
 import string
 
@@ -192,9 +192,9 @@ class DataFrame:
         if groupping_exprs is None:
             raise SnowparkClientException(f"Invalid type passed to DataFrame.agg(): {type(exprs)}")
 
-        return self.groupBy([]).agg(groupping_exprs)
+        return self.groupBy().agg(groupping_exprs)
 
-    def groupBy(self, *cols: Union[str, Column]):
+    def groupBy(self, *cols: Union[str, Column, List, Tuple]):
         """ Groups rows by the columns specified by expressions (similar to GROUP BY in SQL).
 
         This method returns a [[RelationalGroupedDataFrame]] that you can use to perform aggregations
@@ -202,7 +202,7 @@ class DataFrame:
 
         Valid inputs are:
         - Empty input
-        - A Column object or a column name (str)
+        - One or multiple Column object(s) or column name(s) (str)
         - A list of Column objects or column names (str)
 
         :return: RelationalGroupedDataFrame
@@ -210,29 +210,25 @@ class DataFrame:
         # TODO fix dependency cycle
         from .relational_grouped_dataframe import RelationalGroupedDataFrame, GroupByType
 
-        grouping_exprs = None
+        def convert_to_grouping_exprs(col: Union[str, Column]):
+            if type(col) == str:
+                return self.__resolve(col)
+            elif type(col) == Column:
+                return col.expression
+            else:
+                raise SnowparkClientException("DataFrame.groupBy() only accepts str and Column objects,"
+                                              " or the list containing str and Column objects")
 
-        # Case empty input
-        try:
-            if len(cols) == 0:
-                grouping_exprs = []
-            elif len(cols) == 1:
-                if type(cols[0]) == str:
-                    grouping_exprs = [self.__resolve(cols[0])]
-                elif type(cols[0]) == Column:
-                    grouping_exprs = [cols.expression]
-                elif type(cols[0]) in [list, tuple]:
-                    if not cols[0]:
-                        grouping_exprs = []
-                    elif all(type(c) == str for c in cols[0]):
-                        grouping_exprs = [self.__resolve(c) for c in cols[0]]
-                    elif all(type(c) == Column for c in cols[0]):
-                        grouping_exprs = [c.expression for c in cols[0]]
-        except Exception:
-            raise SnowparkClientException(f"Not a valid groupBy expression")
-
-        if grouping_exprs is None:
-            raise SnowparkClientException(f"Invalid type passed to DataFrame.groupBy().")
+        grouping_exprs = []
+        if len(cols) >= 1:
+            if type(cols[0]) in [list, tuple]:
+                if len(cols) == 1:
+                    grouping_exprs = [convert_to_grouping_exprs(col) for col in cols[0]]
+                else:
+                    raise SnowparkClientException(
+                        "DataFrame.groupBy() only accepts one list, but got {}".format(len(cols)))
+            else:
+                grouping_exprs = [convert_to_grouping_exprs(col) for col in cols]
 
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
 
