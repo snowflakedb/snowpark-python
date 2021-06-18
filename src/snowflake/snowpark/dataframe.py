@@ -40,6 +40,9 @@ class DataFrame:
     def collect(self):
         return self.session.conn.execute(self.__plan)
 
+    def clone(self) -> 'DataFrame':
+        return DataFrame(self.session, self.__plan.clone)
+
     def toPandas(self, **kwargs):
         """Returns the contents of this DataFrame as Pandas pandas.DataFrame.
 

@@ -18,8 +18,8 @@ class SnowflakePlan(LogicalPlan):
     def __init__(self, queries, schema_query, post_actions=None, expr_to_alias=None, session=None,
                  source_plan=None):
         super().__init__()
-        self.queries = queries
-        self._schema_query = schema_query
+        self.queries: List[Query] = queries
+        self._schema_query: Query = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
         self.session = session
@@ -52,6 +52,13 @@ class SnowflakePlan(LogicalPlan):
                 [SPAttributeReference(a.name, snow_type_to_sp_type(a.datatype), a.nullable)
                  for a in self.attributes()]
         return self.__placeholder_for_output
+
+    def clone(self):
+        return SnowflakePlan(self.queries.copy() if self.queries else [],
+                             self._schema_query,
+                             self.post_actions.copy() if self.post_actions else None,
+                             dict(self.expr_to_alias) if self.expr_to_alias else None,
+                             self.session, self.source_plan)
 
     def add_aliases(self, to_add: dict):
         self.expr_to_alias.update(to_add)
