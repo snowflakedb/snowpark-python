@@ -6,13 +6,13 @@
 from decimal import Decimal
 from math import sqrt
 import pytest
+from snowflake.connector.errors import ProgrammingError
 
 from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.functions import col, max, min, avg, mean, median, count, sum, \
     sum_distinct, stddev, stddev_samp, stddev_pop, lit
 from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-
-from .test_data import integer1, data2, data3, data4, decimal_data
+from test.utils import TestData
 
 
 def test_rel_grouped_dataframe_agg(session_cnx, db_parameters):
@@ -86,47 +86,46 @@ def test_builtin_functions(session_cnx, db_parameters):
 def test_non_empty_arg_functions(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         with pytest.raises(SnowparkClientException) as ex_info:
-            integer1(session).groupBy('a').avg()
+            TestData.integer1(session).groupBy('a').avg()
         assert "the argument of avg function can't be empty" in str(ex_info)
 
         with pytest.raises(SnowparkClientException) as ex_info:
-            integer1(session).groupBy('a').sum()
+            TestData.integer1(session).groupBy('a').sum()
         assert "the argument of sum function can't be empty" in str(ex_info)
 
         with pytest.raises(SnowparkClientException) as ex_info:
-            integer1(session).groupBy('a').median()
+            TestData.integer1(session).groupBy('a').median()
         assert "the argument of median function can't be empty" in str(ex_info)
 
         with pytest.raises(SnowparkClientException) as ex_info:
-            integer1(session).groupBy('a').min()
+            TestData.integer1(session).groupBy('a').min()
         assert "the argument of min function can't be empty" in str(ex_info)
 
         with pytest.raises(SnowparkClientException) as ex_info:
-            integer1(session).groupBy('a').max()
+            TestData.integer1(session).groupBy('a').max()
         assert "the argument of max function can't be empty" in str(ex_info)
 
 
 def test_null_count(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        assert data3(session).groupBy('a').agg(count(col('b'))).collect() == [Row([2, 1]),
-                                                                              Row([1, 0])]
+        assert TestData.test_data3(session).groupBy('a').agg(count(col('b'))).collect() == [Row([2, 1]), Row([1, 0])]
 
 
 def test_groupBy(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        assert data2(session).groupBy('a').agg(sum(col('b'))).collect() == \
+        assert TestData.test_data2(session).groupBy('a').agg(sum(col('b'))).collect() == \
                [Row([1, 3]), Row([2, 3]), Row([3, 3])]
 
-        assert data2(session).groupBy('a').agg(sum(col('b')).as_('totB')). \
+        assert TestData.test_data2(session).groupBy('a').agg(sum(col('b')).as_('totB')). \
                    agg(sum(col('totB'))).collect() == [Row([9])]
 
-        assert data2(session).groupBy('a').agg(count(col('*'))).collect() == \
+        assert TestData.test_data2(session).groupBy('a').agg(count(col('*'))).collect() == \
                [Row([1, 2]), Row([2, 2]), Row([3, 2])]
 
-        assert data2(session).groupBy('a').agg([(col('*'), 'count')]).collect() == \
+        assert TestData.test_data2(session).groupBy('a').agg([(col('*'), 'count')]).collect() == \
                [Row([1, 2]), Row([2, 2]), Row([3, 2])]
 
-        assert data2(session).groupBy('a').agg([(col('b'), 'sum')]).collect() == \
+        assert TestData.test_data2(session).groupBy('a').agg([(col('b'), 'sum')]).collect() == \
                [Row([1, 3]), Row([2, 3]), Row([3, 3])]
 
         df1 = session.createDataFrame([("a", 1, 0, "b"), ("b", 2, 4, "c"), ("a", 2, 3, "d")]). \
@@ -134,7 +133,7 @@ def test_groupBy(session_cnx, db_parameters):
 
         assert df1.groupBy('key').min(col('value2')).collect() == [Row(['a', 0]), Row(['b', 4])]
 
-        assert decimal_data(session).groupBy('a').agg(sum(col('b'))).collect() == \
+        assert TestData.decimal_data(session).groupBy('a').agg(sum(col('b'))).collect() == \
                [Row([Decimal(1), Decimal(3)]), Row([Decimal(2), Decimal(3)]),
                 Row([Decimal(3), Decimal(3)])]
 
@@ -151,7 +150,7 @@ def test_agg_should_be_order_preserving(session_cnx, db_parameters):
 
 def test_count(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        assert data2(session).agg([count(col('a')), sum_distinct(col('a'))]).collect() \
+        assert TestData.test_data2(session).agg([count(col('a')), sum_distinct(col('a'))]).collect() \
                == [Row([6, 6.0])]
 
 
@@ -159,7 +158,7 @@ def test_stddev(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         test_data_dev = sqrt(4 / 5)
 
-        assert data2(session).agg([stddev(col('a')), stddev_pop(col('a')), stddev_samp(col('a'))]) \
+        assert TestData.test_data2(session).agg([stddev(col('a')), stddev_pop(col('a')), stddev_samp(col('a'))]) \
                    .collect() == [Row([test_data_dev, 0.8164967850518458, test_data_dev])]
 
 
@@ -173,17 +172,17 @@ def test_spark14664_decimal_sum_over_window_should_work(session_cnx, db_paramete
 
 def test_aggregate_function_in_groupby(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        with pytest.raises(AttributeError) as ex_info:
-            data4(session).groupBy(sum(col('key'))).count().collect()
-        assert 'not a valid groupBy exception' in str(ex_info)
+        with pytest.raises(ProgrammingError) as ex_info:
+            TestData.test_data4(session).groupBy(sum(col('"KEY"'))).count().collect()
+        assert 'is not a valid group by expression' in str(ex_info)
 
 
-def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_oridinal(session_cnx, db_parameters):
+def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        assert data2(session).groupBy([lit(3), lit(4)]).agg([lit(6), lit(7), sum(col('b'))]) \
+        assert TestData.test_data2(session).groupBy(lit(3), lit(4)).agg([lit(6), lit(7), sum(col('b'))]) \
                    .collect() == [Row([3, 4, 6, 7, 9])]
 
-        assert data2(session).groupBy([lit(3), lit(4)]).agg([lit(6), col('b'), sum(col('b'))]) \
+        assert TestData.test_data2(session).groupBy([lit(3), lit(4)]).agg([lit(6), col('b'), sum(col('b'))]) \
                    .collect() == [Row([3, 4, 6, 1, 3]), Row([3, 4, 6, 2, 6])]
 
         testdata2str = "(SELECT * FROM VALUES (1,1),(1,2),(2,1),(2,2),(3,1),(3,2) T(a, b) )"
@@ -196,23 +195,22 @@ def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_oridinal(session_cnx,
 
 def test_agg_without_groups(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        assert data2(session).agg(sum(col('b'))).collect() == [Row([9])]
+        assert TestData.test_data2(session).agg(sum(col('b'))).collect() == [Row([9])]
 
 
 def test_agg_without_groups_and_functions(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        assert data2(session).agg(lit(1)).collect() == [Row([1])]
+        assert TestData.test_data2(session).agg(lit(1)).collect() == [Row([1])]
 
 
 def test_null_average(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        assert data3(session).agg(avg(col('b'))).collect() == [Row([2.0])]
+        assert TestData.test_data3(session).agg(avg(col('b'))).collect() == [Row([2.0])]
 
         # TODO uncomment with count_distinct
         # assert data3(session).agg([avg(col('b')), count_distinct()]).collect() == [Row([2.0, 1])]
 
-        assert data3(session).agg([avg(col('b')), sum_distinct(col('b'))]).collect() == [
-            Row([2.0, 2.0])]
+        assert TestData.test_data3(session).agg([avg(col('b')), sum_distinct(col('b'))]).collect() == [Row([2.0, 2.0])]
 
 
 def test_zero_average(session_cnx, db_parameters):

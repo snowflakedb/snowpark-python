@@ -133,13 +133,16 @@ class AnalyzerPackage:
                self._ResultScan + self._LeftParenthesis + self._SingleQuote + uuid_place_holder + \
                self._SingleQuote + self._RightParenthesis + self._RightParenthesis
 
-    def function_expression(self, name: str, children: list, is_distinct: bool) -> str:
+    def function_expression(self, name: str, children: List[str], is_distinct: bool) -> str:
         return name + self._LeftParenthesis + \
                f"{self._Distinct if is_distinct else self._EmptyString}" + \
                self._Comma.join(children) + self._RightParenthesis
 
     def binary_comparison(self, left: str, right: str, symbol: str) -> str:
         return left + self._Space + symbol + self._Space + right
+
+    def binary_arithmetic_expression(self, op: str, left: str, right: str) -> str:
+        return self._LeftParenthesis + left + self._Space + op + self._Space + right + self._RightParenthesis
 
     def alias_expression(self, origin: str, alias: str) -> str:
         return origin + self._As + alias
@@ -268,6 +271,21 @@ class AnalyzerPackage:
     def empty_values_statement(self, output: List['SPAttribute']):
         data = [Row.from_list([None] * len(output))]
         self.filter_statement(self._UnsatFilter, self.values_statement(output, data))
+
+    def unary_minus_expression(self, child: str) -> str:
+        return self._Minus + child
+
+    def not_expression(self, child: str) -> str:
+        return self._Not + child
+
+    def is_nan_expression(self, child: str) -> str:
+        return child + self._IsNaN
+
+    def is_null_expression(self, child: str) -> str:
+        return child + self._Is + self._Null
+
+    def is_not_null_expression(self, child: str) -> str:
+        return child + self._Is + self._Not + self._Null
 
     def generator(self, row_count: int) -> str:
         return self._Generator + self._LeftParenthesis + self._RowCount + self._RightArrow + \
