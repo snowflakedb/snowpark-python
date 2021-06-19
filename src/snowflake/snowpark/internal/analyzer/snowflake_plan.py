@@ -85,7 +85,7 @@ class SnowflakePlanBuilder:
         try:
             select_left = self._add_result_scan_if_not_select(left)
             select_right = self._add_result_scan_if_not_select(right)
-            queries = select_left.queries[:-1] + select_left.queries[:-1] + \
+            queries = select_left.queries[:-1] + select_right.queries[:-1] + \
                       [Query(
                           sql_generator(select_left.queries[-1].sql, select_right.queries[-1].sql),
                           None)]
@@ -139,18 +139,18 @@ class SnowflakePlanBuilder:
             return plan
         else:
             new_queries = plan.queries + [
-                Query(self.pkg.result_scan_statement(plan.queries[-1].query_id_plance_holder),
+                Query(self.pkg.result_scan_statement(plan.queries[-1].query_id_place_holder),
                       None)]
-            return SnowflakePlan(new_queries, self.pkg.schema_value_statement(plan.attributes),
+            return SnowflakePlan(new_queries, self.pkg.schema_value_statement(plan.attributes()),
                                  plan.post_actions, plan.expr_to_alias, self.__session,
                                  plan.source_plan)
 
 
 class Query:
 
-    def __init__(self, query_string, query_placeholder):
+    def __init__(self, query_string, query_id_placeholder):
         self.sql = query_string
-        self.place_holder = query_placeholder if query_placeholder else \
+        self.query_id_place_holder = query_id_placeholder if query_id_placeholder else \
             f"query_id_place_holder_{SchemaUtils.random_string()}"
 
 

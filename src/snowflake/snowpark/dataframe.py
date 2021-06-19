@@ -111,36 +111,46 @@ class DataFrame:
         else:
             return Column(self.__resolve(col_name))
 
-    def select(self, expr) -> 'DataFrame':
-        if type(expr) == str:
-            cols = [Column(expr)]
-        elif type(expr) in [list, tuple]:
-            cols = [e if type(e) == Column else Column(e) for e in expr]
-        elif type(expr) == Column:
-            cols = [expr]
-        else:
-            raise SnowparkClientException("Select input must be Column, str, or list")
+    def select(self, *expr) -> 'DataFrame':
 
+        if len(expr) == 1:
+            cols = [*expr[0]] if isinstance(expr[0], (list, tuple)) else [expr[0]]
+        elif len(expr) > 1:
+            cols = [*expr]
+        else:
+            raise TypeError("Select input must be Column, str, or list")
+
+        if not len(cols) > 0 or not all(type(e) in [Column, str] for e in cols):
+            raise TypeError("Select input must be Column, str, or list")
+
+        cols = [e if type(e) == Column else Column(e) for e in cols]
         return self.__with_plan(SPProject([c.named() for c in cols], self.__plan))
 
     # TODO complete. requires plan.output
-    def drop(self, cols) -> 'DataFrame':
+    def drop(self, *cols) -> 'DataFrame':
+        """Returns a new DataFrame that drops the specified column. This is a no-op if schema
+        doesn’t contain the given column name(s)."""
+
+        if len(cols) == 1:
+            exprs= [*cols[0]] if isinstance(cols[0], (list, tuple)) else [cols[0]]
+        elif len(cols) > 1:
+            exprs = [*cols]
+        else:
+            raise TypeError("drop() input cannot be empty")
+
         names = []
-        if type(cols) is str:
-            names.append(cols)
-        elif type(cols) is list:
-            for c in cols:
-                if type(c) is str:
-                    names.append(c)
-                elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
-                    names.append(c.expression.name)
-                else:
-                    raise SnowparkClientException(
-                        f"Could not drop column {str(c)}. Can only drop columns by name.")
+        for c in exprs:
+            if type(c) is str:
+                names.append(c)
+            elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
+                names.append(c.expression.name)
+            else:
+                raise TypeError(
+                    f"Could not drop column {str(c)}. Can only drop columns by name.")
 
         normalized = set(AnalyzerPackage.quote_name(n) for n in names)
-        existing = set(attr.name for attr in self.__output())
-        keep_col_names = existing - normalized
+        existing = [attr.name for attr in self.__output()]
+        keep_col_names = [c for c in existing if c not in normalized]
         if not keep_col_names:
             raise SnowparkClientException("Cannot drop all columns")
         else:

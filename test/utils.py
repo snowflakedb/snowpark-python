@@ -13,7 +13,7 @@ from src.snowflake.snowpark.dataframe import DataFrame
 class Utils:
     @staticmethod
     def random_name() -> str:
-        return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_"))
+        return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_")).upper()
 
     @staticmethod
     def create_table(session: 'Session', name: str, schema: str):
@@ -65,6 +65,10 @@ class TestData:
     @classmethod
     def integer1(cls, session: 'Session') -> DataFrame:
         return session.sql("select * from values(1),(2),(3) as T(a)")
+
+    @classmethod
+    def double2(cls, session: 'Session') -> DataFrame:
+        return session.sql("select * from values(0.1, 0.5),(0.2, 0.6),(0.3, 0.7) as T(a,b)")
 
     @classmethod
     def decimal_data(cls, session: 'Session') -> DataFrame:

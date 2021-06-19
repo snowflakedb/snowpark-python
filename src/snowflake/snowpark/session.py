@@ -207,11 +207,11 @@ class Session:
         # get spark attributes and data types
         sp_attrs, data_types = [], []
         for field in schema.fields:
-            sp_type = SPStringType() if type(field.data_type) in \
+            sp_type = SPStringType() if type(field.datatype) in \
                                         [VariantType, ArrayType, MapType, GeographyType, TimeType, DateType,
-                                         TimestampType] else snow_type_to_sp_type(field.data_type)
+                                         TimestampType] else snow_type_to_sp_type(field.datatype)
             sp_attrs.append(SPAttributeReference(AnalyzerPackage.quote_name(field.name), sp_type, field.nullable))
-            data_types.append(field.data_type)
+            data_types.append(field.datatype)
 
         # convert all variant/time/geography/array/map data to string
         converted = []
@@ -246,20 +246,20 @@ class Session:
         # construct a project statement to convert string value back to variant
         project_columns = []
         for field in schema.fields:
-            if type(field.data_type) == DecimalType:
-                project_columns.append(to_decimal(column(field.name), field.data_type.precision,
-                                                  field.data_type.scale).as_(field.name))
-            elif type(field.data_type) == TimestampType:
+            if type(field.datatype) == DecimalType:
+                project_columns.append(to_decimal(column(field.name), field.datatype.precision,
+                                                  field.datatype.scale).as_(field.name))
+            elif type(field.datatype) == TimestampType:
                 project_columns.append(to_timestamp(column(field.name)).as_(field.name))
-            elif type(field.data_type) == TimeType:
+            elif type(field.datatype) == TimeType:
                 project_columns.append(to_time(column(field.name)).as_(field.name))
-            elif type(field.data_type) == DateType:
+            elif type(field.datatype) == DateType:
                 project_columns.append(to_date(column(field.name)).as_(field.name))
-            elif type(field.data_type) == VariantType:
+            elif type(field.datatype) == VariantType:
                 project_columns.append(to_variant(parse_json(column(field.name))).as_(field.name))
-            elif type(field.data_type) == ArrayType:
+            elif type(field.datatype) == ArrayType:
                 project_columns.append(to_array(parse_json(column(field.name))).as_(field.name))
-            elif type(field.data_type) == MapType:
+            elif type(field.datatype) == MapType:
                 project_columns.append(to_object(parse_json(column(field.name))).as_(field.name))
             # TODO: support geo type
             # elif type(field.data_type) == Geography:

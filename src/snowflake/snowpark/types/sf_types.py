@@ -200,10 +200,10 @@ class ColumnIdentifier:
 
 # TODO complete
 class StructField:
-    def __init__(self, column_identifier: Union[ColumnIdentifier, str], data_type: DataType,
+    def __init__(self, column_identifier: Union[ColumnIdentifier, str], datatype: DataType,
                  nullable: bool = True):
         self.column_identifier = ColumnIdentifier(column_identifier) if type(column_identifier) == str else column_identifier
-        self.data_type = data_type
+        self.datatype = datatype
         self.nullable = nullable
 
     @property
@@ -211,7 +211,7 @@ class StructField:
         return self.column_identifier.name()
 
     def to_string(self):
-        return f"StructField({self.name}, {self.data_type.type_name}, Nullable={self.nullable})"
+        return f"StructField({self.name}, {self.datatype.type_name}, Nullable={self.nullable})"
 
     def __repr__(self):
         return self.to_string()

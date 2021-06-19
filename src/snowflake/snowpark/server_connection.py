@@ -79,7 +79,7 @@ class ServerConnection:
         return self.__conn._session_parameters.get(parameter_name.upper(), None)
 
     def _get_string_datum(self, query: str) -> Optional[str]:
-        rows = self.result_set_to_rows(self.run_query(query))
+        rows = self.result_set_to_rows(self.run_query(query)['data'])
         return rows[0].get_string(0) if len(rows) > 0 else None
 
     @staticmethod
@@ -150,7 +150,7 @@ class ServerConnection:
             data = results_cursor.fetch_pandas_all(**kwargs)
         else:
             data = results_cursor.fetchall()
-        return data
+        return {'data': data, 'sfqid': results_cursor.sfqid}
 
     # TODO revisit
     def result_set_to_rows(self, result_set):
@@ -178,14 +178,14 @@ class ServerConnection:
                     raise SnowparkClientException("Query was canceled by user")
                 result = self.run_query(final_query, to_pandas, **kwargs)
                 # TODO revisit
-                # last_id = result.get_query_id()
-                # placeholders[query.query_id_placeholder] = last_id
+                last_id = result['sfqid']
+                placeholders[query.query_id_place_holder] = last_id
         finally:
             # delete create tmp object
             # TODO get plan.postActions
             pass
 
-        return result
+        return result['data']
 
     def get_result_and_metadata(self, plan: SnowflakePlan) -> (List['Row'], List['Attribute']):
         result_set = self.get_result_set(plan)

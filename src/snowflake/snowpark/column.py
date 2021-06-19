@@ -176,7 +176,7 @@ class Column:
             parts = SPUnresolvedAttribute.parse_attribute_name(name[0:-2])
             return SPUnresolvedStar(parts)
         else:
-            return SPUnresolvedAttribute.quoted(name)
+            return SPUnresolvedAttribute.quoted(AnalyzerPackage.quote_name(name))
 
     @classmethod
     def with_expr(cls, new_expr):
