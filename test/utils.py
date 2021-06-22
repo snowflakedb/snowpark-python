@@ -63,6 +63,10 @@ class TestData:
         return session.createDataFrame([[1, 'A'], [2, 'B'], [3, 'C'], [4, 'D'], [5, 'E'], [6, 'F']])
 
     @classmethod
+    def null_data1(cls, session: 'Session') -> DataFrame:
+        return session.sql("select * from values(null),(2),(1),(3),(null) as T(a)")
+
+    @classmethod
     def integer1(cls, session: 'Session') -> DataFrame:
         return session.sql("select * from values(1),(2),(3) as T(a)")
 

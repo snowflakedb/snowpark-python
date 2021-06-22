@@ -4,11 +4,12 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 from .column import Column
-from .internal.sp_expressions import NamedExpression as SPNamedExpression, \
-    ResolvedStar as SPResolvedStar, Literal as SPLiteral, Attribute as SPAttribute
+from .internal.sp_expressions import Expression as SPExpression, NamedExpression as SPNamedExpression, \
+    ResolvedStar as SPResolvedStar, Literal as SPLiteral, Attribute as SPAttribute, SortOrder as SPSortOrder, \
+    Ascending as SPAscending, Descending as SPDescending
 from .internal.analyzer.analyzer_package import AnalyzerPackage
 from .plans.logical.logical_plan import Project as SPProject, Filter as SPFilter
-from .plans.logical.basic_logical_operators import Join as SPJoin
+from .plans.logical.basic_logical_operators import Join as SPJoin, Sort as SPSort
 from .plans.logical.hints import JoinHint as SPJoinHint
 from .types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
     LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, Cross as SPCrossJoin
@@ -73,10 +74,6 @@ class DataFrame:
         for attr, name in zip(self.__output(), col_names):
             new_cols.append(Column(attr).alias(name))
         return self.select(new_cols)
-
-    # TODO
-    def sort(self, exprs):
-        pass
 
     def __getitem__(self, item):
         if type(item) == str:
@@ -155,6 +152,39 @@ class DataFrame:
         """Filters rows based on given condition. This is equivalent to calling [[filter]]. """
         return self.filter(expr)
 
+    def sort(self, *cols: Union[str, Column, List, Tuple],
+             ascending: Union[bool, int, List, Tuple] = None) -> 'DataFrame':
+        """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL). """
+        if not cols:
+            raise SnowparkClientException("sort() needs at least one sort expression.")
+        exprs = self.__convert_cols_to_exprs("sort()", *cols)
+        if not exprs:
+            raise SnowparkClientException("sort() needs at least one sort expression.")
+        orders = []
+        if ascending is not None:
+            if type(ascending) in [list, tuple]:
+                orders = [SPAscending() if asc else SPDescending() for asc in ascending]
+            elif type(ascending) in [bool, int]:
+                orders = [SPAscending() if ascending else SPDescending()]
+            else:
+                raise SnowparkClientException("ascending can only be boolean or list,"
+                                              " but got {}".format(str(type(ascending))))
+            if len(exprs) != len(orders):
+                raise SnowparkClientException("The length of col ({}) should be same with"
+                                              " the length of ascending ({}).".format(len(exprs), len(orders)))
+
+        sort_exprs = []
+        for idx in range(len(exprs)):
+            expr = exprs[idx]
+            # orders will overwrite current orders in expression (but will not overwrite null ordering)
+            # if no order is provided, use ascending order
+            if type(exprs[idx]) == SPSortOrder:
+                sort_exprs.append(SPSortOrder(expr.child, orders[idx], expr.null_ordering) if orders else expr)
+            else:
+                sort_exprs.append(SPSortOrder(expr, orders[idx] if orders else SPAscending()))
+
+        return self.__with_plan(SPSort(sort_exprs, True, self.__plan))
+
     def agg(self, exprs: Union[str, Column, List[Union[str, Column]]]) -> 'DataFrame':
         """Aggregate the data in the DataFrame. Use this method if you don't need to group the
         data (`groupBy`).
@@ -206,27 +236,7 @@ class DataFrame:
         """
         # TODO fix dependency cycle
         from .relational_grouped_dataframe import RelationalGroupedDataFrame, GroupByType
-
-        def convert_to_grouping_exprs(col: Union[str, Column]):
-            if type(col) == str:
-                return self.__resolve(col)
-            elif type(col) == Column:
-                return col.expression
-            else:
-                raise SnowparkClientException("DataFrame.groupBy() only accepts str and Column objects,"
-                                              " or the list containing str and Column objects")
-
-        grouping_exprs = []
-        if len(cols) >= 1:
-            if type(cols[0]) in [list, tuple]:
-                if len(cols) == 1:
-                    grouping_exprs = [convert_to_grouping_exprs(col) for col in cols[0]]
-                else:
-                    raise SnowparkClientException(
-                        "DataFrame.groupBy() only accepts one list, but got {}".format(len(cols)))
-            else:
-                grouping_exprs = [convert_to_grouping_exprs(col) for col in cols]
-
+        grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
 
     def join(self, other, using_columns=None, join_type=None) -> 'DataFrame':
@@ -371,3 +381,27 @@ class DataFrame:
 
     def __with_plan(self, plan):
         return DataFrame(self.session, plan)
+
+    def __convert_cols_to_exprs(self, calling_method: str,
+                                *cols: Union[str, Column, List, Tuple]) -> List['SPExpression']:
+        """Convert a string or a Column, or a list of string and Column objects to expression(s). """
+        def convert(col: Union[str, Column]):
+            if type(col) == str:
+                return self.__resolve(col)
+            elif type(col) == Column:
+                return col.expression
+            else:
+                raise SnowparkClientException("{} only accepts str and Column objects, or the list containing str and"
+                                              " Column objects".format(calling_method))
+
+        exprs = []
+        if len(cols) >= 1:
+            if type(cols[0]) in [list, tuple]:
+                if len(cols) == 1:
+                    exprs = [convert(col) for col in cols[0]]
+                else:
+                    raise SnowparkClientException("{} only accepts one list, but got {}".format(calling_method,
+                                                                                                len(cols)))
+            else:
+                exprs = [convert(col) for col in cols]
+        return exprs
