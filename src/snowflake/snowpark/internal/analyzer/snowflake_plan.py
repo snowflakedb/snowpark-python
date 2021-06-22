@@ -94,10 +94,16 @@ class SnowflakePlanBuilder:
             right_schema_query = self.pkg.schema_value_statement(select_right.attributes())
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
+            common_columns = set(select_left.expr_to_alias.keys()).intersection(
+                select_right.expr_to_alias.keys())
+            new_expr_to_alias = {k: v for k, v in
+                                 {**select_left.expr_to_alias, **select_right.expr_to_alias}.items()
+                                 if k not in common_columns}
+
             return SnowflakePlan(
                 queries, schema_query,
                 select_left.post_actions + select_right.post_actions,
-                {**select_left.expr_to_alias, **select_right.expr_to_alias},
+                new_expr_to_alias,
                 self.__session, source_plan)
 
         except Exception as ex:

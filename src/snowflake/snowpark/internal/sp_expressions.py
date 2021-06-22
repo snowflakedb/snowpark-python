@@ -453,6 +453,12 @@ class AttributeReference(Attribute):
         else:
             return AttributeReference(self.name, self.datatype, self.nullable)
 
+    def to_string(self):
+        return self.name
+
+    def __repr__(self):
+        return self.to_string()
+
 
 class UnresolvedAttribute(Attribute):
 

@@ -139,7 +139,7 @@ class Column:
 
     # TODO revisit toString() functionality
     def __repr__(self):
-        return f"Column[{self.expression.toString()}]"
+        return f"Column[{self.expression.to_string()}]"
 
     def as_(self, alias: str) -> 'Column':
         """Returns a new renamed Column. Alias of [[name]]."""

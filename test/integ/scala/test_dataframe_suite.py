@@ -8,17 +8,18 @@ from snowflake import connector
 
 import pytest
 
-@pytest.mark.skip()
+
 def test_null_data_in_tables(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         table_name = Utils.random_name()
         try:
             Utils.create_table(session, table_name, "num int")
-            session.sql(f"insert into {table_name} values(null),(null),(null)")
-            df = session.table(table_name).collect()
-            assert df == [Row([None]), Row([None]), Row([None])]
+            session.sql(f"insert into {table_name} values(null),(null),(null)").collect()
+            res = session.table(table_name).collect()
+            assert res == [Row([None]), Row([None]), Row([None])]
         finally:
             session.sql(f"drop table if exists {table_name}")
+
 
 @pytest.mark.skip(reason='requires is_null, sort, createDataFrame type inference')
 def test_null_data_in_local_relation_with_filters(session_cnx, db_parameters):
@@ -33,7 +34,7 @@ def test_null_data_in_local_relation_with_filters(session_cnx, db_parameters):
         assert df.sort(col('b').asc_nulls_last).collect() == \
                [Row([2, 'NotNull']), Row([1, None]), Row([3, None])]
 
-@pytest.mark.skip()
+
 def test_non_select_query_composition(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         table_name = Utils.random_name()
@@ -48,7 +49,7 @@ def test_non_select_query_composition(session_cnx, db_parameters):
         finally:
             session.sql(f"drop table if exists {table_name}")
 
-@pytest.mark.skip()
+
 def test_only_use_result_scan_when_composing_queries(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = session.sql("show tables")
@@ -59,7 +60,7 @@ def test_only_use_result_scan_when_composing_queries(session_cnx, db_parameters)
         assert len(df2._DataFrame__plan.queries) == 2
         assert 'RESULT_SCAN' in df2._DataFrame__plan.queries[-1].sql
 
-@pytest.mark.skip()
+
 def test_joins_on_result_scan(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df1 = session.sql('show tables').select(['"name"', '"kind"'])
@@ -69,7 +70,7 @@ def test_joins_on_result_scan(session_cnx, db_parameters):
         result.collect() # no error
         assert len(result.schema.fields) == 3
 
-@pytest.mark.skip()
+
 def test_select_star(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         double2 = TestData.double2(session)
@@ -77,7 +78,7 @@ def test_select_star(session_cnx, db_parameters):
         assert double2.select("*").collect() == expected
         assert double2.select(double2.col('*')).collect() == expected
 
-@pytest.mark.skip()
+
 def test_select(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(['a', 'b', 'c'])
@@ -109,7 +110,7 @@ def test_select(session_cnx, db_parameters):
         # select(Seq[Column]) with col("a") + col("b")
         assert df.select([col("b"), col("a") + col("c")]).collect() == expected_result
 
-@pytest.mark.skip()
+
 def test_select_negative_select(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(['a', 'b', 'c'])
@@ -140,7 +141,7 @@ def test_select_negative_select(session_cnx, db_parameters):
             df.select([col("not_exists_column")]).collect()
         assert "SQL compilation error" in str(ex_info)
 
-@pytest.mark.skip()
+
 def test_drop_and_dropcolumns(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(['a', 'b', 'c'])
@@ -191,7 +192,7 @@ def test_drop_and_dropcolumns(session_cnx, db_parameters):
             df.drop([col("a"), col("b"), col("c")])
         assert "Cannot drop all column" in str(ex_info)
 
-@pytest.mark.skip()
+
 def test_groupby(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = session.createDataFrame([("country A", "state A", 50),
@@ -228,7 +229,7 @@ def test_groupby(session_cnx, db_parameters):
         res = df.groupBy([col('country'), col('state')]).agg(sum(col('value'))).collect()
         assert sorted(res, key=lambda x: x[2]) == expected_res
 
-@pytest.mark.skip()
+
 def test_quoted_column_names(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         normalName = "NORMAL_NAME"

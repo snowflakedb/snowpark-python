@@ -72,8 +72,9 @@ class LeftAnti(JoinType):
 
 class NaturalJoin(JoinType):
     def __init__(self, tpe: JoinType):
-        assert tpe in [Inner, LefOuter, RightOuter, FullOuter], \
+        assert type(tpe) in [Inner, LefOuter, RightOuter, FullOuter], \
             f"Unsupported natural join type {tpe}"
+        self.tpe = tpe
         self.sql = 'NATURAL ' + tpe.sql
 
 
