@@ -186,6 +186,14 @@ class ColumnIdentifier:
     def name(self) -> str:
         return ColumnIdentifier.strip_unnecessary_quotes(self.normalized_name)
 
+    def __eq__(self, other):
+        if type(other) == str:
+            return self.normalized_name == other
+        elif type(other) == ColumnIdentifier:
+            return self.normalized_name == other.normalized_name
+        else:
+            return False
+
     @staticmethod
     def strip_unnecessary_quotes(string: str) -> str:
         """Removes the unnecessary quotes from name.

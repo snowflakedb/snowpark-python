@@ -10,7 +10,8 @@ import uuid
 
 class Expression:
     # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/Expression.scala#L86
-    nullable: bool
+    nullable: bool = None
+    datatype: DataType = None
 
     def pretty_name(self) -> str:
         """Returns a user-facing string representation of this expression's name.
@@ -19,8 +20,10 @@ class Expression:
 
 
 class NamedExpression(Expression):
+    name: str
+    expr_id: uuid.UUID
+
     def __init__(self, name):
-        super().__init__()
         self.name = name
         self.expr_id = uuid.uuid4()
 
@@ -34,7 +37,12 @@ class Star(LeafExpression, NamedExpression):
 
 
 class UnaryExpression(Expression):
-    pass
+    child: Expression
+    children: List['Expression']
+
+    def __init__(self, child: Expression):
+        self.child = child
+        self.children = [child]
 
 
 class BinaryExpression(Expression):
@@ -42,14 +50,14 @@ class BinaryExpression(Expression):
     right: Expression
     sql_operator: str
 
+    def __init__(self, left: Expression, right: Expression):
+        self.left = left
+        self.right = right
+        self.children = [self.left, self.right]
+        self.nullable = self.left.nullable or self.right.nullable
+
     def __repr__(self):
         return "{} {} {}".format(self.left, self.sql_operator, self.right)
-
-    def children(self):
-        return [self.left, self.right]
-
-    def nullable(self):
-        return self.left.nullable or self.right.nullable
 
 
 class UnresolvedFunction(Expression):
@@ -63,7 +71,7 @@ class UnresolvedFunction(Expression):
         return self.name.strip('"')
 
     def to_string(self) -> str:
-        return f"{self.name}({', '.join((c.to_string() for c  in self.children))})"
+        return f"{self.name}({', '.join((c.to_string() for c in self.children))})"
 
     def __repr__(self):
         return self.to_string()
@@ -117,6 +125,7 @@ class TypedAggregateExpression(AggregateExpression):
 
 class AggregateFunction(Expression):
     # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/interfaces.scala#L207
+    name: str
 
     def to_aggregate_expression(self, is_distinct=False, filter=None) -> AggregateExpression:
         return AggregateExpression(self, Complete(), is_distinct, filter)
@@ -146,7 +155,8 @@ class Max(DeclarativeAggregate):
         super().__init__()
         self.child = child
         self.children = [child]
-        self.datatype = getattr(child, 'datatype', None)
+        self.datatype = child.datatype
+
 
 class Min(DeclarativeAggregate):
     # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Max.scala
@@ -156,7 +166,7 @@ class Min(DeclarativeAggregate):
         super().__init__()
         self.child = child
         self.children = [child]
-        self.datatype = getattr(child, 'datatype', None)
+        self.datatype = child.datatype
 
 
 class Avg(DeclarativeAggregate):
@@ -176,6 +186,7 @@ class Avg(DeclarativeAggregate):
         else:
             return DoubleType()
 
+
 class Sum(DeclarativeAggregate):
     name = 'SUM'
 
@@ -193,6 +204,7 @@ class Sum(DeclarativeAggregate):
             return LongType()
         else:
             return DoubleType()
+
 
 # Grouping sets
 class BaseGroupingSets(Expression):
@@ -235,8 +247,8 @@ class ResolvedStar(Star):
 # Named Expressions
 class Alias(UnaryExpression, NamedExpression):
     def __init__(self, child, name, expr_id=None):
-        super().__init__(name=name)
-        self.child = child
+        UnaryExpression.__init__(self, child)
+        NamedExpression.__init__(self, name)
         self.expr_id = expr_id if expr_id else uuid.uuid4()
 
 
@@ -251,7 +263,7 @@ class Attribute(LeafExpression, NamedExpression):
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     def __init__(self, child, alias_func):
-        self.child = child
+        super().__init__(child=child)
         self.alias_func = alias_func
 
 
@@ -275,169 +287,124 @@ class Literal(LeafExpression):
     def __repr__(self):
         return self.to_string()
 
+
 class BinaryArithmeticExpression(BinaryExpression):
     pass
 
 
 class EqualTo(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '='
+    sql_operator = '='
 
 
 class NotEqualTo(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '!='
+    sql_operator = '!='
 
 
 class GreaterThan(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '>'
+    sql_operator = '>'
 
 
 class LessThan(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '<'
+    sql_operator = '<'
 
 
 class GreaterThanOrEqual(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '>='
+    sql_operator = '>='
 
 
 class LessThanOrEqual(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '<='
+    sql_operator = '<='
 
 
 class EqualNullSafe(BinaryExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = 'EQUAL_NULL'
+    sql_operator = 'EQUAL_NULL'
 
 
 # also inherits from Predicate, omitted
 class And(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = 'AND'
+    sql_operator = 'AND'
 
 
 class Or(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = 'OR'
+    sql_operator = 'OR'
 
 
 class Add(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '+'
+    sql_operator = '+'
 
 
 class Subtract(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '-'
+    sql_operator = '-'
 
 
 class Multiply(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '*'
+    sql_operator = '*'
 
 
 class Divide(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '/'
+    sql_operator = '/'
 
 
 class Remainder(BinaryArithmeticExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = '%'
+    sql_operator = '%'
 
 
 class Pow(BinaryExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = 'POWER'
+    sql_operator = 'POWER'
 
 
 class BitwiseAnd(BinaryExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = 'BITAND'
+    sql_operator = 'BITAND'
 
 
 class BitwiseOr(BinaryExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = 'BITOR'
+    sql_operator = 'BITOR'
 
 
 class BitwiseXor(BinaryExpression):
-    def __init__(self, left: Expression, right: Expression):
-        self.left = left
-        self.right = right
-        self.sql_operator = 'BITXOR'
+    sql_operator = 'BITXOR'
 
 
 class UnaryMinus(UnaryExpression):
     def __init__(self, child: Expression):
-        self.child = child
+        super().__init__(child)
+        self.datatype = child.datatype
+        self.nullable = child.nullable
 
     def __repr__(self):
         return "-{}".format(self.child)
 
 
 class Not(UnaryExpression):
-    def __init__(self, child: Expression):
-        self.child = child
-
     def __repr__(self):
         return "~{}".format(self.child)
 
 
 class IsNaN(UnaryExpression):
     def __init__(self, child: Expression):
-        self.child = child
+        super().__init__(child)
         self.nullable = False
 
 
 class IsNull(UnaryExpression):
     def __init__(self, child: Expression):
-        self.child = child
+        super().__init__(child)
         self.nullable = False
 
 
 class IsNotNull(UnaryExpression):
     def __init__(self, child: Expression):
-        self.child = child
+        super().__init__(child)
         self.nullable = False
+
+
+class Cast(UnaryExpression):
+    def __init__(self, child: Expression, to: DataType):
+        super().__init__(child)
+        self.child = child
+        self.to = to
+        self.datatype = child.datatype
+        self.nullable = child.nullable
 
 
 # Attributes
@@ -522,9 +489,9 @@ class RegExp(Expression):
 
 
 class Collate(Expression):
-    def __init__(self, expr: Expression, collationSpec: str):
+    def __init__(self, expr: Expression, collation_spec: str):
         self.expr = expr
-        self.collationSpec = collationSpec
+        self.collation_spec = collation_spec
 
 
 class SubfieldString(Expression):
@@ -542,23 +509,6 @@ class SubfieldInt(Expression):
 class TableFunctionExpression(Expression):
     def __init__(self):
         self.datatype = None
-
-
-class Cast(UnaryExpression):
-    def __init__(self, child: Expression, to: DataType):
-        super().__init__()
-        self.child = child
-        self.children = [child]
-        self.to = to
-        self.datatype = child.datatype
-
-
-class UnaryMinus(UnaryExpression):
-    def __init__(self, child: Expression):
-        super().__init__()
-        self.child = child
-        self.children = [child]
-        self.datatype = child.datatype
 
 
 class FlattenFunction(TableFunctionExpression):
@@ -596,3 +546,39 @@ class WithinGroup(Expression):
         self.expr = expr
         self.order_by_cols = order_by_cols
 
+
+# Ordering
+class NullOrdering:
+    sql: str
+
+
+class NullsFirst(NullOrdering):
+    sql = "NULLS FIRST"
+
+
+class NullsLast(NullOrdering):
+    sql = "NULLS LAST"
+
+
+class SortDirection:
+    sql: str
+    default_null_ordering: NullOrdering
+
+
+class Ascending(SortDirection):
+    sql = "ASC"
+    default_null_ordering = NullsFirst
+
+
+class Descending(SortDirection):
+    sql = "DESC"
+    default_null_ordering = NullsLast
+
+
+class SortOrder(UnaryExpression):
+    def __init__(self, child: Expression, direction: SortDirection, null_ordering: NullOrdering = None):
+        super().__init__(child)
+        self.direction = direction
+        self.null_ordering = null_ordering if null_ordering else direction.default_null_ordering
+        self.datatype = child.datatype
+        self.nullable = child.nullable
