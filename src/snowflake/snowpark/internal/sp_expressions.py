@@ -20,6 +20,9 @@ class Expression:
 
 
 class NamedExpression(Expression):
+    name: str
+    expr_id: uuid.UUID
+
     def __init__(self, name):
         self.name = name
         self.expr_id = uuid.uuid4()
@@ -152,7 +155,7 @@ class Max(DeclarativeAggregate):
         super().__init__()
         self.child = child
         self.children = [child]
-        self.datatype = getattr(child, 'datatype', None)
+        self.datatype = child.datatype
 
 
 class Min(DeclarativeAggregate):
@@ -163,7 +166,7 @@ class Min(DeclarativeAggregate):
         super().__init__()
         self.child = child
         self.children = [child]
-        self.datatype = getattr(child, 'datatype', None)
+        self.datatype = child.datatype
 
 
 class Avg(DeclarativeAggregate):
@@ -366,6 +369,7 @@ class UnaryMinus(UnaryExpression):
     def __init__(self, child: Expression):
         super().__init__(child)
         self.datatype = child.datatype
+        self.nullable = child.nullable
 
     def __repr__(self):
         return "-{}".format(self.child)
@@ -543,6 +547,7 @@ class WithinGroup(Expression):
         self.order_by_cols = order_by_cols
 
 
+# Ordering
 class NullOrdering:
     sql: str
 
