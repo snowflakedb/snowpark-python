@@ -7,6 +7,8 @@ from .datatype_mapper import DataTypeMapper
 from ...types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
     LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, NaturalJoin as SPNaturalJoin
 from ..sp_expressions import Attribute as SPAttribute
+from src.snowflake.snowpark.types.sf_types import DataType
+from src.snowflake.snowpark.types.types_package import convert_to_sf_type
 from src.snowflake.snowpark.row import Row
 
 import re
@@ -272,6 +274,9 @@ class AnalyzerPackage:
         data = [Row.from_list([None] * len(output))]
         self.filter_statement(self._UnsatFilter, self.values_statement(output, data))
 
+    def sort_statement(self, order: List[str], child: str) -> str:
+        return self.project_statement([], child) + self._OrderBy + ",".join(order)
+
     def unary_minus_expression(self, child: str) -> str:
         return self._Minus + child
 
@@ -286,6 +291,13 @@ class AnalyzerPackage:
 
     def is_not_null_expression(self, child: str) -> str:
         return child + self._Is + self._Not + self._Null
+
+    def cast_expression(self, child: str, datatype: DataType) -> str:
+        return self._Cast + self._LeftParenthesis + child + self._As + convert_to_sf_type(datatype) + \
+               self._RightParenthesis
+
+    def order_expression(self, name: str, direction: str, null_ordering: str) -> str:
+        return name + self._Space + direction + self._Space + null_ordering
 
     def generator(self, row_count: int) -> str:
         return self._Generator + self._LeftParenthesis + self._RowCount + self._RightArrow + \

@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+from src.snowflake.snowpark.types.sf_types import DataType
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression, \
     UnresolvedAttribute as SPUnresolvedAttribute, UnresolvedStar as SPUnresolvedStar, \
@@ -12,7 +13,8 @@ from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpre
     EqualNullSafe as SPEqualNullSafe, And as SPAnd, Or as SPOr, UnaryMinus as SPUnaryMinus, Not as SPNot, \
     IsNaN as SPIsNaN, IsNull as SPIsNull, IsNotNull as SPIsNotNull, Add as SPAdd, Subtract as SPSubtract, \
     Multiply as SPMultiply, Divide as SPDivide, Remainder as SPRemainder, Pow as SPPow, BitwiseAnd as SPBitwiseAnd, \
-    BitwiseOr as SPBitwiseOr, BitwiseXor as SPBitwiseXor
+    BitwiseOr as SPBitwiseOr, BitwiseXor as SPBitwiseXor, Cast as SPCast, SortOrder as SPSortOrder, \
+    Ascending as SPAscending, Descending as SPDescending, NullsFirst as SPNullFirst, NullsLast as SPNullLast
 from typing import (
     Optional,
 )
@@ -126,6 +128,38 @@ class Column:
 
     def __invert__(self) -> 'Column':
         return self.with_expr(SPNot(self.expression))
+
+    def cast(self, to: DataType) -> 'Column':
+        """Casts the values in the Column to the specified data type. """
+        return self.with_expr(SPCast(self.expression, to))
+
+    def desc(self) -> 'Column':
+        """Returns a Column expression with values sorted in descending order. """
+        return self.with_expr(SPSortOrder(self.expression, SPDescending()))
+
+    def desc_nulls_first(self) -> 'Column':
+        """Returns a Column expression with values sorted in descending order (null values sorted before
+         non-null values). """
+        return self.with_expr(SPSortOrder(self.expression, SPDescending(), SPNullFirst()))
+
+    def desc_nulls_last(self) -> 'Column':
+        """Returns a Column expression with values sorted in descending order (null values sorted after
+         non-null values). """
+        return self.with_expr(SPSortOrder(self.expression, SPDescending(), SPNullLast()))
+
+    def asc(self) -> 'Column':
+        """Returns a Column expression with values sorted in ascending order. """
+        return self.with_expr(SPSortOrder(self.expression, SPAscending()))
+
+    def asc_nulls_first(self) -> 'Column':
+        """Returns a Column expression with values sorted in ascending order (null values sorted before
+         non-null values). """
+        return self.with_expr(SPSortOrder(self.expression, SPAscending(), SPNullFirst()))
+
+    def asc_nulls_last(self) -> 'Column':
+        """Returns a Column expression with values sorted in ascending order (null values sorted after
+         non-null values). """
+        return self.with_expr(SPSortOrder(self.expression, SPAscending(), SPNullLast()))
 
     def named(self) -> SPExpression:
         if isinstance(self.expression, SPNamedExpression):

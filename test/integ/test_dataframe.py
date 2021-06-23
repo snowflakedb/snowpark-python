@@ -555,14 +555,16 @@ def test_create_dataframe_with_invalid_format(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         # inconsistent type
         data = [1, "1"]
-        with pytest.raises(SnowparkClientException):
+        with pytest.raises(SnowparkClientException) as ex_info:
             session.createDataFrame(data)
+        assert "Data consists of rows with different types" in str(ex_info)
         data = [[1, "1"], Row([2, "2"])]
-        with pytest.raises(SnowparkClientException):
+        with pytest.raises(SnowparkClientException) as ex_info:
             session.createDataFrame(data)
+        assert "Data consists of rows with different types" in str(ex_info)
 
         # inconsistent length
         data = [[1], [1, 2]]
-        with pytest.raises(SnowparkClientException):
+        with pytest.raises(SnowparkClientException) as ex_info:
             session.createDataFrame(data)
-
+        assert "Data consists of rows with different lengths" in str(ex_info)

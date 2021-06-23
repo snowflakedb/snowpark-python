@@ -22,6 +22,9 @@ from typing import (
     Tuple,
     Union,
 )
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 
 class ServerConnection:
@@ -144,8 +147,13 @@ class ServerConnection:
             return ServerConnection.convert_result_meta_to_attribute(self._cursor.description)
 
     @_Decorator.wrap_exception
-    def run_query(self, query, to_pandas=False, **kwargs,):
-        results_cursor = self._cursor.execute(query)
+    def run_query(self, query, to_pandas=False, **kwargs):
+        try:
+            results_cursor = self._cursor.execute(query)
+            logger.info("Execute query [queryID: {}] {}".format(results_cursor.sfqid, query))
+        except Exception as ex:
+            logger.error("Failed to execute query {}\n{}".format(query, ex))
+            raise ex
         if to_pandas:
             data = results_cursor.fetch_pandas_all(**kwargs)
         else:

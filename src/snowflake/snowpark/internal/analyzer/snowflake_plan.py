@@ -140,6 +140,9 @@ class SnowflakePlanBuilder:
         return self.__build_binary(lambda x, y: self.pkg.join_statement(x, y, join_type, condition),
                                    left, right, source_plan)
 
+    def sort(self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]):
+        return self.build(lambda x: self.pkg.sort_statement(order, x), child, source_plan)
+
     def _add_result_scan_if_not_select(self, plan):
         if plan.queries[-1].sql.strip().lower().startswith("select"):
             return plan

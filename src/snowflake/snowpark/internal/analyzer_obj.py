@@ -13,8 +13,9 @@ from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpre
     as SPUnresolvedStar, ResolvedStar as SPResolvedStar, AggregateExpression as SPAggregateExpression, \
     AggregateFunction as SPAggregateFunction, UnaryMinus as SPUnaryMinus, Not as SPNot, \
     BinaryArithmeticExpression as SPBinaryArithmeticExpression, IsNaN as SPIsNaN, IsNull as SPIsNull, \
-    IsNotNull as SPIsNotNull
-from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range as SPRange, Aggregate as SPAggregate
+    IsNotNull as SPIsNotNull, Cast as SPCast, SortOrder as SPSortOrder
+from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range as SPRange, Aggregate as SPAggregate, \
+    Sort as SPSort
 
 from src.snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType, \
     LongType as SPLongType, ShortType as SPShortType, ByteType as SPByteType
@@ -113,6 +114,10 @@ class Analyzer:
     def unary_expression_extractor(self, expr) -> Optional[str]:
         if type(expr) == SPUnresolvedAlias:
             return self.analyze(expr.child)
+        elif type(expr) == SPCast:
+            return self.package.cast_expression(self.analyze(expr.child), expr.to)
+        elif type(expr) == SPSortOrder:
+            return self.package.order_expression(self.analyze(expr.child), expr.direction.sql, expr.null_ordering.sql)
         elif type(expr) == SPUnaryMinus:
             return self.package.unary_minus_expression(self.analyze(expr.child))
         elif type(expr) == SPNot:
@@ -206,46 +211,49 @@ class Analyzer:
         return self.do_resolve_inner(logical_plan, resolved_children)
 
     def do_resolve_inner(self, logical_plan, resolved_children) -> SnowflakePlan:
-        lp = logical_plan
+        if type(logical_plan) == SnowflakePlan:
+            return logical_plan
 
-        if type(lp) == SnowflakePlan:
-            return lp
-
-        if type(lp) == SPAggregate:
+        if type(logical_plan) == SPAggregate:
             return self.plan_builder.aggregate(
-                list(map(self.__to_sql_avoid_offset, lp.grouping_expressions)),
-                list(map(self.analyze, lp.aggregate_expressions)),
-                resolved_children[lp.child], lp)
+                list(map(self.__to_sql_avoid_offset, logical_plan.grouping_expressions)),
+                list(map(self.analyze, logical_plan.aggregate_expressions)),
+                resolved_children[logical_plan.child], logical_plan)
 
-        if type(lp) == SPProject:
+        if type(logical_plan) == SPProject:
             return self.plan_builder.project(
-                list(map(self.analyze, lp.project_list)),
-                resolved_children[lp.child], lp)
+                list(map(self.analyze, logical_plan.project_list)),
+                resolved_children[logical_plan.child], logical_plan)
 
-        if type(lp) == SPFilter:
+        if type(logical_plan) == SPFilter:
             return self.plan_builder.filter(
-                self.analyze(lp.condition), resolved_children[lp.child], lp)
+                self.analyze(logical_plan.condition), resolved_children[logical_plan.child], logical_plan)
 
-        if type(lp) == SPJoin:
+        if type(logical_plan) == SPJoin:
             return self.plan_builder.join(
-                resolved_children[lp.left], resolved_children[lp.right], lp.join_type,
-                self.analyze(lp.condition) if lp.condition else '', lp)
+                resolved_children[logical_plan.left], resolved_children[logical_plan.right], logical_plan.join_type,
+                self.analyze(logical_plan.condition) if logical_plan.condition else '', logical_plan)
 
-        if type(lp) == SPRange:
+        if type(logical_plan) == SPSort:
+            return self.plan_builder.sort(list(map(self.analyze, logical_plan.order)),
+                                          resolved_children[logical_plan.child], logical_plan)
+
+        if type(logical_plan) == SPRange:
             # The column name id lower-case is hard-coded by Spark as the output
             # schema of Range. Since this corresponds to the Snowflake column "id"
             # (quoted lower-case) it's a little hard for users. So we switch it to
             # the column name "ID" == id == Id
             return self.plan_builder.query(
-                self.package.range_statement(lp.start, lp.end, lp.step, "id"),
-                lp)
+                self.package.range_statement(logical_plan.start, logical_plan.end, logical_plan.step, "id"),
+                logical_plan)
 
-        if type(lp) == SPUnresolvedRelation:
-            return self.plan_builder.table('.'.join(lp.multipart_identifier))
+        if type(logical_plan) == SPUnresolvedRelation:
+            return self.plan_builder.table('.'.join(logical_plan.multipart_identifier))
 
-        if type(lp) == SnowflakeValues:
-            if lp.data:
+        if type(logical_plan) == SnowflakeValues:
+            if logical_plan.data:
                 # TODO: SNOW-367105 handle large values with largeLocalRelationPlan
-                return self.plan_builder.query(self.package.values_statement(lp.output, lp.data), lp)
+                return self.plan_builder.query(self.package.values_statement(logical_plan.output, logical_plan.data),
+                                               logical_plan)
             else:
-                return self.plan_builder.query(self.package.empty_values_statement(lp.output), lp)
+                return self.plan_builder.query(self.package.empty_values_statement(logical_plan.output), logical_plan)

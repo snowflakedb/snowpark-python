@@ -6,9 +6,10 @@
 
 import math
 
+from src.snowflake.snowpark.types.sf_types import StringType, StructType, StructField
 from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.functions import col
-from ..utils import Utils as utils, TestData
+from ..utils import TestData
 
 
 def test_column_names_with_space(session_cnx, db_parameters):
@@ -124,3 +125,28 @@ def test_bitwise_operator(session_cnx, db_parameters):
         assert df.select(df["A"].bitand(df["B"])).collect() == [Row(0)]
         assert df.select(df["A"].bitor(df["B"])).collect() == [Row(3)]
         assert df.select(df["A"].bitxor(df["B"])).collect() == [Row(3)]
+
+
+def test_cast(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        test_data1 = TestData.test_data1(session)
+        sc = test_data1.select(test_data1["NUM"].cast(StringType())).schema
+        assert len(sc.fields) == 1
+        assert sc.fields[0].column_identifier == "\"CAST (\"\"NUM\"\" AS STRING)\""
+        assert type(sc.fields[0].data_type) == StringType
+        assert not sc.fields[0].nullable
+
+
+def test_order(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        null_data1 = TestData.null_data1(session)
+        assert null_data1.sort(null_data1["A"].asc()).collect() == [Row(None), Row(None), Row(1), Row(2), Row(3)]
+        assert null_data1.sort(null_data1["A"].asc_nulls_first()).collect() == [Row(None), Row(None), Row(1), Row(2),
+                                                                                Row(3)]
+        assert null_data1.sort(null_data1["A"].asc_nulls_last()).collect() == [Row(1), Row(2), Row(3), Row(None),
+                                                                               Row(None)]
+        assert null_data1.sort(null_data1["A"].desc()).collect() == [Row(3), Row(2), Row(1), Row(None), Row(None)]
+        assert null_data1.sort(null_data1["A"].desc_nulls_last()).collect() == [Row(3), Row(2), Row(1), Row(None),
+                                                                                Row(None)]
+        assert null_data1.sort(null_data1["A"].desc_nulls_first()).collect() == [Row(None), Row(None), Row(3), Row(2),
+                                                                                 Row(1)]
