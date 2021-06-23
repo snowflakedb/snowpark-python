@@ -5,22 +5,18 @@
 #
 
 import re
-from typing import (
-    List,
-    Union,
-)
+from typing import List, Union
 
 
 class DataType:
-
     @property
     def type_name(self) -> str:
-        """ Returns a data type name. """
+        """Returns a data type name."""
         # Strip the suffix 'type'
         return self.__class__.__name__[:-4]
 
     def to_string(self) -> str:
-        """ Returns a data type name. Alias of [[type_name]] """
+        """Returns a data type name. Alias of [[type_name]]"""
         return self.type_name
 
     def __repr__(self) -> str:
@@ -37,6 +33,7 @@ class DataType:
 
 
 # Data types
+
 
 class NullType(DataType):
     pass
@@ -70,12 +67,14 @@ class VariantType(DataType):
 
 # Atomic types
 
+
 class BinaryType(AtomicType):
     pass
 
 
 class BooleanType(AtomicType):
     """Boolean data type. Mapped to BOOLEAN Snowflake data type."""
+
     pass
 
 
@@ -110,31 +109,37 @@ class FractionalType(NumericType):
 
 class ByteType(IntegralType):
     """Byte data type. Mapped to TINYINT Snowflake date type."""
+
     pass
 
 
 class ShortType(IntegralType):
     """Short integer data type. Mapped to SMALLINT Snowflake date type."""
+
     pass
 
 
 class IntegerType(IntegralType):
     """Integer data type. Mapped to INT Snowflake date type."""
+
     pass
 
 
 class LongType(IntegralType):
     """Long integer data type. Mapped to BIGINT Snowflake date type."""
+
     pass
 
 
 class FloatType(FractionalType):
     """Float data type. Mapped to FLOAT Snowflake date type."""
+
     pass
 
 
 class DoubleType(FractionalType):
     """Double data type. Mapped to DOUBLE Snowflake date type."""
+
     pass
 
 
@@ -162,12 +167,11 @@ class DecimalType(FractionalType):
 
 
 class ArrayType(DataType):
-
     def __init__(self, element_type: DataType):
         self.element_type = element_type
 
     def to_string(self):
-        return f'ArrayType[{self.element_type.to_string()}]'
+        return f"ArrayType[{self.element_type.to_string()}]"
 
     @property
     def type_name(self):
@@ -201,16 +205,24 @@ class ColumnIdentifier:
         Remove quotes if name starts with _A-Z and only contains _0-9A-Z$, or starts with $ and
         is followed by digits.
         """
-        remove_quote = re.compile("^\"(([_A-Z]+[_A-Z0-9$]*)|(\\$\\d+))\"$")
+        remove_quote = re.compile('^"(([_A-Z]+[_A-Z0-9$]*)|(\\$\\d+))"$')
         result = remove_quote.search(string)
         return string[1:-1] if result else string
 
 
 # TODO complete
 class StructField:
-    def __init__(self, column_identifier: Union[ColumnIdentifier, str], datatype: DataType,
-                 nullable: bool = True):
-        self.column_identifier = ColumnIdentifier(column_identifier) if type(column_identifier) == str else column_identifier
+    def __init__(
+        self,
+        column_identifier: Union[ColumnIdentifier, str],
+        datatype: DataType,
+        nullable: bool = True,
+    ):
+        self.column_identifier = (
+            ColumnIdentifier(column_identifier)
+            if type(column_identifier) == str
+            else column_identifier
+        )
         self.datatype = datatype
         self.nullable = nullable
 
@@ -230,8 +242,7 @@ class StructField:
 
 
 class StructType(DataType):
-
-    def __init__(self, fields: List['StructField']):
+    def __init__(self, fields: List["StructField"]):
         self.fields = fields
 
     @classmethod

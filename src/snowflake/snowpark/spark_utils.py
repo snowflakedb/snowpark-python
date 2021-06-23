@@ -4,12 +4,12 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 from .internal.analyzer.sp_utils import to_pretty_sql
-from .internal.sp_expressions import Expression, AggregateExpression
+from .internal.sp_expressions import AggregateExpression, Expression
 from .types.sp_data_types import DataType, IntegralType
+
 
 # utils function to allow package properties accessible from outside
 class SparkUtils:
-
     @staticmethod
     def column_generate_alias(expr: Expression) -> str:
         # https://github.com/apache/spark/blob/0494dc90af48ce7da0625485a4dc6917a244d580/sql/core/src/main/scala/org/apache/spark/sql/Column.scala#L43

@@ -6,9 +6,11 @@
 """ See
 https://github.com/apache/spark/blob/master/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/plans/logical/basicLogicalOperators.scala"""
 
-from .logical_plan import LogicalPlan, LeafNode, BinaryNode, UnaryNode
-from src.snowflake.snowpark.internal.sp_expressions import SortOrder
 from typing import List
+
+from src.snowflake.snowpark.internal.sp_expressions import SortOrder
+
+from .logical_plan import BinaryNode, LeafNode, LogicalPlan, UnaryNode
 
 
 class Join(BinaryNode):
@@ -41,7 +43,9 @@ class Aggregate(UnaryNode):
 
 
 class Pivot(UnaryNode):
-    def __init__(self, group_by_exprs_opt, pivot_column, pivot_values, aggregates, child):
+    def __init__(
+        self, group_by_exprs_opt, pivot_column, pivot_values, aggregates, child
+    ):
         super().__init__()
         self.group_by_exprs_opt = group_by_exprs_opt
         self.pivot_column = pivot_column
@@ -51,7 +55,7 @@ class Pivot(UnaryNode):
 
 
 class Sort(UnaryNode):
-    def __init__(self, order: List['SortOrder'], is_global: bool, child: LogicalPlan):
+    def __init__(self, order: List["SortOrder"], is_global: bool, child: LogicalPlan):
         super().__init__()
         self.order = order
         self.is_global = is_global

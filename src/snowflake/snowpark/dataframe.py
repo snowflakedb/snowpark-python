@@ -3,23 +3,35 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import string
+from random import choice
+from typing import List, Optional, Tuple, Union
+
 from .column import Column
-from .internal.sp_expressions import Expression as SPExpression, NamedExpression as SPNamedExpression, \
-    ResolvedStar as SPResolvedStar, Literal as SPLiteral, Attribute as SPAttribute, SortOrder as SPSortOrder, \
-    Ascending as SPAscending, Descending as SPDescending
 from .internal.analyzer.analyzer_package import AnalyzerPackage
-from .plans.logical.logical_plan import Project as SPProject, Filter as SPFilter
+from .internal.sp_expressions import (
+    Ascending as SPAscending,
+    Attribute as SPAttribute,
+    Descending as SPDescending,
+    Expression as SPExpression,
+    Literal as SPLiteral,
+    NamedExpression as SPNamedExpression,
+    ResolvedStar as SPResolvedStar,
+    SortOrder as SPSortOrder,
+)
 from .plans.logical.basic_logical_operators import Join as SPJoin, Sort as SPSort
 from .plans.logical.hints import JoinHint as SPJoinHint
-from .types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, LeftAnti as \
-    SPLeftAnti, UsingJoin as SPUsingJoin, Cross as SPCrossJoin, NaturalJoin as SPNaturalJoin
-from .types.sf_types import StructType
-
-from typing import List, Union, Tuple, Optional
-from random import choice
-import string
-
+from .plans.logical.logical_plan import Filter as SPFilter, Project as SPProject
 from .snowpark_client_exception import SnowparkClientException
+from .types.sf_types import StructType
+from .types.sp_join_types import (
+    Cross as SPCrossJoin,
+    JoinType as SPJoinType,
+    LeftAnti as SPLeftAnti,
+    LeftSemi as SPLeftSemi,
+    NaturalJoin as SPNaturalJoin,
+    UsingJoin as SPUsingJoin,
+)
 
 
 class DataFrame:
@@ -41,7 +53,7 @@ class DataFrame:
     def collect(self):
         return self.session.conn.execute(self.__plan)
 
-    def clone(self) -> 'DataFrame':
+    def clone(self) -> "DataFrame":
         return DataFrame(self.session, self.__plan.clone())
 
     def toPandas(self, **kwargs):
@@ -58,7 +70,7 @@ class DataFrame:
     def explain(self):
         raise Exception("Not implemented. df.explain()")
 
-    def toDF(self, col_names: List[str]) -> 'DataFrame':
+    def toDF(self, col_names: List[str]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -67,11 +79,12 @@ class DataFrame:
         :param col_names: list of new column names
         :return: a Dataframe
         """
-        assert len(self.__output()) == len(col_names), \
-            (f"The number of columns doesn't match. "
-             f"Old column names ({len(self.__output())}): "
-             f"{','.join(attr.name for attr in self.__output())}. "
-             f"New column names ({len(col_names)}): {','.join(col_names)}.")
+        assert len(self.__output()) == len(col_names), (
+            f"The number of columns doesn't match. "
+            f"Old column names ({len(self.__output())}): "
+            f"{','.join(attr.name for attr in self.__output())}. "
+            f"New column names ({len(col_names)}): {','.join(col_names)}."
+        )
 
         new_cols = []
         for attr, name in zip(self.__output(), col_names):
@@ -93,22 +106,24 @@ class DataFrame:
     def __getattr__(self, name):
         # TODO revisit, do we want to uppercase the name, or should the user do that?
         if AnalyzerPackage.quote_name(name) not in self.columns:
-            raise AttributeError(f"{self.__class__.__name__} object has no attribute {name}")
+            raise AttributeError(
+                f"{self.__class__.__name__} object has no attribute {name}"
+            )
         return self.col(name)
 
     @property
     def columns(self) -> List[str]:
-        """ Returns all column names as a list"""
+        """Returns all column names as a list"""
         # Does not exist in scala snowpark.
         return [attr.name for attr in self.__output()]
 
-    def col(self, col_name: str) -> 'Column':
-        if col_name == '*':
+    def col(self, col_name: str) -> "Column":
+        if col_name == "*":
             return Column(SPResolvedStar(self.__plan.output()))
         else:
             return Column(self.__resolve(col_name))
 
-    def select(self, *expr) -> 'DataFrame':
+    def select(self, *expr) -> "DataFrame":
 
         if len(expr) == 1:
             cols = [*expr[0]] if isinstance(expr[0], (list, tuple)) else [expr[0]]
@@ -124,7 +139,7 @@ class DataFrame:
         return self.__with_plan(SPProject([c.named() for c in cols], self.__plan))
 
     # TODO complete. requires plan.output
-    def drop(self, *cols) -> 'DataFrame':
+    def drop(self, *cols) -> "DataFrame":
         """Returns a new DataFrame that drops the specified column. This is a no-op if schema
         does not contain the given column name(s)."""
 
@@ -143,9 +158,10 @@ class DataFrame:
                 names.append(c.expression.name)
             else:
                 raise TypeError(
-                    f"Could not drop column {str(c)}. Can only drop columns by name.")
+                    f"Could not drop column {str(c)}. Can only drop columns by name."
+                )
 
-        normalized = set(AnalyzerPackage.quote_name(n) for n in names)
+        normalized = {AnalyzerPackage.quote_name(n) for n in names}
         existing = [attr.name for attr in self.__output()]
         keep_col_names = [c for c in existing if c not in normalized]
         if not keep_col_names:
@@ -154,20 +170,23 @@ class DataFrame:
             return self.select(list(keep_col_names))
 
     # TODO
-    def filter(self, expr) -> 'DataFrame':
+    def filter(self, expr) -> "DataFrame":
         if type(expr) == str:
             column = Column(expr)
             return self.__with_plan(SPFilter(column.expression, self.__plan))
         if type(expr) == Column:
             return self.__with_plan(SPFilter(expr.expression, self.__plan))
 
-    def where(self, expr) -> 'DataFrame':
-        """Filters rows based on given condition. This is equivalent to calling [[filter]]. """
+    def where(self, expr) -> "DataFrame":
+        """Filters rows based on given condition. This is equivalent to calling [[filter]]."""
         return self.filter(expr)
 
-    def sort(self, *cols: Union[str, Column, List, Tuple],
-             ascending: Union[bool, int, List, Tuple] = None) -> 'DataFrame':
-        """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL). """
+    def sort(
+        self,
+        *cols: Union[str, Column, List, Tuple],
+        ascending: Union[bool, int, List, Tuple] = None,
+    ) -> "DataFrame":
+        """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL)."""
         if not cols:
             raise SnowparkClientException("sort() needs at least one sort expression.")
         exprs = self.__convert_cols_to_exprs("sort()", *cols)
@@ -180,11 +199,15 @@ class DataFrame:
             elif type(ascending) in [bool, int]:
                 orders = [SPAscending() if ascending else SPDescending()]
             else:
-                raise SnowparkClientException("ascending can only be boolean or list,"
-                                              " but got {}".format(str(type(ascending))))
+                raise SnowparkClientException(
+                    "ascending can only be boolean or list,"
+                    " but got {}".format(str(type(ascending)))
+                )
             if len(exprs) != len(orders):
-                raise SnowparkClientException("The length of col ({}) should be same with"
-                                              " the length of ascending ({}).".format(len(exprs), len(orders)))
+                raise SnowparkClientException(
+                    "The length of col ({}) should be same with"
+                    " the length of ascending ({}).".format(len(exprs), len(orders))
+                )
 
         sort_exprs = []
         for idx in range(len(exprs)):
@@ -192,13 +215,19 @@ class DataFrame:
             # orders will overwrite current orders in expression (but will not overwrite null ordering)
             # if no order is provided, use ascending order
             if type(exprs[idx]) == SPSortOrder:
-                sort_exprs.append(SPSortOrder(expr.child, orders[idx], expr.null_ordering) if orders else expr)
+                sort_exprs.append(
+                    SPSortOrder(expr.child, orders[idx], expr.null_ordering)
+                    if orders
+                    else expr
+                )
             else:
-                sort_exprs.append(SPSortOrder(expr, orders[idx] if orders else SPAscending()))
+                sort_exprs.append(
+                    SPSortOrder(expr, orders[idx] if orders else SPAscending())
+                )
 
         return self.__with_plan(SPSort(sort_exprs, True, self.__plan))
 
-    def agg(self, exprs: Union[str, Column, List[Union[str, Column]]]) -> 'DataFrame':
+    def agg(self, exprs: Union[str, Column, List[Union[str, Column]]]) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to group the
         data (`groupBy`).
 
@@ -225,17 +254,23 @@ class DataFrame:
                 grouping_exprs = [self.col(e) for e in exprs]
             if all(type(e) == Column for e in exprs):
                 grouping_exprs = [e for e in exprs]
-            if all(type(e) in [list, tuple] and len(e) == 2 and
-                   type(e[0]) == type(e[1]) == str for e in exprs):
+            if all(
+                type(e) in [list, tuple]
+                and len(e) == 2
+                and type(e[0]) == type(e[1]) == str
+                for e in exprs
+            ):
                 grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
 
         if grouping_exprs is None:
-            raise SnowparkClientException(f"Invalid type passed to DataFrame.agg(): {type(exprs)}")
+            raise SnowparkClientException(
+                f"Invalid type passed to DataFrame.agg(): {type(exprs)}"
+            )
 
         return self.groupBy().agg(grouping_exprs)
 
     def groupBy(self, *cols: Union[str, Column, List, Tuple]):
-        """ Groups rows by the columns specified by expressions (similar to GROUP BY in SQL).
+        """Groups rows by the columns specified by expressions (similar to GROUP BY in SQL).
 
         This method returns a [[RelationalGroupedDataFrame]] that you can use to perform
         aggregations on each group of data.
@@ -248,24 +283,34 @@ class DataFrame:
         :return: RelationalGroupedDataFrame
         """
         # TODO fix dependency cycle
-        from .relational_grouped_dataframe import RelationalGroupedDataFrame, GroupByType
+        from .relational_grouped_dataframe import (
+            GroupByType,
+            RelationalGroupedDataFrame,
+        )
+
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
 
-    def naturalJoin(self, right: 'DataFrame', join_type: str = None) -> 'DataFrame':
+    def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
         """Performs a natural join of the specified type (`joinType`) with the current DataFrame and
         another DataFrame (`right`).
 
         For example: dfNaturalJoin = df.naturalJoin(df2, "left")
         :return A DataFrame
         """
-        join_type = join_type if join_type else 'inner'
+        join_type = join_type if join_type else "inner"
         return self.__with_plan(
-            SPJoin(self.__plan, right._DataFrame__plan,
-                   SPNaturalJoin(SPJoinType.from_string(join_type)), None, SPJoinHint.none()))
+            SPJoin(
+                self.__plan,
+                right._DataFrame__plan,
+                SPNaturalJoin(SPJoinType.from_string(join_type)),
+                None,
+                SPJoinHint.none(),
+            )
+        )
 
-    def join(self, right, using_columns=None, join_type=None) -> 'DataFrame':
-        """ Performs a join of the specified type (`join_type`) with the current DataFrame and
+    def join(self, right, using_columns=None, join_type=None) -> "DataFrame":
+        """Performs a join of the specified type (`join_type`) with the current DataFrame and
         another DataFrame (`right`) on a list of columns (`using_columns`).
 
         The method assumes that the columns in `usingColumns` have the same meaning in the left and
@@ -284,16 +329,21 @@ class DataFrame:
         if isinstance(right, DataFrame):
             if self is right or self.__plan is right._DataFrame__plan:
                 raise SnowparkClientException(
-                    "Joining a DataFrame to itself can lead to incorrect results due to ambiguity of column references. Instead, join this DataFrame to a clone() of itself.")
+                    "Joining a DataFrame to itself can lead to incorrect results due to ambiguity of column references. Instead, join this DataFrame to a clone() of itself."
+                )
 
-            if type(join_type) == SPCrossJoin or \
-                    (type(join_type) == str and
-                     join_type.strip().lower().replace('_', '').startswith('cross')):
+            if type(join_type) == SPCrossJoin or (
+                type(join_type) == str
+                and join_type.strip().lower().replace("_", "").startswith("cross")
+            ):
                 if using_columns:
                     raise Exception("Cross joins cannot take columns as input.")
 
-            sp_join_type = SPJoinType.from_string('inner') if not join_type \
+            sp_join_type = (
+                SPJoinType.from_string("inner")
+                if not join_type
                 else SPJoinType.from_string(join_type)
+            )
 
             # Parse using_columns arg
             if using_columns is None:
@@ -304,7 +354,8 @@ class DataFrame:
                 using_columns = using_columns
             elif not isinstance(using_columns, list):
                 raise SnowparkClientException(
-                    f"Invalid input type for join column: {type(using_columns)}")
+                    f"Invalid input type for join column: {type(using_columns)}"
+                )
 
             return self.__join_dataframes(right, using_columns, sp_join_type)
 
@@ -313,8 +364,8 @@ class DataFrame:
         #    return self.__join_dataframe_table_function(other, using_columns)
         raise Exception("Invalid type for join. Must be Dataframe")
 
-    def crossJoin(self, right: 'DataFrame') -> 'DataFrame':
-        """ Performs a cross join, which returns the cartesian product of the current DataFrame and
+    def crossJoin(self, right: "DataFrame") -> "DataFrame":
+        """Performs a cross join, which returns the cartesian product of the current DataFrame and
         another DataFrame (`right`).
 
         If the current and `right` DataFrames have columns with the same name, and you need to refer
@@ -328,12 +379,20 @@ class DataFrame:
         :param right The right Dataframe to join.
         :return a Dataframe
         """
-        return self.__join_dataframes_internal(right, SPJoinType.from_string('cross'), None)
+        return self.__join_dataframes_internal(
+            right, SPJoinType.from_string("cross"), None
+        )
 
-    def __join_dataframes(self, right: 'DataFrame', using_columns: Union[Column, List[str]],
-                          join_type: SPJoinType) -> 'DataFrame':
+    def __join_dataframes(
+        self,
+        right: "DataFrame",
+        using_columns: Union[Column, List[str]],
+        join_type: SPJoinType,
+    ) -> "DataFrame":
         if type(using_columns) == Column:
-            return self.__join_dataframes_internal(right, join_type, join_exprs=using_columns)
+            return self.__join_dataframes_internal(
+                right, join_type, join_exprs=using_columns
+            )
 
         if type(join_type) in [SPLeftSemi, SPLeftAnti]:
             # Create a Column with expression 'true AND <expr> AND <expr> .."
@@ -345,63 +404,102 @@ class DataFrame:
         else:
             lhs, rhs = self.__disambiguate(self, right, join_type, using_columns)
             return self.__with_plan(
-                SPJoin(lhs._DataFrame__plan, rhs._DataFrame__plan,
-                       SPUsingJoin(join_type, using_columns), None, SPJoinHint.none()))
+                SPJoin(
+                    lhs._DataFrame__plan,
+                    rhs._DataFrame__plan,
+                    SPUsingJoin(join_type, using_columns),
+                    None,
+                    SPJoinHint.none(),
+                )
+            )
 
-    def __join_dataframes_internal(self, right: 'DataFrame', join_type: SPJoinType,
-                                   join_exprs: Optional[Column]) -> 'DataFrame':
+    def __join_dataframes_internal(
+        self, right: "DataFrame", join_type: SPJoinType, join_exprs: Optional[Column]
+    ) -> "DataFrame":
         (lhs, rhs) = self.__disambiguate(self, right, join_type, [])
         expression = join_exprs.expression if join_exprs else None
         return self.__with_plan(
-            SPJoin(lhs._DataFrame__plan, rhs._DataFrame__plan,
-                   join_type, expression, SPJoinHint.none()))
+            SPJoin(
+                lhs._DataFrame__plan,
+                rhs._DataFrame__plan,
+                join_type,
+                expression,
+                SPJoinHint.none(),
+            )
+        )
 
     # TODO complete function. Requires TableFunction
-    def __join_dataframe_table_function(self, table_function, columns) -> 'DataFrame':
+    def __join_dataframe_table_function(self, table_function, columns) -> "DataFrame":
         pass
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:
         normalized_col_name = AnalyzerPackage.quote_name(col_name)
-        cols = list(filter(lambda attr: attr.name == normalized_col_name, self.__output()))
+        cols = list(
+            filter(lambda attr: attr.name == normalized_col_name, self.__output())
+        )
         if len(cols) == 1:
             return cols[0].with_name(normalized_col_name)
         else:
             raise Exception(f"Cannot resolve column name {col_name}")
 
     @staticmethod
-    def __alias_if_needed(df: 'DataFrame', c: str, prefix: str, common_col_names: List[str]):
+    def __alias_if_needed(
+        df: "DataFrame", c: str, prefix: str, common_col_names: List[str]
+    ):
         col = df.col(c)
         unquoted = c.strip('"')
         if c in common_col_names:
             return col.alias(f"{prefix}{unquoted}")
         else:
-            return col.alias(f"\"{unquoted}\"")
+            return col.alias(f'"{unquoted}"')
 
-    def __disambiguate(self, lhs: 'DataFrame', rhs: 'DataFrame', join_type: SPJoinType,
-                       using_columns: List[str]):
+    def __disambiguate(
+        self,
+        lhs: "DataFrame",
+        rhs: "DataFrame",
+        join_type: SPJoinType,
+        using_columns: List[str],
+    ):
         # Normalize the using columns.
-        normalized_using_columns = set(AnalyzerPackage.quote_name(c) for c in using_columns)
+        normalized_using_columns = {
+            AnalyzerPackage.quote_name(c) for c in using_columns
+        }
         #  Check if the LHS and RHS have columns in common. If they don't just return them as-is. If
         #  they do have columns in common, alias the common columns with randomly generated l_
         #  and r_ prefixes for the left and right sides respectively.
         #  We assume the column names from the schema are normalized and quoted.
         lhs_names = [attr.name for attr in lhs.__output()]
         rhs_names = [attr.name for attr in rhs.__output()]
-        common_col_names = [n for n in lhs_names
-                            if n in set(rhs_names) and n not in normalized_using_columns]
+        common_col_names = [
+            n
+            for n in lhs_names
+            if n in set(rhs_names) and n not in normalized_using_columns
+        ]
 
-        lhs_prefix = self.__generate_prefix('l')
-        rhs_prefix = self.__generate_prefix('r')
+        lhs_prefix = self.__generate_prefix("l")
+        rhs_prefix = self.__generate_prefix("r")
 
         lhs_remapped = lhs.select(
-            [self.__alias_if_needed(lhs, name, lhs_prefix,
-                                    [] if type(join_type) in [SPLeftSemi, SPLeftAnti]
-                                    else common_col_names)
-             for name in lhs_names])
+            [
+                self.__alias_if_needed(
+                    lhs,
+                    name,
+                    lhs_prefix,
+                    []
+                    if type(join_type) in [SPLeftSemi, SPLeftAnti]
+                    else common_col_names,
+                )
+                for name in lhs_names
+            ]
+        )
 
         rhs_remapped = rhs.select(
-            [self.__alias_if_needed(rhs, name, rhs_prefix, common_col_names) for name in rhs_names])
+            [
+                self.__alias_if_needed(rhs, name, rhs_prefix, common_col_names)
+                for name in rhs_names
+            ]
+        )
         return lhs_remapped, rhs_remapped
 
     def __output(self) -> List[SPAttribute]:
@@ -412,23 +510,29 @@ class DataFrame:
     @property
     def schema(self) -> StructType:
         if not self.__placeholder_schema:
-            self.__placeholder_schema = StructType.from_attributes(self.__plan.attributes())
+            self.__placeholder_schema = StructType.from_attributes(
+                self.__plan.attributes()
+            )
         return self.__placeholder_schema
 
     def __with_plan(self, plan):
         return DataFrame(self.session, plan)
 
-    def __convert_cols_to_exprs(self, calling_method: str,
-                                *cols: Union[str, Column, List, Tuple]) -> List['SPExpression']:
-        """Convert a string or a Column, or a list of string and Column objects to expression(s). """
+    def __convert_cols_to_exprs(
+        self, calling_method: str, *cols: Union[str, Column, List, Tuple]
+    ) -> List["SPExpression"]:
+        """Convert a string or a Column, or a list of string and Column objects to expression(s)."""
+
         def convert(col: Union[str, Column]):
             if type(col) == str:
                 return self.__resolve(col)
             elif type(col) == Column:
                 return col.expression
             else:
-                raise SnowparkClientException("{} only accepts str and Column objects, or the list containing str and"
-                                              " Column objects".format(calling_method))
+                raise SnowparkClientException(
+                    "{} only accepts str and Column objects, or the list containing str and"
+                    " Column objects".format(calling_method)
+                )
 
         exprs = []
         if len(cols) >= 1:
@@ -436,8 +540,11 @@ class DataFrame:
                 if len(cols) == 1:
                     exprs = [convert(col) for col in cols[0]]
                 else:
-                    raise SnowparkClientException("{} only accepts one list, but got {}".format(calling_method,
-                                                                                                len(cols)))
+                    raise SnowparkClientException(
+                        "{} only accepts one list, but got {}".format(
+                            calling_method, len(cols)
+                        )
+                    )
             else:
                 exprs = [convert(col) for col in cols]
         return exprs

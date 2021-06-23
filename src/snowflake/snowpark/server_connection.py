@@ -3,26 +3,35 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
-from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from .snowpark_client_exception import SnowparkClientException
-from .row import Row
-from .types.sf_types import DataType, ArrayType, StringType, VariantType, MapType, GeographyType, BooleanType,\
-    BinaryType, TimeType, TimestampType, DateType, DecimalType, DoubleType, LongType
-from .internal.analyzer.analyzer_package import AnalyzerPackage
+from logging import getLogger
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.network import ReauthenticationRequest
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
+
+from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
+
+from .internal.analyzer.analyzer_package import AnalyzerPackage
+from .row import Row
+from .snowpark_client_exception import SnowparkClientException
+from .types.sf_types import (
+    ArrayType,
+    BinaryType,
+    BooleanType,
+    DataType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    GeographyType,
+    LongType,
+    MapType,
+    StringType,
+    TimestampType,
+    TimeType,
+    VariantType,
 )
-from logging import getLogger
 
 logger = getLogger(__name__)
 
@@ -35,14 +44,21 @@ class ServerConnection:
                 try:
                     return func(*args, **kwargs)
                 except ReauthenticationRequest as ex:
-                    raise SnowparkClientException("Snowpark session expired, please recreate your session\n" + ex.cause)
+                    raise SnowparkClientException(
+                        "Snowpark session expired, please recreate your session\n"
+                        + ex.cause
+                    )
                 except Exception as ex:
                     # TODO: SNOW-363951 handle telemetry
                     raise ex
 
             return wrap
 
-    def __init__(self, options: Dict[str, Union[int, str]], conn: Optional[SnowflakeConnection] = None):
+    def __init__(
+        self,
+        options: Dict[str, Union[int, str]],
+        conn: Optional[SnowflakeConnection] = None,
+    ):
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self.__conn = conn or connect(**options)
         self._cursor = self.__conn.cursor()
@@ -59,22 +75,40 @@ class ServerConnection:
         return self.__conn.session_id
 
     def get_default_database(self) -> Optional[str]:
-        return AnalyzerPackage.quote_name(self._lower_case_parameters['database']) \
-            if 'database' in self._lower_case_parameters else None
+        return (
+            AnalyzerPackage.quote_name(self._lower_case_parameters["database"])
+            if "database" in self._lower_case_parameters
+            else None
+        )
 
     def get_default_schema(self) -> Optional[str]:
-        return AnalyzerPackage.quote_name(self._lower_case_parameters['schema']) \
-            if 'schema' in self._lower_case_parameters else None
+        return (
+            AnalyzerPackage.quote_name(self._lower_case_parameters["schema"])
+            if "schema" in self._lower_case_parameters
+            else None
+        )
 
     @_Decorator.wrap_exception
     def get_current_database(self) -> Optional[str]:
-        database_name = self.__conn.database or self._get_string_datum("SELECT CURRENT_DATABASE()")
-        return AnalyzerPackage.quote_name_without_upper_casing(database_name) if database_name else None
+        database_name = self.__conn.database or self._get_string_datum(
+            "SELECT CURRENT_DATABASE()"
+        )
+        return (
+            AnalyzerPackage.quote_name_without_upper_casing(database_name)
+            if database_name
+            else None
+        )
 
     @_Decorator.wrap_exception
     def get_current_schema(self) -> Optional[str]:
-        schema_name = self.__conn.schema or self._get_string_datum("SELECT CURRENT_SCHEMA()")
-        return AnalyzerPackage.quote_name_without_upper_casing(schema_name) if schema_name else None
+        schema_name = self.__conn.schema or self._get_string_datum(
+            "SELECT CURRENT_SCHEMA()"
+        )
+        return (
+            AnalyzerPackage.quote_name_without_upper_casing(schema_name)
+            if schema_name
+            else None
+        )
 
     @_Decorator.wrap_exception
     def get_parameter_value(self, parameter_name: str) -> Optional[str]:
@@ -82,75 +116,100 @@ class ServerConnection:
         return self.__conn._session_parameters.get(parameter_name.upper(), None)
 
     def _get_string_datum(self, query: str) -> Optional[str]:
-        rows = self.result_set_to_rows(self.run_query(query)['data'])
+        rows = self.result_set_to_rows(self.run_query(query)["data"])
         return rows[0].get_string(0) if len(rows) > 0 else None
 
     @staticmethod
     def _get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
-        """Convert the Snowflake logical type to the Snowpark type. """
-        if column_type_name == 'ARRAY':
+        """Convert the Snowflake logical type to the Snowpark type."""
+        if column_type_name == "ARRAY":
             return ArrayType(StringType())
-        if column_type_name == 'VARIANT':
+        if column_type_name == "VARIANT":
             return VariantType()
-        if column_type_name == 'OBJECT':
+        if column_type_name == "OBJECT":
             return MapType(StringType(), StringType())
-        if column_type_name == 'GEOGRAPHY':  # not supported by python connector
+        if column_type_name == "GEOGRAPHY":  # not supported by python connector
             return GeographyType()
-        if column_type_name == 'BOOLEAN':
+        if column_type_name == "BOOLEAN":
             return BooleanType()
-        if column_type_name == 'BINARY':
+        if column_type_name == "BINARY":
             return BinaryType()
-        if column_type_name == 'TEXT':
+        if column_type_name == "TEXT":
             return StringType()
-        if column_type_name == 'TIME':
+        if column_type_name == "TIME":
             return TimeType()
-        if column_type_name == 'TIMESTAMP' or column_type_name == 'TIMESTAMP_LTZ' \
-                or column_type_name == 'TIMESTAMP_TZ' or column_type_name == 'TIMESTAMP_NTZ':
+        if (
+            column_type_name == "TIMESTAMP"
+            or column_type_name == "TIMESTAMP_LTZ"
+            or column_type_name == "TIMESTAMP_TZ"
+            or column_type_name == "TIMESTAMP_NTZ"
+        ):
             return TimestampType()
-        if column_type_name == 'DATE':
+        if column_type_name == "DATE":
             return DateType()
-        if column_type_name == 'DECIMAL' or (column_type_name == 'FIXED' and scale != 0):
+        if column_type_name == "DECIMAL" or (
+            column_type_name == "FIXED" and scale != 0
+        ):
             if precision != 0 or scale != 0:
                 if precision > DecimalType.MAX_PRECISION:
-                    return DecimalType(DecimalType.MAX_PRECISION, scale + precision - DecimalType.MAX_SCALE)
+                    return DecimalType(
+                        DecimalType.MAX_PRECISION,
+                        scale + precision - DecimalType.MAX_SCALE,
+                    )
                 else:
                     return DecimalType(precision, scale)
             else:
                 return DecimalType(38, 15)  # Spark 1.5.0 default
-        if column_type_name == 'REAL':
+        if column_type_name == "REAL":
             return DoubleType()
-        if column_type_name == 'FIXED' and scale == 0:
+        if column_type_name == "FIXED" and scale == 0:
             return LongType()
-        raise NotImplementedError("Unsupported type: {}, precision: {}, scale: {}".format(column_type_name, precision,
-                                                                                          scale))
+        raise NotImplementedError(
+            "Unsupported type: {}, precision: {}, scale: {}".format(
+                column_type_name, precision, scale
+            )
+        )
 
     @staticmethod
-    def convert_result_meta_to_attribute(meta: List[Tuple[Any, ...]]) -> List['Attribute']:
+    def convert_result_meta_to_attribute(
+        meta: List[Tuple[Any, ...]]
+    ) -> List["Attribute"]:
         attributes = []
         for column_name, type_value, _, _, precision, scale, nullable in meta:
             quoted_name = AnalyzerPackage.quote_name_without_upper_casing(column_name)
-            attributes.append(Attribute(quoted_name, ServerConnection._get_data_type(FIELD_ID_TO_NAME[type_value],
-                                                                                     precision, scale), nullable))
+            attributes.append(
+                Attribute(
+                    quoted_name,
+                    ServerConnection._get_data_type(
+                        FIELD_ID_TO_NAME[type_value], precision, scale
+                    ),
+                    nullable,
+                )
+            )
         return attributes
 
     @_Decorator.wrap_exception
-    def get_result_attributes(self, query: str) -> List['Attribute']:
+    def get_result_attributes(self, query: str) -> List["Attribute"]:
         lowercase = query.strip().lower()
         if lowercase.startswith("put") or lowercase.startswith("get"):
             return []
         else:
             # TODO: SNOW-361263: remove this after python connector has `describe` function
-            if hasattr(self._cursor, 'describe'):
+            if hasattr(self._cursor, "describe"):
                 self._cursor.describe(query)
             else:
                 self._cursor.execute(query)
-            return ServerConnection.convert_result_meta_to_attribute(self._cursor.description)
+            return ServerConnection.convert_result_meta_to_attribute(
+                self._cursor.description
+            )
 
     @_Decorator.wrap_exception
     def run_query(self, query, to_pandas=False, **kwargs):
         try:
             results_cursor = self._cursor.execute(query)
-            logger.info("Execute query [queryID: {}] {}".format(results_cursor.sfqid, query))
+            logger.info(
+                "Execute query [queryID: {}] {}".format(results_cursor.sfqid, query)
+            )
         except Exception as ex:
             logger.error("Failed to execute query {}\n{}".format(query, ex))
             raise ex
@@ -158,20 +217,25 @@ class ServerConnection:
             data = results_cursor.fetch_pandas_all(**kwargs)
         else:
             data = results_cursor.fetchall()
-        return {'data': data, 'sfqid': results_cursor.sfqid}
+        return {"data": data, "sfqid": results_cursor.sfqid}
 
     # TODO revisit
     def result_set_to_rows(self, result_set):
         rows = [Row(row) for row in result_set]
         return rows
 
-    def execute(self, plan: 'SnowflakePlan', to_pandas=False, **kwargs):
+    def execute(self, plan: "SnowflakePlan", to_pandas=False, **kwargs):
         if to_pandas:
             return self.get_result_set(plan, to_pandas=True, **kwargs)
         else:
             return self.result_set_to_rows(self.get_result_set(plan))
 
-    def get_result_set(self, plan, to_pandas=False, **kwargs,):
+    def get_result_set(
+        self,
+        plan,
+        to_pandas=False,
+        **kwargs,
+    ):
         action_id = plan.session._generate_new_action_id()
 
         result = None
@@ -186,17 +250,21 @@ class ServerConnection:
                     raise SnowparkClientException("Query was canceled by user")
                 result = self.run_query(final_query, to_pandas, **kwargs)
                 # TODO revisit
-                last_id = result['sfqid']
+                last_id = result["sfqid"]
                 placeholders[query.query_id_place_holder] = last_id
         finally:
             # delete create tmp object
             # TODO get plan.postActions
             pass
 
-        return result['data']
+        return result["data"]
 
-    def get_result_and_metadata(self, plan: SnowflakePlan) -> (List['Row'], List['Attribute']):
+    def get_result_and_metadata(
+        self, plan: SnowflakePlan
+    ) -> (List["Row"], List["Attribute"]):
         result_set = self.get_result_set(plan)
         result = self.result_set_to_rows(result_set)
-        meta = ServerConnection.convert_result_meta_to_attribute(self._cursor.description)
+        meta = ServerConnection.convert_result_meta_to_attribute(
+            self._cursor.description
+        )
         return result, meta
