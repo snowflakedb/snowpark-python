@@ -12,36 +12,22 @@ from src.snowflake.snowpark.dataframe import DataFrame
 from src.snowflake.snowpark.internal.analyzer.sp_utils import to_pretty_sql
 from src.snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
-)
-from src.snowflake.snowpark.internal.sp_expressions import Alias as SPAlias
-from src.snowflake.snowpark.internal.sp_expressions import Count as SPCount
-from src.snowflake.snowpark.internal.sp_expressions import Cube as SPCube
-from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression
-from src.snowflake.snowpark.internal.sp_expressions import (
+    Alias as SPAlias,
+    Count as SPCount,
+    Cube as SPCube,
+    Expression as SPExpression,
     GroupingSets as SPGroupingSets,
-)
-from src.snowflake.snowpark.internal.sp_expressions import Literal as SPLiteral
-from src.snowflake.snowpark.internal.sp_expressions import (
+    Literal as SPLiteral,
     NamedExpression as SPNamedExpression,
-)
-from src.snowflake.snowpark.internal.sp_expressions import Rollup as SPRollup
-from src.snowflake.snowpark.internal.sp_expressions import Star as SPStar
-from src.snowflake.snowpark.internal.sp_expressions import (
+    Rollup as SPRollup,
+    Star as SPStar,
     TypedAggregateExpression as SPTypedAggregateExpression,
-)
-from src.snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
-)
-from src.snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
-)
-from src.snowflake.snowpark.internal.sp_expressions import (
     UnresolvedFunction as SPUnresolvedFunction,
 )
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import (
     Aggregate as SPAggregate,
-)
-from src.snowflake.snowpark.plans.logical.basic_logical_operators import (
     Pivot as SPPivot,
 )
 from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException

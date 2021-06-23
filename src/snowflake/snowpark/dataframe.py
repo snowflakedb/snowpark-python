@@ -9,27 +9,29 @@ from typing import List, Optional, Tuple, Union
 
 from .column import Column
 from .internal.analyzer.analyzer_package import AnalyzerPackage
-from .internal.sp_expressions import Ascending as SPAscending
-from .internal.sp_expressions import Attribute as SPAttribute
-from .internal.sp_expressions import Descending as SPDescending
-from .internal.sp_expressions import Expression as SPExpression
-from .internal.sp_expressions import Literal as SPLiteral
-from .internal.sp_expressions import NamedExpression as SPNamedExpression
-from .internal.sp_expressions import ResolvedStar as SPResolvedStar
-from .internal.sp_expressions import SortOrder as SPSortOrder
-from .plans.logical.basic_logical_operators import Join as SPJoin
-from .plans.logical.basic_logical_operators import Sort as SPSort
+from .internal.sp_expressions import (
+    Ascending as SPAscending,
+    Attribute as SPAttribute,
+    Descending as SPDescending,
+    Expression as SPExpression,
+    Literal as SPLiteral,
+    NamedExpression as SPNamedExpression,
+    ResolvedStar as SPResolvedStar,
+    SortOrder as SPSortOrder,
+)
+from .plans.logical.basic_logical_operators import Join as SPJoin, Sort as SPSort
 from .plans.logical.hints import JoinHint as SPJoinHint
-from .plans.logical.logical_plan import Filter as SPFilter
-from .plans.logical.logical_plan import Project as SPProject
+from .plans.logical.logical_plan import Filter as SPFilter, Project as SPProject
 from .snowpark_client_exception import SnowparkClientException
 from .types.sf_types import StructType
-from .types.sp_join_types import Cross as SPCrossJoin
-from .types.sp_join_types import JoinType as SPJoinType
-from .types.sp_join_types import LeftAnti as SPLeftAnti
-from .types.sp_join_types import LeftSemi as SPLeftSemi
-from .types.sp_join_types import NaturalJoin as SPNaturalJoin
-from .types.sp_join_types import UsingJoin as SPUsingJoin
+from .types.sp_join_types import (
+    Cross as SPCrossJoin,
+    JoinType as SPJoinType,
+    LeftAnti as SPLeftAnti,
+    LeftSemi as SPLeftSemi,
+    NaturalJoin as SPNaturalJoin,
+    UsingJoin as SPUsingJoin,
+)
 
 
 class DataFrame:

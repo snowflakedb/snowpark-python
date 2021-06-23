@@ -11,11 +11,13 @@ from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.types.sf_types import DataType
 from src.snowflake.snowpark.types.types_package import convert_to_sf_type
 
-from ...types.sp_join_types import JoinType as SPJoinType
-from ...types.sp_join_types import LeftAnti as SPLeftAnti
-from ...types.sp_join_types import LeftSemi as SPLeftSemi
-from ...types.sp_join_types import NaturalJoin as SPNaturalJoin
-from ...types.sp_join_types import UsingJoin as SPUsingJoin
+from ...types.sp_join_types import (
+    JoinType as SPJoinType,
+    LeftAnti as SPLeftAnti,
+    LeftSemi as SPLeftSemi,
+    NaturalJoin as SPNaturalJoin,
+    UsingJoin as SPUsingJoin,
+)
 from ..sp_expressions import Attribute as SPAttribute
 from .datatype_mapper import DataTypeMapper
 

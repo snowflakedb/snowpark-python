@@ -8,13 +8,13 @@ repos:
     rev: 5.8.0
     hooks:
       - id: isort
-        args: ["--profile", "black",
-               "--multi-line", "3",
+        args: ["--multi-line", "3",
                "--trailing-comma",
                "--force-grid-wrap", "0",
                "--use-parentheses",
                "--ensure-newline-before-comments",
-               "--line-length", "88"]
+               "--line-length", "88",
+               "--combine-as"]
 -   repo: https://github.com/psf/black
     rev: 21.5b1
     hooks:

@@ -9,23 +9,25 @@ from decimal import Decimal
 import pytest
 
 from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
-from src.snowflake.snowpark.types.sp_data_types import ArrayType as SPArrayType
-from src.snowflake.snowpark.types.sp_data_types import BinaryType as SPBinaryType
-from src.snowflake.snowpark.types.sp_data_types import BooleanType as SPBooleanType
-from src.snowflake.snowpark.types.sp_data_types import ByteType as SPByteType
-from src.snowflake.snowpark.types.sp_data_types import DateType as SPDateType
-from src.snowflake.snowpark.types.sp_data_types import DecimalType as SPDecimalType
-from src.snowflake.snowpark.types.sp_data_types import DoubleType as SPDoubleType
-from src.snowflake.snowpark.types.sp_data_types import FloatType as SPFloatType
-from src.snowflake.snowpark.types.sp_data_types import GeographyType as SPGeographyType
-from src.snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType
-from src.snowflake.snowpark.types.sp_data_types import LongType as SPLongType
-from src.snowflake.snowpark.types.sp_data_types import MapType as SPMapType
-from src.snowflake.snowpark.types.sp_data_types import NullType as SPNullType
-from src.snowflake.snowpark.types.sp_data_types import ShortType as SPShortType
-from src.snowflake.snowpark.types.sp_data_types import StringType as SPStringType
-from src.snowflake.snowpark.types.sp_data_types import StructType as SPStructType
-from src.snowflake.snowpark.types.sp_data_types import TimestampType as SPTimestampType
+from src.snowflake.snowpark.types.sp_data_types import (
+    ArrayType as SPArrayType,
+    BinaryType as SPBinaryType,
+    BooleanType as SPBooleanType,
+    ByteType as SPByteType,
+    DateType as SPDateType,
+    DecimalType as SPDecimalType,
+    DoubleType as SPDoubleType,
+    FloatType as SPFloatType,
+    GeographyType as SPGeographyType,
+    IntegerType as SPIntegerType,
+    LongType as SPLongType,
+    MapType as SPMapType,
+    NullType as SPNullType,
+    ShortType as SPShortType,
+    StringType as SPStringType,
+    StructType as SPStructType,
+    TimestampType as SPTimestampType,
+)
 
 
 def test_to_sql():

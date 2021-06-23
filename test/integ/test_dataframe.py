@@ -15,8 +15,6 @@ from src.snowflake.snowpark.column import Column
 from src.snowflake.snowpark.functions import col
 from src.snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
-)
-from src.snowflake.snowpark.internal.sp_expressions import (
     ResolvedStar as SPResolvedStar,
 )
 from src.snowflake.snowpark.row import Row

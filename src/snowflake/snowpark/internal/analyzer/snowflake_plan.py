@@ -10,8 +10,10 @@ from src.snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalP
 from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
-from ..sp_expressions import Attribute as SPAttribute
-from ..sp_expressions import AttributeReference as SPAttributeReference
+from ..sp_expressions import (
+    Attribute as SPAttribute,
+    AttributeReference as SPAttributeReference,
+)
 from .sf_attribute import Attribute
 
 

@@ -6,54 +6,42 @@
 from typing import Optional
 
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from src.snowflake.snowpark.internal.sp_expressions import Add as SPAdd
-from src.snowflake.snowpark.internal.sp_expressions import Alias as SPAlias
-from src.snowflake.snowpark.internal.sp_expressions import And as SPAnd
-from src.snowflake.snowpark.internal.sp_expressions import Ascending as SPAscending
-from src.snowflake.snowpark.internal.sp_expressions import BitwiseAnd as SPBitwiseAnd
-from src.snowflake.snowpark.internal.sp_expressions import BitwiseOr as SPBitwiseOr
-from src.snowflake.snowpark.internal.sp_expressions import BitwiseXor as SPBitwiseXor
-from src.snowflake.snowpark.internal.sp_expressions import Cast as SPCast
-from src.snowflake.snowpark.internal.sp_expressions import Descending as SPDescending
-from src.snowflake.snowpark.internal.sp_expressions import Divide as SPDivide
 from src.snowflake.snowpark.internal.sp_expressions import (
+    Add as SPAdd,
+    Alias as SPAlias,
+    And as SPAnd,
+    Ascending as SPAscending,
+    BitwiseAnd as SPBitwiseAnd,
+    BitwiseOr as SPBitwiseOr,
+    BitwiseXor as SPBitwiseXor,
+    Cast as SPCast,
+    Descending as SPDescending,
+    Divide as SPDivide,
     EqualNullSafe as SPEqualNullSafe,
-)
-from src.snowflake.snowpark.internal.sp_expressions import EqualTo as SPEqualTo
-from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression
-from src.snowflake.snowpark.internal.sp_expressions import GreaterThan as SPGreaterThan
-from src.snowflake.snowpark.internal.sp_expressions import (
+    EqualTo as SPEqualTo,
+    Expression as SPExpression,
+    GreaterThan as SPGreaterThan,
     GreaterThanOrEqual as SPGreaterThanOrEqual,
-)
-from src.snowflake.snowpark.internal.sp_expressions import IsNaN as SPIsNaN
-from src.snowflake.snowpark.internal.sp_expressions import IsNotNull as SPIsNotNull
-from src.snowflake.snowpark.internal.sp_expressions import IsNull as SPIsNull
-from src.snowflake.snowpark.internal.sp_expressions import LessThan as SPLessThan
-from src.snowflake.snowpark.internal.sp_expressions import (
+    IsNaN as SPIsNaN,
+    IsNotNull as SPIsNotNull,
+    IsNull as SPIsNull,
+    LessThan as SPLessThan,
     LessThanOrEqual as SPLessThanOrEqual,
-)
-from src.snowflake.snowpark.internal.sp_expressions import Literal as SPLiteral
-from src.snowflake.snowpark.internal.sp_expressions import Multiply as SPMultiply
-from src.snowflake.snowpark.internal.sp_expressions import (
+    Literal as SPLiteral,
+    Multiply as SPMultiply,
     NamedExpression as SPNamedExpression,
-)
-from src.snowflake.snowpark.internal.sp_expressions import Not as SPNot
-from src.snowflake.snowpark.internal.sp_expressions import NotEqualTo as SPNotEqualTo
-from src.snowflake.snowpark.internal.sp_expressions import NullsFirst as SPNullFirst
-from src.snowflake.snowpark.internal.sp_expressions import NullsLast as SPNullLast
-from src.snowflake.snowpark.internal.sp_expressions import Or as SPOr
-from src.snowflake.snowpark.internal.sp_expressions import Pow as SPPow
-from src.snowflake.snowpark.internal.sp_expressions import Remainder as SPRemainder
-from src.snowflake.snowpark.internal.sp_expressions import SortOrder as SPSortOrder
-from src.snowflake.snowpark.internal.sp_expressions import Subtract as SPSubtract
-from src.snowflake.snowpark.internal.sp_expressions import UnaryMinus as SPUnaryMinus
-from src.snowflake.snowpark.internal.sp_expressions import (
+    Not as SPNot,
+    NotEqualTo as SPNotEqualTo,
+    NullsFirst as SPNullFirst,
+    NullsLast as SPNullLast,
+    Or as SPOr,
+    Pow as SPPow,
+    Remainder as SPRemainder,
+    SortOrder as SPSortOrder,
+    Subtract as SPSubtract,
+    UnaryMinus as SPUnaryMinus,
     UnresolvedAlias as SPUnresolvedAlias,
-)
-from src.snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
-)
-from src.snowflake.snowpark.internal.sp_expressions import (
     UnresolvedStar as SPUnresolvedStar,
 )
 from src.snowflake.snowpark.types.sf_types import DataType

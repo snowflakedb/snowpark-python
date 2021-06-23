@@ -3,8 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from pandas import DataFrame as PandasDF
-from pandas import Series as PandasSeries
+from pandas import DataFrame as PandasDF, Series as PandasSeries
 
 from src.snowflake.snowpark.functions import col
 

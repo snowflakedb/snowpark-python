@@ -6,16 +6,18 @@
 from typing import Optional
 
 from .column import Column
-from .internal.sp_expressions import AggregateFunction as SPAggregateFunction
-from .internal.sp_expressions import Avg as SPAverage
-from .internal.sp_expressions import Count as SPCount
-from .internal.sp_expressions import Expression as SPExpression
-from .internal.sp_expressions import Literal as SPLiteral
-from .internal.sp_expressions import Max as SPMax
-from .internal.sp_expressions import Min as SPMin
-from .internal.sp_expressions import Star as SPStar
-from .internal.sp_expressions import Sum as SPSum
-from .internal.sp_expressions import UnresolvedFunction as SPUnresolvedFunction
+from .internal.sp_expressions import (
+    AggregateFunction as SPAggregateFunction,
+    Avg as SPAverage,
+    Count as SPCount,
+    Expression as SPExpression,
+    Literal as SPLiteral,
+    Max as SPMax,
+    Min as SPMin,
+    Star as SPStar,
+    Sum as SPSum,
+    UnresolvedFunction as SPUnresolvedFunction,
+)
 from .types.sp_data_types import IntegerType as SPIntegerType
 
 

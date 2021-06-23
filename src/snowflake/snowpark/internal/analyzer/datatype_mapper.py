@@ -21,24 +21,26 @@ from ...types.sf_types import (
     TimeType,
     VariantType,
 )
-from ...types.sp_data_types import ArrayType as SPArrayType
-from ...types.sp_data_types import BinaryType as SPBinaryType
-from ...types.sp_data_types import BooleanType as SPBooleanType
-from ...types.sp_data_types import ByteType as SPByteType
-from ...types.sp_data_types import DataType as SPDataType
-from ...types.sp_data_types import DateType as SPDateType
-from ...types.sp_data_types import DecimalType as SPDecimalType
-from ...types.sp_data_types import DoubleType as SPDoubleType
-from ...types.sp_data_types import FloatType as SPFloatType
-from ...types.sp_data_types import GeographyType as SPGeographyType
-from ...types.sp_data_types import IntegerType as SPIntegerType
-from ...types.sp_data_types import LongType as SPLongType
-from ...types.sp_data_types import MapType as SPMapType
-from ...types.sp_data_types import NullType as SPNullType
-from ...types.sp_data_types import ShortType as SPShortType
-from ...types.sp_data_types import StringType as SPStringType
-from ...types.sp_data_types import StructType as SPStructType
-from ...types.sp_data_types import TimestampType as SPTimestampType
+from ...types.sp_data_types import (
+    ArrayType as SPArrayType,
+    BinaryType as SPBinaryType,
+    BooleanType as SPBooleanType,
+    ByteType as SPByteType,
+    DataType as SPDataType,
+    DateType as SPDateType,
+    DecimalType as SPDecimalType,
+    DoubleType as SPDoubleType,
+    FloatType as SPFloatType,
+    GeographyType as SPGeographyType,
+    IntegerType as SPIntegerType,
+    LongType as SPLongType,
+    MapType as SPMapType,
+    NullType as SPNullType,
+    ShortType as SPShortType,
+    StringType as SPStringType,
+    StructType as SPStructType,
+    TimestampType as SPTimestampType,
+)
 from ...types.types_package import convert_to_sf_type
 
 
