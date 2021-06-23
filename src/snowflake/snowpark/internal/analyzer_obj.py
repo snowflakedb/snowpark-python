@@ -4,35 +4,84 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
-from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression, \
-    UnresolvedAttribute as SPUnresolvedAttribute, UnresolvedFunction as SPUnresolvedFunction, \
-    UnresolvedAlias as SPUnresolvedAlias, UnaryExpression as SPUnaryExpression, \
-    LeafExpression as SPLeafExpression, Literal as SPLiteral, BinaryExpression as \
-    SPBinaryExpression, Alias as SPAlias, AttributeReference as SPAttributeReference, UnresolvedStar \
-    as SPUnresolvedStar, ResolvedStar as SPResolvedStar, AggregateExpression as SPAggregateExpression, \
-    AggregateFunction as SPAggregateFunction, UnaryMinus as SPUnaryMinus, Not as SPNot, \
-    BinaryArithmeticExpression as SPBinaryArithmeticExpression, IsNaN as SPIsNaN, IsNull as SPIsNull, \
-    IsNotNull as SPIsNotNull, Cast as SPCast, SortOrder as SPSortOrder
-from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range as SPRange, Aggregate as SPAggregate, \
-    Sort as SPSort
+from typing import Optional
 
-from src.snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType, \
-    LongType as SPLongType, ShortType as SPShortType, ByteType as SPByteType
+from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
 
 # TODO fix import
-from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan, SnowflakePlanBuilder, SnowflakeValues
-from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from src.snowflake.snowpark.plans.logical.logical_plan import Project as SPProject, Filter as \
-    SPFilter, UnresolvedRelation as SPUnresolvedRelation
-
+from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
+    SnowflakePlan,
+    SnowflakePlanBuilder,
+    SnowflakeValues,
+)
+from src.snowflake.snowpark.internal.sp_expressions import (
+    AggregateExpression as SPAggregateExpression,
+)
+from src.snowflake.snowpark.internal.sp_expressions import (
+    AggregateFunction as SPAggregateFunction,
+)
+from src.snowflake.snowpark.internal.sp_expressions import Alias as SPAlias
+from src.snowflake.snowpark.internal.sp_expressions import (
+    AttributeReference as SPAttributeReference,
+)
+from src.snowflake.snowpark.internal.sp_expressions import (
+    BinaryArithmeticExpression as SPBinaryArithmeticExpression,
+)
+from src.snowflake.snowpark.internal.sp_expressions import (
+    BinaryExpression as SPBinaryExpression,
+)
+from src.snowflake.snowpark.internal.sp_expressions import Cast as SPCast
+from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpression
+from src.snowflake.snowpark.internal.sp_expressions import IsNaN as SPIsNaN
+from src.snowflake.snowpark.internal.sp_expressions import IsNotNull as SPIsNotNull
+from src.snowflake.snowpark.internal.sp_expressions import IsNull as SPIsNull
+from src.snowflake.snowpark.internal.sp_expressions import (
+    LeafExpression as SPLeafExpression,
+)
+from src.snowflake.snowpark.internal.sp_expressions import Literal as SPLiteral
+from src.snowflake.snowpark.internal.sp_expressions import Not as SPNot
+from src.snowflake.snowpark.internal.sp_expressions import (
+    ResolvedStar as SPResolvedStar,
+)
+from src.snowflake.snowpark.internal.sp_expressions import SortOrder as SPSortOrder
+from src.snowflake.snowpark.internal.sp_expressions import (
+    UnaryExpression as SPUnaryExpression,
+)
+from src.snowflake.snowpark.internal.sp_expressions import UnaryMinus as SPUnaryMinus
+from src.snowflake.snowpark.internal.sp_expressions import (
+    UnresolvedAlias as SPUnresolvedAlias,
+)
+from src.snowflake.snowpark.internal.sp_expressions import (
+    UnresolvedAttribute as SPUnresolvedAttribute,
+)
+from src.snowflake.snowpark.internal.sp_expressions import (
+    UnresolvedFunction as SPUnresolvedFunction,
+)
+from src.snowflake.snowpark.internal.sp_expressions import (
+    UnresolvedStar as SPUnresolvedStar,
+)
+from src.snowflake.snowpark.plans.logical.basic_logical_operators import (
+    Aggregate as SPAggregate,
+)
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import Join as SPJoin
+from src.snowflake.snowpark.plans.logical.basic_logical_operators import (
+    Range as SPRange,
+)
+from src.snowflake.snowpark.plans.logical.basic_logical_operators import Sort as SPSort
+from src.snowflake.snowpark.plans.logical.logical_plan import Filter as SPFilter
+from src.snowflake.snowpark.plans.logical.logical_plan import Project as SPProject
+from src.snowflake.snowpark.plans.logical.logical_plan import (
+    UnresolvedRelation as SPUnresolvedRelation,
+)
 from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from typing import Optional
+from src.snowflake.snowpark.types.sp_data_types import ByteType as SPByteType
+from src.snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType
+from src.snowflake.snowpark.types.sp_data_types import LongType as SPLongType
+from src.snowflake.snowpark.types.sp_data_types import ShortType as SPShortType
 
 
 class Analyzer:
-
     def __init__(self, session):
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
@@ -46,7 +95,9 @@ class Analyzer:
 
         # aggregate
         if type(expr) == SPAggregateExpression:
-            return self.aggr_extractor_convert_expr(expr.aggregate_function, expr.is_distinct)
+            return self.aggr_extractor_convert_expr(
+                expr.aggregate_function, expr.is_distinct
+            )
 
         if type(expr) is SPLiteral:
             return DataTypeMapper.to_sql(expr.value, expr.datatype)
@@ -60,12 +111,14 @@ class Analyzer:
             if len(expr.name_parts) == 1:
                 return expr.name_parts[0]
             else:
-                raise SnowparkClientException(f"Invalid name {'.'.join(expr.name_parts)}")
+                raise SnowparkClientException(
+                    f"Invalid name {'.'.join(expr.name_parts)}"
+                )
         if type(expr) is SPUnresolvedFunction:
             # TODO expr.name should return FunctionIdentifier, and we should pass expr.name.funcName
-            return self.package.function_expression(expr.name,
-                                                    list(map(self.analyze, expr.children)),
-                                                    expr.is_distinct)
+            return self.package.function_expression(
+                expr.name, list(map(self.analyze, expr.children)), expr.is_distinct
+            )
 
         if type(expr) == SPAlias:
             quoted_name = self.package.quote_name(expr.name)
@@ -77,7 +130,7 @@ class Analyzer:
             return self.package.alias_expression(self.analyze(expr.child), quoted_name)
 
         if type(expr) == SPResolvedStar:
-            return '*'
+            return "*"
         if type(expr) == SPUnresolvedStar:
             return expr.to_string()
 
@@ -117,7 +170,9 @@ class Analyzer:
         elif type(expr) == SPCast:
             return self.package.cast_expression(self.analyze(expr.child), expr.to)
         elif type(expr) == SPSortOrder:
-            return self.package.order_expression(self.analyze(expr.child), expr.direction.sql, expr.null_ordering.sql)
+            return self.package.order_expression(
+                self.analyze(expr.child), expr.direction.sql, expr.null_ordering.sql
+            )
         elif type(expr) == SPUnaryMinus:
             return self.package.unary_minus_expression(self.analyze(expr.child))
         elif type(expr) == SPNot:
@@ -130,7 +185,9 @@ class Analyzer:
             return self.package.is_not_null_expression(self.analyze(expr.child))
         else:
             # TODO: SNOW-369125: pretty_name of Expression
-            return self.package.function_expression(expr.pretty_name, [self.analyze(expr.child)], False)
+            return self.package.function_expression(
+                expr.pretty_name, [self.analyze(expr.child)], False
+            )
 
     # TODO
     def special_frame_boundary_extractor(self, expr):
@@ -142,11 +199,15 @@ class Analyzer:
 
     def binary_operator_extractor(self, expr):
         if isinstance(expr, SPBinaryArithmeticExpression):
-            return self.package.binary_arithmetic_expression(expr.sql_operator, self.analyze(expr.left),
-                                                             self.analyze(expr.right))
+            return self.package.binary_arithmetic_expression(
+                expr.sql_operator, self.analyze(expr.left), self.analyze(expr.right)
+            )
         else:
-            return self.package.function_expression(expr.sql_operator, [self.analyze(expr.left),
-                                                                        self.analyze(expr.right)], False)
+            return self.package.function_expression(
+                expr.sql_operator,
+                [self.analyze(expr.left), self.analyze(expr.right)],
+                False,
+            )
 
     # TODO
     def aggregate_extractor(self, expr):
@@ -155,7 +216,9 @@ class Analyzer:
         else:
             return self.aggr_extractor_convert_expr(expr, is_distinct=False)
 
-    def aggr_extractor_convert_expr(self, expr: SPAggregateFunction, is_distinct: bool) -> str:
+    def aggr_extractor_convert_expr(
+        self, expr: SPAggregateFunction, is_distinct: bool
+    ) -> str:
         # if type(expr) == SPSkewness:
         #   TODO
         # if type(expr) == SPNTile:
@@ -163,9 +226,9 @@ class Analyzer:
         # if type(expr) == aggregateWindow:
         #   TODO
         # else:
-        return self.package.function_expression(expr.pretty_name(),
-                                                [self.analyze(c) for c in expr.children],
-                                                is_distinct)
+        return self.package.function_expression(
+            expr.pretty_name(), [self.analyze(c) for c in expr.children], is_distinct
+        )
 
     # TODO
     def grouping_extractor(self, expr: SPExpression):
@@ -179,7 +242,9 @@ class Analyzer:
         # if expression is integral literal, return the number without casting,
         # otherwise process as normal
         if type(expr) == SPLiteral:
-            if isinstance(expr.datatype, (SPIntegerType, SPLongType, SPShortType, SPByteType)):
+            if isinstance(
+                expr.datatype, (SPIntegerType, SPLongType, SPShortType, SPByteType)
+            ):
                 return DataTypeMapper.to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(expr)
@@ -216,27 +281,43 @@ class Analyzer:
 
         if type(logical_plan) == SPAggregate:
             return self.plan_builder.aggregate(
-                list(map(self.__to_sql_avoid_offset, logical_plan.grouping_expressions)),
+                list(
+                    map(self.__to_sql_avoid_offset, logical_plan.grouping_expressions)
+                ),
                 list(map(self.analyze, logical_plan.aggregate_expressions)),
-                resolved_children[logical_plan.child], logical_plan)
+                resolved_children[logical_plan.child],
+                logical_plan,
+            )
 
         if type(logical_plan) == SPProject:
             return self.plan_builder.project(
                 list(map(self.analyze, logical_plan.project_list)),
-                resolved_children[logical_plan.child], logical_plan)
+                resolved_children[logical_plan.child],
+                logical_plan,
+            )
 
         if type(logical_plan) == SPFilter:
             return self.plan_builder.filter(
-                self.analyze(logical_plan.condition), resolved_children[logical_plan.child], logical_plan)
+                self.analyze(logical_plan.condition),
+                resolved_children[logical_plan.child],
+                logical_plan,
+            )
 
         if type(logical_plan) == SPJoin:
             return self.plan_builder.join(
-                resolved_children[logical_plan.left], resolved_children[logical_plan.right], logical_plan.join_type,
-                self.analyze(logical_plan.condition) if logical_plan.condition else '', logical_plan)
+                resolved_children[logical_plan.left],
+                resolved_children[logical_plan.right],
+                logical_plan.join_type,
+                self.analyze(logical_plan.condition) if logical_plan.condition else "",
+                logical_plan,
+            )
 
         if type(logical_plan) == SPSort:
-            return self.plan_builder.sort(list(map(self.analyze, logical_plan.order)),
-                                          resolved_children[logical_plan.child], logical_plan)
+            return self.plan_builder.sort(
+                list(map(self.analyze, logical_plan.order)),
+                resolved_children[logical_plan.child],
+                logical_plan,
+            )
 
         if type(logical_plan) == SPRange:
             # The column name id lower-case is hard-coded by Spark as the output
@@ -244,16 +325,26 @@ class Analyzer:
             # (quoted lower-case) it's a little hard for users. So we switch it to
             # the column name "ID" == id == Id
             return self.plan_builder.query(
-                self.package.range_statement(logical_plan.start, logical_plan.end, logical_plan.step, "id"),
-                logical_plan)
+                self.package.range_statement(
+                    logical_plan.start, logical_plan.end, logical_plan.step, "id"
+                ),
+                logical_plan,
+            )
 
         if type(logical_plan) == SPUnresolvedRelation:
-            return self.plan_builder.table('.'.join(logical_plan.multipart_identifier))
+            return self.plan_builder.table(".".join(logical_plan.multipart_identifier))
 
         if type(logical_plan) == SnowflakeValues:
             if logical_plan.data:
                 # TODO: SNOW-367105 handle large values with largeLocalRelationPlan
-                return self.plan_builder.query(self.package.values_statement(logical_plan.output, logical_plan.data),
-                                               logical_plan)
+                return self.plan_builder.query(
+                    self.package.values_statement(
+                        logical_plan.output, logical_plan.data
+                    ),
+                    logical_plan,
+                )
             else:
-                return self.plan_builder.query(self.package.empty_values_statement(logical_plan.output), logical_plan)
+                return self.plan_builder.query(
+                    self.package.empty_values_statement(logical_plan.output),
+                    logical_plan,
+                )

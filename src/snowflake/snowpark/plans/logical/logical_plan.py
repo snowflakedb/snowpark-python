@@ -1,3 +1,8 @@
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
+
 class LogicalPlan:
     def __init__(self):
         self.children = []
@@ -44,4 +49,3 @@ class Filter(OrderPreservingUnaryNode):
         self.condition = condition
         self.child = child
         self.children.append(child)
-

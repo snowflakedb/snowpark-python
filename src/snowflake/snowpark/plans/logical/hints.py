@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
 # Hints,
 # https://github.com/apache/spark/blob/master/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/plans/logical/hints.scala
 class JoinHint:

@@ -1,4 +1,13 @@
-from src.snowflake.snowpark.relational_grouped_dataframe import GroupByType, CubeType, RollupType, PivotType
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
+from src.snowflake.snowpark.relational_grouped_dataframe import (
+    CubeType,
+    GroupByType,
+    PivotType,
+    RollupType,
+)
 
 
 def test_to_string_of_relational_grouped_dataframe():

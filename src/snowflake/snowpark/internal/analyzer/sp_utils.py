@@ -1,8 +1,15 @@
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
 # See https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/util/package.scala#L128
 
-from ..sp_expressions import Expression as SPExpression, Attribute as SPAttribute, \
-    PrettyAttribute as SPPrettyAttribute, Literal as SPLiteral
-from ...types.sp_data_types import StringType as SPStringType, NumericType as SPNumericType
+from ...types.sp_data_types import NumericType as SPNumericType
+from ...types.sp_data_types import StringType as SPStringType
+from ..sp_expressions import Attribute as SPAttribute
+from ..sp_expressions import Expression as SPExpression
+from ..sp_expressions import Literal as SPLiteral
+from ..sp_expressions import PrettyAttribute as SPPrettyAttribute
 
 
 def use_pretty_expression(e: SPExpression) -> SPExpression:

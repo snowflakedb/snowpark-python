@@ -1,3 +1,8 @@
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
+
 class AbstractDataType:
     pass
 
@@ -5,12 +10,12 @@ class AbstractDataType:
 class DataType(AbstractDataType):
     @property
     def type_name(self):
-        """ Returns a data type name. """
+        """Returns a data type name."""
         return self.__class__.__name__[:-4]
 
     @property
     def to_string(self):
-        """ Returns a data type name. Alias of [[type_name]] """
+        """Returns a data type name. Alias of [[type_name]]"""
         return self.type_name
 
     @property
@@ -34,7 +39,9 @@ class ArrayType(DataType):
 
 
 class MapType(DataType):
-    def __init__(self, key_type: DataType, value_type: DataType, value_contains_null: bool):
+    def __init__(
+        self, key_type: DataType, value_type: DataType, value_contains_null: bool
+    ):
         self.key_type = key_type
         self.value_type = value_type
         self.value_contains_null = value_contains_null
@@ -83,7 +90,7 @@ class GeographyType(DataType):
 
     @property
     def to_string(self) -> str:
-        """ Returns a data type name. Alias of [[type_name]] """
+        """Returns a data type name. Alias of [[type_name]]"""
         return self.type_name
 
     @property
@@ -96,6 +103,7 @@ class GeographyType(DataType):
 
 
 # Atomic Types
+
 
 class BooleanType(AtomicType):
     pass

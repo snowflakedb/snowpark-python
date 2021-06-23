@@ -3,27 +3,68 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from array import array
 import ctypes
-import decimal
 import datetime
+import decimal
 import sys
+from array import array
 from typing import List, Optional
 
-from .sf_types import BinaryType, BooleanType, DataType, DateType, IntegerType, LongType, \
-    DoubleType, FloatType, ShortType, ByteType, DecimalType, StringType, TimeType, VariantType, \
-    TimestampType, StructType, MapType, ArrayType, StructField, NullType
-from .sp_data_types import DataType as SPDataType, BooleanType as SPBooleanType, \
-    StructType as SPStructType, StructField as SPStructField, StringType as SPStringType, \
-    ByteType as SPByteType, ShortType as SPShortType, IntegerType as SPIntegerType, \
-    LongType as SPLongType, FloatType as SPFloatType, DoubleType as SPDoubleType, \
-    DateType as SPDateType, TimeType as SPTimeType, TimestampType as SPTimestampType, \
-    BinaryType as SPBinaryType, ArrayType as SPArrayType, MapType as SPMapType, \
-    VariantType as SPVariantType, DecimalType as SPDecimalType, NullType as SPNullType
 from ..snowpark_client_exception import SnowparkClientException
+from .sf_types import (
+    ArrayType,
+    BinaryType,
+    BooleanType,
+    ByteType,
+    DataType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    MapType,
+    NullType,
+    ShortType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+    TimeType,
+    VariantType,
+)
+from .sp_data_types import ArrayType as SPArrayType
+from .sp_data_types import BinaryType as SPBinaryType
+from .sp_data_types import BooleanType as SPBooleanType
+from .sp_data_types import ByteType as SPByteType
+from .sp_data_types import DataType as SPDataType
+from .sp_data_types import DateType as SPDateType
+from .sp_data_types import DecimalType as SPDecimalType
+from .sp_data_types import DoubleType as SPDoubleType
+from .sp_data_types import FloatType as SPFloatType
+from .sp_data_types import IntegerType as SPIntegerType
+from .sp_data_types import LongType as SPLongType
+from .sp_data_types import MapType as SPMapType
+from .sp_data_types import NullType as SPNullType
+from .sp_data_types import ShortType as SPShortType
+from .sp_data_types import StringType as SPStringType
+from .sp_data_types import StructField as SPStructField
+from .sp_data_types import StructType as SPStructType
+from .sp_data_types import TimestampType as SPTimestampType
+from .sp_data_types import TimeType as SPTimeType
+from .sp_data_types import VariantType as SPVariantType
+
 
 def udf_option_supported(datatype: DataType) -> bool:
-    return type(datatype) in [IntegerType, LongType, DoubleType, FloatType, ShortType, ByteType, BooleanType]
+    return type(datatype) in [
+        IntegerType,
+        LongType,
+        DoubleType,
+        FloatType,
+        ShortType,
+        ByteType,
+        BooleanType,
+    ]
 
 
 # TODO revisit when dealing with Java UDFs. We'll probably hard-code the return values.
@@ -76,7 +117,7 @@ def convert_to_sf_type(datatype: DataType) -> str:
 
 
 def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
-    """ Mapping from snowflake data-types, to SP data-types """
+    """Mapping from snowflake data-types, to SP data-types"""
     if type(datatype) == NullType:
         return SPNullType()
     if type(datatype) == BooleanType:
@@ -84,10 +125,14 @@ def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
     if type(datatype) == StringType:
         return SPStringType()
     if type(datatype) == StructType:
-        return SPStructType([
-            SPStructField(field.name, snow_type_to_sp_type(field.dataType),
-                          field.nullable)
-            for field in datatype.fields])
+        return SPStructType(
+            [
+                SPStructField(
+                    field.name, snow_type_to_sp_type(field.dataType), field.nullable
+                )
+                for field in datatype.fields
+            ]
+        )
     if type(datatype) == ByteType:
         return SPByteType()
     if type(datatype) == ShortType:
@@ -109,12 +154,15 @@ def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
     if type(datatype) == BinaryType:
         return SPBinaryType()
     if type(datatype) == ArrayType:
-        return SPArrayType(snow_type_to_sp_type(datatype.element_type),
-                           contains_null=True)
+        return SPArrayType(
+            snow_type_to_sp_type(datatype.element_type), contains_null=True
+        )
     if type(datatype) == MapType:
-        return SPMapType(snow_type_to_sp_type(datatype.key_type),
-                         snow_type_to_sp_type(datatype.value_type),
-                         value_contains_null=True)
+        return SPMapType(
+            snow_type_to_sp_type(datatype.key_type),
+            snow_type_to_sp_type(datatype.value_type),
+            value_contains_null=True,
+        )
     if type(datatype) == VariantType:
         return SPVariantType()
     if type(datatype) == DecimalType:
@@ -122,7 +170,9 @@ def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
     # if type(datatype) == GeographyType:
     #    return GeographyType(snow_type_to_sp_type(valueType))
     # raise internal error
-    raise SnowparkClientException("Could not convert snowflake type {}".format(datatype))
+    raise SnowparkClientException(
+        "Could not convert snowflake type {}".format(datatype)
+    )
 
 
 def to_sp_struct_type(struct_type: StructType) -> SPStructType:
@@ -130,7 +180,7 @@ def to_sp_struct_type(struct_type: StructType) -> SPStructType:
 
 
 def sp_type_to_snow_type(datatype: SPDateType) -> DataType:
-    """ Mapping from SP data-types, to snowflake data-types """
+    """Mapping from SP data-types, to snowflake data-types"""
     if type(datatype) == SPNullType:
         return NullType()
     if type(datatype) == SPBooleanType:
@@ -138,10 +188,14 @@ def sp_type_to_snow_type(datatype: SPDateType) -> DataType:
     if type(datatype) == SPStringType:
         return StringType()
     if type(datatype) == SPStructType:
-        return StructType([
-            StructField(field.name, sp_type_to_snow_type(field.dataType),
-                          field.nullable)
-            for field in datatype.fields])
+        return StructType(
+            [
+                StructField(
+                    field.name, sp_type_to_snow_type(field.dataType), field.nullable
+                )
+                for field in datatype.fields
+            ]
+        )
     if type(datatype) == SPByteType:
         return ByteType()
     if type(datatype) == SPShortType:
@@ -165,8 +219,10 @@ def sp_type_to_snow_type(datatype: SPDateType) -> DataType:
     if type(datatype) == SPArrayType:
         return ArrayType(sp_type_to_snow_type(datatype.element_type))
     if type(datatype) == SPMapType:
-        return MapType(sp_type_to_snow_type(datatype.key_type),
-                       sp_type_to_snow_type(datatype.value_type))
+        return MapType(
+            sp_type_to_snow_type(datatype.key_type),
+            sp_type_to_snow_type(datatype.value_type),
+        )
     if type(datatype) == SPVariantType:
         return VariantType()
     if type(datatype) == SPDecimalType:
@@ -215,17 +271,17 @@ _type_mappings = {
 # http://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.3.1
 
 _array_signed_int_typecode_ctype_mappings = {
-    'b': ctypes.c_byte,
-    'h': ctypes.c_short,
-    'i': ctypes.c_int,
-    'l': ctypes.c_long,
+    "b": ctypes.c_byte,
+    "h": ctypes.c_short,
+    "i": ctypes.c_int,
+    "l": ctypes.c_long,
 }
 
 _array_unsigned_int_typecode_ctype_mappings = {
-    'B': ctypes.c_ubyte,
-    'H': ctypes.c_ushort,
-    'I': ctypes.c_uint,
-    'L': ctypes.c_ulong
+    "B": ctypes.c_ubyte,
+    "H": ctypes.c_ushort,
+    "I": ctypes.c_uint,
+    "L": ctypes.c_ulong,
 }
 
 
@@ -249,8 +305,8 @@ _array_type_mappings = {
     # On almost every system supported by both python and JVM, they are IEEE 754
     # single-precision binary floating-point format and IEEE 754 double-precision
     # binary floating-point format. And we do assume the same thing here for now.
-    'f': SPFloatType,
-    'd': SPDoubleType
+    "f": SPFloatType,
+    "d": SPDoubleType,
 }
 
 # compute array typecode mappings for signed integer types
@@ -272,17 +328,16 @@ for _typecode in _array_unsigned_int_typecode_ctype_mappings.keys():
 # Type code 'u' in Python's array is deprecated since version 3.3, and will be
 # removed in version 4.0. See: https://docs.python.org/3/library/array.html
 if sys.version_info[0] < 4:
-    _array_type_mappings['u'] = SPStringType
+    _array_type_mappings["u"] = SPStringType
 
 
 def _infer_type(obj):
-    """Infer the DataType from obj
-    """
+    """Infer the DataType from obj"""
     if obj is None:
         return SPNullType()
 
     # user-defined types
-    if hasattr(obj, '__UDT__'):
+    if hasattr(obj, "__UDT__"):
         return obj.__UDT__
 
     datatype = _type_mappings.get(type(obj))
@@ -314,14 +369,16 @@ def _infer_type(obj):
 def _infer_schema_from_list(row: List, names: Optional[List] = None) -> StructType:
     """Infer the schema from list"""
     if names is None:
-        names = ['_%d' % i for i in range(1, len(row) + 1)]
+        names = ["_%d" % i for i in range(1, len(row) + 1)]
     elif len(names) < len(row):
-        names.extend('_%d' % i for i in range(len(names) + 1, len(row) + 1))
+        names.extend("_%d" % i for i in range(len(names) + 1, len(row) + 1))
 
     fields = []
     for k, v in zip(names, row):
         try:
             fields.append(StructField(k, sp_type_to_snow_type(_infer_type(v)), True))
         except TypeError as e:
-            raise TypeError("Unable to infer the type of the field {}.".format(k)) from e
+            raise TypeError(
+                "Unable to infer the type of the field {}.".format(k)
+            ) from e
     return StructType(fields)

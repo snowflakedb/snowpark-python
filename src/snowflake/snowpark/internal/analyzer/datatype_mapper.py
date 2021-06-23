@@ -3,22 +3,43 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from ...types.types_package import convert_to_sf_type
-from ...types.sf_types import BinaryType, BooleanType, DateType, NumericType, StringType, \
-    VariantType, TimeType, TimestampType, MapType, ArrayType, LongType
-
-from ...types.sp_data_types import NullType as SPNullType, \
-    LongType as SPLongType, StringType as SPStringType, DoubleType as SPDoubleType, \
-    BinaryType as SPBinaryType, DecimalType as SPDecimalType, DateType as SPDateType, \
-    TimestampType as SPTimestampType, IntegerType as SPIntegerType, ShortType as SPShortType, \
-    FloatType as SPFloatType, ArrayType as SPArrayType, MapType as SPMapType, \
-    StructType as SPStructType, ByteType as SPByteType, BooleanType as SPBooleanType, \
-    GeographyType as SPGeographyType, DataType as SPDataType
-
-from decimal import Decimal
-from datetime import date, timedelta, datetime, timezone
 import binascii
 import math
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+
+from ...types.sf_types import (
+    ArrayType,
+    BinaryType,
+    BooleanType,
+    DateType,
+    LongType,
+    MapType,
+    NumericType,
+    StringType,
+    TimestampType,
+    TimeType,
+    VariantType,
+)
+from ...types.sp_data_types import ArrayType as SPArrayType
+from ...types.sp_data_types import BinaryType as SPBinaryType
+from ...types.sp_data_types import BooleanType as SPBooleanType
+from ...types.sp_data_types import ByteType as SPByteType
+from ...types.sp_data_types import DataType as SPDataType
+from ...types.sp_data_types import DateType as SPDateType
+from ...types.sp_data_types import DecimalType as SPDecimalType
+from ...types.sp_data_types import DoubleType as SPDoubleType
+from ...types.sp_data_types import FloatType as SPFloatType
+from ...types.sp_data_types import GeographyType as SPGeographyType
+from ...types.sp_data_types import IntegerType as SPIntegerType
+from ...types.sp_data_types import LongType as SPLongType
+from ...types.sp_data_types import MapType as SPMapType
+from ...types.sp_data_types import NullType as SPNullType
+from ...types.sp_data_types import ShortType as SPShortType
+from ...types.sp_data_types import StringType as SPStringType
+from ...types.sp_data_types import StructType as SPStructType
+from ...types.sp_data_types import TimestampType as SPTimestampType
+from ...types.types_package import convert_to_sf_type
 
 
 class DataTypeMapper:
@@ -28,11 +49,16 @@ class DataTypeMapper:
     @staticmethod
     # TODO
     def to_sql(value, spark_data_type: SPDataType):
-        """ Convert a value with SparkSQL DataType to a snowflake compatible sql"""
+        """Convert a value with SparkSQL DataType to a snowflake compatible sql"""
 
         # Handle null values
-        if type(spark_data_type) in [SPNullType, SPArrayType, SPMapType, SPStructType,
-                                     SPGeographyType]:
+        if type(spark_data_type) in [
+            SPNullType,
+            SPArrayType,
+            SPMapType,
+            SPStructType,
+            SPGeographyType,
+        ]:
             if value is None:
                 return "NULL"
         if type(spark_data_type) is SPIntegerType:
@@ -66,9 +92,14 @@ class DataTypeMapper:
         if type(spark_data_type) is SPStringType:
             # TODO revisit, original check: if UTF8string or String
             if type(value) is str:
-                return "'" + str(value).replace("\\\\", "\\\\\\\\")\
-                                        .replace("'", "''")\
-                                        .replace("\n", "\\\\n") + "'"
+                return (
+                    "'"
+                    + str(value)
+                    .replace("\\\\", "\\\\\\\\")
+                    .replace("'", "''")
+                    .replace("\n", "\\\\n")
+                    + "'"
+                )
         if type(spark_data_type) is SPByteType:
             return str(value) + f":: tinyint"
         if type(spark_data_type) is SPShortType:
@@ -104,6 +135,7 @@ class DataTypeMapper:
         if type(value) is Decimal and type(spark_data_type) is SPDecimalType:
             # TODO fix circular dependency
             from .analyzer_package import AnalyzerPackage
+
             package = AnalyzerPackage()
             return f"{value} :: {package.number(spark_data_type.precision, spark_data_type.scale)}"
 
@@ -114,19 +146,25 @@ class DataTypeMapper:
 
         if type(spark_data_type) is SPTimestampType and type(value) is int:
             # add value as microseconds to 1970-01-01 00:00:00.00.
-            target_time = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(microseconds=value)
+            target_time = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
+                microseconds=value
+            )
             trimmed_ms = target_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            return f'TIMESTAMP \'{trimmed_ms}\''
+            return f"TIMESTAMP '{trimmed_ms}'"
 
         if type(value) in [list, bytearray] and type(spark_data_type) is SPBinaryType:
             return "'{}' :: binary".format(binascii.hexlify(value).decode())
 
-        raise Exception("Unsupported datatype {}, value {} by to_sql()".format(spark_data_type, value))
+        raise Exception(
+            "Unsupported datatype {}, value {} by to_sql()".format(
+                spark_data_type, value
+            )
+        )
 
     @staticmethod
     def schema_expression(data_type, is_nullable):
         if is_nullable:
-            #if isinstance(datatype) == GeographyType:
+            # if isinstance(datatype) == GeographyType:
             #     return "TRY_TO_GEOGRAPHY(NULL)"
             return "NULL :: " + convert_to_sf_type(data_type)
 
