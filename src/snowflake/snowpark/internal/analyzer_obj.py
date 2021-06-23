@@ -16,6 +16,9 @@ from src.snowflake.snowpark.internal.sp_expressions import Expression as SPExpre
     IsNotNull as SPIsNotNull, Cast as SPCast, SortOrder as SPSortOrder
 from src.snowflake.snowpark.plans.logical.basic_logical_operators import Range as SPRange, Aggregate as SPAggregate, \
     Sort as SPSort
+from src.snowflake.snowpark.internal.analyzer.sp_views import ViewType as SPViewType, \
+    CreateViewCommand as SPCreateViewCommand, PersistedView as SPPersistedView, LocalTempView as \
+    SPLocalTempView
 
 from src.snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType, \
     LongType as SPLongType, ShortType as SPShortType, ByteType as SPByteType
@@ -257,3 +260,16 @@ class Analyzer:
                                                logical_plan)
             else:
                 return self.plan_builder.query(self.package.empty_values_statement(logical_plan.output), logical_plan)
+
+        if type(logical_plan) == SPCreateViewCommand:
+            if type(logical_plan.view_type) == SPPersistedView:
+                is_temp = False
+            elif type(logical_plan.view_type) == SPLocalTempView:
+                is_temp = True
+            else:
+                raise SnowparkClientException(
+                    f"Internal Error: Only PersistedView and LocalTempView are supported. View type: {type(logical_plan.view_type)}")
+
+            return self.plan_builder.create_or_replace_view(logical_plan.name.table,
+                                                            self.resolve(logical_plan.child),
+                                                            is_temp)

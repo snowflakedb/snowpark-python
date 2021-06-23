@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+from typing import List, Optional, Dict
+
+from src.snowflake.snowpark.internal.analyzer.sp_identifiers import TableIdentifier
+from src.snowflake.snowpark.plans.logical.logical_plan import LogicalPlan
+
+
+class ViewType:
+    def to_string(self):
+        return self.__class__.__name__[:-4]
+
+
+class LocalTempView(ViewType):
+    pass
+
+
+class GlobalTempView(ViewType):
+    pass
+
+
+class PersistedView(ViewType):
+    pass
+
+
+class CreateViewCommand:
+    def __init__(self,
+                 name: TableIdentifier,
+                 user_specified_columns: List[tuple],
+                 comment: Optional[str],
+                 properties: Dict,
+                 original_text: Optional[str],
+                 child: LogicalPlan,
+                 allow_existing: bool,
+                 replace: bool,
+                 view_type: ViewType
+                 ):
+        self.name = name
+        self.user_specified_columns = user_specified_columns
+        self.comment = comment
+        self.properties = properties
+        self. original_text = original_text
+        self.child = child
+        self.allow_existing = allow_existing
+        self.replace = replace
+        self.view_type = view_type
+
+        self.children = [child]
+        self.inner_children = [child]
+
+
+

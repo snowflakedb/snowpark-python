@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 from .datatype_mapper import DataTypeMapper
+from ...snowpark_client_exception import SnowparkClientException
 from ...types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
     LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, NaturalJoin as SPNaturalJoin
 from ..sp_expressions import Attribute as SPAttribute
@@ -299,6 +300,11 @@ class AnalyzerPackage:
     def order_expression(self, name: str, direction: str, null_ordering: str) -> str:
         return name + self._Space + direction + self._Space + null_ordering
 
+    def create_or_replace_view_statement(self, name: str, child: str, is_temp: bool) -> str:
+        return self._Create + self._Or + self._Replace \
+               + f"{self._Temporary if is_temp else self._EmptyString}" + self._View + name \
+               + self._As + child
+
     def generator(self, row_count: int) -> str:
         return self._Generator + self._LeftParenthesis + self._RowCount + self._RightArrow + \
                str(row_count) + self._RightParenthesis
@@ -317,11 +323,18 @@ class AnalyzerPackage:
         already_quoted = re.compile("^(\".+\")$")
         unquoted_case_insensitive = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
         if already_quoted.match(name):
-            return name
+            return cls.validate_quoted_name(name)
         elif unquoted_case_insensitive.match(name):
             return cls._DoubleQuote + cls._escape_quotes(name.upper()) + cls._DoubleQuote
         else:
             return cls._DoubleQuote + cls._escape_quotes(name) + cls._DoubleQuote
+
+    @classmethod
+    def validate_quoted_name(cls, name: str) -> str:
+        if '"' in name[1:-1].replace('\"\"', ''):
+            raise SnowparkClientException(f"Invalid identifier '{name}'")
+        else:
+            return name
 
     @classmethod
     def quote_name_without_upper_casing(cls, name: str) -> str:

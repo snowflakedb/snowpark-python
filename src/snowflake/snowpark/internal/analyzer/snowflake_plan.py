@@ -8,6 +8,8 @@ from src.snowflake.snowpark.row import Row
 
 from typing import List, Callable, Dict, Optional
 
+from ...snowpark_client_exception import SnowparkClientException
+
 
 class SnowflakePlan(LogicalPlan):
     # for read_file()
@@ -142,6 +144,18 @@ class SnowflakePlanBuilder:
 
     def sort(self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]):
         return self.build(lambda x: self.pkg.sort_statement(order, x), child, source_plan)
+
+
+    def create_or_replace_view(self, name: str, child: SnowflakePlan, is_temp: bool) -> SnowflakePlan:
+        if len(child.queries) != 1:
+            raise SnowparkClientException("Your dataframe may include DDL or DML operations. " +
+                                           "Creating a view from this DataFrame is currently not supported.")
+
+        if not child.queries[0].sql.lower().strip().startswith('select'):
+            raise SnowparkClientException("Creating views from SELECT queries supported only.")
+
+        return self.build(
+            lambda x: self.pkg.create_or_replace_view_statement(name, x, is_temp), child, None)
 
     def _add_result_scan_if_not_select(self, plan):
         if plan.queries[-1].sql.strip().lower().startswith("select"):

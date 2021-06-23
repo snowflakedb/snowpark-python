@@ -6,6 +6,8 @@
 import uuid
 from decimal import Decimal
 from typing import NamedTuple, Optional
+
+from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.session import Session
 from src.snowflake.snowpark.dataframe import DataFrame
 
@@ -21,7 +23,11 @@ class Utils:
 
     @staticmethod
     def drop_table(session: 'Session', name: str):
-        session._run_query(f"drop table if exists {name}")
+        session._run_query(f"drop table if exists {AnalyzerPackage.quote_name(name)}")
+
+    @staticmethod
+    def drop_view(session: 'Session', name: str):
+        session._run_query(f"drop view if exists {AnalyzerPackage.quote_name(name)}")
 
     @staticmethod
     def equals_ignore_case(a: str, b: str) -> bool:
@@ -71,6 +77,10 @@ class TestData:
         return session.sql("select * from values(1),(2),(3) as T(a)")
 
     @classmethod
+    def double1(cls, session: 'Session') -> DataFrame:
+        return session.sql("select * from values(1.111),(2.222),(3.333) as T(a)")
+
+    @classmethod
     def double2(cls, session: 'Session') -> DataFrame:
         return session.sql("select * from values(0.1, 0.5),(0.2, 0.6),(0.3, 0.7) as T(a,b)")
 
@@ -79,3 +89,8 @@ class TestData:
         return session.createDataFrame([[Decimal(1), Decimal(1)], [Decimal(1), Decimal(2)],
                                         [Decimal(2), Decimal(1)], [Decimal(2), Decimal(2)],
                                         [Decimal(3), Decimal(1)], [Decimal(3), Decimal(2)]]).toDF(['a', 'b'])
+
+    @classmethod
+    def column_has_special_char(cls, session: 'Session') -> DataFrame:
+        return session.createDataFrame([[1, 2], [3, 4]])\
+            .toDF(["\"col %\"", "\"col *\""])
