@@ -4,38 +4,58 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from .dataframe import DataFrame
-from .server_connection import ServerConnection
-from .row import Row
-from .snowpark_client_exception import SnowparkClientException
-from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlanBuilder, SnowflakeValues
-from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from typing import (
-    Dict,
-    List,
-    NamedTuple,
-    Optional,
-    Tuple,
-    Union,
-)
-import decimal
 import datetime
-from array import array
-import pathlib
+import decimal
 import logging
+import pathlib
+from array import array
 from logging import getLogger
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection
-from .plans.logical.basic_logical_operators import Range
-from .plans.logical.logical_plan import UnresolvedRelation
+
+from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
+    SnowflakePlanBuilder,
+    SnowflakeValues,
+)
+
+from .dataframe import DataFrame
+from .functions import (
+    column,
+    parse_json,
+    to_array,
+    to_date,
+    to_decimal,
+    to_object,
+    to_time,
+    to_timestamp,
+    to_variant,
+)
 from .internal.analyzer.analyzer_package import AnalyzerPackage
 from .internal.analyzer_obj import Analyzer
 from .internal.sp_expressions import AttributeReference as SPAttributeReference
-from .types.sf_types import StructType, VariantType, ArrayType, MapType, GeographyType, TimeType, DateType, \
-    TimestampType, DecimalType, AtomicType, Variant, Geography
-from .types.types_package import snow_type_to_sp_type, _infer_schema_from_list
+from .plans.logical.basic_logical_operators import Range
+from .plans.logical.logical_plan import UnresolvedRelation
+from .row import Row
+from .server_connection import ServerConnection
+from .snowpark_client_exception import SnowparkClientException
+from .types.sf_types import (
+    ArrayType,
+    AtomicType,
+    DateType,
+    DecimalType,
+    Geography,
+    GeographyType,
+    MapType,
+    StructType,
+    TimestampType,
+    TimeType,
+    Variant,
+    VariantType,
+)
 from .types.sp_data_types import StringType as SPStringType
-from .functions import column, parse_json, to_decimal, to_timestamp, to_date, to_time, to_array, to_variant, to_object
+from .types.types_package import _infer_schema_from_list, snow_type_to_sp_type
 
 logger = getLogger(__name__)
 
@@ -134,7 +154,7 @@ class Session:
         pass
 
     def table(self, name) -> DataFrame:
-        """ Returns a DataFrame representing the contents of the specified table. 'name' can be a
+        """Returns a DataFrame representing the contents of the specified table. 'name' can be a
         fully qualified identifier and must conform to the rules for a Snowflake identifier.
         """
         fqdn = None
@@ -150,13 +170,16 @@ class Session:
         return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
 
     def _run_query(self, query):
-        return self.conn.run_query(query)['data']
+        return self.conn.run_query(query)["data"]
 
-    def get_result_attributes(self, query: str) -> List['Attribute']:
+    def get_result_attributes(self, query: str) -> List["Attribute"]:
         return self.conn.get_result_attributes(query)
 
-    def createDataFrame(self, data: Union[List, Tuple, NamedTuple, Dict],
-                        schema: Optional[StructType] = None) -> DataFrame:
+    def createDataFrame(
+        self,
+        data: Union[List, Tuple, NamedTuple, Dict],
+        schema: Optional[StructType] = None,
+    ) -> DataFrame:
         """
         Creates a new DataFrame containing the specified values.
         Currently this function only accepts data from a List, Tuple, NameTuple or Dict, and performs type and length
@@ -168,8 +191,10 @@ class Session:
 
         # check the type of data
         if not isinstance(data, (list, tuple, dict)):
-            raise SnowparkClientException("createDataFrame() function only accepts data in List, NamedTuple,"
-                                          " Tuple or Dict type.")
+            raise SnowparkClientException(
+                "createDataFrame() function only accepts data in List, NamedTuple,"
+                " Tuple or Dict type."
+            )
 
         # check whether data is empty
         if len(data) == 0:
@@ -184,8 +209,11 @@ class Session:
             if not tpe:
                 tpe = type(row)
             elif tpe != type(row):
-                raise SnowparkClientException("Data consists of rows with different types {} and {}."
-                                              .format(tpe, type(row)))
+                raise SnowparkClientException(
+                    "Data consists of rows with different types {} and {}.".format(
+                        tpe, type(row)
+                    )
+                )
             if not row:
                 rows.append(Row(None))
             elif isinstance(row, Row):
@@ -202,8 +230,10 @@ class Session:
                 rows.append(Row([row]))
 
         # check the length of every row, which should be same across data
-        if len(set(row.size() for row in rows)) != 1:
-            raise SnowparkClientException("Data consists of rows with different lengths.")
+        if len({row.size() for row in rows}) != 1:
+            raise SnowparkClientException(
+                "Data consists of rows with different lengths."
+            )
 
         # infer the schema based the first row
         if not schema:
@@ -212,10 +242,25 @@ class Session:
         # get spark attributes and data types
         sp_attrs, data_types = [], []
         for field in schema.fields:
-            sp_type = SPStringType() if type(field.datatype) in \
-                                        [VariantType, ArrayType, MapType, GeographyType, TimeType, DateType,
-                                         TimestampType] else snow_type_to_sp_type(field.datatype)
-            sp_attrs.append(SPAttributeReference(AnalyzerPackage.quote_name(field.name), sp_type, field.nullable))
+            sp_type = (
+                SPStringType()
+                if type(field.datatype)
+                in [
+                    VariantType,
+                    ArrayType,
+                    MapType,
+                    GeographyType,
+                    TimeType,
+                    DateType,
+                    TimestampType,
+                ]
+                else snow_type_to_sp_type(field.datatype)
+            )
+            sp_attrs.append(
+                SPAttributeReference(
+                    AnalyzerPackage.quote_name(field.name), sp_type, field.nullable
+                )
+            )
             data_types.append(field.datatype)
 
         # convert all variant/time/geography/array/map data to string
@@ -227,7 +272,10 @@ class Session:
                     converted_row.append(None)
                 elif type(value) == decimal.Decimal and type(data_type) == DecimalType:
                     converted_row.append(value)
-                elif type(value) == datetime.datetime and type(data_type) == TimestampType:
+                elif (
+                    type(value) == datetime.datetime
+                    and type(data_type) == TimestampType
+                ):
                     converted_row.append(str(value))
                 elif type(value) == datetime.time and type(data_type) == TimeType:
                     converted_row.append(str(value))
@@ -244,16 +292,24 @@ class Session:
                 elif type(value) == dict and type(data_type) == MapType:
                     converted_row.append(Variant(value).as_json_string())
                 else:
-                    raise SnowparkClientException("{} {} can't be converted to {}".format(type(value), value,
-                                                                                          data_type.to_string()))
+                    raise SnowparkClientException(
+                        "{} {} can't be converted to {}".format(
+                            type(value), value, data_type.to_string()
+                        )
+                    )
             converted.append(Row.from_list(converted_row))
 
         # construct a project statement to convert string value back to variant
         project_columns = []
         for field in schema.fields:
             if type(field.datatype) == DecimalType:
-                project_columns.append(to_decimal(column(field.name), field.datatype.precision,
-                                                  field.datatype.scale).as_(field.name))
+                project_columns.append(
+                    to_decimal(
+                        column(field.name),
+                        field.datatype.precision,
+                        field.datatype.scale,
+                    ).as_(field.name)
+                )
             elif type(field.datatype) == TimestampType:
                 project_columns.append(to_timestamp(column(field.name)).as_(field.name))
             elif type(field.datatype) == TimeType:
@@ -261,17 +317,25 @@ class Session:
             elif type(field.datatype) == DateType:
                 project_columns.append(to_date(column(field.name)).as_(field.name))
             elif type(field.datatype) == VariantType:
-                project_columns.append(to_variant(parse_json(column(field.name))).as_(field.name))
+                project_columns.append(
+                    to_variant(parse_json(column(field.name))).as_(field.name)
+                )
             elif type(field.datatype) == ArrayType:
-                project_columns.append(to_array(parse_json(column(field.name))).as_(field.name))
+                project_columns.append(
+                    to_array(parse_json(column(field.name))).as_(field.name)
+                )
             elif type(field.datatype) == MapType:
-                project_columns.append(to_object(parse_json(column(field.name))).as_(field.name))
+                project_columns.append(
+                    to_object(parse_json(column(field.name))).as_(field.name)
+                )
             # TODO: support geo type
             # elif type(field.data_type) == Geography:
             else:
                 project_columns.append(column(field.name))
 
-        return DataFrame(self, SnowflakeValues(sp_attrs, converted)).select(project_columns)
+        return DataFrame(self, SnowflakeValues(sp_attrs, converted)).select(
+            project_columns
+        )
 
     def range(self, *args) -> DataFrame:
         start, step = 0, 1
@@ -283,7 +347,9 @@ class Session:
         elif len(args) == 1:
             end = args[0]
         else:
-            raise Exception(f"Range requires one to three arguments. {len(args)} provided.")
+            raise Exception(
+                f"Range requires one to three arguments. {len(args)} provided."
+            )
 
         return DataFrame(session=self, plan=Range(start, end, step))
 
@@ -314,7 +380,7 @@ class Session:
 
     class SessionBuilder:
         """The SessionBuilder holds all the configuration properties
-        and is used to create a Session. """
+        and is used to create a Session."""
 
         def __init__(self):
             self.__options = {}
@@ -338,4 +404,6 @@ class Session:
             # TODO: setActiveSession
             # set the log level of the conncector logger to ERROR to avoid massive logging
             logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
-            return Session(ServerConnection({}, conn) if conn else ServerConnection(self.__options))
+            return Session(
+                ServerConnection({}, conn) if conn else ServerConnection(self.__options)
+            )
