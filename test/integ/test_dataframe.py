@@ -49,24 +49,24 @@ def test_select_single_column(session_cnx, db_parameters):
     """Tests df.select() on dataframes with a single column."""
     with session_cnx(db_parameters) as session:
         df = session.range(1, 10, 2)
-        res = df.filter("id > 4").select("id").collect()
+        res = df.filter(col('id') > 4).select("id").collect()
         expected = [Row([5]), Row([7]), Row([9])]
         assert res == expected
 
         df = session.range(1, 10, 2)
-        res = df.filter("id < 4").select("id").collect()
+        res = df.filter(col('id') < 4).select("id").collect()
         expected = [Row([1]), Row([3])]
         assert res == expected
 
-        res = session.range(1, 10, 2).select("id").filter("id <= 4").collect()
+        res = session.range(1, 10, 2).select("id").filter(col('id') <= 4).collect()
         expected = [Row([1]), Row([3])]
         assert res == expected
 
-        res = session.range(1, 10, 2).select("id").filter("id <= 3").collect()
+        res = session.range(1, 10, 2).select("id").filter(col('id') <= 3).collect()
         expected = [Row([1]), Row([3])]
         assert res == expected
 
-        res = session.range(1, 10, 2).select("id").filter("id <= 0").collect()
+        res = session.range(1, 10, 2).select("id").filter(col('id') <= 0).collect()
         expected = []
         assert res == expected
 
@@ -139,24 +139,24 @@ def test_filter(session_cnx, db_parameters):
     """Tests retrieving a negative number of results."""
     with session_cnx(db_parameters) as session:
         df = session.range(1, 10, 2)
-        res = df.filter("id > 4").collect()
+        res = df.filter(col('id') > 4).collect()
         expected = [Row([5]), Row([7]), Row([9])]
         assert res == expected
 
         df = session.range(1, 10, 2)
-        res = df.filter("id < 4").collect()
+        res = df.filter(col('id') < 4).collect()
         expected = [Row([1]), Row([3])]
         assert res == expected
 
-        res = session.range(1, 10, 2).filter("id <= 4").collect()
+        res = session.range(1, 10, 2).filter(col('id') <= 4).collect()
         expected = [Row([1]), Row([3])]
         assert res == expected
 
-        res = session.range(1, 10, 2).filter("id <= 3").collect()
+        res = session.range(1, 10, 2).filter(col('id') <= 3).collect()
         expected = [Row([1]), Row([3])]
         assert res == expected
 
-        res = session.range(1, 10, 2).filter("id <= 0").collect()
+        res = session.range(1, 10, 2).filter(col('id') <= 0).collect()
         expected = []
         assert res == expected
 
@@ -165,25 +165,25 @@ def test_filter_chained(session_cnx, db_parameters):
     """Tests retrieving a negative number of results."""
     with session_cnx(db_parameters) as session:
         df = session.range(1, 10, 2)
-        res = df.filter("id > 4").filter("id > 1").collect()
+        res = df.filter(col('id') > 4).filter(col('id') > 1).collect()
         expected = [Row([5]), Row([7]), Row([9])]
         assert res == expected
 
         df = session.range(1, 10, 2)
-        res = df.filter("id > 1").filter("id > 4").collect()
+        res = df.filter(col('id') > 1).filter(col('id') > 4).collect()
         expected = [Row([5]), Row([7]), Row([9])]
         assert res == expected
 
         df = session.range(1, 10, 2)
-        res = df.filter("id < 4").filter("id < 4").collect()
+        res = df.filter(col('id') < 4).filter(col('id') < 4).collect()
         expected = [Row([1]), Row([3])]
         assert res == expected
 
-        res = session.range(1, 10, 2).filter("id <= 4").filter("id >= 0").collect()
+        res = session.range(1, 10, 2).filter(col('id') <= 4).filter(col('id') >= 0).collect()
         expected = [Row([1]), Row([3])]
         assert res == expected
 
-        res = session.range(1, 10, 2).filter("id <= 3").filter("id != 5").collect()
+        res = session.range(1, 10, 2).filter(col('id') <= 3).filter(col('id') != 5).collect()
         expected = [Row([1]), Row([3])]
         assert res == expected
 
@@ -500,7 +500,7 @@ def test_create_dataframe_with_different_data_types(session_cnx, db_parameters):
         expected_rows = [Row(data), Row(none_data)]
         df = session.createDataFrame([data, none_data])
         assert [field.name for field in df.schema.fields] == expected_names
-        assert [type(field.data_type) for field in df.schema.fields] == \
+        assert [type(field.datatype) for field in df.schema.fields] == \
                [LongType, StringType, DoubleType, TimestampType, DateType, TimeType, BooleanType,
                 BinaryType, DecimalType]
         assert df.collect() == expected_rows

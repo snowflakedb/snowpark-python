@@ -214,7 +214,7 @@ class AnalyzerPackage:
         if type(join_type) == SPUsingJoin:
             join_sql = join_type.tpe.sql
         elif type(join_type) == SPNaturalJoin:
-            join_sql = self._Natural + join_type.tpe
+            join_sql = self._Natural + join_type.tpe.sql
         else:
             join_sql = join_type.sql
 

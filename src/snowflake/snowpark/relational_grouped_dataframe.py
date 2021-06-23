@@ -92,11 +92,11 @@ class RelationalGroupedDataFrame:
         if type(self.group_type) == RollupType:
             return DataFrame(self.df.session,
                              SPAggregate([SPRollup(self.grouping_exprs)], aliased_agg,
-                                         self.df.__plan))
+                                         self.df._DataFrame__plan))
         if type(self.group_type) == CubeType:
             return DataFrame(self.df.session,
                              SPAggregate([SPCube(self.grouping_exprs)], aliased_agg,
-                                         self.df.__plan))
+                                         self.df._DataFrame__plan))
         if type(self.group_type) == PivotType:
             if len(agg_exprs) != 1:
                 raise SnowparkClientException("Only one aggregate is supported with pivot")
@@ -105,7 +105,7 @@ class RelationalGroupedDataFrame:
                                      self.group_type.pivot_col,
                                      self.group_type.values,
                                      agg_exprs,
-                                     self.df.__plan))
+                                     self.df._DataFrame__plan))
 
     def __alias(self, expr: SPExpression) -> SPNamedExpression:
         if isinstance(expr, SPUnresolvedAttribute):

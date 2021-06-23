@@ -11,11 +11,11 @@ from .internal.analyzer.analyzer_package import AnalyzerPackage
 from .plans.logical.logical_plan import Project as SPProject, Filter as SPFilter
 from .plans.logical.basic_logical_operators import Join as SPJoin, Sort as SPSort
 from .plans.logical.hints import JoinHint as SPJoinHint
-from .types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, \
-    LeftAnti as SPLeftAnti, UsingJoin as SPUsingJoin, Cross as SPCrossJoin
+from .types.sp_join_types import JoinType as SPJoinType, LeftSemi as SPLeftSemi, LeftAnti as \
+    SPLeftAnti, UsingJoin as SPUsingJoin, Cross as SPCrossJoin, NaturalJoin as SPNaturalJoin
 from .types.sf_types import StructType
 
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Optional
 from random import choice
 import string
 
@@ -40,6 +40,9 @@ class DataFrame:
 
     def collect(self):
         return self.session.conn.execute(self.__plan)
+
+    def clone(self) -> 'DataFrame':
+        return DataFrame(self.session, self.__plan.clone())
 
     def toPandas(self, **kwargs):
         """Returns the contents of this DataFrame as Pandas pandas.DataFrame.
@@ -105,36 +108,46 @@ class DataFrame:
         else:
             return Column(self.__resolve(col_name))
 
-    def select(self, expr) -> 'DataFrame':
-        if type(expr) == str:
-            cols = [Column(expr)]
-        elif type(expr) in [list, tuple]:
-            cols = [e if type(e) == Column else Column(e) for e in expr]
-        elif type(expr) == Column:
-            cols = [expr]
-        else:
-            raise SnowparkClientException("Select input must be Column, str, or list")
+    def select(self, *expr) -> 'DataFrame':
 
+        if len(expr) == 1:
+            cols = [*expr[0]] if isinstance(expr[0], (list, tuple)) else [expr[0]]
+        elif len(expr) > 1:
+            cols = [*expr]
+        else:
+            raise TypeError("Select input must be Column, str, or list")
+
+        if not len(cols) > 0 or not all(type(e) in [Column, str] for e in cols):
+            raise TypeError("Select input must be Column, str, or list")
+
+        cols = [e if type(e) == Column else Column(e) for e in cols]
         return self.__with_plan(SPProject([c.named() for c in cols], self.__plan))
 
     # TODO complete. requires plan.output
-    def drop(self, cols) -> 'DataFrame':
+    def drop(self, *cols) -> 'DataFrame':
+        """Returns a new DataFrame that drops the specified column. This is a no-op if schema
+        does not contain the given column name(s)."""
+
+        if len(cols) == 1:
+            exprs = [*cols[0]] if isinstance(cols[0], (list, tuple)) else [cols[0]]
+        elif len(cols) > 1:
+            exprs = [*cols]
+        else:
+            raise TypeError("drop() input cannot be empty")
+
         names = []
-        if type(cols) is str:
-            names.append(cols)
-        elif type(cols) is list:
-            for c in cols:
-                if type(c) is str:
-                    names.append(c)
-                elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
-                    names.append(c.expression.name)
-                else:
-                    raise SnowparkClientException(
-                        f"Could not drop column {str(c)}. Can only drop columns by name.")
+        for c in exprs:
+            if type(c) is str:
+                names.append(c)
+            elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
+                names.append(c.expression.name)
+            else:
+                raise TypeError(
+                    f"Could not drop column {str(c)}. Can only drop columns by name.")
 
         normalized = set(AnalyzerPackage.quote_name(n) for n in names)
-        existing = set(attr.name for attr in self.__output())
-        keep_col_names = existing - normalized
+        existing = [attr.name for attr in self.__output()]
+        keep_col_names = [c for c in existing if c not in normalized]
         if not keep_col_names:
             raise SnowparkClientException("Cannot drop all columns")
         else:
@@ -199,33 +212,33 @@ class DataFrame:
 
         :return DataFrame
         """
-        groupping_exprs = None
+        grouping_exprs = None
         if type(exprs) == str:
-            groupping_exprs = [self.col(exprs)]
+            grouping_exprs = [self.col(exprs)]
         elif type(exprs) == Column:
-            groupping_exprs = [exprs]
+            grouping_exprs = [exprs]
         elif type(exprs) == tuple:
             if len(tuple) == 2:
-                groupping_exprs = [exprs]
+                grouping_exprs = [exprs]
         elif type(exprs) == list:
             if all(type(e) == str for e in exprs):
-                groupping_exprs = [self.col(e) for e in exprs]
+                grouping_exprs = [self.col(e) for e in exprs]
             if all(type(e) == Column for e in exprs):
-                groupping_exprs = [e for e in exprs]
+                grouping_exprs = [e for e in exprs]
             if all(type(e) in [list, tuple] and len(e) == 2 and
                    type(e[0]) == type(e[1]) == str for e in exprs):
-                groupping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
+                grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
 
-        if groupping_exprs is None:
+        if grouping_exprs is None:
             raise SnowparkClientException(f"Invalid type passed to DataFrame.agg(): {type(exprs)}")
 
-        return self.groupBy().agg(groupping_exprs)
+        return self.groupBy().agg(grouping_exprs)
 
     def groupBy(self, *cols: Union[str, Column, List, Tuple]):
         """ Groups rows by the columns specified by expressions (similar to GROUP BY in SQL).
 
-        This method returns a [[RelationalGroupedDataFrame]] that you can use to perform aggregations
-        on each group of data.
+        This method returns a [[RelationalGroupedDataFrame]] that you can use to perform
+        aggregations on each group of data.
 
         Valid inputs are:
         - Empty input
@@ -239,9 +252,21 @@ class DataFrame:
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
 
-    def join(self, other, using_columns=None, join_type=None) -> 'DataFrame':
+    def naturalJoin(self, right: 'DataFrame', join_type: str = None) -> 'DataFrame':
+        """Performs a natural join of the specified type (`joinType`) with the current DataFrame and
+        another DataFrame (`right`).
+
+        For example: dfNaturalJoin = df.naturalJoin(df2, "left")
+        :return A DataFrame
+        """
+        join_type = join_type if join_type else 'inner'
+        return self.__with_plan(
+            SPJoin(self.__plan, right._DataFrame__plan,
+                   SPNaturalJoin(SPJoinType.from_string(join_type)), None, SPJoinHint.none()))
+
+    def join(self, right, using_columns=None, join_type=None) -> 'DataFrame':
         """ Performs a join of the specified type (`join_type`) with the current DataFrame and
-        another DataFrame (`other`) on a list of columns (`using_columns`).
+        another DataFrame (`right`) on a list of columns (`using_columns`).
 
         The method assumes that the columns in `usingColumns` have the same meaning in the left and
         right DataFrames.
@@ -250,73 +275,86 @@ class DataFrame:
             dfLeftJoin = df1.join(df2, "a", "left")
             dfOuterJoin = df.join(df2, ["a","b"], "outer")
 
-        :param other: The other Dataframe to join.
+        :param right: The other Dataframe to join.
         :param using_columns: A list of names of the columns, or the column objects, to use for the
         join.
         :param join_type: The type of join (e.g. "right", "outer", etc.).
         :return: a DataFrame
         """
-        if isinstance(other, DataFrame):
-            if self is other or self.__plan is other.__plan:
-                raise Exception(
+        if isinstance(right, DataFrame):
+            if self is right or self.__plan is right._DataFrame__plan:
+                raise SnowparkClientException(
                     "Joining a DataFrame to itself can lead to incorrect results due to ambiguity of column references. Instead, join this DataFrame to a clone() of itself.")
 
             if type(join_type) == SPCrossJoin or \
-                    (type(join_type) == str and join_type.strip().lower().replace('_', '').startswith('cross')):
+                    (type(join_type) == str and
+                     join_type.strip().lower().replace('_', '').startswith('cross')):
                 if using_columns:
                     raise Exception("Cross joins cannot take columns as input.")
-
-            if using_columns is not None and not isinstance(using_columns, list):
-                using_columns = [using_columns]
 
             sp_join_type = SPJoinType.from_string('inner') if not join_type \
                 else SPJoinType.from_string(join_type)
 
-            return self.__join_dataframes(other, using_columns, sp_join_type)
+            # Parse using_columns arg
+            if using_columns is None:
+                using_columns = []
+            elif isinstance(using_columns, str):
+                using_columns = [using_columns]
+            elif isinstance(using_columns, Column):
+                using_columns = using_columns
+            elif not isinstance(using_columns, list):
+                raise SnowparkClientException(
+                    f"Invalid input type for join column: {type(using_columns)}")
 
-        # TODO handle case where other is a TableFunction
-        # if isinstance(other, TableFunction):
+            return self.__join_dataframes(right, using_columns, sp_join_type)
+
+        # TODO handle case where right is a TableFunction
+        # if isinstance(right, TableFunction):
         #    return self.__join_dataframe_table_function(other, using_columns)
         raise Exception("Invalid type for join. Must be Dataframe")
 
-    def crossJoin(self, other: 'DataFrame') -> 'DataFrame':
+    def crossJoin(self, right: 'DataFrame') -> 'DataFrame':
         """ Performs a cross join, which returns the cartesian product of the current DataFrame and
-        another DataFrame (`other`).
+        another DataFrame (`right`).
 
         If the current and `right` DataFrames have columns with the same name, and you need to refer
         to one of these columns in the returned DataFrame, use the [[coll]] function
-        on the current or `other` DataFrame to disambiguate references to these columns.
+        on the current or `right` DataFrame to disambiguate references to these columns.
 
         For example:
-        df_cross = this.crossJoin(other)
-        project = df.df_cross.select([this("common_col"), other("common_col")])
+        df_cross = this.crossJoin(right)
+        project = df.df_cross.select([this("common_col"), right("common_col")])
 
-        :param other The other Dataframe to join.
+        :param right The right Dataframe to join.
         :return a Dataframe
         """
-        return self.__join_dataframes_internal(other, SPJoinType.from_string('cross'), None)
+        return self.__join_dataframes_internal(right, SPJoinType.from_string('cross'), None)
 
-    def __join_dataframes(self, other: 'DataFrame', using_columns: List[str],
+    def __join_dataframes(self, right: 'DataFrame', using_columns: Union[Column, List[str]],
                           join_type: SPJoinType) -> 'DataFrame':
+        if type(using_columns) == Column:
+            return self.__join_dataframes_internal(right, join_type, join_exprs=using_columns)
+
         if type(join_type) in [SPLeftSemi, SPLeftAnti]:
             # Create a Column with expression 'true AND <expr> AND <expr> .."
             join_cond = Column(SPLiteral.create(True))
             for c in using_columns:
                 quoted = AnalyzerPackage.quote_name(c)
-                join_cond = join_cond & (self.col(quoted) == other.col(quoted))
-            return self.__join_dataframes_internal(other, join_type, join_cond)
+                join_cond = join_cond & (self.col(quoted) == right.col(quoted))
+            return self.__join_dataframes_internal(right, join_type, join_cond)
         else:
-            lhs, rhs = self.__disambiguate(self, other, join_type, using_columns)
+            lhs, rhs = self.__disambiguate(self, right, join_type, using_columns)
             return self.__with_plan(
-                SPJoin(lhs.__plan, rhs.__plan,
+                SPJoin(lhs._DataFrame__plan, rhs._DataFrame__plan,
                        SPUsingJoin(join_type, using_columns), None, SPJoinHint.none()))
 
     def __join_dataframes_internal(self, right: 'DataFrame', join_type: SPJoinType,
-                                   join_exprs: Column) -> 'DataFrame':
+                                   join_exprs: Optional[Column]) -> 'DataFrame':
         (lhs, rhs) = self.__disambiguate(self, right, join_type, [])
         expression = join_exprs.expression if join_exprs else None
         return self.__with_plan(
-            SPJoin(lhs.__plan, rhs.__plan, join_type, expression, SPJoinHint.none()))
+            SPJoin(lhs._DataFrame__plan, rhs._DataFrame__plan,
+                   join_type, expression, SPJoinHint.none()))
 
     # TODO complete function. Requires TableFunction
     def __join_dataframe_table_function(self, table_function, columns) -> 'DataFrame':
@@ -334,11 +372,11 @@ class DataFrame:
     @staticmethod
     def __alias_if_needed(df: 'DataFrame', c: str, prefix: str, common_col_names: List[str]):
         col = df.col(c)
+        unquoted = c.strip('"')
         if c in common_col_names:
-            unquoted = c.strip('"')
             return col.alias(f"{prefix}{unquoted}")
         else:
-            return col
+            return col.alias(f"\"{unquoted}\"")
 
     def __disambiguate(self, lhs: 'DataFrame', rhs: 'DataFrame', join_type: SPJoinType,
                        using_columns: List[str]):
@@ -348,22 +386,20 @@ class DataFrame:
         #  they do have columns in common, alias the common columns with randomly generated l_
         #  and r_ prefixes for the left and right sides respectively.
         #  We assume the column names from the schema are normalized and quoted.
-        lhs_names = set(attr.name for attr in lhs.__output())
-        rhs_names = set(attr.name for attr in rhs.__output())
-        common_col_names = list(lhs_names.intersection(rhs_names) - normalized_using_columns)
+        lhs_names = [attr.name for attr in lhs.__output()]
+        rhs_names = [attr.name for attr in rhs.__output()]
+        common_col_names = [n for n in lhs_names
+                            if n in set(rhs_names) and n not in normalized_using_columns]
 
-        if not common_col_names:
-            return lhs, rhs
-
-        if type(join_type) in [SPLeftSemi, SPLeftAnti]:
-            lhs_remapped = lhs
-        else:
-            lhs_prefix = self.__generate_prefix('l')
-            lhs_remapped = lhs.select(
-                [self.__alias_if_needed(lhs, name, lhs_prefix, common_col_names) for name in
-                 lhs_names])
-
+        lhs_prefix = self.__generate_prefix('l')
         rhs_prefix = self.__generate_prefix('r')
+
+        lhs_remapped = lhs.select(
+            [self.__alias_if_needed(lhs, name, lhs_prefix,
+                                    [] if type(join_type) in [SPLeftSemi, SPLeftAnti]
+                                    else common_col_names)
+             for name in lhs_names])
+
         rhs_remapped = rhs.select(
             [self.__alias_if_needed(rhs, name, rhs_prefix, common_col_names) for name in rhs_names])
         return lhs_remapped, rhs_remapped

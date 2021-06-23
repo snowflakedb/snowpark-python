@@ -71,6 +71,9 @@ class Analyzer:
             quoted_name = self.package.quote_name(expr.name)
             if isinstance(expr.child, SPAttributeReference):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                for k, v in self.alias_maps_to_use.items():
+                    if v == expr.child.name:
+                        self.generated_alias_maps[k] = quoted_name
             return self.package.alias_expression(self.analyze(expr.child), quoted_name)
 
         if type(expr) == SPResolvedStar:
