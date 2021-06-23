@@ -18,18 +18,18 @@ def test_null_data_in_tables(session_cnx, db_parameters):
             res = session.table(table_name).collect()
             assert res == [Row([None]), Row([None]), Row([None])]
         finally:
-            session.sql(f"drop table if exists {table_name}")
+            Utils.drop_table(session, table_name)
 
 
 @pytest.mark.skip(reason='requires is_null, sort, createDataFrame type inference')
 def test_null_data_in_local_relation_with_filters(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[1, None], [2, 'NotNull'], [3, None]]).toDF(['a','b'])
+        df = session.createDataFrame([[1, None], [2, 'NotNull'], [3, None]]).toDF(['a', 'b'])
         assert df.collect() == [Row([1, None]), Row([2, 'NotNull']), Row([3, None])]
-        df2 = session.createDataFrame([[1, None], [2, 'NotNull'], [3, None]]).toDF(['a','b'])
+        df2 = session.createDataFrame([[1, None], [2, 'NotNull'], [3, None]]).toDF(['a', 'b'])
         assert df.collect() == df2.collect()
 
-        assert df.filter(col('b').is_null()).collect() == [Row([1,None]), Row([3,None])]
+        assert df.filter(col('b').is_null()).collect() == [Row([1, None]), Row([3, None])]
         assert df.filter((col('b').is_not_null())).collect() == [Row([2, 'NotNull'])]
         assert df.sort(col('b').asc_nulls_last).collect() == \
                [Row([2, 'NotNull']), Row([1, None]), Row([3, None])]
@@ -47,7 +47,7 @@ def test_non_select_query_composition(session_cnx, db_parameters):
             assert type(schema.fields[0].datatype) is StringType
             assert schema.fields[0].name == '"name"'
         finally:
-            session.sql(f"drop table if exists {table_name}")
+            Utils.drop_table(session, table_name)
 
 
 def test_only_use_result_scan_when_composing_queries(session_cnx, db_parameters):
@@ -67,7 +67,7 @@ def test_joins_on_result_scan(session_cnx, db_parameters):
         df2 = session.sql('show tables').select(['"name"', '"rows"'])
 
         result = df1.join(df2, '"name"')
-        result.collect() # no error
+        result.collect()  # no error
         assert len(result.schema.fields) == 3
 
 
@@ -81,7 +81,8 @@ def test_select_star(session_cnx, db_parameters):
 
 def test_select(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(['a', 'b', 'c'])
+        df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(
+            ['a', 'b', 'c'])
 
         # select(String, String*) with 1 column
         expected_result = [Row([1]), Row([2]), Row([3])]
@@ -113,7 +114,8 @@ def test_select(session_cnx, db_parameters):
 
 def test_select_negative_select(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(['a', 'b', 'c'])
+        df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(
+            ['a', 'b', 'c'])
 
         # Select with empty sequences
         with pytest.raises(TypeError) as ex_info:
@@ -144,7 +146,8 @@ def test_select_negative_select(session_cnx, db_parameters):
 
 def test_drop_and_dropcolumns(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(['a', 'b', 'c'])
+        df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(
+            ['a', 'b', 'c'])
 
         expected_result = [Row([1, "a", 10]), Row([2, "b", 20]), Row([3, "c", 30])]
 
@@ -170,8 +173,8 @@ def test_drop_and_dropcolumns(session_cnx, db_parameters):
 
         # drop 2nd and 3rd column
         expected_result = [Row([1]), Row([2]), Row([3])]
-        assert df.drop('b','c').collect() == expected_result
-        assert df.drop(['b','c']).collect() == expected_result
+        assert df.drop('b', 'c').collect() == expected_result
+        assert df.drop(['b', 'c']).collect() == expected_result
         assert df.drop(col('b'), col('c')).collect() == expected_result
         assert df.drop([col('b'), col('c')]).collect() == expected_result
 
@@ -202,7 +205,7 @@ def test_groupby(session_cnx, db_parameters):
                                       ("country B", "state A", 100),
                                       ("country B", "state A", 100),
                                       ("country B", "state B", 10),
-                                      ("country B", "state B", 10)]).\
+                                      ("country B", "state B", 10)]). \
             toDF(["country", "state", "value"])
 
         # groupBy without column
@@ -242,7 +245,7 @@ def test_quoted_column_names(session_cnx, db_parameters):
         table_name = Utils.random_name()
         try:
             Utils.create_table(session, table_name,
-                               f"{normalName} int, {lowerCaseName} int, {quoteStart} int," 
+                               f"{normalName} int, {lowerCaseName} int, {quoteStart} int,"
                                f"{quoteEnd} int, {quoteMiddle} int, {quoteAllCases} int")
             session.sql(f"insert into {table_name} values(1, 2, 3, 4, 5, 6)").collect()
 
@@ -261,12 +264,11 @@ def test_quoted_column_names(session_cnx, db_parameters):
 
             assert df1.collect() == [Row([1, 2, 3, 4, 5, 6])]
 
-
             # test select() + cacheResult() + select()
             # TODO uncomment cacheResult when available
             df2 = session.table(table_name).select(normalName, lowerCaseName, quoteStart, quoteEnd,
                                                    quoteMiddle, quoteAllCases)
-            #df2 = df2.cacheResult().select(normalName, lowerCaseName, quoteStart, quoteEnd,
+            # df2 = df2.cacheResult().select(normalName, lowerCaseName, quoteStart, quoteEnd,
             #                               quoteMiddle, quoteAllCases)
             schema2 = df2.schema
 
@@ -281,7 +283,8 @@ def test_quoted_column_names(session_cnx, db_parameters):
             assert df1.collect() == [Row([1, 2, 3, 4, 5, 6])]
 
             # Test drop()
-            df3 = session.table(table_name).drop(lowerCaseName, quoteStart, quoteEnd, quoteMiddle, quoteAllCases)
+            df3 = session.table(table_name).drop(lowerCaseName, quoteStart, quoteEnd, quoteMiddle,
+                                                 quoteAllCases)
             schema3 = df3.schema
             assert len(schema3.fields) == 1
             assert schema3.fields[0].name == normalName
@@ -289,8 +292,9 @@ def test_quoted_column_names(session_cnx, db_parameters):
 
             # Test select() + cacheResult() + drop()
             # TODO uncomment cacheResult when available
-            df4 = session.table(table_name).select(normalName, lowerCaseName, quoteStart, quoteEnd, quoteMiddle, quoteAllCases)\
-            # df4 = df4.cacheResult()
+            df4 = session.table(table_name).select(normalName, lowerCaseName, quoteStart, quoteEnd,
+                                                   quoteMiddle, quoteAllCases) \
+                # df4 = df4.cacheResult()
             df4 = df4.drop(lowerCaseName, quoteStart, quoteEnd, quoteMiddle, quoteAllCases)
 
             schema4 = df4.schema
@@ -299,7 +303,7 @@ def test_quoted_column_names(session_cnx, db_parameters):
             assert df4.collect() == [Row([1])]
 
         finally:
-            session.sql(f"drop table if exists {table_name}")
+            Utils.drop_table(session, table_name)
 
 
 def test_column_names_without_surrounding_quote(session_cnx, db_parameters):
@@ -333,4 +337,4 @@ def test_column_names_without_surrounding_quote(session_cnx, db_parameters):
             assert df1.collect() == [Row([3, 4, 5])]
 
         finally:
-            session.sql(f"drop table if exists {table_name}")
+            Utils.drop_table(session, table_name)

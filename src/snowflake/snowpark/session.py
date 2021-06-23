@@ -145,7 +145,7 @@ class Session:
         return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
 
     def _run_query(self, query):
-        return self.conn.run_query(query)
+        return self.conn.run_query(query)['data']
 
     def get_result_attributes(self, query: str) -> List['Attribute']:
         return self.conn.get_result_attributes(query)

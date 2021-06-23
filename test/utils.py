@@ -17,11 +17,11 @@ class Utils:
 
     @staticmethod
     def create_table(session: 'Session', name: str, schema: str):
-        session._run_query("create or replace table {name} ({schema})".format(name=name, schema=schema))
+        session._run_query(f"create or replace table {name} ({schema})")
 
     @staticmethod
     def drop_table(session: 'Session', name: str):
-        session._run_query("drop table if exists {name}".format(name=name))
+        session._run_query(f"drop table if exists {name}")
 
     @staticmethod
     def equals_ignore_case(a: str, b: str) -> bool:

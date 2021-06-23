@@ -142,8 +142,8 @@ def test_join_using_multiple_columns_and_specifying_join_type(session_cnx, db_pa
             assert df.join(df2, ['int', 'str'], 'left_anti').collect() == [Row([3, 4, '3'])]
             assert df.join(df2, ['int', 'str'], 'anti').collect() == [Row([3, 4, '3'])]
         finally:
-            session.sql(f"drop table if exists {table_name1}").collect()
-            session.sql(f"drop table if exists {table_name2}").collect()
+            Utils.drop_table(session, table_name1)
+            Utils.drop_table(session, table_name2)
 
 
 def test_cross_join(session_cnx, db_parameters):
@@ -350,7 +350,7 @@ def test_join_sql_as_the_backing_dataframe(session_cnx, db_parameters):
             assert df.join(df2, ['int', 'str'], 'anti').collect() == [Row([3, 4, '3'])]
 
         finally:
-            session.sql(f"drop table if exists {table_name1}").collect()
+            Utils.drop_table(session, table_name1)
 
 
 def test_negative_test_for_self_join_with_conditions(session_cnx, db_parameters):
@@ -374,7 +374,7 @@ def test_negative_test_for_self_join_with_conditions(session_cnx, db_parameters)
                     assert msg in str(ex_info)
 
         finally:
-            session.sql(f"drop table if exists {table_name1}").collect()
+            Utils.drop_table(session, table_name1)
 
 
 def test_clone_can_help_these_self_joins(session_cnx, db_parameters):
@@ -405,7 +405,7 @@ def test_clone_can_help_these_self_joins(session_cnx, db_parameters):
             assert res == [Row([None, None, 2, 3]), Row([1, 2, None, None]), Row([2, 3, 1, 2])]
 
         finally:
-            session.sql(f"drop table if exists {table_name1}").collect()
+            Utils.drop_table(session, table_name1)
 
 
 def test_natural_cross_joins(session_cnx, db_parameters):
@@ -434,7 +434,7 @@ def test_natural_cross_joins(session_cnx, db_parameters):
                            Row([2, 3, 2, 3])]
 
         finally:
-            session.sql(f"drop table if exists {table_name1}").collect()
+            Utils.drop_table(session, table_name1)
 
 
 def test_clone_with_join_dataframe(session_cnx, db_parameters):
@@ -458,7 +458,7 @@ def test_clone_with_join_dataframe(session_cnx, db_parameters):
             assert cloned_join_df.collect() == [Row([2, 3, 1, 2])]
 
         finally:
-            session.sql(f"drop table if exists {table_name1}").collect()
+            Utils.drop_table(session, table_name1)
 
 
 def test_join_on_join(session_cnx, db_parameters):
@@ -482,7 +482,7 @@ def test_join_on_join(session_cnx, db_parameters):
                                         Row([2, 2, 2, 2, 2, 2, 2, 2])]
 
         finally:
-            session.sql(f"drop table if exists {table_name1}").collect()
+            Utils.drop_table(session, table_name1)
 
 
 @pytest.mark.skip(message='Requires wrapException in SnowflakePlan')
@@ -503,7 +503,7 @@ def test_negative_test_join_on_join(session_cnx, db_parameters):
                 ex_info)
 
         finally:
-            session.sql(f"drop table if exists {table_name1}").collect()
+            Utils.drop_table(session, table_name1)
 
 
 def test_outer_join_conversion(session_cnx, db_parameters):
@@ -576,8 +576,8 @@ def test_name_alias_on_multiple_join(session_cnx, db_parameters):
 
             res = df.collect()
         finally:
-            session.sql(f"drop table if exists {table_trips}").collect()
-            session.sql(f"drop table if exists {table_stations}").collect()
+            Utils.drop_table(session, table_trips)
+            Utils.drop_table(session, table_stations)
 
 
 def test_name_alias_on_multiple_join_unnormalized_name(session_cnx, db_parameters):
@@ -607,8 +607,8 @@ def test_name_alias_on_multiple_join_unnormalized_name(session_cnx, db_parameter
 
             res = df.collect()
         finally:
-            session.sql(f"drop table if exists {table_trips}").collect()
-            session.sql(f"drop table if exists {table_stations}").collect()
+            Utils.drop_table(session, table_trips)
+            Utils.drop_table(session, table_stations)
 
 
 @pytest.mark.skip(message='Requires wrapException in SnowflakePlan')

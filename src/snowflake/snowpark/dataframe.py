@@ -251,8 +251,8 @@ class DataFrame:
         """
         join_type = join_type if join_type else 'inner'
         return self.__with_plan(
-            SPJoin(self.__plan, right.__plan, SPNaturalJoin(SPJoinType.from_string(join_type)),
-                   None, SPJoinHint.none()))
+            SPJoin(self.__plan, right._DataFrame__plan,
+                   SPNaturalJoin(SPJoinType.from_string(join_type)), None, SPJoinHint.none()))
 
     def join(self, right, using_columns=None, join_type=None) -> 'DataFrame':
         """ Performs a join of the specified type (`join_type`) with the current DataFrame and
@@ -272,7 +272,7 @@ class DataFrame:
         :return: a DataFrame
         """
         if isinstance(right, DataFrame):
-            if self is right or self.__plan is right.__plan:
+            if self is right or self.__plan is right._DataFrame__plan:
                 raise SnowparkClientException(
                     "Joining a DataFrame to itself can lead to incorrect results due to ambiguity of column references. Instead, join this DataFrame to a clone() of itself.")
 
@@ -335,7 +335,7 @@ class DataFrame:
         else:
             lhs, rhs = self.__disambiguate(self, right, join_type, using_columns)
             return self.__with_plan(
-                SPJoin(lhs.__plan, rhs.__plan,
+                SPJoin(lhs._DataFrame__plan, rhs._DataFrame__plan,
                        SPUsingJoin(join_type, using_columns), None, SPJoinHint.none()))
 
     def __join_dataframes_internal(self, right: 'DataFrame', join_type: SPJoinType,
@@ -343,7 +343,8 @@ class DataFrame:
         (lhs, rhs) = self.__disambiguate(self, right, join_type, [])
         expression = join_exprs.expression if join_exprs else None
         return self.__with_plan(
-            SPJoin(lhs.__plan, rhs.__plan, join_type, expression, SPJoinHint.none()))
+            SPJoin(lhs._DataFrame__plan, rhs._DataFrame__plan,
+                   join_type, expression, SPJoinHint.none()))
 
     # TODO complete function. Requires TableFunction
     def __join_dataframe_table_function(self, table_function, columns) -> 'DataFrame':
