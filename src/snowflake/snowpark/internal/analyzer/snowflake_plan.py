@@ -18,8 +18,8 @@ class SnowflakePlan(LogicalPlan):
     def __init__(self, queries, schema_query, post_actions=None, expr_to_alias=None, session=None,
                  source_plan=None):
         super().__init__()
-        self.queries = queries
-        self._schema_query = schema_query
+        self.queries: List[Query] = queries
+        self._schema_query: Query = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
         self.session = session
@@ -53,8 +53,16 @@ class SnowflakePlan(LogicalPlan):
                  for a in self.attributes()]
         return self.__placeholder_for_output
 
+    def clone(self):
+        return SnowflakePlan(self.queries.copy() if self.queries else [],
+                             self._schema_query,
+                             self.post_actions.copy() if self.post_actions else None,
+                             dict(self.expr_to_alias) if self.expr_to_alias else None,
+                             self.session, self.source_plan)
+
     def add_aliases(self, to_add: Dict):
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
+
 
 
 class SnowflakePlanBuilder:
@@ -77,7 +85,7 @@ class SnowflakePlanBuilder:
         try:
             select_left = self._add_result_scan_if_not_select(left)
             select_right = self._add_result_scan_if_not_select(right)
-            queries = select_left.queries[:-1] + select_left.queries[:-1] + \
+            queries = select_left.queries[:-1] + select_right.queries[:-1] + \
                       [Query(
                           sql_generator(select_left.queries[-1].sql, select_right.queries[-1].sql),
                           None)]
@@ -86,10 +94,16 @@ class SnowflakePlanBuilder:
             right_schema_query = self.pkg.schema_value_statement(select_right.attributes())
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
+            common_columns = set(select_left.expr_to_alias.keys()).intersection(
+                select_right.expr_to_alias.keys())
+            new_expr_to_alias = {k: v for k, v in
+                                 {**select_left.expr_to_alias, **select_right.expr_to_alias}.items()
+                                 if k not in common_columns}
+
             return SnowflakePlan(
                 queries, schema_query,
                 select_left.post_actions + select_right.post_actions,
-                {**select_left.expr_to_alias, **select_right.expr_to_alias},
+                new_expr_to_alias,
                 self.__session, source_plan)
 
         except Exception as ex:
@@ -134,18 +148,18 @@ class SnowflakePlanBuilder:
             return plan
         else:
             new_queries = plan.queries + [
-                Query(self.pkg.result_scan_statement(plan.queries[-1].query_id_plance_holder),
+                Query(self.pkg.result_scan_statement(plan.queries[-1].query_id_place_holder),
                       None)]
-            return SnowflakePlan(new_queries, self.pkg.schema_value_statement(plan.attributes),
+            return SnowflakePlan(new_queries, self.pkg.schema_value_statement(plan.attributes()),
                                  plan.post_actions, plan.expr_to_alias, self.__session,
                                  plan.source_plan)
 
 
 class Query:
 
-    def __init__(self, query_string, query_placeholder):
+    def __init__(self, query_string, query_id_placeholder):
         self.sql = query_string
-        self.place_holder = query_placeholder if query_placeholder else \
+        self.query_id_place_holder = query_id_placeholder if query_id_placeholder else \
             f"query_id_place_holder_{SchemaUtils.random_string()}"
 
 

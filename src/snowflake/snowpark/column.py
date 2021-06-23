@@ -173,7 +173,7 @@ class Column:
 
     # TODO revisit toString() functionality
     def __repr__(self):
-        return f"Column[{self.expression.toString()}]"
+        return f"Column[{self.expression.to_string()}]"
 
     def as_(self, alias: str) -> 'Column':
         """Returns a new renamed Column. Alias of [[name]]."""
@@ -210,7 +210,7 @@ class Column:
             parts = SPUnresolvedAttribute.parse_attribute_name(name[0:-2])
             return SPUnresolvedStar(parts)
         else:
-            return SPUnresolvedAttribute.quoted(name)
+            return SPUnresolvedAttribute.quoted(AnalyzerPackage.quote_name(name))
 
     @classmethod
     def with_expr(cls, new_expr):

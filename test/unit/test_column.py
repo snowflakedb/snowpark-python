@@ -10,7 +10,7 @@ from src.snowflake.snowpark.internal.sp_expressions import LeafExpression as SPL
 def test_getName():
     """Test getName() of Column."""
     name = col("id").getName()
-    assert name == 'id'
+    assert name == '"ID"'
 
     # LeafExpression is not named Expression, so should not return a name
     name = col(SPLeafExpression()).getName()
