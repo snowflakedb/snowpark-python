@@ -24,7 +24,8 @@ def test_join_using_multiple_columns(session_cnx, db_parameters):
         df2 = session.createDataFrame([[i, i + 1, str(i + 1)] for i in range(1, 4)]). \
             toDF(['int', 'int2', 'str'])
 
-        assert df.join(df2, ['int', 'int2']).collect() == \
+        res = df.join(df2, ['int', 'int2']).collect()
+        assert sorted(res, key=lambda x: x[0]) == \
                [Row([1, 2, '1', '2']), Row([2, 3, '2', '3']), Row([3, 4, '3', '4'])]
 
 
@@ -86,7 +87,8 @@ def test_default_inner_join_with_join_conditions(session_cnx, db_parameters):
         df1 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(['a', 'b'])
         df2 = session.createDataFrame([[i, f"num{i}"] for i in range(1, 3)]).toDF(['num', 'val'])
 
-        assert df1.join(df2, df1['a'] == df2['num']).collect() == \
+        res = df1.join(df2, df1['a'] == df2['num']).collect()
+        assert sorted(res, key=lambda x: x[0]) == \
                [Row([1, 'test1', 1, 'num1']), Row([2, 'test2', 2, 'num2'])]
 
 
@@ -125,11 +127,11 @@ def test_join_using_multiple_columns_and_specifying_join_type(session_cnx, db_pa
 
             assert df.join(df2, ['int', 'str'], 'inner').collect() == [Row([1, '1', 2, 3])]
 
-            assert df.join(df2, ['int', 'str'], 'left').collect() == \
-                   [Row([1, '1', 2, 3]), Row([3, '3', 4, None])]
+            res = df.join(df2, ['int', 'str'], 'left').collect()
+            assert sorted(res, key=lambda x: x[0]) == [Row([1, '1', 2, 3]), Row([3, '3', 4, None])]
 
-            assert df.join(df2, ['int', 'str'], 'right').collect() == \
-                   [Row([1, "1", 2, 3]), Row([5, "5", None, 6])]
+            res = df.join(df2, ['int', 'str'], 'right').collect()
+            assert sorted(res, key=lambda x: x[0]) == [Row([1, "1", 2, 3]), Row([5, "5", None, 6])]
 
             res = df.join(df2, ['int', 'str'], 'outer').collect()
             res.sort(key=lambda x: x[0])
@@ -167,10 +169,11 @@ def test_join_ambiguous_columns_with_specified_sources(session_cnx, db_parameter
         df = session.createDataFrame([1, 2]).toDF(['a'])
         df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(['a', 'b'])
 
-        assert df.join(df2, df['a'] == df2['a']).collect() == [Row([1, 1, 'test1']),
-                                                               Row([2, 2, 'test2'])]
-        assert df.join(df2, df['a'] == df2['a']).select(df['a'] * df2['a'], 'b').collect() == \
-               [Row([1, 'test1']), Row([4, 'test2'])]
+        res = df.join(df2, df['a'] == df2['a']).collect()
+        assert sorted(res, key=lambda x: x[0]) == [Row([1, 1, 'test1']), Row([2, 2, 'test2'])]
+
+        res = df.join(df2, df['a'] == df2['a']).select(df['a'] * df2['a'], 'b').collect()
+        assert sorted(res, key=lambda x: x[0]) == [Row([1, 'test1']), Row([4, 'test2'])]
 
 
 @pytest.mark.skip(message='Requires wrapException in SnowflakePlan')
@@ -201,7 +204,8 @@ def test_join_expression_ambiguous_columns(session_cnx, db_parameters):
         df = lhs.join(rhs, lhs['intcol'] == rhs['intcol']) \
             .select(lhs['intcol'] + rhs['intcol'], lhs['negcol'], rhs['negcol'], 'lhscol', 'rhscol')
 
-        assert df.collect() == [Row([2, -1, -10, "one", "one"]), Row([4, -2, -20, "two", "two"])]
+        res = sorted(df.collect(), key=lambda x: x[0])
+        assert res == [Row([2, -1, -10, "one", "one"]), Row([4, -2, -20, "two", "two"])]
 
 
 @pytest.mark.skip(message='Requires wrapException in SnowflakePlan')
@@ -251,7 +255,7 @@ def test_semi_join_with_columns_from_LHS(session_cnx, db_parameters):
 
         res = lhs.join(rhs, lhs['intcol'] == rhs['intcol'] and lhs['negcol'] == rhs['negcol'],
                        'leftanti').select(lhs['intcol']).collect()
-        assert res == [Row([1]), Row([2])]
+        assert sorted(res, key=lambda x: x[0]) == [Row([1]), Row([2])]
 
 
 def test_using_joins(session_cnx, db_parameters):
@@ -278,7 +282,7 @@ def test_using_joins(session_cnx, db_parameters):
             assert res == [Row([1]), Row([2])]
             res = lhs.join(rhs, ['intcol'], join_type).select(lhs['negcol'],
                                                               rhs['negcol']).collect()
-            assert res == [Row([-1, -10]), Row([-2, -20])]
+            assert sorted(res, key=lambda x: -x[0]) == [Row([-1, -10]), Row([-2, -20])]
 
 
 def test_columns_with_and_without_quotes(session_cnx, db_parameters):
@@ -316,7 +320,7 @@ def test_aliases_multiple_levels_deep(session_cnx, db_parameters):
         res = lhs.join(rhs, lhs['intcol'] == rhs['intcol']) \
             .select((lhs['negcol'] + rhs['negcol']).alias('newCol'), lhs['intcol'], rhs['intcol']) \
             .select((lhs['intcol'] + rhs['intcol']), 'newCol').collect()
-        assert res == [Row([2, -11]), Row([4, -22])]
+        assert sorted(res, key=lambda x: x[0]) == [Row([2, -11]), Row([4, -22])]
 
 
 def test_join_sql_as_the_backing_dataframe(session_cnx, db_parameters):
