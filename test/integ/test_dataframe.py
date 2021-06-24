@@ -72,7 +72,7 @@ def test_first(session_cnx, db_parameters):
         res.sort(key=lambda x: x[0])
         assert res == [Row([1, 'a']), Row([2, 'b']), Row([3, 'c']), Row([4, 'd'])]
 
-        # test multiple arguments passed to first
+        # test invalid type argument passed to first
         with pytest.raises(ValueError) as ex_info:
             df.first('abc')
         assert "Invalid type of argument passed to first()" in str(ex_info)
