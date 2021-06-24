@@ -8,6 +8,7 @@ from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPa
 from src.snowflake.snowpark.internal.schema_utils import SchemaUtils
 from src.snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
 from src.snowflake.snowpark.row import Row
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
 from ..sp_expressions import (
@@ -15,8 +16,6 @@ from ..sp_expressions import (
     AttributeReference as SPAttributeReference,
 )
 from .sf_attribute import Attribute
-
-from ...snowpark_client_exception import SnowparkClientException
 
 
 class SnowflakePlan(LogicalPlan):

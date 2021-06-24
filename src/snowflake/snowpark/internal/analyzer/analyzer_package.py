@@ -7,7 +7,7 @@ import random
 import re
 from typing import List
 
-from ...snowpark_client_exception import SnowparkClientException
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.types.sf_types import DataType
 from src.snowflake.snowpark.types.types_package import convert_to_sf_type

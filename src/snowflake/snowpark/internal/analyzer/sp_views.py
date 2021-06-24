@@ -36,8 +36,7 @@ class CreateViewCommand:
                  child: LogicalPlan,
                  allow_existing: bool,
                  replace: bool,
-                 view_type: ViewType
-                 ):
+                 view_type: ViewType):
         self.name = name
         self.user_specified_columns = user_specified_columns
         self.comment = comment
