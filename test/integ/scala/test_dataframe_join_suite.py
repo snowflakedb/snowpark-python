@@ -65,7 +65,12 @@ def test_limit_with_join(session_cnx, db_parameters):
         df2 = session.createDataFrame([[1, 1, "1"], [2, 3, "5"]]).toDF(
             ["int", "int2", "str"]
         )
-        inner = df.join(df2, ["int", "int2"], "inner").agg(count(col("int")))
+        limit = 1310721
+        inner = (
+            df.limit(limit)
+            .join(df2.limit(limit), ["int", "int2"], "inner")
+            .agg(count(col("int")))
+        )
         assert inner.collect() == [Row([1])]
 
 

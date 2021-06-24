@@ -215,6 +215,13 @@ class SnowflakePlanBuilder:
             lambda x: self.pkg.filter_statement(condition, x), child, source_plan
         )
 
+    def sort(
+        self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+    ):
+        return self.build(
+            lambda x: self.pkg.sort_statement(order, x), child, source_plan
+        )
+
     def join(self, left, right, join_type, condition, source_plan):
         return self.__build_binary(
             lambda x, y: self.pkg.join_statement(x, y, join_type, condition),
@@ -223,11 +230,17 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def sort(
-        self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+    def limit(
+        self,
+        limit_expr: str,
+        child: SnowflakePlan,
+        on_top_of_oder_by: bool,
+        source_plan: Optional[LogicalPlan],
     ):
         return self.build(
-            lambda x: self.pkg.sort_statement(order, x), child, source_plan
+            lambda x: self.pkg.limit_statement(limit_expr, x, on_top_of_oder_by),
+            child,
+            source_plan,
         )
 
     def create_or_replace_view(
