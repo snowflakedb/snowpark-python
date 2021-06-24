@@ -7,6 +7,7 @@ from typing import Optional
 
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
+from src.snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
 
 # TODO fix import
 from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
@@ -314,9 +315,6 @@ class Analyzer:
                 logical_plan,
             )
 
-        if type(logical_plan) == SPUnresolvedRelation:
-            return self.plan_builder.table(".".join(logical_plan.multipart_identifier))
-
         if type(logical_plan) == SnowflakeValues:
             if logical_plan.data:
                 # TODO: SNOW-367105 handle large values with largeLocalRelationPlan
@@ -331,6 +329,27 @@ class Analyzer:
                     self.package.empty_values_statement(logical_plan.output),
                     logical_plan,
                 )
+
+        if type(logical_plan) == SPUnresolvedRelation:
+            return self.plan_builder.table(".".join(logical_plan.multipart_identifier))
+
+        if type(logical_plan) == SPLimit:
+            if isinstance(logical_plan.child, SPSort):
+                on_top_of_order_by = True
+            elif (
+                isinstance(logical_plan.child, SnowflakePlan)
+                and logical_plan.child.source_plan
+            ):
+                on_top_of_order_by = isinstance(logical_plan.child.source_plan, SPSort)
+            else:
+                on_top_of_order_by = False
+
+            return self.plan_builder.limit(
+                self.__to_sql_avoid_offset(logical_plan.limit_expr),
+                resolved_children[logical_plan.child],
+                on_top_of_order_by,
+                logical_plan,
+            )
 
         if type(logical_plan) == SPCreateViewCommand:
             if type(logical_plan.view_type) == SPPersistedView:

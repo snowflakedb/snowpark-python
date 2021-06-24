@@ -29,6 +29,21 @@ from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
+def test_limit_plus_aggregates(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame([["a", 1], ["b", 2], ["c", 1], ["d", 5]]).toDF(
+            ["id", "value"]
+        )
+        limit2df = df.limit(2)
+        res1 = limit2df.groupBy("id").count().select(col("id")).collect()
+        res1.sort(key=lambda x: x[0])
+
+        res2 = limit2df.select(col("id")).collect()
+        res2.sort(key=lambda x: x[0])
+
+        assert res1 == res2
+
+
 def test_rel_grouped_dataframe_agg(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = (

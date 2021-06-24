@@ -34,6 +34,50 @@ from src.snowflake.snowpark.types.sf_types import (
 from ..utils import Utils as utils
 
 
+def test_first(session_cnx, db_parameters):
+    """Tests df.first()."""
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame(
+            [[1, 'a'], [2, 'b'], [3, 'c'], [4, 'd']]).toDF('id', 'v')
+
+        # empty first, should default to 1
+        res = df.first()
+        assert res == [Row([1, 'a'])]
+
+        res = df.first(0)
+        assert res == []
+
+        res = df.first(1)
+        assert res == [Row([1, 'a'])]
+
+        res = df.first(2)
+        res.sort(key=lambda x: x[0])
+        assert res == [Row([1, 'a']), Row([2, 'b'])]
+
+        res = df.first(3)
+        res.sort(key=lambda x: x[0])
+        assert res == [Row([1, 'a']), Row([2, 'b']), Row([3, 'c'])]
+
+        res = df.first(4)
+        res.sort(key=lambda x: x[0])
+        assert res == [Row([1, 'a']), Row([2, 'b']), Row([3, 'c']), Row([4, 'd'])]
+
+        # Negative value is equivalent to collect()
+        res = df.first(-1)
+        res.sort(key=lambda x: x[0])
+        assert res == [Row([1, 'a']), Row([2, 'b']), Row([3, 'c']), Row([4, 'd'])]
+
+        # first-value larger than cardinality
+        res = df.first(123)
+        res.sort(key=lambda x: x[0])
+        assert res == [Row([1, 'a']), Row([2, 'b']), Row([3, 'c']), Row([4, 'd'])]
+
+        # test invalid type argument passed to first
+        with pytest.raises(ValueError) as ex_info:
+            df.first('abc')
+        assert "Invalid type of argument passed to first()" in str(ex_info)
+
+
 def test_new_df_from_range(session_cnx, db_parameters):
     """Tests df.range()."""
     with session_cnx(db_parameters) as session:

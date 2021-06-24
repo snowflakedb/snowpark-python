@@ -361,6 +361,15 @@ class AnalyzerPackage:
             left, right, join_type, condition
         )
 
+    def limit_statement(
+        self, row_count: str, child: str, on_top_of_order_by: bool
+    ) -> str:
+        return (
+            f"{child if on_top_of_order_by else self.project_statement([], child)}"
+            + self._Limit
+            + row_count
+        )
+
     def schema_value_statement(self, output) -> str:
         return self._Select + self._Comma.join(
             [

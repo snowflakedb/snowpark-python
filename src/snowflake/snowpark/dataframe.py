@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple, Union
 
 from .column import Column
 from .internal.analyzer.analyzer_package import AnalyzerPackage
+from .internal.analyzer.limit import Limit as SPLimit
 from .internal.analyzer.sp_identifiers import TableIdentifier
 from .internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
@@ -32,6 +33,7 @@ from .plans.logical.hints import JoinHint as SPJoinHint
 from .plans.logical.logical_plan import Filter as SPFilter, Project as SPProject
 from .snowpark_client_exception import SnowparkClientException
 from .types.sf_types import StructType
+from .types.sp_data_types import LongType as SPLongType
 from .types.sp_join_types import (
     Cross as SPCrossJoin,
     JoinType as SPJoinType,
@@ -78,7 +80,7 @@ class DataFrame:
     def explain(self):
         raise Exception("Not implemented. df.explain()")
 
-    def toDF(self, col_names: List[str]) -> "DataFrame":
+    def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -87,6 +89,10 @@ class DataFrame:
         :param col_names: list of new column names
         :return: a Dataframe
         """
+        col_names = [x for i in names for x in ([i] if type(i) == str else i)]
+        if not all(type(n) == str for n in col_names):
+            raise TypeError(f"Invalid input type in toDF(), expected str or list[str].")
+
         assert len(self.__output()) == len(col_names), (
             f"The number of columns doesn't match. "
             f"Old column names ({len(self.__output())}): "
@@ -299,6 +305,13 @@ class DataFrame:
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
 
+    def limit(self, n: int) -> "DataFrame":
+        """Returns a new DataFrame that contains at most ''n'' rows from the current
+        DataFrame (similar to LIMIT in SQL).
+
+        Note that this is a transformation method and not an action method."""
+        return self.__with_plan(SPLimit(SPLiteral(n, SPLongType()), self.__plan))
+
     def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
         """Performs a natural join of the specified type (`joinType`) with the current DataFrame and
         another DataFrame (`right`).
@@ -488,6 +501,20 @@ class DataFrame:
         )
 
         return self.session.conn.execute(self.session.analyzer.resolve(cmd))
+
+    def first(self, n: int = 1):
+        """Executes the query representing this DataFrame and returns the first n rows
+        of the results.
+
+        Returns the first row of results if no input is given.
+        """
+        if not type(n) == int:
+            raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
+
+        if n < 0:
+            return self.collect()
+        else:
+            return self.limit(n).collect()
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:
