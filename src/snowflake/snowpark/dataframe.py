@@ -502,26 +502,19 @@ class DataFrame:
 
         return self.session.conn.execute(self.session.analyzer.resolve(cmd))
 
-    def first(self, *n):
+    def first(self, n: int = 1):
         """Executes the query representing this DataFrame and returns the first n rows
         of the results.
 
         Returns the first row of results if no input is given.
         """
-        if len(n) > 1:
-            raise ValueError("Invalid number of arguments passed to first().")
+        if not type(n) == int:
+            raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
 
-        if len(n) == 0:
-            return self.limit(1).collect()
+        if n < 0:
+            return self.collect()
         else:
-            value = n[0]
-            if type(value) != int:
-                raise TypeError(
-                    f"Invalid type passed to first(): {type(value)}, expected 'int'.")
-            elif n[0] < 0:
-                return self.collect()
-            else:
-                return self.limit(value).collect()
+            return self.limit(n).collect()
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:

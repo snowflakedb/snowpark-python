@@ -74,8 +74,8 @@ def test_first(session_cnx, db_parameters):
 
         # test multiple arguments passed to first
         with pytest.raises(ValueError) as ex_info:
-            df.first(1, 2)
-        assert "Invalid number of arguments passed to first()" in str(ex_info)
+            df.first('abc')
+        assert "Invalid type of argument passed to first()" in str(ex_info)
 
 
 def test_new_df_from_range(session_cnx, db_parameters):
