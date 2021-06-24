@@ -53,8 +53,8 @@ def test_to_sql():
 
     # Test non-nulls
     assert (
-        to_sql("\\\\ '  ' abc \n \\\\", SPStringType())
-        == "'\\\\\\\\ ''  '' abc \\\\n \\\\\\\\'"
+        to_sql("\\ '  ' abc \n \\", SPStringType())
+        == "'\\\\ ''  '' abc \\n \\\\'"
     )
     assert to_sql(1, SPByteType()) == "1:: tinyint"
     assert to_sql(1, SPShortType()) == "1:: smallint"
