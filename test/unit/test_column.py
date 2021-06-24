@@ -4,7 +4,9 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 from src.snowflake.snowpark.functions import col
-from src.snowflake.snowpark.internal.sp_expressions import LeafExpression as SPLeafExpression
+from src.snowflake.snowpark.internal.sp_expressions import (
+    LeafExpression as SPLeafExpression,
+)
 
 
 def test_getName():

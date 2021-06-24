@@ -1,11 +1,22 @@
-#  File containing the Expression definitions for ASTs (Spark).
-from src.snowflake.snowpark.types.sp_data_types import DataType, NullType, LongType, DoubleType, \
-    DecimalType, IntegralType
-from src.snowflake.snowpark.types.types_package import _infer_type
-from .analyzer.datatype_mapper import DataTypeMapper
-from typing import Optional, List
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
 
+#  File containing the Expression definitions for ASTs (Spark).
 import uuid
+from typing import List, Optional
+
+from src.snowflake.snowpark.types.sp_data_types import (
+    DataType,
+    DecimalType,
+    DoubleType,
+    IntegralType,
+    LongType,
+    NullType,
+)
+from src.snowflake.snowpark.types.types_package import _infer_type
+
+from .analyzer.datatype_mapper import DataTypeMapper
 
 
 class Expression:
@@ -15,7 +26,7 @@ class Expression:
 
     def pretty_name(self) -> str:
         """Returns a user-facing string representation of this expression's name.
-        This should usually match the name of the function in SQL. """
+        This should usually match the name of the function in SQL."""
         return self.__class__.__name__.upper()
 
 
@@ -38,7 +49,7 @@ class Star(LeafExpression, NamedExpression):
 
 class UnaryExpression(Expression):
     child: Expression
-    children: List['Expression']
+    children: List["Expression"]
 
     def __init__(self, child: Expression):
         self.child = child
@@ -92,8 +103,14 @@ class Complete(AggregateMode):
 
 class AggregateExpression(Expression):
     # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/interfaces.scala#L99
-    def __init__(self, aggregate_function, mode: AggregateMode, is_distinct: bool,
-                 filter: Expression, result_id: uuid.UUID = None):
+    def __init__(
+        self,
+        aggregate_function,
+        mode: AggregateMode,
+        is_distinct: bool,
+        filter: Expression,
+        result_id: uuid.UUID = None,
+    ):
         super().__init__()
         self.aggregate_function = aggregate_function
         self.mode = mode
@@ -127,7 +144,9 @@ class AggregateFunction(Expression):
     # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/interfaces.scala#L207
     name: str
 
-    def to_aggregate_expression(self, is_distinct=False, filter=None) -> AggregateExpression:
+    def to_aggregate_expression(
+        self, is_distinct=False, filter=None
+    ) -> AggregateExpression:
         return AggregateExpression(self, Complete(), is_distinct, filter)
 
 
@@ -138,7 +157,7 @@ class DeclarativeAggregate(AggregateFunction):
 
 class Count(DeclarativeAggregate):
     # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Count.scala
-    name = 'COUNT'
+    name = "COUNT"
 
     def __init__(self, child: Expression):
         super().__init__()
@@ -149,7 +168,7 @@ class Count(DeclarativeAggregate):
 
 class Max(DeclarativeAggregate):
     # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Max.scala
-    name = 'MAX'
+    name = "MAX"
 
     def __init__(self, child: Expression):
         super().__init__()
@@ -160,7 +179,7 @@ class Max(DeclarativeAggregate):
 
 class Min(DeclarativeAggregate):
     # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Max.scala
-    name = 'MIN'
+    name = "MIN"
 
     def __init__(self, child: Expression):
         super().__init__()
@@ -171,7 +190,7 @@ class Min(DeclarativeAggregate):
 
 class Avg(DeclarativeAggregate):
     # https://github.com/apache/spark/blob/9af338cd685bce26abbc2dd4d077bde5068157b1/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/Average.scala
-    name = 'AVG'
+    name = "AVG"
 
     def __init__(self, child: Expression):
         super().__init__()
@@ -188,7 +207,7 @@ class Avg(DeclarativeAggregate):
 
 
 class Sum(DeclarativeAggregate):
-    name = 'SUM'
+    name = "SUM"
 
     def __init__(self, child: Expression):
         super().__init__()
@@ -230,17 +249,17 @@ class Rollup(BaseGroupingSets):
 class UnresolvedStar(Star):
     # https://github.com/apache/spark/blob/1226b9badd2bc6681e4c533e0dfbc09443a86167/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/unresolved.scala#L352
     def __init__(self, target):
-        super().__init__('UnresolvedStar')
+        super().__init__("UnresolvedStar")
         self.target = target
 
     def to_string(self):
-        prefix = '.'.join(self.target) + '.' if self.target else ''
-        return prefix + '*'
+        prefix = ".".join(self.target) + "." if self.target else ""
+        return prefix + "*"
 
 
 class ResolvedStar(Star):
     def __init__(self, expressions):
-        super().__init__('ResolvedStar')
+        super().__init__("ResolvedStar")
         self.expressions = expressions
 
 
@@ -293,76 +312,76 @@ class BinaryArithmeticExpression(BinaryExpression):
 
 
 class EqualTo(BinaryArithmeticExpression):
-    sql_operator = '='
+    sql_operator = "="
 
 
 class NotEqualTo(BinaryArithmeticExpression):
-    sql_operator = '!='
+    sql_operator = "!="
 
 
 class GreaterThan(BinaryArithmeticExpression):
-    sql_operator = '>'
+    sql_operator = ">"
 
 
 class LessThan(BinaryArithmeticExpression):
-    sql_operator = '<'
+    sql_operator = "<"
 
 
 class GreaterThanOrEqual(BinaryArithmeticExpression):
-    sql_operator = '>='
+    sql_operator = ">="
 
 
 class LessThanOrEqual(BinaryArithmeticExpression):
-    sql_operator = '<='
+    sql_operator = "<="
 
 
 class EqualNullSafe(BinaryExpression):
-    sql_operator = 'EQUAL_NULL'
+    sql_operator = "EQUAL_NULL"
 
 
 # also inherits from Predicate, omitted
 class And(BinaryArithmeticExpression):
-    sql_operator = 'AND'
+    sql_operator = "AND"
 
 
 class Or(BinaryArithmeticExpression):
-    sql_operator = 'OR'
+    sql_operator = "OR"
 
 
 class Add(BinaryArithmeticExpression):
-    sql_operator = '+'
+    sql_operator = "+"
 
 
 class Subtract(BinaryArithmeticExpression):
-    sql_operator = '-'
+    sql_operator = "-"
 
 
 class Multiply(BinaryArithmeticExpression):
-    sql_operator = '*'
+    sql_operator = "*"
 
 
 class Divide(BinaryArithmeticExpression):
-    sql_operator = '/'
+    sql_operator = "/"
 
 
 class Remainder(BinaryArithmeticExpression):
-    sql_operator = '%'
+    sql_operator = "%"
 
 
 class Pow(BinaryExpression):
-    sql_operator = 'POWER'
+    sql_operator = "POWER"
 
 
 class BitwiseAnd(BinaryExpression):
-    sql_operator = 'BITAND'
+    sql_operator = "BITAND"
 
 
 class BitwiseOr(BinaryExpression):
-    sql_operator = 'BITOR'
+    sql_operator = "BITOR"
 
 
 class BitwiseXor(BinaryExpression):
-    sql_operator = 'BITXOR'
+    sql_operator = "BITXOR"
 
 
 class UnaryMinus(UnaryExpression):
@@ -428,7 +447,6 @@ class AttributeReference(Attribute):
 
 
 class UnresolvedAttribute(Attribute):
-
     def __init__(self, name_parts):
         super().__init__(name_parts if type(name_parts) == str else name_parts[-1])
         self.name_parts = [name_parts] if type(name_parts) == str else name_parts
@@ -453,7 +471,7 @@ class UnresolvedAttribute(Attribute):
         return name
 
     def to_string(self):
-        return '.'.join(self.name_parts)
+        return ".".join(self.name_parts)
 
     def sql(self):
         return self.to_string()
@@ -518,7 +536,9 @@ class TableFunctionExpression(Expression):
 
 
 class FlattenFunction(TableFunctionExpression):
-    def __init__(self, input: Expression, path: str, outer: bool, recursive: bool, mode: str):
+    def __init__(
+        self, input: Expression, path: str, outer: bool, recursive: bool, mode: str
+    ):
         super.__init__()
         self.input = input
         self.path = path
@@ -582,9 +602,16 @@ class Descending(SortDirection):
 
 
 class SortOrder(UnaryExpression):
-    def __init__(self, child: Expression, direction: SortDirection, null_ordering: NullOrdering = None):
+    def __init__(
+        self,
+        child: Expression,
+        direction: SortDirection,
+        null_ordering: NullOrdering = None,
+    ):
         super().__init__(child)
         self.direction = direction
-        self.null_ordering = null_ordering if null_ordering else direction.default_null_ordering
+        self.null_ordering = (
+            null_ordering if null_ordering else direction.default_null_ordering
+        )
         self.datatype = child.datatype
         self.nullable = child.nullable

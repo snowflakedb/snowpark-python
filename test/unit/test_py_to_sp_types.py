@@ -3,20 +3,30 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+from array import array
+from datetime import date, datetime, time
+from decimal import Decimal
+
 import pytest
 
+from src.snowflake.snowpark.types.sp_data_types import (
+    ArrayType as SPArrayType,
+    BinaryType as SPBinaryType,
+    ByteType as SPByteType,
+    DateType as SPDateType,
+    DecimalType as SPDecimalType,
+    DoubleType as SPDoubleType,
+    FloatType as SPFloatType,
+    IntegerType as SPIntegerType,
+    LongType as SPLongType,
+    MapType as SPMapType,
+    NullType as SPNullType,
+    ShortType as SPShortType,
+    StringType as SPStringType,
+    TimestampType as SPTimestampType,
+    TimeType as SPTimeType,
+)
 from src.snowflake.snowpark.types.types_package import _infer_type
-
-from src.snowflake.snowpark.types.sp_data_types import NullType as SPNullType, \
-    LongType as SPLongType, StringType as SPStringType, DoubleType as SPDoubleType, \
-    BinaryType as SPBinaryType, DecimalType as SPDecimalType, DateType as SPDateType, \
-    TimestampType as SPTimestampType, MapType as SPMapType, ArrayType as SPArrayType, \
-    ByteType as SPByteType, ShortType as SPShortType, IntegerType as SPIntegerType, \
-    FloatType as SPFloatType, TimeType as SPTimeType
-
-from decimal import Decimal
-from datetime import date, datetime, time
-from array import array
 
 
 # TODO complete for schema case
@@ -24,13 +34,16 @@ def test_py_to_sp_type():
     assert type(_infer_type(None)) == SPNullType
     assert type(_infer_type(1)) == SPLongType
     assert type(_infer_type(3.14)) == SPDoubleType
-    assert type(_infer_type('a')) == SPStringType
-    assert type(_infer_type(bytearray('a', 'utf-8'))) == SPBinaryType
-    assert type(_infer_type(Decimal(0.00000000000000000000000000000000000000233))) == SPDecimalType
+    assert type(_infer_type("a")) == SPStringType
+    assert type(_infer_type(bytearray("a", "utf-8"))) == SPBinaryType
+    assert (
+        type(_infer_type(Decimal(0.00000000000000000000000000000000000000233)))
+        == SPDecimalType
+    )
     assert type(_infer_type(date(2021, 5, 25))) == SPDateType
     assert type(_infer_type(datetime(2021, 5, 25, 0, 47, 41))) == SPTimestampType
     assert type(_infer_type(time(17, 57, 10))) == SPTimeType
-    assert type(_infer_type((1024).to_bytes(2, byteorder='big')))
+    assert type(_infer_type((1024).to_bytes(2, byteorder="big")))
 
     res = _infer_type({1: "abc"})
     assert type(res) == SPMapType
@@ -63,51 +76,51 @@ def test_py_to_sp_type():
     assert type(res.contains_null)
 
     # Arrays
-    res = _infer_type(array('f'))
+    res = _infer_type(array("f"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPFloatType
 
-    res = _infer_type(array('d'))
+    res = _infer_type(array("d"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPDoubleType
 
-    res = _infer_type(array('l'))
+    res = _infer_type(array("l"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPLongType
 
     with pytest.raises(TypeError):
-        _infer_type(array('L'))
+        _infer_type(array("L"))
 
-    res = _infer_type(array('b'))
+    res = _infer_type(array("b"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPByteType
 
-    res = _infer_type(array('B'))
+    res = _infer_type(array("B"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPShortType
 
-    res = _infer_type(array('u'))
+    res = _infer_type(array("u"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPStringType
 
-    res = _infer_type(array('h'))
+    res = _infer_type(array("h"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPShortType
 
-    res = _infer_type(array('H'))
+    res = _infer_type(array("H"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPIntegerType
 
-    res = _infer_type(array('i'))
+    res = _infer_type(array("i"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPIntegerType
 
-    res = _infer_type(array('I'))
+    res = _infer_type(array("I"))
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPLongType
 
     with pytest.raises(TypeError):
-        _infer_type(array('q'))
+        _infer_type(array("q"))
 
     with pytest.raises(TypeError):
-        _infer_type(array('Q'))
+        _infer_type(array("Q"))
