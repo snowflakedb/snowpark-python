@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
+import re
 from test.utils import TestData, Utils
 
 import pytest
@@ -49,6 +50,19 @@ def test_null_data_in_local_relation_with_filters(session_cnx, db_parameters):
             Row([1, None]),
             Row([3, None]),
         ]
+
+
+def test_createOrReplaceView_with_null_data_modified(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame([[2, "NotNull"], [1, None], [3, None]]).toDF(
+            ["a", "b"]
+        )
+        view_name = Utils.random_name()
+        df.createOrReplaceView(view_name)
+
+        res = session.sql(f"select * from {view_name}").collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [Row([1, None]), Row([2, "NotNull"]), Row([3, None])]
 
 
 def test_non_select_query_composition(session_cnx, db_parameters):
@@ -270,6 +284,56 @@ def test_groupby(session_cnx, db_parameters):
         assert sorted(res, key=lambda x: x[2]) == expected_res
 
 
+def test_escaped_character(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame(["'", "\\", "\n"]).toDF("a")
+        res = df.collect()
+        assert res == [Row(["'"]), Row(["\\"]), Row(["\n"])]
+
+
+def test_create_or_replace_temporary_view(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        view_name = Utils.random_name()
+        view_name1 = f'"{view_name}%^11"'
+        view_name2 = f'"{view_name}"'
+
+        try:
+            df = session.createDataFrame([1, 2, 3]).toDF("a")
+            df.createOrReplaceTempView(view_name)
+            res = session.table(view_name).collect()
+            res.sort(key=lambda x: x[0])
+            assert res == [Row([1]), Row([2]), Row([3])]
+
+            # test replace
+            df2 = session.createDataFrame(["a", "b", "c"]).toDF("b")
+            df2.createOrReplaceTempView(view_name)
+            res = session.table(view_name).collect()
+            assert res == [Row(["a"]), Row(["b"]), Row(["c"])]
+
+            # view name has special char
+            df.createOrReplaceTempView(view_name1)
+            res = session.table(view_name1).collect()
+            res.sort(key=lambda x: x[0])
+            assert res == [Row([1]), Row([2]), Row([3])]
+
+            # view name has quote
+            df.createOrReplaceTempView(view_name2)
+            res = session.table(view_name2).collect()
+            res.sort(key=lambda x: x[0])
+            assert res == [Row([1]), Row([2]), Row([3])]
+
+            # Get a second session object
+            with session_cnx(db_parameters) as session2:
+                assert session is not session2
+                with pytest.raises(connector.errors.ProgrammingError) as ex_info:
+                    session2.table(view_name).collect()
+                assert "does not exist or not authorized" in str(ex_info)
+        finally:
+            Utils.drop_view(session, view_name)
+            Utils.drop_view(session, view_name1)
+            Utils.drop_view(session, view_name2)
+
+
 def test_quoted_column_names(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         normalName = "NORMAL_NAME"
@@ -320,7 +384,8 @@ def test_quoted_column_names(session_cnx, db_parameters):
                 quoteMiddle,
                 quoteAllCases,
             )
-            # df2 = df2.cacheResult().select(normalName, lowerCaseName, quoteStart, quoteEnd,
+            # df2 = df2.cacheResult().select(normalName,
+            #                               lowerCaseName, quoteStart, quoteEnd,
             #                               quoteMiddle, quoteAllCases)
             schema2 = df2.schema
 
@@ -391,7 +456,8 @@ def test_column_names_without_surrounding_quote(session_cnx, db_parameters):
 
             df1 = session.table(table_name).select(quoteStart2, quoteEnd2, quoteMiddle2)
 
-            # Even if the input format can be simplified format, the returned column is the same.
+            # Even if the input format can be simplified format,
+            # the returned column is the same.
             schema1 = df1.schema
             assert len(schema1.fields) == 3
             assert schema1.fields[0].name == quoteStart
@@ -401,3 +467,21 @@ def test_column_names_without_surrounding_quote(session_cnx, db_parameters):
 
         finally:
             Utils.drop_table(session, table_name)
+
+
+def test_negative_test_for_user_input_invalid_quoted_name(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame([1, 2, 3]).toDF("a")
+        with pytest.raises(SnowparkClientException) as ex_info:
+            df.where(col('"A" = "A" --"') == 2).collect()
+        assert "Invalid identifier" in str(ex_info)
+
+
+def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(
+    session_cnx, db_parameters
+):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame([[2, "NotNull"]]).toDF(["a", "b"])
+        with pytest.raises(SnowparkClientException) as ex_info:
+            df.createOrReplaceView("negative test invalid table name")
+        assert re.compile("The object name .* is invalid.").match(ex_info.value.message)

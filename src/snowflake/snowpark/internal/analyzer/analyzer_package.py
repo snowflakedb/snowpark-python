@@ -8,6 +8,7 @@ import re
 from typing import List
 
 from src.snowflake.snowpark.row import Row
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.types.sf_types import DataType
 from src.snowflake.snowpark.types.types_package import convert_to_sf_type
 
@@ -429,6 +430,20 @@ class AnalyzerPackage:
     def order_expression(self, name: str, direction: str, null_ordering: str) -> str:
         return name + self._Space + direction + self._Space + null_ordering
 
+    def create_or_replace_view_statement(
+        self, name: str, child: str, is_temp: bool
+    ) -> str:
+        return (
+            self._Create
+            + self._Or
+            + self._Replace
+            + f"{self._Temporary if is_temp else self._EmptyString}"
+            + self._View
+            + name
+            + self._As
+            + child
+        )
+
     def generator(self, row_count: int) -> str:
         return (
             self._Generator
@@ -453,13 +468,20 @@ class AnalyzerPackage:
         already_quoted = re.compile('^(".+")$')
         unquoted_case_insensitive = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
         if already_quoted.match(name):
-            return name
+            return cls.validate_quoted_name(name)
         elif unquoted_case_insensitive.match(name):
             return (
                 cls._DoubleQuote + cls._escape_quotes(name.upper()) + cls._DoubleQuote
             )
         else:
             return cls._DoubleQuote + cls._escape_quotes(name) + cls._DoubleQuote
+
+    @classmethod
+    def validate_quoted_name(cls, name: str) -> str:
+        if '"' in name[1:-1].replace('""', ""):
+            raise SnowparkClientException(f"Invalid identifier '{name}'")
+        else:
+            return name
 
     @classmethod
     def quote_name_without_upper_casing(cls, name: str) -> str:

@@ -8,6 +8,7 @@ from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPa
 from src.snowflake.snowpark.internal.schema_utils import SchemaUtils
 from src.snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
 from src.snowflake.snowpark.row import Row
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
 from ..sp_expressions import (
@@ -227,6 +228,26 @@ class SnowflakePlanBuilder:
     ):
         return self.build(
             lambda x: self.pkg.sort_statement(order, x), child, source_plan
+        )
+
+    def create_or_replace_view(
+        self, name: str, child: SnowflakePlan, is_temp: bool
+    ) -> SnowflakePlan:
+        if len(child.queries) != 1:
+            raise SnowparkClientException(
+                "Your dataframe may include DDL or DML operations. "
+                + "Creating a view from this DataFrame is currently not supported."
+            )
+
+        if not child.queries[0].sql.lower().strip().startswith("select"):
+            raise SnowparkClientException(
+                "Creating views from SELECT queries supported only."
+            )
+
+        return self.build(
+            lambda x: self.pkg.create_or_replace_view_statement(name, x, is_temp),
+            child,
+            None,
         )
 
     def _add_result_scan_if_not_select(self, plan):

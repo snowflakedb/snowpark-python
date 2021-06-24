@@ -3,7 +3,6 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-
 from typing import Optional
 
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
@@ -14,6 +13,12 @@ from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
     SnowflakePlan,
     SnowflakePlanBuilder,
     SnowflakeValues,
+)
+from src.snowflake.snowpark.internal.analyzer.sp_views import (
+    CreateViewCommand as SPCreateViewCommand,
+    LocalTempView as SPLocalTempView,
+    PersistedView as SPPersistedView,
+    ViewType as SPViewType,
 )
 from src.snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
@@ -326,3 +331,17 @@ class Analyzer:
                     self.package.empty_values_statement(logical_plan.output),
                     logical_plan,
                 )
+
+        if type(logical_plan) == SPCreateViewCommand:
+            if type(logical_plan.view_type) == SPPersistedView:
+                is_temp = False
+            elif type(logical_plan.view_type) == SPLocalTempView:
+                is_temp = True
+            else:
+                raise SnowparkClientException(
+                    f"Internal Error: Only PersistedView and LocalTempView are supported. View type: {type(logical_plan.view_type)}"
+                )
+
+            return self.plan_builder.create_or_replace_view(
+                logical_plan.name.table, self.resolve(logical_plan.child), is_temp
+            )
