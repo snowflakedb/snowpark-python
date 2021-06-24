@@ -7,9 +7,8 @@ import uuid
 from decimal import Decimal
 from typing import NamedTuple, Optional
 
-
-from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.dataframe import DataFrame
+from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.session import Session
 
 
@@ -90,7 +89,7 @@ class TestData:
         return session.sql("select * from values(1),(2),(3) as T(a)")
 
     @classmethod
-    def double1(cls, session: 'Session') -> DataFrame:
+    def double1(cls, session: "Session") -> DataFrame:
         return session.sql("select * from values(1.111),(2.222),(3.333) as T(a)")
 
     @classmethod
@@ -113,6 +112,5 @@ class TestData:
         ).toDF(["a", "b"])
 
     @classmethod
-    def column_has_special_char(cls, session: 'Session') -> DataFrame:
-        return session.createDataFrame([[1, 2], [3, 4]]) \
-            .toDF(["\"col %\"", "\"col *\""])
+    def column_has_special_char(cls, session: "Session") -> DataFrame:
+        return session.createDataFrame([[1, 2], [3, 4]]).toDF(['"col %"', '"col *"'])

@@ -9,6 +9,13 @@ from typing import List, Optional, Tuple, Union
 
 from .column import Column
 from .internal.analyzer.analyzer_package import AnalyzerPackage
+from .internal.analyzer.sp_identifiers import TableIdentifier
+from .internal.analyzer.sp_views import (
+    CreateViewCommand as SPCreateViewCommand,
+    LocalTempView as SPLocalTempView,
+    PersistedView as SPPersistedView,
+    ViewType as SPViewType,
+)
 from .internal.sp_expressions import (
     Ascending as SPAscending,
     Attribute as SPAttribute,
@@ -19,6 +26,7 @@ from .internal.sp_expressions import (
     ResolvedStar as SPResolvedStar,
     SortOrder as SPSortOrder,
 )
+from .internal.utils import Utils
 from .plans.logical.basic_logical_operators import Join as SPJoin, Sort as SPSort
 from .plans.logical.hints import JoinHint as SPJoinHint
 from .plans.logical.logical_plan import Filter as SPFilter, Project as SPProject
@@ -32,13 +40,6 @@ from .types.sp_join_types import (
     NaturalJoin as SPNaturalJoin,
     UsingJoin as SPUsingJoin,
 )
-from .internal.analyzer.sp_identifiers import TableIdentifier
-from .internal.analyzer.sp_views import (
-    ViewType as SPViewType,
-    CreateViewCommand as SPCreateViewCommand,
-    PersistedView as SPPersistedView,
-    LocalTempView as SPLocalTempView)
-from .internal.utils import Utils
 
 
 class DataFrame:
@@ -445,11 +446,13 @@ class DataFrame:
         elif isinstance(name, (list, tuple)):
             if not all(type(i) == str for i in name):
                 raise ValueError(
-                    f"createOrReplaceView takes as input a string or list of strings.")
-            formatted_name = '.'.join(name)
+                    f"createOrReplaceView takes as input a string or list of strings."
+                )
+            formatted_name = ".".join(name)
         else:
             raise ValueError(
-                f"createOrReplaceView takes as input a string or list of strings.")
+                f"createOrReplaceView takes as input a string or list of strings."
+            )
 
         return self.__do_create_or_replace_view(formatted_name, SPPersistedView())
 
@@ -458,12 +461,14 @@ class DataFrame:
             formatted_name = name
         elif isinstance(name, (list, tuple)):
             if not all(type(i) == str for i in name):
-                raise ValueError\
-                    (f"createOrReplaceTempView takes as input a string or list of strings.")
-            formatted_name = '.'.join(name)
+                raise ValueError(
+                    f"createOrReplaceTempView takes as input a string or list of strings."
+                )
+            formatted_name = ".".join(name)
         else:
             raise ValueError(
-                f"createOrReplaceTempView takes as input a string or list of strings.")
+                f"createOrReplaceTempView takes as input a string or list of strings."
+            )
 
         return self.__do_create_or_replace_view(formatted_name, SPLocalTempView())
 
@@ -475,11 +480,11 @@ class DataFrame:
             user_specified_columns=[],
             comment=None,
             properties={},
-            original_text='',
+            original_text="",
             child=self.__plan,
             allow_existing=False,
             replace=True,
-            view_type=view_type
+            view_type=view_type,
         )
 
         return self.session.conn.execute(self.session.analyzer.resolve(cmd))

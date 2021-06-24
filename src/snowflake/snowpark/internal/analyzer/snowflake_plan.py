@@ -230,17 +230,25 @@ class SnowflakePlanBuilder:
             lambda x: self.pkg.sort_statement(order, x), child, source_plan
         )
 
-
-    def create_or_replace_view(self, name: str, child: SnowflakePlan, is_temp: bool) -> SnowflakePlan:
+    def create_or_replace_view(
+        self, name: str, child: SnowflakePlan, is_temp: bool
+    ) -> SnowflakePlan:
         if len(child.queries) != 1:
-            raise SnowparkClientException("Your dataframe may include DDL or DML operations. " +
-                                           "Creating a view from this DataFrame is currently not supported.")
+            raise SnowparkClientException(
+                "Your dataframe may include DDL or DML operations. "
+                + "Creating a view from this DataFrame is currently not supported."
+            )
 
-        if not child.queries[0].sql.lower().strip().startswith('select'):
-            raise SnowparkClientException("Creating views from SELECT queries supported only.")
+        if not child.queries[0].sql.lower().strip().startswith("select"):
+            raise SnowparkClientException(
+                "Creating views from SELECT queries supported only."
+            )
 
         return self.build(
-            lambda x: self.pkg.create_or_replace_view_statement(name, x, is_temp), child, None)
+            lambda x: self.pkg.create_or_replace_view_statement(name, x, is_temp),
+            child,
+            None,
+        )
 
     def _add_result_scan_if_not_select(self, plan):
         if plan.queries[-1].sql.strip().lower().startswith("select"):

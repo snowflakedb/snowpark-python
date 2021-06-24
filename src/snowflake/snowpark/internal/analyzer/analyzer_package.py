@@ -7,8 +7,8 @@ import random
 import re
 from typing import List
 
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.row import Row
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.types.sf_types import DataType
 from src.snowflake.snowpark.types.types_package import convert_to_sf_type
 
@@ -430,10 +430,19 @@ class AnalyzerPackage:
     def order_expression(self, name: str, direction: str, null_ordering: str) -> str:
         return name + self._Space + direction + self._Space + null_ordering
 
-    def create_or_replace_view_statement(self, name: str, child: str, is_temp: bool) -> str:
-        return self._Create + self._Or + self._Replace \
-               + f"{self._Temporary if is_temp else self._EmptyString}" + self._View + name \
-               + self._As + child
+    def create_or_replace_view_statement(
+        self, name: str, child: str, is_temp: bool
+    ) -> str:
+        return (
+            self._Create
+            + self._Or
+            + self._Replace
+            + f"{self._Temporary if is_temp else self._EmptyString}"
+            + self._View
+            + name
+            + self._As
+            + child
+        )
 
     def generator(self, row_count: int) -> str:
         return (
@@ -469,7 +478,7 @@ class AnalyzerPackage:
 
     @classmethod
     def validate_quoted_name(cls, name: str) -> str:
-        if '"' in name[1:-1].replace('\"\"', ''):
+        if '"' in name[1:-1].replace('""', ""):
             raise SnowparkClientException(f"Invalid identifier '{name}'")
         else:
             return name

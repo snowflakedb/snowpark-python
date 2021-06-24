@@ -16,9 +16,11 @@ class Utils:
         #   identifier.identifier,
         #   identifier.identifier.identifier
         #   identifier..identifier
-        unquoted_id_pattern = '([a-zA-Z_][\w$]*)'
+        unquoted_id_pattern = r"([a-zA-Z_][\w$]*)"
         quoted_id_pattern = '("([^"]|"")+")'
         id_pattern = f"({unquoted_id_pattern}|{quoted_id_pattern})"
-        pattern = re.compile(f"^(({id_pattern}\\.){{0,2}}|({id_pattern}\\.\\.)){id_pattern}$$")
+        pattern = re.compile(
+            f"^(({id_pattern}\\.){{0,2}}|({id_pattern}\\.\\.)){id_pattern}$$"
+        )
         if not pattern.match(name):
             raise SnowparkClientException(f"The object name {name} is invalid.")

@@ -14,6 +14,12 @@ from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
     SnowflakeValues,
 )
+from src.snowflake.snowpark.internal.analyzer.sp_views import (
+    CreateViewCommand as SPCreateViewCommand,
+    LocalTempView as SPLocalTempView,
+    PersistedView as SPPersistedView,
+    ViewType as SPViewType,
+)
 from src.snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
     AggregateFunction as SPAggregateFunction,
@@ -57,12 +63,6 @@ from src.snowflake.snowpark.types.sp_data_types import (
     ShortType as SPShortType,
 )
 
-from src.snowflake.snowpark.internal.analyzer.sp_views import (
-    ViewType as SPViewType,
-    CreateViewCommand as SPCreateViewCommand,
-    PersistedView as SPPersistedView,
-    LocalTempView as SPLocalTempView
-)
 
 class Analyzer:
     def __init__(self, session):
@@ -339,8 +339,9 @@ class Analyzer:
                 is_temp = True
             else:
                 raise SnowparkClientException(
-                    f"Internal Error: Only PersistedView and LocalTempView are supported. View type: {type(logical_plan.view_type)}")
+                    f"Internal Error: Only PersistedView and LocalTempView are supported. View type: {type(logical_plan.view_type)}"
+                )
 
-            return self.plan_builder.create_or_replace_view(logical_plan.name.table,
-                                                            self.resolve(logical_plan.child),
-                                                            is_temp)
+            return self.plan_builder.create_or_replace_view(
+                logical_plan.name.table, self.resolve(logical_plan.child), is_temp
+            )
