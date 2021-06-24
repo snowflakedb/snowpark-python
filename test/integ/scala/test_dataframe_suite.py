@@ -284,7 +284,6 @@ def test_groupby(session_cnx, db_parameters):
         assert sorted(res, key=lambda x: x[2]) == expected_res
 
 
-@pytest.mark.skip(reason="bug in code, needs to be fixed")
 def test_escaped_character(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = session.createDataFrame(["'", "\\", "\n"]).toDF("a")

@@ -462,12 +462,12 @@ class DataFrame:
         elif isinstance(name, (list, tuple)):
             if not all(type(i) == str for i in name):
                 raise ValueError(
-                    f"createOrReplaceTempView takes as input a string or list of strings."
+                    f"createOrReplaceTempView() takes as input a string or list of strings."
                 )
             formatted_name = ".".join(name)
         else:
             raise ValueError(
-                f"createOrReplaceTempView takes as input a string or list of strings."
+                f"createOrReplaceTempView() takes as input a string or list of strings."
             )
 
         return self.__do_create_or_replace_view(formatted_name, SPLocalTempView())

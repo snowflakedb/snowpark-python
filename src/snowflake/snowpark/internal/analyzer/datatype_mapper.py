@@ -97,9 +97,9 @@ class DataTypeMapper:
                 return (
                     "'"
                     + str(value)
-                    .replace("\\\\", "\\\\\\\\")
+                    .replace("\\", "\\\\")
                     .replace("'", "''")
-                    .replace("\n", "\\\\n")
+                    .replace("\n", "\\n")
                     + "'"
                 )
         if type(spark_data_type) is SPByteType:
