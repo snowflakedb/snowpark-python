@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple, Union
 
 from .column import Column
 from .internal.analyzer.analyzer_package import AnalyzerPackage
+from .internal.analyzer.limit import Limit as SPLimit
 from .internal.analyzer.sp_identifiers import TableIdentifier
 from .internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
@@ -32,6 +33,7 @@ from .plans.logical.hints import JoinHint as SPJoinHint
 from .plans.logical.logical_plan import Filter as SPFilter, Project as SPProject
 from .snowpark_client_exception import SnowparkClientException
 from .types.sf_types import StructType
+from .types.sp_data_types import LongType as SPLongType
 from .types.sp_join_types import (
     Cross as SPCrossJoin,
     JoinType as SPJoinType,
@@ -298,6 +300,13 @@ class DataFrame:
 
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
+
+    def limit(self, n: int) -> "DataFrame":
+        """Returns a new DataFrame that contains at most ''n'' rows from the current
+        DataFrame (similar to LIMIT in SQL).
+
+        Note that this is a transformation method and not an action method."""
+        return self.__with_plan(SPLimit(SPLiteral(n, SPLongType()), self.__plan))
 
     def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
         """Performs a natural join of the specified type (`joinType`) with the current DataFrame and
