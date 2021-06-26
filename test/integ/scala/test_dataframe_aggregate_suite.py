@@ -8,8 +8,8 @@ from math import sqrt
 from test.utils import TestData
 
 import pytest
-
 from snowflake.connector.errors import ProgrammingError
+
 from src.snowflake.snowpark.functions import (
     avg,
     col,

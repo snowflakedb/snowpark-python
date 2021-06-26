@@ -11,7 +11,9 @@ from typing import List
 class Row:
     def __init__(self, values):
         # TODO input validation
-        self.values = [i for i in values] if hasattr(values, "__iter__") else [values]
+        self.values = (
+            [i for i in values] if isinstance(values, (list, tuple)) else [values]
+        )
 
     def size(self):
         return self.length()
