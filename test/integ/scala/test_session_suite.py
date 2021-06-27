@@ -46,24 +46,14 @@ def test_session_build_no_reuse(db_parameters):
 def test_get_schema_database_works_after_use_role(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         current_role = session.conn._get_string_datum("select current_role()")
-        test_role = "ROLE_{}".format(Utils.random_name())
-        session._run_query("create or replace role {}".format(test_role))
-        session._run_query("grant role {} to role {}".format(test_role, current_role))
         try:
             db = session.getCurrentDatabase()
             schema = session.getCurrentSchema()
-            session._run_query(
-                "grant usage on database {} to role {}".format(db, test_role)
-            )
-            session._run_query(
-                "grant usage on schema {} to role {}".format(schema, test_role)
-            )
-            session._run_query("use role {}".format(test_role))
+            session._run_query("use role public")
             assert session.getCurrentDatabase() == db
             assert session.getCurrentSchema() == schema
         finally:
             session._run_query("use role {}".format(current_role))
-            session._run_query("drop role if exists {}".format(test_role))
 
 
 def test_negative_test_for_missing_required_parameter_schema(db_parameters):
