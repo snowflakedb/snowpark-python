@@ -28,7 +28,7 @@ def test_null_data_in_tables(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skip(reason="requires is_null, sort, createDataFrame type inference")
+@pytest.mark.skip(reason="requires createDataFrame type inference from all rows")
 def test_null_data_in_local_relation_with_filters(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = session.createDataFrame([[1, None], [2, "NotNull"], [3, None]]).toDF(
