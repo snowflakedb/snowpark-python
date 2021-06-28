@@ -61,8 +61,8 @@ def test_only_works_on_select(session_cnx, db_parameters):
 def test_consistent_view_name_behaviors(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         view_name = Utils.random_name()
-        sc = session.get_current_schema()
-        db = session.get_current_database()
+        sc = session.getCurrentSchema()
+        db = session.getCurrentDatabase()
 
         name_parts = [db, sc, view_name]
 

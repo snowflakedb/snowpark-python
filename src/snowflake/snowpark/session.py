@@ -13,6 +13,7 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection
+
 from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
@@ -33,11 +34,12 @@ from .functions import (
 )
 from .internal.analyzer.analyzer_package import AnalyzerPackage
 from .internal.analyzer_obj import Analyzer
+from .internal.server_connection import ServerConnection
 from .internal.sp_expressions import AttributeReference as SPAttributeReference
+from .internal.utils import Utils
 from .plans.logical.basic_logical_operators import Range
 from .plans.logical.logical_plan import UnresolvedRelation
 from .row import Row
-from .server_connection import ServerConnection
 from .snowpark_client_exception import SnowparkClientException
 from .types.sf_types import (
     ArrayType,
@@ -156,13 +158,14 @@ class Session:
         """Returns a DataFrame representing the contents of the specified table. 'name' can be a
         fully qualified identifier and must conform to the rules for a Snowflake identifier.
         """
-        fqdn = None
-        if type(name) is str:
+        if type(name) == str:
             fqdn = [name]
-        elif type(name) is list:
+        elif type(name) == list:
             fqdn = name
         else:
-            raise Exception("Table name should be str or list of strings.")
+            raise TypeError("Table name should be string or list of strings.")
+        for n in fqdn:
+            Utils.validate_object_name(n)
         return DataFrame(self, UnresolvedRelation(fqdn))
 
     def sql(self, query) -> DataFrame:
@@ -220,7 +223,7 @@ class Session:
             elif isinstance(row, dict):
                 if not names:
                     names = list(row.keys())
-                rows.append(Row(row.values()))
+                rows.append(Row(list(row.values())))
             elif isinstance(row, (tuple, list)):
                 if hasattr(row, "_fields") and not names:  # namedtuple
                     names = list(row._fields)
@@ -346,23 +349,34 @@ class Session:
         elif len(args) == 1:
             end = args[0]
         else:
-            raise Exception(
-                f"Range requires one to three arguments. {len(args)} provided."
+            raise ValueError(
+                f"range() requires one to three arguments. {len(args)} provided."
             )
 
         return DataFrame(session=self, plan=Range(start, end, step))
 
-    def get_default_database(self) -> Optional[str]:
+    def getDefaultDatabase(self) -> Optional[str]:
         return self.conn.get_default_database()
 
-    def get_default_schema(self) -> Optional[str]:
+    def getDefaultSchema(self) -> Optional[str]:
         return self.conn.get_default_schema()
 
-    def get_current_database(self) -> Optional[str]:
+    def getCurrentDatabase(self) -> Optional[str]:
         return self.conn.get_current_database()
 
-    def get_current_schema(self) -> Optional[str]:
+    def getCurrentSchema(self) -> Optional[str]:
         return self.conn.get_current_schema()
+
+    def getFullyQualifiedCurrentSchema(self) -> str:
+        database = self.getCurrentDatabase()
+        schema = self.getCurrentSchema()
+        if database is None or schema is None:
+            missing_item = "DATABASE" if not database else "SCHEMA"
+            # TODO: SNOW-372569 Use ErrorMessage
+            raise SnowparkClientException(
+                "The {} is not set for the current session.".format(missing_item)
+            )
+        return database + "." + schema
 
     # TODO complete
     def __disable_stderr(self):

@@ -3,8 +3,10 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from src.snowflake.snowpark.functions import builtin, call_builtin, col
+from src.snowflake.snowpark.functions import builtin, call_builtin, col, parse_json
 from src.snowflake.snowpark.row import Row
+
+from ..utils import TestData
 
 
 def test_builtin_avg_from_range(session_cnx, db_parameters):
@@ -89,3 +91,12 @@ def test_call_builtin_avg_from_range(session_cnx, db_parameters):
         res = df.collect()
         expected = [Row([6.000])]
         assert res == expected
+
+
+def test_parse_json(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
+            Row('{\n  "a": null\n}'),
+            Row('{\n  "a": "foo"\n}'),
+            Row(None),
+        ]
