@@ -80,7 +80,7 @@ class DataFrame:
     def explain(self):
         raise Exception("Not implemented. df.explain()")
 
-    def toDF(self, col_names: List[str]) -> "DataFrame":
+    def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -89,6 +89,10 @@ class DataFrame:
         :param col_names: list of new column names
         :return: a Dataframe
         """
+        col_names = [x for i in names for x in ([i] if type(i) == str else i)]
+        if not all(type(n) == str for n in col_names):
+            raise TypeError(f"Invalid input type in toDF(), expected str or list[str].")
+
         assert len(self.__output()) == len(col_names), (
             f"The number of columns doesn't match. "
             f"Old column names ({len(self.__output())}): "
@@ -497,6 +501,20 @@ class DataFrame:
         )
 
         return self.session.conn.execute(self.session.analyzer.resolve(cmd))
+
+    def first(self, n: int = 1):
+        """Executes the query representing this DataFrame and returns the first n rows
+        of the results.
+
+        Returns the first row of results if no input is given.
+        """
+        if not type(n) == int:
+            raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
+
+        if n < 0:
+            return self.collect()
+        else:
+            return self.limit(n).collect()
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:
