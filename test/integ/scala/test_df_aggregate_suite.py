@@ -14,6 +14,7 @@ from src.snowflake.snowpark.functions import (
     avg,
     col,
     count,
+    count_distinct,
     lit,
     max,
     mean,
@@ -182,6 +183,84 @@ def test_null_count(session_cnx, db_parameters):
             count(col("b"))
         ).collect() == [Row([2, 1]), Row([1, 0])]
 
+        assert TestData.test_data3(session).groupBy("a").agg(
+            count(col("a") + col("b"))
+        ).collect() == [Row([2, 1]), Row([1, 0])]
+
+        assert (
+            TestData.test_data3(session)
+            .agg(
+                [
+                    count(col("a")),
+                    count(col("b")),
+                    count(lit(1)),
+                    count_distinct(col("a")),
+                    count_distinct(col("b")),
+                ]
+            )
+            .collect()
+            == [Row([2, 1, 2, 2, 1])]
+        )
+
+        assert TestData.test_data3(session).agg(
+            [count(col("b")), count_distinct(col("b")), sum_distinct(col("b"))]
+        ).collect() == [Row([1, 1, 2])]
+
+
+def test_distinct(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame(
+            [(1, "one", 1.0), (2, "one", 2.0), (2, "two", 1.0)]
+        ).toDF("i", "s", '"i"')
+
+        assert df.distinct().collect() == [
+            Row([1, "one", 1.0]),
+            Row([2, "one", 2.0]),
+            Row([2, "two", 1.0]),
+        ]
+        assert df.select("i").distinct().collect() == [Row(1), Row(2)]
+        assert df.select('"i"').distinct().collect() == [Row(1), Row(2)]
+        assert df.select("s").distinct().collect() == [Row(["one"]), Row(["two"])]
+
+        res = df.select(["i", '"i"']).distinct().collect()
+        res.sort(key=lambda x: (x[0], x[1]))
+        assert res == [Row([1, 1.0]), Row([2, 1.0]), Row([2, 2.0])]
+
+        res = df.select(["s", '"i"']).distinct().collect()
+        res.sort(key=lambda x: (x[1], x[0]))
+        assert res == [Row(["one", 1.0]), Row(["two", 1.0]), Row(["one", 2.0])]
+        assert df.filter(col("i") < 0).distinct().collect() == []
+
+
+def test_distinct_and_joins(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        lhs = session.createDataFrame([(1, "one", 1.0), (2, "one", 2.0)]).toDF(
+            "i", "s", '"i"'
+        )
+        rhs = session.createDataFrame([(1, "one", 1.0), (2, "one", 2.0)]).toDF(
+            "i", "s", '"i"'
+        )
+
+        res = lhs.join(rhs, lhs["i"] == rhs["i"]).distinct().collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [
+            Row([1, "one", 1.0, 1, "one", 1.0]),
+            Row([2, "one", 2.0, 2, "one", 2.0]),
+        ]
+
+        lhsD = lhs.select(col("s")).distinct()
+        res = lhsD.join(rhs, lhsD["s"] == rhs["s"]).collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [Row(["one", 1, "one", 1.0]), Row(["one", 2, "one", 2.0])]
+
+        rhsD = rhs.select(col("s"))
+        res = lhsD.join(rhsD, lhsD["s"] == rhsD["s"]).collect()
+        assert res == [Row(["one", "one"]), Row(["one", "one"])]
+
+        rhsD = rhs.select(col("s")).distinct()
+        res = lhsD.join(rhsD, lhsD["s"] == rhsD["s"]).collect()
+        assert res == [Row(["one", "one"])]
+
 
 def test_groupBy(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
@@ -311,8 +390,9 @@ def test_null_average(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         assert TestData.test_data3(session).agg(avg(col("b"))).collect() == [Row([2.0])]
 
-        # TODO uncomment with count_distinct
-        # assert data3(session).agg([avg(col('b')), count_distinct()]).collect() == [Row([2.0, 1])]
+        assert TestData.test_data3(session).agg(
+            [avg(col("b")), count_distinct(col("b"))]
+        ).collect() == [Row([2.0, 1])]
 
         assert TestData.test_data3(session).agg(
             [avg(col("b")), sum_distinct(col("b"))]
@@ -327,6 +407,33 @@ def test_zero_average(session_cnx, db_parameters):
         assert df.agg([avg(col("a")), sum_distinct(col("a"))]).collect() == [
             Row([None, None])
         ]
+
+
+def test_multiple_column_distinct_count(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df1 = session.createDataFrame(
+            [
+                ("a", "b", "c"),
+                ("a", "b", "c"),
+                ("a", "b", "d"),
+                ("x", "y", "z"),
+                ("x", "q", None),
+            ]
+        ).toDF("key1", "key2", "key3")
+
+        res = df1.agg(count_distinct([col("key1"), col("key2")])).collect()
+        assert res == [Row(3)]
+
+        res = df1.agg(count_distinct([col("key1"), col("key2"), col("key3")])).collect()
+        assert res == [Row(3)]
+
+        res = (
+            df1.groupBy(col("key1"))
+            .agg(count_distinct([col("key2"), col("key3")]))
+            .collect()
+        )
+        res.sort(key=lambda x: x[0])
+        assert res == [Row(["a", 2]), Row(["x", 1])]
 
 
 def test_zero_count(session_cnx, db_parameters):

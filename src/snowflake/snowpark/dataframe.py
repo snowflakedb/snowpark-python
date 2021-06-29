@@ -305,6 +305,11 @@ class DataFrame:
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
 
+    def distinct(self) -> "DataFrame":
+        return self.groupBy(
+            [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
+        ).agg([])
+
     def limit(self, n: int) -> "DataFrame":
         """Returns a new DataFrame that contains at most ''n'' rows from the current
         DataFrame (similar to LIMIT in SQL).
@@ -534,7 +539,7 @@ class DataFrame:
         col = df.col(c)
         unquoted = c.strip('"')
         if c in common_col_names:
-            return col.alias(f"{prefix}{unquoted}")
+            return col.alias(f'"{prefix}{unquoted}"')
         else:
             return col.alias(f'"{unquoted}"')
 
