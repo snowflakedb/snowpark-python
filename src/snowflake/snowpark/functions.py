@@ -5,10 +5,11 @@
 #
 from typing import List, Optional, Union
 
-from .column import Column
+from .column import CaseExpr, Column
 from .internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     Avg as SPAverage,
+    CaseWhen as SPCaseWhen,
     Count as SPCount,
     Expression as SPExpression,
     Literal as SPLiteral,
@@ -180,6 +181,11 @@ def to_variant(s: Column) -> Column:
 def to_object(s: Column) -> Column:
     """Converts any value to a OBJECT value or NULL (if input is NULL)."""
     return builtin("to_object")(s)
+
+
+def when(condition: Column, value: Column) -> CaseExpr:
+    """Works like a cascading if-then-else statement."""
+    return CaseExpr(SPCaseWhen([(condition.expression, value.expression)]))
 
 
 def __with_aggregate_function(

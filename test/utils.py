@@ -104,9 +104,47 @@ class TestData:
         return session.sql("select * from values(3),(2),(1),(3),(2) as T(a)")
 
     @classmethod
+    def string3(cls, session: "Session") -> DataFrame:
+        return session.sql("select * from values('  abcba  '), (' a12321a   ') as T(a)")
+
+    @classmethod
+    def string4(cls, session: "Session") -> DataFrame:
+        return session.sql("select * from values('apple'),('banana'),('peach') as T(a)")
+
+    @classmethod
+    def array2(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select array_construct(a,b,c) as arr1, d, e, f from"
+            " values(1,2,3,2,'e1','[{a:1}]'),(6,7,8,1,'e2','[{a:1},{b:2}]') as T(a,b,c,d,e,f)"
+        )
+
+    @classmethod
+    def variant2(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            """
+            select parse_json(column1) as src
+            from values
+            ('{
+                "date with '' and ." : "2017-04-28",
+                "salesperson" : {
+                  "id": "55",
+                  "name": "Frank Beasley"
+                },
+                "customer" : [
+                  {"name": "Joyce Ridgely", "phone": "16504378889", "address": "San Francisco, CA"}
+                ],
+                "vehicle" : [
+                  {"make": "Honda", "extras":["ext warranty", "paint protection"]}
+                ]
+            }')
+            """
+        )
+
+    @classmethod
     def null_json1(cls, session: "Session") -> DataFrame:
         return session.sql(
-            'select parse_json(column1) as v  from values (\'{"a": null}\'), (\'{"a": "foo"}\'), (null)'
+            'select parse_json(column1) as v from values (\'{"a": null}\'), (\'{"a": "foo"}\'),'
+            " (null)"
         )
 
     @classmethod
