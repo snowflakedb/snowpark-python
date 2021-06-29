@@ -104,6 +104,12 @@ class TestData:
         return session.sql("select * from values(3),(2),(1),(3),(2) as T(a)")
 
     @classmethod
+    def null_json1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            'select parse_json(column1) as v  from values (\'{"a": null}\'), (\'{"a": "foo"}\'), (null)'
+        )
+    
+    @classmethod
     def decimal_data(cls, session: "Session") -> DataFrame:
         return session.createDataFrame(
             [

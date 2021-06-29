@@ -7,7 +7,6 @@
 import pytest
 
 from src.snowflake.snowpark.column import Column
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
 def test_sort_basic(session_cnx, db_parameters):
@@ -90,20 +89,20 @@ def test_sort_invalid_inputs(session_cnx, db_parameters):
             [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
         ).toDF(["a", "b"])
         # empty
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(ValueError) as ex_info:
             df.sort()
         assert "sort() needs at least one sort expression" in str(ex_info)
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(ValueError) as ex_info:
             df.sort([])
         assert "sort() needs at least one sort expression" in str(ex_info)
 
         # invalid ascending type
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(TypeError) as ex_info:
             df.sort("a", ascending="ASC")
         assert "ascending can only be boolean or list" in str(ex_info)
 
         # inconsistent ascending length
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(ValueError) as ex_info:
             df.sort("a", "b", ascending=[True, True, True])
         assert (
             "The length of col (2) should be same with the length of ascending (3)"
@@ -111,6 +110,6 @@ def test_sort_invalid_inputs(session_cnx, db_parameters):
         )
 
         # invalid input types
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(ValueError) as ex_info:
             df.sort(["a"], ["b"])
         assert "sort() only accepts one list, but got 2" in str(ex_info)

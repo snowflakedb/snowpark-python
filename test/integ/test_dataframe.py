@@ -706,7 +706,7 @@ def test_create_dataframe_with_dict(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
         expected_names = list(data.keys())
-        expected_rows = [Row(data.values())]
+        expected_rows = [Row(list(data.values()))]
         df = session.createDataFrame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
             assert utils.equals_ignore_case(field.name, expected_name)
@@ -730,7 +730,7 @@ def test_create_dataframe_with_namedtuple(session_cnx, db_parameters):
 def test_create_dataframe_with_single_value(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         data = [1, 2, 3]
-        expected_names = ["_1"]
+        expected_names = ["VALUES"]
         expected_rows = [Row(d) for d in data]
         df = session.createDataFrame(data)
         assert [field.name for field in df.schema.fields] == expected_names

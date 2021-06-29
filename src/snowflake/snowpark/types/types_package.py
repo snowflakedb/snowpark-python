@@ -371,7 +371,9 @@ def _infer_type(obj):
 def _infer_schema_from_list(row: List, names: Optional[List] = None) -> StructType:
     """Infer the schema from list"""
     if names is None:
-        names = ["_%d" % i for i in range(1, len(row) + 1)]
+        names = (
+            ["_%d" % i for i in range(1, len(row) + 1)] if len(row) > 1 else ["VALUES"]
+        )
     elif len(names) < len(row):
         names.extend("_%d" % i for i in range(len(names) + 1, len(row) + 1))
 
