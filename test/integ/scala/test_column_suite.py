@@ -16,7 +16,7 @@ from ...utils import Utils
 
 def test_column_alias_and_case_insensitive_name(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[1, 2]]).toDF(["a"])
+        df = session.createDataFrame([1, 2]).toDF(["a"])
         assert df.select(df["a"].as_("b")).schema.fields[0].name == "B"
         assert df.select(df["a"].alias("b")).schema.fields[0].name == "B"
         assert df.select(df["a"].name("b")).schema.fields[0].name == "B"
@@ -24,7 +24,7 @@ def test_column_alias_and_case_insensitive_name(session_cnx, db_parameters):
 
 def test_column_alias_and_case_sensitive_name(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[1, 2]]).toDF(["a"])
+        df = session.createDataFrame([1, 2]).toDF(["a"])
         assert df.select(df["a"].as_('"b"')).schema.fields[0].name == '"b"'
         assert df.select(df["a"].alias('"b"')).schema.fields[0].name == '"b"'
         assert df.select(df["a"].name('"b"')).schema.fields[0].name == '"b"'
