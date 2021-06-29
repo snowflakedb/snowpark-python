@@ -6,9 +6,12 @@
 
 import math
 
-from src.snowflake.snowpark.functions import col
+import pytest
+from snowflake.connector.errors import ProgrammingError
+
+from src.snowflake.snowpark.functions import col, lit, parse_json, when
 from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.types.sf_types import StringType, StructField, StructType
+from src.snowflake.snowpark.types.sf_types import StringType
 
 from ..utils import TestData
 
@@ -27,16 +30,10 @@ def test_column_names_with_space(session_cnx, db_parameters):
         assert df.select(df[c2]).collect() == [Row("a")]
 
 
-def test_column_alias_and_case_insensitive_name(session_cnx, db_parameters):
+def test_get_column_name(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[1]]).toDF(["a"])
-        assert df.select(df["a"].as_("b")).schema.fields[0].name == "B"
-        assert df.select(df["a"].alias("b")).schema.fields[0].name == "B"
-        assert df.select(df["a"].name("b")).schema.fields[0].name == "B"
-
-        assert df.select(df["a"].as_('"b"')).schema.fields[0].name == '"b"'
-        assert df.select(df["a"].alias('"b"')).schema.fields[0].name == '"b"'
-        assert df.select(df["a"].name('"b"')).schema.fields[0].name == '"b"'
+        assert TestData.integer1(session).col("a").getName() == '"A"'
+        assert not (col("col") > 100).getName()
 
 
 def test_unary_operator(session_cnx, db_parameters):
@@ -210,3 +207,108 @@ def test_order(session_cnx, db_parameters):
             Row(2),
             Row(1),
         ]
+
+
+def test_like(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        assert TestData.string4(session).where(col("A").like(lit("%p%"))).collect() == [
+            Row("apple"),
+            Row("peach"),
+        ]
+        assert TestData.string4(session).where(col("A").like("a%")).collect() == [
+            Row("apple"),
+        ]
+        assert TestData.string4(session).where(col("A").like("%x%")).collect() == []
+        assert TestData.string4(session).where(col("A").like("ap.le")).collect() == []
+        assert TestData.string4(session).where(col("A").like("")).collect() == []
+
+
+def test_regexp(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        assert TestData.string4(session).where(
+            col("a").regexp(lit("ap.le"))
+        ).collect() == [Row("apple")]
+        assert TestData.string4(session).where(
+            col("a").regexp(".*(a?a)")
+        ).collect() == [Row("banana")]
+        assert TestData.string4(session).where(col("A").regexp("%a%")).collect() == []
+
+        with pytest.raises(ProgrammingError) as ex_info:
+            TestData.string4(session).where(col("A").regexp("+*")).collect()
+        assert "Invalid regular expression" in str(ex_info)
+
+
+def test_collate(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        assert TestData.string3(session).where(
+            col("a").collate("en_US-trim") == "abcba"
+        ).collect() == [Row("  abcba  ")]
+
+
+def test_subfield(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        assert TestData.null_json1(session).select(col("v")["a"]).collect() == [
+            Row("null"),
+            Row('"foo"'),
+            Row(None),
+        ]
+
+        assert TestData.array2(session).select(col("arr1")[0]).collect() == [
+            Row("1"),
+            Row("6"),
+        ]
+        assert TestData.array2(session).select(
+            parse_json(col("f"))[0]["a"]
+        ).collect() == [Row("1"), Row("1")]
+
+        # Row name is not case-sensitive. field name is case-sensitive
+        assert TestData.variant2(session).select(
+            col("src")["vehicle"][0]["make"]
+        ).collect() == [Row('"Honda"')]
+        assert TestData.variant2(session).select(
+            col("SRC")["vehicle"][0]["make"]
+        ).collect() == [Row('"Honda"')]
+        assert TestData.variant2(session).select(
+            col("src")["VEHICLE"][0]["make"]
+        ).collect() == [Row(None)]
+        assert TestData.variant2(session).select(
+            col("src")["vehicle"][0]["MAKE"]
+        ).collect() == [Row(None)]
+
+        # Space and dot in key is fine. User need to escape single quote with two single quotes
+        assert TestData.variant2(session).select(
+            col("src")["date with '' and ."]
+        ).collect() == [Row('"2017-04-28"')]
+
+        # Path is not accepted
+        assert TestData.variant2(session).select(
+            col("src")["salesperson.id"]
+        ).collect() == [Row(None)]
+
+
+def test_when_case(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        assert TestData.null_data1(session).select(
+            when(col("a").is_null(), lit(5))
+            .when(col("a") == 1, lit(6))
+            .otherwise(lit(7))
+            .as_("a")
+        ).collect() == [Row(5), Row(7), Row(6), Row(7), Row(5)]
+        assert TestData.null_data1(session).select(
+            when(col("a").is_null(), lit(5))
+            .when(col("a") == 1, lit(6))
+            .else_(lit(7))
+            .as_("a")
+        ).collect() == [Row(5), Row(7), Row(6), Row(7), Row(5)]
+
+        # empty otherwise
+        assert TestData.null_data1(session).select(
+            when(col("a").is_null(), lit(5)).when(col("a") == 1, lit(6)).as_("a")
+        ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
+
+        # wrong type
+        with pytest.raises(ProgrammingError) as ex_info:
+            TestData.null_data1(session).select(
+                when(col("a").is_null(), lit("a")).when(col("a") == 1, lit(6)).as_("a")
+            ).collect()
+        assert "Numeric value 'a' is not recognized" in str(ex_info)

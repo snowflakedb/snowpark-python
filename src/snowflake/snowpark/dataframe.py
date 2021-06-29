@@ -174,7 +174,7 @@ class DataFrame:
             elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
                 names.append(c.expression.name)
             else:
-                raise TypeError(
+                raise SnowparkClientException(
                     f"Could not drop column {str(c)}. Can only drop columns by name."
                 )
 
@@ -533,7 +533,7 @@ class DataFrame:
         if len(cols) == 1:
             return cols[0].with_name(normalized_col_name)
         else:
-            raise Exception(f"Cannot resolve column name {col_name}")
+            raise SnowparkClientException(f"Cannot resolve column name {col_name}")
 
     @staticmethod
     def __alias_if_needed(
