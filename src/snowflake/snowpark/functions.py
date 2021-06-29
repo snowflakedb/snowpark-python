@@ -67,13 +67,12 @@ def count(e: Column) -> Column:
     return __with_aggregate_function(exp)
 
 
-def count_distinct(columns: Union[Column, List[Column]]) -> Column:
+def count_distinct(col: Column, *columns: Column) -> Column:
     """Returns either the number of non-NULL distinct records for the specified columns,
     or the total number of the distinct records.
-
-    Accepts a Column object or a list of Column objects.
     """
-    cols = [columns] if type(columns) == Column else columns
+    cols = [col]
+    cols.extend(columns)
     if not all(type(c) == Column for c in cols):
         raise TypeError("Invalid input to count_distinct().")
     return Column(

@@ -31,7 +31,7 @@ def test_count_distinct(session_cnx, db_parameters):
         ).collect()
         assert res == [Row([4, 3, 2])]
 
-        res = df.select(count_distinct([df["id"], df["value"]])).collect()
+        res = df.select(count_distinct(df["id"], df["value"])).collect()
         assert res == [Row([4])]
 
         # Pass invalid type - str
@@ -41,11 +41,11 @@ def test_count_distinct(session_cnx, db_parameters):
 
         # Pass invalid type - list of str
         with pytest.raises(TypeError) as ex_info:
-            df.select(count_distinct(["abc", "abc"]))
+            df.select(count_distinct("abc", "abc"))
         assert "Invalid input to count_distinct()." in str(ex_info)
 
         with pytest.raises(ProgrammingError) as ex_info:
-            df.select(count_distinct([df["*"]])).collect()
+            df.select(count_distinct(df["*"])).collect()
         assert "Unsupported feature 'TOK_STAR'" in str(ex_info)
 
 

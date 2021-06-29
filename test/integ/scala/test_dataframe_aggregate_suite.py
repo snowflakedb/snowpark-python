@@ -421,15 +421,15 @@ def test_multiple_column_distinct_count(session_cnx, db_parameters):
             ]
         ).toDF("key1", "key2", "key3")
 
-        res = df1.agg(count_distinct([col("key1"), col("key2")])).collect()
+        res = df1.agg(count_distinct(col("key1"), col("key2"))).collect()
         assert res == [Row(3)]
 
-        res = df1.agg(count_distinct([col("key1"), col("key2"), col("key3")])).collect()
+        res = df1.agg(count_distinct(col("key1"), col("key2"), col("key3"))).collect()
         assert res == [Row(3)]
 
         res = (
             df1.groupBy(col("key1"))
-            .agg(count_distinct([col("key2"), col("key3")]))
+            .agg(count_distinct(col("key2"), col("key3")))
             .collect()
         )
         res.sort(key=lambda x: x[0])
