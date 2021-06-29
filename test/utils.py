@@ -108,7 +108,7 @@ class TestData:
         return session.sql(
             'select parse_json(column1) as v  from values (\'{"a": null}\'), (\'{"a": "foo"}\'), (null)'
         )
-    
+
     @classmethod
     def decimal_data(cls, session: "Session") -> DataFrame:
         return session.createDataFrame(

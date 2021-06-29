@@ -4,8 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import pytest
-from snowflake.connector.errors import DatabaseError
 
+from snowflake.connector.errors import DatabaseError
 from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 
 # TODO fix 'src.' in imports
