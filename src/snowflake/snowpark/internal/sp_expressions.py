@@ -4,7 +4,7 @@
 
 #  File containing the Expression definitions for ASTs (Spark).
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from src.snowflake.snowpark.types.sp_data_types import (
     DataType,
@@ -28,6 +28,10 @@ class Expression:
         """Returns a user-facing string representation of this expression's name.
         This should usually match the name of the function in SQL."""
         return self.__class__.__name__.upper()
+
+    # TODO: SNOW-369125 set expression-related string/names
+    def __repr__(self) -> str:
+        return self.pretty_name()
 
 
 class NamedExpression(Expression):
@@ -615,3 +619,18 @@ class SortOrder(UnaryExpression):
         )
         self.datatype = child.datatype
         self.nullable = child.nullable
+
+
+# CaseWhen
+class CaseWhen(Expression):
+    def __init__(
+        self,
+        branches: List[Tuple[Expression, Expression]],
+        else_value: Optional[Expression] = None,
+    ):
+        self.branches = branches
+        self.else_value = else_value
+        # nullable if any value is nullable
+        self.nullable = any([value for _, value in branches]) or (
+            else_value is not None and else_value.nullable
+        )
