@@ -243,11 +243,6 @@ def test_collate(session_cnx, db_parameters):
         assert TestData.string3(session).where(
             col("a").collate("en_US-trim") == "abcba"
         ).collect() == [Row("  abcba  ")]
-        with pytest.raises(ProgrammingError) as ex_info:
-            TestData.string3(session).where(
-                col("a").collate("xxx") == "abcba"
-            ).collect()
-        assert "Invalid value" in str(ex_info)
 
 
 def test_subfield(session_cnx, db_parameters):
