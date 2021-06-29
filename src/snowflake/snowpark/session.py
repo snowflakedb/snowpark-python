@@ -13,7 +13,6 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection
-
 from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
