@@ -41,6 +41,7 @@ class TestData:
     Data4 = NamedTuple("Data4", [("key", int), ("value", str)])
     LowerCaseData = NamedTuple("LowerCaseData", [("n", int), ("l", str)])
     UpperCaseData = NamedTuple("UpperCaseData", [("N", int), ("L", str)])
+    Number2 = NamedTuple("Number2", [("x", int), ("y", int), ("z", int)])
 
     @classmethod
     def test_data1(cls, session: "Session") -> DataFrame:
@@ -99,6 +100,10 @@ class TestData:
         )
 
     @classmethod
+    def duplicated_numbers(cls, session: "Session") -> DataFrame:
+        return session.sql("select * from values(3),(2),(1),(3),(2) as T(a)")
+
+    @classmethod
     def null_json1(cls, session: "Session") -> DataFrame:
         return session.sql(
             'select parse_json(column1) as v  from values (\'{"a": null}\'), (\'{"a": "foo"}\'), (null)'
@@ -116,6 +121,18 @@ class TestData:
                 [Decimal(3), Decimal(2)],
             ]
         ).toDF(["a", "b"])
+
+    @classmethod
+    def xyz(cls, session: "Session") -> DataFrame:
+        return session.createDataFrame(
+            [
+                cls.Number2(1, 2, 1),
+                cls.Number2(1, 2, 3),
+                cls.Number2(2, 1, 10),
+                cls.Number2(2, 2, 1),
+                cls.Number2(2, 2, 3),
+            ]
+        )
 
     @classmethod
     def column_has_special_char(cls, session: "Session") -> DataFrame:

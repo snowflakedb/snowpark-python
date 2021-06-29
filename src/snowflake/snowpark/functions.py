@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from typing import Optional
+from typing import List, Optional, Union
 
 from .column import Column
 from .internal.sp_expressions import (
@@ -65,6 +65,19 @@ def count(e: Column) -> Column:
         else SPCount(e.expression)
     )
     return __with_aggregate_function(exp)
+
+
+def count_distinct(col: Column, *columns: Column) -> Column:
+    """Returns either the number of non-NULL distinct records for the specified columns,
+    or the total number of the distinct records.
+    """
+    cols = [col]
+    cols.extend(columns)
+    if not all(type(c) == Column for c in cols):
+        raise TypeError("Invalid input to count_distinct().")
+    return Column(
+        SPUnresolvedFunction("count", [c.expression for c in cols], is_distinct=True)
+    )
 
 
 def max(e: Column) -> Column:
