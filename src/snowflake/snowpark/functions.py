@@ -184,7 +184,13 @@ def to_object(s: Column) -> Column:
 
 
 def when(condition: Column, value: Column) -> CaseExpr:
-    """Works like a cascading if-then-else statement."""
+    """Works like a cascading if-then-else statement.
+    A series of conditions are evaluated in sequence.
+    When a condition evaluates to TRUE, the evaluation stops and the associated
+    result (after THEN) is returned. If none of the conditions evaluate to TRUE,
+    then the result after the optional OTHERWISE is returned, if present;
+    otherwise NULL is returned.
+    """
     return CaseExpr(SPCaseWhen([(condition.expression, value.expression)]))
 
 

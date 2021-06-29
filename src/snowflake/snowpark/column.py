@@ -207,13 +207,27 @@ class Column:
         non-null values)."""
         return self.with_expr(SPSortOrder(self.expression, SPAscending(), SPNullLast()))
 
-    def like(self, pattern: "Column") -> "Column":
+    def like(self, pattern: Union["Column", str]) -> "Column":
         """Allows case-sensitive matching of strings based on comparison with a pattern."""
-        return self.with_expr(SPLike(self.expression, pattern.expression))
+        return self.with_expr(
+            SPLike(
+                self.expression,
+                pattern.expression
+                if type(pattern) == Column
+                else Column(SPLiteral.create(pattern)).expression,
+            )
+        )
 
-    def regexp(self, pattern: "Column") -> "Column":
+    def regexp(self, pattern: Union["Column", str]) -> "Column":
         """Returns true if this Column matches the specified regular expression."""
-        return self.with_expr(SPRegExp(self.expression, pattern.expression))
+        return self.with_expr(
+            SPRegExp(
+                self.expression,
+                pattern.expression
+                if type(pattern) == Column
+                else Column(SPLiteral.create(pattern)).expression,
+            )
+        )
 
     def collate(self, collation_spec: str) -> "Column":
         """Returns a copy of the original Column with the specified `collation_spec` property,

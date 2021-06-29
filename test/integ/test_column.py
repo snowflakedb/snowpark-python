@@ -215,6 +215,12 @@ def test_like(session_cnx, db_parameters):
             Row("apple"),
             Row("peach"),
         ]
+        assert TestData.string4(session).where(col("A").like("a%")).collect() == [
+            Row("apple"),
+        ]
+        assert TestData.string4(session).where(col("A").like("%x%")).collect() == []
+        assert TestData.string4(session).where(col("A").like("ap.le")).collect() == []
+        assert TestData.string4(session).where(col("A").like("")).collect() == []
 
 
 def test_regexp(session_cnx, db_parameters):
@@ -222,6 +228,14 @@ def test_regexp(session_cnx, db_parameters):
         assert TestData.string4(session).where(
             col("a").regexp(lit("ap.le"))
         ).collect() == [Row("apple")]
+        assert TestData.string4(session).where(
+            col("a").regexp(".*(a?a)")
+        ).collect() == [Row("banana")]
+        assert TestData.string4(session).where(col("A").regexp("%a%")).collect() == []
+
+        with pytest.raises(ProgrammingError) as ex_info:
+            TestData.string4(session).where(col("A").regexp("+*")).collect()
+        assert "Invalid regular expression" in str(ex_info)
 
 
 def test_collate(session_cnx, db_parameters):
@@ -229,6 +243,11 @@ def test_collate(session_cnx, db_parameters):
         assert TestData.string3(session).where(
             col("a").collate("en_US-trim") == "abcba"
         ).collect() == [Row("  abcba  ")]
+        with pytest.raises(ProgrammingError) as ex_info:
+            TestData.string3(session).where(
+                col("a").collate("xxx") == "abcba"
+            ).collect()
+        assert "Invalid value" in str(ex_info)
 
 
 def test_subfield(session_cnx, db_parameters):
