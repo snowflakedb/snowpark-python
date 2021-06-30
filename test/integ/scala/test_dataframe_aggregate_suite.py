@@ -8,8 +8,8 @@ from math import sqrt
 from test.utils import TestData
 
 import pytest
-
 from snowflake.connector.errors import ProgrammingError
+
 from src.snowflake.snowpark.functions import (
     avg,
     col,
@@ -181,11 +181,11 @@ def test_null_count(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         assert TestData.test_data3(session).groupBy("a").agg(
             count(col("b"))
-        ).collect() == [Row([2, 1]), Row([1, 0])]
+        ).collect() == [Row([1, 0]), Row([2, 1])]
 
         assert TestData.test_data3(session).groupBy("a").agg(
             count(col("a") + col("b"))
-        ).collect() == [Row([2, 1]), Row([1, 0])]
+        ).collect() == [Row([1, 0]), Row([2, 1])]
 
         assert (
             TestData.test_data3(session)

@@ -682,10 +682,9 @@ def test_create_dataframe_with_different_data_types(session_cnx, db_parameters):
             bytearray("a", "utf-8"),
             Decimal(0.5),
         ]
-        none_data = [None] * len(data)
         expected_names = ["_{}".format(idx + 1) for idx in range(len(data))]
-        expected_rows = [Row(data), Row(none_data)]
-        df = session.createDataFrame([data, none_data])
+        expected_rows = [Row(data), Row(data)]
+        df = session.createDataFrame([data, data])
         assert [field.name for field in df.schema.fields] == expected_names
         assert [type(field.datatype) for field in df.schema.fields] == [
             LongType,
@@ -746,17 +745,26 @@ def test_create_dataframe_empty(session_cnx, db_parameters):
         assert df.collect() == expected_rows
 
 
+def test_create_dataframe_from_none_data(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        assert session.createDataFrame([None, None]).collect() == [Row(None), Row(None)]
+        assert session.createDataFrame([[None, None], [1, "1"]]).collect() == [
+            Row([None, None]),
+            Row([1, "1"]),
+        ]
+        assert session.createDataFrame([[1, "1"], [None, None]]).collect() == [
+            Row([1, "1"]),
+            Row([None, None]),
+        ]
+
+
 def test_create_dataframe_with_invalid_format(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         # inconsistent type
         data = [1, "1"]
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(TypeError) as ex_info:
             session.createDataFrame(data)
-        assert "Data consists of rows with different types" in str(ex_info)
-        data = [[1, "1"], Row([2, "2"])]
-        with pytest.raises(SnowparkClientException) as ex_info:
-            session.createDataFrame(data)
-        assert "Data consists of rows with different types" in str(ex_info)
+        assert "Cannot merge type" in str(ex_info)
 
         # inconsistent length
         data = [[1], [1, 2]]
