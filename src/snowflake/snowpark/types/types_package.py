@@ -386,3 +386,53 @@ def _infer_schema_from_list(row: List, names: Optional[List] = None) -> StructTy
                 "Unable to infer the type of the field {}.".format(k)
             ) from e
     return StructType(fields)
+
+
+def _merge_type(a: DataType, b: DataType, name: str = None) -> DataType:
+    if name is None:
+        new_msg = lambda msg: msg
+        new_name = lambda n: "field %s" % n
+    else:
+        new_msg = lambda msg: "{}: {}".format(name, msg)
+        new_name = lambda n: "field {} in {}".format(n, name)
+
+    # null type
+    if isinstance(a, NullType):
+        return b
+    elif isinstance(b, NullType):
+        return a
+    elif type(a) is not type(b):
+        raise TypeError(new_msg("Cannot merge type {} and {}".format(type(a), type(b))))
+
+    # same type
+    if isinstance(a, StructType):
+        nfs = {f.name: f.datatype for f in b.fields}
+        fields = [
+            StructField(
+                f.name,
+                _merge_type(
+                    f.datatype, nfs.get(f.name, NullType()), name=new_name(f.name)
+                ),
+            )
+            for f in a.fields
+        ]
+        names = {f.name for f in fields}
+        for n in nfs:
+            if n not in names:
+                fields.append(StructField(n, nfs[n]))
+        return StructType(fields)
+
+    elif isinstance(a, ArrayType):
+        return ArrayType(
+            _merge_type(
+                a.element_type, b.element_type, name="element in array %s" % name
+            )
+        )
+
+    elif isinstance(a, MapType):
+        return MapType(
+            _merge_type(a.key_type, b.key_type, name="key of map %s" % name),
+            _merge_type(a.value_type, b.value_type, name="value of map %s" % name),
+        )
+    else:
+        return a

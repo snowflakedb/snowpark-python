@@ -76,9 +76,6 @@ def test_negative_test_to_invalid_table_name(session_cnx, db_parameters):
         )
 
 
-@pytest.mark.skip(
-    reason="requires createDataFrame type inference from all rows and array"
-)
 def test_create_dataframe_from_seq_none(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         assert session.createDataFrame([None, 1]).collect() == [Row(None), Row(1)]
