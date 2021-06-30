@@ -199,11 +199,11 @@ class Session:
            where every iterable in this list will constitute a row in the dataframe.
         """
         if data is None:
-            raise SnowparkClientException("Data can not be None.")
+            raise ValueError("Data cannot be None.")
 
         # check the type of data
         if not isinstance(data, (list, tuple, dict)):
-            raise SnowparkClientException(
+            raise TypeError(
                 "createDataFrame() function only accepts data in List, NamedTuple,"
                 " Tuple or Dict type."
             )
@@ -234,9 +234,7 @@ class Session:
 
         # check the length of every row, which should be same across data
         if len({row.size() for row in rows}) != 1:
-            raise SnowparkClientException(
-                "Data consists of rows with different lengths."
-            )
+            raise ValueError("Data consists of rows with different lengths.")
 
         # infer the schema based on the data
         if not schema:

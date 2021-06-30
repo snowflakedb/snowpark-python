@@ -18,7 +18,6 @@ from src.snowflake.snowpark.internal.sp_expressions import (
     ResolvedStar as SPResolvedStar,
 )
 from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.types.sf_types import (
     BinaryType,
     BooleanType,
@@ -760,6 +759,23 @@ def test_create_dataframe_from_none_data(session_cnx, db_parameters):
 
 def test_create_dataframe_with_invalid_data(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
+        # None input
+        with pytest.raises(ValueError) as ex_info:
+            session.createDataFrame(None)
+        assert "Data cannot be None" in str(ex_info)
+
+        # input other than list, tuple, namedtuple and dict
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame(1)
+        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
+            ex_info
+        )
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame({1, 2})
+        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
+            ex_info
+        )
+
         # inconsistent type
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame([1, "1"])
@@ -782,6 +798,6 @@ def test_create_dataframe_with_invalid_data(session_cnx, db_parameters):
         # TODO: SNOW-366940 test array, dict, variant and geo type after we support Variant
 
         # inconsistent length
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(ValueError) as ex_info:
             session.createDataFrame([[1], [1, 2]])
         assert "Data consists of rows with different lengths" in str(ex_info)
