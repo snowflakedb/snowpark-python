@@ -64,8 +64,7 @@ class TestData:
 
     @classmethod
     def test_data3(cls, session: "Session") -> DataFrame:
-        # TODO: SNOW-367306 swap order of rows after finishing inferring schema
-        return session.createDataFrame([cls.Data3(2, 2), cls.Data3(1, None)])
+        return session.createDataFrame([cls.Data3(1, None), cls.Data3(2, 2)])
 
     @classmethod
     def test_data4(cls, session: "Session") -> DataFrame:

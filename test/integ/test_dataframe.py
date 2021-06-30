@@ -18,7 +18,6 @@ from src.snowflake.snowpark.internal.sp_expressions import (
     ResolvedStar as SPResolvedStar,
 )
 from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.types.sf_types import (
     BinaryType,
     BooleanType,
@@ -682,10 +681,9 @@ def test_create_dataframe_with_different_data_types(session_cnx, db_parameters):
             bytearray("a", "utf-8"),
             Decimal(0.5),
         ]
-        none_data = [None] * len(data)
         expected_names = ["_{}".format(idx + 1) for idx in range(len(data))]
-        expected_rows = [Row(data), Row(none_data)]
-        df = session.createDataFrame([data, none_data])
+        expected_rows = [Row(data), Row(data)]
+        df = session.createDataFrame([data, data])
         assert [field.name for field in df.schema.fields] == expected_names
         assert [type(field.datatype) for field in df.schema.fields] == [
             LongType,
@@ -746,20 +744,60 @@ def test_create_dataframe_empty(session_cnx, db_parameters):
         assert df.collect() == expected_rows
 
 
-def test_create_dataframe_with_invalid_format(session_cnx, db_parameters):
+def test_create_dataframe_from_none_data(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
+        assert session.createDataFrame([None, None]).collect() == [Row(None), Row(None)]
+        assert session.createDataFrame([[None, None], [1, "1"]]).collect() == [
+            Row([None, None]),
+            Row([1, "1"]),
+        ]
+        assert session.createDataFrame([[1, "1"], [None, None]]).collect() == [
+            Row([1, "1"]),
+            Row([None, None]),
+        ]
+
+
+def test_create_dataframe_with_invalid_data(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        # None input
+        with pytest.raises(ValueError) as ex_info:
+            session.createDataFrame(None)
+        assert "Data cannot be None" in str(ex_info)
+
+        # input other than list, tuple, namedtuple and dict
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame(1)
+        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
+            ex_info
+        )
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame({1, 2})
+        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
+            ex_info
+        )
+
         # inconsistent type
-        data = [1, "1"]
-        with pytest.raises(SnowparkClientException) as ex_info:
-            session.createDataFrame(data)
-        assert "Data consists of rows with different types" in str(ex_info)
-        data = [[1, "1"], Row([2, "2"])]
-        with pytest.raises(SnowparkClientException) as ex_info:
-            session.createDataFrame(data)
-        assert "Data consists of rows with different types" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([1, "1"])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([1, 1.0])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([1.0, Decimal(1.0)])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame(["1", bytearray("1", "utf-8")])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([datetime.datetime.now(), datetime.date.today()])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([datetime.datetime.now(), datetime.time()])
+        assert "Cannot merge type" in str(ex_info)
+        # TODO: SNOW-366940 test array, dict, variant and geo type after we support Variant
 
         # inconsistent length
-        data = [[1], [1, 2]]
-        with pytest.raises(SnowparkClientException) as ex_info:
-            session.createDataFrame(data)
+        with pytest.raises(ValueError) as ex_info:
+            session.createDataFrame([[1], [1, 2]])
         assert "Data consists of rows with different lengths" in str(ex_info)
