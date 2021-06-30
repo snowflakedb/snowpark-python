@@ -211,10 +211,7 @@ class Session:
         # also checks the type of every row, which should be same across data
         rows = []
         names = None
-        tpe = None
         for row in data:
-            if not tpe:
-                tpe = type(row)
             if not row:
                 rows.append(Row(None))
             elif isinstance(row, Row):

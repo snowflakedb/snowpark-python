@@ -758,16 +758,30 @@ def test_create_dataframe_from_none_data(session_cnx, db_parameters):
         ]
 
 
-def test_create_dataframe_with_invalid_format(session_cnx, db_parameters):
+def test_create_dataframe_with_invalid_data(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         # inconsistent type
-        data = [1, "1"]
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame(data)
+            session.createDataFrame([1, "1"])
         assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([1, 1.0])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([1.0, Decimal(1.0)])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame(["1", bytearray("1", "utf-8")])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([datetime.datetime.now(), datetime.date.today()])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([datetime.datetime.now(), datetime.time()])
+        assert "Cannot merge type" in str(ex_info)
+        # TODO: SNOW-366940 test array, dict, variant and geo type after we support Variant
 
         # inconsistent length
-        data = [[1], [1, 2]]
         with pytest.raises(SnowparkClientException) as ex_info:
-            session.createDataFrame(data)
+            session.createDataFrame([[1], [1, 2]])
         assert "Data consists of rows with different lengths" in str(ex_info)
