@@ -29,6 +29,8 @@ class Range(LeafNode):
         super().__init__()
         self.start = start
         self.end = end
+        if step == 0:
+            raise ValueError("step cannot be 0")
         self.step = step
         self.num_slices = num_slices
 

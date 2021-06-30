@@ -3,12 +3,13 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from typing import Optional
+from typing import List, Optional, Union
 
-from .column import Column
+from .column import CaseExpr, Column
 from .internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     Avg as SPAverage,
+    CaseWhen as SPCaseWhen,
     Count as SPCount,
     Expression as SPExpression,
     Literal as SPLiteral,
@@ -65,6 +66,19 @@ def count(e: Column) -> Column:
         else SPCount(e.expression)
     )
     return __with_aggregate_function(exp)
+
+
+def count_distinct(col: Column, *columns: Column) -> Column:
+    """Returns either the number of non-NULL distinct records for the specified columns,
+    or the total number of the distinct records.
+    """
+    cols = [col]
+    cols.extend(columns)
+    if not all(type(c) == Column for c in cols):
+        raise TypeError("Invalid input to count_distinct().")
+    return Column(
+        SPUnresolvedFunction("count", [c.expression for c in cols], is_distinct=True)
+    )
 
 
 def max(e: Column) -> Column:
@@ -167,6 +181,17 @@ def to_variant(s: Column) -> Column:
 def to_object(s: Column) -> Column:
     """Converts any value to a OBJECT value or NULL (if input is NULL)."""
     return builtin("to_object")(s)
+
+
+def when(condition: Column, value: Column) -> CaseExpr:
+    """Works like a cascading if-then-else statement.
+    A series of conditions are evaluated in sequence.
+    When a condition evaluates to TRUE, the evaluation stops and the associated
+    result (after THEN) is returned. If none of the conditions evaluate to TRUE,
+    then the result after the optional OTHERWISE is returned, if present;
+    otherwise NULL is returned.
+    """
+    return CaseExpr(SPCaseWhen([(condition.expression, value.expression)]))
 
 
 def __with_aggregate_function(

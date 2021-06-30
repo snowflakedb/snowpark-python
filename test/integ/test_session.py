@@ -22,12 +22,11 @@ def test_select_1(session_cnx, db_parameters):
 
 
 def test_invalid_configs(db_parameters):
-    invalid_parameters = db_parameters.copy()
-    invalid_parameters["user"] = "invalid_user"
-    invalid_parameters["password"] = "invalid_pwd"
-    invalid_parameters["login_timeout"] = 5
-    with pytest.raises(DatabaseError):
-        Session.builder().configs(invalid_parameters).create()
+    with pytest.raises(DatabaseError) as ex_info:
+        Session.builder().configs(db_parameters).config("user", "invalid_user").config(
+            "password", "invalid_pwd"
+        ).config("login_timeout", 5).create()
+    assert "Incorrect username or password was specified" in str(ex_info)
 
 
 def test_no_default_database_and_schema(session_cnx, db_parameters):
@@ -35,33 +34,27 @@ def test_no_default_database_and_schema(session_cnx, db_parameters):
     invalid_parameters.pop("database")
     invalid_parameters.pop("schema")
     with session_cnx(invalid_parameters) as session:
-        assert not session.get_default_database()
-        assert not session.get_default_schema()
+        assert not session.getDefaultDatabase()
+        assert not session.getDefaultSchema()
 
 
 def test_default_and_current_database_and_schema(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        default_database = session.get_default_database()
-        default_schema = session.get_default_schema()
+        default_database = session.getDefaultDatabase()
+        default_schema = session.getDefaultSchema()
 
-        assert utils.equals_ignore_case(
-            default_database, session.get_current_database()
-        )
-        assert utils.equals_ignore_case(default_schema, session.get_current_schema())
+        assert utils.equals_ignore_case(default_database, session.getCurrentDatabase())
+        assert utils.equals_ignore_case(default_schema, session.getCurrentSchema())
 
         schema_name = utils.random_name()
         session._run_query("create schema {}".format(schema_name))
 
-        assert utils.equals_ignore_case(
-            default_database, session.get_default_database()
-        )
-        assert utils.equals_ignore_case(default_schema, session.get_default_schema())
+        assert utils.equals_ignore_case(default_database, session.getDefaultDatabase())
+        assert utils.equals_ignore_case(default_schema, session.getDefaultSchema())
 
+        assert utils.equals_ignore_case(default_database, session.getCurrentDatabase())
         assert utils.equals_ignore_case(
-            default_database, session.get_current_database()
-        )
-        assert utils.equals_ignore_case(
-            AnalyzerPackage.quote_name(schema_name), session.get_current_schema()
+            AnalyzerPackage.quote_name(schema_name), session.getCurrentSchema()
         )
 
         session._run_query("drop schema {}".format(schema_name))
@@ -73,7 +66,7 @@ def test_quote_all_database_and_schema_names(session_cnx, db_parameters):
         def is_quoted(name: str) -> bool:
             return name[0] == '"' and name[-1] == '"'
 
-        assert is_quoted(session.get_default_database())
-        assert is_quoted(session.get_default_schema())
-        assert is_quoted(session.get_current_database())
-        assert is_quoted(session.get_current_schema())
+        assert is_quoted(session.getDefaultDatabase())
+        assert is_quoted(session.getDefaultSchema())
+        assert is_quoted(session.getCurrentDatabase())
+        assert is_quoted(session.getCurrentSchema())

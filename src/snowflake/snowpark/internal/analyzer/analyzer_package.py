@@ -5,7 +5,7 @@
 #
 import random
 import re
-from typing import List
+from typing import List, Tuple, Union
 
 from src.snowflake.snowpark.row import Row
 from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
@@ -183,6 +183,43 @@ class AnalyzerPackage:
 
     def limit_expression(self, num: int) -> str:
         return self._Limit + str(num)
+
+    def like_expression(self, expr: str, pattern: str) -> str:
+        return expr + self._Like + pattern
+
+    def regexp_expression(self, expr: str, pattern: str) -> str:
+        return expr + self._RegExp + pattern
+
+    def collate_expression(self, expr: str, collation_spec: str) -> str:
+        return expr + self._Collate + self.single_quote(collation_spec)
+
+    def subfield_expression(self, expr: str, field: Union[str, int]) -> str:
+        return (
+            expr
+            + self._LeftBracket
+            + (
+                self._SingleQuote + field + self._SingleQuote
+                if type(field) == str
+                else str(field)
+            )
+            + self._RightBracket
+        )
+
+    def case_when_expression(
+        self, branches: List[Tuple[str, str]], else_value: str
+    ) -> str:
+        return (
+            self._Case
+            + "".join(
+                [
+                    self._When + condition + self._Then + value
+                    for condition, value in branches
+                ]
+            )
+            + self._Else
+            + else_value
+            + self._End
+        )
 
     def project_statement(
         self, project: List[str], child: str, is_distinct=False
@@ -488,7 +525,7 @@ class AnalyzerPackage:
     @classmethod
     def validate_quoted_name(cls, name: str) -> str:
         if '"' in name[1:-1].replace('""', ""):
-            raise SnowparkClientException(f"Invalid identifier '{name}'")
+            raise SnowparkClientException(f"invalid identifier '{name}'")
         else:
             return name
 

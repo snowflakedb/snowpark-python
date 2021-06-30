@@ -9,13 +9,12 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.network import ReauthenticationRequest
+from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
-
-from .internal.analyzer.analyzer_package import AnalyzerPackage
-from .row import Row
-from .snowpark_client_exception import SnowparkClientException
-from .types.sf_types import (
+from src.snowflake.snowpark.row import Row
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from src.snowflake.snowpark.types.sf_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -59,7 +58,13 @@ class ServerConnection:
         conn: Optional[SnowflakeConnection] = None,
     ):
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
-        self.__conn = conn or connect(**options)
+        if conn:
+            self.__conn = conn
+        else:
+            # TODO: SNOW-372520 Manage connection url and parameters
+            if "host" not in self._lower_case_parameters:
+                raise ValueError("missing required parameter host.")
+            self.__conn = connect(**self._lower_case_parameters)
         self._cursor = self.__conn.cursor()
 
     def close(self):
@@ -116,7 +121,9 @@ class ServerConnection:
 
     def _get_string_datum(self, query: str) -> Optional[str]:
         rows = self.result_set_to_rows(self.run_query(query)["data"])
-        return rows[0].get_string(0) if len(rows) > 0 else None
+        return (
+            rows[0].get_string(0) if len(rows) > 0 and rows[0][0] is not None else None
+        )
 
     @staticmethod
     def _get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:

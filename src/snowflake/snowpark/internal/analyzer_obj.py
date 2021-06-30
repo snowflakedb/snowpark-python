@@ -19,7 +19,6 @@ from src.snowflake.snowpark.internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
     LocalTempView as SPLocalTempView,
     PersistedView as SPPersistedView,
-    ViewType as SPViewType,
 )
 from src.snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
@@ -28,16 +27,22 @@ from src.snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     BinaryArithmeticExpression as SPBinaryArithmeticExpression,
     BinaryExpression as SPBinaryExpression,
+    CaseWhen as SPCaseWhen,
     Cast as SPCast,
+    Collate as SPCollate,
     Expression as SPExpression,
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
     LeafExpression as SPLeafExpression,
+    Like as SPLike,
     Literal as SPLiteral,
     Not as SPNot,
+    RegExp as SPRegExp,
     ResolvedStar as SPResolvedStar,
     SortOrder as SPSortOrder,
+    SubfieldInt as SPSubfieldInt,
+    SubfieldString as SPSubfieldString,
     UnaryExpression as SPUnaryExpression,
     UnaryMinus as SPUnaryMinus,
     UnresolvedAlias as SPUnresolvedAlias,
@@ -75,7 +80,33 @@ class Analyzer:
         self.subquery_plans = {}
         self.alias_maps_to_use = None
 
-    def analyze(self, expr):
+    def analyze(self, expr) -> str:
+        if type(expr) == SPLike:
+            return self.package.like_expression(
+                self.analyze(expr.expr), self.analyze(expr.pattern)
+            )
+
+        if type(expr) == SPRegExp:
+            return self.package.regexp_expression(
+                self.analyze(expr.expr), self.analyze(expr.pattern)
+            )
+
+        if type(expr) == SPCollate:
+            return self.package.collate_expression(
+                self.analyze(expr.expr), expr.collation_spec
+            )
+
+        if type(expr) == SPSubfieldString or type(expr) == SPSubfieldInt:
+            return self.package.subfield_expression(self.analyze(expr.expr), expr.field)
+
+        if type(expr) == SPCaseWhen:
+            return self.package.case_when_expression(
+                [
+                    (self.analyze(condition), self.analyze(value))
+                    for condition, value in expr.branches
+                ],
+                self.analyze(expr.else_value) if expr.else_value else "NULL",
+            )
 
         # aggregate
         if type(expr) == SPAggregateExpression:

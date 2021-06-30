@@ -28,7 +28,6 @@ def test_null_data_in_tables(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skip(reason="requires is_null, sort, createDataFrame type inference")
 def test_null_data_in_local_relation_with_filters(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = session.createDataFrame([[1, None], [2, "NotNull"], [3, None]]).toDF(
@@ -45,24 +44,27 @@ def test_null_data_in_local_relation_with_filters(session_cnx, db_parameters):
             Row([3, None]),
         ]
         assert df.filter(col("b").is_not_null()).collect() == [Row([2, "NotNull"])]
-        assert df.sort(col("b").asc_nulls_last).collect() == [
+        assert df.sort(col("b").asc_nulls_last()).collect() == [
             Row([2, "NotNull"]),
             Row([1, None]),
             Row([3, None]),
         ]
 
 
-def test_createOrReplaceView_with_null_data_modified(session_cnx, db_parameters):
+def test_createOrReplaceView_with_null_data(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame([[2, "NotNull"], [1, None], [3, None]]).toDF(
+        df = session.createDataFrame([[1, None], [2, "NotNull"], [3, None]]).toDF(
             ["a", "b"]
         )
         view_name = Utils.random_name()
-        df.createOrReplaceView(view_name)
+        try:
+            df.createOrReplaceView(view_name)
 
-        res = session.sql(f"select * from {view_name}").collect()
-        res.sort(key=lambda x: x[0])
-        assert res == [Row([1, None]), Row([2, "NotNull"]), Row([3, None])]
+            res = session.sql(f"select * from {view_name}").collect()
+            res.sort(key=lambda x: x[0])
+            assert res == [Row([1, None]), Row([2, "NotNull"]), Row([3, None])]
+        finally:
+            Utils.drop_view(session, view_name)
 
 
 def test_non_select_query_composition(session_cnx, db_parameters):
@@ -474,7 +476,7 @@ def test_negative_test_for_user_input_invalid_quoted_name(session_cnx, db_parame
         df = session.createDataFrame([1, 2, 3]).toDF("a")
         with pytest.raises(SnowparkClientException) as ex_info:
             df.where(col('"A" = "A" --"') == 2).collect()
-        assert "Invalid identifier" in str(ex_info)
+        assert "invalid identifier" in str(ex_info)
 
 
 def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(

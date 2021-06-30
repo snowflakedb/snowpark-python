@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
+
+from decimal import Decimal
+from math import sqrt
+from test.utils import TestData
+
+import pytest
+
+from snowflake.connector.errors import ProgrammingError
+from src.snowflake.snowpark.functions import (
+    avg,
+    col,
+    count,
+    count_distinct,
+    lit,
+    max,
+    mean,
+    median,
+    min,
+    stddev,
+    stddev_pop,
+    stddev_samp,
+    sum,
+    sum_distinct,
+)
+from src.snowflake.snowpark.row import Row
+from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+
+
+def test_col(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        res = TestData.test_data1(session).select(col("bool")).collect()
+        assert res == [Row(True), Row(False)]
+
+
+def test_lit(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        res = TestData.test_data1(session).select(lit(1)).collect()
+        assert res == [Row(1), Row(1)]
+
+
+def test_avg(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        res = TestData.duplicated_numbers(session).select(avg(col("A"))).collect()
+        assert res == [Row(Decimal("2.2"))]
+
+
+def test_count(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        res = TestData.duplicated_numbers(session).select(count(col("A"))).collect()
+        assert res == [Row(5)]
+
+        df = TestData.duplicated_numbers(session).select(count_distinct(col("A")))
+        assert df.collect() == [Row(3)]
+
+
+def test_max_min_mean(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = TestData.xyz(session).select(max(col("X")), min(col("Y")), mean(col("Z")))
+        assert df.collect() == [Row([2, 1, Decimal("3.6")])]
+
+
+def test_sum(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = TestData.duplicated_numbers(session).groupBy("A").agg(sum(col("A")))
+        assert df.collect() == [Row([3, 6]), Row([2, 4]), Row([1, 1])]
+
+        df = (
+            TestData.duplicated_numbers(session)
+            .groupBy("A")
+            .agg(sum_distinct(col("A")))
+        )
+        assert df.collect() == [Row([3, 3]), Row([2, 2]), Row([1, 1])]

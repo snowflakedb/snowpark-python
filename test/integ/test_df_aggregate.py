@@ -136,10 +136,10 @@ def test_df_groupBy_invalid_input(session_cnx, db_parameters):
         df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
             ["first", "second"]
         )
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(ValueError) as ex_info:
             df.groupBy([], []).count().collect()
         assert "groupBy() only accepts one list, but got 2" in str(ex_info)
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(TypeError) as ex_info:
             df.groupBy(1).count().collect()
         assert (
             "groupBy() only accepts str and Column objects,"

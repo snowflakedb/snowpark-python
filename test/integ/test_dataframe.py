@@ -18,7 +18,6 @@ from src.snowflake.snowpark.internal.sp_expressions import (
     ResolvedStar as SPResolvedStar,
 )
 from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from src.snowflake.snowpark.types.sf_types import (
     BinaryType,
     BooleanType,
@@ -34,47 +33,84 @@ from src.snowflake.snowpark.types.sf_types import (
 from ..utils import Utils as utils
 
 
+def test_distinct(session_cnx, db_parameters):
+    """Tests df.distinct()."""
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame(
+            [
+                [1, 1],
+                [1, 1],
+                [2, 2],
+                [3, 3],
+                [4, 4],
+                [5, 5],
+                [None, 1],
+                [1, None],
+                [None, None],
+            ]
+        ).toDF("id", "v")
+
+        res = df.distinct().sort(["id", "v"]).collect()
+        assert res == [
+            Row([None, None]),
+            Row([None, 1]),
+            Row([1, None]),
+            Row([1, 1]),
+            Row([2, 2]),
+            Row([3, 3]),
+            Row([4, 4]),
+            Row([5, 5]),
+        ]
+
+        res = df.select(col("id")).distinct().sort(["id"]).collect()
+        assert res == [Row([None]), Row([1]), Row([2]), Row([3]), Row([4]), Row([5])]
+
+        res = df.select(col("v")).distinct().sort(["v"]).collect()
+        assert res == [Row([None]), Row([1]), Row([2]), Row([3]), Row([4]), Row([5])]
+
+
 def test_first(session_cnx, db_parameters):
     """Tests df.first()."""
     with session_cnx(db_parameters) as session:
-        df = session.createDataFrame(
-            [[1, 'a'], [2, 'b'], [3, 'c'], [4, 'd']]).toDF('id', 'v')
+        df = session.createDataFrame([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).toDF(
+            "id", "v"
+        )
 
         # empty first, should default to 1
         res = df.first()
-        assert res == [Row([1, 'a'])]
+        assert res == [Row([1, "a"])]
 
         res = df.first(0)
         assert res == []
 
         res = df.first(1)
-        assert res == [Row([1, 'a'])]
+        assert res == [Row([1, "a"])]
 
         res = df.first(2)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, 'a']), Row([2, 'b'])]
+        assert res == [Row([1, "a"]), Row([2, "b"])]
 
         res = df.first(3)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, 'a']), Row([2, 'b']), Row([3, 'c'])]
+        assert res == [Row([1, "a"]), Row([2, "b"]), Row([3, "c"])]
 
         res = df.first(4)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, 'a']), Row([2, 'b']), Row([3, 'c']), Row([4, 'd'])]
+        assert res == [Row([1, "a"]), Row([2, "b"]), Row([3, "c"]), Row([4, "d"])]
 
         # Negative value is equivalent to collect()
         res = df.first(-1)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, 'a']), Row([2, 'b']), Row([3, 'c']), Row([4, 'd'])]
+        assert res == [Row([1, "a"]), Row([2, "b"]), Row([3, "c"]), Row([4, "d"])]
 
         # first-value larger than cardinality
         res = df.first(123)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, 'a']), Row([2, 'b']), Row([3, 'c']), Row([4, 'd'])]
+        assert res == [Row([1, "a"]), Row([2, "b"]), Row([3, "c"]), Row([4, "d"])]
 
         # test invalid type argument passed to first
         with pytest.raises(ValueError) as ex_info:
-            df.first('abc')
+            df.first("abc")
         assert "Invalid type of argument passed to first()" in str(ex_info)
 
 
@@ -645,10 +681,9 @@ def test_create_dataframe_with_different_data_types(session_cnx, db_parameters):
             bytearray("a", "utf-8"),
             Decimal(0.5),
         ]
-        none_data = [None] * len(data)
         expected_names = ["_{}".format(idx + 1) for idx in range(len(data))]
-        expected_rows = [Row(data), Row(none_data)]
-        df = session.createDataFrame([data, none_data])
+        expected_rows = [Row(data), Row(data)]
+        df = session.createDataFrame([data, data])
         assert [field.name for field in df.schema.fields] == expected_names
         assert [type(field.datatype) for field in df.schema.fields] == [
             LongType,
@@ -669,7 +704,7 @@ def test_create_dataframe_with_dict(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
         expected_names = list(data.keys())
-        expected_rows = [Row(data.values())]
+        expected_rows = [Row(list(data.values()))]
         df = session.createDataFrame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
             assert utils.equals_ignore_case(field.name, expected_name)
@@ -693,7 +728,7 @@ def test_create_dataframe_with_namedtuple(session_cnx, db_parameters):
 def test_create_dataframe_with_single_value(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         data = [1, 2, 3]
-        expected_names = ["_1"]
+        expected_names = ["VALUES"]
         expected_rows = [Row(d) for d in data]
         df = session.createDataFrame(data)
         assert [field.name for field in df.schema.fields] == expected_names
@@ -709,20 +744,60 @@ def test_create_dataframe_empty(session_cnx, db_parameters):
         assert df.collect() == expected_rows
 
 
-def test_create_dataframe_with_invalid_format(session_cnx, db_parameters):
+def test_create_dataframe_from_none_data(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
+        assert session.createDataFrame([None, None]).collect() == [Row(None), Row(None)]
+        assert session.createDataFrame([[None, None], [1, "1"]]).collect() == [
+            Row([None, None]),
+            Row([1, "1"]),
+        ]
+        assert session.createDataFrame([[1, "1"], [None, None]]).collect() == [
+            Row([1, "1"]),
+            Row([None, None]),
+        ]
+
+
+def test_create_dataframe_with_invalid_data(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        # None input
+        with pytest.raises(ValueError) as ex_info:
+            session.createDataFrame(None)
+        assert "Data cannot be None" in str(ex_info)
+
+        # input other than list, tuple, namedtuple and dict
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame(1)
+        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
+            ex_info
+        )
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame({1, 2})
+        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
+            ex_info
+        )
+
         # inconsistent type
-        data = [1, "1"]
-        with pytest.raises(SnowparkClientException) as ex_info:
-            session.createDataFrame(data)
-        assert "Data consists of rows with different types" in str(ex_info)
-        data = [[1, "1"], Row([2, "2"])]
-        with pytest.raises(SnowparkClientException) as ex_info:
-            session.createDataFrame(data)
-        assert "Data consists of rows with different types" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([1, "1"])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([1, 1.0])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([1.0, Decimal(1.0)])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame(["1", bytearray("1", "utf-8")])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([datetime.datetime.now(), datetime.date.today()])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([datetime.datetime.now(), datetime.time()])
+        assert "Cannot merge type" in str(ex_info)
+        # TODO: SNOW-366940 test array, dict, variant and geo type after we support Variant
 
         # inconsistent length
-        data = [[1], [1, 2]]
-        with pytest.raises(SnowparkClientException) as ex_info:
-            session.createDataFrame(data)
+        with pytest.raises(ValueError) as ex_info:
+            session.createDataFrame([[1], [1, 2]])
         assert "Data consists of rows with different lengths" in str(ex_info)

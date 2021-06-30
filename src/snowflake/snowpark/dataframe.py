@@ -63,6 +63,9 @@ class DataFrame:
     def collect(self):
         return self.session.conn.execute(self.__plan)
 
+    def count(self) -> int:
+        return self.agg(("*", "count")).collect()[0].get_int(0)
+
     def clone(self) -> "DataFrame":
         return DataFrame(self.session, self.__plan.clone())
 
@@ -171,7 +174,7 @@ class DataFrame:
             elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
                 names.append(c.expression.name)
             else:
-                raise TypeError(
+                raise SnowparkClientException(
                     f"Could not drop column {str(c)}. Can only drop columns by name."
                 )
 
@@ -202,10 +205,10 @@ class DataFrame:
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL)."""
         if not cols:
-            raise SnowparkClientException("sort() needs at least one sort expression.")
+            raise ValueError("sort() needs at least one sort expression.")
         exprs = self.__convert_cols_to_exprs("sort()", *cols)
         if not exprs:
-            raise SnowparkClientException("sort() needs at least one sort expression.")
+            raise ValueError("sort() needs at least one sort expression.")
         orders = []
         if ascending is not None:
             if type(ascending) in [list, tuple]:
@@ -213,12 +216,12 @@ class DataFrame:
             elif type(ascending) in [bool, int]:
                 orders = [SPAscending() if ascending else SPDescending()]
             else:
-                raise SnowparkClientException(
+                raise TypeError(
                     "ascending can only be boolean or list,"
                     " but got {}".format(str(type(ascending)))
                 )
             if len(exprs) != len(orders):
-                raise SnowparkClientException(
+                raise ValueError(
                     "The length of col ({}) should be same with"
                     " the length of ascending ({}).".format(len(exprs), len(orders))
                 )
@@ -241,7 +244,9 @@ class DataFrame:
 
         return self.__with_plan(SPSort(sort_exprs, True, self.__plan))
 
-    def agg(self, exprs: Union[str, Column, List[Union[str, Column]]]) -> "DataFrame":
+    def agg(
+        self, exprs: Union[str, Column, Tuple[str, str], List[Union[str, Column]]]
+    ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to group the
         data (`groupBy`).
 
@@ -261,8 +266,8 @@ class DataFrame:
         elif type(exprs) == Column:
             grouping_exprs = [exprs]
         elif type(exprs) == tuple:
-            if len(tuple) == 2:
-                grouping_exprs = [exprs]
+            if len(exprs) == 2:
+                grouping_exprs = [(self.col(exprs[0]), exprs[1])]
         elif type(exprs) == list:
             if all(type(e) == str for e in exprs):
                 grouping_exprs = [self.col(e) for e in exprs]
@@ -277,9 +282,7 @@ class DataFrame:
                 grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
 
         if grouping_exprs is None:
-            raise SnowparkClientException(
-                f"Invalid type passed to DataFrame.agg(): {type(exprs)}"
-            )
+            raise TypeError(f"Invalid type passed to agg(): {type(exprs)}")
 
         return self.groupBy().agg(grouping_exprs)
 
@@ -304,6 +307,11 @@ class DataFrame:
 
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
+
+    def distinct(self) -> "DataFrame":
+        return self.groupBy(
+            [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
+        ).agg([])
 
     def limit(self, n: int) -> "DataFrame":
         """Returns a new DataFrame that contains at most ''n'' rows from the current
@@ -374,7 +382,7 @@ class DataFrame:
             elif isinstance(using_columns, Column):
                 using_columns = using_columns
             elif not isinstance(using_columns, list):
-                raise SnowparkClientException(
+                raise TypeError(
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
 
@@ -383,7 +391,7 @@ class DataFrame:
         # TODO handle case where right is a TableFunction
         # if isinstance(right, TableFunction):
         #    return self.__join_dataframe_table_function(other, using_columns)
-        raise Exception("Invalid type for join. Must be Dataframe")
+        raise TypeError("Invalid type for join. Must be Dataframe")
 
     def crossJoin(self, right: "DataFrame") -> "DataFrame":
         """Performs a cross join, which returns the cartesian product of the current DataFrame and
@@ -525,7 +533,7 @@ class DataFrame:
         if len(cols) == 1:
             return cols[0].with_name(normalized_col_name)
         else:
-            raise Exception(f"Cannot resolve column name {col_name}")
+            raise SnowparkClientException(f"Cannot resolve column name {col_name}")
 
     @staticmethod
     def __alias_if_needed(
@@ -534,7 +542,7 @@ class DataFrame:
         col = df.col(c)
         unquoted = c.strip('"')
         if c in common_col_names:
-            return col.alias(f"{prefix}{unquoted}")
+            return col.alias(f'"{prefix}{unquoted}"')
         else:
             return col.alias(f'"{unquoted}"')
 
@@ -613,7 +621,7 @@ class DataFrame:
             elif type(col) == Column:
                 return col.expression
             else:
-                raise SnowparkClientException(
+                raise TypeError(
                     "{} only accepts str and Column objects, or the list containing str and"
                     " Column objects".format(calling_method)
                 )
@@ -624,7 +632,7 @@ class DataFrame:
                 if len(cols) == 1:
                     exprs = [convert(col) for col in cols[0]]
                 else:
-                    raise SnowparkClientException(
+                    raise ValueError(
                         "{} only accepts one list, but got {}".format(
                             calling_method, len(cols)
                         )

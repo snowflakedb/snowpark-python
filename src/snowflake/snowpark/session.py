@@ -9,10 +9,12 @@ import decimal
 import logging
 import pathlib
 from array import array
+from functools import reduce
 from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection
+
 from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
@@ -33,11 +35,12 @@ from .functions import (
 )
 from .internal.analyzer.analyzer_package import AnalyzerPackage
 from .internal.analyzer_obj import Analyzer
+from .internal.server_connection import ServerConnection
 from .internal.sp_expressions import AttributeReference as SPAttributeReference
+from .internal.utils import Utils
 from .plans.logical.basic_logical_operators import Range
 from .plans.logical.logical_plan import UnresolvedRelation
 from .row import Row
-from .server_connection import ServerConnection
 from .snowpark_client_exception import SnowparkClientException
 from .types.sf_types import (
     ArrayType,
@@ -54,7 +57,11 @@ from .types.sf_types import (
     VariantType,
 )
 from .types.sp_data_types import StringType as SPStringType
-from .types.types_package import _infer_schema_from_list, snow_type_to_sp_type
+from .types.types_package import (
+    _infer_schema_from_list,
+    _merge_type,
+    snow_type_to_sp_type,
+)
 
 logger = getLogger(__name__)
 
@@ -156,13 +163,14 @@ class Session:
         """Returns a DataFrame representing the contents of the specified table. 'name' can be a
         fully qualified identifier and must conform to the rules for a Snowflake identifier.
         """
-        fqdn = None
-        if type(name) is str:
+        if type(name) == str:
             fqdn = [name]
-        elif type(name) is list:
+        elif type(name) == list:
             fqdn = name
         else:
-            raise Exception("Table name should be str or list of strings.")
+            raise TypeError("Table name should be string or list of strings.")
+        for n in fqdn:
+            Utils.validate_object_name(n)
         return DataFrame(self, UnresolvedRelation(fqdn))
 
     def sql(self, query) -> DataFrame:
@@ -180,17 +188,22 @@ class Session:
         schema: Optional[StructType] = None,
     ) -> DataFrame:
         """
-        Creates a new DataFrame containing the specified values.
-        Currently this function only accepts data from a List, Tuple, NameTuple or Dict, and performs type and length
-        check across rows.
-        When schema is None, the schema will be inferred from the first row of the data.
+        Creates a new DataFrame containing the specified values from the local data.
+        When schema is None, the schema will be inferred from the data across all rows.
+        Any type and length inconsistency across rows will be reported.
+        Valid inputs:
+        1. `data` can only be a list, tuple, nametuple or dict.
+        2. If `data` is a 1D list and tuple, nametuple or dict, every element will constitute
+           a row in the dataframe.
+        3. Otherwise, `data` can only be a list or tuple of lists, tuples, nametuples or dicts,
+           where every iterable in this list will constitute a row in the dataframe.
         """
         if data is None:
-            raise SnowparkClientException("Data can not be None. ")
+            raise ValueError("Data cannot be None.")
 
         # check the type of data
         if not isinstance(data, (list, tuple, dict)):
-            raise SnowparkClientException(
+            raise TypeError(
                 "createDataFrame() function only accepts data in List, NamedTuple,"
                 " Tuple or Dict type."
             )
@@ -203,16 +216,7 @@ class Session:
         # also checks the type of every row, which should be same across data
         rows = []
         names = None
-        tpe = None
         for row in data:
-            if not tpe:
-                tpe = type(row)
-            elif tpe != type(row):
-                raise SnowparkClientException(
-                    "Data consists of rows with different types {} and {}.".format(
-                        tpe, type(row)
-                    )
-                )
             if not row:
                 rows.append(Row(None))
             elif isinstance(row, Row):
@@ -220,7 +224,7 @@ class Session:
             elif isinstance(row, dict):
                 if not names:
                     names = list(row.keys())
-                rows.append(Row(row.values()))
+                rows.append(Row(list(row.values())))
             elif isinstance(row, (tuple, list)):
                 if hasattr(row, "_fields") and not names:  # namedtuple
                     names = list(row._fields)
@@ -230,13 +234,14 @@ class Session:
 
         # check the length of every row, which should be same across data
         if len({row.size() for row in rows}) != 1:
-            raise SnowparkClientException(
-                "Data consists of rows with different lengths."
-            )
+            raise ValueError("Data consists of rows with different lengths.")
 
-        # infer the schema based the first row
+        # infer the schema based on the data
         if not schema:
-            schema = _infer_schema_from_list(rows[0].to_list(), names)
+            schema = reduce(
+                _merge_type,
+                (_infer_schema_from_list(row.to_list(), names) for row in rows),
+            )
 
         # get spark attributes and data types
         sp_attrs, data_types = [], []
@@ -346,23 +351,34 @@ class Session:
         elif len(args) == 1:
             end = args[0]
         else:
-            raise Exception(
-                f"Range requires one to three arguments. {len(args)} provided."
+            raise ValueError(
+                f"range() requires one to three arguments. {len(args)} provided."
             )
 
         return DataFrame(session=self, plan=Range(start, end, step))
 
-    def get_default_database(self) -> Optional[str]:
+    def getDefaultDatabase(self) -> Optional[str]:
         return self.conn.get_default_database()
 
-    def get_default_schema(self) -> Optional[str]:
+    def getDefaultSchema(self) -> Optional[str]:
         return self.conn.get_default_schema()
 
-    def get_current_database(self) -> Optional[str]:
+    def getCurrentDatabase(self) -> Optional[str]:
         return self.conn.get_current_database()
 
-    def get_current_schema(self) -> Optional[str]:
+    def getCurrentSchema(self) -> Optional[str]:
         return self.conn.get_current_schema()
+
+    def getFullyQualifiedCurrentSchema(self) -> str:
+        database = self.getCurrentDatabase()
+        schema = self.getCurrentSchema()
+        if database is None or schema is None:
+            missing_item = "DATABASE" if not database else "SCHEMA"
+            # TODO: SNOW-372569 Use ErrorMessage
+            raise SnowparkClientException(
+                "The {} is not set for the current session.".format(missing_item)
+            )
+        return database + "." + schema
 
     # TODO complete
     def __disable_stderr(self):
