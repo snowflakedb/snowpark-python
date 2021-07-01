@@ -3,16 +3,14 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+from test.utils import Utils
+
 import pytest
-
 from snowflake.connector.errors import DatabaseError
-from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 
-# TODO fix 'src.' in imports
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.session import Session
-
-from ..utils import Utils as utils
+from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.session import Session
 
 
 def test_select_1(session_cnx, db_parameters):
@@ -43,17 +41,17 @@ def test_default_and_current_database_and_schema(session_cnx, db_parameters):
         default_database = session.getDefaultDatabase()
         default_schema = session.getDefaultSchema()
 
-        assert utils.equals_ignore_case(default_database, session.getCurrentDatabase())
-        assert utils.equals_ignore_case(default_schema, session.getCurrentSchema())
+        assert Utils.equals_ignore_case(default_database, session.getCurrentDatabase())
+        assert Utils.equals_ignore_case(default_schema, session.getCurrentSchema())
 
-        schema_name = utils.random_name()
+        schema_name = Utils.random_name()
         session._run_query("create schema {}".format(schema_name))
 
-        assert utils.equals_ignore_case(default_database, session.getDefaultDatabase())
-        assert utils.equals_ignore_case(default_schema, session.getDefaultSchema())
+        assert Utils.equals_ignore_case(default_database, session.getDefaultDatabase())
+        assert Utils.equals_ignore_case(default_schema, session.getDefaultSchema())
 
-        assert utils.equals_ignore_case(default_database, session.getCurrentDatabase())
-        assert utils.equals_ignore_case(
+        assert Utils.equals_ignore_case(default_database, session.getCurrentDatabase())
+        assert Utils.equals_ignore_case(
             AnalyzerPackage.quote_name(schema_name), session.getCurrentSchema()
         )
 

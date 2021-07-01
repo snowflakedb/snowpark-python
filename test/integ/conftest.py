@@ -5,16 +5,13 @@
 #
 import uuid
 from contextlib import contextmanager
+from test.parameters import CONNECTION_PARAMETERS
 from typing import Callable, Dict
 
 import pytest
-
 from snowflake.connector.connection import DefaultConverterClass
 
-# TODO fix '.src'
-from src.snowflake.snowpark.session import Session
-
-from ..parameters import CONNECTION_PARAMETERS
+from snowflake.snowpark.session import Session
 
 
 def print_help() -> None:

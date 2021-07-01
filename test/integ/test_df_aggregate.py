@@ -6,8 +6,7 @@
 
 import pytest
 
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.row import Row
 
 
 def test_df_agg_tuples_basic(session_cnx, db_parameters):

@@ -6,11 +6,11 @@
 import re
 from typing import List, Tuple, Union
 
-import src.snowflake.snowpark.functions as functions
-from src.snowflake.snowpark.column import Column
-from src.snowflake.snowpark.dataframe import DataFrame
-from src.snowflake.snowpark.internal.analyzer.sp_utils import to_pretty_sql
-from src.snowflake.snowpark.internal.sp_expressions import (
+import snowflake.snowpark.functions as functions
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.internal.analyzer.sp_utils import to_pretty_sql
+from snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
     Alias as SPAlias,
     Count as SPCount,
@@ -26,13 +26,13 @@ from src.snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from src.snowflake.snowpark.plans.logical.basic_logical_operators import (
+from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Aggregate as SPAggregate,
     Pivot as SPPivot,
 )
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from src.snowflake.snowpark.spark_utils import SparkUtils
-from src.snowflake.snowpark.types.sp_data_types import IntegerType as SPInteger
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.spark_utils import SparkUtils
+from snowflake.snowpark.types.sp_data_types import IntegerType as SPInteger
 
 
 class GroupType:

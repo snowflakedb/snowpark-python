@@ -4,14 +4,14 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
+from test.utils import Utils
+
 import pytest
 from snowflake.connector.errors import ProgrammingError
 
-from src.snowflake.snowpark.functions import avg, col, sql_expr
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-
-from ...utils import Utils
+from snowflake.snowpark.functions import avg, col, sql_expr
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
 def test_column_alias_and_case_insensitive_name(session_cnx, db_parameters):

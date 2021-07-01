@@ -8,10 +8,10 @@ from test.utils import TestData, Utils
 import pytest
 
 from snowflake import connector
-from src.snowflake.snowpark.functions import col, max, sum
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from src.snowflake.snowpark.types.sf_types import StringType
+from snowflake.snowpark.functions import col, max, sum
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.types.sf_types import StringType
 
 
 def test_null_data_in_tables(session_cnx, db_parameters):

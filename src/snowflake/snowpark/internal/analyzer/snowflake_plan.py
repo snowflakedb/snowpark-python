@@ -6,12 +6,12 @@
 
 from typing import Callable, Dict, List, Optional
 
-from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from src.snowflake.snowpark.internal.schema_utils import SchemaUtils
-from src.snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from src.snowflake.snowpark.types.types_package import snow_type_to_sp_type
+from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.internal.schema_utils import SchemaUtils
+from snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
 from ..sp_expressions import (
     Attribute as SPAttribute,
