@@ -494,7 +494,7 @@ class DataFrame:
         body = []
         for row in result:
             lines = []
-            for v, i in zip(row.values, count()):
+            for i, v in enumerate(row):
                 texts = str(v).split("\n") if v is not None else ["NULL"]
                 for t in texts:
                     col_width[i] = max(len(t), col_width[i])
