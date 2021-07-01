@@ -17,8 +17,8 @@ jobs:
           python-version: 3.6
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
-      - name: Install Snowflake Python Connector and Pytest
-        run: python -m pip install snowflake-connector-python[pandas] pytest pandas
+      - name: Install Snowpark
+        run: python -m pip install ".[development, pandas]"
       - name: Decrypt parameters.py
         run: .github/scripts/decrypt_parameters.sh
         env:

@@ -5,15 +5,14 @@
 #
 
 import math
+from test.utils import TestData
 
 import pytest
 from snowflake.connector.errors import ProgrammingError
 
-from src.snowflake.snowpark.functions import col, lit, parse_json, when
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.types.sf_types import StringType
-
-from ..utils import TestData
+from snowflake.snowpark.functions import col, lit, parse_json, when
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.types.sf_types import StringType
 
 
 def test_column_names_with_space(session_cnx, db_parameters):

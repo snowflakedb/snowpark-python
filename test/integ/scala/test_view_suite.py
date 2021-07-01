@@ -8,9 +8,9 @@ from test.utils import TestData, Utils
 
 import pytest
 
-from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
 def test_create_view(session_cnx, db_parameters):

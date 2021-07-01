@@ -3,7 +3,28 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from src.snowflake.snowpark.types.sf_types import *
+from snowflake.snowpark.types.sf_types import (
+    BinaryType,
+    BooleanType,
+    ByteType,
+    ColumnIdentifier,
+    DataType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    IntegralType,
+    LongType,
+    MapType,
+    NumericType,
+    ShortType,
+    StringType,
+    StructField,
+    StructType,
+    TimeType,
+    VariantType,
+)
 
 
 def test_datatype_names():

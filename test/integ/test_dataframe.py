@@ -7,18 +7,18 @@ import datetime
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
+from test.utils import Utils
 
 import pytest
 
-# TODO fix 'src.' in imports
-from src.snowflake.snowpark.column import Column
-from src.snowflake.snowpark.functions import col
-from src.snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.functions import col
+from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     ResolvedStar as SPResolvedStar,
 )
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.types.sf_types import (
     BinaryType,
     BooleanType,
     DateType,
@@ -29,8 +29,6 @@ from src.snowflake.snowpark.types.sf_types import (
     TimestampType,
     TimeType,
 )
-
-from ..utils import Utils as utils
 
 
 def test_distinct(session_cnx, db_parameters):
@@ -707,7 +705,7 @@ def test_create_dataframe_with_dict(session_cnx, db_parameters):
         expected_rows = [Row(list(data.values()))]
         df = session.createDataFrame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
-            assert utils.equals_ignore_case(field.name, expected_name)
+            assert Utils.equals_ignore_case(field.name, expected_name)
         assert df.collect() == expected_rows
         assert df.select(expected_names).collect() == expected_rows
 
@@ -720,7 +718,7 @@ def test_create_dataframe_with_namedtuple(session_cnx, db_parameters):
         expected_rows = [Row(data)]
         df = session.createDataFrame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
-            assert utils.equals_ignore_case(field.name, expected_name)
+            assert Utils.equals_ignore_case(field.name, expected_name)
         assert df.collect() == expected_rows
         assert df.select(expected_names).collect() == expected_rows
 

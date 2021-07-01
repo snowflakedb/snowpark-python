@@ -5,13 +5,9 @@
 #
 
 from decimal import Decimal
-from math import sqrt
 from test.utils import TestData
 
-import pytest
-
-from snowflake.connector.errors import ProgrammingError
-from src.snowflake.snowpark.functions import (
+from snowflake.snowpark.functions import (
     avg,
     col,
     count,
@@ -19,16 +15,11 @@ from src.snowflake.snowpark.functions import (
     lit,
     max,
     mean,
-    median,
     min,
-    stddev,
-    stddev_pop,
-    stddev_samp,
     sum,
     sum_distinct,
 )
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.row import Row
 
 
 def test_col(session_cnx, db_parameters):

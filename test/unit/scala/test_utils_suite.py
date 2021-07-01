@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from src.snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark.internal.utils import Utils
 
 
 def test_utils_validate_object_name():

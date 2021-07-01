@@ -5,22 +5,20 @@
 #
 from typing import Optional
 
-from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
-from src.snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
-
-# TODO fix import
-from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
+from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
+from snowflake.snowpark.internal.analyzer.snowflake_plan import (
     SnowflakePlan,
     SnowflakePlanBuilder,
     SnowflakeValues,
 )
-from src.snowflake.snowpark.internal.analyzer.sp_views import (
+from snowflake.snowpark.internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
     LocalTempView as SPLocalTempView,
     PersistedView as SPPersistedView,
 )
-from src.snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
     AggregateFunction as SPAggregateFunction,
     Alias as SPAlias,
@@ -50,19 +48,19 @@ from src.snowflake.snowpark.internal.sp_expressions import (
     UnresolvedFunction as SPUnresolvedFunction,
     UnresolvedStar as SPUnresolvedStar,
 )
-from src.snowflake.snowpark.plans.logical.basic_logical_operators import (
+from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Aggregate as SPAggregate,
     Join as SPJoin,
     Range as SPRange,
     Sort as SPSort,
 )
-from src.snowflake.snowpark.plans.logical.logical_plan import (
+from snowflake.snowpark.plans.logical.logical_plan import (
     Filter as SPFilter,
     Project as SPProject,
     UnresolvedRelation as SPUnresolvedRelation,
 )
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from src.snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.types.sp_data_types import (
     ByteType as SPByteType,
     IntegerType as SPIntegerType,
     LongType as SPLongType,
