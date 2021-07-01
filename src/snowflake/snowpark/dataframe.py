@@ -4,7 +4,6 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import string
-from itertools import count
 from random import choice
 from typing import List, Optional, Tuple, Union
 

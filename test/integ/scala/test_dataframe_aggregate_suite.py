@@ -10,7 +10,6 @@ from test.utils import TestData
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-
 from snowflake.snowpark.functions import (
     avg,
     col,

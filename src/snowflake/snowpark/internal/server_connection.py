@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.network import ReauthenticationRequest
-
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
