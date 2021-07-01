@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import string
+from itertools import count
 from random import choice
 from typing import List, Optional, Tuple, Union
 
@@ -62,9 +63,6 @@ class DataFrame:
 
     def collect(self):
         return self.session.conn.execute(self.__plan)
-
-    def count(self) -> int:
-        return self.agg(("*", "count")).collect()[0].get_int(0)
 
     def clone(self) -> "DataFrame":
         return DataFrame(self.session, self.__plan.clone())
@@ -460,6 +458,82 @@ class DataFrame:
     # TODO complete function. Requires TableFunction
     def __join_dataframe_table_function(self, table_function, columns) -> "DataFrame":
         pass
+
+    def count(self) -> int:
+        return self.agg(("*", "count")).collect()[0].get_int(0)
+
+    def show(self, n: int = 10, max_width: int = 50):
+        print(self.__show_string(n, max_width))
+
+    def __show_string(self, n: int = 10, max_width: int = 50) -> str:
+        query = self.__plan.queries[-1].sql.strip().lower()
+
+        if query.startswith("select"):
+            result, meta = self.session.conn.get_result_and_metadata(
+                self.limit(n)._DataFrame__plan
+            )
+        else:
+            res, meta = self.session.conn.get_result_and_metadata(self.__plan)
+            result = res[:n]
+
+        # The query has been executed
+        col_count = len(meta)
+        col_width = []
+        header = []
+        for field in meta:
+            name = field.name
+            col_width.append(len(name))
+            header.append(name)
+
+        body = []
+        for row in result:
+            lines = []
+            for v, i in zip(row.values, count()):
+                texts = str(v).split("\n") if v is not None else ["NULL"]
+                for t in texts:
+                    col_width[i] = max(len(t), col_width[i])
+                    col_width[i] = min(max_width, col_width[i])
+                lines.append(texts)
+
+            # max line number in this row
+            line_count = max(len(li) for li in lines)
+            res = []
+            for line_number in range(line_count):
+                new_line = []
+                for colIndex in range(len(lines)):
+                    n = (
+                        lines[colIndex][line_number]
+                        if len(lines[colIndex]) > line_number
+                        else ""
+                    )
+                    new_line.append(n)
+                res.append(new_line)
+            body.extend(res)
+
+        # Add 2 more spaces in each column
+        col_width = [w + 2 for w in col_width]
+
+        total_width = sum(col_width) + col_count + 1
+        line = "-" * total_width + "\n"
+
+        def row_to_string(row: List[str]) -> str:
+            tokens = []
+            for segment, size in zip(row, col_width):
+                if len(segment) > max_width:
+                    # if truncated, add ... to the end
+                    formatted = (segment[: max_width - 3] + "...").ljust(size, " ")
+                else:
+                    formatted = segment.ljust(size, " ")
+                tokens.append(formatted)
+            return f"|{'|'.join(tok for tok in tokens)}|\n"
+
+        return (
+            line
+            + row_to_string(header)
+            + line
+            + "".join(row_to_string(b) for b in body)
+            + line
+        )
 
     def createOrReplaceView(self, name: Union[str, List[str]]):
         if type(name) == str:
