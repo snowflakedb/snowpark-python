@@ -40,6 +40,7 @@ setup(
         "snowflake-connector-python>=2.4.6",
     ],
     namespace_packages=["snowflake"],
+    # When a new package (directory) is added, we should also add it here
     packages=[
         "snowflake.snowpark",
         "snowflake.snowpark.internal",
