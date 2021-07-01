@@ -6,7 +6,7 @@
 
 import pytest
 
-from src.snowflake.snowpark.column import Column
+from snowflake.snowpark.column import Column
 
 
 def test_sort_basic(session_cnx, db_parameters):

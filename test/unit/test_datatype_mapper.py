@@ -8,8 +8,8 @@ from decimal import Decimal
 
 import pytest
 
-from src.snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
-from src.snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark.types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,

@@ -3,19 +3,19 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-import pytest
+from test.utils import TestData
 
+import pytest
 from snowflake.connector.errors import ProgrammingError
-from src.snowflake.snowpark.functions import (
+
+from snowflake.snowpark.functions import (
     builtin,
     call_builtin,
     col,
     count_distinct,
     parse_json,
 )
-from src.snowflake.snowpark.row import Row
-
-from ..utils import TestData
+from snowflake.snowpark.row import Row
 
 
 def test_count_distinct(session_cnx, db_parameters):

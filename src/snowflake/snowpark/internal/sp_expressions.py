@@ -6,7 +6,8 @@
 import uuid
 from typing import List, Optional, Tuple
 
-from src.snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark.types.sp_data_types import (
     DataType,
     DecimalType,
     DoubleType,
@@ -14,9 +15,7 @@ from src.snowflake.snowpark.types.sp_data_types import (
     LongType,
     NullType,
 )
-from src.snowflake.snowpark.types.types_package import _infer_type
-
-from .analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark.types.types_package import _infer_type
 
 
 class Expression:

@@ -7,9 +7,9 @@ import uuid
 from decimal import Decimal
 from typing import NamedTuple, Optional
 
-from src.snowflake.snowpark.dataframe import DataFrame
-from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from src.snowflake.snowpark.session import Session
+from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.session import Session
 
 
 class Utils:

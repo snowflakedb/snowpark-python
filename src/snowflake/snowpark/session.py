@@ -14,14 +14,10 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection
-from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from src.snowflake.snowpark.internal.analyzer.snowflake_plan import (
-    SnowflakePlanBuilder,
-    SnowflakeValues,
-)
 
-from .dataframe import DataFrame
-from .functions import (
+
+from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.functions import (
     column,
     parse_json,
     to_array,
@@ -32,16 +28,23 @@ from .functions import (
     to_timestamp,
     to_variant,
 )
-from .internal.analyzer.analyzer_package import AnalyzerPackage
-from .internal.analyzer_obj import Analyzer
-from .internal.server_connection import ServerConnection
-from .internal.sp_expressions import AttributeReference as SPAttributeReference
-from .internal.utils import Utils
-from .plans.logical.basic_logical_operators import Range
-from .plans.logical.logical_plan import UnresolvedRelation
-from .row import Row
-from .snowpark_client_exception import SnowparkClientException
-from .types.sf_types import (
+from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark.internal.analyzer.snowflake_plan import (
+    SnowflakePlanBuilder,
+    SnowflakeValues,
+)
+from snowflake.snowpark.internal.analyzer_obj import Analyzer
+from snowflake.snowpark.internal.server_connection import ServerConnection
+from snowflake.snowpark.internal.sp_expressions import (
+    AttributeReference as SPAttributeReference,
+)
+from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark.plans.logical.basic_logical_operators import Range
+from snowflake.snowpark.plans.logical.logical_plan import UnresolvedRelation
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.types.sf_types import (
     ArrayType,
     AtomicType,
     DateType,
@@ -55,8 +58,8 @@ from .types.sf_types import (
     Variant,
     VariantType,
 )
-from .types.sp_data_types import StringType as SPStringType
-from .types.types_package import (
+from snowflake.snowpark.types.sp_data_types import StringType as SPStringType
+from snowflake.snowpark.types.types_package import (
     _infer_schema_from_list,
     _merge_type,
     snow_type_to_sp_type,

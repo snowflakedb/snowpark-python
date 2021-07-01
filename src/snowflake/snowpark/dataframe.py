@@ -8,17 +8,17 @@ from itertools import count
 from random import choice
 from typing import List, Optional, Tuple, Union
 
-from .column import Column
-from .internal.analyzer.analyzer_package import AnalyzerPackage
-from .internal.analyzer.limit import Limit as SPLimit
-from .internal.analyzer.sp_identifiers import TableIdentifier
-from .internal.analyzer.sp_views import (
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
+from snowflake.snowpark.internal.analyzer.sp_identifiers import TableIdentifier
+from snowflake.snowpark.internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
     LocalTempView as SPLocalTempView,
     PersistedView as SPPersistedView,
     ViewType as SPViewType,
 )
-from .internal.sp_expressions import (
+from snowflake.snowpark.internal.sp_expressions import (
     Ascending as SPAscending,
     Attribute as SPAttribute,
     Descending as SPDescending,
@@ -28,14 +28,20 @@ from .internal.sp_expressions import (
     ResolvedStar as SPResolvedStar,
     SortOrder as SPSortOrder,
 )
-from .internal.utils import Utils
-from .plans.logical.basic_logical_operators import Join as SPJoin, Sort as SPSort
-from .plans.logical.hints import JoinHint as SPJoinHint
-from .plans.logical.logical_plan import Filter as SPFilter, Project as SPProject
-from .snowpark_client_exception import SnowparkClientException
-from .types.sf_types import StructType
-from .types.sp_data_types import LongType as SPLongType
-from .types.sp_join_types import (
+from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark.plans.logical.basic_logical_operators import (
+    Join as SPJoin,
+    Sort as SPSort,
+)
+from snowflake.snowpark.plans.logical.hints import JoinHint as SPJoinHint
+from snowflake.snowpark.plans.logical.logical_plan import (
+    Filter as SPFilter,
+    Project as SPProject,
+)
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.types.sf_types import StructType
+from snowflake.snowpark.types.sp_data_types import LongType as SPLongType
+from snowflake.snowpark.types.sp_join_types import (
     Cross as SPCrossJoin,
     JoinType as SPJoinType,
     LeftAnti as SPLeftAnti,
@@ -298,7 +304,7 @@ class DataFrame:
         :return: RelationalGroupedDataFrame
         """
         # TODO fix dependency cycle
-        from .relational_grouped_dataframe import (
+        from snowflake.snowpark.relational_grouped_dataframe import (
             GroupByType,
             RelationalGroupedDataFrame,
         )

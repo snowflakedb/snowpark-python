@@ -5,8 +5,8 @@
 #
 from typing import List, Optional, Union
 
-from .column import CaseExpr, Column
-from .internal.sp_expressions import (
+from snowflake.snowpark.column import CaseExpr, Column
+from snowflake.snowpark.internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     Avg as SPAverage,
     CaseWhen as SPCaseWhen,
@@ -19,7 +19,7 @@ from .internal.sp_expressions import (
     Sum as SPSum,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from .types.sp_data_types import IntegerType as SPIntegerType
+from snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType
 
 
 def col(col_name: str) -> Column:

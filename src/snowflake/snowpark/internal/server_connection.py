@@ -9,12 +9,13 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.network import ReauthenticationRequest
-from src.snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from src.snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from src.snowflake.snowpark.types.sf_types import (
+
+from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.types.sf_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -200,13 +201,8 @@ class ServerConnection:
         if lowercase.startswith("put") or lowercase.startswith("get"):
             return []
         else:
-            # TODO: SNOW-361263: remove this after python connector has `describe` function
-            if hasattr(self._cursor, "describe"):
-                self._cursor.describe(query)
-            else:
-                self._cursor.execute(query)
             return ServerConnection.convert_result_meta_to_attribute(
-                self._cursor.description
+                self._cursor.describe(query)
             )
 
     @_Decorator.wrap_exception

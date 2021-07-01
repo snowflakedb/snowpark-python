@@ -8,9 +8,13 @@ https://github.com/apache/spark/blob/master/sql/catalyst/src/main/scala/org/apac
 
 from typing import List
 
-from src.snowflake.snowpark.internal.sp_expressions import SortOrder
-
-from .logical_plan import BinaryNode, LeafNode, LogicalPlan, UnaryNode
+from snowflake.snowpark.internal.sp_expressions import SortOrder
+from snowflake.snowpark.plans.logical.logical_plan import (
+    BinaryNode,
+    LeafNode,
+    LogicalPlan,
+    UnaryNode,
+)
 
 
 class Join(BinaryNode):

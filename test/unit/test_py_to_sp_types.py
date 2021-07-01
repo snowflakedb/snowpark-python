@@ -9,7 +9,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark.types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     ByteType as SPByteType,
@@ -26,7 +26,7 @@ from src.snowflake.snowpark.types.sp_data_types import (
     TimestampType as SPTimestampType,
     TimeType as SPTimeType,
 )
-from src.snowflake.snowpark.types.types_package import _infer_type
+from snowflake.snowpark.types.types_package import _infer_type
 
 
 # TODO complete for schema case

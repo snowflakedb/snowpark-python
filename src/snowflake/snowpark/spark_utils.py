@@ -3,9 +3,9 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from .internal.analyzer.sp_utils import to_pretty_sql
-from .internal.sp_expressions import AggregateExpression, Expression
-from .types.sp_data_types import DataType, IntegralType
+from snowflake.snowpark.internal.analyzer.sp_utils import to_pretty_sql
+from snowflake.snowpark.internal.sp_expressions import AggregateExpression, Expression
+from snowflake.snowpark.types.sp_data_types import DataType, IntegralType
 
 
 # utils function to allow package properties accessible from outside
