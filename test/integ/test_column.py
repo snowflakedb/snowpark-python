@@ -8,8 +8,8 @@ import math
 from test.utils import TestData
 
 import pytest
-from snowflake.connector.errors import ProgrammingError
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.functions import col, lit, parse_json, when
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types.sf_types import StringType
