@@ -67,6 +67,106 @@ def test_createOrReplaceView_with_null_data(session_cnx, db_parameters):
             Utils.drop_view(session, view_name)
 
 
+def test_adjust_column_width_of_show(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame([[1, None], [2, "NotNull"]]).toDF("a", "b")
+        # run show(), make sure no error is reported
+        df.show(10, 4)
+
+        res = df._DataFrame__show_string(10, 4)
+        assert (
+            res
+            == """
+--------------
+|"A"  |"B"   |
+--------------
+|1    |NULL  |
+|2    |N...  |
+--------------\n""".lstrip()
+        )
+
+
+def test_show_with_null_data(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame([[1, None], [2, "NotNull"]]).toDF("a", "b")
+        # run show(), make sure no error is reported
+        df.show(10)
+
+        res = df._DataFrame__show_string(10)
+        assert (
+            res
+            == """
+-----------------
+|"A"  |"B"      |
+-----------------
+|1    |NULL     |
+|2    |NotNull  |
+-----------------\n""".lstrip()
+        )
+
+
+def test_show_multi_lines_row(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame(
+            [
+                ("line1\nline2", None),
+                ("single line", "NotNull\none more line\nlast line"),
+            ]
+        ).toDF("a", "b")
+
+        res = df._DataFrame__show_string(10)
+        assert (
+            res
+            == """
+-------------------------------
+|"A"          |"B"            |
+-------------------------------
+|line1        |NULL           |
+|line2        |               |
+|single line  |NotNull        |
+|             |one more line  |
+|             |last line      |
+-------------------------------\n""".lstrip()
+        )
+
+
+def test_show(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        TestData.test_data1(session).show()
+
+        res = TestData.test_data1(session)._DataFrame__show_string(10)
+        assert (
+            res
+            == """
+--------------------------
+|"NUM"  |"BOOL"  |"STR"  |
+--------------------------
+|1      |True    |a      |
+|2      |False   |b      |
+--------------------------\n""".lstrip()
+        )
+
+        # make sure show runs with sql
+        session.sql("show tables").show()
+
+        session.sql("drop table if exists test_table_123").show()
+
+        # truncate result, no more than 50 characters
+        res = session.sql(
+            "drop table if exists test_table_123"
+        )._DataFrame__show_string(1)
+
+        assert (
+            res
+            == """
+------------------------------------------------------
+|"status"                                            |
+------------------------------------------------------
+|Drop statement executed successfully (TEST_TABL...  |
+------------------------------------------------------\n""".lstrip()
+        )
+
+
 def test_non_select_query_composition(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         table_name = Utils.random_name()

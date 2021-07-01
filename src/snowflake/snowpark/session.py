@@ -14,7 +14,6 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection
-
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import (
     column,

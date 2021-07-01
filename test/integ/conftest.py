@@ -9,8 +9,8 @@ from test.parameters import CONNECTION_PARAMETERS
 from typing import Callable, Dict
 
 import pytest
-from snowflake.connector.connection import DefaultConverterClass
 
+from snowflake.connector.connection import DefaultConverterClass
 from snowflake.snowpark.session import Session
 
 
