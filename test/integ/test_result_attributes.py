@@ -4,21 +4,17 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import uuid
+from test.utils import Utils as utils
 from typing import List
 
-from src.snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-
-# TODO fix 'src.' in imports
-from src.snowflake.snowpark.session import Session
-from src.snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark.session import Session
+from snowflake.snowpark.types.sf_types import (
     ArrayType,
     BinaryType,
     BooleanType,
-    DataType,
     DateType,
-    DecimalType,
     DoubleType,
-    GeographyType,
     LongType,
     MapType,
     StringType,
@@ -26,8 +22,6 @@ from src.snowflake.snowpark.types.sf_types import (
     TimeType,
     VariantType,
 )
-
-from ..utils import Utils as utils
 
 
 def get_table_attributes(session: "Session", name: str) -> List["Attribute"]:

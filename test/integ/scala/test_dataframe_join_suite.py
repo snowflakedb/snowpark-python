@@ -8,10 +8,10 @@ from test.utils import Utils
 
 import pytest
 
-from src.snowflake.snowpark.dataframe import DataFrame
-from src.snowflake.snowpark.functions import col, count, lit
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.functions import col, count, lit
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
 def test_join_using(session_cnx, db_parameters):

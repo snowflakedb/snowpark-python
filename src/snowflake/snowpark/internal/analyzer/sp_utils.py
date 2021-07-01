@@ -6,15 +6,15 @@
 
 # See https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/util/package.scala#L128
 
-from ...types.sp_data_types import (
-    NumericType as SPNumericType,
-    StringType as SPStringType,
-)
-from ..sp_expressions import (
+from snowflake.snowpark.internal.sp_expressions import (
     Attribute as SPAttribute,
     Expression as SPExpression,
     Literal as SPLiteral,
     PrettyAttribute as SPPrettyAttribute,
+)
+from snowflake.snowpark.types.sp_data_types import (
+    NumericType as SPNumericType,
+    StringType as SPStringType,
 )
 
 

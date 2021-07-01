@@ -7,20 +7,19 @@ import random
 import re
 from typing import List, Tuple, Union
 
-from src.snowflake.snowpark.row import Row
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from src.snowflake.snowpark.types.sf_types import DataType
-from src.snowflake.snowpark.types.types_package import convert_to_sf_type
-
-from ...types.sp_join_types import (
+from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark.internal.sp_expressions import Attribute as SPAttribute
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.types.sf_types import DataType
+from snowflake.snowpark.types.sp_join_types import (
     JoinType as SPJoinType,
     LeftAnti as SPLeftAnti,
     LeftSemi as SPLeftSemi,
     NaturalJoin as SPNaturalJoin,
     UsingJoin as SPUsingJoin,
 )
-from ..sp_expressions import Attribute as SPAttribute
-from .datatype_mapper import DataTypeMapper
+from snowflake.snowpark.types.types_package import convert_to_sf_type
 
 
 class AnalyzerPackage:

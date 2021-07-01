@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from src.snowflake.snowpark.relational_grouped_dataframe import (
+from snowflake.snowpark.relational_grouped_dataframe import (
     CubeType,
     GroupByType,
     PivotType,

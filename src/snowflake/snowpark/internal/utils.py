@@ -5,7 +5,7 @@
 #
 import re
 
-from src.snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
 class Utils:
