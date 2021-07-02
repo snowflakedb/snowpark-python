@@ -31,6 +31,7 @@ from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Join as SPJoin,
     Sort as SPSort,
+    Union as SPUnion
 )
 from snowflake.snowpark.plans.logical.hints import JoinHint as SPJoinHint
 from snowflake.snowpark.plans.logical.logical_plan import (
@@ -312,6 +313,10 @@ class DataFrame:
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
 
     def distinct(self) -> "DataFrame":
+        """ Returns a new DataFrame that contains only the rows with distinct values
+        from the current DataFrame.
+
+        This is equivalent to performing a SELECT DISTINCT in SQL."""
         return self.groupBy(
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
@@ -322,6 +327,26 @@ class DataFrame:
 
         Note that this is a transformation method and not an action method."""
         return self.__with_plan(SPLimit(SPLiteral(n, SPLongType()), self.__plan))
+
+    def union(self, other: "DataFrame") -> "DataFrame":
+        """Returns a new DataFrame that contains all the rows in the current DataFrame
+        and another DataFrame (`other`). Both input DataFrames must contain the same
+        number of columns.
+
+        This is same as the [[unionAll]] method.
+        For example: `val df1and2 = df1.union(df2)`
+        """
+        return self.__with_plan(SPUnion(self.__plan, other._DataFrame__plan))
+
+    def unionAll(self, other: "DataFrame") -> "DataFrame":
+        """Returns a new DataFrame that contains all the rows in the current DataFrame
+        and another DataFrame (`other`). Both input DataFrames must contain the same
+        number of columns.
+
+        This is same as the [[union]] method.
+        For example: `val df1and2 = df1.union(df2)`
+        """
+        return self.union(other)
 
     def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
         """Performs a natural join of the specified type (`joinType`) with the current DataFrame and

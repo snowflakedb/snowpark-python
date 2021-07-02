@@ -53,6 +53,7 @@ from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Join as SPJoin,
     Range as SPRange,
     Sort as SPSort,
+    Union as SPUnion
 )
 from snowflake.snowpark.plans.logical.logical_plan import (
     Filter as SPFilter,
@@ -330,6 +331,12 @@ class Analyzer:
                 list(map(self.analyze, logical_plan.order)),
                 resolved_children[logical_plan.child],
                 logical_plan,
+            )
+
+        if type(logical_plan) == SPUnion:
+            return self.plan_builder.union(
+                [resolved_children[c] for c in logical_plan.children],
+                logical_plan
             )
 
         if type(logical_plan) == SPRange:

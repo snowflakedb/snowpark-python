@@ -188,6 +188,41 @@ def test_non_select_query_composition(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
+def test_non_select_query_composition_union(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        table_name = Utils.random_name()
+        try:
+            session.sql(
+                f"create or replace temporary table {table_name} (num int)"
+            ).collect()
+            df1 = session.sql("show tables")
+            df2 = session.sql("show tables")
+
+            df = df1.union(df2).select('"name"').filter((col('"name"') == table_name))
+            res = df.collect()
+            assert len(res) == 2
+
+        finally:
+            Utils.drop_table(session, table_name)
+
+
+def test_non_select_query_composition_self_union(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        table_name = Utils.random_name()
+        try:
+            session.sql(
+                f"create or replace temporary table {table_name} (num int)"
+            ).collect()
+            df = session.sql("show tables")
+
+            union = df.union(df).select('"name"').filter((col('"name"') == table_name))
+
+            assert len(union.collect()) == 2
+            assert len(union._DataFrame__plan.queries) == 3
+        finally:
+            Utils.drop_table(session, table_name)
+
+
 def test_only_use_result_scan_when_composing_queries(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         df = session.sql("show tables")
@@ -577,6 +612,24 @@ def test_negative_test_for_user_input_invalid_quoted_name(session_cnx, db_parame
         with pytest.raises(SnowparkClientException) as ex_info:
             df.where(col('"A" = "A" --"') == 2).collect()
         assert "invalid identifier" in str(ex_info)
+
+
+def test_clone_with_union_dataframe(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        table_name = Utils.random_name()
+        try:
+            Utils.create_table(session, table_name, "c1 int, c2 int")
+
+            session.sql(f"insert into {table_name} values(1, 1),(2, 2)").collect()
+            df = session.table(table_name)
+
+            union_df = df.union(df)
+            cloned_union_df = union_df.clone()
+            res = cloned_union_df.collect()
+            res.sort(key=lambda x: x[0])
+            assert res == [Row([1, 1]), Row([1, 1]), Row([2, 2]), Row([2, 2])]
+        finally:
+            Utils.drop_table(session, table_name)
 
 
 def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(

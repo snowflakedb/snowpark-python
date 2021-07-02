@@ -376,6 +376,65 @@ def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_ordinal(
         ).collect() == [Row([3, 4, 9])]
 
 
+def test_distinct_and_unions(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        lhs = session.createDataFrame([(1, "one", 1.0), (2, "one", 2.0)]).toDF(
+            "i", "s", '"i"'
+        )
+        rhs = session.createDataFrame([(1, "one", 1.0), (2, "one", 2.0)]).toDF(
+            "i", "s", '"i"'
+        )
+
+        res = lhs.union(rhs).distinct().collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [Row([1, "one", 1.0]), Row([2, "one", 2.0])]
+
+        lhsD = lhs.select(col("s")).distinct()
+        rhs = rhs.select(col("s"))
+        res = lhsD.union(rhs).collect()
+        assert res == [Row("one"), Row("one"), Row("one")]
+
+        lhs = lhs.select(col("s"))
+        rhsD = rhs.select("s").distinct()
+
+        res = lhs.union(rhsD).collect()
+        assert res == [Row("one"), Row("one"), Row("one")]
+
+        res = lhsD.union(rhsD).collect()
+        assert res == [Row("one"), Row("one")]
+
+
+def test_count_if(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        session.createDataFrame(
+            [["a", None], ["a", 1], ["a", 2], ["a", 3],
+             ["b", None], ["b", 4], ["b", 5], ["b", 6]]
+        ).toDF("x", "y").createOrReplaceTempView("tempView")
+
+        res = session.sql("SELECT COUNT_IF(NULL), COUNT_IF(y % 2 = 0), COUNT_IF(y % 2 <> 0), COUNT_IF(y IS NULL) FROM tempView").collect()
+        assert res == [Row([0, 3, 3, 2])]
+
+        res = session.sql("SELECT x, COUNT_IF(NULL), COUNT_IF(y % 2 = 0), COUNT_IF(y % 2 <> 0), COUNT_IF(y IS NULL) FROM tempView GROUP BY x").collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [Row(["a", 0, 1, 2, 1]), Row(["b", 0, 2, 1, 1])]
+
+        res = session.sql("SELECT x FROM tempView GROUP BY x HAVING COUNT_IF(y % 2 = 0) = 1").collect()
+        assert res == [Row(["a"])]
+
+        res = session.sql("SELECT x FROM tempView GROUP BY x HAVING COUNT_IF(y % 2 = 0) = 2").collect()
+        assert res == [Row(["b"])]
+
+        res = session.sql("SELECT x FROM tempView GROUP BY x HAVING COUNT_IF(y IS NULL) > 0").collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [Row(["a"]), Row(["b"])]
+
+        res = session.sql("SELECT x FROM tempView GROUP BY x HAVING COUNT_IF(NULL) > 0").collect()
+        assert res == []
+
+        with pytest.raises(ProgrammingError) as ex_info:
+            session.sql("SELECT COUNT_IF(x) FROM tempView").collect()
+
+
 def test_agg_without_groups(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
         assert TestData.test_data2(session).agg(sum(col("b"))).collect() == [Row([9])]

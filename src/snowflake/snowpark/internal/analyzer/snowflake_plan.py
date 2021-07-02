@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-
+from functools import reduce
 from typing import Callable, Dict, List, Optional
 
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
@@ -224,6 +224,18 @@ class SnowflakePlanBuilder:
             lambda x: self.pkg.sort_statement(order, x), child, source_plan
         )
 
+    def set_operator(self, left: SnowflakePlan, right: SnowflakePlan, op: str, source_plan: Optional[LogicalPlan]):
+        return self.__build_binary(
+            lambda x, y: self.pkg.set_operator_statement(x, y, op),
+            left,
+            right,
+            source_plan
+        )
+
+    def union(self, children: List[SnowflakePlan], source_plan: Optional[LogicalPlan]):
+        func = lambda x, y: self.set_operator(x, y, "UNION ALL ", source_plan)
+        return reduce(func, children)
+
     def join(self, left, right, join_type, condition, source_plan):
         return self.__build_binary(
             lambda x, y: self.pkg.join_statement(x, y, join_type, condition),
@@ -288,7 +300,7 @@ class SnowflakePlanBuilder:
 
 
 class Query:
-    def __init__(self, query_string, query_id_placeholder):
+    def __init__(self, query_string, query_id_placeholder=None):
         self.sql = query_string
         self.query_id_place_holder = (
             query_id_placeholder

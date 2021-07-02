@@ -22,6 +22,14 @@ class Utils:
         session._run_query(f"create or replace table {name} ({schema})")
 
     @staticmethod
+    def create_stage(session: "Session", name: str, is_temporary: bool = True):
+        session._run_query(f"create or replace {'temporary' if is_temporary else ''} stage {name}")
+
+    @staticmethod
+    def drop_stage(session: "Session", name: str):
+        session._run_query(f"drop stage if exists {AnalyzerPackage.quote_name(name)}")
+
+    @staticmethod
     def drop_table(session: "Session", name: str):
         session._run_query(f"drop table if exists {AnalyzerPackage.quote_name(name)}")
 
