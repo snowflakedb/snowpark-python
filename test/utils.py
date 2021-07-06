@@ -10,6 +10,7 @@ from typing import NamedTuple, Optional
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.session import Session
+from snowflake.snowpark.types.sf_types import StructType
 
 
 class Utils:
@@ -20,6 +21,16 @@ class Utils:
     @staticmethod
     def create_table(session: "Session", name: str, schema: str):
         session._run_query(f"create or replace table {name} ({schema})")
+
+    @staticmethod
+    def create_stage(session: "Session", name: str, is_temporary: bool = True):
+        session._run_query(
+            f"create or replace {'temporary' if is_temporary else ''} stage {name}"
+        )
+
+    @staticmethod
+    def drop_stage(session: "Session", name: str):
+        session._run_query(f"drop stage if exists {AnalyzerPackage.quote_name(name)}")
 
     @staticmethod
     def drop_table(session: "Session", name: str):

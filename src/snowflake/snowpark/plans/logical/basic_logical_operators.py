@@ -67,3 +67,11 @@ class Sort(UnaryNode):
         self.is_global = is_global
         self.child = child
         self.children.append(child)
+
+
+class Union(LogicalPlan):
+    def __init__(self, left: LogicalPlan, right: LogicalPlan):
+        super().__init__()
+        self.left = left
+        self.right = right
+        self.children = [left, right]

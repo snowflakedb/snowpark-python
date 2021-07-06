@@ -282,6 +282,9 @@ class AnalyzerPackage:
             self.table(self.generator(0 if count < 0 else count)),
         )
 
+    def set_operator_statement(self, left: str, right: str, operator: str):
+        return left + self._Space + operator + self._Space + right
+
     def left_semi_or_anti_join_statement(
         self, left: str, right: str, join_type: type, condition: str
     ) -> str:
