@@ -224,12 +224,18 @@ class SnowflakePlanBuilder:
             lambda x: self.pkg.sort_statement(order, x), child, source_plan
         )
 
-    def set_operator(self, left: SnowflakePlan, right: SnowflakePlan, op: str, source_plan: Optional[LogicalPlan]):
+    def set_operator(
+        self,
+        left: SnowflakePlan,
+        right: SnowflakePlan,
+        op: str,
+        source_plan: Optional[LogicalPlan],
+    ):
         return self.__build_binary(
             lambda x, y: self.pkg.set_operator_statement(x, y, op),
             left,
             right,
-            source_plan
+            source_plan,
         )
 
     def union(self, children: List[SnowflakePlan], source_plan: Optional[LogicalPlan]):

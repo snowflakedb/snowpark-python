@@ -198,7 +198,7 @@ def test_non_select_query_composition_union(session_cnx, db_parameters):
             df1 = session.sql("show tables")
             df2 = session.sql("show tables")
 
-            df = df1.union(df2).select('"name"').filter((col('"name"') == table_name))
+            df = df1.union(df2).select('"name"').filter(col('"name"') == table_name)
             res = df.collect()
             assert len(res) == 2
 
@@ -215,7 +215,7 @@ def test_non_select_query_composition_self_union(session_cnx, db_parameters):
             ).collect()
             df = session.sql("show tables")
 
-            union = df.union(df).select('"name"').filter((col('"name"') == table_name))
+            union = df.union(df).select('"name"').filter(col('"name"') == table_name)
 
             assert len(union.collect()) == 2
             assert len(union._DataFrame__plan.queries) == 3

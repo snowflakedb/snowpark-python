@@ -31,7 +31,7 @@ from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Join as SPJoin,
     Sort as SPSort,
-    Union as SPUnion
+    Union as SPUnion,
 )
 from snowflake.snowpark.plans.logical.hints import JoinHint as SPJoinHint
 from snowflake.snowpark.plans.logical.logical_plan import (
@@ -313,7 +313,7 @@ class DataFrame:
         return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
 
     def distinct(self) -> "DataFrame":
-        """ Returns a new DataFrame that contains only the rows with distinct values
+        """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL."""

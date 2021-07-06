@@ -1,13 +1,11 @@
-from typing import List
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
 
-from snowflake.snowpark.row import Row
 from test.utils import TestData
 
-from snowflake.snowpark.functions import (
-    col,
-    min,
-    sum
-)
+from snowflake.snowpark.functions import col, min, sum
+from snowflake.snowpark.row import Row
 
 
 def test_union_all(session_cnx, db_parameters):
