@@ -44,10 +44,6 @@ class Utils:
     def equals_ignore_case(a: str, b: str) -> bool:
         return a.lower() == b.lower()
 
-    @staticmethod
-    def verify_schema(sql: str, expected_schema: StructType, session: Session):
-        result_meta = session.conn.run_query(sql)
-
 
 class TestData:
     Data = NamedTuple("Data", [("num", int), ("bool", bool), ("str", str)])

@@ -334,7 +334,7 @@ class DataFrame:
         number of columns.
 
         This is same as the [[unionAll]] method.
-        For example: `val df1and2 = df1.union(df2)`
+        For example: `df1and2 = df1.union(df2)`
         """
         return self.__with_plan(SPUnion(self.__plan, other._DataFrame__plan))
 
@@ -344,7 +344,7 @@ class DataFrame:
         number of columns.
 
         This is same as the [[union]] method.
-        For example: `val df1and2 = df1.union(df2)`
+        For example: `df1and2 = df1.union(df2)`
         """
         return self.union(other)
 
