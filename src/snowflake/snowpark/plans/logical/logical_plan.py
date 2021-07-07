@@ -4,6 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
+from typing import List
+
 
 class LogicalPlan:
     def __init__(self):
@@ -15,7 +17,8 @@ class LeafNode(LogicalPlan):
 
 
 class BinaryNode(LogicalPlan):
-    pass
+    left: LogicalPlan
+    right: LogicalPlan
 
 
 class NamedRelation(LogicalPlan):

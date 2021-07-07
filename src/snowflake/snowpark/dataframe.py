@@ -29,6 +29,7 @@ from snowflake.snowpark.internal.sp_expressions import (
 )
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import (
+    Intersect as SPIntersect,
     Join as SPJoin,
     Sort as SPSort,
     Union as SPUnion,
@@ -347,6 +348,17 @@ class DataFrame:
         For example: `df1and2 = df1.union(df2)`
         """
         return self.union(other)
+
+    def intersect(self, other: "DataFrame") -> "DataFrame":
+        """Returns a new DataFrame that contains the intersection of rows from the
+        current DataFrame and another DataFrame (`other`). Duplicate rows are
+        eliminated.
+
+        For example: `df_intersection_of_1_and_2 = df1.intersect(df2)
+        """
+        return self.__with_plan(
+            SPIntersect(self.__plan, other._DataFrame__plan, is_all=False)
+        )
 
     def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
         """Performs a natural join of the specified type (`joinType`) with the current DataFrame and

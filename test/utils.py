@@ -10,7 +10,6 @@ from typing import NamedTuple, Optional
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types.sf_types import StructType
 
 
 class Utils:
@@ -52,6 +51,7 @@ class TestData:
     Data4 = NamedTuple("Data4", [("key", int), ("value", str)])
     LowerCaseData = NamedTuple("LowerCaseData", [("n", int), ("l", str)])
     UpperCaseData = NamedTuple("UpperCaseData", [("N", int), ("L", str)])
+    NullInt = NamedTuple("NullInts", [("a", Optional[int])])
     Number2 = NamedTuple("Number2", [("x", int), ("y", int), ("z", int)])
 
     @classmethod
@@ -82,13 +82,25 @@ class TestData:
         return session.createDataFrame([cls.Data4(i, str(i)) for i in range(1, 101)])
 
     @classmethod
-    def test_lower_case_data(cls, session: "Session") -> DataFrame:
+    def lower_case_data(cls, session: "Session") -> DataFrame:
         return session.createDataFrame([[1, "a"], [2, "b"], [3, "c"], [4, "d"]])
 
     @classmethod
-    def test_upper_case_data(cls, session: "Session") -> DataFrame:
+    def upper_case_data(cls, session: "Session") -> DataFrame:
         return session.createDataFrame(
             [[1, "A"], [2, "B"], [3, "C"], [4, "D"], [5, "E"], [6, "F"]]
+        )
+
+    @classmethod
+    def null_ints(cls, session: "Session") -> DataFrame:
+        return session.createDataFrame(
+            [cls.NullInt(1), cls.NullInt(2), cls.NullInt(3), cls.NullInt(None)]
+        )
+
+    @classmethod
+    def all_nulls(cls, session: "Session") -> DataFrame:
+        return session.createDataFrame(
+            [cls.NullInt(None), cls.NullInt(None), cls.NullInt(None), cls.NullInt(None)]
         )
 
     @classmethod
