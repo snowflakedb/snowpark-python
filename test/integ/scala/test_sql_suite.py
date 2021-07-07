@@ -139,9 +139,14 @@ def test_insert_into_table(session_cnx, db_parameters):
 
 def test_show(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        table_sql_res = session.sql("SHOW TABLES")
-        res = table_sql_res.collect()
-        assert len(res) > 0
+        table_name = Utils.random_name()
+        try:
+            Utils.create_table(session, table_name, "num int")
+            table_sql_res = session.sql("SHOW TABLES")
+            res = table_sql_res.collect()
+            assert len(res) > 0
+        finally:
+            Utils.drop_table(session, table_name)
 
         # test when input is a wrong show command, throws exception when prepare
         # no error
