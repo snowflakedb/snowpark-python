@@ -241,7 +241,8 @@ def to_snow_struct_type(struct_type: SPStructType) -> StructType:
 
 # #####################################################################################
 # Converting python types to SP-types
-# Taken from: https://spark.apache.org/docs/3.1.1/api/python/_modules/pyspark/sql/types.html
+# Taken as is or modified from:
+# https://spark.apache.org/docs/3.1.1/api/python/_modules/pyspark/sql/types.html
 
 # Mapping Python types to Spark SQL DataType
 _type_mappings = {

@@ -69,6 +69,23 @@ class Sort(UnaryNode):
         self.children.append(child)
 
 
+class SetOperation(BinaryNode):
+    def __init__(self, left: LogicalPlan, right: LogicalPlan):
+        super().__init__()
+        self.left = left
+        self.right = right
+
+
+class Intersect(SetOperation):
+    def __init__(self, left: LogicalPlan, right: LogicalPlan, is_all: bool):
+        super().__init__(left=left, right=right)
+        self.is_all = is_all
+        self.children = [self.left, self.right]
+
+    def node_name(self):
+        return self.__class__.__name__ + ("All" if self.is_all else "")
+
+
 class Union(LogicalPlan):
     def __init__(self, left: LogicalPlan, right: LogicalPlan):
         super().__init__()

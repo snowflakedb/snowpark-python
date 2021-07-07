@@ -10,7 +10,6 @@ from typing import List
 
 class Row:
     def __init__(self, values):
-        # TODO input validation
         self.values = (
             [i for i in values] if isinstance(values, (list, tuple)) else [values]
         )
@@ -33,7 +32,6 @@ class Row:
     def copy(self):
         return Row(self.values)
 
-    # TODO complete, need to determine NaN handling, consider switching to all for ineq-check
     def __eq__(self, other):
         if type(other) is not Row:
             return False
@@ -45,9 +43,8 @@ class Row:
                     return False
         return True
 
-    # TODO do we need it? requires Mumrmurhash3
-    def hashcode(self):
-        pass
+    # def hashcode(self):
+    #    pass
 
     def is_null_at(self, index):
         return self.get(index) is None
@@ -55,20 +52,8 @@ class Row:
     def get_boolean(self, index):
         return bool(self.get(index))
 
-    # TODO
-    def get_byte(self, index):
-        pass
-
-    # TODO is this even applicable in python?
-    def get_short(self, index):
-        pass
-
     def get_int(self, index):
         return int(self.get(index))
-
-    # TODO is this even applicable in python?
-    def get_long(self, index):
-        pass
 
     def get_float(self, index):
         return float(self.get(index))
@@ -81,33 +66,8 @@ class Row:
     def get_string(self, index):
         return str(self.get(index))
 
-    # TODO
-    def get_binary(self, index):
-        pass
-
-    # TODO
     def get_decimal(self, index):
         return Decimal(self.get(index))
-
-    # TODO
-    def get_date(self, index):
-        pass
-
-    # TODO
-    def get_time(self, index):
-        pass
-
-    # TODO
-    def get_local_date(self, index):
-        pass
-
-    # TODO
-    def get_timestamp(self, index):
-        pass
-
-    # TODO
-    def get_instant(self, index):
-        pass
 
     def get_list(self, index):
         return [self.get(index)]
