@@ -3,7 +3,9 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import os
 import uuid
+import random
 from decimal import Decimal
 from typing import NamedTuple, Optional
 
@@ -16,6 +18,10 @@ class Utils:
     @staticmethod
     def random_name() -> str:
         return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_")).upper()
+
+    @staticmethod
+    def random_stage_name() -> str:
+        return f"SN_TEST_Stage_{abs(random.randint(0, 2 ** 31))}".upper()
 
     @staticmethod
     def create_table(session: "Session", name: str, schema: str):
@@ -36,12 +42,24 @@ class Utils:
         session._run_query(f"drop table if exists {AnalyzerPackage.quote_name(name)}")
 
     @staticmethod
+    def upload_to_stage(session: "Session", stage_name: str, filename: str, compress: bool):
+        session._do_upload(stage_location=stage_name, uri=filename, compress_data=compress)
+
+    @staticmethod
     def drop_view(session: "Session", name: str):
         session._run_query(f"drop view if exists {AnalyzerPackage.quote_name(name)}")
 
     @staticmethod
     def equals_ignore_case(a: str, b: str) -> bool:
         return a.lower() == b.lower()
+
+    @classmethod
+    def random_temp_schema(cls):
+        return f"SCHEMA_{cls.random_name()}"
+
+    @classmethod
+    def get_fully_qualified_temp_schema(cls, session: Session):
+        return f"{session.getCurrentDatabase()}.{cls.random_temp_schema()}"
 
 
 class TestData:
@@ -197,3 +215,48 @@ class TestData:
     @classmethod
     def column_has_special_char(cls, session: "Session") -> DataFrame:
         return session.createDataFrame([[1, 2], [3, 4]]).toDF(['"col %"', '"col *"'])
+
+
+class SnowTestFiles:
+    def __init__(self, resources_path):
+        self.resources_path = resources_path
+
+    @property
+    def testFileCsv(self):
+        return os.path.join(self.resources_path, "testCSV.csv")
+
+    @property
+    def testFile2Csv(self):
+        return os.path.join(self.resources_path, "test2CSV.csv")
+
+    @property
+    def testFileCsvColon(self):
+        return os.path.join(self.resources_path, "testCSVcolon.csv")
+
+    @property
+    def testFileCsvQuotes(self):
+        return os.path.join(self.resources_path, "testCSVquotes.csv")
+
+    @property
+    def testFileJson(self):
+        return os.path.join(self.resources_path, "testJson.json")
+
+    @property
+    def testFileAvro(self):
+        return os.path.join(self.resources_path, "test.avro")
+
+    @property
+    def testFileParquet(self):
+        return os.path.join(self.resources_path, "test.parquet")
+
+    @property
+    def testFileOrc(self):
+        return os.path.join(self.resources_path, "test.orc")
+
+    @property
+    def testFileXml(self):
+        return os.path.join(self.resources_path, "test.xml")
+
+    @property
+    def testBrokenCsv(self):
+        return os.path.join(self.resources_path, "broken.csv")
