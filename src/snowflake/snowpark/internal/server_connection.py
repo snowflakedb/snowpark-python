@@ -3,7 +3,6 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-import platform
 from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple, Union
 
