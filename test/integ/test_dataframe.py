@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import datetime
+from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
@@ -19,15 +20,19 @@ from snowflake.snowpark.internal.sp_expressions import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types.sf_types import (
+    ArrayType,
     BinaryType,
     BooleanType,
     DateType,
     DecimalType,
     DoubleType,
     LongType,
+    MapType,
     StringType,
     TimestampType,
     TimeType,
+    Variant,
+    VariantType,
 )
 
 
@@ -665,11 +670,10 @@ def test_df_col(session_cnx, db_parameters):
         assert type(c.expression) == SPResolvedStar
 
 
-def test_create_dataframe_with_different_data_types(session_cnx, db_parameters):
+def test_create_dataframe_with_basic_data_types(session_cnx, db_parameters):
     with session_cnx(db_parameters) as session:
-        # TODO: SNOW-366940 test array, dict, variant and geo type after we support Variant
-        data = [
-            0,
+        data1 = [
+            1,
             "one",
             1.0,
             datetime.datetime.now(),
@@ -679,9 +683,20 @@ def test_create_dataframe_with_different_data_types(session_cnx, db_parameters):
             bytearray("a", "utf-8"),
             Decimal(0.5),
         ]
-        expected_names = ["_{}".format(idx + 1) for idx in range(len(data))]
-        expected_rows = [Row(data), Row(data)]
-        df = session.createDataFrame([data, data])
+        data2 = [
+            0,
+            "",
+            0.0,
+            datetime.datetime.min,
+            datetime.date.min,
+            datetime.time.min,
+            False,
+            bytes(),
+            Decimal(0),
+        ]
+        expected_names = ["_{}".format(idx + 1) for idx in range(len(data1))]
+        expected_rows = [Row(data1), Row(data2)]
+        df = session.createDataFrame([data1, data2])
         assert [field.name for field in df.schema.fields] == expected_names
         assert [type(field.datatype) for field in df.schema.fields] == [
             LongType,
@@ -696,6 +711,39 @@ def test_create_dataframe_with_different_data_types(session_cnx, db_parameters):
         ]
         assert df.collect() == expected_rows
         assert df.select(expected_names).collect() == expected_rows
+
+
+def test_create_dataframe_with_semi_structured_data_types(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        data = [
+            ["'", 2],
+            ("'", 2),
+            [[1, 2], [2, 1]],
+            array("I", [1, 2, 3]),
+            {"'": 1},
+            Variant(1),
+        ]
+        df = session.createDataFrame([data])
+        assert [type(field.datatype) for field in df.schema.fields] == [
+            ArrayType,
+            ArrayType,
+            ArrayType,
+            ArrayType,
+            MapType,
+            VariantType,
+        ]
+        assert df.collect() == [
+            Row(
+                [
+                    '[\n  "\'",\n  2\n]',
+                    '[\n  "\'",\n  2\n]',
+                    "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
+                    "[\n  1,\n  2,\n  3\n]",
+                    '{\n  "\'": 1\n}',
+                    "1",
+                ]
+            )
+        ]
 
 
 def test_create_dataframe_with_dict(session_cnx, db_parameters):
@@ -793,7 +841,15 @@ def test_create_dataframe_with_invalid_data(session_cnx, db_parameters):
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame([datetime.datetime.now(), datetime.time()])
         assert "Cannot merge type" in str(ex_info)
-        # TODO: SNOW-366940 test array, dict, variant and geo type after we support Variant
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([[[1, 2, 3], 1], [1, 1]])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([[[1, 2, 3], 1], [{1: 2}, 1]])
+        assert "Cannot merge type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame([[[1, 2, 3], 1], [Variant({1: 2}), 1]])
+        assert "Cannot merge type" in str(ex_info)
 
         # inconsistent length
         with pytest.raises(ValueError) as ex_info:

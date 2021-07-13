@@ -14,6 +14,7 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection
+
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import (
     column,
@@ -291,7 +292,9 @@ class Session:
                     converted_row.append(value.as_json_string())
                 elif type(value) == Geography and type(data_type) == GeographyType:
                     converted_row.append(value.as_geo_json())
-                elif type(value) == array and type(data_type) == ArrayType:
+                elif (
+                    type(value) in [list, tuple, array] and type(data_type) == ArrayType
+                ):
                     converted_row.append(Variant(value).as_json_string())
                 elif type(value) == dict and type(data_type) == MapType:
                     converted_row.append(Variant(value).as_json_string())
