@@ -4,8 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import os
-import uuid
 import random
+import uuid
 from decimal import Decimal
 from typing import NamedTuple, Optional
 
@@ -42,8 +42,12 @@ class Utils:
         session._run_query(f"drop table if exists {AnalyzerPackage.quote_name(name)}")
 
     @staticmethod
-    def upload_to_stage(session: "Session", stage_name: str, filename: str, compress: bool):
-        session._do_upload(stage_location=stage_name, uri=filename, compress_data=compress)
+    def upload_to_stage(
+        session: "Session", stage_name: str, filename: str, compress: bool
+    ):
+        session._do_upload(
+            stage_location=stage_name, uri=filename, compress_data=compress
+        )
 
     @staticmethod
     def drop_view(session: "Session", name: str):

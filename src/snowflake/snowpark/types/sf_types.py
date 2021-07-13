@@ -258,7 +258,11 @@ class StructType(DataType):
 
     def to_attributes(self):
         from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-        return [Attribute(f.column_identifier.quoted_name, f.datatype, f.nullable) for f in self.fields]
+
+        return [
+            Attribute(f.column_identifier.quoted_name, f.datatype, f.nullable)
+            for f in self.fields
+        ]
 
 
 class GeographyType(AtomicType):

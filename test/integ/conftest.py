@@ -3,11 +3,11 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import os
 from contextlib import contextmanager
 from test.parameters import CONNECTION_PARAMETERS
 from typing import Callable, Dict
 
-import os
 import pytest
 
 from snowflake.connector.connection import DefaultConverterClass
@@ -41,7 +41,8 @@ def session_cnx() -> Callable[..., "Session"]:
 
 @pytest.fixture()
 def resources_path() -> str:
-    return os.path.normpath(os.path.join(os.path.dirname(__file__), '../resources'))
+    return os.path.normpath(os.path.join(os.path.dirname(__file__), "../resources"))
+
 
 @contextmanager
 def get_session(conn_params):

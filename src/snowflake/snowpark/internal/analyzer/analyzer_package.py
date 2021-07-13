@@ -5,7 +5,7 @@
 #
 import random
 import re
-from typing import List, Tuple, Union, Dict
+from typing import Dict, List, Tuple, Union
 
 from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark.internal.sp_expressions import Attribute as SPAttribute
@@ -137,7 +137,7 @@ class AnalyzerPackage:
     _GroupingSets = " GROUPING SETS "
     _QuestionMark = "?"
     _Pattern = " PATTERN "
-    _WithinGroup= " WITHIN GROUP "
+    _WithinGroup = " WITHIN GROUP "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (
@@ -302,13 +302,13 @@ class AnalyzerPackage:
                 self._LeftParenthesis + self._Comma.join(cells) + self._RightParenthesis
             )
         query_source = (
-                self._Values
-                + self._Comma.join(rows)
-                + self._As
-                + table_name
-                + self._LeftParenthesis
-                + self._Comma.join(names)
-                + self._RightParenthesis
+            self._Values
+            + self._Comma.join(rows)
+            + self._As
+            + table_name
+            + self._LeftParenthesis
+            + self._Comma.join(names)
+            + self._RightParenthesis
         )
         return self.project_statement([], query_source)
 
@@ -443,30 +443,85 @@ class AnalyzerPackage:
             + row_count
         )
 
-    def schema_cast_seq(self, schema:List) -> List[str]:
+    def schema_cast_seq(self, schema: List) -> List[str]:
         res = []
         for index, attr in enumerate(schema):
-            name = self._Dollar + str(index+1) + self._DoubleColon + convert_to_sf_type(attr.datatype)
+            name = (
+                self._Dollar
+                + str(index + 1)
+                + self._DoubleColon
+                + convert_to_sf_type(attr.datatype)
+            )
             res.append(name + self._As + self.quote_name(attr.name))
         return res
 
-    def create_file_format_statement(self, format_name:str, file_type:str, options:Dict, temp:bool, if_not_exist:bool) -> str:
-        options_str = self._Type + self._Equals + file_type + self.get_options_statement(options)
-        return self._Create + (self._Temporary if temp else "") + self._File + self._Format + (self._If + self._Not + self._Exists if if_not_exist else "") + format_name + options_str
+    def create_file_format_statement(
+        self,
+        format_name: str,
+        file_type: str,
+        options: Dict,
+        temp: bool,
+        if_not_exist: bool,
+    ) -> str:
+        options_str = (
+            self._Type + self._Equals + file_type + self.get_options_statement(options)
+        )
+        return (
+            self._Create
+            + (self._Temporary if temp else "")
+            + self._File
+            + self._Format
+            + (self._If + self._Not + self._Exists if if_not_exist else "")
+            + format_name
+            + options_str
+        )
 
     def get_options_statement(self, options: Dict) -> str:
-        return self._Space + self._Space.join(k + self._Space + self._Equals + self._Space + v for k, v in options.items()) + self._Space
+        return (
+            self._Space
+            + self._Space.join(
+                k + self._Space + self._Equals + self._Space + v
+                for k, v in options.items()
+            )
+            + self._Space
+        )
 
-    def select_from_path_with_format_statement(self, project: List[str], path: str, format_name: str, pattern:str) -> str:
-        select_statement = self._Select + (self._Star if not project else self._Comma.join(project)) + self._From + path
-        format_statement = (self._FileFormat + self._RightArrow + self.single_quote(format_name)) if format_name else ""
-        pattern_statement = (self._Pattern + self._RightArrow + self.single_quote(pattern)) if pattern else ""
+    def select_from_path_with_format_statement(
+        self, project: List[str], path: str, format_name: str, pattern: str
+    ) -> str:
+        select_statement = (
+            self._Select
+            + (self._Star if not project else self._Comma.join(project))
+            + self._From
+            + path
+        )
+        format_statement = (
+            (self._FileFormat + self._RightArrow + self.single_quote(format_name))
+            if format_name
+            else ""
+        )
+        pattern_statement = (
+            (self._Pattern + self._RightArrow + self.single_quote(pattern))
+            if pattern
+            else ""
+        )
 
-        return select_statement + (
-            self._LeftParenthesis + (format_statement if format_statement else self._EmptyString) +
-            (self._Comma if format_statement and pattern_statement else self._EmptyString) +
-            (pattern_statement if pattern_statement else self._EmptyString) + self._RightParenthesis
-        ) if format_statement or pattern_statement else self._EmptyString
+        return (
+            select_statement
+            + (
+                self._LeftParenthesis
+                + (format_statement if format_statement else self._EmptyString)
+                + (
+                    self._Comma
+                    if format_statement and pattern_statement
+                    else self._EmptyString
+                )
+                + (pattern_statement if pattern_statement else self._EmptyString)
+                + self._RightParenthesis
+            )
+            if format_statement or pattern_statement
+            else self._EmptyString
+        )
 
     def unary_minus_expression(self, child: str) -> str:
         return self._Minus + child
@@ -510,33 +565,77 @@ class AnalyzerPackage:
             + child
         )
 
-    def copy_into_table(self, table_name: str, filepath: str, format: str, format_type_options:Dict, copy_options: Dict, pattern: str) -> str:
-        """ copy into <table_name> from <file_path> file_format = (type =
+    def copy_into_table(
+        self,
+        table_name: str,
+        filepath: str,
+        format: str,
+        format_type_options: Dict,
+        copy_options: Dict,
+        pattern: str,
+    ) -> str:
+        """copy into <table_name> from <file_path> file_format = (type =
         <format> <format_type_options>) <copy_options>"""
 
         if format_type_options:
-            ftostr = self._Space + self._Space.join(f"{k}={v}" for k, v in format_type_options.items()) + self._Space
+            ftostr = (
+                self._Space
+                + self._Space.join(f"{k}={v}" for k, v in format_type_options.items())
+                + self._Space
+            )
         else:
             ftostr = ""
 
         if copy_options:
-            costr = self._Space + self._Space.join(f"{k}={v}" for k, v in copy_options.items()) + self._Space
+            costr = (
+                self._Space
+                + self._Space.join(f"{k}={v}" for k, v in copy_options.items())
+                + self._Space
+            )
         else:
             costr = ""
 
-        return self._Copy + self._Into + table_name + self._From + filepath + \
-        ( self._Pattern + self._Equal + self.single_quote(pattern) if pattern else self._EmptyString) + \
-        self._FileFormat + self._Equals + self._LeftParenthesis + self._Type + self._Equals + \
-        format + ftostr + self._RightParenthesis + costr
+        return (
+            self._Copy
+            + self._Into
+            + table_name
+            + self._From
+            + filepath
+            + (
+                self._Pattern + self._Equals + self.single_quote(pattern)
+                if pattern
+                else self._EmptyString
+            )
+            + self._FileFormat
+            + self._Equals
+            + self._LeftParenthesis
+            + self._Type
+            + self._Equals
+            + format
+            + ftostr
+            + self._RightParenthesis
+            + costr
+        )
 
     def create_temp_table_statement(self, table_name: str, schema: str) -> str:
-        return self._Create + self._Temporary + self._Table + table_name + self._LeftParenthesis + schema + self._RightParenthesis
+        return (
+            self._Create
+            + self._Temporary
+            + self._Table
+            + table_name
+            + self._LeftParenthesis
+            + schema
+            + self._RightParenthesis
+        )
 
     def drop_table_if_exists_statement(self, table_name: str) -> str:
         return self._Drop + self._Table + self._If + self._Exists + table_name
 
     def attribute_to_schema_string(self, attributes: List) -> str:
-        return self._Comma.join(attr.name + self._Space + convert_to_sf_type(attr.datatype) for attr in attributes)
+        return self._Comma.join(
+            attr.name + self._Space + convert_to_sf_type(attr.datatype)
+            for attr in attributes
+        )
 
     def schema_value_statement(self, output) -> str:
         return self._Select + self._Comma.join(

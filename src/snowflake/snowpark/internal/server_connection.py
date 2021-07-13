@@ -4,7 +4,6 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import platform
-
 from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -207,9 +206,16 @@ class ServerConnection:
             )
 
     @_Decorator.wrap_exception
-    def upload_file(self, uri: str, stage_location: str, dest_prefix: str, parallel=4,
-                    compress_data=True, source_compression: str = "AUTO_DETECT",
-                    overwrite: bool = False):
+    def upload_file(
+        self,
+        uri: str,
+        stage_location: str,
+        dest_prefix: str,
+        parallel=4,
+        compress_data=True,
+        source_compression: str = "AUTO_DETECT",
+        overwrite: bool = False,
+    ):
         local_path = f"file://{uri}"
         target_path = f"{stage_location}{dest_prefix if dest_prefix else ''}"
         parallel_str = f"PARALLEL = {parallel}"
@@ -272,7 +278,6 @@ class ServerConnection:
             # delete create tmp object
             for action in plan.post_actions:
                 self.run_query(action)
-
 
         return result["data"]
 
