@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-import uuid
+import os
 from contextlib import contextmanager
 from test.parameters import CONNECTION_PARAMETERS
 from typing import Callable, Dict
@@ -37,6 +37,11 @@ def db_parameters() -> Dict[str, str]:
 @pytest.fixture()
 def session_cnx() -> Callable[..., "Session"]:
     return get_session
+
+
+@pytest.fixture()
+def resources_path() -> str:
+    return os.path.normpath(os.path.join(os.path.dirname(__file__), "../resources"))
 
 
 @contextmanager

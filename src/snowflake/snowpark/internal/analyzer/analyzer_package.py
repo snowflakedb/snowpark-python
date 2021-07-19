@@ -5,9 +5,10 @@
 #
 import random
 import re
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.sp_expressions import Attribute as SPAttribute
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
@@ -135,6 +136,9 @@ class AnalyzerPackage:
     _Put = " PUT "
     _Get = " GET "
     _GroupingSets = " GROUPING SETS "
+    _QuestionMark = "?"
+    _Pattern = " PATTERN "
+    _WithinGroup = " WITHIN GROUP "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (
@@ -247,6 +251,9 @@ class AnalyzerPackage:
             else (self._GroupBy + self._Comma.join(grouping_exprs))
         )
 
+    def sort_statement(self, order: List[str], child: str) -> str:
+        return self.project_statement([], child) + self._OrderBy + ",".join(order)
+
     def range_statement(self, start, end, step, column_name) -> str:
         range = end - start
 
@@ -281,6 +288,34 @@ class AnalyzerPackage:
             ],
             self.table(self.generator(0 if count < 0 else count)),
         )
+
+    def values_statement(self, output: List["SPAttribute"], data: List["Row"]) -> str:
+        table_name = AnalyzerPackage.random_name_for_temp_object()
+        data_types = [attr.datatype for attr in output]
+        names = [AnalyzerPackage.quote_name(attr.name) for attr in output]
+        rows = []
+        for row in data:
+            cells = [
+                DataTypeMapper.to_sql(value, data_type)
+                for value, data_type in zip(row.to_list(), data_types)
+            ]
+            rows.append(
+                self._LeftParenthesis + self._Comma.join(cells) + self._RightParenthesis
+            )
+        query_source = (
+            self._Values
+            + self._Comma.join(rows)
+            + self._As
+            + table_name
+            + self._LeftParenthesis
+            + self._Comma.join(names)
+            + self._RightParenthesis
+        )
+        return self.project_statement([], query_source)
+
+    def empty_values_statement(self, output: List["SPAttribute"]):
+        data = [Row.from_list([None] * len(output))]
+        self.filter_statement(self._UnsatFilter, self.values_statement(output, data))
 
     def set_operator_statement(self, left: str, right: str, operator: str):
         return left + self._Space + operator + self._Space + right
@@ -409,46 +444,85 @@ class AnalyzerPackage:
             + row_count
         )
 
-    def schema_value_statement(self, output) -> str:
-        return self._Select + self._Comma.join(
-            [
-                DataTypeMapper.schema_expression(attr.datatype, attr.nullable)
-                + self._As
-                + self.quote_name(attr.name)
-                for attr in output
-            ]
-        )
-
-    def values_statement(self, output: List["SPAttribute"], data: List["Row"]) -> str:
-        table_name = AnalyzerPackage.random_name_for_temp_object()
-        data_types = [attr.datatype for attr in output]
-        names = [AnalyzerPackage.quote_name(attr.name) for attr in output]
-        rows = []
-        for row in data:
-            cells = [
-                DataTypeMapper.to_sql(value, data_type)
-                for value, data_type in zip(row.to_list(), data_types)
-            ]
-            rows.append(
-                self._LeftParenthesis + self._Comma.join(cells) + self._RightParenthesis
+    def schema_cast_seq(self, schema: List[Attribute]) -> List[str]:
+        res = []
+        for index, attr in enumerate(schema):
+            name = (
+                self._Dollar
+                + str(index + 1)
+                + self._DoubleColon
+                + convert_to_sf_type(attr.datatype)
             )
-        query_source = (
-            self._Values
-            + self._Comma.join(rows)
-            + self._As
-            + table_name
-            + self._LeftParenthesis
-            + self._Comma.join(names)
-            + self._RightParenthesis
+            res.append(name + self._As + self.quote_name(attr.name))
+        return res
+
+    def create_file_format_statement(
+        self,
+        format_name: str,
+        file_type: str,
+        options: Dict,
+        temp: bool,
+        if_not_exist: bool,
+    ) -> str:
+        options_str = (
+            self._Type + self._Equals + file_type + self.get_options_statement(options)
         )
-        return self.project_statement([], query_source)
+        return (
+            self._Create
+            + (self._Temporary if temp else "")
+            + self._File
+            + self._Format
+            + (self._If + self._Not + self._Exists if if_not_exist else "")
+            + format_name
+            + options_str
+        )
 
-    def empty_values_statement(self, output: List["SPAttribute"]):
-        data = [Row.from_list([None] * len(output))]
-        self.filter_statement(self._UnsatFilter, self.values_statement(output, data))
+    def get_options_statement(self, options: Dict[str, str]) -> str:
+        return (
+            self._Space
+            + self._Space.join(
+                k + self._Space + self._Equals + self._Space + v
+                for k, v in options.items()
+            )
+            + self._Space
+        )
 
-    def sort_statement(self, order: List[str], child: str) -> str:
-        return self.project_statement([], child) + self._OrderBy + ",".join(order)
+    def select_from_path_with_format_statement(
+        self, project: List[str], path: str, format_name: str, pattern: str
+    ) -> str:
+        select_statement = (
+            self._Select
+            + (self._Star if not project else self._Comma.join(project))
+            + self._From
+            + path
+        )
+        format_statement = (
+            (self._FileFormat + self._RightArrow + self.single_quote(format_name))
+            if format_name
+            else ""
+        )
+        pattern_statement = (
+            (self._Pattern + self._RightArrow + self.single_quote(pattern))
+            if pattern
+            else ""
+        )
+
+        return (
+            select_statement
+            + (
+                self._LeftParenthesis
+                + (format_statement if format_statement else self._EmptyString)
+                + (
+                    self._Comma
+                    if format_statement and pattern_statement
+                    else self._EmptyString
+                )
+                + (pattern_statement if pattern_statement else self._EmptyString)
+                + self._RightParenthesis
+            )
+            if format_statement or pattern_statement
+            else self._EmptyString
+        )
 
     def unary_minus_expression(self, child: str) -> str:
         return self._Minus + child
@@ -492,6 +566,88 @@ class AnalyzerPackage:
             + child
         )
 
+    def copy_into_table(
+        self,
+        table_name: str,
+        filepath: str,
+        format: str,
+        format_type_options: Dict[str, str],
+        copy_options: Dict[str, str],
+        pattern: str,
+    ) -> str:
+        """copy into <table_name> from <file_path> file_format = (type =
+        <format> <format_type_options>) <copy_options>"""
+
+        if format_type_options:
+            ftostr = (
+                self._Space
+                + self._Space.join(f"{k}={v}" for k, v in format_type_options.items())
+                + self._Space
+            )
+        else:
+            ftostr = ""
+
+        if copy_options:
+            costr = (
+                self._Space
+                + self._Space.join(f"{k}={v}" for k, v in copy_options.items())
+                + self._Space
+            )
+        else:
+            costr = ""
+
+        return (
+            self._Copy
+            + self._Into
+            + table_name
+            + self._From
+            + filepath
+            + (
+                self._Pattern + self._Equals + self.single_quote(pattern)
+                if pattern
+                else self._EmptyString
+            )
+            + self._FileFormat
+            + self._Equals
+            + self._LeftParenthesis
+            + self._Type
+            + self._Equals
+            + format
+            + ftostr
+            + self._RightParenthesis
+            + costr
+        )
+
+    def create_temp_table_statement(self, table_name: str, schema: str) -> str:
+        return (
+            self._Create
+            + self._Temporary
+            + self._Table
+            + table_name
+            + self._LeftParenthesis
+            + schema
+            + self._RightParenthesis
+        )
+
+    def drop_table_if_exists_statement(self, table_name: str) -> str:
+        return self._Drop + self._Table + self._If + self._Exists + table_name
+
+    def attribute_to_schema_string(self, attributes: List[Attribute]) -> str:
+        return self._Comma.join(
+            attr.name + self._Space + convert_to_sf_type(attr.datatype)
+            for attr in attributes
+        )
+
+    def schema_value_statement(self, output: List[Attribute]) -> str:
+        return self._Select + self._Comma.join(
+            [
+                DataTypeMapper.schema_expression(attr.datatype, attr.nullable)
+                + self._As
+                + self.quote_name(attr.name)
+                for attr in output
+            ]
+        )
+
     def generator(self, row_count: int) -> str:
         return (
             self._Generator
@@ -505,11 +661,12 @@ class AnalyzerPackage:
     def table(self, content: str) -> str:
         return self._Table + self._LeftParenthesis + content + self._RightParenthesis
 
-    def single_quote(self, value: str) -> str:
-        if value.startswith(self._SingleQuote) and value.endswith(self._SingleQuote):
+    @classmethod
+    def single_quote(cls, value: str) -> str:
+        if value.startswith(cls._SingleQuote) and value.endswith(cls._SingleQuote):
             return value
         else:
-            return self._SingleQuote + value + self._SingleQuote
+            return cls._SingleQuote + value + cls._SingleQuote
 
     @classmethod
     def quote_name(cls, name: str) -> str:

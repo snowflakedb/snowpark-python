@@ -16,6 +16,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 from snowflake.connector import SnowflakeConnection
 
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.functions import (
     column,
     parse_json,
@@ -152,9 +153,25 @@ class Session:
     def _resolve_jar_dependencies(self, stage_location):
         pass
 
-    # TODO
-    def _do_upload(self, uri, stage_location):
-        pass
+    def _do_upload(
+        self,
+        uri: str,
+        stage_location: str,
+        dest_prefix: str = None,
+        parallel=4,
+        compress_data=True,
+        source_compression: str = "AUTO_DETECT",
+        overwrite: bool = False,
+    ):
+        return self.conn.upload_file(
+            uri,
+            stage_location,
+            dest_prefix,
+            parallel,
+            compress_data,
+            source_compression,
+            overwrite,
+        )
 
     # TODO
     def _list_files_in_stage(self, stage_location):
@@ -176,6 +193,11 @@ class Session:
 
     def sql(self, query) -> DataFrame:
         return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
+
+    def read(self) -> "DataFrameReader":
+        """Returns a [[DataFrameReader]] that you can use to read data from various
+        supported sources (e.g. a file in a stage) as a DataFrame."""
+        return DataFrameReader(self)
 
     def _run_query(self, query):
         return self.conn.run_query(query)["data"]
