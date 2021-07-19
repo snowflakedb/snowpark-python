@@ -8,6 +8,7 @@ import re
 from typing import Dict, List, Tuple, Union
 
 from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.sp_expressions import Attribute as SPAttribute
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
@@ -443,7 +444,7 @@ class AnalyzerPackage:
             + row_count
         )
 
-    def schema_cast_seq(self, schema: List) -> List[str]:
+    def schema_cast_seq(self, schema: List[Attribute]) -> List[str]:
         res = []
         for index, attr in enumerate(schema):
             name = (
@@ -476,7 +477,7 @@ class AnalyzerPackage:
             + options_str
         )
 
-    def get_options_statement(self, options: Dict) -> str:
+    def get_options_statement(self, options: Dict[str, str]) -> str:
         return (
             self._Space
             + self._Space.join(
@@ -570,8 +571,8 @@ class AnalyzerPackage:
         table_name: str,
         filepath: str,
         format: str,
-        format_type_options: Dict,
-        copy_options: Dict,
+        format_type_options: Dict[str, str],
+        copy_options: Dict[str, str],
         pattern: str,
     ) -> str:
         """copy into <table_name> from <file_path> file_format = (type =
@@ -631,13 +632,13 @@ class AnalyzerPackage:
     def drop_table_if_exists_statement(self, table_name: str) -> str:
         return self._Drop + self._Table + self._If + self._Exists + table_name
 
-    def attribute_to_schema_string(self, attributes: List) -> str:
+    def attribute_to_schema_string(self, attributes: List[Attribute]) -> str:
         return self._Comma.join(
             attr.name + self._Space + convert_to_sf_type(attr.datatype)
             for attr in attributes
         )
 
-    def schema_value_statement(self, output) -> str:
+    def schema_value_statement(self, output: List[Attribute]) -> str:
         return self._Select + self._Comma.join(
             [
                 DataTypeMapper.schema_expression(attr.datatype, attr.nullable)

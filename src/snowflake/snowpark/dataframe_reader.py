@@ -40,7 +40,7 @@ class DataFrameReader:
       '''Example 1:''' Loading the first two columns of a CSV file and skipping the first header line.
       {{{
         # Import the package for StructType.
-        import snowflake.snowpark.types.sf_types.*
+        from snowflake.snowpark.types.sf_types import *
         file_path = "@mystage1"
         # Define the schema for the data in the CSV file.
         user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
@@ -65,7 +65,7 @@ class DataFrameReader:
 
       '''Example 3:''' Loading only the CSV files from a stage location.
       {{{
-        import com.snowflake.snowpark.types._
+        from snowflake.snowpark.types.sf_types import *
         # Define the schema for the data in the CSV files.
         user_schema: StructType = StructType(Seq(StructField("a", IntegerType()),StructField("b", StringType())))
         # Create a DataFrame that is configured to load data from the CSV files in the stage.
@@ -162,7 +162,7 @@ class DataFrameReader:
         return self.__read_semi_structured_file(path, "AVRO")
 
     def parquet(self, path: str) -> DataFrame:
-        """Returns a [[DataFrame]] that is set up to load data from the specified
+        r"""Returns a [[DataFrame]] that is set up to load data from the specified
         Parquet file.
 
         This method only supports reading data from files in Snowflake stages.
@@ -182,7 +182,7 @@ class DataFrameReader:
         return self.__read_semi_structured_file(path, "PARQUET")
 
     def orc(self, path: str) -> DataFrame:
-        """ Returns a [[DataFrame]] that is set up to load data from the specified ORC file.
+        r"""Returns a [[DataFrame]] that is set up to load data from the specified ORC file.
 
         This method only supports reading data from files in Snowflake stages.
 
@@ -209,7 +209,7 @@ class DataFrameReader:
         For example:
         {{{
           # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-          df = session.read.xml(path).where(col("xmlget(\$1, 'num', 0):\"$\"") > 1)
+          df = session.read.xml(path).where(col("xmlget(\\$1, 'num', 0):\"$\"") > 1)
           # Load the data into the DataFrame and return an Array of Rows containing the results.
           results = df.collect()
         }}}"""
@@ -244,7 +244,7 @@ class DataFrameReader:
         '''Example 3:''' Loading the first two columns of a colon-delimited CSV file in which the
         first line is the header:
         {{{
-          import com.snowflake.snowpark.types._
+          from snowflake.snowpark.types.sf_types import *
           # Define the schema for the data in the CSV files.
           user_schema = StructType(Seq(StructField("a", IntegerType()), StructField("b", StringType())))
           # Create a DataFrame that is configured to load data from the CSV file.
@@ -259,7 +259,7 @@ class DataFrameReader:
 
         '''Example 4:''' Loading only the CSV files from a stage location.
         {{{
-          import com.snowflake.snowpark.types._
+          from snowflake.snowpark.types.sf_types import *
           # Define the schema for the data in the CSV files.
           user_schema = StructType(Seq(StructField("a", IntegerType()),StructField("b", StringType())))
           # Create a DataFrame that is configured to load data from the CSV files in the stage.

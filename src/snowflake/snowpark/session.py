@@ -152,7 +152,6 @@ class Session:
     def _resolve_jar_dependencies(self, stage_location):
         pass
 
-    # TODO
     def _do_upload(
         self,
         uri: str,
@@ -163,7 +162,6 @@ class Session:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ):
-        # TODO add logging & telemetry
         return self.conn.upload_file(
             uri,
             stage_location,

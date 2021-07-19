@@ -3,6 +3,8 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import functools
+import time
 from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -51,6 +53,23 @@ class ServerConnection:
                     raise ex
 
             return wrap
+
+        @classmethod
+        def log_msg_and_telemetry(cls, msg):
+            def log_and_telemetry(func):
+                @functools.wraps(func)
+                def wrap(*args, **kwargs):
+                    # TODO: SNOW-363951 handle telemetry
+                    logger.info(msg)
+                    start_time = time.perf_counter()
+                    func(*args, **kwargs)
+                    end_time = time.perf_counter()
+                    duration = end_time - start_time
+                    logger.info(f"Finished in {duration:.4f} secs")
+
+                return wrap
+
+            return log_and_telemetry
 
     def __init__(
         self,
@@ -205,6 +224,7 @@ class ServerConnection:
             )
 
     @_Decorator.wrap_exception
+    @_Decorator.log_msg_and_telemetry("Uploading file to stage")
     def upload_file(
         self,
         uri: str,

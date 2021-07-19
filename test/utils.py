@@ -221,46 +221,46 @@ class TestData:
         return session.createDataFrame([[1, 2], [3, 4]]).toDF(['"col %"', '"col *"'])
 
 
-class SnowTestFiles:
+class TestFiles:
     def __init__(self, resources_path):
         self.resources_path = resources_path
 
     @property
-    def testFileCsv(self):
+    def test_file_csv(self):
         return os.path.join(self.resources_path, "testCSV.csv")
 
     @property
-    def testFile2Csv(self):
+    def test_file2_csv(self):
         return os.path.join(self.resources_path, "test2CSV.csv")
 
     @property
-    def testFileCsvColon(self):
+    def test_file_csv_colon(self):
         return os.path.join(self.resources_path, "testCSVcolon.csv")
 
     @property
-    def testFileCsvQuotes(self):
+    def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
 
     @property
-    def testFileJson(self):
+    def test_file_json(self):
         return os.path.join(self.resources_path, "testJson.json")
 
     @property
-    def testFileAvro(self):
+    def test_file_avro(self):
         return os.path.join(self.resources_path, "test.avro")
 
     @property
-    def testFileParquet(self):
+    def test_file_parquet(self):
         return os.path.join(self.resources_path, "test.parquet")
 
     @property
-    def testFileOrc(self):
+    def test_file_orc(self):
         return os.path.join(self.resources_path, "test.orc")
 
     @property
-    def testFileXml(self):
+    def test_file_xml(self):
         return os.path.join(self.resources_path, "test.xml")
 
     @property
-    def testBrokenCsv(self):
+    def test_broken_csv(self):
         return os.path.join(self.resources_path, "broken.csv")

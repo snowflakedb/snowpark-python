@@ -315,6 +315,7 @@ class SnowflakePlanBuilder:
 
         pattern = options.get("PATTERN", None)
         # TODO track usage of pattern, will refactor this function in future
+        # Telemetry: https://snowflakecomputing.atlassian.net/browse/SNOW-363951
         # if pattern:
         #   session.conn.telemetry.reportUsageOfCopyPattern()
 
