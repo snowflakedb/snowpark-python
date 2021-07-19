@@ -146,7 +146,7 @@ def test_read_csv(session_cnx, db_parameters, resources_path, mode):
             df2 = reader.schema(incorrect_schema).csv(test_file_on_stage)
             with pytest.raises(ProgrammingError) as ex_info:
                 df2.collect()
-            assert "Numeric value 'one' is not recognized" in ex_info
+            assert "Numeric value 'one' is not recognized" in str(ex_info)
 
         finally:
             after_all(session, tmp_stage_name)
