@@ -3,6 +3,8 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import functools
+import time
 from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -51,6 +53,23 @@ class ServerConnection:
                     raise ex
 
             return wrap
+
+        @classmethod
+        def log_msg_and_telemetry(cls, msg):
+            def log_and_telemetry(func):
+                @functools.wraps(func)
+                def wrap(*args, **kwargs):
+                    # TODO: SNOW-363951 handle telemetry
+                    logger.info(msg)
+                    start_time = time.perf_counter()
+                    func(*args, **kwargs)
+                    end_time = time.perf_counter()
+                    duration = end_time - start_time
+                    logger.info(f"Finished in {duration:.4f} secs")
+
+                return wrap
+
+            return log_and_telemetry
 
     def __init__(
         self,
@@ -205,6 +224,27 @@ class ServerConnection:
             )
 
     @_Decorator.wrap_exception
+    @_Decorator.log_msg_and_telemetry("Uploading file to stage")
+    def upload_file(
+        self,
+        uri: str,
+        stage_location: str,
+        dest_prefix: str,
+        parallel=4,
+        compress_data=True,
+        source_compression: str = "AUTO_DETECT",
+        overwrite: bool = False,
+    ):
+        local_path = f"file://{uri}"
+        target_path = f"{stage_location}{dest_prefix if dest_prefix else ''}"
+        parallel_str = f"PARALLEL = {parallel}"
+        compress_str = f"AUTO_COMPRESS = {str(compress_data).upper()}"
+        source_compression_str = f"SOURCE_COMPRESSION = {source_compression.upper()}"
+        overwrite_str = f"OVERWRITE = {str(overwrite).upper()}"
+        final_statement = f"PUT {local_path} {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
+        self.run_query(final_statement)
+
+    @_Decorator.wrap_exception
     def run_query(self, query, to_pandas=False, **kwargs):
         try:
             results_cursor = self._cursor.execute(query)
@@ -255,8 +295,8 @@ class ServerConnection:
                 placeholders[query.query_id_place_holder] = last_id
         finally:
             # delete create tmp object
-            # TODO get plan.postActions
-            pass
+            for action in plan.post_actions:
+                self.run_query(action)
 
         return result["data"]
 

@@ -195,6 +195,10 @@ class ColumnIdentifier:
     def name(self) -> str:
         return ColumnIdentifier.strip_unnecessary_quotes(self.normalized_name)
 
+    @property
+    def quoted_name(self) -> str:
+        return self.normalized_name
+
     def __eq__(self, other):
         if type(other) == str:
             return self.normalized_name == other
@@ -258,7 +262,12 @@ class StructType(DataType):
         return cls([StructField(a.name, a.datatype, a.nullable) for a in attributes])
 
     def to_attributes(self):
-        raise Exception("Not implemented StructType.toAttributes()")
+        from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+
+        return [
+            Attribute(f.column_identifier.quoted_name, f.datatype, f.nullable)
+            for f in self.fields
+        ]
 
 
 class GeographyType(AtomicType):
