@@ -11,7 +11,7 @@ from snowflake import connector
 from snowflake.snowpark.functions import col, max, sum
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import StringType
+from snowflake.snowpark.types.sf_types import StringType, Variant
 
 
 def test_null_data_in_tables(session_cnx, db_parameters):
@@ -640,3 +640,11 @@ def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(
         with pytest.raises(SnowparkClientException) as ex_info:
             df.createOrReplaceView("negative test invalid table name")
         assert re.compile("The object name .* is invalid.").match(ex_info.value.message)
+
+
+def test_variant_in_array_and_dict(session_cnx, db_parameters):
+    with session_cnx(db_parameters) as session:
+        df = session.createDataFrame(
+            [Row([[Variant(1), Variant("\"'")], {"a": Variant("\"'")}])]
+        )
+        assert df.collect() == [Row(['[\n  1,\n  "\\"\'"\n]', '{\n  "a": "\\"\'"\n}'])]

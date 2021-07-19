@@ -153,7 +153,10 @@ class DataTypeMapper:
             trimmed_ms = target_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             return f"TIMESTAMP '{trimmed_ms}'"
 
-        if type(value) in [list, bytearray] and type(spark_data_type) is SPBinaryType:
+        if (
+            type(value) in [list, bytes, bytearray]
+            and type(spark_data_type) is SPBinaryType
+        ):
             return "'{}' :: binary".format(binascii.hexlify(value).decode())
 
         raise Exception(

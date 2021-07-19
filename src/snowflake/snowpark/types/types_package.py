@@ -10,8 +10,8 @@ import sys
 from array import array
 from typing import List, Optional
 
-from ..snowpark_client_exception import SnowparkClientException
-from .sf_types import (
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.types.sf_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -31,9 +31,10 @@ from .sf_types import (
     StructType,
     TimestampType,
     TimeType,
+    Variant,
     VariantType,
 )
-from .sp_data_types import (
+from snowflake.snowpark.types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,
@@ -355,7 +356,7 @@ def _infer_type(obj):
             if key is not None and value is not None:
                 return SPMapType(_infer_type(key), _infer_type(value), True)
         return SPMapType(SPNullType(), SPNullType(), True)
-    elif isinstance(obj, list):
+    elif isinstance(obj, (list, tuple)):
         for v in obj:
             if v is not None:
                 return SPArrayType(_infer_type(obj[0]), True)
@@ -365,6 +366,8 @@ def _infer_type(obj):
             return SPArrayType(_array_type_mappings[obj.typecode](), False)
         else:
             raise TypeError("not supported type: array(%s)" % obj.typecode)
+    elif isinstance(obj, Variant):
+        return SPVariantType()
     else:
         raise TypeError("not supported type: %s" % type(obj))
 
