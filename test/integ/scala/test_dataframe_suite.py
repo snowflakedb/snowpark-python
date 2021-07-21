@@ -10,6 +10,7 @@ import pytest
 from snowflake import connector
 from snowflake.snowpark.functions import col, max, sum
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import StringType, Variant
 
@@ -428,7 +429,7 @@ def test_escaped_character(session_cnx):
         assert res == [Row(["'"]), Row(["\\"]), Row(["\n"])]
 
 
-def test_create_or_replace_temporary_view(session_cnx):
+def test_create_or_replace_temporary_view(session_cnx, db_parameters):
     with session_cnx() as session:
         view_name = Utils.random_name()
         view_name1 = f'"{view_name}%^11"'
@@ -460,15 +461,17 @@ def test_create_or_replace_temporary_view(session_cnx):
             assert res == [Row([1]), Row([2]), Row([3])]
 
             # Get a second session object
-            with session_cnx() as session2:
-                assert session is not session2
-                with pytest.raises(connector.errors.ProgrammingError) as ex_info:
-                    session2.table(view_name).collect()
-                assert "does not exist or not authorized" in str(ex_info)
+            session2 = Session.builder().configs(db_parameters).create()
+            assert session is not session2
+            with pytest.raises(connector.errors.ProgrammingError) as ex_info:
+                session2.table(view_name).collect()
+            assert "does not exist or not authorized" in str(ex_info)
         finally:
+            Session._set_active_session(session)
             Utils.drop_view(session, view_name)
             Utils.drop_view(session, view_name1)
             Utils.drop_view(session, view_name2)
+            session2.close()
 
 
 def test_quoted_column_names(session_cnx):

@@ -97,7 +97,8 @@ class Session:
 
     def close(self):
         global _active_session
-        _active_session = None
+        if _active_session == self:
+            _active_session = None
         self.conn.close()
 
     def get_last_canceled_id(self):
@@ -416,7 +417,6 @@ class Session:
         global _active_session
         if _active_session:
             logger.info("Overwriting an already active session")
-            _active_session.close()
         _active_session = session
         return session
 

@@ -52,18 +52,25 @@ def test_default_and_current_database_and_schema(session_cnx):
         assert Utils.equals_ignore_case(default_database, session.getCurrentDatabase())
         assert Utils.equals_ignore_case(default_schema, session.getCurrentSchema())
 
-        schema_name = Utils.random_name()
-        session._run_query("create schema {}".format(schema_name))
+        try:
+            schema_name = Utils.random_name()
+            session._run_query("create schema {}".format(schema_name))
 
-        assert Utils.equals_ignore_case(default_database, session.getDefaultDatabase())
-        assert Utils.equals_ignore_case(default_schema, session.getDefaultSchema())
+            assert Utils.equals_ignore_case(
+                default_database, session.getDefaultDatabase()
+            )
+            assert Utils.equals_ignore_case(default_schema, session.getDefaultSchema())
 
-        assert Utils.equals_ignore_case(default_database, session.getCurrentDatabase())
-        assert Utils.equals_ignore_case(
-            AnalyzerPackage.quote_name(schema_name), session.getCurrentSchema()
-        )
-
-        session._run_query("drop schema {}".format(schema_name))
+            assert Utils.equals_ignore_case(
+                default_database, session.getCurrentDatabase()
+            )
+            assert Utils.equals_ignore_case(
+                AnalyzerPackage.quote_name(schema_name), session.getCurrentSchema()
+            )
+        finally:
+            # restore
+            session._run_query("drop schema if exists {}".format(schema_name))
+            session._run_query("use schema {}".format(default_schema))
 
 
 def test_quote_all_database_and_schema_names(session_cnx):

@@ -56,13 +56,13 @@ tmp_stage_name1 = Utils.random_stage_name()
 tmp_stage_name2 = Utils.random_stage_name()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def before_all(session_cnx, resources_path):
     def do():
         test_files = TestFiles(resources_path)
         with session_cnx() as session:
-            session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name1}").collect()
-            session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name2}").collect()
+            Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
+            Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
             Utils.upload_to_stage(
                 session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
             )
@@ -121,7 +121,7 @@ def before_all(session_cnx, resources_path):
     return do
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def after_all(session_cnx):
     def do():
         with session_cnx() as session:
@@ -282,7 +282,7 @@ def test_read_csv_with_format_type_options(session_cnx, mode):
 def test_to_read_files_from_stage(session_cnx, resources_path, mode):
     with session_cnx() as session:
         data_files_stage = Utils.random_stage_name()
-        session.sql(f"CREATE TEMPORARY STAGE {data_files_stage}").collect()
+        Utils.create_stage(session, data_files_stage, is_temporary=True)
         test_files = TestFiles(resources_path)
         Utils.upload_to_stage(
             session, "@" + data_files_stage, test_files.test_file_csv, False

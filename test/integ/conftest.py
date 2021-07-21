@@ -29,7 +29,7 @@ CONNECTION_PARAMETERS = {
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def before_all():
     def do():
         pass
@@ -37,7 +37,7 @@ def before_all():
     return do
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def after_all():
     def do():
         pass
@@ -45,7 +45,7 @@ def after_all():
     return do
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def init_session(request, db_parameters, resources_path, before_all, after_all):
     conn_params = db_parameters.copy()
     if not conn_params.get("timezone"):
@@ -70,13 +70,13 @@ def db_parameters() -> Dict[str, str]:
 
 
 @pytest.fixture(scope="session")
-def session_cnx() -> Callable[..., "Session"]:
-    return get_session
-
-
-@pytest.fixture(scope="session")
 def resources_path() -> str:
     return os.path.normpath(os.path.join(os.path.dirname(__file__), "../resources"))
+
+
+@pytest.fixture(scope="module")
+def session_cnx() -> Callable[..., "Session"]:
+    return get_session
 
 
 @contextmanager
