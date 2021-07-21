@@ -52,12 +52,14 @@ def init_session(request, db_parameters, resources_path, before_all, after_all):
         conn_params["timezone"] = "UTC"
     if not conn_params.get("converter_class"):
         conn_params["converter_class"] = DefaultConverterClass()
-    session = Session.builder().configs(db_parameters).create()
+    Session.builder().configs(db_parameters).create()
     before_all()
 
     def fin():
         after_all()
-        session.close()
+        active_session = Session._get_active_session()
+        if active_session:
+            active_session.close()
 
     request.addfinalizer(fin)
 
