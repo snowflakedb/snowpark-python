@@ -14,8 +14,8 @@ from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import StringType, Variant
 
 
-def test_null_data_in_tables(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_null_data_in_tables(session_cnx):
+    with session_cnx() as session:
         table_name = Utils.random_name()
         try:
             Utils.create_table(session, table_name, "num int")
@@ -28,8 +28,8 @@ def test_null_data_in_tables(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
-def test_null_data_in_local_relation_with_filters(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_null_data_in_local_relation_with_filters(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, None], [2, "NotNull"], [3, None]]).toDF(
             ["a", "b"]
         )
@@ -51,8 +51,8 @@ def test_null_data_in_local_relation_with_filters(session_cnx, db_parameters):
         ]
 
 
-def test_createOrReplaceView_with_null_data(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_createOrReplaceView_with_null_data(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, None], [2, "NotNull"], [3, None]]).toDF(
             ["a", "b"]
         )
@@ -67,8 +67,8 @@ def test_createOrReplaceView_with_null_data(session_cnx, db_parameters):
             Utils.drop_view(session, view_name)
 
 
-def test_adjust_column_width_of_show(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_adjust_column_width_of_show(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, None], [2, "NotNull"]]).toDF("a", "b")
         # run show(), make sure no error is reported
         df.show(10, 4)
@@ -86,8 +86,8 @@ def test_adjust_column_width_of_show(session_cnx, db_parameters):
         )
 
 
-def test_show_with_null_data(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_show_with_null_data(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, None], [2, "NotNull"]]).toDF("a", "b")
         # run show(), make sure no error is reported
         df.show(10)
@@ -105,8 +105,8 @@ def test_show_with_null_data(session_cnx, db_parameters):
         )
 
 
-def test_show_multi_lines_row(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_show_multi_lines_row(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame(
             [
                 ("line1\nline2", None),
@@ -130,8 +130,8 @@ def test_show_multi_lines_row(session_cnx, db_parameters):
         )
 
 
-def test_show(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_show(session_cnx):
+    with session_cnx() as session:
         TestData.test_data1(session).show()
 
         res = TestData.test_data1(session)._DataFrame__show_string(10)
@@ -167,8 +167,8 @@ def test_show(session_cnx, db_parameters):
         )
 
 
-def test_non_select_query_composition(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_non_select_query_composition(session_cnx):
+    with session_cnx() as session:
         table_name = Utils.random_name()
         try:
             session.sql(
@@ -188,8 +188,8 @@ def test_non_select_query_composition(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
-def test_non_select_query_composition_union(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_non_select_query_composition_union(session_cnx):
+    with session_cnx() as session:
         table_name = Utils.random_name()
         try:
             session.sql(
@@ -206,8 +206,8 @@ def test_non_select_query_composition_union(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
-def test_non_select_query_composition_self_union(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_non_select_query_composition_self_union(session_cnx):
+    with session_cnx() as session:
         table_name = Utils.random_name()
         try:
             session.sql(
@@ -223,8 +223,8 @@ def test_non_select_query_composition_self_union(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
-def test_only_use_result_scan_when_composing_queries(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_only_use_result_scan_when_composing_queries(session_cnx):
+    with session_cnx() as session:
         df = session.sql("show tables")
         assert len(df._DataFrame__plan.queries) == 1
         assert df._DataFrame__plan.queries[0].sql == "show tables"
@@ -234,8 +234,8 @@ def test_only_use_result_scan_when_composing_queries(session_cnx, db_parameters)
         assert "RESULT_SCAN" in df2._DataFrame__plan.queries[-1].sql
 
 
-def test_joins_on_result_scan(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_joins_on_result_scan(session_cnx):
+    with session_cnx() as session:
         df1 = session.sql("show tables").select(['"name"', '"kind"'])
         df2 = session.sql("show tables").select(['"name"', '"rows"'])
 
@@ -244,16 +244,16 @@ def test_joins_on_result_scan(session_cnx, db_parameters):
         assert len(result.schema.fields) == 3
 
 
-def test_select_star(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_select_star(session_cnx):
+    with session_cnx() as session:
         double2 = TestData.double2(session)
         expected = TestData.double2(session).collect()
         assert double2.select("*").collect() == expected
         assert double2.select(double2.col("*")).collect() == expected
 
 
-def test_select(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_select(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(
             ["a", "b", "c"]
         )
@@ -286,8 +286,8 @@ def test_select(session_cnx, db_parameters):
         assert df.select([col("b"), col("a") + col("c")]).collect() == expected_result
 
 
-def test_select_negative_select(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_select_negative_select(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(
             ["a", "b", "c"]
         )
@@ -319,8 +319,8 @@ def test_select_negative_select(session_cnx, db_parameters):
         assert "SQL compilation error" in str(ex_info)
 
 
-def test_drop_and_dropcolumns(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_drop_and_dropcolumns(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(
             ["a", "b", "c"]
         )
@@ -372,8 +372,8 @@ def test_drop_and_dropcolumns(session_cnx, db_parameters):
         assert "Cannot drop all column" in str(ex_info)
 
 
-def test_groupby(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_groupby(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame(
             [
                 ("country A", "state A", 50),
@@ -421,15 +421,15 @@ def test_groupby(session_cnx, db_parameters):
         assert sorted(res, key=lambda x: x[2]) == expected_res
 
 
-def test_escaped_character(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_escaped_character(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame(["'", "\\", "\n"]).toDF("a")
         res = df.collect()
         assert res == [Row(["'"]), Row(["\\"]), Row(["\n"])]
 
 
-def test_create_or_replace_temporary_view(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_or_replace_temporary_view(session_cnx):
+    with session_cnx() as session:
         view_name = Utils.random_name()
         view_name1 = f'"{view_name}%^11"'
         view_name2 = f'"{view_name}"'
@@ -460,7 +460,7 @@ def test_create_or_replace_temporary_view(session_cnx, db_parameters):
             assert res == [Row([1]), Row([2]), Row([3])]
 
             # Get a second session object
-            with session_cnx(db_parameters) as session2:
+            with session_cnx() as session2:
                 assert session is not session2
                 with pytest.raises(connector.errors.ProgrammingError) as ex_info:
                     session2.table(view_name).collect()
@@ -471,8 +471,8 @@ def test_create_or_replace_temporary_view(session_cnx, db_parameters):
             Utils.drop_view(session, view_name2)
 
 
-def test_quoted_column_names(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_quoted_column_names(session_cnx):
+    with session_cnx() as session:
         normalName = "NORMAL_NAME"
         lowerCaseName = '"lower_case"'
         quoteStart = '"""quote_start"'
@@ -568,8 +568,8 @@ def test_quoted_column_names(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
-def test_column_names_without_surrounding_quote(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_column_names_without_surrounding_quote(session_cnx):
+    with session_cnx() as session:
         normalName = "NORMAL_NAME"
         lowerCaseName = '"lower_case"'
         quoteStart = '"""quote_start"'
@@ -606,16 +606,16 @@ def test_column_names_without_surrounding_quote(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
-def test_negative_test_for_user_input_invalid_quoted_name(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_negative_test_for_user_input_invalid_quoted_name(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([1, 2, 3]).toDF("a")
         with pytest.raises(SnowparkClientException) as ex_info:
             df.where(col('"A" = "A" --"') == 2).collect()
         assert "invalid identifier" in str(ex_info)
 
 
-def test_clone_with_union_dataframe(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_clone_with_union_dataframe(session_cnx):
+    with session_cnx() as session:
         table_name = Utils.random_name()
         try:
             Utils.create_table(session, table_name, "c1 int, c2 int")
@@ -635,15 +635,15 @@ def test_clone_with_union_dataframe(session_cnx, db_parameters):
 def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(
     session_cnx, db_parameters
 ):
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.createDataFrame([[2, "NotNull"]]).toDF(["a", "b"])
         with pytest.raises(SnowparkClientException) as ex_info:
             df.createOrReplaceView("negative test invalid table name")
         assert re.compile("The object name .* is invalid.").match(ex_info.value.message)
 
 
-def test_variant_in_array_and_dict(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_variant_in_array_and_dict(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame(
             [Row([[Variant(1), Variant("\"'")], {"a": Variant("\"'")}])]
         )

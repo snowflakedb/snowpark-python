@@ -5,15 +5,15 @@
 from test.utils import Utils
 
 import pytest
-
 from snowflake.connector import ProgrammingError
+
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types.sf_types import LongType, StructField, StructType
 
 
-def test_non_select_queries(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_non_select_queries(session_cnx):
+    with session_cnx() as session:
         try:
             stage_name = Utils.random_name()
             Utils.create_stage(session, stage_name)
@@ -39,8 +39,8 @@ def test_non_select_queries(session_cnx, db_parameters):
             Utils.drop_table(session, table_name1)
 
 
-def test_run_sql_query(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_run_sql_query(session_cnx):
+    with session_cnx() as session:
         df1 = session.sql("select * from values (1),(2),(3)")
         assert df1.collect() == [Row(1), Row(2), Row(3)]
 
@@ -69,8 +69,8 @@ def test_run_sql_query(session_cnx, db_parameters):
             session.sql("select sum(a) over () from values 1.0, 2.0 T(a)").collect()
 
 
-def test_create_table(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_table(session_cnx):
+    with session_cnx() as session:
         table_name = Utils.random_name()
         other_name = Utils.random_name()
         try:
@@ -105,8 +105,8 @@ def test_create_table(session_cnx, db_parameters):
             Utils.drop_table(session, other_name)
 
 
-def test_insert_into_table(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_insert_into_table(session_cnx):
+    with session_cnx() as session:
         table_name1 = Utils.random_name()
         table_name2 = Utils.random_name()
         try:
@@ -137,8 +137,8 @@ def test_insert_into_table(session_cnx, db_parameters):
             Utils.drop_table(session, table_name2)
 
 
-def test_show(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_show(session_cnx):
+    with session_cnx() as session:
         table_name = Utils.random_name()
         try:
             Utils.create_table(session, table_name, "num int")

@@ -3,28 +3,38 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+
+# r
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+#
 from test.utils import Utils
 
 import pytest
-
 from snowflake.connector.errors import DatabaseError
+
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 
 
-def test_select_1(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_select_1(session_cnx):
+    with session_cnx() as session:
         res = session.sql("select 1").collect()
         assert res == [Row([1])]
 
 
 def test_invalid_configs(db_parameters):
     with pytest.raises(DatabaseError) as ex_info:
-        Session.builder().configs(db_parameters).config("user", "invalid_user").config(
-            "password", "invalid_pwd"
-        ).config("login_timeout", 5).create()
-    assert "Incorrect username or password was specified" in str(ex_info)
+        session = (
+            Session.builder()
+            .configs(db_parameters)
+            .config("user", "invalid_user")
+            .config("password", "invalid_pwd")
+            .config("login_timeout", 5)
+            .create()
+        )
+        assert "Incorrect username or password was specified" in str(ex_info)
+        session.close()
 
 
 def test_no_default_database_and_schema(session_cnx, db_parameters):
@@ -34,10 +44,11 @@ def test_no_default_database_and_schema(session_cnx, db_parameters):
     with session_cnx(invalid_parameters) as session:
         assert not session.getDefaultDatabase()
         assert not session.getDefaultSchema()
+        session.close()
 
 
-def test_default_and_current_database_and_schema(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_default_and_current_database_and_schema(session_cnx):
+    with session_cnx() as session:
         default_database = session.getDefaultDatabase()
         default_schema = session.getDefaultSchema()
 
@@ -58,8 +69,8 @@ def test_default_and_current_database_and_schema(session_cnx, db_parameters):
         session._run_query("drop schema {}".format(schema_name))
 
 
-def test_quote_all_database_and_schema_names(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_quote_all_database_and_schema_names(session_cnx):
+    with session_cnx() as session:
 
         def is_quoted(name: str) -> bool:
             return name[0] == '"' and name[-1] == '"'
@@ -68,3 +79,8 @@ def test_quote_all_database_and_schema_names(session_cnx, db_parameters):
         assert is_quoted(session.getDefaultSchema())
         assert is_quoted(session.getCurrentDatabase())
         assert is_quoted(session.getCurrentSchema())
+
+
+def test_active_session(session_cnx):
+    with session_cnx() as session:
+        assert session == Session._get_active_session()

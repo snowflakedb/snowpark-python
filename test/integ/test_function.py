@@ -6,8 +6,8 @@
 from test.utils import TestData
 
 import pytest
-
 from snowflake.connector.errors import ProgrammingError
+
 from snowflake.snowpark.functions import (
     builtin,
     call_builtin,
@@ -18,8 +18,8 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.row import Row
 
 
-def test_count_distinct(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_count_distinct(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame(
             [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
         ).toDF(["id", "value", "other"])
@@ -49,9 +49,9 @@ def test_count_distinct(session_cnx, db_parameters):
         assert "Unsupported feature 'TOK_STAR'" in str(ex_info)
 
 
-def test_builtin_avg_from_range(session_cnx, db_parameters):
+def test_builtin_avg_from_range(session_cnx):
     """Tests the builtin functionality, using avg()."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         avg = builtin("avg")
 
         df = session.range(1, 10, 2).select(avg(col("id")))
@@ -90,9 +90,9 @@ def test_builtin_avg_from_range(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_call_builtin_avg_from_range(session_cnx, db_parameters):
+def test_call_builtin_avg_from_range(session_cnx):
     """Tests the builtin functionality, using avg()."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.range(1, 10, 2).select(call_builtin("avg", col("id")))
         res = df.collect()
         expected = [Row([5.000])]
@@ -133,8 +133,8 @@ def test_call_builtin_avg_from_range(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_parse_json(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_parse_json(session_cnx):
+    with session_cnx() as session:
         assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
             Row('{\n  "a": null\n}'),
             Row('{\n  "a": "foo"\n}'),

@@ -9,8 +9,8 @@ import pytest
 from snowflake.snowpark.column import Column
 
 
-def test_sort_basic(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_sort_basic(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame(
             [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
         ).toDF(["a", "b"])
@@ -42,8 +42,8 @@ def test_sort_basic(session_cnx, db_parameters):
             )
 
 
-def test_sort_different_inputs(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_sort_different_inputs(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame(
             [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
         ).toDF(["a", "b"])
@@ -83,8 +83,8 @@ def test_sort_different_inputs(session_cnx, db_parameters):
             )
 
 
-def test_sort_invalid_inputs(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_sort_invalid_inputs(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame(
             [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
         ).toDF(["a", "b"])

@@ -66,6 +66,7 @@ from snowflake.snowpark.types.types_package import (
 )
 
 logger = getLogger(__name__)
+_active_session = None
 
 
 class Session:
@@ -95,7 +96,8 @@ class Session:
         return self.__last_action_id
 
     def close(self):
-        # TODO revisit
+        global _active_session
+        _active_session = None
         self.conn.close()
 
     def get_last_canceled_id(self):
@@ -405,6 +407,19 @@ class Session:
             )
         return database + "." + schema
 
+    @staticmethod
+    def _get_active_session() -> Optional["Session"]:
+        return _active_session
+
+    @staticmethod
+    def _set_active_session(session: "Session") -> "Session":
+        global _active_session
+        if _active_session:
+            logger.info("Overwriting an already active session")
+            _active_session.close()
+        _active_session = session
+        return session
+
     # TODO complete
     def __disable_stderr(self):
         # Look into https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stderr
@@ -441,9 +456,12 @@ class Session:
             return self.__create_internal(conn=None)
 
         def __create_internal(self, conn: Optional[SnowflakeConnection] = None):
-            # TODO: setActiveSession
             # set the log level of the conncector logger to ERROR to avoid massive logging
             logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
-            return Session(
-                ServerConnection({}, conn) if conn else ServerConnection(self.__options)
+            return Session._set_active_session(
+                Session(
+                    ServerConnection({}, conn)
+                    if conn
+                    else ServerConnection(self.__options)
+                )
             )
