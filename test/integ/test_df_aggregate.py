@@ -9,8 +9,8 @@ import pytest
 from snowflake.snowpark.row import Row
 
 
-def test_df_agg_tuples_basic(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_df_agg_tuples_basic(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
             ["first", "second"]
         )
@@ -84,9 +84,9 @@ def test_df_agg_tuples_basic(session_cnx, db_parameters):
         assert res == [Row([1, 4, 2, 4.75, 0.577349980514419])]
 
 
-def test_df_agg_tuples_avg_basic(session_cnx, db_parameters):
+def test_df_agg_tuples_avg_basic(session_cnx):
     """Test for making sure all avg word-variations work as expected"""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
             ["first", "second"]
         )
@@ -101,9 +101,9 @@ def test_df_agg_tuples_avg_basic(session_cnx, db_parameters):
         assert res == [Row([1.5])]
 
 
-def test_df_agg_tuples_std_basic(session_cnx, db_parameters):
+def test_df_agg_tuples_std_basic(session_cnx):
     """Test for making sure all stddev variations work as expected"""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
             ["first", "second"]
         )
@@ -115,9 +115,9 @@ def test_df_agg_tuples_std_basic(session_cnx, db_parameters):
         assert res == [Row([0.577349980514419])]
 
 
-def test_df_agg_tuples_count_basic(session_cnx, db_parameters):
+def test_df_agg_tuples_count_basic(session_cnx):
     """Test for making sure all count variations work as expected"""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
             ["first", "second"]
         )
@@ -129,9 +129,9 @@ def test_df_agg_tuples_count_basic(session_cnx, db_parameters):
         assert res == [Row([4])]
 
 
-def test_df_groupBy_invalid_input(session_cnx, db_parameters):
+def test_df_groupBy_invalid_input(session_cnx):
     """Test for check invalid input for groupBy function"""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
             ["first", "second"]
         )

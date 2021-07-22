@@ -66,9 +66,21 @@ from snowflake.snowpark.types.types_package import (
 )
 
 logger = getLogger(__name__)
+_active_session = None
 
 
-class Session:
+class _SessionMeta(type):
+    """The metaclass of Session is defined with builder property, such that
+    we can call [[Session.builder]] to create a session instance, and disallow
+    creating a builder instance from a a session instance.
+    """
+
+    @property
+    def builder(cls):
+        return cls._SessionBuilder()
+
+
+class Session(metaclass=_SessionMeta):
     __STAGE_PREFIX = "@"
 
     def __init__(self, conn: ServerConnection):
@@ -79,7 +91,12 @@ class Session:
         self._snowpark_jar_in_deps = False
         self._session_id = self.conn.get_session_id()
         self.__session_stage = "snowSession_" + str(self._session_id)
-
+        self._session_info = f"""
+"version" : {Utils.get_version()},
+"python.version" : {Utils.get_python_version()},
+"python.connector.version" : {Utils.get_connector_version()},
+"os.name" : {Utils.get_os_name()}
+"""
         self.__plan_builder = SnowflakePlanBuilder(self)
 
         self.__last_action_id = 0
@@ -95,7 +112,9 @@ class Session:
         return self.__last_action_id
 
     def close(self):
-        # TODO revisit
+        global _active_session
+        if _active_session == self:
+            _active_session = None
         self.conn.close()
 
     def get_last_canceled_id(self):
@@ -194,6 +213,7 @@ class Session:
     def sql(self, query) -> DataFrame:
         return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
 
+    @property
     def read(self) -> "DataFrameReader":
         """Returns a [[DataFrameReader]] that you can use to read data from various
         supported sources (e.g. a file in a stage) as a DataFrame."""
@@ -405,6 +425,21 @@ class Session:
             )
         return database + "." + schema
 
+    @staticmethod
+    def _get_active_session() -> Optional["Session"]:
+        return _active_session
+
+    @staticmethod
+    def _set_active_session(session: "Session") -> "Session":
+        logger.info(
+            "Python Snowpark Session information: {}".format(session._session_info)
+        )
+        global _active_session
+        if _active_session:
+            logger.info("Overwriting an already active session")
+        _active_session = session
+        return session
+
     # TODO complete
     def __disable_stderr(self):
         # Look into https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stderr
@@ -414,11 +449,7 @@ class Session:
         # a useful approach for many utility scripts."
         pass
 
-    @staticmethod
-    def builder():
-        return Session.SessionBuilder()
-
-    class SessionBuilder:
+    class _SessionBuilder:
         """The SessionBuilder holds all the configuration properties
         and is used to create a Session."""
 
@@ -441,9 +472,12 @@ class Session:
             return self.__create_internal(conn=None)
 
         def __create_internal(self, conn: Optional[SnowflakeConnection] = None):
-            # TODO: setActiveSession
             # set the log level of the conncector logger to ERROR to avoid massive logging
             logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
-            return Session(
-                ServerConnection({}, conn) if conn else ServerConnection(self.__options)
+            return Session._set_active_session(
+                Session(
+                    ServerConnection({}, conn)
+                    if conn
+                    else ServerConnection(self.__options)
+                )
             )

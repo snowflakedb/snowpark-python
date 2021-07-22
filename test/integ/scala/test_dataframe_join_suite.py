@@ -14,8 +14,8 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
-def test_join_using(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_using(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[i, str(i)] for i in range(1, 4)]).toDF(
             ["int", "str"]
         )
@@ -30,8 +30,8 @@ def test_join_using(session_cnx, db_parameters):
         ]
 
 
-def test_join_using_multiple_columns(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_using_multiple_columns(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[i, i + 1, str(i)] for i in range(1, 4)]).toDF(
             ["int", "int2", "str"]
         )
@@ -47,8 +47,8 @@ def test_join_using_multiple_columns(session_cnx, db_parameters):
         ]
 
 
-def test_full_outer_join_followed_by_inner_join(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_full_outer_join_followed_by_inner_join(session_cnx):
+    with session_cnx() as session:
         a = session.createDataFrame([[1, 2], [2, 3]]).toDF(["a", "b"])
         b = session.createDataFrame([[2, 5], [3, 4]]).toDF(["a", "c"])
         c = session.createDataFrame([[3, 1]]).toDF(["a", "d"])
@@ -59,8 +59,8 @@ def test_full_outer_join_followed_by_inner_join(session_cnx, db_parameters):
 
 
 # TODO add limit as the original test
-def test_limit_with_join(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_limit_with_join(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 1, "1"], [2, 2, "3"]]).toDF(
             ["int", "int2", "str"]
         )
@@ -76,8 +76,8 @@ def test_limit_with_join(session_cnx, db_parameters):
         assert inner.collect() == [Row([1])]
 
 
-def test_default_inner_join(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_default_inner_join(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([1, 2]).toDF(["a"])
         df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
             ["a", "b"]
@@ -93,8 +93,8 @@ def test_default_inner_join(session_cnx, db_parameters):
         ]
 
 
-def test_default_inner_join_using_column(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_default_inner_join_using_column(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([1, 2]).toDF(["a"])
         df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
             ["a", "b"]
@@ -104,8 +104,8 @@ def test_default_inner_join_using_column(session_cnx, db_parameters):
         assert df.join(df2, "a").filter(col("a") > 1).collect() == [Row([2, "test2"])]
 
 
-def test_3_way_joins(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_3_way_joins(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame([1, 2]).toDF(["a"])
         df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
             ["a", "b"]
@@ -119,8 +119,8 @@ def test_3_way_joins(session_cnx, db_parameters):
         assert res == [Row(["test1", 1, "hello1"]), Row(["test2", 2, "hello2"])]
 
 
-def test_default_inner_join_with_join_conditions(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_default_inner_join_with_join_conditions(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
             ["a", "b"]
         )
@@ -135,8 +135,8 @@ def test_default_inner_join_with_join_conditions(session_cnx, db_parameters):
         ]
 
 
-def test_join_with_multiple_conditions(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_with_multiple_conditions(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
             ["a", "b"]
         )
@@ -149,8 +149,8 @@ def test_join_with_multiple_conditions(session_cnx, db_parameters):
 
 
 @pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
-def test_join_with_ambiguous_column_in_condidtion(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_with_ambiguous_column_in_condidtion(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([1, 2]).toDF(["a"])
         df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
             ["a", "b"]
@@ -164,7 +164,7 @@ def test_join_with_ambiguous_column_in_condidtion(session_cnx, db_parameters):
 def test_join_using_multiple_columns_and_specifying_join_type(
     session_cnx, db_parameters
 ):
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         table_name1 = Utils.random_name()
         table_name2 = Utils.random_name()
         try:
@@ -218,8 +218,8 @@ def test_join_using_multiple_columns_and_specifying_join_type(
             Utils.drop_table(session, table_name2)
 
 
-def test_cross_join(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_cross_join(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame([[1, "1"], [3, "3"]]).toDF(["int", "str"])
         df2 = session.createDataFrame([[2, "2"], [4, "4"]]).toDF(["int", "str"])
 
@@ -242,8 +242,8 @@ def test_cross_join(session_cnx, db_parameters):
         ]
 
 
-def test_join_ambiguous_columns_with_specified_sources(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_ambiguous_columns_with_specified_sources(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([1, 2]).toDF(["a"])
         df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
             ["a", "b"]
@@ -262,8 +262,8 @@ def test_join_ambiguous_columns_with_specified_sources(session_cnx, db_parameter
 
 
 @pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
-def test_join_ambiguous_columns_without_specified_sources(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_ambiguous_columns_without_specified_sources(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, "one"], [2, "two"]]).toDF(
             ["intcol", " stringcol"]
         )
@@ -283,8 +283,8 @@ def test_join_ambiguous_columns_without_specified_sources(session_cnx, db_parame
             assert "INTCOL" in str(ex_info)
 
 
-def test_join_expression_ambiguous_columns(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_expression_ambiguous_columns(session_cnx):
+    with session_cnx() as session:
         lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
             ["intcol", "negcol", "lhscol"]
         )
@@ -305,8 +305,8 @@ def test_join_expression_ambiguous_columns(session_cnx, db_parameters):
 
 
 @pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
-def semi_join_expression_ambiguous_columns(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def semi_join_expression_ambiguous_columns(session_cnx):
+    with session_cnx() as session:
         lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
             ["intcol", "negcol", "lhscol"]
         )
@@ -329,8 +329,8 @@ def semi_join_expression_ambiguous_columns(session_cnx, db_parameters):
         assert "not present" in str(ex_info)
 
 
-def test_semi_join_with_columns_from_LHS(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_semi_join_with_columns_from_LHS(session_cnx):
+    with session_cnx() as session:
         lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
             ["intcol", "negcol", "lhscol"]
         )
@@ -389,8 +389,8 @@ def test_semi_join_with_columns_from_LHS(session_cnx, db_parameters):
         assert sorted(res, key=lambda x: x[0]) == [Row([1]), Row([2])]
 
 
-def test_using_joins(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_using_joins(session_cnx):
+    with session_cnx() as session:
         lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
             ["intcol", "negcol", "lhscol"]
         )
@@ -427,8 +427,8 @@ def test_using_joins(session_cnx, db_parameters):
             assert sorted(res, key=lambda x: -x[0]) == [Row([-1, -10]), Row([-2, -20])]
 
 
-def test_columns_with_and_without_quotes(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_columns_with_and_without_quotes(session_cnx):
+    with session_cnx() as session:
         lhs = session.createDataFrame([[1, 1.0]]).toDF(["intcol", "doublecol"])
         rhs = session.createDataFrame([[1, 2.0]]).toDF(['"INTCOL"', '"DoubleCol"'])
 
@@ -461,8 +461,8 @@ def test_columns_with_and_without_quotes(session_cnx, db_parameters):
         # assert 'ambiguous' in str(ex_info)
 
 
-def test_aliases_multiple_levels_deep(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_aliases_multiple_levels_deep(session_cnx):
+    with session_cnx() as session:
         lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
             ["intcol", "negcol", "lhscol"]
         )
@@ -483,8 +483,8 @@ def test_aliases_multiple_levels_deep(session_cnx, db_parameters):
         assert sorted(res, key=lambda x: x[0]) == [Row([2, -11]), Row([4, -22])]
 
 
-def test_join_sql_as_the_backing_dataframe(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_sql_as_the_backing_dataframe(session_cnx):
+    with session_cnx() as session:
         table_name1 = Utils.random_name()
         try:
             Utils.create_table(session, table_name1, "int int, int2 int, str string")
@@ -533,8 +533,8 @@ def test_join_sql_as_the_backing_dataframe(session_cnx, db_parameters):
             Utils.drop_table(session, table_name1)
 
 
-def test_negative_test_for_self_join_with_conditions(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_negative_test_for_self_join_with_conditions(session_cnx):
+    with session_cnx() as session:
         table_name1 = Utils.random_name()
         try:
             Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -557,8 +557,8 @@ def test_negative_test_for_self_join_with_conditions(session_cnx, db_parameters)
             Utils.drop_table(session, table_name1)
 
 
-def test_clone_can_help_these_self_joins(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_clone_can_help_these_self_joins(session_cnx):
+    with session_cnx() as session:
         table_name1 = Utils.random_name()
         try:
             Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -594,8 +594,8 @@ def test_clone_can_help_these_self_joins(session_cnx, db_parameters):
             Utils.drop_table(session, table_name1)
 
 
-def test_natural_cross_joins(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_natural_cross_joins(session_cnx):
+    with session_cnx() as session:
         table_name1 = Utils.random_name()
         try:
             Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -631,8 +631,8 @@ def test_natural_cross_joins(session_cnx, db_parameters):
             Utils.drop_table(session, table_name1)
 
 
-def test_clone_with_join_dataframe(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_clone_with_join_dataframe(session_cnx):
+    with session_cnx() as session:
         table_name1 = Utils.random_name()
         try:
             Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -655,8 +655,8 @@ def test_clone_with_join_dataframe(session_cnx, db_parameters):
             Utils.drop_table(session, table_name1)
 
 
-def test_join_on_join(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_on_join(session_cnx):
+    with session_cnx() as session:
         table_name1 = Utils.random_name()
         try:
             Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -682,8 +682,8 @@ def test_join_on_join(session_cnx, db_parameters):
 
 
 @pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
-def test_negative_test_join_on_join(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_negative_test_join_on_join(session_cnx):
+    with session_cnx() as session:
         table_name1 = Utils.random_name()
         try:
             Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -704,8 +704,8 @@ def test_negative_test_join_on_join(session_cnx, db_parameters):
             Utils.drop_table(session, table_name1)
 
 
-def test_outer_join_conversion(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_outer_join_conversion(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([(1, 2, "1"), (3, 4, "3")]).toDF(
             ["int", "int2", "str"]
         )
@@ -754,9 +754,9 @@ def test_outer_join_conversion(session_cnx, db_parameters):
         assert left_join_2_inner == [Row([1, 2, "1", 1, 3, "1"])]
 
 
-def test_dont_throw_analysis_exception_in_check_cartesian(session_cnx, db_parameters):
+def test_dont_throw_analysis_exception_in_check_cartesian(session_cnx):
     """Don't throw Analysis Exception in CheckCartesianProduct when join condition is false or null"""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.range(10).toDF(["id"])
         dfNull = session.range(10).select(lit(None).as_("b"))
         df.join(dfNull, col("id") == col("b"), "left").collect()
@@ -766,8 +766,8 @@ def test_dont_throw_analysis_exception_in_check_cartesian(session_cnx, db_parame
         dfOne.join(dfTwo, col("a") == col("b"), "left").collect()
 
 
-def test_name_alias_on_multiple_join(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_name_alias_on_multiple_join(session_cnx):
+    with session_cnx() as session:
         table_trips = Utils.random_name()
         table_stations = Utils.random_name()
         try:
@@ -808,8 +808,8 @@ def test_name_alias_on_multiple_join(session_cnx, db_parameters):
             Utils.drop_table(session, table_stations)
 
 
-def test_name_alias_on_multiple_join_unnormalized_name(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_name_alias_on_multiple_join_unnormalized_name(session_cnx):
+    with session_cnx() as session:
         table_trips = Utils.random_name()
         table_stations = Utils.random_name()
         try:
@@ -851,8 +851,8 @@ def test_name_alias_on_multiple_join_unnormalized_name(session_cnx, db_parameter
 
 
 @pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
-def test_report_error_when_refer_common_col(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_report_error_when_refer_common_col(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame([[1, 2]]).toDF(["a", "b"])
         df2 = session.createDataFrame([[1, 2]]).toDF(["c", "d"])
         df3 = session.createDataFrame([[1, 2]]).toDF(["e", "f"])

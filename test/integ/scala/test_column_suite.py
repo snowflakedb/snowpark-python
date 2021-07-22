@@ -6,31 +6,31 @@
 from test.utils import Utils
 
 import pytest
-
 from snowflake.connector.errors import ProgrammingError
+
 from snowflake.snowpark.functions import avg, col, sql_expr
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
-def test_column_alias_and_case_insensitive_name(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_column_alias_and_case_insensitive_name(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([1, 2]).toDF(["a"])
         assert df.select(df["a"].as_("b")).schema.fields[0].name == "B"
         assert df.select(df["a"].alias("b")).schema.fields[0].name == "B"
         assert df.select(df["a"].name("b")).schema.fields[0].name == "B"
 
 
-def test_column_alias_and_case_sensitive_name(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_column_alias_and_case_sensitive_name(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([1, 2]).toDF(["a"])
         assert df.select(df["a"].as_('"b"')).schema.fields[0].name == '"b"'
         assert df.select(df["a"].alias('"b"')).schema.fields[0].name == '"b"'
         assert df.select(df["a"].name('"b"')).schema.fields[0].name == '"b"'
 
 
-def test_toDF_with_special_column_names(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_toDF_with_special_column_names(session_cnx):
+    with session_cnx() as session:
         assert (
             session.createDataFrame([[1]]).toDF(["ONE"]).schema
             == session.createDataFrame([[1]]).toDF(["one"]).schema
@@ -57,8 +57,8 @@ def test_toDF_with_special_column_names(session_cnx, db_parameters):
         )
 
 
-def test_column_resolution_with_different_kins_of_names(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_column_resolution_with_different_kins_of_names(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1]]).toDF(["One"])
         assert df.select(df["one"]).collect() == [Row(1)]
         assert df.select(df["oNe"]).collect() == [Row(1)]
@@ -82,8 +82,8 @@ def test_column_resolution_with_different_kins_of_names(session_cnx, db_paramete
             df.col('"ONE ONE"')
 
 
-def test_drop_columns_by_string(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_drop_columns_by_string(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 2]]).toDF(["One", '"One"'])
         assert df.drop("one").schema.fields[0].name == '"One"'
         assert df.drop('"One"').schema.fields[0].name == "ONE"
@@ -98,8 +98,8 @@ def test_drop_columns_by_string(session_cnx, db_parameters):
         assert "Cannot drop all columns" in str(ex_info)
 
 
-def test_drop_columns_by_column(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_drop_columns_by_column(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 2]]).toDF(["One", '"One"'])
         assert df.drop(col("one")).schema.fields[0].name == '"One"'
         assert df.drop(df['"One"']).schema.fields[0].name == "ONE"
@@ -117,8 +117,8 @@ def test_drop_columns_by_column(session_cnx, db_parameters):
         assert "Can only drop columns by name" in str(ex_info)
 
 
-def test_fully_qualified_column_name(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_fully_qualified_column_name(session_cnx):
+    with session_cnx() as session:
         random_name = Utils.random_name()
         schema = "{}.{}".format(
             session.getCurrentDatabase(), session.getCurrentSchema()
@@ -148,8 +148,8 @@ def test_fully_qualified_column_name(session_cnx, db_parameters):
             session._run_query(f"drop function if exists {schema}.{udf_name}(integer)")
 
 
-def test_column_names_with_quotes(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_column_names_with_quotes(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 2, 3]]).toDF('col"', '"col"', '"""col"')
         assert df.select(col('col"')).collect() == [Row(1)]
         assert df.select(col('"col"""')).collect() == [Row(1)]
@@ -167,8 +167,8 @@ def test_column_names_with_quotes(session_cnx, db_parameters):
         assert "invalid identifier" in str(ex_info)
 
 
-def test_column_constructors_col(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_column_constructors_col(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 2, 3]]).toDF("col", '"col"', "col .")
         assert df.select(col("col")).collect() == [Row(1)]
         assert df.select(col('"col"')).collect() == [Row(2)]
@@ -188,8 +188,8 @@ def test_column_constructors_col(session_cnx, db_parameters):
         assert "invalid identifier" in str(ex_info)
 
 
-def test_column_constructors_select(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_column_constructors_select(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 2, 3]]).toDF("col", '"col"', "col .")
         assert df.select("col").collect() == [Row(1)]
         assert df.select('"col"').collect() == [Row(2)]
@@ -206,8 +206,8 @@ def test_column_constructors_select(session_cnx, db_parameters):
         assert "invalid identifier" in str(ex_info)
 
 
-def test_sql_expr_column(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_sql_expr_column(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, 2, 3]]).toDF("col", '"col"', "col .")
         assert df.select(sql_expr("col")).collect() == [Row(1)]
         assert df.select(sql_expr('"col"')).collect() == [Row(2)]
@@ -233,8 +233,8 @@ def test_sql_expr_column(session_cnx, db_parameters):
         assert "syntax error" in str(ex_info)
 
 
-def test_errors_for_aliased_columns(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_errors_for_aliased_columns(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1]]).toDF("c")
         with pytest.raises(ProgrammingError) as ex_info:
             df.select(col("a").as_("b") + 10).collect()
@@ -244,7 +244,7 @@ def test_errors_for_aliased_columns(session_cnx, db_parameters):
         assert "syntax error" in str(ex_info)
 
 
-def test_lit_contains_single_quote(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_lit_contains_single_quote(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[1, "'"], [2, "''"]]).toDF(["a", "b"])
         assert df.where(col("b") == "'").collect() == [Row([1, "'"])]

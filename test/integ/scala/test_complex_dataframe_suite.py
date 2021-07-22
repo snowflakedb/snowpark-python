@@ -6,8 +6,8 @@ from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 
 
-def test_combination_of_multiple_operators(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_combination_of_multiple_operators(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame([1, 2]).toDF("a")
         df2 = session.createDataFrame([[i, f"test{i}"] for i in [1, 2]]).toDF("a", "b")
 
@@ -38,8 +38,8 @@ def test_combination_of_multiple_operators(session_cnx, db_parameters):
         ]
 
 
-def test_combination_of_multiple_operators_with_filters(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_combination_of_multiple_operators_with_filters(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame([i for i in range(1, 11)]).toDF("a")
         df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 11)]).toDF(
             "a", "b"
@@ -66,8 +66,8 @@ def test_combination_of_multiple_operators_with_filters(session_cnx, db_paramete
         assert df.collect() == [Row([i, f"test{i}"]) for i in range(1, 11)]
 
 
-def test_join_on_top_of_unions(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_join_on_top_of_unions(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame([i for i in range(1, 6)]).toDF("a")
         df2 = session.createDataFrame([i for i in range(6, 11)]).toDF("a")
         df3 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 6)]).toDF(
