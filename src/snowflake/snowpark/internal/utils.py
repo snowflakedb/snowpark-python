@@ -3,9 +3,13 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import platform
 import re
 
+from snowflake.connector.version import VERSION as connector_version
+
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.version import VERSION as snowpark_version
 
 
 class Utils:
@@ -24,3 +28,19 @@ class Utils:
         )
         if not pattern.match(name):
             raise SnowparkClientException(f"The object name {name} is invalid.")
+
+    @staticmethod
+    def get_version() -> str:
+        return ".".join([str(d) for d in snowpark_version if d is not None])
+
+    @staticmethod
+    def get_python_version() -> str:
+        return platform.python_version()
+
+    @staticmethod
+    def get_connector_version() -> str:
+        return ".".join([str(d) for d in connector_version if d is not None])
+
+    @staticmethod
+    def get_os_name() -> str:
+        return platform.system()

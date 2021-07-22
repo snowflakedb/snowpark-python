@@ -9,8 +9,8 @@ from snowflake.snowpark.functions import col, min, sum
 from snowflake.snowpark.row import Row
 
 
-def test_union_all(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_union_all(session_cnx):
+    with session_cnx() as session:
         td4 = TestData.test_data4(session)
         union_df = td4.union(td4).union(td4).union(td4).union(td4)
 
@@ -25,8 +25,8 @@ def test_union_all(session_cnx, db_parameters):
         assert res1 == res2
 
 
-def test_intersect_nullability(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_intersect_nullability(session_cnx):
+    with session_cnx() as session:
         non_nullable_ints = session.createDataFrame([[1], [3]]).toDF("a")
         null_ints = TestData.null_ints(session)
 
@@ -59,8 +59,8 @@ def test_intersect_nullability(session_cnx, db_parameters):
         assert all(not i.nullable for i in df4.schema.fields)
 
 
-def test_spark_17123_performing_set_ops_on_non_native_types(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_spark_17123_performing_set_ops_on_non_native_types(session_cnx):
+    with session_cnx() as session:
         dates = session.createDataFrame(
             [
                 [date(1, 1, 1), Decimal(1), datetime(1, 1, 1, microsecond=2000)],
@@ -84,8 +84,8 @@ def test_spark_17123_performing_set_ops_on_non_native_types(session_cnx, db_para
         # dates.except(widen_typed_rows).collect()
 
 
-def test_intersect(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_intersect(session_cnx):
+    with session_cnx() as session:
         lcd = TestData.lower_case_data(session)
         res = lcd.intersect(lcd).collect()
         res.sort(key=lambda x: x[0])
@@ -115,7 +115,7 @@ def test_intersect(session_cnx, db_parameters):
 def test_project_should_not_be_pushed_down_through_intersect_or_excepet(
     session_cnx, db_parameters
 ):
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df1 = session.createDataFrame([[i] for i in range(1, 101)]).toDF("i")
         df2 = session.createDataFrame([[i] for i in range(1, 31)]).toDF("i")
 

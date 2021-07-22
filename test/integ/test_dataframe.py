@@ -36,9 +36,9 @@ from snowflake.snowpark.types.sf_types import (
 )
 
 
-def test_distinct(session_cnx, db_parameters):
+def test_distinct(session_cnx):
     """Tests df.distinct()."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.createDataFrame(
             [
                 [1, 1],
@@ -72,9 +72,9 @@ def test_distinct(session_cnx, db_parameters):
         assert res == [Row([None]), Row([1]), Row([2]), Row([3]), Row([4]), Row([5])]
 
 
-def test_first(session_cnx, db_parameters):
+def test_first(session_cnx):
     """Tests df.first()."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.createDataFrame([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).toDF(
             "id", "v"
         )
@@ -117,9 +117,9 @@ def test_first(session_cnx, db_parameters):
         assert "Invalid type of argument passed to first()" in str(ex_info)
 
 
-def test_new_df_from_range(session_cnx, db_parameters):
+def test_new_df_from_range(session_cnx):
     """Tests df.range()."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         # range(start, end, step)
         df = session.range(1, 10, 2)
         res = df.collect()
@@ -160,9 +160,9 @@ def test_new_df_from_range(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_select_single_column(session_cnx, db_parameters):
+def test_select_single_column(session_cnx):
     """Tests df.select() on dataframes with a single column."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).select("id").collect()
         expected = [Row([5]), Row([7]), Row([9])]
@@ -186,9 +186,9 @@ def test_select_single_column(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_select_star(session_cnx, db_parameters):
+def test_select_star(session_cnx):
     """Tests df.select('*')."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         # Single column
         res = session.range(3, 8).select("*").collect()
         expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
@@ -201,9 +201,9 @@ def test_select_star(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_df_subscriptable(session_cnx, db_parameters):
+def test_df_subscriptable(session_cnx):
     """Tests select & filter as df[...]"""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         # Star, single column
         res = session.range(3, 8)[["*"]].collect()
         expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
@@ -250,9 +250,9 @@ def test_df_subscriptable(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_filter(session_cnx, db_parameters):
+def test_filter(session_cnx):
     """Tests retrieving a negative number of results."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).collect()
         expected = [Row([5]), Row([7]), Row([9])]
@@ -276,9 +276,9 @@ def test_filter(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_filter_chained(session_cnx, db_parameters):
+def test_filter_chained(session_cnx):
     """Tests retrieving a negative number of results."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).filter(col("id") > 1).collect()
         expected = [Row([5]), Row([7]), Row([9])]
@@ -313,9 +313,9 @@ def test_filter_chained(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_filter_chained_col_objects_int(session_cnx, db_parameters):
+def test_filter_chained_col_objects_int(session_cnx):
     """Tests retrieving a negative number of results."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).filter(col("id") > 1).collect()
         expected = [Row([5]), Row([7]), Row([9])]
@@ -342,9 +342,9 @@ def test_filter_chained_col_objects_int(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_drop(session_cnx, db_parameters):
+def test_drop(session_cnx):
     """Test for dropping columns from a dataframe."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         res = df.drop("id").select("id_prime").collect()
         expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
@@ -368,9 +368,9 @@ def test_drop(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_alias(session_cnx, db_parameters):
+def test_alias(session_cnx):
     """Test for dropping columns from a dataframe."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         # Selecting non-existing column (already renamed) should fail
         with pytest.raises(Exception):
             session.range(3, 8).select(col("id").alias("id_prime")).select(
@@ -390,9 +390,9 @@ def test_alias(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_join_inner(session_cnx, db_parameters):
+def test_join_inner(session_cnx):
     """Test for inner join of dataframes."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         # Implicit inner join on single column
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
@@ -421,10 +421,10 @@ def test_join_inner(session_cnx, db_parameters):
         assert res == expected
 
 
-def test_join_left_anti(session_cnx, db_parameters):
+def test_join_left_anti(session_cnx):
     """Test for left-anti join of dataframes."""
     # TODO remove sorted(res) and add df.sort() when available, as an extra step.
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "left_anti").collect()
@@ -446,10 +446,10 @@ def test_join_left_anti(session_cnx, db_parameters):
         assert sorted(res, key=lambda r: r.get(0)) == expected
 
 
-def test_join_left_outer(session_cnx, db_parameters):
+def test_join_left_outer(session_cnx):
     """Test for left-outer join of dataframes."""
     # TODO remove sorted(res) and add df.sort() when available, as an extra step.
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "left_outer").collect()
@@ -483,10 +483,10 @@ def test_join_left_outer(session_cnx, db_parameters):
         assert sorted(res, key=lambda r: r.get(0)) == expected
 
 
-def test_join_right_outer(session_cnx, db_parameters):
+def test_join_right_outer(session_cnx):
     """Test for right-outer join of dataframes."""
     # TODO remove sorted(res) and add df.sort() when available, as an extra step.
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "right_outer").collect()
@@ -520,9 +520,9 @@ def test_join_right_outer(session_cnx, db_parameters):
         assert sorted(res, key=lambda r: r.get(0)) == expected
 
 
-def test_join_left_semi(session_cnx, db_parameters):
+def test_join_left_semi(session_cnx):
     """Test for left semi join of dataframes."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "left_semi").collect()
@@ -544,9 +544,9 @@ def test_join_left_semi(session_cnx, db_parameters):
         assert sorted(res, key=lambda r: r.get(0)) == expected
 
 
-def test_join_cross(session_cnx, db_parameters):
+def test_join_cross(session_cnx):
     """Test for cross join of dataframes."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.crossJoin(df2).collect()
@@ -580,9 +580,9 @@ def test_join_cross(session_cnx, db_parameters):
         assert sorted(res, key=lambda r: (r.get(0), r.get(1))) == expected
 
 
-def test_join_outer(session_cnx, db_parameters):
+def test_join_outer(session_cnx):
     """Test for outer join of dataframes."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "outer").collect()
@@ -628,9 +628,9 @@ def test_join_outer(session_cnx, db_parameters):
         assert sorted(res, key=lambda r: r.get(0)) == expected
 
 
-def test_toDF(session_cnx, db_parameters):
+def test_toDF(session_cnx):
     """Test df.toDF()."""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
 
         # calling toDF() with fewer new names than columns should fail
@@ -657,9 +657,9 @@ def test_toDF(session_cnx, db_parameters):
         assert sorted(res, key=lambda r: r.get(0)) == expected
 
 
-def test_df_col(session_cnx, db_parameters):
+def test_df_col(session_cnx):
     """Test df.col()"""
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         c = df.col("id")
         assert type(c) == Column
@@ -670,8 +670,8 @@ def test_df_col(session_cnx, db_parameters):
         assert type(c.expression) == SPResolvedStar
 
 
-def test_create_dataframe_with_basic_data_types(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_dataframe_with_basic_data_types(session_cnx):
+    with session_cnx() as session:
         data1 = [
             1,
             "one",
@@ -713,8 +713,8 @@ def test_create_dataframe_with_basic_data_types(session_cnx, db_parameters):
         assert df.select(expected_names).collect() == expected_rows
 
 
-def test_create_dataframe_with_semi_structured_data_types(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_dataframe_with_semi_structured_data_types(session_cnx):
+    with session_cnx() as session:
         data = [
             ["'", 2],
             ("'", 2),
@@ -746,8 +746,8 @@ def test_create_dataframe_with_semi_structured_data_types(session_cnx, db_parame
         ]
 
 
-def test_create_dataframe_with_dict(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_dataframe_with_dict(session_cnx):
+    with session_cnx() as session:
         data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
         expected_names = list(data.keys())
         expected_rows = [Row(list(data.values()))]
@@ -758,9 +758,9 @@ def test_create_dataframe_with_dict(session_cnx, db_parameters):
         assert df.select(expected_names).collect() == expected_rows
 
 
-def test_create_dataframe_with_namedtuple(session_cnx, db_parameters):
+def test_create_dataframe_with_namedtuple(session_cnx):
     Data = namedtuple("Data", ["snow_{}".format(idx + 1) for idx in range(5)])
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         data = Data(*[idx ** 3 for idx in range(5)])
         expected_names = list(data._fields)
         expected_rows = [Row(data)]
@@ -771,8 +771,8 @@ def test_create_dataframe_with_namedtuple(session_cnx, db_parameters):
         assert df.select(expected_names).collect() == expected_rows
 
 
-def test_create_dataframe_with_single_value(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_dataframe_with_single_value(session_cnx):
+    with session_cnx() as session:
         data = [1, 2, 3]
         expected_names = ["VALUES"]
         expected_rows = [Row(d) for d in data]
@@ -782,16 +782,16 @@ def test_create_dataframe_with_single_value(session_cnx, db_parameters):
         assert df.select(expected_names).collect() == expected_rows
 
 
-def test_create_dataframe_empty(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_dataframe_empty(session_cnx):
+    with session_cnx() as session:
         data = [[]]
         df = session.createDataFrame(data)
         expected_rows = [Row(None)]
         assert df.collect() == expected_rows
 
 
-def test_create_dataframe_from_none_data(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_dataframe_from_none_data(session_cnx):
+    with session_cnx() as session:
         assert session.createDataFrame([None, None]).collect() == [Row(None), Row(None)]
         assert session.createDataFrame([[None, None], [1, "1"]]).collect() == [
             Row([None, None]),
@@ -803,8 +803,8 @@ def test_create_dataframe_from_none_data(session_cnx, db_parameters):
         ]
 
 
-def test_create_dataframe_with_invalid_data(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_dataframe_with_invalid_data(session_cnx):
+    with session_cnx() as session:
         # None input
         with pytest.raises(ValueError) as ex_info:
             session.createDataFrame(None)

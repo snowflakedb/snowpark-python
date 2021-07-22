@@ -8,8 +8,8 @@ from pandas import DataFrame as PandasDF, Series as PandasSeries
 from snowflake.snowpark.functions import col
 
 
-def test_to_pandas_new_df_from_range(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_to_pandas_new_df_from_range(session_cnx):
+    with session_cnx() as session:
 
         # Single column
         python_df = session.range(3, 8)

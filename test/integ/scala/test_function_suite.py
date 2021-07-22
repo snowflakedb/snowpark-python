@@ -22,26 +22,26 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.row import Row
 
 
-def test_col(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_col(session_cnx):
+    with session_cnx() as session:
         res = TestData.test_data1(session).select(col("bool")).collect()
         assert res == [Row(True), Row(False)]
 
 
-def test_lit(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_lit(session_cnx):
+    with session_cnx() as session:
         res = TestData.test_data1(session).select(lit(1)).collect()
         assert res == [Row(1), Row(1)]
 
 
-def test_avg(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_avg(session_cnx):
+    with session_cnx() as session:
         res = TestData.duplicated_numbers(session).select(avg(col("A"))).collect()
         assert res == [Row(Decimal("2.2"))]
 
 
-def test_count(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_count(session_cnx):
+    with session_cnx() as session:
         res = TestData.duplicated_numbers(session).select(count(col("A"))).collect()
         assert res == [Row(5)]
 
@@ -49,14 +49,14 @@ def test_count(session_cnx, db_parameters):
         assert df.collect() == [Row(3)]
 
 
-def test_max_min_mean(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_max_min_mean(session_cnx):
+    with session_cnx() as session:
         df = TestData.xyz(session).select(max(col("X")), min(col("Y")), mean(col("Z")))
         assert df.collect() == [Row([2, 1, Decimal("3.6")])]
 
 
-def test_sum(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_sum(session_cnx):
+    with session_cnx() as session:
         df = TestData.duplicated_numbers(session).groupBy("A").agg(sum(col("A")))
         assert df.collect() == [Row([3, 6]), Row([2, 4]), Row([1, 1])]
 

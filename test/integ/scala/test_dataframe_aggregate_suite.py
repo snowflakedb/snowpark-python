@@ -8,8 +8,8 @@ from math import sqrt
 from test.utils import TestData
 
 import pytest
-
 from snowflake.connector.errors import ProgrammingError
+
 from snowflake.snowpark.functions import (
     avg,
     col,
@@ -30,8 +30,8 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
-def test_limit_plus_aggregates(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_limit_plus_aggregates(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([["a", 1], ["b", 2], ["c", 1], ["d", 5]]).toDF(
             ["id", "value"]
         )
@@ -45,8 +45,8 @@ def test_limit_plus_aggregates(session_cnx, db_parameters):
         assert res1 == res2
 
 
-def test_rel_grouped_dataframe_agg(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_rel_grouped_dataframe_agg(session_cnx):
+    with session_cnx() as session:
         df = (
             session.createDataFrame([[1, "One"], [2, "Two"], [3, "Three"]])
             .toDF(["empid", "name"])
@@ -74,8 +74,8 @@ def test_rel_grouped_dataframe_agg(session_cnx, db_parameters):
         ]
 
 
-def test_rel_grouped_dataframe_max(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_rel_grouped_dataframe_max(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame(
             [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]
         ).toDF(["key", "value1", "value2", "rest"])
@@ -91,8 +91,8 @@ def test_rel_grouped_dataframe_max(session_cnx, db_parameters):
         )
 
 
-def test_rel_grouped_dataframe_avg_mean(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_rel_grouped_dataframe_avg_mean(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame(
             [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]
         ).toDF(["key", "value1", "value2", "rest"])
@@ -115,8 +115,8 @@ def test_rel_grouped_dataframe_avg_mean(session_cnx, db_parameters):
         )
 
 
-def test_rel_grouped_dataframe_median(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_rel_grouped_dataframe_median(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame(
             [
                 ("a", 1, 11, "b"),
@@ -140,8 +140,8 @@ def test_rel_grouped_dataframe_median(session_cnx, db_parameters):
         )
 
 
-def test_builtin_functions(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_builtin_functions(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([(1, 11), (2, 12), (1, 13)]).toDF(["a", "b"])
 
         assert df.groupBy("a").builtin("max")(col("a"), col("b")).collect() == [
@@ -154,8 +154,8 @@ def test_builtin_functions(session_cnx, db_parameters):
         ]
 
 
-def test_non_empty_arg_functions(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_non_empty_arg_functions(session_cnx):
+    with session_cnx() as session:
         with pytest.raises(SnowparkClientException) as ex_info:
             TestData.integer1(session).groupBy("a").avg()
         assert "the argument of avg function can't be empty" in str(ex_info)
@@ -177,8 +177,8 @@ def test_non_empty_arg_functions(session_cnx, db_parameters):
         assert "the argument of max function can't be empty" in str(ex_info)
 
 
-def test_null_count(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_null_count(session_cnx):
+    with session_cnx() as session:
         assert TestData.test_data3(session).groupBy("a").agg(
             count(col("b"))
         ).collect() == [Row([1, 0]), Row([2, 1])]
@@ -207,8 +207,8 @@ def test_null_count(session_cnx, db_parameters):
         ).collect() == [Row([1, 1, 2])]
 
 
-def test_distinct(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_distinct(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame(
             [(1, "one", 1.0), (2, "one", 2.0), (2, "two", 1.0)]
         ).toDF("i", "s", '"i"')
@@ -232,8 +232,8 @@ def test_distinct(session_cnx, db_parameters):
         assert df.filter(col("i") < 0).distinct().collect() == []
 
 
-def test_distinct_and_joins(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_distinct_and_joins(session_cnx):
+    with session_cnx() as session:
         lhs = session.createDataFrame([(1, "one", 1.0), (2, "one", 2.0)]).toDF(
             "i", "s", '"i"'
         )
@@ -262,8 +262,8 @@ def test_distinct_and_joins(session_cnx, db_parameters):
         assert res == [Row(["one", "one"])]
 
 
-def test_groupBy(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_groupBy(session_cnx):
+    with session_cnx() as session:
         assert TestData.test_data2(session).groupBy("a").agg(
             sum(col("b"))
         ).collect() == [Row([1, 3]), Row([2, 3]), Row([3, 3])]
@@ -302,8 +302,8 @@ def test_groupBy(session_cnx, db_parameters):
         ]
 
 
-def test_agg_should_be_order_preserving(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_agg_should_be_order_preserving(session_cnx):
+    with session_cnx() as session:
         df = (
             session.range(2)
             .groupBy("id")
@@ -319,15 +319,15 @@ def test_agg_should_be_order_preserving(session_cnx, db_parameters):
         assert df.collect() == [Row([0, 0, 1, 0]), Row([1, 1, 1, 1])]
 
 
-def test_count(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_count(session_cnx):
+    with session_cnx() as session:
         assert TestData.test_data2(session).agg(
             [count(col("a")), sum_distinct(col("a"))]
         ).collect() == [Row([6, 6.0])]
 
 
-def test_stddev(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_stddev(session_cnx):
+    with session_cnx() as session:
         test_data_dev = sqrt(4 / 5)
 
         assert TestData.test_data2(session).agg(
@@ -335,8 +335,8 @@ def test_stddev(session_cnx, db_parameters):
         ).collect() == [Row([test_data_dev, 0.8164967850518458, test_data_dev])]
 
 
-def test_spark14664_decimal_sum_over_window_should_work(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_spark14664_decimal_sum_over_window_should_work(session_cnx):
+    with session_cnx() as session:
         assert session.sql(
             "select sum(a) over () from values (1.0), (2.0), (3.0) T(a)"
         ).collect() == [Row([6.0]), Row([6.0]), Row([6.0])]
@@ -345,8 +345,8 @@ def test_spark14664_decimal_sum_over_window_should_work(session_cnx, db_paramete
         ).collect() == [Row([2.0]), Row([2.0]), Row([2.0])]
 
 
-def test_aggregate_function_in_groupby(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_aggregate_function_in_groupby(session_cnx):
+    with session_cnx() as session:
         with pytest.raises(ProgrammingError) as ex_info:
             TestData.test_data4(session).groupBy(sum(col('"KEY"'))).count().collect()
         assert "is not a valid group by expression" in str(ex_info)
@@ -355,7 +355,7 @@ def test_aggregate_function_in_groupby(session_cnx, db_parameters):
 def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_ordinal(
     session_cnx, db_parameters
 ):
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         assert TestData.test_data2(session).groupBy(lit(3), lit(4)).agg(
             [lit(6), lit(7), sum(col("b"))]
         ).collect() == [Row([3, 4, 6, 7, 9])]
@@ -376,8 +376,8 @@ def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_ordinal(
         ).collect() == [Row([3, 4, 9])]
 
 
-def test_distinct_and_unions(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_distinct_and_unions(session_cnx):
+    with session_cnx() as session:
         lhs = session.createDataFrame([(1, "one", 1.0), (2, "one", 2.0)]).toDF(
             "i", "s", '"i"'
         )
@@ -404,8 +404,8 @@ def test_distinct_and_unions(session_cnx, db_parameters):
         assert res == [Row("one"), Row("one")]
 
 
-def test_count_if(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_count_if(session_cnx):
+    with session_cnx() as session:
         session.createDataFrame(
             [
                 ["a", None],
@@ -455,18 +455,18 @@ def test_count_if(session_cnx, db_parameters):
             session.sql("SELECT COUNT_IF(x) FROM tempView").collect()
 
 
-def test_agg_without_groups(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_agg_without_groups(session_cnx):
+    with session_cnx() as session:
         assert TestData.test_data2(session).agg(sum(col("b"))).collect() == [Row([9])]
 
 
-def test_agg_without_groups_and_functions(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_agg_without_groups_and_functions(session_cnx):
+    with session_cnx() as session:
         assert TestData.test_data2(session).agg(lit(1)).collect() == [Row([1])]
 
 
-def test_null_average(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_null_average(session_cnx):
+    with session_cnx() as session:
         assert TestData.test_data3(session).agg(avg(col("b"))).collect() == [Row([2.0])]
 
         assert TestData.test_data3(session).agg(
@@ -478,8 +478,8 @@ def test_null_average(session_cnx, db_parameters):
         ).collect() == [Row([2.0, 2.0])]
 
 
-def test_zero_average(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_zero_average(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[]]).toDF(["a"])
         assert df.agg(avg(col("a"))).collect() == [Row([None])]
 
@@ -488,8 +488,8 @@ def test_zero_average(session_cnx, db_parameters):
         ]
 
 
-def test_multiple_column_distinct_count(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_multiple_column_distinct_count(session_cnx):
+    with session_cnx() as session:
         df1 = session.createDataFrame(
             [
                 ("a", "b", "c"),
@@ -515,29 +515,29 @@ def test_multiple_column_distinct_count(session_cnx, db_parameters):
         assert res == [Row(["a", 2]), Row(["x", 1])]
 
 
-def test_zero_count(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_zero_count(session_cnx):
+    with session_cnx() as session:
         empty_table = session.createDataFrame([[]]).toDF(["a"])
         assert empty_table.agg([count(col("a")), sum_distinct(col("a"))]).collect() == [
             Row([0, None])
         ]
 
 
-def test_zero_stddev(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_zero_stddev(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[]]).toDF(["a"])
         assert df.agg(
             [stddev(col("a")), stddev_pop(col("a")), stddev_samp(col("a"))]
         ).collect() == [Row([None, None, None])]
 
 
-def test_zero_sum(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_zero_sum(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[]]).toDF(["a"])
         assert df.agg([sum(col("a"))]).collect() == [Row([None])]
 
 
-def test_zero_sum_distinct(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_zero_sum_distinct(session_cnx):
+    with session_cnx() as session:
         df = session.createDataFrame([[]]).toDF(["a"])
         assert df.agg([sum_distinct(col("a"))]).collect() == [Row([None])]

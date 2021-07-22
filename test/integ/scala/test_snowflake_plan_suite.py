@@ -13,8 +13,8 @@ from snowflake.snowpark.session import Session
 from snowflake.snowpark.types.sf_types import IntegerType, LongType
 
 
-def test_single_query(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_single_query(session_cnx):
+    with session_cnx() as session:
         table_name = Utils.random_name()
         try:
             Utils.create_table(session, table_name, "num int, str string")
@@ -36,8 +36,8 @@ def test_single_query(session_cnx, db_parameters):
             Utils.drop_table(session, table_name)
 
 
-def test_multiple_queries(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_multiple_queries(session_cnx):
+    with session_cnx() as session:
         # unary query
         table_name1 = Utils.random_name()
         queries = [

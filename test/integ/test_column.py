@@ -8,17 +8,17 @@ import math
 from test.utils import TestData
 
 import pytest
-
 from snowflake.connector.errors import ProgrammingError
+
 from snowflake.snowpark.functions import col, lit, parse_json, when
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types.sf_types import StringType
 
 
-def test_column_names_with_space(session_cnx, db_parameters):
+def test_column_names_with_space(session_cnx):
     c1 = '"name with space"'
     c2 = '"name.with.dot"'
-    with session_cnx(db_parameters) as session:
+    with session_cnx() as session:
         df = session.createDataFrame([[1, "a"]]).toDF([c1, c2])
         assert df.select(c1).collect() == [Row(1)]
         assert df.select(col(c1)).collect() == [Row(1)]
@@ -29,14 +29,14 @@ def test_column_names_with_space(session_cnx, db_parameters):
         assert df.select(df[c2]).collect() == [Row("a")]
 
 
-def test_get_column_name(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_get_column_name(session_cnx):
+    with session_cnx() as session:
         assert TestData.integer1(session).col("a").getName() == '"A"'
         assert not (col("col") > 100).getName()
 
 
-def test_unary_operator(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_unary_operator(session_cnx):
+    with session_cnx() as session:
         test_data1 = TestData.test_data1(session)
         # unary minus
         assert test_data1.select(-test_data1["NUM"]).collect() == [Row([-1]), Row([-2])]
@@ -47,8 +47,8 @@ def test_unary_operator(session_cnx, db_parameters):
         ]
 
 
-def test_equal_and_not_equal(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_equal_and_not_equal(session_cnx):
+    with session_cnx() as session:
         test_data1 = TestData.test_data1(session)
         assert test_data1.where(test_data1["BOOL"] == True).collect() == [
             Row([1, True, "a"])
@@ -58,8 +58,8 @@ def test_equal_and_not_equal(session_cnx, db_parameters):
         ]
 
 
-def test_gt_and_lt(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_gt_and_lt(session_cnx):
+    with session_cnx() as session:
         test_data1 = TestData.test_data1(session)
         assert test_data1.where(test_data1["NUM"] > 1).collect() == [
             Row([2, False, "b"])
@@ -69,8 +69,8 @@ def test_gt_and_lt(session_cnx, db_parameters):
         ]
 
 
-def test_ge_and_le(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_ge_and_le(session_cnx):
+    with session_cnx() as session:
         test_data1 = TestData.test_data1(session)
         assert test_data1.where(test_data1["NUM"] >= 2).collect() == [
             Row([2, False, "b"])
@@ -80,8 +80,8 @@ def test_ge_and_le(session_cnx, db_parameters):
         ]
 
 
-def test_equal_null_safe(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_equal_null_safe(session_cnx):
+    with session_cnx() as session:
         df = session.sql("select * from values(null, 1),(2, 2),(null, null) as T(a,b)")
         assert df.select(df["A"].equal_null(df["B"])).collect() == [
             Row(False),
@@ -90,8 +90,8 @@ def test_equal_null_safe(session_cnx, db_parameters):
         ]
 
 
-def test_nan_and_null(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_nan_and_null(session_cnx):
+    with session_cnx() as session:
         df = session.sql(
             "select * from values(1.1,1),(null,2),('NaN' :: Float,3) as T(a, b)"
         )
@@ -105,8 +105,8 @@ def test_nan_and_null(session_cnx, db_parameters):
         assert res_row2[1] == 3
 
 
-def test_and_or(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_and_or(session_cnx):
+    with session_cnx() as session:
         df = session.sql(
             "select * from values(true,true),(true,false),(false,true),(false,false) as T(a, b)"
         )
@@ -118,8 +118,8 @@ def test_and_or(session_cnx, db_parameters):
         ]
 
 
-def test_add_subtract_multiply_divide_mod_pow(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_add_subtract_multiply_divide_mod_pow(session_cnx):
+    with session_cnx() as session:
         df = session.sql("select * from values(11, 13) as T(a, b)")
         assert df.select(df["A"] + df["B"]).collect() == [Row(24)]
         assert df.select(df["A"] - df["B"]).collect() == [Row(-2)]
@@ -143,16 +143,16 @@ def test_add_subtract_multiply_divide_mod_pow(session_cnx, db_parameters):
         assert res[0].get_decimal(0).to_eng_string() == "0.153846"
 
 
-def test_bitwise_operator(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_bitwise_operator(session_cnx):
+    with session_cnx() as session:
         df = session.sql("select * from values(1, 2) as T(a, b)")
         assert df.select(df["A"].bitand(df["B"])).collect() == [Row(0)]
         assert df.select(df["A"].bitor(df["B"])).collect() == [Row(3)]
         assert df.select(df["A"].bitxor(df["B"])).collect() == [Row(3)]
 
 
-def test_cast(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_cast(session_cnx):
+    with session_cnx() as session:
         test_data1 = TestData.test_data1(session)
         sc = test_data1.select(test_data1["NUM"].cast(StringType())).schema
         assert len(sc.fields) == 1
@@ -161,8 +161,8 @@ def test_cast(session_cnx, db_parameters):
         assert not sc.fields[0].nullable
 
 
-def test_order(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_order(session_cnx):
+    with session_cnx() as session:
         null_data1 = TestData.null_data1(session)
         assert null_data1.sort(null_data1["A"].asc()).collect() == [
             Row(None),
@@ -208,8 +208,8 @@ def test_order(session_cnx, db_parameters):
         ]
 
 
-def test_like(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_like(session_cnx):
+    with session_cnx() as session:
         assert TestData.string4(session).where(col("A").like(lit("%p%"))).collect() == [
             Row("apple"),
             Row("peach"),
@@ -222,8 +222,8 @@ def test_like(session_cnx, db_parameters):
         assert TestData.string4(session).where(col("A").like("")).collect() == []
 
 
-def test_regexp(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_regexp(session_cnx):
+    with session_cnx() as session:
         assert TestData.string4(session).where(
             col("a").regexp(lit("ap.le"))
         ).collect() == [Row("apple")]
@@ -237,15 +237,15 @@ def test_regexp(session_cnx, db_parameters):
         assert "Invalid regular expression" in str(ex_info)
 
 
-def test_collate(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_collate(session_cnx):
+    with session_cnx() as session:
         assert TestData.string3(session).where(
             col("a").collate("en_US-trim") == "abcba"
         ).collect() == [Row("  abcba  ")]
 
 
-def test_subfield(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_subfield(session_cnx):
+    with session_cnx() as session:
         assert TestData.null_json1(session).select(col("v")["a"]).collect() == [
             Row("null"),
             Row('"foo"'),
@@ -285,8 +285,8 @@ def test_subfield(session_cnx, db_parameters):
         ).collect() == [Row(None)]
 
 
-def test_when_case(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_when_case(session_cnx):
+    with session_cnx() as session:
         assert TestData.null_data1(session).select(
             when(col("a").is_null(), lit(5))
             .when(col("a") == 1, lit(6))

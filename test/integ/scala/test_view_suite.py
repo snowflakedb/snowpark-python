@@ -13,8 +13,8 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
-def test_create_view(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_create_view(session_cnx):
+    with session_cnx() as session:
         try:
             view_name = Utils.random_name()
             TestData.integer1(session).createOrReplaceView(view_name)
@@ -36,8 +36,8 @@ def test_create_view(session_cnx, db_parameters):
             Utils.drop_view(session, view_name)
 
 
-def test_view_name_with_special_character(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_view_name_with_special_character(session_cnx):
+    with session_cnx() as session:
         try:
             view_name = Utils.random_name()
             TestData.column_has_special_char(session).createOrReplaceView(view_name)
@@ -51,15 +51,15 @@ def test_view_name_with_special_character(session_cnx, db_parameters):
             Utils.drop_view(session, view_name)
 
 
-def test_only_works_on_select(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_only_works_on_select(session_cnx):
+    with session_cnx() as session:
         view_name = Utils.random_name()
         with pytest.raises(SnowparkClientException) as ex_info:
             session.sql("show tables").createOrReplaceView(view_name)
 
 
-def test_consistent_view_name_behaviors(session_cnx, db_parameters):
-    with session_cnx(db_parameters) as session:
+def test_consistent_view_name_behaviors(session_cnx):
+    with session_cnx() as session:
         view_name = Utils.random_name()
         sc = session.getCurrentSchema()
         db = session.getCurrentDatabase()
