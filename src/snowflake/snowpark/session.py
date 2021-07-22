@@ -449,10 +449,6 @@ class Session(metaclass=_SessionMeta):
         # a useful approach for many utility scripts."
         pass
 
-    # @staticmethod
-    # def builder():
-    #     return Session._SessionBuilder()
-
     class _SessionBuilder:
         """The SessionBuilder holds all the configuration properties
         and is used to create a Session."""
