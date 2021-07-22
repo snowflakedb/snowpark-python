@@ -23,8 +23,7 @@ def test_select_1(session_cnx):
 def test_invalid_configs(db_parameters):
     with pytest.raises(DatabaseError) as ex_info:
         session = (
-            Session.builder()
-            .configs(db_parameters)
+            Session.builder.configs(db_parameters)
             .config("user", "invalid_user")
             .config("password", "invalid_pwd")
             .config("login_timeout", 5)

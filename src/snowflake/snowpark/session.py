@@ -69,7 +69,18 @@ logger = getLogger(__name__)
 _active_session = None
 
 
-class Session:
+class _SessionMeta(type):
+    """The metaclass of Session is defined with builder property, such that
+    we can call [[Session.builder]] to create a session instance, and disallow
+    creating a builder instance from a a session instance.
+    """
+
+    @property
+    def builder(cls):
+        return cls._SessionBuilder()
+
+
+class Session(metaclass=_SessionMeta):
     __STAGE_PREFIX = "@"
 
     def __init__(self, conn: ServerConnection):
@@ -197,6 +208,7 @@ class Session:
     def sql(self, query) -> DataFrame:
         return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
 
+    @property
     def read(self) -> "DataFrameReader":
         """Returns a [[DataFrameReader]] that you can use to read data from various
         supported sources (e.g. a file in a stage) as a DataFrame."""
@@ -429,11 +441,11 @@ class Session:
         # a useful approach for many utility scripts."
         pass
 
-    @staticmethod
-    def builder():
-        return Session.SessionBuilder()
+    # @staticmethod
+    # def builder():
+    #     return Session._SessionBuilder()
 
-    class SessionBuilder:
+    class _SessionBuilder:
         """The SessionBuilder holds all the configuration properties
         and is used to create a Session."""
 

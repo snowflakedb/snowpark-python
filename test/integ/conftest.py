@@ -52,7 +52,7 @@ def init_session(request, db_parameters, resources_path, before_all, after_all):
         conn_params["timezone"] = "UTC"
     if not conn_params.get("converter_class"):
         conn_params["converter_class"] = DefaultConverterClass()
-    Session.builder().configs(db_parameters).create()
+    Session.builder.configs(db_parameters).create()
     before_all()
 
     def fin():
@@ -82,9 +82,7 @@ def session_cnx() -> Callable[..., "Session"]:
 @contextmanager
 def get_session(conn_params=None):
     if conn_params or not Session._get_active_session():
-        session = (
-            Session.builder().configs(conn_params or CONNECTION_PARAMETERS).create()
-        )
+        session = Session.builder.configs(conn_params or CONNECTION_PARAMETERS).create()
     else:
         session = Session._get_active_session()
     yield session

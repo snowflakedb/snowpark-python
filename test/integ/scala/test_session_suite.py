@@ -35,10 +35,10 @@ def test_create_dataFrame_namedtuple(session_cnx):
 
 
 def test_session_build_no_reuse(db_parameters):
-    Session.builder().configs(db_parameters)
+    Session.builder.configs(db_parameters)
 
     with pytest.raises(ValueError) as ex_info:
-        Session.builder().create()
+        Session.builder.create()
     assert "missing required parameter host" in str(ex_info)
 
 
@@ -59,7 +59,7 @@ def test_get_schema_database_works_after_use_role(session_cnx):
 
 
 def test_negative_test_for_missing_required_parameter_schema(db_parameters):
-    session = Session.builder().configs(db_parameters)._remove_config("schema").create()
+    session = Session.builder.configs(db_parameters)._remove_config("schema").create()
     with pytest.raises(SnowparkClientException) as ex_info:
         session.getFullyQualifiedCurrentSchema()
     assert "The SCHEMA is not set for the current session." in str(ex_info)

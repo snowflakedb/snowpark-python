@@ -35,9 +35,9 @@ test_broken_csv = "broken.csv"
 # In the tests below, we test both scenarios: SELECT & COPY
 def get_reader(session, mode):
     if mode == "select":
-        reader = session.read()
+        reader = session.read
     elif mode == "copy":
-        reader = session.read().option("PURGE", False)
+        reader = session.read.option("PURGE", False)
     else:
         raise Exception("incorrect input for mode")
     return reader
@@ -145,7 +145,7 @@ def test_read_csv(session_cnx, mode):
         assert res == [Row([1, "one", 1.2]), Row([2, "two", 2.2])]
 
         with pytest.raises(SnowparkClientException):
-            session.read().csv(test_file_on_stage)
+            session.read.csv(test_file_on_stage)
 
         # if users give an incorrect schema with type error
         # the system will throw SnowflakeSQLException during execution
@@ -189,8 +189,7 @@ def test_read_csv_with_more_operations(session_cnx):
     with session_cnx() as session:
         test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
         df1 = (
-            session.read()
-            .schema(user_schema)
+            session.read.schema(user_schema)
             .csv(test_file_on_stage)
             .filter(col("a") < 2)
         )
@@ -199,7 +198,7 @@ def test_read_csv_with_more_operations(session_cnx):
         assert res == [Row([1, "one", 1.2])]
 
         # test for self union
-        df = session.read().schema(user_schema).csv(test_file_on_stage)
+        df = session.read.schema(user_schema).csv(test_file_on_stage)
         df2 = df.union(df)
         res = df2.collect()
         res.sort(key=lambda x: x[0])
@@ -212,7 +211,7 @@ def test_read_csv_with_more_operations(session_cnx):
 
         # test for union between two stages
         test_file_on_stage2 = f"@{tmp_stage_name2}/{test_file_csv}"
-        df3 = session.read().schema(user_schema).csv(test_file_on_stage2)
+        df3 = session.read.schema(user_schema).csv(test_file_on_stage2)
         df4 = df.union(df3)
         res = df4.collect()
         res.sort(key=lambda x: x[0])
@@ -548,8 +547,7 @@ def test_copy(session_cnx):
 
     with session_cnx() as session:
         df = (
-            session.read()
-            .schema(user_schema)
+            session.read.schema(user_schema)
             .option("on_error", "continue")
             .option("COMPRESSION", "none")
             .csv(test_file_on_stage)
@@ -561,8 +559,7 @@ def test_copy(session_cnx):
         assert len(df._DataFrame__plan.post_actions) == 1
 
         df1 = (
-            session.read()
-            .schema(user_schema)
+            session.read.schema(user_schema)
             .option("COMPRESSION", "none")
             .csv(test_file_on_stage)
         )
@@ -578,8 +575,7 @@ def test_copy(session_cnx):
         # return empty result since enable on_error = continue
 
         df2 = (
-            session.read()
-            .schema(user_schema)
+            session.read.schema(user_schema)
             .option("on_error", "continue")
             .option("COMPRESSION", "gzip")
             .csv(test_file_on_stage)
@@ -592,32 +588,32 @@ def test_copy_option_force(session_cnx):
 
     with session_cnx() as session:
         with pytest.raises(SnowparkClientException) as ex_info:
-            session.read().schema(user_schema).option("force", "false").csv(
+            session.read.schema(user_schema).option("force", "false").csv(
                 test_file_on_stage
             ).collect()
 
         assert "Copy option 'FORCE = false' is not supported." in str(ex_info)
 
         with pytest.raises(SnowparkClientException) as ex_info:
-            session.read().schema(user_schema).option("FORCE", "FALSE").csv(
+            session.read.schema(user_schema).option("FORCE", "FALSE").csv(
                 test_file_on_stage
             ).collect()
 
         assert "Copy option 'FORCE = FALSE' is not supported." in str(ex_info)
 
         with pytest.raises(SnowparkClientException) as ex_info:
-            session.read().schema(user_schema).option("fORce", "faLsE").csv(
+            session.read.schema(user_schema).option("fORce", "faLsE").csv(
                 test_file_on_stage
             ).collect()
 
             assert "Copy option 'FORCE = faLsE' is not supported." in str(ex_info)
 
         # no error
-        session.read().schema(user_schema).option("fORce", "true").csv(
+        session.read.schema(user_schema).option("fORce", "true").csv(
             test_file_on_stage
         ).collect()
 
-        session.read().schema(user_schema).option("fORce", "trUe").csv(
+        session.read.schema(user_schema).option("fORce", "trUe").csv(
             test_file_on_stage
         ).collect()
 
@@ -628,8 +624,7 @@ def test_read_file_on_error_continue_on_csv(session_cnx, db_parameters, resource
     with session_cnx() as session:
         # skip (2, two, wrong)
         df = (
-            session.read()
-            .schema(user_schema)
+            session.read.schema(user_schema)
             .option("on_error", "continue")
             .option("COMPRESSION", "none")
             .csv(broken_file)
@@ -645,8 +640,7 @@ def test_read_file_on_error_continue_on_avro(session_cnx):
     with session_cnx() as session:
         # skip all
         df = (
-            session.read()
-            .schema(user_schema)
+            session.read.schema(user_schema)
             .option("on_error", "continue")
             .option("COMPRESSION", "none")
             .csv(broken_file)
@@ -660,12 +654,11 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session_cnx):
 
     with session_cnx() as session:
         copy = (
-            session.read()
-            .option("purge", False)
+            session.read.option("purge", False)
             .option("COMPRESSION", "none")
             .parquet(path)
         )
-        select = session.read().option("COMPRESSION", "none").parquet(path)
+        select = session.read.option("COMPRESSION", "none").parquet(path)
 
         copy_fields = copy.schema.fields
         select_fields = select.schema.fields

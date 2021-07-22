@@ -461,7 +461,7 @@ def test_create_or_replace_temporary_view(session_cnx, db_parameters):
             assert res == [Row([1]), Row([2]), Row([3])]
 
             # Get a second session object
-            session2 = Session.builder().configs(db_parameters).create()
+            session2 = Session.builder.configs(db_parameters).create()
             assert session is not session2
             with pytest.raises(connector.errors.ProgrammingError) as ex_info:
                 session2.table(view_name).collect()
