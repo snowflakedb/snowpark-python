@@ -91,7 +91,12 @@ class Session(metaclass=_SessionMeta):
         self._snowpark_jar_in_deps = False
         self._session_id = self.conn.get_session_id()
         self.__session_stage = "snowSession_" + str(self._session_id)
-
+        self._session_info = f"""
+"version" : {Utils.get_version()},
+"python.version" : {Utils.get_python_version()},
+"python.connector.version" : {Utils.get_connector_version()},
+"os.name" : {Utils.get_os_name()}
+"""
         self.__plan_builder = SnowflakePlanBuilder(self)
 
         self.__last_action_id = 0
@@ -426,6 +431,9 @@ class Session(metaclass=_SessionMeta):
 
     @staticmethod
     def _set_active_session(session: "Session") -> "Session":
+        logger.info(
+            "Python Snowpark Session information: {}".format(session._session_info)
+        )
         global _active_session
         if _active_session:
             logger.info("Overwriting an already active session")
