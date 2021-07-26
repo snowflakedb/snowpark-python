@@ -3,11 +3,10 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-
 import datetime
 import decimal
 import logging
-import pathlib
+import os
 from array import array
 from functools import reduce
 from logging import getLogger
@@ -64,6 +63,7 @@ from snowflake.snowpark.types.types_package import (
     _merge_type,
     snow_type_to_sp_type,
 )
+from snowflake.snowpark.udf import UDFRegistration
 
 logger = getLogger(__name__)
 _active_session = None
@@ -86,17 +86,18 @@ class Session(metaclass=_SessionMeta):
     def __init__(self, conn: ServerConnection):
         self.conn = conn
         self.__query_tag = None
-        self.__classpath_URIs = {}
-        self.__stage_created = False
-        self._snowpark_jar_in_deps = False
-        self._session_id = self.conn.get_session_id()
-        self.__session_stage = "snowSession_" + str(self._session_id)
+        self.__import_paths = set()
+        self.__requirements = {}
+        self.__session_id = self.conn.get_session_id()
         self._session_info = f"""
 "version" : {Utils.get_version()},
 "python.version" : {Utils.get_python_version()},
 "python.connector.version" : {Utils.get_connector_version()},
+"python.connector.session.id" : {self.__session_id},
 "os.name" : {Utils.get_os_name()}
 """
+        self.__session_stage = "snowSession_" + str(self.__session_id)
+        self.__udf_registration = None
         self.__plan_builder = SnowflakePlanBuilder(self)
 
         self.__last_action_id = 0
@@ -120,7 +121,6 @@ class Session(metaclass=_SessionMeta):
     def get_last_canceled_id(self):
         return self.__last_canceled_id
 
-    # TODO fix conn and session_id
     def cancel_all(self):
         """
         Cancel all running action functions, and no effect on the future action request.
@@ -128,38 +128,118 @@ class Session(metaclass=_SessionMeta):
         """
         logger.info("Canceling all running queries")
         self.__last_canceled_id = self.__last_action_id
-        self.conn.run_query(f"select system$$cancel_all_queries({self._session_id})")
+        self.conn.run_query(f"select system$$cancel_all_queries({self.__session_id})")
 
-    def get_dependencies(self):
+    def getImports(self) -> List[str]:
         """
-        Returns all the dependencies added for user defined functions. Includes any automatically
-        added jars. :return: set
+        Returns all imports added for user defined functions.
         """
-        return set(self.__classpath_URIs.keys())
+        return list(self.__import_paths)
 
-    def _get_local_file_dependencies(self):
-        result = set()
-        for dep in self.get_dependencies():
-            if not dep.startswith(self.__STAGE_PREFIX):
-                result.add(dep)
-        return result
+    def _get_local_imports(self) -> List[str]:
+        return [
+            dep for dep in self.getImports() if not dep.startswith(self.__STAGE_PREFIX)
+        ]
 
-    def get_python_connector_connection(self):
+    def getPythonConnectorConnection(self) -> SnowflakeConnection:
         return self.conn.connection
 
-    # TODO
-    def add_dependency(self, path):
-        trimmed_path = path.strip()
-        pass
+    def addImports(self, *paths: Union[str, List[str]]):
+        """
+        Registers file(s) in stage or local file(s) as imports of a user-defined function (UDF).
+        The local file can be a compressed file (e.g., zip), a Python file (.py), a directory,
+        or any other file resource.
 
-    # TODO - determine what to use for each case
-    def remove_dependency(self, path):
-        trimmed_path = path.strip()
-        if trimmed_path.startswith(self.__STAGE_PREFIX):
-            self.__classpath_URIs.pop(pathlib.Path(trimmed_path).as_uri())
-        else:
-            # Should be the equivalent of scala.File() here
-            self.__classpath_URIs.pop(pathlib.Path(trimmed_path).as_uri())
+        If you pass the path to a local file, this file will be uploaded to a temporary stage
+        and imports the file when executing a UDF.
+        If you pass the path to a local directory, the directory will be compressed as a zip file
+        and will be uploaded to a temporary stage and imports the zip file when executing a UDF.
+        If you pass the path to a file in a stage, the file is included in the imports when
+        executing a UDF.
+        If the file has already existed in the stage, we will skip uploading and not overwrite that
+        file.
+        """
+        trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
+        for path in trimmed_paths:
+            if not path.startswith(self.__STAGE_PREFIX):
+                if not os.path.exists(path):
+                    raise FileNotFoundError(
+                        "File {} not found".format(os.path.abspath(path))
+                    )
+                if not os.path.isfile(path) and not os.path.isdir(path):
+                    raise ValueError(
+                        "addImports() only accepts a local file or directory,"
+                        " or a file in a stage, but got {}".format(path)
+                    )
+            self.__import_paths.add(path)
+
+    def removeImports(self, *paths: Union[str, List[str]]):
+        """
+        Remove file(s) in stage or local file(s) from imports of a user-defined function (UDF).
+        """
+        trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
+        for path in trimmed_paths:
+            if path not in self.__import_paths:
+                raise ValueError("{} is not found in the existing imports".format(path))
+            self.__import_paths.remove(path)
+
+    def _resolve_imports(self, stage_location: str) -> List[str]:
+        resolved_stage_files = []
+        stage_file_list = self._list_files_in_stage(stage_location)
+        normalized_stage_location = Utils.normalize_stage_location(stage_location)
+        for path in self.__import_paths:
+            # stage file
+            if path.startswith(self.__STAGE_PREFIX):
+                resolved_stage_files.append(path)
+            else:
+                filename = (
+                    "{}.zip".format(path.split("/")[-1])
+                    # TODO: don't zip .py file
+                    if os.path.isdir(path) or path.endswith(".py")
+                    else path.split("/")[-1]
+                )
+                if filename in stage_file_list:
+                    logger.info(
+                        "{} exists on {}, skipped".format(
+                            filename, normalized_stage_location
+                        )
+                    )
+                else:
+                    # local directory or .py file
+                    # TODO: upload python file instead of zip containing udf
+                    #  after the server side issue is fixed
+                    if os.path.isdir(path) or path.endswith(".py"):
+                        input_stream = Utils.zip_file_or_directory_to_stream(path)
+                        self.conn.upload_stream(
+                            input_stream=input_stream,
+                            stage_location=normalized_stage_location,
+                            dest_filename=filename,
+                            compress_data=False,
+                            overwrite=True,
+                        )
+                    # local file
+                    else:
+                        self.conn.upload_file(
+                            path=path,
+                            stage_location=normalized_stage_location,
+                            compress_data=False,
+                            overwrite=True,
+                        )
+                resolved_stage_files.append(
+                    "{}/{}".format(normalized_stage_location, filename)
+                )
+
+        return resolved_stage_files
+
+    # TODO: get prefix length of stage
+    def _list_files_in_stage(self, stage_location: Optional[str] = None) -> List[str]:
+        normalized = Utils.normalize_stage_location(
+            stage_location if stage_location else self.__session_stage
+        )
+        return [
+            row.get_string(0).split("/")[-1]
+            for row in self.sql(f"ls {normalized}").select('"name"').collect()
+        ]
 
     def set_query_tag(self, query_tag):
         self.__query_tag = query_tag
@@ -167,34 +247,6 @@ class Session(metaclass=_SessionMeta):
     @property
     def query_tag(self):
         return self.__query_tag
-
-    # TODO
-    def _resolve_jar_dependencies(self, stage_location):
-        pass
-
-    def _do_upload(
-        self,
-        uri: str,
-        stage_location: str,
-        dest_prefix: str = None,
-        parallel=4,
-        compress_data=True,
-        source_compression: str = "AUTO_DETECT",
-        overwrite: bool = False,
-    ):
-        return self.conn.upload_file(
-            uri,
-            stage_location,
-            dest_prefix,
-            parallel,
-            compress_data,
-            source_compression,
-            overwrite,
-        )
-
-    # TODO
-    def _list_files_in_stage(self, stage_location):
-        pass
 
     def table(self, name) -> DataFrame:
         """Returns a DataFrame representing the contents of the specified table. 'name' can be a
@@ -222,8 +274,22 @@ class Session(metaclass=_SessionMeta):
     def _run_query(self, query):
         return self.conn.run_query(query)["data"]
 
-    def get_result_attributes(self, query: str) -> List["Attribute"]:
+    def _get_result_attributes(self, query: str) -> List["Attribute"]:
         return self.conn.get_result_attributes(query)
+
+    def getSessionStage(self) -> str:
+        """
+        Returns the name of the temporary stage created by the Snowpark library for uploading and
+        store temporary artifacts for this session. These artifacts include libraries and packages
+        for UDFs that you define in this session via [[addImports]] or [[addRequirements]].
+        """
+        qualified_stage_name = "{}.{}".format(
+            self.getFullyQualifiedCurrentSchema(), self.__session_stage
+        )
+        self._run_query(
+            "create temporary stage if not exists {}".format(qualified_stage_name)
+        )
+        return "@{}".format(qualified_stage_name)
 
     def createDataFrame(
         self,
@@ -424,6 +490,13 @@ class Session(metaclass=_SessionMeta):
                 "The {} is not set for the current session.".format(missing_item)
             )
         return database + "." + schema
+
+    @property
+    def udf(self) -> UDFRegistration:
+        """Returns a [[UDFRegistration]] object that you can use to register UDFs."""
+        if not self.__udf_registration:
+            self.__udf_registration = UDFRegistration(self)
+        return self.__udf_registration
 
     @staticmethod
     def _get_active_session() -> Optional["Session"]:

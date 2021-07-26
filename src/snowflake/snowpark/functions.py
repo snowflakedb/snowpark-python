@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.internal.sp_expressions import (
@@ -19,7 +19,10 @@ from snowflake.snowpark.internal.sp_expressions import (
     Sum as SPSum,
     UnresolvedFunction as SPUnresolvedFunction,
 )
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.types.sf_types import DataType, StringType
 from snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType
+from snowflake.snowpark.udf import UserDefinedFunction
 
 
 def col(col_name: str) -> Column:
@@ -192,6 +195,35 @@ def when(condition: Column, value: Column) -> CaseExpr:
     otherwise NULL is returned.
     """
     return CaseExpr(SPCaseWhen([(condition.expression, value.expression)]))
+
+
+def udf(
+    func: Callable,
+    return_type: DataType = StringType(),
+    input_types: Optional[List[DataType]] = None,
+    name: Optional[str] = None,
+    stage_location: Optional[str] = None,
+) -> UserDefinedFunction:
+    """Register a Python function as a Snowflake Python UDF and returns the UDF."""
+    from snowflake.snowpark.session import Session
+
+    session = Session._get_active_session()
+    if not session:
+        raise SnowparkClientException("No default SnowflakeSession found")
+
+    return session.udf.register(
+        __create_udf(func, return_type=return_type, input_types=input_types),
+        name=name,
+        stage_location=stage_location,
+    )
+
+
+def __create_udf(
+    func: Callable,
+    return_type: DataType = StringType(),
+    input_types: Optional[List[DataType]] = None,
+) -> UserDefinedFunction:
+    return UserDefinedFunction(func, return_type, input_types)
 
 
 def __with_aggregate_function(

@@ -119,8 +119,10 @@ def convert_to_sf_type(datatype: DataType) -> str:
     raise Exception(f"Unsupported data type: {datatype.type_name}")
 
 
-def snow_type_to_sp_type(datatype: DataType) -> SPDataType:
+def snow_type_to_sp_type(datatype: DataType) -> Optional[SPDataType]:
     """Mapping from snowflake data-types, to SP data-types"""
+    if datatype is None:
+        return None
     if type(datatype) == NullType:
         return SPNullType()
     if type(datatype) == BooleanType:

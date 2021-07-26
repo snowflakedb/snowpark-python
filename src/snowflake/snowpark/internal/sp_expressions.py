@@ -633,3 +633,17 @@ class CaseWhen(Expression):
         self.nullable = any([value for _, value in branches]) or (
             else_value is not None and else_value.nullable
         )
+
+
+class SnowflakeUDF(Expression):
+    def __init__(
+        self,
+        udf_name: str,
+        children: List[Expression],
+        datatype: DataType,
+        nullable: bool = True,
+    ):
+        self.udf_name = udf_name
+        self.children = children
+        self.datatype = datatype
+        self.nullable = nullable

@@ -38,6 +38,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     Not as SPNot,
     RegExp as SPRegExp,
     ResolvedStar as SPResolvedStar,
+    SnowflakeUDF,
     SortOrder as SPSortOrder,
     SubfieldInt as SPSubfieldInt,
     SubfieldString as SPSubfieldString,
@@ -146,8 +147,14 @@ class Analyzer:
 
         if type(expr) == SPResolvedStar:
             return "*"
+
         if type(expr) == SPUnresolvedStar:
             return expr.to_string()
+
+        if type(expr) == SnowflakeUDF:
+            return self.package.function_expression(
+                expr.udf_name, list(map(self.analyze, expr.children)), False
+            )
 
         # Extractors
         if isinstance(expr, SPUnaryExpression):
