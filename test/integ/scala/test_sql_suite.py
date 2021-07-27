@@ -112,11 +112,10 @@ def test_insert_into_table(session_cnx):
         try:
             Utils.create_table(session, table_name1, "num int")
             insert = session.sql(f"insert into {table_name1} values(1),(2),(3)")
-
-            # TODO uncomment - once Connector bug is fixed
-            # expected_schema = StructType([StructField("\"number of rows inserted\"",
-            #                                          LongType(), nullable=False)])
-            # assert insert.schema() == expected_schema
+            expected_schema = StructType(
+                [StructField('"number of rows inserted"', LongType(), nullable=False)]
+            )
+            assert insert.schema == expected_schema
             insert.collect()
             df = session.sql(f"select * from {table_name1}")
             assert df.collect() == [Row(1), Row(2), Row(3)]
