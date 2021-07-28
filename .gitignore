@@ -130,3 +130,8 @@ dmypy.json
 
 # .idea
 .idea/
+
+# whiteSource scan
+wss*.config
+wss-unified-agent.jar
+whitesource/

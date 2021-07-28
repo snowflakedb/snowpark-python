@@ -6,7 +6,7 @@ on:
     branches: '**'
 
 jobs:
-  build:
+  build-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -25,3 +25,21 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
       - name: Run test
         run: python -m pytest test
+
+  whitesource:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+      - name: Upgrade setuptools and pip
+        run: python -m pip install -U setuptools pip
+      - name: Install Snowpark
+        run: python -m pip install ".[development, pandas]"
+      - name: Run WhiteSource script
+        run: ./scripts/wss.sh
+        env:
+          WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
