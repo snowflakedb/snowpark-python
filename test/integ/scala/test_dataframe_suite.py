@@ -245,6 +245,14 @@ def test_joins_on_result_scan(session_cnx):
         assert len(result.schema.fields) == 3
 
 
+def test_select_star(session_cnx):
+    with session_cnx() as session:
+        double2 = TestData.double2(session)
+        expected = TestData.double2(session).collect()
+        assert double2.select("*").collect() == expected
+        assert double2.select(double2.col("*")).collect() == expected
+
+
 def test_sample_with_row_count(session_cnx):
     """Tests sample using n (row count)"""
     with session_cnx() as session:
@@ -296,14 +304,6 @@ def test_sample_negative(session_cnx):
             df.sample(frac=-0.01)
         with pytest.raises(ValueError):
             df.sample(frac=1.01)
-
-
-def test_select_star(session_cnx):
-    with session_cnx() as session:
-        double2 = TestData.double2(session)
-        expected = TestData.double2(session).collect()
-        assert double2.select("*").collect() == expected
-        assert double2.select(double2.col("*")).collect() == expected
 
 
 def test_select(session_cnx):

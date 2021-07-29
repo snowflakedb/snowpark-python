@@ -10,6 +10,7 @@ from enum import Enum
 class SnowparkClientExceptionMessages(Enum):
     """Holds all of the error messages that could be used in the SnowparkClientException Class"""
 
+    # TODO Add the rest of the exception messages
     PLAN_SAMPLING_NEED_ONE_PARAMETER = (
         "You must specify either the fraction of rows or the number of rows to sample."
     )
