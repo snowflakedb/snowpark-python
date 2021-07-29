@@ -169,9 +169,7 @@ class Session(metaclass=_SessionMeta):
         for path in trimmed_paths:
             if not path.startswith(self.__STAGE_PREFIX):
                 if not os.path.exists(path):
-                    raise FileNotFoundError(
-                        "{} is not found".format(os.path.abspath(path))
-                    )
+                    raise FileNotFoundError("{} is not found".format(path))
                 if not os.path.isfile(path) and not os.path.isdir(path):
                     raise ValueError(
                         "addImports() only accepts a local file or directory,"

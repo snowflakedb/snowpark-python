@@ -310,7 +310,7 @@ def test_add_imports_package(session_cnx):
 def test_add_imports_duplicate(session_cnx, resources_path):
     test_files = TestFiles(resources_path)
     abs_path = test_files.test_udf_directory
-    rel_path = "../resources/test_udf_dir"
+    rel_path = os.path.relpath(abs_path)
     with session_cnx() as session:
         session.addImports(abs_path)
         session.addImports(f"{abs_path}/")
