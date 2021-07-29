@@ -211,19 +211,7 @@ def udf(
     if not session:
         raise SnowparkClientException("No default SnowflakeSession found")
 
-    return session.udf.register(
-        __create_udf(func, return_type=return_type, input_types=input_types),
-        name=name,
-        stage_location=stage_location,
-    )
-
-
-def __create_udf(
-    func: Callable,
-    return_type: DataType = StringType(),
-    input_types: Optional[List[DataType]] = None,
-) -> UserDefinedFunction:
-    return UserDefinedFunction(func, return_type, input_types)
+    return session.udf.register(func, return_type, input_types, name, stage_location)
 
 
 def __with_aggregate_function(

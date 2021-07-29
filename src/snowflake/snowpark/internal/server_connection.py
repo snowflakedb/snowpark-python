@@ -233,7 +233,7 @@ class ServerConnection:
         stage_location: str,
         dest_prefix: str = "",
         parallel: int = 4,
-        compress_data: bool = False,
+        compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ):
@@ -259,7 +259,7 @@ class ServerConnection:
         dest_filename: str,
         dest_prefix: str = "",
         parallel: int = 4,
-        compress_data: bool = False,
+        compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ):
@@ -283,7 +283,7 @@ class ServerConnection:
         stage_location: str,
         dest_prefix: str = "",
         parallel: int = 4,
-        compress_data: bool = False,
+        compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> str:

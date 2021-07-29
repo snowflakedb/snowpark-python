@@ -4,7 +4,6 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import io
-import os
 import pickle
 import zipfile
 from typing import Callable, List, NamedTuple, Optional, Tuple, Union
@@ -28,9 +27,9 @@ class UserDefinedFunction:
     def __init__(
         self,
         func: Callable,
-        return_type: DataType = StringType(),
-        input_types: Optional[List[DataType]] = None,
-        name: Optional[str] = None,
+        return_type: DataType,
+        input_types: List[DataType],
+        name: str,
     ):
         if not callable(func):
             raise TypeError(
@@ -41,11 +40,8 @@ class UserDefinedFunction:
 
         self.func = func
         self.return_type = return_type
-        self.input_types = input_types if input_types else []
+        self.input_types = input_types
         self.name = name
-
-    def withName(self, name: str) -> "UserDefinedFunction":
-        return UserDefinedFunction(self.func, self.return_type, self.input_types, name)
 
     def __call__(
         self,
@@ -91,7 +87,9 @@ class UDFRegistration:
 
     def register(
         self,
-        udf: UserDefinedFunction,
+        func: Callable,
+        return_type: DataType = StringType(),
+        input_types: Optional[List[DataType]] = None,
         name: Optional[str] = None,
         stage_location: Optional[str] = None,
     ) -> UserDefinedFunction:
@@ -99,10 +97,11 @@ class UDFRegistration:
             self.session.getFullyQualifiedCurrentSchema(), Utils.random_number()
         )
         Utils.validate_object_name(udf_name)
+        input_types_list = input_types if input_types else []
         self.__do_register_udf(
-            udf.func, udf.return_type, udf.input_types, udf_name, stage_location
+            func, return_type, input_types_list, udf_name, stage_location
         )
-        return udf.withName(udf_name)
+        return UserDefinedFunction(func, return_type, input_types_list, udf_name)
 
     def __do_register_udf(
         self,
@@ -124,12 +123,12 @@ class UDFRegistration:
             else self.session.getSessionStage()
         )
         dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-        # TODO: don't zip .py file
+        # TODO: SNOW-406036 don't zip .py file
         dest_filename = "udf_py_{}.zip".format(Utils.random_number())
         upload_file_stage_location = "{}/{}/{}".format(
             upload_stage, dest_prefix, dest_filename
         )
-        # TODO: upload python file instead of zip containing udf
+        # TODO: SNOW-406036 upload python file instead of zip containing udf
         #  after the server side issue is fixed
         input_stream = io.BytesIO()
         with zipfile.ZipFile(
@@ -141,7 +140,7 @@ class UDFRegistration:
             stage_location=upload_stage,
             dest_filename=dest_filename,
             dest_prefix=dest_prefix,
-            compress_data=True,
+            compress_data=False,
             overwrite=True,
         )
 

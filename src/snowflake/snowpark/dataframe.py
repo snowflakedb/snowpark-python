@@ -166,6 +166,8 @@ class DataFrame:
     ) -> "DataFrame":
         """Returns a new DataFrame that drops the specified column. This is a no-op if schema
         does not contain the given column name(s)."""
+        if not cols:
+            raise TypeError("drop() input cannot be empty")
         exprs = Utils.parse_positional_args_to_list(*cols)
 
         names = []

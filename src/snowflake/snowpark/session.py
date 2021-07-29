@@ -219,7 +219,7 @@ class Session(metaclass=_SessionMeta):
             else:
                 filename = (
                     f"{os.path.basename(path)}.zip"
-                    # TODO: don't zip .py file
+                    # TODO: SNOW-406036 don't zip .py file
                     if os.path.isdir(path) or path.endswith(".py")
                     else os.path.basename(path)
                 )
@@ -229,7 +229,7 @@ class Session(metaclass=_SessionMeta):
                     )
                 else:
                     # local directory or .py file
-                    # TODO: upload python file instead of zip containing udf
+                    # TODO: SNOW-406036 upload python file instead of zip containing udf
                     #  after the server side issue is fixed
                     if os.path.isdir(path) or path.endswith(".py"):
                         input_stream = Utils.zip_file_or_directory_to_stream(path)

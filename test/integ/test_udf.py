@@ -27,6 +27,7 @@ from snowflake.connector.errors import ProgrammingError
 
 from snowflake.snowpark.functions import col, udf
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     DateType,
@@ -139,6 +140,13 @@ def test_nested_udf(session_cnx):
         # we don't need to register function square()
         cube_udf = udf(cube, return_type=IntegerType(), input_types=[IntegerType()])
         assert df.select(cube_udf("a")).collect() == [Row(1), Row(8)]
+
+        # but we can still register function square()
+        square_udf = udf(square, return_type=IntegerType(), input_types=[IntegerType()])
+        assert df.select(cube_udf("a"), square_udf("a")).collect() == [
+            Row([1, 1]),
+            Row([8, 4]),
+        ]
 
 
 def test_python_builtin_udf(session_cnx):
@@ -254,7 +262,7 @@ def test_add_imports_local_directory(session_cnx, resources_path):
         session.removeImports(test_files.test_udf_directory)
 
 
-# TODO: unblock this test after the server side issue is fixed
+# TODO: SNOW-406036 unblock this test after the server side issue is fixed
 @pytest.mark.skip(
     "skip the test due to the issue on the server side aboit finding .py file"
 )
@@ -322,13 +330,13 @@ def test_add_imports_duplicate(session_cnx, resources_path):
 
 
 def test_udf_negative(session_cnx):
+    def f(x):
+        return x
+
     with session_cnx() as session:
         with pytest.raises(TypeError) as ex_info:
             udf(1, return_type=IntegerType())
         assert "Invalid function: not a function or callable" in str(ex_info)
-
-        def f(x):
-            return x
 
         udf1 = udf(f, return_type=IntegerType(), input_types=[IntegerType()])
         with pytest.raises(ValueError) as ex_info:
