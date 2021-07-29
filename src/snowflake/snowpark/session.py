@@ -177,7 +177,7 @@ class Session(metaclass=_SessionMeta):
                         "addImports() only accepts a local file or directory,"
                         " or a file in a stage, but got {}".format(path)
                     )
-                abs_path = os.path.abspath(path[:-1] if path.endswith("/") else path)
+                abs_path = os.path.abspath(path)
             else:
                 abs_path = path
             if abs_path in self.__import_paths:
@@ -191,10 +191,11 @@ class Session(metaclass=_SessionMeta):
         """
         trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
         for path in trimmed_paths:
-            if not path.startswith(self.__STAGE_PREFIX):
-                abs_path = os.path.abspath(path[:-1] if path.endswith("/") else path)
-            else:
-                abs_path = path
+            abs_path = (
+                os.path.abspath(path)
+                if not path.startswith(self.__STAGE_PREFIX)
+                else path
+            )
             if abs_path not in self.__import_paths:
                 raise ValueError(f"{abs_path} is not found in the existing imports")
             else:
@@ -310,7 +311,7 @@ class Session(metaclass=_SessionMeta):
         )
         if not self.__stage_created:
             self._run_query(
-                "create temporary stage if not exists {}".format(qualified_stage_name)
+                f"create temporary stage if not exists {qualified_stage_name}"
             )
             self.__stage_created = True
         return "@{}".format(qualified_stage_name)
