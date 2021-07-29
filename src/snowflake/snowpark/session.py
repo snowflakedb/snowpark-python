@@ -97,7 +97,7 @@ class Session(metaclass=_SessionMeta):
 "python.connector.session.id" : {self.__session_id},
 "os.name" : {Utils.get_os_name()}
 """
-        self.__session_stage = "snowSession_" + str(self.__session_id)
+        self.__session_stage = f"snowSession_{self.__session_id}"
         self.__stage_created = False
         self.__udf_registration = None
         self.__plan_builder = SnowflakePlanBuilder(self)
@@ -304,15 +304,15 @@ class Session(metaclass=_SessionMeta):
         store temporary artifacts for this session. These artifacts include libraries and packages
         for UDFs that you define in this session via [[addImports]] or [[addRequirements]].
         """
-        qualified_stage_name = "{}.{}".format(
-            self.getFullyQualifiedCurrentSchema(), self.__session_stage
+        qualified_stage_name = (
+            f"{self.getFullyQualifiedCurrentSchema()}.{self.__session_stage}"
         )
         if not self.__stage_created:
             self._run_query(
                 f"create temporary stage if not exists {qualified_stage_name}"
             )
             self.__stage_created = True
-        return "@{}".format(qualified_stage_name)
+        return f"@{qualified_stage_name}"
 
     def createDataFrame(
         self,

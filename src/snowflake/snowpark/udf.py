@@ -93,8 +93,9 @@ class UDFRegistration:
         name: Optional[str] = None,
         stage_location: Optional[str] = None,
     ) -> UserDefinedFunction:
-        udf_name = name or "{}.tempUDF_{}".format(
-            self.session.getFullyQualifiedCurrentSchema(), Utils.random_number()
+        udf_name = (
+            name
+            or f"{self.session.getFullyQualifiedCurrentSchema()}.tempUDF_{Utils.random_number()}"
         )
         Utils.validate_object_name(udf_name)
         input_types_list = input_types if input_types else []
@@ -111,7 +112,7 @@ class UDFRegistration:
         udf_name: str,
         stage_location: Optional[str] = None,
     ):
-        arg_names = ["arg{}".format(i + 1) for i in range(len(input_types))]
+        arg_names = [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
         ]
@@ -124,17 +125,15 @@ class UDFRegistration:
         )
         dest_prefix = Utils.get_udf_upload_prefix(udf_name)
         # TODO: SNOW-406036 don't zip .py file
-        dest_filename = "udf_py_{}.zip".format(Utils.random_number())
-        upload_file_stage_location = "{}/{}/{}".format(
-            upload_stage, dest_prefix, dest_filename
-        )
+        dest_filename = f"udf_py_{Utils.random_number()}.zip"
+        upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{dest_filename}"
         # TODO: SNOW-406036 upload python file instead of zip containing udf
         #  after the server side issue is fixed
         input_stream = io.BytesIO()
         with zipfile.ZipFile(
             input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
         ) as zf:
-            zf.writestr("{}.py".format(dest_filename.split(".")[0]), code)
+            zf.writestr(f"{dest_filename.split('.')[0]}.py", code)
         self.session.conn.upload_stream(
             input_stream=input_stream,
             stage_location=upload_stage,
@@ -149,7 +148,7 @@ class UDFRegistration:
             *self.session._resolve_imports(upload_stage),
             upload_file_stage_location,
         ]
-        all_imports = ",".join(["'{}'".format(url) for url in all_urls])
+        all_imports = ",".join([f"'{url}'" for url in all_urls])
         self.__create_python_udf(
             return_type=return_type,
             input_args=input_args,
@@ -165,9 +164,8 @@ class UDFRegistration:
         code = f"""
 import pickle
 
-func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
-
 def compute({args}):
+    func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
     return func({args})
 """
         return code
@@ -184,7 +182,7 @@ def compute({args}):
         return_sql_type = convert_to_sf_type(return_type)
         input_sql_types = [convert_to_sf_type(arg.datatype) for arg in input_args]
         sql_func_args = ",".join(
-            ["{} {}".format(a.name, t) for a, t in zip(input_args, input_sql_types)]
+            [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
         )
         create_udf_query = f"""
 CREATE {"TEMPORARY" if is_temporary else ""} FUNCTION {udf_name}({sql_func_args})
