@@ -204,7 +204,7 @@ def udf(
     name: Optional[str] = None,
     stage_location: Optional[str] = None,
 ) -> UserDefinedFunction:
-    """Register a Python function as a Snowflake Python UDF and returns the UDF."""
+    """Registers a Python function as a Snowflake Python UDF and returns the UDF."""
     from snowflake.snowpark.session import Session
 
     session = Session._get_active_session()

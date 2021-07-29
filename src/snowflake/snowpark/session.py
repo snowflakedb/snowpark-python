@@ -12,6 +12,7 @@ from functools import reduce
 from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
+import cloudpickle
 from snowflake.connector import SnowflakeConnection
 
 from snowflake.snowpark.dataframe import DataFrame
@@ -97,6 +98,7 @@ class Session(metaclass=_SessionMeta):
 "os.name" : {Utils.get_os_name()}
 """
         self.__session_stage = "snowSession_" + str(self.__session_id)
+        self.__stage_created = False
         self.__udf_registration = None
         self.__plan_builder = SnowflakePlanBuilder(self)
 
@@ -146,63 +148,85 @@ class Session(metaclass=_SessionMeta):
 
     def addImports(self, *paths: Union[str, List[str]]):
         """
-        Registers file(s) in stage or local file(s) as imports of a user-defined function (UDF).
-        The local file can be a compressed file (e.g., zip), a Python file (.py), a directory,
-        or any other file resource.
+        Registers file(s) in stage or local file(s) as imports of a user-defined function
+        (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
+        a directory, or any other file resource.
 
-        If you pass the path to a local file, this file will be uploaded to a temporary stage
-        and imports the file when executing a UDF.
-        If you pass the path to a local directory, the directory will be compressed as a zip file
-        and will be uploaded to a temporary stage and imports the zip file when executing a UDF.
-        If you pass the path to a file in a stage, the file is included in the imports when
-        executing a UDF.
-        If the file has already existed in the stage, we will skip uploading and not overwrite that
-        file.
+        :param paths
+        1. If you pass the path to a local file, this file will be uploaded to a temporary
+        stage and Snowflake will import the file when executing a UDF.
+        2. If you pass the path to a local directory, the directory will be compressed as
+        a zip file and will be uploaded to a temporary stage and Snowflake will import
+        the zip file when executing a UDF.
+        3. If you pass the path to a file in a stage, the file is included in the imports
+        when executing a UDF.
+
+        Note that before uploading the local file to the stage, Snowpark library will
+        first check the existence of this file in the stage. If it already exists there,
+        we will skip uploading and not overwrite that file.
         """
         trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
         for path in trimmed_paths:
             if not path.startswith(self.__STAGE_PREFIX):
                 if not os.path.exists(path):
                     raise FileNotFoundError(
-                        "File {} not found".format(os.path.abspath(path))
+                        "{} is not found".format(os.path.abspath(path))
                     )
                 if not os.path.isfile(path) and not os.path.isdir(path):
                     raise ValueError(
                         "addImports() only accepts a local file or directory,"
                         " or a file in a stage, but got {}".format(path)
                     )
-            self.__import_paths.add(path)
+                abs_path = os.path.abspath(path[:-1] if path.endswith("/") else path)
+            else:
+                abs_path = path
+            if abs_path in self.__import_paths:
+                logger.info(f"{abs_path} already exists in imported path")
+            else:
+                self.__import_paths.add(abs_path)
 
     def removeImports(self, *paths: Union[str, List[str]]):
         """
-        Remove file(s) in stage or local file(s) from imports of a user-defined function (UDF).
+        Removes file(s) in stage or local file(s) from imports of a user-defined function (UDF).
         """
         trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
         for path in trimmed_paths:
-            if path not in self.__import_paths:
-                raise ValueError("{} is not found in the existing imports".format(path))
-            self.__import_paths.remove(path)
+            if not path.startswith(self.__STAGE_PREFIX):
+                abs_path = os.path.abspath(path[:-1] if path.endswith("/") else path)
+            else:
+                abs_path = path
+            if abs_path not in self.__import_paths:
+                raise ValueError(f"{abs_path} is not found in the existing imports")
+            else:
+                self.__import_paths.remove(abs_path)
+
+    def clearImports(self):
+        """
+        Clears file(s) in stage or local file(s) from imports of a user-defined function (UDF).
+        """
+        self.__import_paths.clear()
 
     def _resolve_imports(self, stage_location: str) -> List[str]:
+        """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(stage_location)
         normalized_stage_location = Utils.normalize_stage_location(stage_location)
-        for path in self.__import_paths:
+        # always import cloudpickle
+        import_paths = [*self.__import_paths, os.path.dirname(cloudpickle.__file__)]
+        for path in import_paths:
             # stage file
             if path.startswith(self.__STAGE_PREFIX):
                 resolved_stage_files.append(path)
             else:
                 filename = (
-                    "{}.zip".format(path.split("/")[-1])
+                    f"{os.path.basename(path)}.zip"
                     # TODO: don't zip .py file
                     if os.path.isdir(path) or path.endswith(".py")
-                    else path.split("/")[-1]
+                    else os.path.basename(path)
                 )
                 if filename in stage_file_list:
                     logger.info(
-                        "{} exists on {}, skipped".format(
-                            filename, normalized_stage_location
-                        )
+                        f"{filename} exists on {normalized_stage_location}, skipped"
                     )
                 else:
                     # local directory or .py file
@@ -225,9 +249,7 @@ class Session(metaclass=_SessionMeta):
                             compress_data=False,
                             overwrite=True,
                         )
-                resolved_stage_files.append(
-                    "{}/{}".format(normalized_stage_location, filename)
-                )
+                resolved_stage_files.append(f"{normalized_stage_location}/{filename}")
 
         return resolved_stage_files
 
@@ -286,9 +308,11 @@ class Session(metaclass=_SessionMeta):
         qualified_stage_name = "{}.{}".format(
             self.getFullyQualifiedCurrentSchema(), self.__session_stage
         )
-        self._run_query(
-            "create temporary stage if not exists {}".format(qualified_stage_name)
-        )
+        if not self.__stage_created:
+            self._run_query(
+                "create temporary stage if not exists {}".format(qualified_stage_name)
+            )
+            self.__stage_created = True
         return "@{}".format(qualified_stage_name)
 
     def createDataFrame(

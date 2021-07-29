@@ -33,7 +33,6 @@ from snowflake.snowpark.types.sf_types import (
     DoubleType,
     IntegerType,
     StringType,
-    StructType,
 )
 
 tmp_stage_name = Utils.random_stage_name()
@@ -78,10 +77,16 @@ def test_basic_udf(session_cnx):
 
         df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
         assert df.select(return1_udf()).collect() == [Row(1), Row(1)]
-        assert df.select(plus1_udf(col("a"))).collect() == [Row(2), Row(4)]
+        assert df.select(plus1_udf(col("a")), "a").collect() == [
+            Row([2, 1]),
+            Row([4, 3]),
+        ]
         assert df.select(add_udf("a", "b")).collect() == [Row(3), Row(7)]
         assert df.select(int2str_udf("a")).collect() == [Row("1"), Row("3")]
-        assert df.select(pow_udf(col("a"), "b")).collect() == [Row(1.0), Row(81.0)]
+        assert df.select(pow_udf(col("a"), "b"), "b").collect() == [
+            Row([1.0, 2]),
+            Row([81.0, 4]),
+        ]
 
 
 def test_named_udf(session_cnx):
@@ -222,7 +227,7 @@ def test_add_imports_local_file(session_cnx, resources_path):
         ]
 
         # clean
-        session.removeImports(test_files.test_udf_py_file)
+        session.clearImports()
 
 
 def test_add_imports_local_directory(session_cnx, resources_path):
@@ -280,11 +285,11 @@ def test_add_imports_stage_file(session_cnx, resources_path):
         ]
 
         # clean
-        session.removeImports(stage_file)
+        session.clearImports()
 
 
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
-def test_add_imports_package(session_cnx, resources_path):
+def test_add_imports_package(session_cnx):
     def plus_one_month(x):
         return x + relativedelta(month=1)
 
@@ -299,7 +304,21 @@ def test_add_imports_package(session_cnx, resources_path):
         assert df.select(plus_one_month_udf("a")).collect() == [Row(plus_one_month(d))]
 
         # clean
-        session.removeImports(libs)
+        session.clearImports()
+
+
+def test_add_imports_duplicate(session_cnx, resources_path):
+    test_files = TestFiles(resources_path)
+    abs_path = test_files.test_udf_directory
+    rel_path = "../resources/test_udf_dir"
+    with session_cnx() as session:
+        session.addImports(abs_path)
+        session.addImports(f"{abs_path}/")
+        session.addImports(rel_path)
+        assert session.getImports() == [test_files.test_udf_directory]
+
+        session.removeImports(rel_path)
+        assert len(session.getImports()) == 0
 
 
 def test_udf_negative(session_cnx):
@@ -321,4 +340,8 @@ def test_udf_negative(session_cnx):
 
         with pytest.raises(FileNotFoundError) as ex_info:
             session.addImports("file_not_found.py")
-        assert "not found" in str(ex_info)
+        assert "is not found" in str(ex_info)
+
+        with pytest.raises(ValueError) as ex_info:
+            session.removeImports("file_not_found.py")
+        assert "is not found in the existing imports" in str(ex_info)

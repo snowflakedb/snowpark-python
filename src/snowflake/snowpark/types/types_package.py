@@ -121,6 +121,8 @@ def convert_to_sf_type(datatype: DataType) -> str:
 
 def snow_type_to_sp_type(datatype: DataType) -> Optional[SPDataType]:
     """Mapping from snowflake data-types, to SP data-types"""
+
+    # handling the corner case that a UDF doesn't accept any input.
     if datatype is None:
         return None
     if type(datatype) == NullType:

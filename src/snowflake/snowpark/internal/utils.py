@@ -52,11 +52,13 @@ class Utils:
 
     @staticmethod
     def normalize_stage_location(name: str) -> str:
+        """Get the normalized name of a stage."""
         trim_name = name.strip()
         return trim_name if trim_name.startswith("@") else f"@{trim_name}"
 
     @staticmethod
     def get_udf_upload_prefix(udf_name: str) -> str:
+        """Get the valid stage prefix when uploading a UDF."""
         if re.match("[\\w]+", udf_name):
             return udf_name
         else:
@@ -64,10 +66,12 @@ class Utils:
 
     @staticmethod
     def random_number() -> int:
+        """Get a random unsigned integer."""
         return random.randint(0, 2 ** 31)
 
     @staticmethod
     def zip_file_or_directory_to_stream(path: str) -> IO[bytes]:
+        """Compress the file or directory as a zip file to a binary stream."""
         input_stream = io.BytesIO()
         parent_path = os.path.join(path, "..")
         with zipfile.ZipFile(
@@ -86,7 +90,7 @@ class Utils:
 
     @staticmethod
     def parse_positional_args_to_list(*inputs) -> List:
-        """Convert the positional arguments to a list"""
+        """Convert the positional arguments to a list."""
         if len(inputs) == 1:
             return [*inputs[0]] if isinstance(inputs[0], (list, tuple)) else [inputs[0]]
         else:

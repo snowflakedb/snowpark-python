@@ -88,7 +88,6 @@ class UDFColumn(NamedTuple):
 class UDFRegistration:
     def __init__(self, session):
         self.session = session
-        self.session.addImports(os.path.dirname(cloudpickle.__file__))
 
     def register(
         self,
