@@ -10,6 +10,7 @@ from typing import Dict, List, Tuple, Union
 from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.sp_expressions import Attribute as SPAttribute
+from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import DataType
@@ -712,4 +713,4 @@ class AnalyzerPackage:
 
     @staticmethod
     def random_name_for_temp_object() -> str:
-        return f"SN_TEMP_OBJECT_{random.randint(0, pow(2, 31))}"
+        return f"SN_TEMP_OBJECT_{Utils.random_number()}"

@@ -296,11 +296,11 @@ def test_select_negative_select(session_cnx):
         # Select with empty sequences
         with pytest.raises(TypeError) as ex_info:
             df.select()
-        assert "Select input must be Column, str, or list" in str(ex_info)
+        assert "select() input cannot be empty" in str(ex_info)
 
         with pytest.raises(TypeError) as ex_info:
             df.select([])
-        assert "Select input must be Column, str, or list" in str(ex_info)
+        assert "select() input cannot be empty" in str(ex_info)
 
         # select columns which don't exist
         with pytest.raises(connector.errors.ProgrammingError) as ex_info:

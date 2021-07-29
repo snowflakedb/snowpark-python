@@ -6,14 +6,16 @@
 import functools
 import time
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import IO, Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.network import ReauthenticationRequest
+
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
@@ -227,27 +229,84 @@ class ServerConnection:
     @_Decorator.log_msg_and_telemetry("Uploading file to stage")
     def upload_file(
         self,
-        uri: str,
+        path: str,
         stage_location: str,
-        dest_prefix: str,
-        parallel=4,
-        compress_data=True,
+        dest_prefix: str = "",
+        parallel: int = 4,
+        compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ):
-        local_path = f"file://{uri}"
-        target_path = f"{stage_location}{dest_prefix if dest_prefix else ''}"
+        uri = f"file://{path}"
+        self.run_query(
+            self.__build_put_statement(
+                uri,
+                stage_location,
+                dest_prefix,
+                parallel,
+                compress_data,
+                source_compression,
+                overwrite,
+            )
+        )
+
+    @_Decorator.wrap_exception
+    @_Decorator.log_msg_and_telemetry("Uploading stream to stage")
+    def upload_stream(
+        self,
+        input_stream: IO[bytes],
+        stage_location: str,
+        dest_filename: str,
+        dest_prefix: str = "",
+        parallel: int = 4,
+        compress_data: bool = True,
+        source_compression: str = "AUTO_DETECT",
+        overwrite: bool = False,
+    ):
+        uri = f"file:///tmp/placeholder/{dest_filename}"
+        self.run_query(
+            self.__build_put_statement(
+                uri,
+                stage_location,
+                dest_prefix,
+                parallel,
+                compress_data,
+                source_compression,
+                overwrite,
+            ),
+            file_stream=input_stream,
+        )
+
+    def __build_put_statement(
+        self,
+        local_path: str,
+        stage_location: str,
+        dest_prefix: str = "",
+        parallel: int = 4,
+        compress_data: bool = True,
+        source_compression: str = "AUTO_DETECT",
+        overwrite: bool = False,
+    ) -> str:
+        qualified_stage_name = Utils.normalize_stage_location(stage_location)
+        dest_prefix_name = (
+            dest_prefix
+            if not dest_prefix or dest_prefix.startswith("/")
+            else f"/{dest_prefix}"
+        )
+        target_path = (
+            f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
+        )
         parallel_str = f"PARALLEL = {parallel}"
         compress_str = f"AUTO_COMPRESS = {str(compress_data).upper()}"
         source_compression_str = f"SOURCE_COMPRESSION = {source_compression.upper()}"
         overwrite_str = f"OVERWRITE = {str(overwrite).upper()}"
         final_statement = f"PUT {local_path} {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
-        self.run_query(final_statement)
+        return final_statement
 
     @_Decorator.wrap_exception
     def run_query(self, query, to_pandas=False, **kwargs):
         try:
-            results_cursor = self._cursor.execute(query)
+            results_cursor = self._cursor.execute(query, **kwargs)
             logger.info(
                 "Execute query [queryID: {}] {}".format(results_cursor.sfqid, query)
             )
@@ -255,7 +314,7 @@ class ServerConnection:
             logger.error("Failed to execute query {}\n{}".format(query, ex))
             raise ex
         if to_pandas:
-            data = results_cursor.fetch_pandas_all(**kwargs)
+            data = results_cursor.fetch_pandas_all()
         else:
             data = results_cursor.fetchall()
         return {"data": data, "sfqid": results_cursor.sfqid}

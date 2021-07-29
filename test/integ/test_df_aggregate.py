@@ -135,12 +135,15 @@ def test_df_groupBy_invalid_input(session_cnx):
         df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
             ["first", "second"]
         )
-        with pytest.raises(ValueError) as ex_info:
+        with pytest.raises(TypeError) as ex_info:
             df.groupBy([], []).count().collect()
-        assert "groupBy() only accepts one list, but got 2" in str(ex_info)
+        assert (
+            "groupBy() only accepts str and Column objects,"
+            " or a list containing str and Column objects" in str(ex_info)
+        )
         with pytest.raises(TypeError) as ex_info:
             df.groupBy(1).count().collect()
         assert (
             "groupBy() only accepts str and Column objects,"
-            " or the list containing str and Column objects" in str(ex_info)
+            " or a list containing str and Column objects" in str(ex_info)
         )

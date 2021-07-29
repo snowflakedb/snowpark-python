@@ -44,6 +44,7 @@ repos:
         exclude: >
             (?x)^(
                 src/snowflake/snowpark/version.py|
+                test/resources/.*\.py|
             )$
         args:
             - --license-filepath
