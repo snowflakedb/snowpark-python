@@ -110,6 +110,9 @@ def test_sort_invalid_inputs(session_cnx):
         )
 
         # invalid input types
-        with pytest.raises(ValueError) as ex_info:
+        with pytest.raises(TypeError) as ex_info:
             df.sort(["a"], ["b"])
-        assert "sort() only accepts one list, but got 2" in str(ex_info)
+        assert (
+            "sort() only accepts str and Column objects,"
+            " or a list containing str and Column objects" in str(ex_info)
+        )

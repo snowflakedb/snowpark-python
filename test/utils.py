@@ -45,8 +45,8 @@ class Utils:
     def upload_to_stage(
         session: "Session", stage_name: str, filename: str, compress: bool
     ):
-        session._do_upload(
-            stage_location=stage_name, uri=filename, compress_data=compress
+        session.conn.upload_file(
+            stage_location=stage_name, path=filename, compress_data=compress
         )
 
     @staticmethod
@@ -264,3 +264,11 @@ class TestFiles:
     @property
     def test_broken_csv(self):
         return os.path.join(self.resources_path, "broken.csv")
+
+    @property
+    def test_udf_directory(self):
+        return os.path.join(self.resources_path, "test_udf_dir")
+
+    @property
+    def test_udf_py_file(self):
+        return os.path.join(self.test_udf_directory, "test_udf_file.py")

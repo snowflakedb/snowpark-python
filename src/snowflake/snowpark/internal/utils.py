@@ -3,8 +3,13 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import io
+import os
 import platform
+import random
 import re
+import zipfile
+from typing import IO, List
 
 from snowflake.connector.version import VERSION as connector_version
 
@@ -44,3 +49,49 @@ class Utils:
     @staticmethod
     def get_os_name() -> str:
         return platform.system()
+
+    @staticmethod
+    def normalize_stage_location(name: str) -> str:
+        """Get the normalized name of a stage."""
+        trim_name = name.strip()
+        return trim_name if trim_name.startswith("@") else f"@{trim_name}"
+
+    @staticmethod
+    def get_udf_upload_prefix(udf_name: str) -> str:
+        """Get the valid stage prefix when uploading a UDF."""
+        if re.match("[\\w]+", udf_name):
+            return udf_name
+        else:
+            return "{}_{}".format(re.sub("\\W", "", udf_name), abs(hash(udf_name)))
+
+    @staticmethod
+    def random_number() -> int:
+        """Get a random unsigned integer."""
+        return random.randint(0, 2 ** 31)
+
+    @staticmethod
+    def zip_file_or_directory_to_stream(path: str) -> IO[bytes]:
+        """Compress the file or directory as a zip file to a binary stream."""
+        input_stream = io.BytesIO()
+        parent_path = os.path.join(path, "..")
+        with zipfile.ZipFile(
+            input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
+        ) as zf:
+            if os.path.isdir(path):
+                for dirname, _, files in os.walk(path):
+                    zf.write(dirname, os.path.relpath(dirname, parent_path))
+                    for file in files:
+                        filename = os.path.join(dirname, file)
+                        zf.write(filename, os.path.relpath(filename, parent_path))
+            else:
+                zf.write(path, os.path.relpath(path, parent_path))
+
+        return input_stream
+
+    @staticmethod
+    def parse_positional_args_to_list(*inputs) -> List:
+        """Convert the positional arguments to a list."""
+        if len(inputs) == 1:
+            return [*inputs[0]] if isinstance(inputs[0], (list, tuple)) else [inputs[0]]
+        else:
+            return [*inputs]

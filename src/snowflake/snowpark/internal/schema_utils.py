@@ -58,7 +58,7 @@ class SchemaUtils:
 
     @staticmethod
     def analyze_attributes(sql: str, session):
-        attributes = session.get_result_attributes(sql)
+        attributes = session._get_result_attributes(sql)
         if attributes:
             return attributes
         else:

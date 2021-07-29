@@ -25,7 +25,7 @@ from snowflake.snowpark.types.sf_types import (
 
 
 def get_table_attributes(session: "Session", name: str) -> List["Attribute"]:
-    return session.get_result_attributes("select * from {name}".format(name=name))
+    return session._get_result_attributes("select * from {name}".format(name=name))
 
 
 def get_attributes_with_types(
@@ -152,7 +152,7 @@ def test_describe_schema_matches_execute_schema_for_show_queries(
         for obj in objs:
             query = "show {}".format(obj)
             # describe query
-            show_query_schema_describe = session.get_result_attributes(query)
+            show_query_schema_describe = session._get_result_attributes(query)
             assert len(show_query_schema_describe) > 0
             # execute query
             session._run_query(query)

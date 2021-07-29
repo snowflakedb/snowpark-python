@@ -94,10 +94,10 @@ class DataFrame:
 
         The number of column names that you pass in must match the number of columns in the existing
         DataFrame.
-        :param col_names: list of new column names
+        :param names: list of new column names
         :return: a Dataframe
         """
-        col_names = [x for i in names for x in ([i] if type(i) == str else i)]
+        col_names = Utils.parse_positional_args_to_list(*names)
         if not all(type(n) == str for n in col_names):
             raise TypeError(f"Invalid input type in toDF(), expected str or list[str].")
 
@@ -145,32 +145,30 @@ class DataFrame:
         else:
             return Column(self.__resolve(col_name))
 
-    def select(self, *expr) -> "DataFrame":
+    def select(
+        self,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+    ) -> "DataFrame":
+        exprs = Utils.parse_positional_args_to_list(*cols)
+        if not exprs:
+            raise TypeError("select() input cannot be empty")
 
-        if len(expr) == 1:
-            cols = [*expr[0]] if isinstance(expr[0], (list, tuple)) else [expr[0]]
-        elif len(expr) > 1:
-            cols = [*expr]
-        else:
-            raise TypeError("Select input must be Column, str, or list")
+        if not all(type(e) in [Column, str] for e in exprs):
+            raise TypeError("select() input must be Column, str, or list")
 
-        if not len(cols) > 0 or not all(type(e) in [Column, str] for e in cols):
-            raise TypeError("Select input must be Column, str, or list")
-
-        cols = [e if type(e) == Column else Column(e) for e in cols]
-        return self.__with_plan(SPProject([c.named() for c in cols], self.__plan))
+        names = [e.named() if type(e) == Column else Column(e).named() for e in exprs]
+        return self.__with_plan(SPProject(names, self.__plan))
 
     # TODO complete. requires plan.output
-    def drop(self, *cols) -> "DataFrame":
+    def drop(
+        self,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+    ) -> "DataFrame":
         """Returns a new DataFrame that drops the specified column. This is a no-op if schema
         does not contain the given column name(s)."""
-
-        if len(cols) == 1:
-            exprs = [*cols[0]] if isinstance(cols[0], (list, tuple)) else [cols[0]]
-        elif len(cols) > 1:
-            exprs = [*cols]
-        else:
+        if not cols:
             raise TypeError("drop() input cannot be empty")
+        exprs = Utils.parse_positional_args_to_list(*cols)
 
         names = []
         for c in exprs:
@@ -192,21 +190,23 @@ class DataFrame:
             return self.select(list(keep_col_names))
 
     # TODO
-    def filter(self, expr) -> "DataFrame":
+    def filter(self, expr: Union[str, Column]) -> "DataFrame":
         if type(expr) == str:
             column = Column(expr)
             return self.__with_plan(SPFilter(column.expression, self.__plan))
         if type(expr) == Column:
             return self.__with_plan(SPFilter(expr.expression, self.__plan))
 
-    def where(self, expr) -> "DataFrame":
+    def where(self, expr: Union[str, Column]) -> "DataFrame":
         """Filters rows based on given condition. This is equivalent to calling [[filter]]."""
         return self.filter(expr)
 
     def sort(
         self,
-        *cols: Union[str, Column, List, Tuple],
-        ascending: Union[bool, int, List, Tuple] = None,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        ascending: Union[
+            bool, int, List[Union[bool, int]], Tuple[Union[bool, int]]
+        ] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL)."""
         if not cols:
@@ -291,7 +291,10 @@ class DataFrame:
 
         return self.groupBy().agg(grouping_exprs)
 
-    def groupBy(self, *cols: Union[str, Column, List, Tuple]):
+    def groupBy(
+        self,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+    ):
         """Groups rows by the columns specified by expressions (similar to GROUP BY in SQL).
 
         This method returns a [[RelationalGroupedDataFrame]] that you can use to perform
@@ -727,7 +730,9 @@ class DataFrame:
         return DataFrame(self.session, plan)
 
     def __convert_cols_to_exprs(
-        self, calling_method: str, *cols: Union[str, Column, List, Tuple]
+        self,
+        calling_method: str,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
     ) -> List["SPExpression"]:
         """Convert a string or a Column, or a list of string and Column objects to expression(s)."""
 
@@ -738,21 +743,9 @@ class DataFrame:
                 return col.expression
             else:
                 raise TypeError(
-                    "{} only accepts str and Column objects, or the list containing str and"
+                    "{} only accepts str and Column objects, or a list containing str and"
                     " Column objects".format(calling_method)
                 )
 
-        exprs = []
-        if len(cols) >= 1:
-            if type(cols[0]) in [list, tuple]:
-                if len(cols) == 1:
-                    exprs = [convert(col) for col in cols[0]]
-                else:
-                    raise ValueError(
-                        "{} only accepts one list, but got {}".format(
-                            calling_method, len(cols)
-                        )
-                    )
-            else:
-                exprs = [convert(col) for col in cols]
+        exprs = [convert(col) for col in Utils.parse_positional_args_to_list(*cols)]
         return exprs
