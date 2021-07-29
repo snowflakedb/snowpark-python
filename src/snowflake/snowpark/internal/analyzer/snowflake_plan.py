@@ -232,7 +232,7 @@ class SnowflakePlanBuilder:
     def sample(
         self,
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan,
         probability_fraction: Optional[float] = None,
         row_count: Optional[int] = None,
     ):

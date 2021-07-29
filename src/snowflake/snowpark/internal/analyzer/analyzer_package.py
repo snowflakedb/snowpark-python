@@ -246,7 +246,7 @@ class AnalyzerPackage:
 
     def sample_statement(
         self,
-        child,
+        child: str,
         probability_fraction: Optional[float] = None,
         row_count: Optional[int] = None,
     ):
