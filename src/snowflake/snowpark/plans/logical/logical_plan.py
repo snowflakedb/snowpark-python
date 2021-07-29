@@ -56,7 +56,7 @@ class Filter(OrderPreservingUnaryNode):
         self.children.append(child)
 
 
-class Sample(OrderPreservingUnaryNode):
+class Sample(UnaryNode):
     """Represents a sample operation in the logical plan"""
 
     def __init__(

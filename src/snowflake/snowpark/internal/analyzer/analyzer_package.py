@@ -9,13 +9,11 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import Attribute as SPAttribute
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import (
-    SnowparkClientException,
-    SnowparkClientExceptionMessages,
-)
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import DataType
 from snowflake.snowpark.types.sp_join_types import (
     JoinType as SPJoinType,

@@ -209,7 +209,7 @@ class DataFrame:
         if frac is not None and (frac < 0.0 or frac > 1.0):
             raise ValueError(
                 f"probability_fraction value {frac} "
-                f"is out of range (0 <= probability_fraction <= 1"
+                f"is out of range (0 <= probability_fraction <= 1)"
             )
         if n is not None and n < 0:
             raise ValueError(f"row_count value {n} must be greater than 0")

@@ -342,48 +342,6 @@ def test_filter_chained_col_objects_int(session_cnx):
         assert res == expected
 
 
-def test_sample_with_row_count(session_cnx):
-    """Tests sample using n (row count)"""
-    with session_cnx() as session:
-        row_count = 10000
-        df = session.range(row_count)
-        assert len(df.sample(n=0).collect()) == 0
-        row_count_10_percent = int(row_count / 10)
-        assert len(df.sample(n=row_count_10_percent).collect()) == row_count_10_percent
-        assert len(df.sample(n=row_count).collect()) == row_count
-        assert len(df.sample(n=row_count + 10).collect()) == row_count
-
-
-def test_sample_with_frac(session_cnx):
-    """Tests sample using frac"""
-    with session_cnx() as session:
-        row_count = 10000
-        sampling_deviation = 0.4
-        df = session.range(row_count)
-        assert len(df.sample(frac=0.0).collect()) == 0
-        half_row_count = row_count * 0.5
-        assert (
-            abs(len(df.sample(frac=0.5).collect()) - half_row_count)
-            < half_row_count * sampling_deviation
-        )
-        assert len(df.sample(frac=1.0).collect()) == row_count
-
-
-def test_sample_negative(session_cnx):
-    """Tests negative test cases for sample"""
-    with session_cnx() as session:
-        row_count = 10000
-        df = session.range(row_count)
-        with pytest.raises(ValueError):
-            df.sample(n=-1)
-        with pytest.raises(Exception):
-            df.sample(n=1000001).count()
-        with pytest.raises(ValueError):
-            df.sample(frac=-0.01)
-        with pytest.raises(ValueError):
-            df.sample(frac=1.01)
-
-
 def test_drop(session_cnx):
     """Test for dropping columns from a dataframe."""
     with session_cnx() as session:
