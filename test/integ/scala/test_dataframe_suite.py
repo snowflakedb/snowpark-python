@@ -253,6 +253,26 @@ def test_select_star(session_cnx):
         assert double2.select(double2.col("*")).collect() == expected
 
 
+def test_first(session_cnx):
+    with session_cnx() as session:
+        assert TestData.integer1(session).first() == Row(1)
+        assert TestData.null_data1(session).first() == Row(None)
+        assert TestData.integer1(session).filter(col("a") < 0).first() is None
+
+        res = TestData.integer1(session).first(2)
+        assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
+
+        # return all elements
+        res = TestData.integer1(session).first(3)
+        assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2), Row(3)]
+
+        res = TestData.integer1(session).first(10)
+        assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2), Row(3)]
+
+        res = TestData.integer1(session).first(-10)
+        assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2), Row(3)]
+
+
 def test_sample_with_row_count(session_cnx):
     """Tests sample using n (row count)"""
     with session_cnx() as session:
