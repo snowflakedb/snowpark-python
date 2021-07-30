@@ -81,7 +81,7 @@ def test_first(session_cnx):
 
         # empty first, should default to 1
         res = df.first()
-        assert res == [Row([1, "a"])]
+        assert res == Row([1, "a"])
 
         res = df.first(0)
         assert res == []

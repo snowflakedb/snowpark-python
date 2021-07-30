@@ -657,7 +657,7 @@ class DataFrame:
         Returns the first row of results if no input is given. If that row does not
         exist, it returns `None`.
         """
-        if not n:
+        if n is None:
             result = self.limit(1).collect()
             return result[0] if result else None
         elif not type(n) == int:
