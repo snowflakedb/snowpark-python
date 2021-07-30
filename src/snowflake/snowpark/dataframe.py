@@ -650,16 +650,19 @@ class DataFrame:
 
         return self.session.conn.execute(self.session.analyzer.resolve(cmd))
 
-    def first(self, n: int = 1):
+    def first(self, n: Optional[int] = None):
         """Executes the query representing this DataFrame and returns the first n rows
         of the results.
 
-        Returns the first row of results if no input is given.
+        Returns the first row of results if no input is given. If that row does not
+        exist, it returns `None`.
         """
-        if not type(n) == int:
+        if n is None:
+            result = self.limit(1).collect()
+            return result[0] if result else None
+        elif not type(n) == int:
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
-
-        if n < 0:
+        elif n < 0:
             return self.collect()
         else:
             return self.limit(n).collect()
