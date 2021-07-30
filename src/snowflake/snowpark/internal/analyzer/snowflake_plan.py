@@ -229,6 +229,22 @@ class SnowflakePlanBuilder:
             lambda x: self.pkg.filter_statement(condition, x), child, source_plan
         )
 
+    def sample(
+        self,
+        child: SnowflakePlan,
+        source_plan: LogicalPlan,
+        probability_fraction: Optional[float] = None,
+        row_count: Optional[int] = None,
+    ):
+        """Builds the sample part of the resultant sql statement"""
+        return self.build(
+            lambda x: self.pkg.sample_statement(
+                x, probability_fraction=probability_fraction, row_count=row_count
+            ),
+            child,
+            source_plan,
+        )
+
     def sort(
         self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]
     ):

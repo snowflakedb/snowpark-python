@@ -253,6 +253,59 @@ def test_select_star(session_cnx):
         assert double2.select(double2.col("*")).collect() == expected
 
 
+def test_sample_with_row_count(session_cnx):
+    """Tests sample using n (row count)"""
+    with session_cnx() as session:
+        row_count = 10000
+        df = session.range(row_count)
+        assert df.sample(n=0).count() == 0
+        assert len(df.sample(n=0).collect()) == 0
+        row_count_10_percent = int(row_count / 10)
+        assert df.sample(n=row_count_10_percent).count() == row_count_10_percent
+        assert df.sample(n=row_count).count() == row_count
+        assert df.sample(n=row_count + 10).count() == row_count
+        assert len(df.sample(n=row_count_10_percent).collect()) == row_count_10_percent
+        assert len(df.sample(n=row_count).collect()) == row_count
+        assert len(df.sample(n=row_count + 10).collect()) == row_count
+
+
+def test_sample_with_frac(session_cnx):
+    """Tests sample using frac"""
+    with session_cnx() as session:
+        row_count = 10000
+        sampling_deviation = 0.4
+        df = session.range(row_count)
+        assert df.sample(frac=0.0).count() == 0
+        half_row_count = row_count * 0.5
+        assert (
+            abs(df.sample(frac=0.5).count() - half_row_count)
+            < half_row_count * sampling_deviation
+        )
+        assert df.sample(frac=1.0).count() == row_count
+        assert len(df.sample(frac=0.0).collect()) == 0
+        half_row_count = row_count * 0.5
+        assert (
+            abs(len(df.sample(frac=0.5).collect()) - half_row_count)
+            < half_row_count * sampling_deviation
+        )
+        assert len(df.sample(frac=1.0).collect()) == row_count
+
+
+def test_sample_negative(session_cnx):
+    """Tests negative test cases for sample"""
+    with session_cnx() as session:
+        row_count = 10000
+        df = session.range(row_count)
+        with pytest.raises(ValueError):
+            df.sample(n=-1)
+        with pytest.raises(connector.errors.ProgrammingError):
+            df.sample(n=1000001).count()
+        with pytest.raises(ValueError):
+            df.sample(frac=-0.01)
+        with pytest.raises(ValueError):
+            df.sample(frac=1.01)
+
+
 def test_select(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).toDF(

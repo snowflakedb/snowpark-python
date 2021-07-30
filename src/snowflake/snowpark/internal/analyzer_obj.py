@@ -60,6 +60,7 @@ from snowflake.snowpark.plans.logical.basic_logical_operators import (
 from snowflake.snowpark.plans.logical.logical_plan import (
     Filter as SPFilter,
     Project as SPProject,
+    Sample as SPSample,
     UnresolvedRelation as SPUnresolvedRelation,
 )
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
@@ -323,6 +324,15 @@ class Analyzer:
                 self.analyze(logical_plan.condition),
                 resolved_children[logical_plan.child],
                 logical_plan,
+            )
+
+        # Add a sample stop to the plan being built
+        if type(logical_plan) == SPSample:
+            return self.plan_builder.sample(
+                resolved_children[logical_plan.child],
+                logical_plan,
+                logical_plan.probability_fraction,
+                logical_plan.row_count,
             )
 
         if type(logical_plan) == SPJoin:
