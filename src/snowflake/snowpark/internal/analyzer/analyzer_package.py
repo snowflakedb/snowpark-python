@@ -5,10 +5,11 @@
 #
 import random
 import re
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import Attribute as SPAttribute
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.row import Row
@@ -240,6 +241,35 @@ class AnalyzerPackage:
 
     def filter_statement(self, condition, child) -> str:
         return self.project_statement([], child) + self._Where + condition
+
+    def sample_statement(
+        self,
+        child: str,
+        probability_fraction: Optional[float] = None,
+        row_count: Optional[int] = None,
+    ):
+        """Generates the sql text for the sample part of the plan being executed"""
+        if probability_fraction is not None:
+            return (
+                self.project_statement([], child)
+                + self._Sample
+                + self._LeftParenthesis
+                + str(probability_fraction * 100)
+                + self._RightParenthesis
+            )
+        elif row_count is not None:
+            return (
+                self.project_statement([], child)
+                + self._Sample
+                + self._LeftParenthesis
+                + str(row_count)
+                + self._Rows
+                + self._RightParenthesis
+            )
+        else:
+            raise SnowparkClientException(
+                SnowparkClientExceptionMessages.PLAN_SAMPLING_NEED_ONE_PARAMETER
+            )
 
     def aggregate_statement(
         self, grouping_exprs: List[str], aggregate_exprs: List[str], child: str

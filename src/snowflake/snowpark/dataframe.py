@@ -38,6 +38,7 @@ from snowflake.snowpark.plans.logical.hints import JoinHint as SPJoinHint
 from snowflake.snowpark.plans.logical.logical_plan import (
     Filter as SPFilter,
     Project as SPProject,
+    Sample as SPSample,
 )
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import StructType
@@ -196,6 +197,26 @@ class DataFrame:
             return self.__with_plan(SPFilter(column.expression, self.__plan))
         if type(expr) == Column:
             return self.__with_plan(SPFilter(expr.expression, self.__plan))
+
+    def sample(self, frac: Optional[float] = None, n: Optional[int] = None):
+        """Samples rows based on either the number of rows to be returned or a
+        percentage or rows to be returned"""
+        if frac is None and n is None:
+            raise ValueError(
+                "probability_fraction and row_count cannot both be None. "
+                "One of those values must be defined"
+            )
+        if frac is not None and (frac < 0.0 or frac > 1.0):
+            raise ValueError(
+                f"probability_fraction value {frac} "
+                f"is out of range (0 <= probability_fraction <= 1)"
+            )
+        if n is not None and n < 0:
+            raise ValueError(f"row_count value {n} must be greater than 0")
+
+        return self.__with_plan(
+            SPSample(self.__plan, probability_fraction=frac, row_count=n)
+        )
 
     def where(self, expr: Union[str, Column]) -> "DataFrame":
         """Filters rows based on given condition. This is equivalent to calling [[filter]]."""
