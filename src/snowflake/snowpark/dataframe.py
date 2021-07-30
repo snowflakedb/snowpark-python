@@ -650,7 +650,7 @@ class DataFrame:
 
         return self.session.conn.execute(self.session.analyzer.resolve(cmd))
 
-    def first(self, n: int = None):
+    def first(self, n: Optional[int] = None):
         """Executes the query representing this DataFrame and returns the first n rows
         of the results.
 
