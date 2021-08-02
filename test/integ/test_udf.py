@@ -367,10 +367,7 @@ def test_udf_negative(session_cnx):
         df2 = session.createDataFrame([1, None]).toDF("x")
         with pytest.raises(ProgrammingError) as ex_info:
             df2.select(udf2("x")).collect()
-        assert (
-            "int() argument must be a string, a bytes-like object or a number, not 'NoneType'"
-            in str(ex_info)
-        )
+        assert "Python Interpreter Error" in str(ex_info)
 
 
 # TODO: add more after solving relative imports
