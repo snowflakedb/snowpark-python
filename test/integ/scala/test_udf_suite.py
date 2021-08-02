@@ -80,7 +80,7 @@ def test_basic_udf_function(session_cnx):
         assert df.select(double_udf("a")).collect() == [Row(2), Row(4), Row(6)]
 
 
-def test_udf_with_array(session_cnx):
+def test_udf_with_arrays(session_cnx):
     with session_cnx() as session:
         Utils.create_table(session, semi_structured_table, "a1 array")
         session._run_query(
