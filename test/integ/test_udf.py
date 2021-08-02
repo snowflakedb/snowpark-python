@@ -342,10 +342,37 @@ def test_udf_negative(session_cnx):
         with pytest.raises(ValueError) as ex_info:
             udf1("a", "")
         assert "Incorrect number of arguments passed to the UDF" in str(ex_info)
+
         with pytest.raises(ProgrammingError) as ex_info:
             session.sql("select f(1)").collect()
         assert "Unknown function" in str(ex_info)
 
+        with pytest.raises(SnowparkClientException) as ex_info:
+            udf(
+                f,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+                name="invalid name",
+            )
+        assert "The object name 'invalid name' is invalid" in str(ex_info)
+
+        # incorrect data type
+        df1 = session.createDataFrame(["a", "b"]).toDF("x")
+        udf2 = udf(
+            lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
+        )
+        with pytest.raises(ProgrammingError) as ex_info:
+            df1.select(udf2("x")).collect()
+        assert "Numeric value 'a' is not recognized" in str(ex_info)
+        df2 = session.createDataFrame([1, None]).toDF("x")
+        with pytest.raises(ProgrammingError) as ex_info:
+            df2.select(udf2("x")).collect()
+        assert "Python Interpreter Error" in str(ex_info)
+
+
+# TODO: add more after solving relative imports
+def test_add_imports_negative(session_cnx):
+    with session_cnx() as session:
         with pytest.raises(FileNotFoundError) as ex_info:
             session.addImports("file_not_found.py")
         assert "is not found" in str(ex_info)

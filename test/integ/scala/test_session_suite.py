@@ -69,7 +69,7 @@ def test_negative_test_to_invalid_table_name(session_cnx):
     with session_cnx() as session:
         with pytest.raises(SnowparkClientException) as ex_info:
             session.table("negative.test.invalid.table.name")
-        assert "The object name negative.test.invalid.table.name is invalid." in str(
+        assert "The object name 'negative.test.invalid.table.name' is invalid." in str(
             ex_info
         )
 
