@@ -13,6 +13,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
+from ...plans.logical.basic_logical_operators import SetOperation
 from ..sp_expressions import (
     Attribute as SPAttribute,
     AttributeReference as SPAttributeReference,
@@ -422,7 +423,9 @@ class SnowflakePlanBuilder:
             )
 
     def _add_result_scan_if_not_select(self, plan):
-        if plan.queries[-1].sql.strip().lower().startswith("select"):
+        if isinstance(plan.source_plan, SetOperation):
+            return plan
+        elif plan.queries[-1].sql.strip().lower().startswith("select"):
             return plan
         else:
             new_queries = plan.queries + [

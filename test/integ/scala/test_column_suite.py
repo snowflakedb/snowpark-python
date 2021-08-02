@@ -6,8 +6,8 @@
 from test.utils import Utils
 
 import pytest
-from snowflake.connector.errors import ProgrammingError
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.functions import avg, col, sql_expr
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException

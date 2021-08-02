@@ -6,8 +6,8 @@ import random
 from test.utils import TestFiles, Utils
 
 import pytest
-from snowflake.connector import ProgrammingError
 
+from snowflake.connector import ProgrammingError
 from snowflake.snowpark.functions import col, sql_expr
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session

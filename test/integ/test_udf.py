@@ -24,7 +24,6 @@ except ImportError:
 from test.utils import TestFiles, Utils
 
 from snowflake.connector.errors import ProgrammingError
-
 from snowflake.snowpark.functions import col, udf
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException

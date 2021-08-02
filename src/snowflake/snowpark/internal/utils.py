@@ -12,7 +12,6 @@ import zipfile
 from typing import IO, List
 
 from snowflake.connector.version import VERSION as connector_version
-
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.version import VERSION as snowpark_version
 

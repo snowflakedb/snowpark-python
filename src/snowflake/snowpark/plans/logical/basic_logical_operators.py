@@ -18,7 +18,7 @@ from snowflake.snowpark.plans.logical.logical_plan import (
 
 
 class Join(BinaryNode):
-    def __init__(self, left, right, join_type, condition, hint):
+    def __init__(self, left, right, join_type, condition, hint=None):
         super().__init__()
         self.left = left
         self.right = right
@@ -26,6 +26,10 @@ class Join(BinaryNode):
         self.condition = condition
         self.hint = hint
         self.children = [left, right]
+
+    @property
+    def sql(self):
+        return self.join_type.sql
 
 
 class Range(LeafNode):
@@ -83,12 +87,22 @@ class Intersect(SetOperation):
         self.children = [self.left, self.right]
 
     def node_name(self):
-        return self.__class__.__name__ + ("All" if self.is_all else "")
+        return self.__class__.__name__.upper() + (" ALL" if self.is_all else "")
+
+    @property
+    def sql(self):
+        return self.node_name()
 
 
-class Union(LogicalPlan):
-    def __init__(self, left: LogicalPlan, right: LogicalPlan):
-        super().__init__()
-        self.left = left
-        self.right = right
-        self.children = [left, right]
+class Union(SetOperation):
+    def __init__(self, left: LogicalPlan, right: LogicalPlan, is_all: bool):
+        super().__init__(left=left, right=right)
+        self.is_all = is_all
+        self.children = [self.left, self.right]
+
+    def node_name(self):
+        return self.__class__.__name__.upper() + (" ALL" if self.is_all else "")
+
+    @property
+    def sql(self):
+        return self.node_name()

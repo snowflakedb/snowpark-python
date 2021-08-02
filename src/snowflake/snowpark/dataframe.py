@@ -361,7 +361,9 @@ class DataFrame:
         This is same as the [[unionAll]] method.
         For example: `df1and2 = df1.union(df2)`
         """
-        return self.__with_plan(SPUnion(self.__plan, other._DataFrame__plan))
+        return self.__with_plan(
+            SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
+        )
 
     def unionAll(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
