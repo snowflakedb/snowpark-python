@@ -32,7 +32,7 @@ class Utils:
             f"^(({id_pattern}\\.){{0,2}}|({id_pattern}\\.\\.)){id_pattern}$$"
         )
         if not pattern.match(name):
-            raise SnowparkClientException(f"The object name {name} is invalid.")
+            raise SnowparkClientException(f"The object name '{name}' is invalid.")
 
     @staticmethod
     def get_version() -> str:
