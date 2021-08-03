@@ -14,7 +14,10 @@ repos:
                "--use-parentheses",
                "--ensure-newline-before-comments",
                "--line-length", "88",
-               "--combine-as"]
+               "--combine-as",
+               "--project", "snowflake.connector",
+               "--project", "snowflake.snowpark",
+        ]
 -   repo: https://github.com/psf/black
     rev: 21.5b1
     hooks:
