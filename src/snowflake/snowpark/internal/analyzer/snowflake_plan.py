@@ -7,18 +7,17 @@ from functools import reduce
 from typing import Callable, Dict, List, Optional
 
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.schema_utils import SchemaUtils
+from snowflake.snowpark.internal.sp_expressions import (
+    Attribute as SPAttribute,
+    AttributeReference as SPAttributeReference,
+)
+from snowflake.snowpark.plans.logical.basic_logical_operators import SetOperation
 from snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.types_package import snow_type_to_sp_type
-
-from ...plans.logical.basic_logical_operators import SetOperation
-from ..sp_expressions import (
-    Attribute as SPAttribute,
-    AttributeReference as SPAttributeReference,
-)
-from .sf_attribute import Attribute
 
 
 class SnowflakePlan(LogicalPlan):

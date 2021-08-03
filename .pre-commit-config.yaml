@@ -27,7 +27,11 @@ repos:
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
-        exclude: license_header.txt
+        exclude: >
+            (?x)^(
+                license_header.txt|
+                test/resources/.*|
+            )$
     -   id: check-yaml
     -   id: debug-statements
     -   id: check-ast

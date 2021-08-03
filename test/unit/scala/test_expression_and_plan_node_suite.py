@@ -9,7 +9,7 @@ from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sp_join_types import JoinType, NaturalJoin, UsingJoin
 
 
-def test_mix_set_operator(session_cnx):
+def test_mix_set_operator():
 
     with pytest.raises(SnowparkClientException) as ex_info:
         JoinType.from_string("incorrect_join_type")
