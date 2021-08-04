@@ -355,13 +355,16 @@ class Analyzer:
             return self.plan_builder.set_operator(
                 resolved_children[logical_plan.left],
                 resolved_children[logical_plan.right],
-                logical_plan.node_name(),
+                logical_plan.sql,
                 logical_plan,
             )
 
         if type(logical_plan) == SPUnion:
-            return self.plan_builder.union(
-                [resolved_children[c] for c in logical_plan.children], logical_plan
+            return self.plan_builder.set_operator(
+                resolved_children[logical_plan.left],
+                resolved_children[logical_plan.right],
+                logical_plan.sql,
+                logical_plan,
             )
 
         if type(logical_plan) == SPRange:

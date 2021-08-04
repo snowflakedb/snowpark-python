@@ -13,8 +13,8 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 import cloudpickle
-from snowflake.connector import SnowflakeConnection
 
+from snowflake.connector import SnowflakeConnection
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.functions import (
