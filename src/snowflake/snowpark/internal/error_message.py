@@ -7,7 +7,9 @@ from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
 class SnowparkClientExceptionMessages:
-    """Holds all of the error messages that could be used in the SnowparkClientException Class"""
+    """Holds all of the error messages that could be used in the SnowparkClientException Class.
+
+    IMPORTANT: keep this file in numerical order of the error-code."""
 
     # TODO Add the rest of the exception messages
     @staticmethod

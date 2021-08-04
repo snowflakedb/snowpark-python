@@ -6,7 +6,7 @@
 """ See
 https://github.com/apache/spark/blob/master/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/plans/logical/basicLogicalOperators.scala"""
 
-from typing import List
+from typing import List, Optional
 
 from snowflake.snowpark.internal.sp_expressions import SortOrder
 from snowflake.snowpark.plans.logical.logical_plan import (
@@ -18,7 +18,14 @@ from snowflake.snowpark.plans.logical.logical_plan import (
 
 
 class Join(BinaryNode):
-    def __init__(self, left, right, join_type, condition, hint=None):
+    def __init__(
+        self,
+        left: "SnowflakePlan",
+        right: "SnowflakePlan",
+        join_type: "JoinType",
+        condition: Optional["Expression"],
+        hint: "JoinHint" = None,
+    ):
         super().__init__()
         self.left = left
         self.right = right
