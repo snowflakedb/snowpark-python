@@ -220,12 +220,14 @@ def __with_aggregate_function(
     return Column(func.to_aggregate_expression(is_distinct))
 
 
-def call_builtin(function_name, *args):
+def call_builtin(function_name: str, *args):
     """Invokes a built-in snowflake function with the specified name and arguments.
-    Arguments can be of two types
-        a. [[Column]], or
-        b. Basic types such as Int, Long, Double, Decimal etc. which are converted to Snowpark
-        literals.
+
+    Arguments can be of two types:
+
+        a. :obj:`Column`, or
+        b. Basic types such as Int, Long, Double, Decimal etc. which are converted to Snowpark literals.
+
     """
 
     sp_expressions = []
@@ -242,17 +244,20 @@ def call_builtin(function_name, *args):
     )
 
 
-def builtin(function_name):
+def builtin(function_name: str):
     """
     Function object to invoke a Snowflake builtin. Use this to invoke
     any builtins not explicitly listed in this object.
 
-    Example
-    {{{
-       avg = functions.builtin('avg')
-       df.select(avg(col("col_1")))
-    }}}
-    :param function_name: Name of built-in Snowflake function
-    :return: Column
+    Example::
+
+        avg = functions.builtin('avg')
+        df.select(avg(col("col_1")))
+
+    Arguments:
+        function_name: Name of built-in Snowflake function
+
+    Returns:
+        :obj:`Column`
     """
     return lambda *args: call_builtin(function_name, *args)

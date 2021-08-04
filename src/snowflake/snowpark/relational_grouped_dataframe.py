@@ -60,16 +60,17 @@ class PivotType(GroupType):
 
 
 class RelationalGroupedDataFrame:
-    """Represents an underlying DataFrame with rows that are grouped by common values. Can be used
-    to define aggregations on these grouped DataFrames.
+    """Represents an underlying DataFrame with rows that are grouped by common values.
+    Can be used to define aggregations on these grouped DataFrames.
 
-    Examples:
+    Examples::
+
         grouped_df = df.groupBy("dept")
         agg_df = grouped_df.agg(groupedDf("salary") -> "mean")
 
-    The methods [[DataFrame.groupBy()]],
-    [[DataFrame.cube()]] and [[DataFrame.rollup()]]
-    return an instance of type [[RelationalGroupedDataFrame]]"""
+    The methods :py:func:`DataFrame.groupBy()`,
+    :py:func:`DataFrame.cube()` and :py:func:`DataFrame.rollup()`
+    return an instance of type :obj:`RelationalGroupedDataFrame`"""
 
     def __init__(self, df, grouping_exprs: List[SPExpression], group_type: GroupType):
         self.df = df
@@ -181,25 +182,26 @@ class RelationalGroupedDataFrame:
             return SPUnresolvedFunction(expr, [input_expr], is_distinct=False)
 
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]):
-        """Returns a DataFrame with computed aggregates. The first element of the 'expr' pair is the
-         column to aggregate and the second element is the aggregate function to compute. The
-         following example computes the mean of the price column and the sum of the sales column.
-         The name of the aggregate function to compute must be a valid Snowflake
-         [[https://docs.snowflake.com/en/sql-reference/functions-aggregation.html]] aggregate
-         function.
-        "average" and "mean" can be used to specify "avg".
+        """Returns a DataFrame with computed aggregates. The first element of the
+        `expr` pair is the column to aggregate and the second element is the aggregate
+        function to compute. The following example computes the mean of the price
+        column and the sum of the sales column. The name of the aggregate function to
+        compute must be a valid Snowflake `aggregate function <https://docs.snowflake.com/en/sql-reference/functions-aggregation.html>`_.
+        ``average`` and ``mean`` can be used to specify ``avg``.
 
         Valid input:
-        - A Column object
-        - A tuple where the first element is a column and the second element is a name (str) of the
-        aggregate function
-        - A list of the above
 
-        Example:
+            - A Column object
+            - A tuple where the first element is a column and the second element is a name (str) of the aggregate function
+            - A list of the above
+
+        Example::
+
             import com.snowflake.snowpark.functions.col
             df.groupBy("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
 
-        :return a [[DataFrame]]
+        Returns:
+            a ``DataFrame``
         """
         if not type(exprs) in (list, tuple):
             exprs = [exprs]

@@ -319,16 +319,16 @@ class Session(metaclass=_SessionMeta):
         data: Union[List, Tuple, NamedTuple, Dict],
         schema: Optional[StructType] = None,
     ) -> DataFrame:
-        """
-        Creates a new DataFrame containing the specified values from the local data.
-        When schema is None, the schema will be inferred from the data across all rows.
-        Any type and length inconsistency across rows will be reported.
+        """ Creates a new DataFrame containing the specified values from the local
+        data. When `schema` is None, the schema will be inferred from the data across
+        all rows. Any type and length inconsistency across rows will be reported.
+
+
         Valid inputs:
+
         1. `data` can only be a list, tuple, nametuple or dict.
-        2. If `data` is a 1D list and tuple, nametuple or dict, every element will constitute
-           a row in the dataframe.
-        3. Otherwise, `data` can only be a list or tuple of lists, tuples, nametuples or dicts,
-           where every iterable in this list will constitute a row in the dataframe.
+        2. If `data` is a 1D list and tuple, nametuple or dict, every element will constitute a row in the dataframe.
+        3. Otherwise, `data` can only be a list or tuple of lists, tuples, nametuples or dicts, where every iterable in this list will constitute a row in the dataframe.
         """
         if data is None:
             raise ValueError("Data cannot be None.")
