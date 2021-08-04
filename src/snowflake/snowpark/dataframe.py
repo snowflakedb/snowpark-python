@@ -417,9 +417,10 @@ class DataFrame:
         The method assumes that the columns in ``usingColumns`` have the same meaning
         in the left and right DataFrames.
 
-        For example:
-            ``dfLeftJoin = df1.join(df2, "a", "left")``
-            ``dfOuterJoin = df.join(df2, ["a","b"], "outer")``
+        Examples::
+
+            dfLeftJoin = df1.join(df2, "a", "left")
+            dfOuterJoin = df.join(df2, ["a","b"], "outer")
 
         Args:
             right: The other Dataframe to join.
@@ -476,9 +477,10 @@ class DataFrame:
         to one of these columns in the returned DataFrame, use the [[coll]] function
         on the current or ``right`` DataFrame to disambiguate references to these columns.
 
-        For example:
-            ``df_cross = this.crossJoin(right)``
-            ``project = df_cross.select([this("common_col"), right("common_col")])``
+        Examples::
+
+            df_cross = this.crossJoin(right)
+            project = df_cross.select([this("common_col"), right("common_col")])
 
         :param right The right Dataframe to join.
         :return a Dataframe

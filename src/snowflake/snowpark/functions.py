@@ -91,7 +91,7 @@ def max(e: Column) -> Column:
 
 
 def mean(e: Column) -> Column:
-    """Return the average for the specific numeric columns. Alias of avg"""
+    """Return the average for the specific numeric columns. Alias of :obj:`avg`"""
     return avg(e)
 
 
@@ -121,7 +121,7 @@ def stddev(e: Column) -> Column:
 
 def stddev_samp(e: Column) -> Column:
     """Returns the sample standard deviation (square root of sample variance) of non-NULL values.
-    If all records inside a group are NULL, returns NULL. Alias of stddev"""
+    If all records inside a group are NULL, returns NULL. Alias of :obj:`stddev`"""
     return builtin("stddev_samp")(e)
 
 

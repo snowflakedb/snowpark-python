@@ -17,7 +17,7 @@ class DataType(AbstractDataType):
 
     @property
     def to_string(self):
-        """Returns a data type name. Alias of [[type_name]]"""
+        """Returns a data type name.  Alias of :obj:`type_name`"""
         return self.type_name
 
     @property
@@ -92,7 +92,7 @@ class GeographyType(DataType):
 
     @property
     def to_string(self) -> str:
-        """Returns a data type name. Alias of [[type_name]]"""
+        """Returns a data type name. Alias of :obj:`toString`type_name`"""
         return self.type_name
 
     @property

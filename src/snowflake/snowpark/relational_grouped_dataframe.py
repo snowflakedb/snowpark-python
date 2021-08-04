@@ -223,7 +223,7 @@ class RelationalGroupedDataFrame:
         return self.__non_empty_argument_function("avg", *cols)
 
     def mean(self, *cols: Column):
-        """Return the average for the specified numeric columns. Alias of avg."""
+        """Return the average for the specified numeric columns. Alias of :obj:`avg`."""
         return self.avg(*cols)
 
     def sum(self, *cols: Column):
