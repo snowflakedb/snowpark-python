@@ -12,7 +12,7 @@ from snowflake.snowpark.types.sf_types import StructType, VariantType
 
 
 class DataFrameReader:
-    """ Provides methods to load data in various supported formats from a Snowflake
+    """Provides methods to load data in various supported formats from a Snowflake
     stage to a DataFrame. The paths provided to the DataFrameReader must refer to
     Snowflake stages.
 
@@ -141,7 +141,7 @@ class DataFrameReader:
         )
 
     def json(self, path: str) -> DataFrame:
-        """Returns a ``DataFrame`` that is set up to load data from the specified JSON file.
+        r"""Returns a ``DataFrame`` that is set up to load data from the specified JSON file.
 
         This method only supports reading data from files in Snowflake stages.
 
@@ -168,7 +168,7 @@ class DataFrameReader:
         return self.__read_semi_structured_file(path, "AVRO")
 
     def parquet(self, path: str) -> DataFrame:
-        """Returns a ``DataFrame`` that is set up to load data from the specified
+        r"""Returns a ``DataFrame`` that is set up to load data from the specified
         Parquet file.
 
         This method only supports reading data from files in Snowflake stages.
@@ -188,7 +188,7 @@ class DataFrameReader:
         return self.__read_semi_structured_file(path, "PARQUET")
 
     def orc(self, path: str) -> DataFrame:
-        """Returns a ``DataFrame`` that is set up to load data from the specified ORC file.
+        r"""Returns a ``DataFrame`` that is set up to load data from the specified ORC file.
 
         This method only supports reading data from files in Snowflake stages.
 

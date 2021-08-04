@@ -319,7 +319,7 @@ class Session(metaclass=_SessionMeta):
         data: Union[List, Tuple, NamedTuple, Dict],
         schema: Optional[StructType] = None,
     ) -> DataFrame:
-        """ Creates a new DataFrame containing the specified values from the local
+        """Creates a new DataFrame containing the specified values from the local
         data. When `schema` is None, the schema will be inferred from the data across
         all rows. Any type and length inconsistency across rows will be reported.
 
