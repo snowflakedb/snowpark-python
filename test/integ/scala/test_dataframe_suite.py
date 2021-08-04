@@ -8,11 +8,13 @@ from test.utils import TestData, Utils
 import pytest
 
 from snowflake import connector
-from snowflake.snowpark.functions import col, max, sum
+from snowflake.snowpark.functions import col, lit, max, sum
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import StringType, Variant
+
+SAMPLING_DEVIATION = 0.4
 
 
 def test_null_data_in_tables(session_cnx):
@@ -50,6 +52,18 @@ def test_null_data_in_local_relation_with_filters(session_cnx):
             Row([1, None]),
             Row([3, None]),
         ]
+
+
+def test_project_null_values(session_cnx):
+    """Tests projecting null values onto different columns in a dataframe"""
+    with session_cnx() as session:
+        df = session.createDataFrame([1, 2]).toDF("a").withColumn("b", lit(None))
+        assert df.collect() == [Row([1, None]), Row([2, None])]
+
+        df2 = session.createDataFrame([1, 2]).toDF("a").select(lit(None))
+        assert len(df2.schema.fields) == 1
+        assert df2.schema.fields[0].datatype == StringType()
+        assert df2.collect() == [Row(None), Row(None)]
 
 
 def test_createOrReplaceView_with_null_data(session_cnx):
@@ -293,20 +307,19 @@ def test_sample_with_frac(session_cnx):
     """Tests sample using frac"""
     with session_cnx() as session:
         row_count = 10000
-        sampling_deviation = 0.4
         df = session.range(row_count)
         assert df.sample(frac=0.0).count() == 0
         half_row_count = row_count * 0.5
         assert (
             abs(df.sample(frac=0.5).count() - half_row_count)
-            < half_row_count * sampling_deviation
+            < half_row_count * SAMPLING_DEVIATION
         )
         assert df.sample(frac=1.0).count() == row_count
         assert len(df.sample(frac=0.0).collect()) == 0
         half_row_count = row_count * 0.5
         assert (
             abs(len(df.sample(frac=0.5).collect()) - half_row_count)
-            < half_row_count * sampling_deviation
+            < half_row_count * SAMPLING_DEVIATION
         )
         assert len(df.sample(frac=1.0).collect()) == row_count
 
@@ -324,6 +337,48 @@ def test_sample_negative(session_cnx):
             df.sample(frac=-0.01)
         with pytest.raises(ValueError):
             df.sample(frac=1.01)
+
+
+def test_sample_on_join(session_cnx):
+    """Tests running sample on a join statement"""
+    with session_cnx() as session:
+        row_count = 10000
+        df1 = session.range(row_count).withColumn('"name"', lit("value1"))
+        df2 = session.range(row_count).withColumn('"name"', lit("value2"))
+
+        result = df1.join(df2, '"ID"')
+        sample_row_count = int(result.count() / 10)
+
+        assert result.sample(n=sample_row_count).count() == sample_row_count
+        assert (
+            abs(result.sample(frac=0.1).count() - sample_row_count)
+            < sample_row_count * SAMPLING_DEVIATION
+        )
+
+
+def test_sample_on_union(session_cnx):
+    """Tests running sample on union statements"""
+    with session_cnx() as session:
+        row_count = 10000
+        df1 = session.range(row_count).withColumn('"name"', lit("value1"))
+        df2 = session.range(5000, 5000 + row_count).withColumn('"name"', lit("value2"))
+
+        # Test union
+        result = df1.union(df2)
+        sample_row_count = int(result.count() / 10)
+        assert result.sample(n=sample_row_count).count() == sample_row_count
+        assert (
+            abs(result.sample(frac=0.1).count() - sample_row_count)
+            < sample_row_count * SAMPLING_DEVIATION
+        )
+        # Test unionAll
+        result = df1.unionAll(df2)
+        sample_row_count = int(result.count() / 10)
+        assert result.sample(n=sample_row_count).count() == sample_row_count
+        assert (
+            abs(result.sample(frac=0.1).count() - sample_row_count)
+            < sample_row_count * SAMPLING_DEVIATION
+        )
 
 
 def test_select(session_cnx):
