@@ -7,10 +7,11 @@ import os
 import random
 import uuid
 from decimal import Decimal
-from typing import NamedTuple, Optional
+from typing import List, NamedTuple, Optional, Union
 
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 
 
@@ -64,6 +65,15 @@ class Utils:
     @classmethod
     def get_fully_qualified_temp_schema(cls, session: Session):
         return f"{session.getCurrentDatabase()}.{cls.random_temp_schema()}"
+
+    @staticmethod
+    def check_answer(df: DataFrame, expected: Union[Row, List[Row]]):
+        if type(expected) == list:
+            assert df.collect() == expected
+        elif type(expected) == Row:
+            assert df.collect() == [expected]
+        else:
+            raise TypeError("expected must be a list of Row objects or a Row object")
 
 
 class TestData:

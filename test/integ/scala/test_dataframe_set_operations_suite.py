@@ -3,10 +3,47 @@
 #
 from datetime import date, datetime
 from decimal import Decimal
-from test.utils import TestData
+from test.utils import TestData, Utils
+from typing import List
 
-from snowflake.snowpark.functions import col, min, sum
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.functions import col, lit, min, sum
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types.sf_types import IntegerType
+
+
+def test_union_with_filters(session_cnx):
+    """Tests union queries with a filter added"""
+    with session_cnx() as session:
+
+        def check(new_col: Column, cfilter: Column, result: List[Row]):
+            df1 = (
+                session.createDataFrame([[1, 1]])
+                .toDF(["a", "b"])
+                .withColumn("c", new_col)
+            )
+            df2 = df1.union(df1).withColumn("d", lit(100)).filter(cfilter)
+
+            Utils.check_answer(df2, result)
+
+        check(
+            lit(None).cast(IntegerType()),
+            col("c").is_null(),
+            [Row([1, 1, None, 100]), Row([1, 1, None, 100])],
+        )
+        check(lit(None).cast(IntegerType()), col("c").is_not_null(), list())
+        check(lit(2).cast(IntegerType()), col("c").is_null(), list())
+        check(
+            lit(2).cast(IntegerType()),
+            col("c").is_not_null(),
+            [Row([1, 1, 2, 100]), Row([1, 1, 2, 100])],
+        )
+        check(
+            lit(2).cast(IntegerType()),
+            col("c") == 2,
+            [Row([1, 1, 2, 100]), Row([1, 1, 2, 100])],
+        )
+        check(lit(2).cast(IntegerType()), col("c") != 2, list())
 
 
 def test_union_all(session_cnx):
