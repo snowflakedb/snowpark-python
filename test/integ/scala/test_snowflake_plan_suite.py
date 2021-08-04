@@ -82,7 +82,9 @@ def test_multiple_queries(session_cnx):
             plan2 = SnowflakePlan(
                 queries2, pkg.schema_value_statement(attrs2), None, None, session
             )
-            plan3 = session._Session__plan_builder.union([plan1, plan2], None)
+            plan3 = session._Session__plan_builder.set_operator(
+                plan1, plan2, "UNION ALL", None
+            )
 
             assert len(plan3.attributes()) == 1
             assert plan3.attributes()[0].name == '"A"'

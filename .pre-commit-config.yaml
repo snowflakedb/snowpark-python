@@ -14,7 +14,10 @@ repos:
                "--use-parentheses",
                "--ensure-newline-before-comments",
                "--line-length", "88",
-               "--combine-as"]
+               "--combine-as",
+               "--project", "snowflake.connector",
+               "--project", "snowflake.snowpark",
+        ]
 -   repo: https://github.com/psf/black
     rev: 21.5b1
     hooks:
@@ -27,7 +30,11 @@ repos:
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
-        exclude: license_header.txt
+        exclude: >
+            (?x)^(
+                license_header.txt|
+                test/resources/.*|
+            )$
     -   id: check-yaml
     -   id: debug-statements
     -   id: check-ast

@@ -112,9 +112,7 @@ def test_intersect(session_cnx):
         assert res == [Row(["id", 1]), Row(["id1", 1]), Row(["id1", 2])]
 
 
-def test_project_should_not_be_pushed_down_through_intersect_or_excepet(
-    session_cnx, db_parameters
-):
+def test_project_should_not_be_pushed_down_through_intersect_or_except(session_cnx):
     with session_cnx() as session:
         df1 = session.createDataFrame([[i] for i in range(1, 101)]).toDF("i")
         df2 = session.createDataFrame([[i] for i in range(1, 31)]).toDF("i")
@@ -122,3 +120,23 @@ def test_project_should_not_be_pushed_down_through_intersect_or_excepet(
         assert df1.intersect(df2).count() == 30
         # TODO uncomment when implementing df.except()
         # assert df1.except(df2).count() == 70
+
+
+def test_mix_set_operator(session_cnx):
+    with session_cnx() as session:
+        df1 = session.createDataFrame([1]).toDF("a")
+        df2 = session.createDataFrame([2]).toDF("a")
+        df3 = session.createDataFrame([3]).toDF("a")
+
+        res = df1.union(df2).intersect(df2.union(df3)).collect()
+        expected = df2.collect()
+        assert res == expected
+
+        res1 = df1.union(df2).intersect(df2.union(df3)).union(df3).collect()
+        res2 = df2.union(df3).collect()
+        assert res1 == res2
+
+        # TODO uncomment when implementing df.except()
+        # res = df1.union(df2).except(df2.union(df3).intersect(df1.union(df2)))
+        # expected = df1.collect()
+        # assert res == expected

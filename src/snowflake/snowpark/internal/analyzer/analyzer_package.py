@@ -267,9 +267,7 @@ class AnalyzerPackage:
                 + self._RightParenthesis
             )
         else:
-            raise SnowparkClientException(
-                SnowparkClientExceptionMessages.PLAN_SAMPLING_NEED_ONE_PARAMETER
-            )
+            raise SnowparkClientExceptionMessages.PLAN_SAMPLING_NEED_ONE_PARAMETER()
 
     def aggregate_statement(
         self, grouping_exprs: List[str], aggregate_exprs: List[str], child: str
@@ -349,7 +347,17 @@ class AnalyzerPackage:
         self.filter_statement(self._UnsatFilter, self.values_statement(output, data))
 
     def set_operator_statement(self, left: str, right: str, operator: str):
-        return left + self._Space + operator + self._Space + right
+        return (
+            self._LeftParenthesis
+            + left
+            + self._RightParenthesis
+            + self._Space
+            + operator
+            + self._Space
+            + self._LeftParenthesis
+            + right
+            + self._RightParenthesis
+        )
 
     def left_semi_or_anti_join_statement(
         self, left: str, right: str, join_type: type, condition: str
