@@ -544,14 +544,7 @@ class DataFrame:
         :param col: The :class: `~snowflake.snowpark.column.Column` to add or replace.
         :return: A :class: `~snowflake.snowpark.dataframe.DataFrame`
         """
-        return self.withColumns(
-            [
-                col_name,
-            ],
-            [
-                col,
-            ],
-        )
+        return self.withColumns([col_name], [col])
 
     def withColumns(self, col_names: List[str], cols: List[Column]) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names ``col_names``. The

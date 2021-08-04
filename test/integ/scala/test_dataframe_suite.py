@@ -63,18 +63,7 @@ def test_project_null_values(session_cnx):
         df2 = session.createDataFrame([1, 2]).toDF("a").select(lit(None))
         assert len(df2.schema.fields) == 1
         assert df2.schema.fields[0].datatype == StringType()
-        assert df2.collect() == [
-            Row(
-                [
-                    None,
-                ]
-            ),
-            Row(
-                [
-                    None,
-                ]
-            ),
-        ]
+        assert df2.collect() == [Row(None), Row(None)]
 
 
 def test_createOrReplaceView_with_null_data(session_cnx):

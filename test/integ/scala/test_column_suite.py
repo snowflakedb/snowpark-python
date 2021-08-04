@@ -8,7 +8,7 @@ from test.utils import Utils
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark.functions import avg, col, sql_expr
+from snowflake.snowpark.functions import avg, col, lit, sql_expr
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
@@ -27,6 +27,57 @@ def test_column_alias_and_case_sensitive_name(session_cnx):
         assert df.select(df["a"].as_('"b"')).schema.fields[0].name == '"b"'
         assert df.select(df["a"].alias('"b"')).schema.fields[0].name == '"b"'
         assert df.select(df["a"].name('"b"')).schema.fields[0].name == '"b"'
+
+
+def test_withcolumn_with_special_column_names(session_cnx):
+    with session_cnx() as session:
+        # Ensure that One and "One" are different column names
+        Utils.check_answer(
+            session.createDataFrame([[1]])
+            .toDF(['"One"'])
+            .withColumn("Two", lit("two")),
+            Row([1, "two"]),
+        )
+        Utils.check_answer(
+            session.createDataFrame([[1]])
+            .toDF(['"One"'])
+            .withColumn("One", lit("two")),
+            Row([1, "two"]),
+        )
+        Utils.check_answer(
+            session.createDataFrame([[1]])
+            .toDF(["One"])
+            .withColumn('"One"', lit("two")),
+            Row([1, "two"]),
+        )
+
+        # Ensure that One and ONE are the same
+        Utils.check_answer(
+            session.createDataFrame([[1]])
+            .toDF(["one"])
+            .withColumn('"ONE"', lit("two")),
+            Row("two"),
+        )
+        Utils.check_answer(
+            session.createDataFrame([[1]]).toDF(["One"]).withColumn("One", lit("two")),
+            Row("two"),
+        )
+        Utils.check_answer(
+            session.createDataFrame([[1]]).toDF(["one"]).withColumn("ONE", lit("two")),
+            Row("two"),
+        )
+        Utils.check_answer(
+            session.createDataFrame([[1]]).toDF(["OnE"]).withColumn("oNe", lit("two")),
+            Row("two"),
+        )
+
+        # Ensure that One and ONE are the same
+        Utils.check_answer(
+            session.createDataFrame([[1]])
+            .toDF(['"OnE"'])
+            .withColumn('"OnE"', lit("two")),
+            Row("two"),
+        )
 
 
 def test_toDF_with_special_column_names(session_cnx):
