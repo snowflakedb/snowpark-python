@@ -95,8 +95,12 @@ class DataFrame:
 
         The number of column names that you pass in must match the number of columns in the existing
         DataFrame.
-        :param names: list of new column names
-        :return: a Dataframe
+
+        Args:
+         names: list of new column names
+
+        Returns:
+            :class:`DataFrame`
         """
         col_names = Utils.parse_positional_args_to_list(*names)
         if not all(type(n) == str for n in col_names):
@@ -273,18 +277,20 @@ class DataFrame:
     def agg(
         self, exprs: Union[str, Column, Tuple[str, str], List[Union[str, Column]]]
     ) -> "DataFrame":
-        """Aggregate the data in the DataFrame. Use this method if you don't need to group the
-        data (`groupBy`).
+        """Aggregate the data in the DataFrame. Use this method if you don't need to
+        group the data (:func:`groupBy`).
 
-        For the input value, pass in a list of expressions that apply aggregation functions to
-         columns (functions that are defined in the [[functions]] file).
+        For the input value, pass in a list of expressions that apply aggregation
+        functions to columns (functions that are defined in the
+        :py:mod:`snowflake.snowpark.functions` module).
 
         Alternatively, pass in a list of pairs that specify the column names and
         aggregation functions. For each pair in the list:
         - Set the first pair-value to the name of the column to aggregate.
         - Set the second pair-value to the name of the aggregation function to use on that column.
 
-        :return DataFrame
+        Returns:
+            :class:`DataFrame`
         """
         grouping_exprs = None
         if type(exprs) == str:
@@ -318,15 +324,16 @@ class DataFrame:
     ):
         """Groups rows by the columns specified by expressions (similar to GROUP BY in SQL).
 
-        This method returns a [[RelationalGroupedDataFrame]] that you can use to perform
-        aggregations on each group of data.
+        This method returns a :class:`RelationalGroupedDataFrame` that you can use to
+        perform aggregations on each group of data.
 
         Valid inputs are:
-        - Empty input
-        - One or multiple Column object(s) or column name(s) (str)
-        - A list of Column objects or column names (str)
+            - Empty input
+            - One or multiple Column object(s) or column name(s) (str)
+            - A list of Column objects or column names (str)
 
-        :return: RelationalGroupedDataFrame
+        Returns:
+            :class:`RelationalGroupedDataFrame`
         """
         # TODO fix dependency cycle
         from snowflake.snowpark.relational_grouped_dataframe import (
@@ -355,11 +362,11 @@ class DataFrame:
 
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
-        and another DataFrame (`other`). Both input DataFrames must contain the same
+        and another DataFrame (``other``). Both input DataFrames must contain the same
         number of columns.
 
         This is same as the [[unionAll]] method.
-        For example: `df1and2 = df1.union(df2)`
+        For example: ``df1and2 = df1.union(df2)``
         """
         return self.__with_plan(
             SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
@@ -367,11 +374,11 @@ class DataFrame:
 
     def unionAll(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
-        and another DataFrame (`other`). Both input DataFrames must contain the same
+        and another DataFrame (```other``). Both input DataFrames must contain the same
         number of columns.
 
         This is same as the [[union]] method.
-        For example: `df1and2 = df1.union(df2)`
+        For example: ``df1and2 = df1.union(df2)``
         """
         return self.union(other)
 
@@ -380,18 +387,24 @@ class DataFrame:
         current DataFrame and another DataFrame (`other`). Duplicate rows are
         eliminated.
 
-        For example: `df_intersection_of_1_and_2 = df1.intersect(df2)
+        Example::
+
+            df_intersection_of_1_and_2 = df1.intersect(df2)
         """
         return self.__with_plan(
             SPIntersect(self.__plan, other._DataFrame__plan, is_all=False)
         )
 
     def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
-        """Performs a natural join of the specified type (`joinType`) with the current DataFrame and
-        another DataFrame (`right`).
+        """Performs a natural join of the specified type (``joinType``) with the
+        current DataFrame and another DataFrame (``right``).
 
-        For example: dfNaturalJoin = df.naturalJoin(df2, "left")
-        :return A DataFrame
+        Example::
+
+            dfNaturalJoin = df.naturalJoin(df2, "left")
+
+        Returns:
+             :class:`DataFrame`
         """
         join_type = join_type if join_type else "inner"
         return self.__with_plan(
@@ -405,21 +418,26 @@ class DataFrame:
         )
 
     def join(self, right, using_columns=None, join_type=None) -> "DataFrame":
-        """Performs a join of the specified type (`join_type`) with the current DataFrame and
-        another DataFrame (`right`) on a list of columns (`using_columns`).
+        """Performs a join of the specified type (``join_type``) with the current
+        DataFrame and another DataFrame (``right``) on a list of columns
+        (``using_columns``).
 
-        The method assumes that the columns in `usingColumns` have the same meaning in the left and
-        right DataFrames.
+        The method assumes that the columns in ``usingColumns`` have the same meaning
+        in the left and right DataFrames.
 
-        For example:
+        Examples::
+
             dfLeftJoin = df1.join(df2, "a", "left")
             dfOuterJoin = df.join(df2, ["a","b"], "outer")
 
-        :param right: The other Dataframe to join.
-        :param using_columns: A list of names of the columns, or the column objects, to use for the
-        join.
-        :param join_type: The type of join (e.g. "right", "outer", etc.).
-        :return: a DataFrame
+        Args:
+            right: The other Dataframe to join.
+            using_columns: A list of names of the columns, or the column objects, to
+                use for the join
+            join_type: The type of join (e.g. "right", "outer", etc.).
+
+        Returns:
+            :class:`DataFrame`
         """
         if isinstance(right, DataFrame):
             if self is right or self.__plan is right._DataFrame__plan:
@@ -461,18 +479,22 @@ class DataFrame:
 
     def crossJoin(self, right: "DataFrame") -> "DataFrame":
         """Performs a cross join, which returns the cartesian product of the current DataFrame and
-        another DataFrame (`right`).
+        another DataFrame (``right``).
 
-        If the current and `right` DataFrames have columns with the same name, and you need to refer
+        If the current and ``right`` DataFrames have columns with the same name, and you need to refer
         to one of these columns in the returned DataFrame, use the [[coll]] function
-        on the current or `right` DataFrame to disambiguate references to these columns.
+        on the current or ``right`` DataFrame to disambiguate references to these columns.
 
-        For example:
-        df_cross = this.crossJoin(right)
-        project = df.df_cross.select([this("common_col"), right("common_col")])
+        Example::
 
-        :param right The right Dataframe to join.
-        :return a Dataframe
+            df_cross = this.crossJoin(right)
+            project = df_cross.select([this("common_col"), right("common_col")])
+
+        Args:
+            right The right Dataframe to join.
+
+        Returns:
+            :class:`DataFrame`
         """
         return self.__join_dataframes_internal(
             right, SPJoinType.from_string("cross"), None
