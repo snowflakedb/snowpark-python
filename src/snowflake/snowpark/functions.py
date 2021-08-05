@@ -254,7 +254,7 @@ def builtin(function_name: str):
         avg = functions.builtin('avg')
         df.select(avg(col("col_1")))
 
-    Arguments:
+    Args:
         function_name: Name of built-in Snowflake function
 
     Returns:

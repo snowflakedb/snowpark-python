@@ -63,7 +63,7 @@ class RelationalGroupedDataFrame:
     """Represents an underlying DataFrame with rows that are grouped by common values.
     Can be used to define aggregations on these grouped DataFrames.
 
-    Examples::
+    Example::
 
         grouped_df = df.groupBy("dept")
         agg_df = grouped_df.agg(groupedDf("salary") -> "mean")

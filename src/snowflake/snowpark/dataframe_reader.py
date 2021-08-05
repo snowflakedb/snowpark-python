@@ -148,7 +148,7 @@ class DataFrameReader:
         Note that the data is not loaded in the DataFrame until you call a method that performs
         an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
 
-        For example::
+        Example::
 
           # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
           df = session.read.json(path).where(col("\$1:num") > 1)
@@ -176,7 +176,7 @@ class DataFrameReader:
         Note that the data is not loaded in the DataFrame until you call a method that
         performs an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
 
-        For example::
+        Example::
 
             # Create a DataFrame that uses a DataFrameReader to load data from a file in
             # a stage.
@@ -195,7 +195,7 @@ class DataFrameReader:
         Note that the data is not loaded in the DataFrame until you call a method that performs
         an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
 
-        For example::
+        Example::
 
             # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             df = session.read.orc(path).where(col("\$1:num") > 1)
@@ -212,7 +212,7 @@ class DataFrameReader:
         Note that the data is not loaded in the DataFrame until you call a method that performs
         an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
 
-        For example::
+        Example::
 
             # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             df = session.read.xml(path).where(col("xmlget(\\$1, 'num', 0):\"$\"") > 1)

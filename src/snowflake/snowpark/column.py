@@ -252,11 +252,11 @@ class Column:
         return f"Column[{self.expression}]"
 
     def as_(self, alias: str) -> "Column":
-        """Returns a new renamed Column. Alias of :obj:`name`."""
+        """Returns a new renamed Column. Alias of :func:`Column.name`."""
         return self.name(alias)
 
     def alias(self, alias: str) -> "Column":
-        """Returns a new renamed Column. Alias of :obj:`name`."""
+        """Returns a new renamed Column. Alias of :func:`Column.name`."""
         return self.name(alias)
 
     def name(self, alias: str) -> "Column":

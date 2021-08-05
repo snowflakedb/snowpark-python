@@ -100,7 +100,7 @@ class DataFrame:
          names: list of new column names
 
         Returns:
-             a Dataframe
+            :class:`DataFrame`
         """
         col_names = Utils.parse_positional_args_to_list(*names)
         if not all(type(n) == str for n in col_names):
@@ -278,7 +278,7 @@ class DataFrame:
         self, exprs: Union[str, Column, Tuple[str, str], List[Union[str, Column]]]
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
-        group the data (``groupBy``).
+        group the data (:func:`groupBy`).
 
         For the input value, pass in a list of expressions that apply aggregation
         functions to columns (functions that are defined in the
@@ -289,7 +289,8 @@ class DataFrame:
         - Set the first pair-value to the name of the column to aggregate.
         - Set the second pair-value to the name of the aggregation function to use on that column.
 
-        :return DataFrame
+        Returns:
+            :class:`DataFrame`
         """
         grouping_exprs = None
         if type(exprs) == str:
@@ -323,15 +324,16 @@ class DataFrame:
     ):
         """Groups rows by the columns specified by expressions (similar to GROUP BY in SQL).
 
-        This method returns a [[RelationalGroupedDataFrame]] that you can use to perform
-        aggregations on each group of data.
+        This method returns a :class:`RelationalGroupedDataFrame` that you can use to
+        perform aggregations on each group of data.
 
         Valid inputs are:
-        - Empty input
-        - One or multiple Column object(s) or column name(s) (str)
-        - A list of Column objects or column names (str)
+            - Empty input
+            - One or multiple Column object(s) or column name(s) (str)
+            - A list of Column objects or column names (str)
 
-        :return: RelationalGroupedDataFrame
+        Returns:
+            :class:`RelationalGroupedDataFrame`
         """
         # TODO fix dependency cycle
         from snowflake.snowpark.relational_grouped_dataframe import (
@@ -385,7 +387,9 @@ class DataFrame:
         current DataFrame and another DataFrame (`other`). Duplicate rows are
         eliminated.
 
-        For example: ``df_intersection_of_1_and_2 = df1.intersect(df2)``
+        Example::
+
+            df_intersection_of_1_and_2 = df1.intersect(df2)
         """
         return self.__with_plan(
             SPIntersect(self.__plan, other._DataFrame__plan, is_all=False)
@@ -395,8 +399,12 @@ class DataFrame:
         """Performs a natural join of the specified type (``joinType``) with the
         current DataFrame and another DataFrame (``right``).
 
-        For example: ``dfNaturalJoin = df.naturalJoin(df2, "left")``
-        :return A DataFrame
+        Example::
+
+            dfNaturalJoin = df.naturalJoin(df2, "left")
+
+        Returns:
+             :class:`DataFrame`
         """
         join_type = join_type if join_type else "inner"
         return self.__with_plan(
@@ -429,7 +437,7 @@ class DataFrame:
             join_type: The type of join (e.g. "right", "outer", etc.).
 
         Returns:
-            a DataFrame
+            :class:`DataFrame`
         """
         if isinstance(right, DataFrame):
             if self is right or self.__plan is right._DataFrame__plan:
@@ -477,13 +485,16 @@ class DataFrame:
         to one of these columns in the returned DataFrame, use the [[coll]] function
         on the current or ``right`` DataFrame to disambiguate references to these columns.
 
-        Examples::
+        Example::
 
             df_cross = this.crossJoin(right)
             project = df_cross.select([this("common_col"), right("common_col")])
 
-        :param right The right Dataframe to join.
-        :return a Dataframe
+        Args:
+            right The right Dataframe to join.
+
+        Returns:
+            :class:`DataFrame`
         """
         return self.__join_dataframes_internal(
             right, SPJoinType.from_string("cross"), None
