@@ -21,7 +21,7 @@ class DataType:
         return self.__class__.__name__[:-4]
 
     def to_string(self) -> str:
-        """Returns a data type name. Alias of [[type_name]]"""
+        """Returns a data type name. Alias of :obj:`type_name`"""
         return self.type_name
 
     def __repr__(self) -> str:
@@ -164,7 +164,7 @@ class DecimalType(FractionalType):
 
     @property
     def type_name(self):
-        """Returns Decimal Info. Decimal(precision, scale), Alias of [[toString]]"""
+        """Returns Decimal Info. Decimal(precision, scale). Alias of :obj:`toString`"""
         return self.to_string()
 
     def __repr__(self):
@@ -180,7 +180,7 @@ class ArrayType(DataType):
 
     @property
     def type_name(self):
-        """Returns Array Info. ArrayType(DataType), Alias of [[toString]]"""
+        """Returns Array Info. ArrayType(DataType). Alias of :obj:`toString`"""
         return self.to_string()
 
     def __repr__(self):
@@ -277,7 +277,7 @@ class GeographyType(AtomicType):
 
     @property
     def type_name(self):
-        """Returns GeographyType Info. GeographyType, Alias of [[toString]]"""
+        """Returns GeographyType Info. GeographyType. Alias of :obj:`toString`"""
         return self.to_string()
 
     def __repr__(self):
