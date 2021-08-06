@@ -3,7 +3,8 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from typing import Callable, List, Optional, Union
+import functools
+from typing import Callable, List, Optional
 
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.internal.sp_expressions import (
@@ -198,20 +199,57 @@ def when(condition: Column, value: Column) -> CaseExpr:
 
 
 def udf(
-    func: Callable,
+    func: Optional[Callable] = None,
+    *,
     return_type: DataType = StringType(),
     input_types: Optional[List[DataType]] = None,
     name: Optional[str] = None,
-    stage_location: Optional[str] = None,
-) -> UserDefinedFunction:
-    """Registers a Python function as a Snowflake Python UDF and returns the UDF."""
+) -> Callable:
+    """Registers a Python function as a Snowflake Python UDF and returns the UDF.
+
+    Args:
+        func: a Python function used for creating the UDF.
+        return_type: a :class:`sf_types.DataType` representing the return data
+            type of the UDF.
+        input_types: a list of :class:`sf_types.DataType` representing the input
+            data types of the UDF.
+        name: the UDF name registered in Snowflake. If not provided, the name of
+            the UDF will be generated randomly.
+
+    Returns:
+        A UDF function that can be called with Column expressions
+        (:class:`Column` or :class:`str`)
+
+    Examples::
+        from snowflake.snowpark.types.sf_types import IntegerType
+        add_one = udf(lambda x: x+1, return_types=IntegerType(), input_types=[IntegerType()])
+
+        @udf(return_types=IntegerType(), input_types=[IntegerType()], name="minus_one")
+        def minus_one(x):
+            return x-1
+
+        df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+        df.select(add_one("a"), minus_one("b"))
+        session.sql("select minus_one(1)")
+
+    Note:
+        ``return_type``, ``input_types`` and ``name`` must be passed with keyword arguments
+    """
     from snowflake.snowpark.session import Session
 
     session = Session._get_active_session()
     if not session:
         raise SnowparkClientException("No default SnowflakeSession found")
 
-    return session.udf.register(func, return_type, input_types, name, stage_location)
+    if func is None:
+        return functools.partial(
+            session.udf.register,
+            return_type=return_type,
+            input_types=input_types,
+            name=name,
+        )
+    else:
+        return session.udf.register(func, return_type, input_types, name)
 
 
 def __with_aggregate_function(
