@@ -277,9 +277,8 @@ class DataFrame:
             return Column(self.__resolve(col_name))
 
     def select(
-            self,
-            *cols: Union[
-                str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        self,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -308,9 +307,8 @@ class DataFrame:
         return self.__with_plan(SPProject(names, self.__plan))
 
     def drop(
-            self,
-            *cols: Union[
-                str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        self,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
@@ -391,12 +389,11 @@ class DataFrame:
         return self.filter(expr)
 
     def sort(
-            self,
-            *cols: Union[
-                str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
-            ascending: Union[
-                bool, int, List[Union[bool, int]], Tuple[Union[bool, int]]
-            ] = None,
+        self,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        ascending: Union[
+            bool, int, List[Union[bool, int]], Tuple[Union[bool, int]]
+        ] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
@@ -454,7 +451,7 @@ class DataFrame:
         return self.__with_plan(SPSort(sort_exprs, True, self.__plan))
 
     def agg(
-            self, exprs: Union[str, Column, Tuple[str, str], List[Union[str, Column]]]
+        self, exprs: Union[str, Column, Tuple[str, str], List[Union[str, Column]]]
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
         group the data (:func:`groupBy`).
@@ -486,10 +483,10 @@ class DataFrame:
             if all(type(e) == Column for e in exprs):
                 grouping_exprs = [e for e in exprs]
             if all(
-                    type(e) in [list, tuple]
-                    and len(e) == 2
-                    and type(e[0]) == type(e[1]) == str
-                    for e in exprs
+                type(e) in [list, tuple]
+                and len(e) == 2
+                and type(e[0]) == type(e[1]) == str
+                for e in exprs
             ):
                 grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
 
@@ -499,9 +496,8 @@ class DataFrame:
         return self.groupBy().agg(grouping_exprs)
 
     def groupBy(
-            self,
-            *cols: Union[
-                str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        self,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
     ):
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -670,8 +666,8 @@ class DataFrame:
                 )
 
             if type(join_type) == SPCrossJoin or (
-                    type(join_type) == str
-                    and join_type.strip().lower().replace("_", "").startswith("cross")
+                type(join_type) == str
+                and join_type.strip().lower().replace("_", "").startswith("cross")
             ):
                 if using_columns:
                     raise Exception("Cross joins cannot take columns as input.")
@@ -726,10 +722,10 @@ class DataFrame:
         )
 
     def __join_dataframes(
-            self,
-            right: "DataFrame",
-            using_columns: Union[Column, List[str]],
-            join_type: SPJoinType,
+        self,
+        right: "DataFrame",
+        using_columns: Union[Column, List[str]],
+        join_type: SPJoinType,
     ) -> "DataFrame":
         if type(using_columns) == Column:
             return self.__join_dataframes_internal(
@@ -756,8 +752,7 @@ class DataFrame:
             )
 
     def __join_dataframes_internal(
-            self, right: "DataFrame", join_type: SPJoinType,
-            join_exprs: Optional[Column]
+        self, right: "DataFrame", join_type: SPJoinType, join_exprs: Optional[Column]
     ) -> "DataFrame":
         (lhs, rhs) = self.__disambiguate(self, right, join_type, [])
         expression = join_exprs.expression if join_exprs else None
@@ -937,15 +932,15 @@ class DataFrame:
             return f"|{'|'.join(tok for tok in tokens)}|\n"
 
         return (
-                line
-                + row_to_string(header)
-                + line
-                + "".join(row_to_string(b) for b in body)
-                + line
+            line
+            + row_to_string(header)
+            + line
+            + "".join(row_to_string(b) for b in body)
+            + line
         )
 
     def createOrReplaceView(self, name: Union[str, List[str]]):
-        """ Creates a view that captures the computation expressed by this DataFrame.
+        """Creates a view that captures the computation expressed by this DataFrame.
 
         For ``name``, you can include the database and schema name (i.e. specify a
         fully-qualified name). If no database name or schema name are specified, the
@@ -973,7 +968,7 @@ class DataFrame:
         return self.__do_create_or_replace_view(formatted_name, SPPersistedView())
 
     def createOrReplaceTempView(self, name: Union[str, List[str]]):
-        """ Creates a temporary view that returns the same results as this DataFrame.
+        """Creates a temporary view that returns the same results as this DataFrame.
 
         You can use the view in subsequent SQL queries and statements during the
         current session. The temporary view is only available in the session in which
@@ -1081,7 +1076,7 @@ class DataFrame:
 
     @staticmethod
     def __alias_if_needed(
-            df: "DataFrame", c: str, prefix: str, common_col_names: List[str]
+        df: "DataFrame", c: str, prefix: str, common_col_names: List[str]
     ):
         col = df.col(c)
         unquoted = c.strip('"')
@@ -1091,11 +1086,11 @@ class DataFrame:
             return col.alias(f'"{unquoted}"')
 
     def __disambiguate(
-            self,
-            lhs: "DataFrame",
-            rhs: "DataFrame",
-            join_type: SPJoinType,
-            using_columns: List[str],
+        self,
+        lhs: "DataFrame",
+        rhs: "DataFrame",
+        join_type: SPJoinType,
+        using_columns: List[str],
     ):
         # Normalize the using columns.
         normalized_using_columns = {
@@ -1158,10 +1153,9 @@ class DataFrame:
         return DataFrame(self.session, plan)
 
     def __convert_cols_to_exprs(
-            self,
-            calling_method: str,
-            *cols: Union[
-                str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        self,
+        calling_method: str,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
     ) -> List["SPExpression"]:
         """Convert a string or a Column, or a list of string and Column objects to expression(s)."""
 
