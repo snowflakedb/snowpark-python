@@ -18,24 +18,25 @@ class DataFrameReader:
 
     To use this object:
 
-    1. Access an instance of a DataFrameReader by calling the :obj:`Session.read()`
+    1. Access an instance of a DataFrameReader by calling the :func:`Session.read()`
     method.
 
     2. Specify any `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_ and `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
-    by calling the :obj:`option` or :obj:`options` method. These methods return a
+    by calling the :func:`option` or :func:`options` method. These methods return a
     DataFrameReader that is configured with these options. (Note that although
     specifying copy options can make error handling more robust during the reading
     process, it may have an effect on performance.)
 
     3. Specify the schema of the data that you plan to load by constructing a StructType
-    object and passing it to the :obj:`schema` method. This method returns a
+    object and passing it to the :func:`schema` method. This method returns a
     DataFrameReader that is configured to read data that uses the specified schema.
 
     4. Specify the format of the data by calling the method named after the format
-    (e.g. :obj:`csv`, :obj:`json`, etc.). These methods return a :obj:`DataFrame` that
-    is configured to load data in the specified format.
+    (e.g. :func:`csv`, :func:`json`, etc.). These methods return a :func:`DataFrame`
+    that is configured to load data in the specified format.
 
-    5. Call a :obj:`DataFrame` method that performs an action (e.g. :py:func:`DataFrame.collect`) to load the data from the file.
+    5. Call a :class:`DataFrame` method that performs an action (e.g.
+    :py:func:`DataFrame.collect`) to load the data from the file.
 
     The following examples demonstrate how to use a DataFrameReader.
 
@@ -85,7 +86,7 @@ class DataFrameReader:
         self.__cur_options = {}
 
     def table(self, name: str) -> DataFrame:
-        """Returns a :obj:`DataFrame` that is set up to load data from the specified
+        """Returns a :class:`DataFrame` that is set up to load data from the specified
         table.
 
         For the ``name`` argument, you can specify an unqualified name (if the table
@@ -94,7 +95,7 @@ class DataFrameReader:
 
         Note that the data is not loaded in the DataFrame until you call a method that
         performs an action (e.g. :func:`DataFrame.collect`,
-        :obj:`DataFrame.count`, etc.).
+        :func:`DataFrame.count`, etc.).
 
         Args:
             name: Name of the table to use.
@@ -127,7 +128,8 @@ class DataFrameReader:
         This method only supports reading data from files in Snowflake stages.
 
         Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
 
         Example::
 
@@ -166,8 +168,8 @@ class DataFrameReader:
         This method only supports reading data from files in Snowflake stages.
 
         Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.
-        ).
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
 
         Example::
 
@@ -191,8 +193,8 @@ class DataFrameReader:
         This method only supports reading data from files in Snowflake stages.
 
         Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.
-        ).
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
 
         Args:
             path: The path to the Avro file (including the stage name).
@@ -209,7 +211,8 @@ class DataFrameReader:
         This method only supports reading data from files in Snowflake stages.
 
         Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
 
         Example::
 
@@ -234,7 +237,7 @@ class DataFrameReader:
         This method only supports reading data from files in Snowflake stages.
 
         Note that the data is not loaded in the DataFrame until you call a method that performs
-        an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
+        an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`, etc.).
 
         Example::
 
@@ -256,8 +259,9 @@ class DataFrameReader:
 
         This method only supports reading data from files in Snowflake stages.
 
-        Note that the data is not loaded in the DataFrame until you call a method that performs
-        an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
+        Note that the data is not loaded in the DataFrame until you call a method that
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
 
         Example::
 

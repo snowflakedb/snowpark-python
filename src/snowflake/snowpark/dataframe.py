@@ -68,7 +68,7 @@ class DataFrame:
     below.
 
     Example 1
-        Creating a DataFrame by reading a table::
+        Creating a DataFrame by reading a table in Snowflake::
 
             df_prices = session.table("itemsdb.publicschema.prices")
 
@@ -81,7 +81,7 @@ class DataFrame:
     Example 3
         Creating a DataFrame by specifying a sequence or a range::
 
-            df = session.createDataFrame(Seq((1, "one"), (2, "two")))
+            df = session.createDataFrame([(1, "one"), (2, "two")])
             df = session.range(1, 10, 2)
 
 
@@ -111,12 +111,12 @@ class DataFrame:
             df_price_ids_and_amounts = df_prices.select(col("ID"), col("amount"))
 
     Example 6
-        Using the :func:`Column.as` method to rename a column in a DataFrame (similar
+        Using the :func:`Column.as_` method to rename a column in a DataFrame (similar
         to using `SELECT col AS alias`)::
 
             # Return a new DataFrame containing the ID column of the prices table as a column named
             # itemId. This is equivalent to: SELECT ID AS itemId FROM PRICES;
-            df_price_item_ids = df_prices.select(col("ID").as("itemId"))
+            df_price_item_ids = df_prices.select(col("ID").as_("itemId"))
 
     Example 7
         Using the :func:`filter` method to filter data (similar to adding a `WHERE` clause)::
@@ -203,7 +203,7 @@ class DataFrame:
     def toPandas(self, **kwargs):
         """Returns the contents of this DataFrame as Pandas DataFrame.
 
-        This is only available if Pandas is installed and available.
+        This method is only available if Pandas is installed and available.
 
         Returns:
             :class:`pandas.DataFrame`
@@ -773,7 +773,7 @@ class DataFrame:
     def withColumn(self, col_name: str, col: "Column") -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
-        ``col_name``. The columnis computed by using the specified expression ``col``.
+        ``col_name``. The column is computed by using the specified expression ``col``.
 
         If a column with the same name already exists in the DataFrame, that column is
         replaced by the new column.
@@ -798,7 +798,7 @@ class DataFrame:
         ``cols``.
 
         If columns with the same names already exist in the DataFrame, those columns
-        are replaced bY the new columns.
+        are replaced by the new columns.
 
         This example adds new columns named ``mean_price`` and ``avg_price`` that
         contain the mean and average of the existing ``price`` column::
@@ -858,7 +858,7 @@ class DataFrame:
         return self.agg(("*", "count")).collect()[0].get_int(0)
 
     def show(self, n: int = 10, max_width: int = 50):
-        """Evaluates this DataFrame and prints out the first `''n''` rows with the
+        """Evaluates this DataFrame and prints out the first ``n`` rows with the
         specified maximum number of characters per column.
 
         Args:
@@ -974,7 +974,7 @@ class DataFrame:
         current session. The temporary view is only available in the session in which
         it is created.
 
-        For `name`, you can include the database and schema name (i.e. specify a
+        For ``name``, you can include the database and schema name (i.e. specify a
         fully-qualified name). If no database name or schema name are specified, the
         view will be created in the current database or schema.
 
