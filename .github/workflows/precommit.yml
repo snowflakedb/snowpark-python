@@ -14,7 +14,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: '3.6'
       - name: Display Python version
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
@@ -33,7 +33,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.6
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install Snowpark
@@ -53,7 +53,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.6
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Generate wheel
@@ -77,10 +77,8 @@ jobs:
             download_name: linux
 #          - image_name: macos-latest
 #            download_name: macos
-#          - image_name: windows-latest
-#            download_name: windows
-        python-version: 3.8
-        cloud-provider: aws
+        python-version: [3.6]
+        cloud-provider: [aws]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
