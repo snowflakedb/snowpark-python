@@ -75,12 +75,12 @@ jobs:
         os:
           - image_name: ubuntu-latest
             download_name: linux
-          - image_name: macos-latest
-            download_name: macos
-          - image_name: windows-latest
-            download_name: windows
-        python-version: [3.8, 3.9]
-        cloud-provider: [aws, azure, gcp]
+#          - image_name: macos-latest
+#            download_name: macos
+#          - image_name: windows-latest
+#            download_name: windows
+        python-version: 3.8
+        cloud-provider: aws
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
