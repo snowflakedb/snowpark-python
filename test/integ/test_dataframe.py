@@ -251,7 +251,7 @@ def test_df_subscriptable(session_cnx):
 
 
 def test_filter(session_cnx):
-    """Tests retrieving a negative number of results."""
+    """Tests for df.filter()."""
     with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).collect()
@@ -276,8 +276,30 @@ def test_filter(session_cnx):
         assert res == expected
 
 
+def test_filter_incorrect_type(session_cnx):
+    """Tests for incorrect type passed to DataFrame.filter()."""
+    with session_cnx() as session:
+        df = session.range(1, 10, 2)
+
+        with pytest.raises(TypeError) as ex_info:
+            df.filter("string_type")
+        assert ex_info.type == TypeError
+        assert (
+            "DataFrame.filter() input type must be Column. Got: <class 'str'>"
+            in str(ex_info)
+        )
+
+        with pytest.raises(TypeError) as ex_info:
+            df.filter(1234)
+        assert ex_info.type == TypeError
+        assert (
+            "DataFrame.filter() input type must be Column. Got: <class 'int'>"
+            in str(ex_info)
+        )
+
+
 def test_filter_chained(session_cnx):
-    """Tests retrieving a negative number of results."""
+    """Tests for chained DataFrame.filter() operations"""
     with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).filter(col("id") > 1).collect()
@@ -314,7 +336,7 @@ def test_filter_chained(session_cnx):
 
 
 def test_filter_chained_col_objects_int(session_cnx):
-    """Tests retrieving a negative number of results."""
+    """Tests for chained DataFrame.filter() operations."""
     with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).filter(col("id") > 1).collect()

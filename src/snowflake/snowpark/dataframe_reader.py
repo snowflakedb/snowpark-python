@@ -312,7 +312,7 @@ class DataFrameReader:
               # Define the schema for the data in the CSV files.
               user_schema = StructType(Seq(StructField("a", IntegerType()), StructField("b", StringType())))
               # Create a DataFrame that is configured to load data from the CSV file.
-              csv_df = session.read.option("field_delimiter", ";").option("skip_header", 1).schema(user_schema).csv(file_path)
+              csv_df = session.read.option("field_delimiter", ":").option("skip_header", 1).schema(user_schema).csv(file_path)
               # Load the data into the DataFrame and return an Array of Rows containing the results.
               results = csv_df.collect()
 

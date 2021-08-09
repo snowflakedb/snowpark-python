@@ -62,7 +62,7 @@ class DataFrame:
     required to produce a relational dataset. The computation is not performed until
     you call a method that performs an action (e.g. :func:`collect`).
 
-    ``Creating a DataFrame``
+    .. rubric:: Creating a DataFrame
 
     You can create a DataFrame in a number of different ways, as shown in the examples
     below.
@@ -91,14 +91,14 @@ class DataFrame:
             df_merged_data = df_catalog.join(df_prices, df_catalog["itemId"] == df_prices["ID"])
 
 
-    ``Performing operations on a DataFrame``
+    .. rubric:: Performing operations on a DataFrame
 
     Broadly, the operations on DataFrame can be divided into two types:
 
-    - '''Transformations''' produce a new DataFrame from one or more existing DataFrames. Note that tranformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
-    - '''Actions''' cause the DataFrame to be evaluated. When you call a method that performs an action, Snowpark sends the SQL query for the DataFrame to the server for evaluation.
+    - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that tranformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
+    - **Actions** cause the DataFrame to be evaluated. When you call a method that performs an action, Snowpark sends the SQL query for the DataFrame to the server for evaluation.
 
-    ``Transforming a DataFrame``
+    .. rubric:: Transforming a DataFrame
 
     The following examples demonstrate how you can transform a DataFrame.
 
@@ -121,15 +121,16 @@ class DataFrame:
     Example 7
         Using the :func:`filter` method to filter data (similar to adding a `WHERE` clause)::
 
-            # Return a new DataFrame containing the row from the prices table with the ID 1. This is equivalent to:
+            # Return a new DataFrame containing the row from the prices table with the ID 1.
+            # This is equivalent to:
             # SELECT FROM PRICES WHERE ID = 1;
             df_price1 = df_prices.filter((col("ID") === 1))
 
     Example 8
         Using the :func:`sort()` method to specify the sort order of the data (similar to adding an `ORDER BY` clause)::
 
-            # Return a new DataFrame for the prices table with the rows sorted by ID. This is equivalent to:
-            # SELECT FROM PRICES ORDER BY ID;
+            # Return a new DataFrame for the prices table with the rows sorted by ID.
+            # This is equivalent to: SELECT FROM PRICES ORDER BY ID;
             df_sorted_prices = df_prices.sort(col("ID"))
 
     Example 9
@@ -153,7 +154,7 @@ class DataFrame:
             #  SELECT CATEGORY, SUM(AMOUNT) FROM PRICES GROUP BY CATEGORY
             df_total_price_per_category = df_prices.groupBy(col("category")).sum(col("amount"))
 
-    ``Performing an action on a DataFrame``
+    .. rubric:: Performing an action on a DataFrame
 
     The following examples demonstrate how you can perform an action on a DataFrame.
 
@@ -193,7 +194,7 @@ class DataFrame:
         return self.session.conn.execute(self.__plan)
 
     def clone(self) -> "DataFrame":
-        """Returns a clone of this :class:`DataFrame`
+        """Returns a clone of this :class:`DataFrame`.
 
         Returns:
             :class:`DataFrame`
@@ -216,6 +217,11 @@ class DataFrame:
 
         The number of column names that you pass in must match the number of columns in the existing
         DataFrame.
+
+        Examples::
+
+            df = session.range(1, 10, 2).toDF("col1")
+            df = session.range(1, 10, 2).toDF(["col1"])
 
         Args:
             names: list of new column names
@@ -261,12 +267,12 @@ class DataFrame:
 
     @property
     def columns(self) -> List[str]:
-        """Returns all column names as a list"""
+        """Returns all column names as a list."""
         # Does not exist in scala snowpark.
         return [attr.name for attr in self.__output()]
 
     def col(self, col_name: str) -> "Column":
-        """Returns a reference to a column in the DataFrame
+        """Returns a reference to a column in the DataFrame.
 
         Returns:
             :class:`Column`
@@ -284,11 +290,20 @@ class DataFrame:
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
         present in the resulting DataFrame.
 
-        You can use any :class:`Column` expression.
+        You can use any :class:`Column` expression or strings for named columns.
 
-        Example::
+        Example 1::
 
-            df_selected = df.select(col("col1"), substring(col("col2"), 0, 10), df["col3"] + df["col4"])
+            df_selected = df.select(col("col1"), substring(col("col2"), 0, 10),
+                                    df["col3"] + df["col4"])
+
+        Example 2::
+
+            df_selected = df.select("col1", "col2", "col3")
+
+        Example 3::
+
+            df_selected = df.select(["col1", "col2", "col3"])
 
         Args:
             *cols: A :class:`Column`, :class:`str`, or a list of those.
@@ -348,7 +363,7 @@ class DataFrame:
         else:
             return self.select(list(keep_col_names))
 
-    def filter(self, expr: Union[str, Column]) -> "DataFrame":
+    def filter(self, expr: Column) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
@@ -357,21 +372,21 @@ class DataFrame:
             df_filtered = df.filter(col("A") > 1 && col("B") < 100)
 
         Args:
-            expr: a :class:`str` representing a column-name or a :class:`Column`
-                expression.
+            expr: a :class:`Column` expression.
 
         Returns:
             a filtered :class:`DataFrame`
         """
-        if type(expr) == str:
-            column = Column(expr)
-            return self.__with_plan(SPFilter(column.expression, self.__plan))
-        if type(expr) == Column:
-            return self.__with_plan(SPFilter(expr.expression, self.__plan))
+        if type(expr) != Column:
+            raise TypeError(
+                f"DataFrame.filter() input type must be Column. Got: {type(expr)}"
+            )
 
-    def where(self, expr: Union[str, Column]) -> "DataFrame":
+        return self.__with_plan(SPFilter(expr.expression, self.__plan))
+
+    def where(self, expr: Column) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
-        in SQL). This is equivalent to calling :func:`DataFrame.filter()`.
+        in SQL). This is equivalent to calling :func:`filter()`.
 
         Examples::
 
@@ -380,8 +395,7 @@ class DataFrame:
             prices_df.where(col("price") > 100)
 
         Args:
-            expr: a :class:`str` representing a column-name or a :class:`Column`
-                expression.
+            expr: a :class:`Column` expression.
 
         Returns:
             a filtered :class:`DataFrame`
@@ -555,7 +569,7 @@ class DataFrame:
         and another DataFrame (``other``). Both input DataFrames must contain the same
         number of columns.
 
-        This is same as the :func:`DataFrame.unionAll` method.
+        This is same as the :func:`unionAll` method.
 
         Example::
 
@@ -576,7 +590,7 @@ class DataFrame:
         and another DataFrame (``other``). Both input DataFrames must contain the same
         number of columns.
 
-        This is same as the :func:`DataFrame.union` method.
+        This is same as the :func:`union` method.
 
         Example::
 
@@ -647,8 +661,8 @@ class DataFrame:
 
         Examples::
 
-            dfLeftJoin = df1.join(df2, "a", "left")
-            dfOuterJoin = df.join(df2, ["a","b"], "outer")
+            df_left_join = df1.join(df2, "a", "left")
+            df_outer_join = df.join(df2, ["a","b"], "outer")
 
         Args:
             right: The other :class:`Dataframe` to join.
@@ -803,7 +817,9 @@ class DataFrame:
         This example adds new columns named ``mean_price`` and ``avg_price`` that
         contain the mean and average of the existing ``price`` column::
 
-            df_with_added_columns = df.withColumns(["mean_price", "avg_price"], [mean(col("price")), avg(col("price"))])
+            df_with_added_columns = df.withColumns(["mean_price", "avg_price"],
+                                                   [mean(col("price")),
+                                                   avg(col("price"))])
 
         Args:
             col_names: A list of the names of the columns to add or replace.
@@ -1038,10 +1054,10 @@ class DataFrame:
 
     def sample(self, frac: Optional[float] = None, n: Optional[int] = None):
         """Samples rows based on either the number of rows to be returned or a
-        percentage or rows to be returned
+        percentage or rows to be returned.
 
         Args:
-            frac: the percentage or rows to be sampled
+            frac: the percentage or rows to be sampled.
             n: the number of rows to sample in the range of 0 to 1,000,00.
         Returns:
             a :class:`DataFrame` containing the sample of rows.
