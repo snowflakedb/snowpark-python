@@ -217,10 +217,10 @@ def udf(
             the UDF will be generated randomly.
 
     Returns:
-        A UDF function that can be called with Column expressions
-        (:class:`Column` or :class:`str`)
+        A UDF function that can be called with Column expressions (:class:`Column` or :class:`str`)
 
     Examples::
+
         from snowflake.snowpark.types.sf_types import IntegerType
         add_one = udf(lambda x: x+1, return_types=IntegerType(), input_types=[IntegerType()])
 
@@ -233,7 +233,7 @@ def udf(
         session.sql("select minus_one(1)")
 
     Note:
-        ``return_type``, ``input_types`` and ``name`` must be passed with keyword arguments
+        ``return_type``, ``input_types`` and ``name`` must be passed with keyword arguments.
     """
     from snowflake.snowpark.session import Session
 

@@ -98,7 +98,6 @@ def test_named_udf(session_cnx):
             input_types=[IntegerType(), IntegerType()],
             name="mul",
         )
-        # files = session._list_files_in_stage(session.getSessionStage())
         assert session.sql("select mul(13, 19)").collect() == [Row(13 * 19)]
 
 
@@ -358,6 +357,13 @@ def test_udf_negative(session_cnx):
         return x
 
     with session_cnx() as session:
+        df1 = session.createDataFrame(["a", "b"]).toDF("x")
+
+        udf0 = udf()
+        with pytest.raises(TypeError) as ex_info:
+            df1.select(udf0("x")).collect()
+        assert "Invalid function: not a function or callable" in str(ex_info)
+
         with pytest.raises(TypeError) as ex_info:
             udf(1, return_type=IntegerType())
         assert "Invalid function: not a function or callable" in str(ex_info)
@@ -388,7 +394,6 @@ def test_udf_negative(session_cnx):
         assert "The object name 'invalid name' is invalid" in str(ex_info)
 
         # incorrect data type
-        df1 = session.createDataFrame(["a", "b"]).toDF("x")
         udf2 = udf(
             lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
         )
