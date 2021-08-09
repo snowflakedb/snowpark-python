@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import pytest
+from snowflake.connector import ProgrammingError
 
 from test.utils import Utils
 
@@ -96,3 +98,9 @@ def test_multiple_queries(session_cnx):
             assert res2 == [Row(1), Row(2), Row(3), Row(4)]
         finally:
             Utils.drop_table(session, table_name2)
+
+
+def test_empty_schema_query(session_cnx):
+    with session_cnx() as session:
+        with pytest.raises(ProgrammingError) as ex_info:
+            SnowflakePlan([], "", [], {}, session, None).attributes()
