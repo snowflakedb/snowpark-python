@@ -73,8 +73,10 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - image_name: ubuntu-latest
-            download_name: linux
+          - image_name: windows-latest
+            download_name: windows
+#          - image_name: ubuntu-latest
+#            download_name: linux
 #          - image_name: macos-latest
 #            download_name: macos
         python-version: [3.6]
