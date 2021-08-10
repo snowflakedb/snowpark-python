@@ -18,24 +18,25 @@ class DataFrameReader:
 
     To use this object:
 
-    1. Access an instance of a DataFrameReader by calling the :obj:`Session.read()`
+    1. Access an instance of a DataFrameReader by calling the :func:`Session.read()`
     method.
 
     2. Specify any `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_ and `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
-    by calling the :obj:`option` or :obj:`options` method. These methods return a
+    by calling the :func:`option` or :func:`options` method. These methods return a
     DataFrameReader that is configured with these options. (Note that although
     specifying copy options can make error handling more robust during the reading
     process, it may have an effect on performance.)
 
     3. Specify the schema of the data that you plan to load by constructing a StructType
-    object and passing it to the :obj:`schema` method. This method returns a
+    object and passing it to the :func:`schema` method. This method returns a
     DataFrameReader that is configured to read data that uses the specified schema.
 
     4. Specify the format of the data by calling the method named after the format
-    (e.g. :obj:`csv`, :obj:`json`, etc.). These methods return a :obj:`DataFrame` that
-    is configured to load data in the specified format.
+    (e.g. :func:`csv`, :func:`json`, etc.). These methods return a :func:`DataFrame`
+    that is configured to load data in the specified format.
 
-    5. Call a :obj:`DataFrame` method that performs an action (e.g. :py:func:`DataFrame.collect`) to load the data from the file.
+    5. Call a :class:`DataFrame` method that performs an action (e.g.
+    :py:func:`DataFrame.collect`) to load the data from the file.
 
     The following examples demonstrate how to use a DataFrameReader.
 
@@ -85,7 +86,7 @@ class DataFrameReader:
         self.__cur_options = {}
 
     def table(self, name: str) -> DataFrame:
-        """Returns a :obj:`DataFrame` that is set up to load data from the specified
+        """Returns a :class:`DataFrame` that is set up to load data from the specified
         table.
 
         For the ``name`` argument, you can specify an unqualified name (if the table
@@ -94,15 +95,28 @@ class DataFrameReader:
 
         Note that the data is not loaded in the DataFrame until you call a method that
         performs an action (e.g. :func:`DataFrame.collect`,
-        :obj:`DataFrame.count`, etc.)."""
+        :func:`DataFrame.count`, etc.).
+
+        Args:
+            name: Name of the table to use.
+
+        Returns:
+            :class:`DataFrame`
+        """
         return self.session.table(name)
 
     def schema(self, schema: StructType) -> "DataFrameReader":
-        """Returns a ``DataFrameReader`` instance with the specified schema configuration
-         for the data to be read.
+        """Returns a ``DataFrameReader`` instance with the specified schema
+        configuration for the data to be read.
 
         To define the schema for the data that you want to read, use a
-        :obj:`sf_types.StructType` object.
+        :class:`sf_types.StructType` object.
+
+        Args:
+            schema: Schema configuration for the data to be read.
+
+        Returns:
+            :class:`DataFrameReader`
         """
         self.__user_schema = schema
         return self
@@ -114,7 +128,8 @@ class DataFrameReader:
         This method only supports reading data from files in Snowflake stages.
 
         Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
 
         Example::
 
@@ -124,6 +139,12 @@ class DataFrameReader:
             df = session.read.schema(user_schema).csv(fileInAStage).filter(col("a") < 2)
             # Load the data into the DataFrame and return an Array of Rows containing the results.
             results = df.collect()
+
+        Args:
+            path: The path to the CSV file (including the stage name).
+
+        Returns:
+            :class:`DataFrame`
         """
         if not self.__user_schema:
             raise SnowparkClientException(
@@ -141,12 +162,14 @@ class DataFrameReader:
         )
 
     def json(self, path: str) -> DataFrame:
-        r"""Returns a ``DataFrame`` that is set up to load data from the specified JSON file.
+        r"""Returns a :class:`DataFrame` that is set up to load data from the
+        specified JSON file.
 
         This method only supports reading data from files in Snowflake stages.
 
-        Note that the data is not loaded in the DataFrame until you call a method that performs
-        an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
+        Note that the data is not loaded in the DataFrame until you call a method that
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
 
         Example::
 
@@ -154,6 +177,12 @@ class DataFrameReader:
           df = session.read.json(path).where(col("\$1:num") > 1)
           # Load the data into the DataFrame and return an Array of Rows containing the results.
           results = df.collect()
+
+        Args:
+            path: The path to the JSON file (including the stage name).
+
+        Returns:
+            :class:`DataFrame`
         """
         return self.__read_semi_structured_file(path, "JSON")
 
@@ -164,7 +193,15 @@ class DataFrameReader:
         This method only supports reading data from files in Snowflake stages.
 
         Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.)."""
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
+
+        Args:
+            path: The path to the Avro file (including the stage name).
+
+        Returns:
+            :class:`DataFrame`
+        """
         return self.__read_semi_structured_file(path, "AVRO")
 
     def parquet(self, path: str) -> DataFrame:
@@ -174,7 +211,8 @@ class DataFrameReader:
         This method only supports reading data from files in Snowflake stages.
 
         Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
 
         Example::
 
@@ -184,6 +222,12 @@ class DataFrameReader:
             # Load the data into the DataFrame and return an Array of Rows containing
             # the results.
             results = df.collect()
+
+        Args:
+            path: The path to the Parquet file (including the stage name).
+
+        Returns:
+            :class:`DataFrame`
         """
         return self.__read_semi_structured_file(path, "PARQUET")
 
@@ -193,7 +237,7 @@ class DataFrameReader:
         This method only supports reading data from files in Snowflake stages.
 
         Note that the data is not loaded in the DataFrame until you call a method that performs
-        an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
+        an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`, etc.).
 
         Example::
 
@@ -201,6 +245,12 @@ class DataFrameReader:
             df = session.read.orc(path).where(col("\$1:num") > 1)
             # Load the data into the DataFrame and return an Array of Rows containing the results.
             results = df.collect()
+
+        Args:
+            path: The path to the ORC file (including the stage name).
+
+        Returns:
+            :class:`DataFrame`
         """
         return self.__read_semi_structured_file(path, "ORC")
 
@@ -209,8 +259,9 @@ class DataFrameReader:
 
         This method only supports reading data from files in Snowflake stages.
 
-        Note that the data is not loaded in the DataFrame until you call a method that performs
-        an action (e.g. :obj:`DataFrame.collect`, :obj:`DataFrame.count`, etc.).
+        Note that the data is not loaded in the DataFrame until you call a method that
+        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
+        etc.).
 
         Example::
 
@@ -218,6 +269,12 @@ class DataFrameReader:
             df = session.read.xml(path).where(col("xmlget(\\$1, 'num', 0):\"$\"") > 1)
             # Load the data into the DataFrame and return an Array of Rows containing the results.
             results = df.collect()
+
+        Args:
+            path: The path to the XML file (including the stage name).
+
+        Returns:
+            :class:`DataFrame`
         """
         return self.__read_semi_structured_file(path, "XML")
 
@@ -255,13 +312,14 @@ class DataFrameReader:
               # Define the schema for the data in the CSV files.
               user_schema = StructType(Seq(StructField("a", IntegerType()), StructField("b", StringType())))
               # Create a DataFrame that is configured to load data from the CSV file.
-              csv_df = session.read.option("field_delimiter", ";").option("skip_header", 1).schema(user_schema).csv(file_path)
+              csv_df = session.read.option("field_delimiter", ":").option("skip_header", 1).schema(user_schema).csv(file_path)
               # Load the data into the DataFrame and return an Array of Rows containing the results.
               results = csv_df.collect()
 
-        In addition, if you want to load only a subset of files from the stage, you can use the
-        `pattern <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#loading-using-pattern-matching>`_
-        option to specify a regular expression that matches the files that you want to load.
+        In addition, if you want to load only a subset of files from the stage, you can
+        use the `pattern <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#loading-using-pattern-matching>`_
+        option to specify a regular expression that matches the files that you want to
+        load.
 
         Example 4:
             Loading only the CSV files from a stage location::
@@ -273,6 +331,13 @@ class DataFrameReader:
                 csv_df = session.read.option("pattern", ".[.]csv").schema(user_schema).csv("@stage_location")
                 # Load the data into the DataFrame and return an Array of Rows containing the results.
                 results = csv_df.collect()
+
+        Args:
+            key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
+            value: Value of the option.
+
+        Returns:
+            :class:`DataFrameReader`
         """
         self.__cur_options[key.upper()] = self.__parse_value(value)
         return self
@@ -299,6 +364,13 @@ class DataFrameReader:
                 df = session.read.option(Map("compression"-> "lzo", "trim_space" -> true)).parquet(file_path)
                 # Load the data into the DataFrame and return an Array of Rows containing the results.
                 results = df.collect()
+
+        Args:
+            configs: Dictionary of the names of options (e.g. ``compression``,
+                ``skip_header``, etc.) and their corresponding values.
+
+        Returns:
+            :class:`DataFrameReader`
         """
         for k, v in configs.items():
             self.option(k, v)
