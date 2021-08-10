@@ -208,13 +208,13 @@ def udf(
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
     Args:
-        func: a Python function used for creating the UDF.
-        return_type: a :class:`sf_types.DataType` representing the return data
+        func: A Python function used for creating the UDF.
+        return_type: A :class:`sf_types.DataType` representing the return data
             type of the UDF.
-        input_types: a list of :class:`sf_types.DataType` representing the input
+        input_types: A list of :class:`sf_types.DataType` representing the input
             data types of the UDF.
-        name: the UDF name registered in Snowflake. If not provided, the name of
-            the UDF will be generated randomly.
+        name: The name to use for the UDF in Snowflake. If not provided, the name of
+            the UDF will be generated automatically.
 
     Returns:
         A UDF function that can be called with Column expressions (:class:`Column` or :class:`str`)
