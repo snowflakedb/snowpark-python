@@ -45,7 +45,7 @@ jobs:
 
   build:
     needs: lint
-    name: Build Snowpark-Python Wheel File
+    name: Build Wheel File
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -73,10 +73,10 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - image_name: windows-latest
-            download_name: windows
-#          - image_name: ubuntu-latest
-#            download_name: linux
+#          - image_name: windows-latest
+#            download_name: windows
+          - image_name: ubuntu-latest
+            download_name: linux
 #          - image_name: macos-latest
 #            download_name: macos
         python-version: [3.6]
@@ -137,7 +137,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: '3.6'
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Upgrade setuptools and pip
