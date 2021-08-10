@@ -3,6 +3,9 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+# Code in this file may constitute partial or total reimplementation, or modification of
+# existing code originally distributed by the Apache Software Foundation as part of the
+# Apache Spark project, under the Apache License, Version 2.0.
 
 # See https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/util/package.scala#L128
 
