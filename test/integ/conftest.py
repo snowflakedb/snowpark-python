@@ -88,6 +88,10 @@ def init_test_schema(request, db_parameters) -> None:
         protocol=ret["protocol"],
     ) as con:
         con.cursor().execute("CREATE SCHEMA IF NOT EXISTS {}".format(TEST_SCHEMA))
+        # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
+        con.cursor().execute(
+            "GRANT ALL PRIVILEGES TO SCHEMA {} TO ROLE PUBLIC".format(TEST_SCHEMA)
+        )
 
     def fin():
         ret1 = db_parameters
