@@ -291,6 +291,10 @@ def to_object(e: Union[Column, str]) -> Column:
     return builtin("to_object")(c)
 
 
+def array_agg(s: Column) -> Column:
+    return builtin("array_agg")(s)
+
+
 def when(condition: Column, value: Column) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.

@@ -20,9 +20,7 @@ def _restore_row_from_pickle(values, named_values, fields):
 
 class Row(tuple):
     """Represents a row in :class:`DataFrame`.
-
     It is immutable and works like a tuple or a named tuple.
-
     >>> row = Row(1, 2)
     >>> row
     Row(1, 2)
@@ -41,9 +39,7 @@ class Row(tuple):
     1
     >>> row == named_row
     True
-
     A `Row` object is callable. You can use it to create other `Row` objects:
-
     >>> Employee = Row("name", "salary")
     >>> emp1 = Employee("John", 10000)
     >>> emp1
@@ -51,7 +47,6 @@ class Row(tuple):
     >>> emp2 = Employee("James", 20000)
     >>> emp2
     Row(name='James', salary=20000)
-
     """
 
     def __new__(cls, *values: Any, **named_values: Any):
@@ -176,10 +171,8 @@ class Row(tuple):
 
     def asDict(self, recursive=False):
         """Convert to a dict if this row object has both keys and values.
-
         Args:
             recursive: Recursively convert child `Row` objects to dicts. Default is False.
-
         >>> row = Row(name1=1, name2=2, name3=Row(childname=3))
         >>> row.asDict()
         {'name1': 1, 'name2': 2, 'name3': Row(childname=3)}
