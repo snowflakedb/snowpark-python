@@ -24,7 +24,7 @@ except ImportError:
 from test.utils import TestFiles, Utils
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark.functions import col, udf
+from snowflake.snowpark.functions import call_udf, col, udf
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
@@ -89,7 +89,7 @@ def test_basic_udf(session_cnx):
         ]
 
 
-def test_named_udf(session_cnx):
+def test_call_named_udf(session_cnx):
     with session_cnx() as session:
         session._run_query("drop function if exists mul(int, int)")
         udf(
@@ -99,6 +99,17 @@ def test_named_udf(session_cnx):
             name="mul",
         )
         assert session.sql("select mul(13, 19)").collect() == [Row(13 * 19)]
+
+        df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+        assert df.select(call_udf("mul", col("a"), col("b"))).collect() == [
+            Row(2),
+            Row(12),
+        ]
+        assert df.select(
+            call_udf(
+                f"{session.getFullyQualifiedCurrentSchema()}.mul", col("a"), col("b")
+            )
+        ).collect() == [Row(2), Row(12)]
 
 
 def test_recursive_udf(session_cnx):
