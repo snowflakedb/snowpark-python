@@ -16,7 +16,7 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
-    ResolvedStar as SPResolvedStar,
+    Star as SPStar,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types.sf_types import (
@@ -689,7 +689,7 @@ def test_df_col(session_cnx):
 
         c = df.col("*")
         assert type(c) == Column
-        assert type(c.expression) == SPResolvedStar
+        assert type(c.expression) == SPStar
 
 
 def test_create_dataframe_with_basic_data_types(session_cnx):

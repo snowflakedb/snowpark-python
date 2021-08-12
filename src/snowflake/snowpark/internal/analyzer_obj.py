@@ -37,9 +37,9 @@ from snowflake.snowpark.internal.sp_expressions import (
     Literal as SPLiteral,
     Not as SPNot,
     RegExp as SPRegExp,
-    ResolvedStar as SPResolvedStar,
     SnowflakeUDF as SPSnowflakeUDF,
     SortOrder as SPSortOrder,
+    Star as SPStar,
     SubfieldInt as SPSubfieldInt,
     SubfieldString as SPSubfieldString,
     UnaryExpression as SPUnaryExpression,
@@ -47,7 +47,6 @@ from snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
-    UnresolvedStar as SPUnresolvedStar,
 )
 from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Aggregate as SPAggregate,
@@ -146,11 +145,11 @@ class Analyzer:
                         self.generated_alias_maps[k] = quoted_name
             return self.package.alias_expression(self.analyze(expr.child), quoted_name)
 
-        if type(expr) == SPResolvedStar:
-            return "*"
-
-        if type(expr) == SPUnresolvedStar:
-            return expr.to_string()
+        if type(expr) == SPStar:
+            if not expr.expressions:
+                return "*"
+            else:
+                return ",".join(list(map(self.analyze, expr.expressions)))
 
         if type(expr) == SPSnowflakeUDF:
             return self.package.function_expression(
