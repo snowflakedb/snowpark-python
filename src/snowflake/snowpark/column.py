@@ -42,13 +42,13 @@ from snowflake.snowpark.internal.sp_expressions import (
     RegExp as SPRegExp,
     Remainder as SPRemainder,
     SortOrder as SPSortOrder,
+    Star as SPStar,
     SubfieldInt as SPSubfieldInt,
     SubfieldString as SPSubfieldString,
     Subtract as SPSubtract,
     UnaryMinus as SPUnaryMinus,
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
-    UnresolvedStar as SPUnresolvedStar,
 )
 from snowflake.snowpark.types.sf_types import DataType
 
@@ -283,10 +283,7 @@ class Column:
     @staticmethod
     def __get_expr(name):
         if name == "*":
-            return SPUnresolvedStar(None)
-        elif name.endswith(".*"):
-            parts = SPUnresolvedAttribute.parse_attribute_name(name[0:-2])
-            return SPUnresolvedStar(parts)
+            return SPStar([])
         else:
             return SPUnresolvedAttribute.quoted(AnalyzerPackage.quote_name(name))
 

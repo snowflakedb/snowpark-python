@@ -44,9 +44,7 @@ def test_count_distinct(session_cnx):
             df.select(count_distinct("abc", "abc"))
         assert "Invalid input to count_distinct()." in str(ex_info)
 
-        with pytest.raises(ProgrammingError) as ex_info:
-            df.select(count_distinct(df["*"])).collect()
-        assert "Unsupported feature 'TOK_STAR'" in str(ex_info)
+        assert df.select(count_distinct(df["*"])).collect() == [Row(2)]
 
 
 def test_builtin_avg_from_range(session_cnx):
