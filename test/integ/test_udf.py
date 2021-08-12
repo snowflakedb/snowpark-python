@@ -106,9 +106,7 @@ def test_call_named_udf(session_cnx):
             Row(12),
         ]
         assert df.select(
-            call_udf(
-                f"{session.getFullyQualifiedCurrentSchema()}.mul", col("a"), col("b")
-            )
+            call_udf(f"{session.getFullyQualifiedCurrentSchema()}.mul", "a", "b")
         ).collect() == [Row(2), Row(12)]
 
 
@@ -393,6 +391,10 @@ def test_udf_negative(session_cnx):
 
         with pytest.raises(ProgrammingError) as ex_info:
             session.sql("select f(1)").collect()
+        assert "Unknown function" in str(ex_info)
+
+        with pytest.raises(ProgrammingError) as ex_info:
+            df1.select(call_udf("f", "x")).collect()
         assert "Unknown function" in str(ex_info)
 
         with pytest.raises(SnowparkClientException) as ex_info:
