@@ -164,7 +164,7 @@ class DataTypeMapper:
         if type(spark_data_type) is SPTimeType:
             if type(value) == time:
                 trimmed_ms = value.strftime("%H:%M:%S.%f")[:-3]
-                return f"TO_TIME('{trimmed_ms}')"
+                return f"TIME('{trimmed_ms}')"
 
         if (
             type(value) in [list, bytes, bytearray]
