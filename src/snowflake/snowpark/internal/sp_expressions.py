@@ -50,7 +50,9 @@ class LeafExpression(Expression):
 
 
 class Star(LeafExpression, NamedExpression):
-    pass
+    def __init__(self, expressions: List[NamedExpression]):
+        super().__init__(name="Star")
+        self.expressions = expressions
 
 
 class UnaryExpression(Expression):
@@ -249,24 +251,6 @@ class Rollup(BaseGroupingSets):
         super().__init__()
         self.grouping_set_indexes = grouping_set_indexes
         self.children = children
-
-
-# Stars
-class UnresolvedStar(Star):
-    # https://github.com/apache/spark/blob/1226b9badd2bc6681e4c533e0dfbc09443a86167/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/unresolved.scala#L352
-    def __init__(self, target):
-        super().__init__("UnresolvedStar")
-        self.target = target
-
-    def to_string(self):
-        prefix = ".".join(self.target) + "." if self.target else ""
-        return prefix + "*"
-
-
-class ResolvedStar(Star):
-    def __init__(self, expressions):
-        super().__init__("ResolvedStar")
-        self.expressions = expressions
 
 
 # Named Expressions

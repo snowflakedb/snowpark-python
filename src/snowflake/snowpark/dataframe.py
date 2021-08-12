@@ -24,8 +24,8 @@ from snowflake.snowpark.internal.sp_expressions import (
     Expression as SPExpression,
     Literal as SPLiteral,
     NamedExpression as SPNamedExpression,
-    ResolvedStar as SPResolvedStar,
     SortOrder as SPSortOrder,
+    Star as SPStar,
 )
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import (
@@ -278,7 +278,7 @@ class DataFrame:
             :class:`Column`
         """
         if col_name == "*":
-            return Column(SPResolvedStar(self.__plan.output()))
+            return Column(SPStar(self.__plan.output()))
         else:
             return Column(self.__resolve(col_name))
 
