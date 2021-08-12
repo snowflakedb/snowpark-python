@@ -3,6 +3,9 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+# Code in this file may constitute partial or total reimplementation, or modification of
+# existing code originally distributed by the Apache Software Foundation as part of the
+# Apache Spark project, under the Apache License, Version 2.0.
 from snowflake.snowpark.internal.analyzer.sp_utils import to_pretty_sql
 from snowflake.snowpark.internal.sp_expressions import AggregateExpression, Expression
 from snowflake.snowpark.types.sp_data_types import DataType, IntegralType

@@ -49,7 +49,7 @@ def before_all(session_cnx):
 
 def test_basic_udf(session_cnx):
     def return1():
-        return 1
+        return "1"
 
     def plus1(x):
         return x + 1
@@ -61,7 +61,7 @@ def test_basic_udf(session_cnx):
         return str(x)
 
     with session_cnx() as session:
-        return1_udf = udf(return1, return_type=IntegerType())
+        return1_udf = udf(return1)
         plus1_udf = udf(plus1, return_type=IntegerType(), input_types=[IntegerType()])
         add_udf = udf(
             add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
@@ -76,7 +76,7 @@ def test_basic_udf(session_cnx):
         )
 
         df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
-        assert df.select(return1_udf()).collect() == [Row(1), Row(1)]
+        assert df.select(return1_udf()).collect() == [Row("1"), Row("1")]
         assert df.select(plus1_udf(col("a")), "a").collect() == [
             Row([2, 1]),
             Row([4, 3]),
@@ -91,13 +91,13 @@ def test_basic_udf(session_cnx):
 
 def test_named_udf(session_cnx):
     with session_cnx() as session:
+        session._run_query("drop function if exists mul(int, int)")
         udf(
             lambda x, y: x * y,
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
             name="mul",
         )
-        # files = session._list_files_in_stage(session.getSessionStage())
         assert session.sql("select mul(13, 19)").collect() == [Row(13 * 19)]
 
 
@@ -207,6 +207,30 @@ def test_decorator_udf(session_cnx):
                 ]
             ),
         ]
+
+
+def test_annotation_syntax_udf(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+        def add_udf(x, y):
+            return x + y
+
+        @udf
+        def snow():
+            return "snow"
+
+        df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+        assert df.select(add_udf("a", "b"), snow()).collect() == [
+            Row([3, "snow"]),
+            Row([7, "snow"]),
+        ]
+
+        # add_udf is a UDF instead of a normal python function,
+        # so it can't be simply called
+        with pytest.raises(TypeError) as ex_info:
+            add_udf(1, 2)
+        assert "input must be Column, str, or list" in str(ex_info)
 
 
 def test_add_imports_local_file(session_cnx, resources_path):
@@ -333,9 +357,23 @@ def test_udf_negative(session_cnx):
         return x
 
     with session_cnx() as session:
+        df1 = session.createDataFrame(["a", "b"]).toDF("x")
+
+        udf0 = udf()
+        with pytest.raises(TypeError) as ex_info:
+            df1.select(udf0("x")).collect()
+        assert "Invalid function: not a function or callable" in str(ex_info)
+
         with pytest.raises(TypeError) as ex_info:
             udf(1, return_type=IntegerType())
         assert "Invalid function: not a function or callable" in str(ex_info)
+
+        # if return_type is specified, it must be passed passed with keyword argument
+        with pytest.raises(TypeError) as ex_info:
+            udf(f, IntegerType())
+        assert "udf() takes from 0 to 1 positional arguments but 2 were given" in str(
+            ex_info
+        )
 
         udf1 = udf(f, return_type=IntegerType(), input_types=[IntegerType()])
         with pytest.raises(ValueError) as ex_info:
@@ -356,7 +394,6 @@ def test_udf_negative(session_cnx):
         assert "The object name 'invalid name' is invalid" in str(ex_info)
 
         # incorrect data type
-        df1 = session.createDataFrame(["a", "b"]).toDF("x")
         udf2 = udf(
             lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
         )
@@ -367,6 +404,14 @@ def test_udf_negative(session_cnx):
         with pytest.raises(ProgrammingError) as ex_info:
             df2.select(udf2("x")).collect()
         assert "Python Interpreter Error" in str(ex_info)
+
+        with pytest.raises(TypeError) as ex_info:
+
+            @udf(IntegerType())
+            def g(x):
+                return x
+
+        assert "Invalid function: not a function or callable" in str(ex_info)
 
 
 # TODO: add more after solving relative imports

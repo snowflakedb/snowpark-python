@@ -30,7 +30,7 @@ python3.6 -m pip install -U setuptools pip virtualenv
 python3.6 -m virtualenv venv
 source venv/bin/activate
 ```
-Note that you should activate your virtualenv after rebooting your machine and before before
+Note that you should activate your virtualenv after rebooting your machine and before
 developing Python Snowpark every time.
 
 

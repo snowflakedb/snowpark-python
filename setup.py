@@ -60,6 +60,8 @@ setup(
         "pandas": "snowflake-connector-python[pandas]>=2.5.0",
         "development": [
             "pytest",
+            "pytest-cov",
+            "coverage",
         ],
     },
     classifiers=[
