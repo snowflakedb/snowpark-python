@@ -5,7 +5,7 @@
 #
 import binascii
 import math
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 from snowflake.snowpark.types.sf_types import (
@@ -39,6 +39,7 @@ from snowflake.snowpark.types.sp_data_types import (
     StringType as SPStringType,
     StructType as SPStructType,
     TimestampType as SPTimestampType,
+    TimeType as SPTimeType,
 )
 from snowflake.snowpark.types.types_package import convert_to_sf_type
 
@@ -140,18 +141,30 @@ class DataTypeMapper:
             package = AnalyzerPackage()
             return f"{value} :: {package.number(spark_data_type.precision, spark_data_type.scale)}"
 
-        if type(spark_data_type) is SPDateType and type(value) is int:
-            # add value as number of days to 1970-01-01
-            target_date = date(1970, 1, 1) + timedelta(days=value)
-            return f"DATE '{target_date.isoformat()}'"
+        if type(spark_data_type) is SPDateType:
+            if type(value) is int:
+                # add value as number of days to 1970-01-01
+                target_date = date(1970, 1, 1) + timedelta(days=value)
+                return f"DATE '{target_date.isoformat()}'"
+            elif type(value) is date:
+                return f"DATE '{value.isoformat()}'"
 
-        if type(spark_data_type) is SPTimestampType and type(value) is int:
-            # add value as microseconds to 1970-01-01 00:00:00.00.
-            target_time = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
-                microseconds=value
-            )
-            trimmed_ms = target_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            return f"TIMESTAMP '{trimmed_ms}'"
+        if type(spark_data_type) is SPTimestampType:
+            if type(value) is int:
+                # add value as microseconds to 1970-01-01 00:00:00.00.
+                target_time = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
+                    microseconds=value
+                )
+                trimmed_ms = target_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                return f"TIMESTAMP '{trimmed_ms}'"
+            elif type(value) is datetime:
+                trimmed_ms = value.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                return f"TIMESTAMP '{trimmed_ms}'"
+
+        if type(spark_data_type) is SPTimeType:
+            if type(value) == time:
+                trimmed_ms = value.strftime("%H:%M:%S.%f")[:-3]
+                return f"TIME('{trimmed_ms}')"
 
         if (
             type(value) in [list, bytes, bytearray]

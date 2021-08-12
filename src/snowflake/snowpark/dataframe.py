@@ -258,7 +258,6 @@ class DataFrame:
             raise TypeError(f"unexpected item type: {type(item)}")
 
     def __getattr__(self, name):
-        # TODO revisit, do we want to uppercase the name, or should the user do that?
         if AnalyzerPackage.quote_name(name) not in self.columns:
             raise AttributeError(
                 f"{self.__class__.__name__} object has no attribute {name}"
