@@ -48,31 +48,31 @@ def test_datatype_names():
     assert DoubleType().type_name == "Double"
     assert DecimalType(1, 2).type_name == "Decimal(1,2)"
 
-    assert DataType().to_string() == "Data"
-    assert MapType(BinaryType(), FloatType()).to_string() == "MapType[Binary,Float]"
-    assert VariantType().to_string() == "Variant"
-    assert BinaryType().to_string() == "Binary"
-    assert BooleanType().to_string() == "Boolean"
-    assert DateType().to_string() == "Date"
-    assert StringType().to_string() == "String"
-    assert NumericType().to_string() == "Numeric"
-    assert IntegralType().to_string() == "Integral"
-    assert NumericType().to_string() == "Numeric"
-    assert TimeType().to_string() == "Time"
-    assert ByteType().to_string() == "Byte"
-    assert ShortType().to_string() == "Short"
-    assert IntegerType().to_string() == "Integer"
-    assert LongType().to_string() == "Long"
-    assert FloatType().to_string() == "Float"
-    assert DoubleType().to_string() == "Double"
-    assert DecimalType(1, 2).to_string() == "Decimal(1,2)"
+    assert DataType().to_string == "Data"
+    assert MapType(BinaryType(), FloatType()).to_string == "MapType[Binary,Float]"
+    assert VariantType().to_string == "Variant"
+    assert BinaryType().to_string == "Binary"
+    assert BooleanType().to_string == "Boolean"
+    assert DateType().to_string == "Date"
+    assert StringType().to_string == "String"
+    assert NumericType().to_string == "Numeric"
+    assert IntegralType().to_string == "Integral"
+    assert NumericType().to_string == "Numeric"
+    assert TimeType().to_string == "Time"
+    assert ByteType().to_string == "Byte"
+    assert ShortType().to_string == "Short"
+    assert IntegerType().to_string == "Integer"
+    assert LongType().to_string == "Long"
+    assert FloatType().to_string == "Float"
+    assert DoubleType().to_string == "Double"
+    assert DecimalType(1, 2).to_string == "Decimal(1,2)"
 
 
 def test_struct_field_name():
     column_identifier = ColumnIdentifier("identifier")
     assert StructField(column_identifier, IntegerType(), False).name == "identifier"
     assert (
-        StructField(column_identifier, IntegerType(), False).to_string()
+        StructField(column_identifier, IntegerType(), False).to_string
         == "StructField(identifier, Integer, Nullable=False)"
     )
 

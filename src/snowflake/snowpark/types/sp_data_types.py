@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+from typing import List
 
 
 class AbstractDataType:
@@ -35,14 +36,17 @@ class AtomicType(DataType):
 
 
 class ArrayType(DataType):
-    def __init__(self, element_type: DataType, contains_null: bool):
+    def __init__(self, element_type: DataType, contains_null: bool = False):
         self.element_type = element_type
         self.contains_null = contains_null
 
 
 class MapType(DataType):
     def __init__(
-        self, key_type: DataType, value_type: DataType, value_contains_null: bool
+        self,
+        key_type: DataType,
+        value_type: DataType,
+        value_contains_null: bool = False,
     ):
         self.key_type = key_type
         self.value_type = value_type
@@ -55,17 +59,40 @@ class NullType(DataType):
 
 # TODO might require more work
 class StructType(DataType):
-    def __init__(self, fields: list):
+    def __init__(self, fields: List["StructField"]):
         self.fields = fields
+
+    @property
+    def to_string(self):
+        return f"StructType[{', '.join(f.to_string for f in self.fields)}]"
+
+    @property
+    def names(self):
+        return [f.name for f in self.fields]
 
 
 # TODO might require more work
 class StructField:
-    def __init__(self, name: str, datatype: DataType, nullable: bool, metadata=None):
+    def __init__(
+        self, name: str, datatype: DataType, nullable: bool = True, metadata=None
+    ):
         self.name = name
         self.datatype = datatype
         self.nullable = nullable
         self.metadata = metadata
+
+    def __eq__(self, obj):
+        return (
+            isinstance(obj, StructField)
+            and obj.name == self.name
+            and type(obj.datatype) == type(self.datatype)
+            and obj.nullable == self.nullable
+            and obj.metadata == self.metadata
+        )
+
+    @property
+    def to_string(self):
+        return f"StructField({self.name}, {self.datatype.to_string}, Nullable={self.nullable})"
 
 
 class VariantType(DataType):
@@ -177,3 +204,13 @@ class DecimalType(FractionalType):
     def __init__(self, precision, scale):
         self.precision = precision
         self.scale = scale
+
+    @property
+    def type_name(self):
+        """Returns a data type name."""
+        return self.to_string
+
+    @property
+    def to_string(self):
+        """Returns Decimal Info. Decimal(precision, scale)"""
+        return f"Decimal({self.precision},{self.scale})"
