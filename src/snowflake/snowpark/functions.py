@@ -265,14 +265,14 @@ def call_udf(
     """Calls a user-defined function (UDF) by name.
 
     Args:
-        udf_name: The name of UDF in Snowflake
+        udf_name: The name of UDF in Snowflake.
         cols: Columns that the UDF will be applied to, as :class:`str`, :class:`Column`
             or a list of those.
 
     Returns:
-        :class:`Column`
+        :class:`Column`.
 
-    Examples::
+    Example::
 
         df.select(call_udf("add", col("a"), col("b")))
     """
@@ -292,19 +292,19 @@ def call_udf(
 
 
 def call_builtin(function_name: str, *args: Any) -> Column:
-    """Invokes a built-in snowflake function with the specified name and arguments.
+    """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
+    and arguments.
 
     Args:
         function_name: The name of built-in function in Snowflake
         args: Arguments can be two types:
-            a. :obj:`Column`, or
-            b. Basic Python types such as int, float, str etc., which are converted to
-            Snowpark literals.
+            a. :class:`Column`, or
+            b. Basic Python types such as int, float, str, which are converted to Snowpark literals.
 
     Returns:
-        :class:`Column`
+        :class:`Column`.
 
-    Examples::
+    Example::
 
         df.select(call_builtin("avg", col("a")))
     """
@@ -325,14 +325,14 @@ def call_builtin(function_name: str, *args: Any) -> Column:
 
 def builtin(function_name: str) -> Callable:
     """
-    Function object to invoke a Snowflake builtin. Use this to invoke
-    any builtins not explicitly listed in this object.
+    Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
+    any built-in functions not explicitly listed in this object.
 
     Args:
-        function_name: The name of built-in function in Snowflake
+        function_name: The name of built-in function in Snowflake.
 
     Returns:
-        :class:`Column`
+        A :class:`Callable` object for calling a Snowflake system-defined function.
 
     Example::
 
