@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import functools
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.internal.sp_expressions import (
@@ -20,10 +20,10 @@ from snowflake.snowpark.internal.sp_expressions import (
     Sum as SPSum,
     UnresolvedFunction as SPUnresolvedFunction,
 )
+from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import DataType, StringType
 from snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType
-from snowflake.snowpark.udf import UserDefinedFunction
 
 
 def col(col_name: str) -> Column:
@@ -258,18 +258,59 @@ def __with_aggregate_function(
     return Column(func.to_aggregate_expression(is_distinct))
 
 
-def call_builtin(function_name: str, *args):
-    """Invokes a built-in snowflake function with the specified name and arguments.
+def call_udf(
+    udf_name: str,
+    *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+) -> Column:
+    """Calls a user-defined function (UDF) by name.
 
-    Arguments can be of two types:
+    Args:
+        udf_name: The name of UDF in Snowflake.
+        cols: Columns that the UDF will be applied to, as :class:`str`, :class:`Column`
+            or a list of those.
 
-        a. :obj:`Column`, or
-        b. Basic types such as Int, Long, Double, Decimal etc. which are converted to Snowpark literals.
+    Returns:
+        :class:`Column`.
 
+    Example::
+
+        df.select(call_udf("add", col("a"), col("b")))
+    """
+
+    Utils.validate_object_name(udf_name)
+    exprs = Utils.parse_positional_args_to_list(*cols)
+    return Column(
+        SPUnresolvedFunction(
+            udf_name,
+            [
+                e.expression if type(e) == Column else Column(e).expression
+                for e in exprs
+            ],
+            is_distinct=False,
+        )
+    )
+
+
+def call_builtin(function_name: str, *args: Any) -> Column:
+    """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
+    and arguments.
+
+    Args:
+        function_name: The name of built-in function in Snowflake
+        args: Arguments can be two types:
+            a. :class:`Column`, or
+            b. Basic Python types such as int, float, str, which are converted to Snowpark literals.
+
+    Returns:
+        :class:`Column`.
+
+    Example::
+
+        df.select(call_builtin("avg", col("a")))
     """
 
     sp_expressions = []
-    for arg in args:
+    for arg in Utils.parse_positional_args_to_list(*args):
         if type(arg) == Column:
             sp_expressions.append(arg.expression)
         elif isinstance(arg, SPExpression):
@@ -282,20 +323,20 @@ def call_builtin(function_name: str, *args):
     )
 
 
-def builtin(function_name: str):
+def builtin(function_name: str) -> Callable:
     """
-    Function object to invoke a Snowflake builtin. Use this to invoke
-    any builtins not explicitly listed in this object.
+    Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
+    any built-in functions not explicitly listed in this object.
+
+    Args:
+        function_name: The name of built-in function in Snowflake.
+
+    Returns:
+        A :class:`Callable` object for calling a Snowflake system-defined function.
 
     Example::
 
         avg = functions.builtin('avg')
         df.select(avg(col("col_1")))
-
-    Args:
-        function_name: Name of built-in Snowflake function
-
-    Returns:
-        :obj:`Column`
     """
     return lambda *args: call_builtin(function_name, *args)
