@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import hashlib
 import io
 import os
 import platform
@@ -58,7 +59,7 @@ class Utils:
     @staticmethod
     def get_udf_upload_prefix(udf_name: str) -> str:
         """Get the valid stage prefix when uploading a UDF."""
-        if re.match("[\\w]+", udf_name):
+        if re.match("[\\w]+$", udf_name):
             return udf_name
         else:
             return "{}_{}".format(re.sub("\\W", "", udf_name), abs(hash(udf_name)))
@@ -94,3 +95,38 @@ class Utils:
             return [*inputs[0]] if isinstance(inputs[0], (list, tuple)) else [inputs[0]]
         else:
             return [*inputs]
+
+    @staticmethod
+    def calculate_md5(path: str, part_size: int = 8192) -> str:
+        """
+        Calculate the checksum (md5) of a file or a directory.
+        If the input path points to a file, we read a small chunk from the file
+        and calculate the checksum based on it.
+        If the input path points to a directory, the names of all files and
+        subdirectories in this directory will also be included for checksum
+        computation.
+        """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{path} is not found")
+
+        hash_md5 = hashlib.md5()
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                hash_md5.update(f.read(part_size))
+        elif os.path.isdir(path):
+            current_size = 0
+            for dirname, _, files in os.walk(path):
+                hash_md5.update(os.path.basename(dirname).encode("utf8"))
+                for file in files:
+                    hash_md5.update(file.encode("utf8"))
+                    if current_size < part_size:
+                        filename = os.path.join(dirname, file)
+                        file_size = os.path.getsize(filename)
+                        read_size = min(file_size, part_size - current_size)
+                        current_size += read_size
+                        with open(filename, "rb") as f:
+                            hash_md5.update(f.read(read_size))
+        else:
+            raise ValueError("md5 can only be calculated for a file or directory")
+
+        return hash_md5.hexdigest()
