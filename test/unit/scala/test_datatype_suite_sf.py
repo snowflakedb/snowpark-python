@@ -2,7 +2,28 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from snowflake.snowpark.types.sf_types import *
+from snowflake.snowpark.types.sf_types import (
+    AtomicType,
+    BinaryType,
+    BooleanType,
+    ByteType,
+    DataType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FloatType,
+    FractionalType,
+    IntegerType,
+    IntegralType,
+    LongType,
+    NumericType,
+    ShortType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+    TimeType,
+)
 
 
 def test_integral_type():
@@ -11,7 +32,7 @@ def test_integral_type():
         assert isinstance(tpe, NumericType)
         assert isinstance(tpe, AtomicType)
         assert isinstance(tpe, DataType)
-        assert tpe.type_name == tpe.to_string
+        assert tpe.type_name == str(tpe)
         assert tpe.type_name == tpe.__class__.__name__.replace("Type", "")
 
     for tpe in [ByteType(), ShortType(), IntegerType(), LongType()]:
@@ -24,7 +45,7 @@ def test_fractional_type():
         assert isinstance(tpe, NumericType)
         assert isinstance(tpe, AtomicType)
         assert isinstance(tpe, DataType)
-        assert tpe.type_name == tpe.to_string
+        assert tpe.type_name == str(tpe)
         assert tpe.type_name == tpe.__class__.__name__.replace("Type", "")
 
     for tpe in [FloatType(), DoubleType()]:
@@ -37,7 +58,7 @@ def test_decimal_type():
     assert isinstance(tpe, NumericType)
     assert isinstance(tpe, AtomicType)
     assert isinstance(tpe, DataType)
-    assert tpe.type_name == tpe.to_string
+    assert tpe.type_name == str(tpe)
     assert tpe.type_name == "Decimal(38,19)"
 
 
@@ -45,7 +66,7 @@ def test_string_type():
     tpe = StringType()
     assert isinstance(tpe, AtomicType)
     assert isinstance(tpe, DataType)
-    assert tpe.type_name == tpe.to_string
+    assert tpe.type_name == str(tpe)
     assert tpe.type_name == "String"
 
 
@@ -53,7 +74,7 @@ def test_boolean_type():
     tpe = BooleanType()
     assert isinstance(tpe, AtomicType)
     assert isinstance(tpe, DataType)
-    assert tpe.type_name == tpe.to_string
+    assert tpe.type_name == str(tpe)
     assert tpe.type_name == "Boolean"
 
 
@@ -61,7 +82,7 @@ def test_datetype_type():
     tpe = DateType()
     assert isinstance(tpe, AtomicType)
     assert isinstance(tpe, DataType)
-    assert tpe.type_name == tpe.to_string
+    assert tpe.type_name == str(tpe)
     assert tpe.type_name == "Date"
 
 
@@ -69,7 +90,7 @@ def test_binary_type():
     tpe = BinaryType()
     assert isinstance(tpe, AtomicType)
     assert isinstance(tpe, DataType)
-    assert tpe.type_name == tpe.to_string
+    assert tpe.type_name == str(tpe)
     assert tpe.type_name == "Binary"
 
 
@@ -77,7 +98,7 @@ def test_timestamp_type():
     tpe = TimestampType()
     assert isinstance(tpe, AtomicType)
     assert isinstance(tpe, DataType)
-    assert tpe.type_name == tpe.to_string
+    assert tpe.type_name == str(tpe)
     assert tpe.type_name == "Timestamp"
 
 
@@ -85,7 +106,7 @@ def test_timestamp_type():
 def test_time_type():
     tpe = TimeType()
     assert isinstance(tpe, DataType)
-    assert tpe.type_name == tpe.to_string
+    assert tpe.type_name == str(tpe)
     assert tpe.type_name == "Time"
 
 
@@ -100,7 +121,7 @@ def test_structtype():
     assert len(tpe.fields) == 2
     assert tpe.type_name == "Struct"
     assert (
-        tpe.to_string
+        str(tpe)
         == "StructType[StructField(col1, Integer, Nullable=True), StructField(col2, String, Nullable=False)]"
     )
 

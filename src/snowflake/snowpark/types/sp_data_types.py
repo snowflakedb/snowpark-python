@@ -16,9 +16,7 @@ class DataType(AbstractDataType):
         """Returns a data type name."""
         return self.__class__.__name__[:-4]
 
-    @property
-    def to_string(self):
-        """Returns a data type name.  Alias of :obj:`type_name`"""
+    def __repr__(self):
         return self.type_name
 
     @property
@@ -62,9 +60,8 @@ class StructType(DataType):
     def __init__(self, fields: List["StructField"]):
         self.fields = fields
 
-    @property
-    def to_string(self):
-        return f"StructType[{', '.join(f.to_string for f in self.fields)}]"
+    def __repr__(self):
+        return f"StructType[{', '.join(str(f) for f in self.fields)}]"
 
     @property
     def names(self):
@@ -90,9 +87,10 @@ class StructField:
             and obj.metadata == self.metadata
         )
 
-    @property
-    def to_string(self):
-        return f"StructField({self.name}, {self.datatype.to_string}, Nullable={self.nullable})"
+    def __repr__(self):
+        return (
+            f"StructField({self.name}, {str(self.datatype)}, Nullable={self.nullable})"
+        )
 
 
 class VariantType(DataType):
@@ -115,11 +113,10 @@ class GeographyType(DataType):
 
     @property
     def type_name(self) -> str:
-        return f"GeographyType[${self.element_type.to_string}]"
+        """Returns a data type name."""
+        return f"GeographyType[${str(self.element_type)}]"
 
-    @property
-    def to_string(self) -> str:
-        """Returns a data type name. Alias of :obj:`toString`type_name`"""
+    def __repr__(self):
         return self.type_name
 
     @property
@@ -208,9 +205,7 @@ class DecimalType(FractionalType):
     @property
     def type_name(self):
         """Returns a data type name."""
-        return self.to_string
+        return self.__repr__()
 
-    @property
-    def to_string(self):
-        """Returns Decimal Info. Decimal(precision, scale)"""
+    def __repr__(self):
         return f"Decimal({self.precision},{self.scale})"

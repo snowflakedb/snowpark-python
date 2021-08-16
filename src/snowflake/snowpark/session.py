@@ -21,7 +21,6 @@ from snowflake.snowpark.functions import (
     column,
     parse_json,
     to_array,
-    to_binary,
     to_date,
     to_decimal,
     to_object,
@@ -456,8 +455,6 @@ class Session(metaclass=_SessionMeta):
                 project_columns.append(to_time(column(field.name)).as_(field.name))
             elif type(field.datatype) == DateType:
                 project_columns.append(to_date(column(field.name)).as_(field.name))
-            elif type(field.datatype) == BinaryType:
-                project_columns.append(to_binary(column(field.name)).as_(field.name))
             elif type(field.datatype) == VariantType:
                 project_columns.append(
                     to_variant(parse_json(column(field.name))).as_(field.name)

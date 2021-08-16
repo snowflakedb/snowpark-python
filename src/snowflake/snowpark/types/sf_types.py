@@ -20,11 +20,6 @@ class DataType:
         # Strip the suffix 'type'
         return self.__class__.__name__[:-4]
 
-    @property
-    def to_string(self) -> str:
-        """Returns a data type name. Alias of :obj:`type_name`"""
-        return self.type_name
-
     def __repr__(self) -> str:
         return self.type_name
 
@@ -54,16 +49,12 @@ class MapType(DataType):
         self.key_type = key_type
         self.value_type = value_type
 
-    @property
-    def to_string(self):
-        return f"MapType[{self.key_type.to_string},{self.value_type.to_string}]"
+    def __repr__(self):
+        return f"MapType[{str(self.key_type)},{str(self.value_type)}]"
 
     @property
     def type_name(self):
-        return self.to_string
-
-    def __repr__(self):
-        return self.to_string
+        return self.__repr__()
 
 
 class VariantType(DataType):
@@ -160,35 +151,27 @@ class DecimalType(FractionalType):
         self.precision = precision
         self.scale = scale
 
-    @property
-    def to_string(self):
+    def __repr__(self):
         """Returns Decimal Info. Decimal(precision, scale)"""
         return f"Decimal({self.precision},{self.scale})"
 
     @property
     def type_name(self):
-        """Returns Decimal Info. Decimal(precision, scale). Alias of :obj:`toString`"""
-        return self.to_string
-
-    def __repr__(self):
-        return self.to_string
+        """Returns Decimal Info. Decimal(precision, scale)."""
+        return self.__repr__()
 
 
 class ArrayType(DataType):
     def __init__(self, element_type: DataType):
         self.element_type = element_type
 
-    @property
-    def to_string(self):
-        return f"ArrayType[{self.element_type.to_string}]"
+    def __repr__(self):
+        return f"ArrayType[{str(self.element_type)}]"
 
     @property
     def type_name(self):
-        """Returns Array Info. ArrayType(DataType). Alias of :obj:`toString`"""
-        return self.to_string
-
-    def __repr__(self):
-        return self.to_string
+        """Returns Array Info. ArrayType(DataType)."""
+        return self.__repr__()
 
 
 # TODO complete
@@ -243,19 +226,11 @@ class StructField:
     def name(self):
         return self.column_identifier.name()
 
-    @property
-    def to_string(self):
-        return f"StructField({self.name}, {self.datatype.type_name}, Nullable={self.nullable})"
-
     def __repr__(self):
-        return self.to_string
+        return f"StructField({self.name}, {self.datatype.type_name}, Nullable={self.nullable})"
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
-
-    # TODO
-    def tree_string(self, layer: int):
-        raise Exception("Not Implemented tree_string()")
 
 
 class StructType(DataType):
@@ -274,9 +249,8 @@ class StructType(DataType):
             for f in self.fields
         ]
 
-    @property
-    def to_string(self):
-        return f"StructType[{', '.join(f.to_string for f in self.fields)}]"
+    def __repr__(self):
+        return f"StructType[{', '.join(str(f) for f in self.fields)}]"
 
     @property
     def names(self):
@@ -284,18 +258,14 @@ class StructType(DataType):
 
 
 class GeographyType(AtomicType):
-    @property
-    def to_string(self):
+    def __repr__(self):
         """Returns GeographyType Info. Decimal(precision, scale)"""
         return "GeographyType"
 
     @property
     def type_name(self):
-        """Returns GeographyType Info. GeographyType. Alias of :obj:`toString`"""
-        return self.to_string
-
-    def __repr__(self):
-        return self.to_string
+        """Returns GeographyType Info. GeographyType."""
+        return self.__repr__()
 
 
 def _convert_variant(target):
