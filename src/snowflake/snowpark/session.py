@@ -47,7 +47,6 @@ from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     AtomicType,
-    BinaryType,
     DateType,
     DecimalType,
     Geography,
