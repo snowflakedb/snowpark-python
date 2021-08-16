@@ -14,7 +14,7 @@ class DataType(AbstractDataType):
     @property
     def type_name(self):
         """Returns a data type name."""
-        self.__repr__()
+        return self.__repr__()
 
     def __repr__(self):
         return self.__class__.__name__[:-4]
@@ -62,6 +62,10 @@ class StructType(DataType):
 
     def __repr__(self):
         return f"StructType[{', '.join(str(f) for f in self.fields)}]"
+
+    @property
+    def type_name(self) -> str:
+        return self.__class__.__name__[:-4]
 
     @property
     def names(self):
