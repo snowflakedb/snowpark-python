@@ -5,7 +5,28 @@
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
-from snowflake.snowpark.types.sf_types import *
+from snowflake.snowpark.types.sf_types import (
+    ArrayType,
+    BinaryType,
+    BooleanType,
+    ByteType,
+    DataType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FloatType,
+    GeographyType,
+    IntegerType,
+    LongType,
+    MapType,
+    ShortType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+    TimeType,
+    VariantType,
+)
 
 
 def test_verify_datatypes_reference(session_cnx):
