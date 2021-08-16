@@ -63,6 +63,9 @@ class DataTypeMapper:
         ]:
             if value is None:
                 return "NULL"
+        if type(spark_data_type) is SPBinaryType:
+            if value is None:
+                return "NULL :: binary"
         if type(spark_data_type) is SPIntegerType:
             if value is None:
                 return "NULL :: int"

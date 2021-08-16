@@ -14,6 +14,7 @@ from snowflake.snowpark.functions import (
     col,
     count_distinct,
     parse_json,
+    to_binary,
 )
 from snowflake.snowpark.row import Row
 
@@ -138,3 +139,20 @@ def test_parse_json(session_cnx):
             Row('{\n  "a": "foo"\n}'),
             Row(None),
         ]
+
+
+def test_to_binary(session_cnx):
+    with session_cnx() as session:
+        res = (
+            TestData.test_data1(session)
+            .toDF("a", "b", "c")
+            .select(to_binary(col("c"), "utf-8"))
+            .collect()
+        )
+        assert res == [Row(bytearray(b"a")), Row(bytearray(b"b"))]
+
+        # For NULL input, the output is NULL
+        res = (
+            TestData.all_nulls(session).toDF("a").select(to_binary(col("a"))).collect()
+        )
+        assert res == [Row(None), Row(None), Row(None), Row(None)]

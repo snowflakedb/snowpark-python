@@ -167,6 +167,12 @@ def to_timestamp(s: Column, fmt: Optional["Column"] = None) -> Column:
     return builtin("to_timestamp")(s, fmt) if fmt else builtin("to_timestamp")(s)
 
 
+def to_binary(s: Column, fmt: Optional[str] = None) -> Column:
+    """Converts the input expression to a binary value. For NULL input, the output is
+    NULL"""
+    return builtin("to_binary")(s, fmt) if fmt else builtin("to_binary")(s)
+
+
 def to_date(s: Column, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into a date."""
     return builtin("to_date")(s, fmt) if fmt else builtin("to_date")(s)

@@ -101,9 +101,8 @@ def test_date(session_cnx):
 
         field_str = str(df.schema.fields)
         assert (
-            field_str
-            == "[StructField(ID, Long, Nullable=False), "
-               "StructField(DATE, Date, Nullable=False)]"
+            field_str == "[StructField(ID, Long, Nullable=False), "
+            "StructField(DATE, Date, Nullable=False)]"
         )
 
         show_str = df._DataFrame__show_string(10)
