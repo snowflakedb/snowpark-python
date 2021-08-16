@@ -87,8 +87,8 @@ class Session(metaclass=_SessionMeta):
     def __init__(self, conn: ServerConnection):
         self.conn = conn
         self.__query_tag = None
-        self.__import_paths = set()
-        self.__requirements = {}
+        self.__import_paths = {}
+        self.__cloudpickle_path = (os.path.dirname(cloudpickle.__file__), "cloudpickle")
         self.__session_id = self.conn.get_session_id()
         self._session_info = f"""
 "version" : {Utils.get_version()},
@@ -136,7 +136,7 @@ class Session(metaclass=_SessionMeta):
         """
         Returns all imports added for user defined functions.
         """
-        return list(self.__import_paths)
+        return list(self.__import_paths.keys())
 
     def _get_local_imports(self) -> List[str]:
         return [
@@ -152,40 +152,61 @@ class Session(metaclass=_SessionMeta):
         (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
         a directory, or any other file resource.
 
-        :param paths
-        1. If you pass the path to a local file, this file will be uploaded to a temporary
-        stage and Snowflake will import the file when executing a UDF.
-        2. If you pass the path to a local directory, the directory will be compressed as
-        a zip file and will be uploaded to a temporary stage and Snowflake will import
-        the zip file when executing a UDF.
-        3. If you pass the path to a file in a stage, the file is included in the imports
-        when executing a UDF.
+        Args:
+            paths: a list paths pointing to local files or remote files in the stage
+            1. If the path points to a local file, this file will be uploaded to a temporary
+            stage and Snowflake will import the file when executing a UDF.
+            2. If the path points to a local directory, the directory will be compressed as
+            a zip file and will be uploaded to a temporary stage and Snowflake will import
+            the zip file when executing a UDF.
+            3. If the path points to a file in a stage, the file is included in the imports
+            when executing a UDF.
 
-        Note that before uploading the local file to the stage, Snowpark library will
-        first check the existence of this file in the stage. If it already exists there,
-        we will skip uploading and not overwrite that file.
+        Examples::
+
+            session.addImports(“/tmp/dir1/test.py”)
+            session.addImports(“/tmp/dir1”)
+            session.addImports(“@stage/test.py”)
+
+        Note:
+            1. In favor of the lazy execution, the file will not be uploaded to the stage
+            immediately, and it will be uploaded when a UDF is created instead.
+            2. Snowpark library calculates a checksum for every file/directory.
+            If there is a file or directory existing in the stage, Snowpark library will
+            compare their checksums to determine whether it should be overwritten.
+            Therefore, after uploading a local file to the stage, if the user makes
+            some changes on this file and intends to upload it again, just call this
+            function with the file path again, the existing file in the stage will be
+            overwritten.
         """
         trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
         for path in trimmed_paths:
             if not path.startswith(self.__STAGE_PREFIX):
                 if not os.path.exists(path):
-                    raise FileNotFoundError("{} is not found".format(path))
+                    raise FileNotFoundError(f"{path} is not found")
                 if not os.path.isfile(path) and not os.path.isdir(path):
                     raise ValueError(
-                        "addImports() only accepts a local file or directory,"
-                        " or a file in a stage, but got {}".format(path)
+                        f"addImports() only accepts a local file or directory,"
+                        f" or a file in a stage, but got {path}"
                     )
                 abs_path = os.path.abspath(path)
+                self.__import_paths[abs_path] = Utils.calculate_md5(abs_path)
             else:
                 abs_path = path
-            if abs_path in self.__import_paths:
-                logger.info(f"{abs_path} already exists in imported path")
-            else:
-                self.__import_paths.add(abs_path)
+                self.__import_paths[abs_path] = None
 
     def removeImports(self, *paths: Union[str, List[str]]):
         """
         Removes file(s) in stage or local file(s) from imports of a user-defined function (UDF).
+
+        Args:
+            paths: a list paths pointing to local files or remote files in the stage
+
+        Examples::
+
+            session.removeImports(“/tmp/dir1/test.py”)
+            session.removeImports(“/tmp/dir1”)
+            session.removeImports(“@stage/test.py”)
         """
         trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
         for path in trimmed_paths:
@@ -195,13 +216,17 @@ class Session(metaclass=_SessionMeta):
                 else path
             )
             if abs_path not in self.__import_paths:
-                raise ValueError(f"{abs_path} is not found in the existing imports")
+                raise KeyError(f"{abs_path} is not found in the existing imports")
             else:
-                self.__import_paths.remove(abs_path)
+                self.__import_paths.pop(abs_path)
 
     def clearImports(self):
         """
         Clears file(s) in stage or local file(s) from imports of a user-defined function (UDF).
+
+        Example::
+
+            session.clearImports()
         """
         self.__import_paths.clear()
 
@@ -210,9 +235,13 @@ class Session(metaclass=_SessionMeta):
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(stage_location)
         normalized_stage_location = Utils.normalize_stage_location(stage_location)
+
         # always import cloudpickle
-        import_paths = [*self.__import_paths, os.path.dirname(cloudpickle.__file__)]
-        for path in import_paths:
+        import_paths = {
+            **self.__import_paths,
+            self.__cloudpickle_path[0]: self.__cloudpickle_path[1],
+        }
+        for path, prefix in import_paths.items():
             # stage file
             if path.startswith(self.__STAGE_PREFIX):
                 resolved_stage_files.append(path)
@@ -223,7 +252,10 @@ class Session(metaclass=_SessionMeta):
                     if os.path.isdir(path) or path.endswith(".py")
                     else os.path.basename(path)
                 )
-                if filename in stage_file_list:
+                filename_with_prefix = f"{prefix}/{filename}"
+                if any(
+                    filename_with_prefix in stage_file for stage_file in stage_file_list
+                ):
                     logger.info(
                         f"{filename} exists on {normalized_stage_location}, skipped"
                     )
@@ -237,6 +269,7 @@ class Session(metaclass=_SessionMeta):
                             input_stream=input_stream,
                             stage_location=normalized_stage_location,
                             dest_filename=filename,
+                            dest_prefix=prefix,
                             compress_data=False,
                             overwrite=True,
                         )
@@ -245,20 +278,24 @@ class Session(metaclass=_SessionMeta):
                         self.conn.upload_file(
                             path=path,
                             stage_location=normalized_stage_location,
+                            dest_prefix=prefix,
                             compress_data=False,
                             overwrite=True,
                         )
-                resolved_stage_files.append(f"{normalized_stage_location}/{filename}")
+                resolved_stage_files.append(
+                    f"{normalized_stage_location}/{filename_with_prefix}"
+                )
 
         return resolved_stage_files
 
-    # TODO: get prefix length of stage
     def _list_files_in_stage(self, stage_location: Optional[str] = None) -> List[str]:
         normalized = Utils.normalize_stage_location(
             stage_location if stage_location else self.__session_stage
         )
+
+        # TODO: get the prefix length of normalized stage string
         return [
-            row.get_string(0).split("/")[-1]
+            row.get_string(0)
             for row in self.sql(f"ls {normalized}").select('"name"').collect()
         ]
 

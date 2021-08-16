@@ -347,7 +347,7 @@ def test_add_imports_package(session_cnx):
         session.clearImports()
 
 
-def test_add_imports_duplicate(session_cnx, resources_path):
+def test_add_imports_duplicate(session_cnx, resources_path, caplog):
     test_files = TestFiles(resources_path)
     abs_path = test_files.test_udf_directory
     rel_path = os.path.relpath(abs_path)
@@ -356,6 +356,16 @@ def test_add_imports_duplicate(session_cnx, resources_path):
         session.addImports(f"{abs_path}/")
         session.addImports(rel_path)
         assert session.getImports() == [test_files.test_udf_directory]
+
+        # skip upload the file because the calculated checksum is same
+        session_stage = session.getSessionStage()
+        session._resolve_imports(session_stage)
+        session.addImports(abs_path)
+        session._resolve_imports(session_stage)
+        assert (
+            f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
+            in caplog.text
+        )
 
         session.removeImports(rel_path)
         assert len(session.getImports()) == 0
@@ -434,6 +444,6 @@ def test_add_imports_negative(session_cnx):
             session.addImports("file_not_found.py")
         assert "is not found" in str(ex_info)
 
-        with pytest.raises(ValueError) as ex_info:
+        with pytest.raises(KeyError) as ex_info:
             session.removeImports("file_not_found.py")
         assert "is not found in the existing imports" in str(ex_info)
