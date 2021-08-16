@@ -17,11 +17,11 @@ class DataType:
     @property
     def type_name(self) -> str:
         """Returns a data type name."""
-        # Strip the suffix 'type'
-        return self.__class__.__name__[:-4]
+        return self.__repr__()
 
     def __repr__(self) -> str:
-        return self.type_name
+        # Strip the suffix 'type'
+        return self.__class__.__name__[:-4]
 
     def __hash__(self):
         return hash(str(self))
@@ -152,7 +152,6 @@ class DecimalType(FractionalType):
         self.scale = scale
 
     def __repr__(self):
-        """Returns Decimal Info. Decimal(precision, scale)"""
         return f"Decimal({self.precision},{self.scale})"
 
     @property

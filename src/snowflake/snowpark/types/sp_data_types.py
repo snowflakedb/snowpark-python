@@ -14,10 +14,10 @@ class DataType(AbstractDataType):
     @property
     def type_name(self):
         """Returns a data type name."""
-        return self.__class__.__name__[:-4]
+        self.__repr__()
 
     def __repr__(self):
-        return self.type_name
+        return self.__class__.__name__[:-4]
 
     @property
     def simple_string(self):
@@ -114,10 +114,10 @@ class GeographyType(DataType):
     @property
     def type_name(self) -> str:
         """Returns a data type name."""
-        return f"GeographyType[${str(self.element_type)}]"
+        self.__repr__()
 
     def __repr__(self):
-        return self.type_name
+        return f"GeographyType[${str(self.element_type)}]"
 
     @property
     def simple_string(self) -> str:
