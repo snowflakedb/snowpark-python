@@ -47,10 +47,6 @@ def test_md5():
         Utils.calculate_md5(test_files.test_file_avro)
         == "85bd7b9363853f1815254b1cbc608c22"
     )
-    assert (
-        Utils.calculate_md5(test_files.test_udf_directory)
-        == "4e599d48fcc6ada85c759afe2fb69cf5"
-    )
 
 
 def test_normalize_stage_location():
