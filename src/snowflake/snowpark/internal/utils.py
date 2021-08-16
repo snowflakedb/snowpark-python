@@ -118,7 +118,6 @@ class Utils:
             for dirname, _, files in os.walk(path):
                 hash_md5.update(os.path.basename(dirname).encode("utf8"))
                 for file in files:
-                    hash_md5.update(file.encode("utf8"))
                     if current_size < part_size:
                         filename = os.path.join(dirname, file)
                         file_size = os.path.getsize(filename)
