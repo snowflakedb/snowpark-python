@@ -31,13 +31,6 @@ class UserDefinedFunction:
         input_types: List[DataType],
         name: str,
     ):
-        if not callable(func):
-            raise TypeError(
-                "Invalid function: not a function or callable (__call__ is not defined): {}".format(
-                    type(func)
-                )
-            )
-
         self.func = func
         self.return_type = return_type
         self.input_types = input_types
@@ -93,6 +86,12 @@ class UDFRegistration:
         name: Optional[str] = None,
         stage_location: Optional[str] = None,
     ) -> UserDefinedFunction:
+        if not callable(func):
+            raise TypeError(
+                "Invalid function: not a function or callable "
+                f"(__call__ is not defined): {type(func)}"
+            )
+
         udf_name = (
             name
             or f"{self.session.getFullyQualifiedCurrentSchema()}.tempUDF_{Utils.random_number()}"
