@@ -319,22 +319,17 @@ def call_udf(
 ) -> Column:
     """Calls a user-defined function (UDF) by name.
 
-    Args:
-        udf_name: The name of UDF in Snowflake.
-        cols: Columns that the UDF will be applied to, as :class:`str`, :class:`Column`
-            or a list of those.
+        Args:
+            udf_name: The name of UDF in Snowflake.
+            cols: Columns that the UDF will be applied to, as :class:`str`, :class:`Column`
+                or a list of those.
 
-    Returns:
-        :class:`Column`.
+        Returns:
+            :class:`Column`.
 
-<<<<<<< HEAD
-        a. :class:`Column`, or
-        b. Basic types such as int, str, Decimal etc. which are converted to Snowpark literals.
-=======
-    Example::
->>>>>>> 1db276e71bb2e3ab665fa23d10d4dfe4b2e1c29b
+        Example::
 
-        df.select(call_udf("add", col("a"), col("b")))
+            df.select(call_udf("add", col("a"), col("b")))
     """
 
     Utils.validate_object_name(udf_name)

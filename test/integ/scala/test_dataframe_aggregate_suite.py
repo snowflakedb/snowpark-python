@@ -93,8 +93,7 @@ def test_rel_grouped_dataframe_max(session_cnx):
         # same as above, but pass str instead of Column
         assert df1.groupBy("key").max("value1", "value2").collect() == expected
         assert (
-                df1.groupBy("key").agg([max("value1"), max("value2")]).collect()
-                == expected
+            df1.groupBy("key").agg([max("value1"), max("value2")]).collect() == expected
         )
 
 
@@ -124,14 +123,13 @@ def test_rel_grouped_dataframe_avg_mean(session_cnx):
         # same as above, but pass str instead of Column
         assert df1.groupBy("key").avg("value1", "value2").collect() == expected
         assert (
-                df1.groupBy("key").agg([avg("value1"), avg("value2")]).collect()
-                == expected
+            df1.groupBy("key").agg([avg("value1"), avg("value2")]).collect() == expected
         )
         # Same results for mean()
         assert df1.groupBy("key").mean("value1", "value2").collect() == expected
         assert (
-                df1.groupBy("key").agg([mean("value1"), mean("value2")]).collect()
-                == expected
+            df1.groupBy("key").agg([mean("value1"), mean("value2")]).collect()
+            == expected
         )
 
 
@@ -161,9 +159,7 @@ def test_rel_grouped_dataframe_median(session_cnx):
         # same as above, but pass str instead of Column
         assert df1.groupBy("key").median("value1", "value2").collect() == expected
         assert (
-            df1.groupBy("key")
-            .agg([median("value1"), median("value2")])
-            .collect()
+            df1.groupBy("key").agg([median("value1"), median("value2")]).collect()
             == expected
         )
 

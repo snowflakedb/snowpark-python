@@ -3,7 +3,6 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from snowflake.snowpark.types.sf_types import DateType, ArrayType, MapType, StringType, VariantType
 from test.utils import TestData
 
 import pytest
@@ -13,10 +12,21 @@ from snowflake.snowpark.functions import (
     call_builtin,
     col,
     count_distinct,
-    to_date, to_array, to_variant, to_object,
     parse_json,
-    to_binary,)
+    to_array,
+    to_binary,
+    to_date,
+    to_object,
+    to_variant,
+)
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types.sf_types import (
+    ArrayType,
+    DateType,
+    MapType,
+    StringType,
+    VariantType,
+)
 
 
 def test_count_distinct(session_cnx):
@@ -38,7 +48,7 @@ def test_count_distinct(session_cnx):
         # Pass invalid type - list of numbers
         with pytest.raises(TypeError) as ex_info:
             df.select(count_distinct(123, 456))
-        assert "Expected Column or str, got: <class \'int\'>" in str(ex_info)
+        assert "Expected Column or str, got: <class 'int'>" in str(ex_info)
 
         assert df.select(count_distinct(df["*"])).collect() == [Row(2)]
 
@@ -145,11 +155,21 @@ def test_parse_json(session_cnx):
 
 def test_to_date_to_array_to_variant_to_object(session_cnx):
     with session_cnx() as session:
-        df = session.createDataFrame([['2013-05-17', 1, 3.14, '{"a":1}']]).\
-            toDF("date", "array", "var", "obj").withColumn("json", parse_json("obj"))
+        df = (
+            session.createDataFrame([["2013-05-17", 1, 3.14, '{"a":1}']])
+            .toDF("date", "array", "var", "obj")
+            .withColumn("json", parse_json("obj"))
+        )
 
-        df1 = df.select(to_date("date"), to_array("array"), to_variant("var"), to_object("json"))
-        df2 = df.select(to_date(col("date")), to_array(col("array")), to_variant(col("var")), to_object(col("json")))
+        df1 = df.select(
+            to_date("date"), to_array("array"), to_variant("var"), to_object("json")
+        )
+        df2 = df.select(
+            to_date(col("date")),
+            to_array(col("array")),
+            to_variant(col("var")),
+            to_object(col("json")),
+        )
 
         res1, res2 = df1.collect(), df2.collect()
         assert res1 == res2

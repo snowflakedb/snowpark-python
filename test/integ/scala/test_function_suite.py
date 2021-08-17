@@ -86,7 +86,5 @@ def test_sum(session_cnx):
         df = TestData.duplicated_numbers(session).groupBy("A").agg(sum("A"))
         assert df.collect() == [Row([3, 6]), Row([2, 4]), Row([1, 1])]
 
-        df = (
-            TestData.duplicated_numbers(session).groupBy("A").agg(sum_distinct("A"))
-        )
+        df = TestData.duplicated_numbers(session).groupBy("A").agg(sum_distinct("A"))
         assert df.collect() == [Row([3, 3]), Row([2, 2]), Row([1, 1])]
