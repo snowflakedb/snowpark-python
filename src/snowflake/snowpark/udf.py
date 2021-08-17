@@ -164,8 +164,9 @@ class UDFRegistration:
         code = f"""
 import pickle
 
+func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
+
 def compute({args}):
-    func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
     return func({args})
 """
         return code
