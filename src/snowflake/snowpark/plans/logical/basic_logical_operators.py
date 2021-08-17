@@ -91,13 +91,12 @@ class SetOperation(BinaryNode):
 
 
 class Intersect(SetOperation):
-    def __init__(self, left: LogicalPlan, right: LogicalPlan, is_all: bool):
+    def __init__(self, left: LogicalPlan, right: LogicalPlan):
         super().__init__(left=left, right=right)
-        self.is_all = is_all
         self.children = [self.left, self.right]
 
     def node_name(self):
-        return self.__class__.__name__.upper() + (" ALL" if self.is_all else "")
+        return self.__class__.__name__.upper()
 
     @property
     def sql(self):
@@ -112,6 +111,19 @@ class Union(SetOperation):
 
     def node_name(self):
         return self.__class__.__name__.upper() + (" ALL" if self.is_all else "")
+
+    @property
+    def sql(self):
+        return self.node_name()
+
+
+class Except(SetOperation):
+    def __init__(self, left: LogicalPlan, right: LogicalPlan):
+        super().__init__(left=left, right=right)
+        self.children = [self.left, self.right]
+
+    def node_name(self):
+        return self.__class__.__name__.upper()
 
     @property
     def sql(self):

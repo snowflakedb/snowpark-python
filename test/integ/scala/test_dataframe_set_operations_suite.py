@@ -117,8 +117,7 @@ def test_spark_17123_performing_set_ops_on_non_native_types(session_cnx):
 
         dates.union(widen_typed_rows).collect()
         dates.intersect(widen_typed_rows).collect()
-        # TODO uncomment when except() is implemented
-        # dates.except(widen_typed_rows).collect()
+        dates.except_(widen_typed_rows).collect()
 
 
 def test_intersect(session_cnx):
@@ -149,14 +148,13 @@ def test_intersect(session_cnx):
         assert res == [Row(["id", 1]), Row(["id1", 1]), Row(["id1", 2])]
 
 
-def test_project_should_not_be_pushed_down_through_intersect_or_except(session_cnx):
+def test_project_should_not_be_pushed_down_through_intersect_or_minus(session_cnx):
     with session_cnx() as session:
         df1 = session.createDataFrame([[i] for i in range(1, 101)]).toDF("i")
         df2 = session.createDataFrame([[i] for i in range(1, 31)]).toDF("i")
 
         assert df1.intersect(df2).count() == 30
-        # TODO uncomment when implementing df.except()
-        # assert df1.except(df2).count() == 70
+        assert df1.except_(df2).count() == 70
 
 
 def test_mix_set_operator(session_cnx):
@@ -173,7 +171,6 @@ def test_mix_set_operator(session_cnx):
         res2 = df2.union(df3).collect()
         assert res1 == res2
 
-        # TODO uncomment when implementing df.except()
-        # res = df1.union(df2).except(df2.union(df3).intersect(df1.union(df2)))
-        # expected = df1.collect()
-        # assert res == expected
+        res = df1.union(df2).except_(df2.union(df3).intersect(df1.union(df2))).collect()
+        expected = df1.collect()
+        assert res == expected

@@ -33,6 +33,7 @@ from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Join as SPJoin,
     Sort as SPSort,
     Union as SPUnion,
+    Except as SPExcept,
 )
 from snowflake.snowpark.plans.logical.hints import JoinHint as SPJoinHint
 from snowflake.snowpark.plans.logical.logical_plan import (
@@ -620,7 +621,25 @@ class DataFrame:
             :class:`DataFrame`
         """
         return self.__with_plan(
-            SPIntersect(self.__plan, other._DataFrame__plan, is_all=False)
+            SPIntersect(self.__plan, other._DataFrame__plan)
+        )
+
+    def except_(self, other: "DataFrame") -> "DataFrame":
+        """Returns a new DataFrame that contains all the rows from the current DataFrame
+        except for the rows that also appear in `other` DataFrame. Duplicate rows are eliminated.
+
+        Example::
+
+            df_of_1_except_2 = df1.except_(df2)
+
+        Args:
+            other: the other :class:`DataFrame` that contains the rows to be removed from this DataFrame.
+
+        Returns:
+            :class:`DataFrame`
+        """
+        return self.__with_plan(
+            SPExcept(self.__plan, other._DataFrame__plan)
         )
 
     def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
