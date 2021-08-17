@@ -4,7 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from test.utils import Utils
+import os
+from test.utils import TestFiles, Utils
 
 import pytest
 
@@ -87,3 +88,55 @@ def test_quote_all_database_and_schema_names(session_cnx):
 def test_active_session(session_cnx):
     with session_cnx() as session:
         assert session == Session._get_active_session()
+
+
+def test_list_files_in_stage(session_cnx, resources_path):
+    stage_name = Utils.random_stage_name()
+    special_name = f'"{stage_name}/aa"'
+    test_files = TestFiles(resources_path)
+    with session_cnx() as session:
+        try:
+            Utils.create_stage(session, stage_name)
+            Utils.upload_to_stage(
+                session, stage_name, test_files.test_file_avro, compress=False
+            )
+            files = session._list_files_in_stage(stage_name)
+            assert len(files) == 1
+            assert os.path.basename(test_files.test_file_avro) in files[0]
+
+            full_name = f"{session.getFullyQualifiedCurrentSchema()}.{stage_name}"
+            files2 = session._list_files_in_stage(full_name)
+            assert len(files2) == 1
+            assert os.path.basename(test_files.test_file_avro) in files2[0]
+
+            prefix = "/prefix/prefix2"
+            with_prefix = stage_name + prefix
+            Utils.upload_to_stage(
+                session, with_prefix, test_files.test_file_avro, compress=False
+            )
+            files3 = session._list_files_in_stage(with_prefix)
+            assert len(files3) == 1
+            assert os.path.basename(test_files.test_file_avro) in files3[0]
+
+            quoted_name = f'"{stage_name}"{prefix}'
+            files4 = session._list_files_in_stage(quoted_name)
+            assert len(files4) == 1
+            assert os.path.basename(test_files.test_file_avro) in files4[0]
+
+            full_name_with_prefix = (
+                f"{session.getFullyQualifiedCurrentSchema()}.{quoted_name}"
+            )
+            files5 = session._list_files_in_stage(full_name_with_prefix)
+            assert len(files5) == 1
+            assert os.path.basename(test_files.test_file_avro) in files5[0]
+
+            Utils.create_stage(session, special_name)
+            Utils.upload_to_stage(
+                session, special_name, test_files.test_file_csv, compress=False
+            )
+            files6 = session._list_files_in_stage(special_name)
+            assert len(files6) == 1
+            assert os.path.basename(test_files.test_file_csv) in files6[0]
+        finally:
+            Utils.drop_stage(session, stage_name)
+            Utils.drop_stage(session, special_name)

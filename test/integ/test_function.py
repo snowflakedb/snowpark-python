@@ -13,8 +13,9 @@ from snowflake.snowpark.functions import (
     call_builtin,
     col,
     count_distinct,
-    parse_json, to_date, to_array, to_variant, to_object,
-)
+    to_date, to_array, to_variant, to_object,
+    parse_json,
+    to_binary,)
 from snowflake.snowpark.row import Row
 
 
@@ -156,3 +157,28 @@ def test_to_date_to_array_to_variant_to_object(session_cnx):
         assert df1.schema.fields[1].datatype == ArrayType(StringType())
         assert df1.schema.fields[2].datatype == VariantType()
         assert df1.schema.fields[3].datatype == MapType(StringType(), StringType())
+
+
+def test_to_binary(session_cnx):
+    with session_cnx() as session:
+        res = (
+            TestData.test_data1(session)
+            .toDF("a", "b", "c")
+            .select(to_binary(col("c"), "utf-8"))
+            .collect()
+        )
+        assert res == [Row(bytearray(b"a")), Row(bytearray(b"b"))]
+
+        res = (
+            TestData.test_data1(session)
+            .toDF("a", "b", "c")
+            .select(to_binary("c", "utf-8"))
+            .collect()
+        )
+        assert res == [Row(bytearray(b"a")), Row(bytearray(b"b"))]
+
+        # For NULL input, the output is NULL
+        res = (
+            TestData.all_nulls(session).toDF("a").select(to_binary(col("a"))).collect()
+        )
+        assert res == [Row(None), Row(None), Row(None), Row(None)]
