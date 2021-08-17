@@ -29,11 +29,11 @@ from snowflake.snowpark.internal.sp_expressions import (
 )
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import (
+    Except as SPExcept,
     Intersect as SPIntersect,
     Join as SPJoin,
     Sort as SPSort,
     Union as SPUnion,
-    Except as SPExcept,
 )
 from snowflake.snowpark.plans.logical.hints import JoinHint as SPJoinHint
 from snowflake.snowpark.plans.logical.logical_plan import (
@@ -620,9 +620,7 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
-        return self.__with_plan(
-            SPIntersect(self.__plan, other._DataFrame__plan)
-        )
+        return self.__with_plan(SPIntersect(self.__plan, other._DataFrame__plan))
 
     def except_(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
@@ -630,17 +628,15 @@ class DataFrame:
 
         Example::
 
-            df_of_1_except_2 = df1.except_(df2)
+            df1_except_df2 = df1.except_(df2)
 
         Args:
-            other: the other :class:`DataFrame` that contains the rows to be removed from this DataFrame.
+            other: The :class:`DataFrame` that contains the rows to exclude.
 
         Returns:
             :class:`DataFrame`
         """
-        return self.__with_plan(
-            SPExcept(self.__plan, other._DataFrame__plan)
-        )
+        return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
 
     def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
         """Performs a natural join of the specified type (``joinType``) with the

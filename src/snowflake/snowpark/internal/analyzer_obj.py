@@ -50,12 +50,12 @@ from snowflake.snowpark.internal.sp_expressions import (
 )
 from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Aggregate as SPAggregate,
+    Except as SPExcept,
     Intersect as SPIntersect,
     Join as SPJoin,
     Range as SPRange,
     Sort as SPSort,
     Union as SPUnion,
-    Except as SPExcept,
 )
 from snowflake.snowpark.plans.logical.logical_plan import (
     Filter as SPFilter,

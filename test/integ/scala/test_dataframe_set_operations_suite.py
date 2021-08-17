@@ -148,7 +148,7 @@ def test_intersect(session_cnx):
         assert res == [Row(["id", 1]), Row(["id1", 1]), Row(["id1", 2])]
 
 
-def test_project_should_not_be_pushed_down_through_intersect_or_minus(session_cnx):
+def test_project_should_not_be_pushed_down_through_intersect_or_except(session_cnx):
     with session_cnx() as session:
         df1 = session.createDataFrame([[i] for i in range(1, 101)]).toDF("i")
         df2 = session.createDataFrame([[i] for i in range(1, 31)]).toDF("i")
