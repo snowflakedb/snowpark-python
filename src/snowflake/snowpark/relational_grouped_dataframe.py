@@ -96,7 +96,8 @@ class RelationalGroupedDataFrame:
 
         aliased_agg.extend(agg_exprs)
 
-        # Avoid doing aliased_agg = [self.alias(a) for a in list(set(aliased_agg))], to keep order
+        # Avoid doing aliased_agg = [self.alias(a) for a in list(set(aliased_agg))],
+        # to keep order
         used = set()
         unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
         aliased_agg = [self.__alias(a) for a in unique]
@@ -254,18 +255,19 @@ class RelationalGroupedDataFrame:
         )
 
     def builtin(self, agg_name: str):
-        """Computes the builtin aggregate 'aggName' over the specified columns. Use this function to
-        invoke any aggregates not explicitly listed in this class."""
+        """Computes the builtin aggregate 'aggName' over the specified columns. Use
+        this function to invoke any aggregates not explicitly listed in this class."""
         return lambda *cols: self.__builtin_internal(agg_name, *cols)
 
     def __builtin_internal(self, agg_name, *cols):
         agg_exprs = []
         for c in cols:
-            expr = functions.builtin(agg_name)(c.expression).expression
+            c_expr = Column(c).expression if isinstance(c, str) else c.expression
+            expr = functions.builtin(agg_name)(c_expr).expression
             agg_exprs.append(expr)
         return self.__toDF(agg_exprs)
 
-    def __non_empty_argument_function(self, func_name: str, *cols: Column):
+    def __non_empty_argument_function(self, func_name: str, *cols: Union[Column, str]):
         if not cols:
             raise SnowparkClientException(
                 f"the argument of {func_name} function can't be empty"

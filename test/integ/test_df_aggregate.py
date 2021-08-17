@@ -6,6 +6,7 @@
 
 import pytest
 
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 
 
@@ -147,3 +148,29 @@ def test_df_groupBy_invalid_input(session_cnx):
             "groupBy() only accepts str and Column objects,"
             " or a list containing str and Column objects" in str(ex_info)
         )
+
+
+def test_df_agg_tuples_sum_basic(session_cnx):
+    """Test for making sure sum works as expected"""
+    with session_cnx() as session:
+        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+            ["first", "second"]
+        )
+        # Aggregations on 'first' column
+        res = df.agg([("first", "sum")]).collect()
+        assert res == [Row([6])]
+
+        res = df.agg([("second", "sum")]).collect()
+        assert res == [Row([19])]
+
+        res = df.agg([("second", "sum"), ("first", "sum")]).collect()
+        assert res == [Row([19, 6])]
+
+        res = df.groupBy("first").sum("second").collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [Row([1, 8]), Row([2, 11])]
+
+        # same as above, but pass Column object to groupBy() and sum()
+        res = df.groupBy(col("first")).sum(col("second")).collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [Row([1, 8]), Row([2, 11])]
