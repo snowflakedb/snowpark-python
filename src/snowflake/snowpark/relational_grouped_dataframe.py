@@ -96,7 +96,8 @@ class RelationalGroupedDataFrame:
 
         aliased_agg.extend(agg_exprs)
 
-        # Avoid doing aliased_agg = [self.alias(a) for a in list(set(aliased_agg))], to keep order
+        # Avoid doing aliased_agg = [self.alias(a) for a in list(set(aliased_agg))],
+        # to keep order
         used = set()
         unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
         aliased_agg = [self.__alias(a) for a in unique]
@@ -181,13 +182,14 @@ class RelationalGroupedDataFrame:
         else:
             return SPUnresolvedFunction(expr, [input_expr], is_distinct=False)
 
-    def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]):
-        """Returns a DataFrame with computed aggregates. The first element of the
-        `expr` pair is the column to aggregate and the second element is the aggregate
-        function to compute. The following example computes the mean of the price
-        column and the sum of the sales column. The name of the aggregate function to
-        compute must be a valid Snowflake `aggregate function <https://docs.snowflake.com/en/sql-reference/functions-aggregation.html>`_.
-        ``average`` and ``mean`` can be used to specify ``avg``.
+    def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> "DataFrame":
+        """Returns a `class:DataFrame` with computed aggregates. The first element of
+        the `expr` pair is the column to aggregate and the second element is the
+        aggregate function to compute. The following example computes the mean of the
+        price column and the sum of the sales column. The name of the aggregate
+        function to compute must be a valid Snowflake `aggregate function
+        <https://docs.snowflake.com/en/sql-reference/functions-aggregation.html>`_.
+        :func:`avg` and :func:`mean` can be used to specify ``average``.
 
         Valid input:
 
@@ -218,27 +220,27 @@ class RelationalGroupedDataFrame:
         else:
             raise SnowparkClientException("Invalid input types for agg()")
 
-    def avg(self, *cols: Column):
+    def avg(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the average for the specified numeric columns."""
         return self.__non_empty_argument_function("avg", *cols)
 
-    def mean(self, *cols: Column):
+    def mean(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the average for the specified numeric columns. Alias of :obj:`avg`."""
         return self.avg(*cols)
 
-    def sum(self, *cols: Column):
+    def sum(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the sum for the specified numeric columns."""
         return self.__non_empty_argument_function("sum", *cols)
 
-    def median(self, *cols: Column):
+    def median(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the median for the specified numeric columns."""
         return self.__non_empty_argument_function("median", *cols)
 
-    def min(self, *cols: Column):
+    def min(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the min for the specified numeric columns."""
         return self.__non_empty_argument_function("min", *cols)
 
-    def max(self, *cols: Column):
+    def max(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the max for the specified numeric columns."""
         return self.__non_empty_argument_function("max", *cols)
 
@@ -254,18 +256,23 @@ class RelationalGroupedDataFrame:
         )
 
     def builtin(self, agg_name: str):
-        """Computes the builtin aggregate 'aggName' over the specified columns. Use this function to
-        invoke any aggregates not explicitly listed in this class."""
+        """Computes the builtin aggregate 'aggName' over the specified columns. Use
+        this function to invoke any aggregates not explicitly listed in this class."""
         return lambda *cols: self.__builtin_internal(agg_name, *cols)
 
-    def __builtin_internal(self, agg_name, *cols):
+    def __builtin_internal(
+        self, agg_name: str, *cols: Union[Column, str]
+    ) -> "DataFrame":
         agg_exprs = []
         for c in cols:
-            expr = functions.builtin(agg_name)(c.expression).expression
+            c_expr = Column(c).expression if isinstance(c, str) else c.expression
+            expr = functions.builtin(agg_name)(c_expr).expression
             agg_exprs.append(expr)
         return self.__toDF(agg_exprs)
 
-    def __non_empty_argument_function(self, func_name: str, *cols: Column):
+    def __non_empty_argument_function(
+        self, func_name: str, *cols: Union[Column, str]
+    ) -> "DataFrame":
         if not cols:
             raise SnowparkClientException(
                 f"the argument of {func_name} function can't be empty"
