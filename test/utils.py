@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import functools
 import os
 import random
 import uuid
@@ -67,13 +68,40 @@ class Utils:
         return f"{session.getCurrentDatabase()}.{cls.random_temp_schema()}"
 
     @staticmethod
-    def check_answer(df: DataFrame, expected: Union[Row, List[Row]]):
-        if type(expected) == list:
-            assert df.collect() == expected
-        elif type(expected) == Row:
-            assert df.collect() == [expected]
+    def check_answer(expected: Union[Row, List[Row], DataFrame], actual: Union[Row, List[Row], DataFrame], sort=True):
+        def get_rows(input: Union[Row, List[Row], DataFrame]):
+            if type(input) == list:
+                rows = input
+            elif type(input) == DataFrame:
+                rows = input.collect()
+            elif type(input) == Row:
+                rows = [input]
+            else:
+                raise TypeError("input must be a DataFrame, a list of Row objects or a Row object")
+            return rows
+
+        actual_rows = get_rows(actual)
+        expected_rows = get_rows(expected)
+        if sort:
+            def compare_rows(row1, row2):
+                if len(row1) != len(row2):
+                    return -1
+                for i in range(len(row1)):
+                    if row1[i] == row2[i]:
+                        continue
+                    if row1[i] is None:
+                        return -1
+                    elif row2[i] is None:
+                        return 1
+                    elif row1[i] > row2[i]:
+                        return 1
+                    elif row1[i] < row2[i]:
+                        return -1
+                return 0
+            sort_key = functools.cmp_to_key(compare_rows)
+            assert sorted(expected_rows, key=sort_key) == sorted(actual_rows, key=sort_key)
         else:
-            raise TypeError("expected must be a list of Row objects or a Row object")
+            assert expected_rows == actual_rows
 
 
 class TestData:
