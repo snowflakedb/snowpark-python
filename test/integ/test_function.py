@@ -48,7 +48,9 @@ def test_count_distinct(session_cnx):
         # Pass invalid type - list of numbers
         with pytest.raises(TypeError) as ex_info:
             df.select(count_distinct(123, 456))
-        assert "Expected Column or str, got: <class 'int'>" in str(ex_info)
+        assert "COUNT_DISTINCT expected Column or str, got: <class 'int'>" in str(
+            ex_info
+        )
 
         assert df.select(count_distinct(df["*"])).collect() == [Row(2)]
 

@@ -87,14 +87,14 @@ def sql_expr(sql: str) -> Column:
 def avg(e: Union[Column, str]) -> Column:
     """Returns the average of non-NULL records. If all records inside a group are NULL,
     the function returns NULL."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "avg")
     return __with_aggregate_function(SPAverage(c.expression))
 
 
 def count(e: Union[Column, str]) -> Column:
     """Returns either the number of non-NULL records for the specified columns, or the
     total number of records."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "count")
     exp = (
         SPCount(SPLiteral(1, SPIntegerType()))
         if isinstance(c, SPStar)
@@ -107,8 +107,8 @@ def count_distinct(col: Union[Column, str], *columns: Union[Column, str]) -> Col
     """Returns either the number of non-NULL distinct records for the specified columns,
     or the total number of the distinct records.
     """
-    cols = [__to_col_if_str(col)]
-    cols.extend([__to_col_if_str(c) for c in columns])
+    cols = [__to_col_if_str(col, "count_distinct")]
+    cols.extend([__to_col_if_str(c, "count_distinct") for c in columns])
     return Column(
         SPUnresolvedFunction("count", [c.expression for c in cols], is_distinct=True)
     )
@@ -117,56 +117,56 @@ def count_distinct(col: Union[Column, str], *columns: Union[Column, str]) -> Col
 def max(e: Union[Column, str]) -> Column:
     """Returns the maximum value for the records in a group. NULL values are ignored
     unless all the records are NULL, in which case a NULL value is returned."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "max")
     return __with_aggregate_function(SPMax(c.expression))
 
 
 def mean(e: Union[Column, str]) -> Column:
-    """Return the average for the specific numeric columns. Alias of :func:`avg`"""
-    c = __to_col_if_str(e)
+    """Return the average for the specific numeric columns. Alias of :func:`avg`."""
+    c = __to_col_if_str(e, "mean")
     return avg(c)
 
 
 def median(e: Union[Column, str]) -> Column:
     """Returns the median value for the records in a group. NULL values are ignored
     unless all the records are NULL, in which case a NULL value is returned."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "median")
     return builtin("median")(c)
 
 
 def min(e: Union[Column, str]) -> Column:
     """Returns the minimum value for the records in a group. NULL values are ignored
     unless all the records are NULL, in which case a NULL value is returned."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "min")
     return __with_aggregate_function(SPMin(c.expression))
 
 
 def skew(e: Union[Column, str]) -> Column:
     """Returns the sample skewness of non-NULL records. If all records inside a group
     are NULL, the function returns NULL."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "skew")
     return builtin("skew")(c)
 
 
 def stddev(e: Union[Column, str]) -> Column:
     """Returns the sample standard deviation (square root of sample variance) of
     non-NULL values. If all records inside a group are NULL, returns NULL."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "stddev")
     return builtin("stddev")(c)
 
 
 def stddev_samp(e: Union[Column, str]) -> Column:
     """Returns the sample standard deviation (square root of sample variance) of
     non-NULL values. If all records inside a group are NULL, returns NULL. Alias of
-    :func:`stddev`"""
-    c = __to_col_if_str(e)
+    :func:`stddev`."""
+    c = __to_col_if_str(e, "stddev_samp")
     return builtin("stddev_samp")(c)
 
 
 def stddev_pop(e: Union[Column, str]) -> Column:
     """Returns the population standard deviation (square root of variance) of non-NULL
     values. If all records inside a group are NULL, returns NULL."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "stddev_pop")
     return builtin("stddev_pop")(c)
 
 
@@ -174,7 +174,7 @@ def sum(e: Union[Column, str]) -> Column:
     """Returns the sum of non-NULL records in a group. You can use the DISTINCT keyword
     to compute the sum of unique non-null values. If all records inside a group are
     NULL, the function returns NULL."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "sum")
     return __with_aggregate_function(SPSum(c.expression))
 
 
@@ -182,63 +182,63 @@ def sum_distinct(e: Union[Column, str]) -> Column:
     """Returns the sum of non-NULL distinct records in a group. You can use the
     DISTINCT keyword to compute the sum of unique non-null values. If all records
     inside a group are NULL, the function returns NULL."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "sum_distinct")
     return __with_aggregate_function(SPSum(c.expression), is_distinct=True)
 
 
 def parse_json(e: Union[Column, str]) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
     resulting JSON document."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "parse_json")
     return builtin("parse_json")(c)
 
 
 def to_decimal(e: Union[Column, str], precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "to_decimal")
     return builtin("to_decimal")(c, sql_expr(str(precision)), sql_expr(str(scale)))
 
 
 def to_time(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into the corresponding time."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "to_time")
     return builtin("to_time")(c, fmt) if fmt else builtin("to_time")(c)
 
 
 def to_timestamp(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into the corresponding timestamp."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "to_timestamp")
     return builtin("to_timestamp")(c, fmt) if fmt else builtin("to_timestamp")(c)
 
 
 def to_binary(e: Union[Column, str], fmt: Optional[str] = None) -> Column:
     """Converts the input expression to a binary value. For NULL input, the output is
-    NULL"""
-    c = __to_col_if_str(e)
+    NULL."""
+    c = __to_col_if_str(e, "to_binary")
     return builtin("to_binary")(c, fmt) if fmt else builtin("to_binary")(c)
 
 
 def to_date(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into a date."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "to_date")
     return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
 
 
 def to_array(e: Union[Column, str]) -> Column:
     """Converts any value to an ARRAY value or NULL (if input is NULL)."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "to_array")
     return builtin("to_array")(c)
 
 
 def to_variant(e: Union[Column, str]) -> Column:
     """Converts any value to a VARIANT value or NULL (if input is NULL)."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "to_variant")
     return builtin("to_variant")(c)
 
 
 def to_object(e: Union[Column, str]) -> Column:
     """Converts any value to a OBJECT value or NULL (if input is NULL)."""
-    c = __to_col_if_str(e)
+    c = __to_col_if_str(e, "to_object")
     return builtin("to_object")(c)
 
 
@@ -319,17 +319,17 @@ def call_udf(
 ) -> Column:
     """Calls a user-defined function (UDF) by name.
 
-        Args:
-            udf_name: The name of UDF in Snowflake.
-            cols: Columns that the UDF will be applied to, as :class:`str`, :class:`Column`
-                or a list of those.
+    Args:
+        udf_name: The name of UDF in Snowflake.
+        cols: Columns that the UDF will be applied to, as :class:`str`,
+            :class:`Column` or a list of those.
 
-        Returns:
-            :class:`Column`.
+    Returns:
+        :class:`Column`.
 
-        Example::
+    Example::
 
-            df.select(call_udf("add", col("a"), col("b")))
+        df.select(call_udf("add", col("a"), col("b")))
     """
 
     Utils.validate_object_name(udf_name)
@@ -397,10 +397,10 @@ def builtin(function_name: str) -> Callable:
     return lambda *args: call_builtin(function_name, *args)
 
 
-def __to_col_if_str(e: Union[Column, str]):
+def __to_col_if_str(e: Union[Column, str], func_name: str):
     if isinstance(e, Column):
         return e
     elif isinstance(e, str):
         return col(e)
     else:
-        raise TypeError(f"Expected Column or str, got: {type(e)}")
+        raise TypeError(f"{func_name.upper()} expected Column or str, got: {type(e)}")
