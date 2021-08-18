@@ -68,7 +68,11 @@ class Utils:
         return f"{session.getCurrentDatabase()}.{cls.random_temp_schema()}"
 
     @staticmethod
-    def check_answer(expected: Union[Row, List[Row], DataFrame], actual: Union[Row, List[Row], DataFrame], sort=True):
+    def check_answer(
+        expected: Union[Row, List[Row], DataFrame],
+        actual: Union[Row, List[Row], DataFrame],
+        sort=True,
+    ):
         def get_rows(input: Union[Row, List[Row], DataFrame]):
             if type(input) == list:
                 rows = input
@@ -77,12 +81,15 @@ class Utils:
             elif type(input) == Row:
                 rows = [input]
             else:
-                raise TypeError("input must be a DataFrame, a list of Row objects or a Row object")
+                raise TypeError(
+                    "input must be a DataFrame, a list of Row objects or a Row object"
+                )
             return rows
 
         actual_rows = get_rows(actual)
         expected_rows = get_rows(expected)
         if sort:
+
             def compare_rows(row1, row2):
                 if len(row1) != len(row2):
                     return -1
@@ -98,8 +105,11 @@ class Utils:
                     elif row1[i] < row2[i]:
                         return -1
                 return 0
+
             sort_key = functools.cmp_to_key(compare_rows)
-            assert sorted(expected_rows, key=sort_key) == sorted(actual_rows, key=sort_key)
+            assert sorted(expected_rows, key=sort_key) == sorted(
+                actual_rows, key=sort_key
+            )
         else:
             assert expected_rows == actual_rows
 

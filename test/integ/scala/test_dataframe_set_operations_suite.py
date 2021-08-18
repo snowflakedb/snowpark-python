@@ -188,26 +188,32 @@ def test_except(session_cnx):
                 Row((2, "b")),
                 Row((3, "c")),
                 Row((4, "d")),
-            ]
+            ],
         )
         Utils.check_answer(lower_case_data.except_(lower_case_data), [])
         Utils.check_answer(upper_case_data.except_(upper_case_data), [])
 
         # check null equality
         null_ints = TestData.null_ints(session)
-        Utils.check_answer(null_ints.except_(null_ints.filter(lit(0) == 1)), null_ints.collect())
+        Utils.check_answer(
+            null_ints.except_(null_ints.filter(lit(0) == 1)), null_ints.collect()
+        )
         Utils.check_answer(null_ints.except_(null_ints), [])
 
         # check all null equality and de-duplication
         all_nulls = TestData.all_nulls(session)
-        Utils.check_answer(all_nulls.except_(all_nulls.filter(lit(0) == 1)), [Row(None)])
+        Utils.check_answer(
+            all_nulls.except_(all_nulls.filter(lit(0) == 1)), [Row(None)]
+        )
         Utils.check_answer(all_nulls.except_(all_nulls), [])
 
         # check if values are de-duplicated
-        df = session.createDataFrame((("id1", 1), ("id1", 1), ("id", 1), ("id1", 2))).toDF("id", "value")
+        df = session.createDataFrame(
+            (("id1", 1), ("id1", 1), ("id", 1), ("id1", 2))
+        ).toDF("id", "value")
         Utils.check_answer(
             df.except_(df.filter(lit(0) == 1)),
-            [Row(("id", 1)), Row(("id1", 1)), Row(("id1", 2))]
+            [Row(("id", 1)), Row(("id1", 1)), Row(("id1", 2))],
         )
 
         # check if the empty set on the left side works
@@ -216,7 +222,9 @@ def test_except(session_cnx):
 
 def test_except_between_two_projects_without_references_used_in_filter(session_cnx):
     with session_cnx() as session:
-        df = session.createDataFrame(((1, 2, 4), (1, 3, 5), (2, 2, 3), (2, 4, 5))).toDF("a", "b", "c")
+        df = session.createDataFrame(((1, 2, 4), (1, 3, 5), (2, 2, 3), (2, 4, 5))).toDF(
+            "a", "b", "c"
+        )
         df1 = df.filter(Column("a") == 1)
         df2 = df.filter(Column("a") == 2)
         Utils.check_answer(df1.select("b").except_(df2.select("b")), Row(3))
@@ -271,6 +279,8 @@ def test_except_nullability(session_cnx):
 
 def test_except_distinct_sql_compliance(session_cnx):
     with session_cnx() as session:
-        df_left = session.createDataFrame([(1,), (2, ), (2, ), (3, ), (3, ), (4, )]).toDF("id")
+        df_left = session.createDataFrame([(1,), (2,), (2,), (3,), (3,), (4,)]).toDF(
+            "id"
+        )
         df_right = session.createDataFrame([(1,), (3,)]).toDF("id")
         Utils.check_answer(df_left.except_(df_right), [Row(2), Row(4)])
