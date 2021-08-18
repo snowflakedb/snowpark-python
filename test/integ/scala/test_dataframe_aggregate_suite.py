@@ -90,6 +90,12 @@ def test_rel_grouped_dataframe_max(session_cnx):
             == expected
         )
 
+        # same as above, but pass str instead of Column
+        assert df1.groupBy("key").max("value1", "value2").collect() == expected
+        assert (
+            df1.groupBy("key").agg([max("value1"), max("value2")]).collect() == expected
+        )
+
 
 def test_rel_grouped_dataframe_avg_mean(session_cnx):
     with session_cnx() as session:
@@ -111,6 +117,18 @@ def test_rel_grouped_dataframe_avg_mean(session_cnx):
         )
         assert (
             df1.groupBy("key").agg([mean(col("value1")), mean(col("value2"))]).collect()
+            == expected
+        )
+
+        # same as above, but pass str instead of Column
+        assert df1.groupBy("key").avg("value1", "value2").collect() == expected
+        assert (
+            df1.groupBy("key").agg([avg("value1"), avg("value2")]).collect() == expected
+        )
+        # Same results for mean()
+        assert df1.groupBy("key").mean("value1", "value2").collect() == expected
+        assert (
+            df1.groupBy("key").agg([mean("value1"), mean("value2")]).collect()
             == expected
         )
 
@@ -136,6 +154,12 @@ def test_rel_grouped_dataframe_median(session_cnx):
             df1.groupBy("key")
             .agg([median(col("value1")), median(col("value2"))])
             .collect()
+            == expected
+        )
+        # same as above, but pass str instead of Column
+        assert df1.groupBy("key").median("value1", "value2").collect() == expected
+        assert (
+            df1.groupBy("key").agg([median("value1"), median("value2")]).collect()
             == expected
         )
 
@@ -293,6 +317,12 @@ def test_groupBy(session_cnx):
             Row(["b", 4]),
         ]
 
+        # same as above, but pass str instead of Column to min()
+        assert df1.groupBy("key").min("value2").collect() == [
+            Row(["a", 0]),
+            Row(["b", 4]),
+        ]
+
         assert TestData.decimal_data(session).groupBy("a").agg(
             sum(col("b"))
         ).collect() == [
@@ -332,6 +362,11 @@ def test_stddev(session_cnx):
 
         assert TestData.test_data2(session).agg(
             [stddev(col("a")), stddev_pop(col("a")), stddev_samp(col("a"))]
+        ).collect() == [Row([test_data_dev, 0.8164967850518458, test_data_dev])]
+
+        # same as above, but pass str instead of Column
+        assert TestData.test_data2(session).agg(
+            [stddev("a"), stddev_pop("a"), stddev_samp("a")]
         ).collect() == [Row([test_data_dev, 0.8164967850518458, test_data_dev])]
 
 
