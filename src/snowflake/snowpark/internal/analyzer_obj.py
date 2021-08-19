@@ -50,6 +50,7 @@ from snowflake.snowpark.internal.sp_expressions import (
 )
 from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Aggregate as SPAggregate,
+    Except as SPExcept,
     Intersect as SPIntersect,
     Join as SPJoin,
     Range as SPRange,
@@ -350,15 +351,7 @@ class Analyzer:
                 logical_plan,
             )
 
-        if type(logical_plan) == SPIntersect:
-            return self.plan_builder.set_operator(
-                resolved_children[logical_plan.left],
-                resolved_children[logical_plan.right],
-                logical_plan.sql,
-                logical_plan,
-            )
-
-        if type(logical_plan) == SPUnion:
+        if type(logical_plan) in (SPIntersect, SPUnion, SPExcept):
             return self.plan_builder.set_operator(
                 resolved_children[logical_plan.left],
                 resolved_children[logical_plan.right],

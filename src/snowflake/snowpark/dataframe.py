@@ -29,6 +29,7 @@ from snowflake.snowpark.internal.sp_expressions import (
 )
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import (
+    Except as SPExcept,
     Intersect as SPIntersect,
     Join as SPJoin,
     Sort as SPSort,
@@ -619,9 +620,23 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
-        return self.__with_plan(
-            SPIntersect(self.__plan, other._DataFrame__plan, is_all=False)
-        )
+        return self.__with_plan(SPIntersect(self.__plan, other._DataFrame__plan))
+
+    def except_(self, other: "DataFrame") -> "DataFrame":
+        """Returns a new DataFrame that contains all the rows from the current DataFrame
+        except for the rows that also appear in `other` DataFrame. Duplicate rows are eliminated.
+
+        Example::
+
+            df1_except_df2 = df1.except_(df2)
+
+        Args:
+            other: The :class:`DataFrame` that contains the rows to exclude.
+
+        Returns:
+            :class:`DataFrame`
+        """
+        return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
 
     def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
         """Performs a natural join of the specified type (``joinType``) with the
