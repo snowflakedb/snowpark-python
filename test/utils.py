@@ -73,16 +73,16 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         sort=True,
     ):
-        def get_rows(input: Union[Row, List[Row], DataFrame]):
-            if type(input) == list:
-                rows = input
-            elif type(input) == DataFrame:
-                rows = input.collect()
-            elif type(input) == Row:
-                rows = [input]
+        def get_rows(input_data: Union[Row, List[Row], DataFrame]):
+            if type(input_data) == list:
+                rows = input_data
+            elif type(input_data) == DataFrame:
+                rows = input_data.collect()
+            elif type(input_data) == Row:
+                rows = [input_data]
             else:
                 raise TypeError(
-                    "input must be a DataFrame, a list of Row objects or a Row object"
+                    "input_data must be a DataFrame, a list of Row objects or a Row object"
                 )
             return rows
 
@@ -91,18 +91,16 @@ class Utils:
         if sort:
 
             def compare_rows(row1, row2):
-                if len(row1) != len(row2):
-                    return -1
-                for i in range(len(row1)):
-                    if row1[i] == row2[i]:
+                for value1, value2 in zip(row1, row2):
+                    if value1 == value2:
                         continue
-                    if row1[i] is None:
+                    if value1 is None:
                         return -1
-                    elif row2[i] is None:
+                    elif value2 is None:
                         return 1
-                    elif row1[i] > row2[i]:
+                    elif value1 > value2:
                         return 1
-                    elif row1[i] < row2[i]:
+                    elif value1 < value2:
                         return -1
                 return 0
 
