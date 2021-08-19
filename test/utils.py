@@ -91,10 +91,9 @@ class Utils:
         if sort:
 
             def compare_rows(row1, row2):
-                if len(row1) != len(row2):
-                    raise ValueError(
-                        "row1 and row2 are not comparable because they have different length."
-                    )
+                assert len(row1) == len(
+                    row2
+                ), "rows1 and row2 have different length so they're not comparable."
                 for value1, value2 in zip(row1, row2):
                     if value1 == value2:
                         continue
