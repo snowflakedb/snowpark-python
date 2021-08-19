@@ -128,13 +128,19 @@ class Utils:
                 hash_md5.update(f.read(part_size))
         elif os.path.isdir(path):
             current_size = 0
-            for dirname, _, files in os.walk(path):
-                for file in files:
+            for dirname, dirs, files in os.walk(path):
+                for dir in sorted(dirs):
+                    hash_md5.update(dir.encode("utf8"))
+                    print(dir)
+                for file in sorted(files):
+                    hash_md5.update(file.encode("utf8"))
+                    print(file)
                     if current_size < part_size:
                         filename = os.path.join(dirname, file)
                         file_size = os.path.getsize(filename)
                         read_size = min(file_size, part_size - current_size)
                         current_size += read_size
+                        print(read_size)
                         with open(filename, "rb") as f:
                             hash_md5.update(f.read(read_size))
         else:

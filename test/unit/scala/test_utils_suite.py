@@ -49,7 +49,7 @@ def test_md5():
     )
     assert (
         Utils.calculate_md5(test_files.test_udf_directory)
-        == "baacee1f13346c5515cab6be2612231d"
+        == "956d97863a5e5f11840339bd208549ef"
     )
 
 
