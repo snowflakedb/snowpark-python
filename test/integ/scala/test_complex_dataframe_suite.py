@@ -11,8 +11,7 @@ def test_combination_of_multiple_operators(session_cnx):
         df1 = session.createDataFrame([1, 2]).toDF("a")
         df2 = session.createDataFrame([[i, f"test{i}"] for i in [1, 2]]).toDF("a", "b")
 
-        # TODO uncomment when implementing except
-        # assert df1.join(df2, "a").except(df2).collect() == []
+        assert df1.join(df2, "a").except_(df2).collect() == []
 
         res = df1.join(df2, "a").intersect(df2).collect()
         res.sort(key=lambda x: x[0])

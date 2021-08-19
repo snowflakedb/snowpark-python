@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import functools
 import os
 import random
 import uuid
@@ -67,13 +68,51 @@ class Utils:
         return f"{session.getCurrentDatabase()}.{cls.random_temp_schema()}"
 
     @staticmethod
-    def check_answer(df: DataFrame, expected: Union[Row, List[Row]]):
-        if type(expected) == list:
-            assert df.collect() == expected
-        elif type(expected) == Row:
-            assert df.collect() == [expected]
+    def check_answer(
+        expected: Union[Row, List[Row], DataFrame],
+        actual: Union[Row, List[Row], DataFrame],
+        sort=True,
+    ):
+        def get_rows(input_data: Union[Row, List[Row], DataFrame]):
+            if type(input_data) == list:
+                rows = input_data
+            elif type(input_data) == DataFrame:
+                rows = input_data.collect()
+            elif type(input_data) == Row:
+                rows = [input_data]
+            else:
+                raise TypeError(
+                    "input_data must be a DataFrame, a list of Row objects or a Row object"
+                )
+            return rows
+
+        actual_rows = get_rows(actual)
+        expected_rows = get_rows(expected)
+        if sort:
+
+            def compare_rows(row1, row2):
+                assert len(row1) == len(
+                    row2
+                ), "rows1 and row2 have different length so they're not comparable."
+                for value1, value2 in zip(row1, row2):
+                    if value1 == value2:
+                        continue
+                    if value1 is None:
+                        return -1
+                    elif value2 is None:
+                        return 1
+                    elif value1 > value2:
+                        return 1
+                    elif value1 < value2:
+                        return -1
+                return 0
+
+            sort_key = functools.cmp_to_key(compare_rows)
+            assert sorted(expected_rows, key=sort_key) == sorted(
+                actual_rows, key=sort_key
+            )
         else:
-            raise TypeError("expected must be a list of Row objects or a Row object")
+            assert expected_rows == actual_rows
 
 
 class TestData:
