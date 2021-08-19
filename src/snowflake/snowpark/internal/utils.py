@@ -10,7 +10,7 @@ import platform
 import random
 import re
 import zipfile
-from typing import IO, List
+from typing import IO, List, Optional
 
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
@@ -70,21 +70,32 @@ class Utils:
         return random.randint(0, 2 ** 31)
 
     @staticmethod
-    def zip_file_or_directory_to_stream(path: str) -> IO[bytes]:
+    def zip_file_or_directory_to_stream(
+        path: str, leading_path: Optional[str] = None, add_init_py: bool = False
+    ) -> IO[bytes]:
         """Compress the file or directory as a zip file to a binary stream."""
         input_stream = io.BytesIO()
-        parent_path = os.path.join(path, "..")
+        start_path = leading_path if leading_path else os.path.join(path, "..")
         with zipfile.ZipFile(
             input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
         ) as zf:
             if os.path.isdir(path):
                 for dirname, _, files in os.walk(path):
-                    zf.write(dirname, os.path.relpath(dirname, parent_path))
+                    zf.write(dirname, os.path.relpath(dirname, start_path))
                     for file in files:
                         filename = os.path.join(dirname, file)
-                        zf.write(filename, os.path.relpath(filename, parent_path))
+                        zf.write(filename, os.path.relpath(filename, start_path))
             else:
-                zf.write(path, os.path.relpath(path, parent_path))
+                zf.write(path, os.path.relpath(path, start_path))
+
+            # __init__.py is needed for a module when it's imported as a zip file
+            if add_init_py:
+                relative_path = os.path.relpath(path, start_path)
+                for i, c in enumerate(relative_path):
+                    if c == "/":
+                        zf.writestr(
+                            os.path.join(relative_path[: i + 1], "__init__.py"), ""
+                        )
 
         return input_stream
 
@@ -97,7 +108,9 @@ class Utils:
             return [*inputs]
 
     @staticmethod
-    def calculate_md5(path: str, part_size: int = 8192) -> str:
+    def calculate_md5(
+        path: str, additional_info: Optional[str] = None, part_size: int = 8192
+    ) -> str:
         """
         Calculate the checksum (md5) of a file or a directory.
         If the input path points to a file, we read a small chunk from the file
@@ -116,7 +129,6 @@ class Utils:
         elif os.path.isdir(path):
             current_size = 0
             for dirname, _, files in os.walk(path):
-                hash_md5.update(os.path.basename(dirname).encode("utf8"))
                 for file in files:
                     if current_size < part_size:
                         filename = os.path.join(dirname, file)
@@ -127,5 +139,8 @@ class Utils:
                             hash_md5.update(f.read(read_size))
         else:
             raise ValueError("md5 can only be calculated for a file or directory")
+
+        if additional_info:
+            hash_md5.update(additional_info.encode("utf8"))
 
         return hash_md5.hexdigest()

@@ -245,25 +245,44 @@ def test_annotation_syntax_udf(session_cnx):
 def test_add_imports_local_file(session_cnx, resources_path):
     test_files = TestFiles(resources_path)
     # This is a hack in the test such that we can just use `from test_udf import mod5`,
-    # instead of `from test.resources.test_udf.test_udf import mod5`.
-    # When create a Python UDF with imports `test_udf.py`, only `from test_udf import mod5`
-    # is allowed to execute that code at the depickling time.
+    # instead of `from test.resources.test_udf.test_udf import mod5`. Then we can test
+    # `import_as` argument.
+    sys.path.append(resources_path)
     sys.path.append(test_files.test_udf_directory)
 
     def plus4_then_mod5(x):
+        from test_udf_dir.test_udf_file import mod5
+
+        return mod5(x + 4)
+
+    def plus4_then_mod5_direct_import(x):
         from test_udf_file import mod5
 
         return mod5(x + 4)
 
     with session_cnx() as session:
-        session.addImports(test_files.test_udf_py_file)
+        df = session.range(-5, 5).toDF("a")
+
+        session.addImports(
+            test_files.test_udf_py_file, import_as="test_udf_dir.test_udf_file"
+        )
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
-
-        df = session.range(-5, 5).toDF("a")
         assert df.select(plus4_then_mod5_udf("a")).collect() == [
             Row(plus4_then_mod5(i)) for i in range(-5, 5)
+        ]
+
+        # if import_as argument changes, the checksum of the file will also change
+        # and we will overwrite the file in the stage
+        session.addImports(test_files.test_udf_py_file)
+        plus4_then_mod5_direct_import_udf = udf(
+            plus4_then_mod5_direct_import,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+        )
+        assert df.select(plus4_then_mod5_direct_import_udf("a")).collect() == [
+            Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)
         ]
 
         # clean
@@ -273,25 +292,43 @@ def test_add_imports_local_file(session_cnx, resources_path):
 def test_add_imports_local_directory(session_cnx, resources_path):
     test_files = TestFiles(resources_path)
     sys.path.append(resources_path)
+    sys.path.append(os.path.dirname(resources_path))
 
     def plus4_then_mod5(x):
+        from resources.test_udf_dir.test_udf_file import mod5
+
+        return mod5(x + 4)
+
+    def plus4_then_mod5_direct_import(x):
         from test_udf_dir.test_udf_file import mod5
 
         return mod5(x + 4)
 
     with session_cnx() as session:
-        session.addImports(test_files.test_udf_directory)
+        df = session.range(-5, 5).toDF("a")
+
+        session.addImports(
+            test_files.test_udf_directory, import_as="resources.test_udf_dir"
+        )
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
-
-        df = session.range(-5, 5).toDF("a")
         assert df.select(plus4_then_mod5_udf("a")).collect() == [
             Row(plus4_then_mod5(i)) for i in range(-5, 5)
         ]
 
+        session.addImports(test_files.test_udf_directory)
+        plus4_then_mod5_direct_import_udf = udf(
+            plus4_then_mod5_direct_import,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+        )
+        assert df.select(plus4_then_mod5_direct_import_udf("a")).collect() == [
+            Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)
+        ]
+
         # clean
-        session.removeImports(test_files.test_udf_directory)
+        session.clearImports()
 
 
 # TODO: SNOW-406036 unblock this test after the server side issue is fixed
@@ -437,8 +474,8 @@ def test_udf_negative(session_cnx):
         assert "Invalid function: not a function or callable" in str(ex_info)
 
 
-# TODO: add more after solving relative imports
-def test_add_imports_negative(session_cnx):
+def test_add_imports_negative(session_cnx, resources_path):
+    test_files = TestFiles(resources_path)
     with session_cnx() as session:
         with pytest.raises(FileNotFoundError) as ex_info:
             session.addImports("file_not_found.py")
@@ -447,3 +484,44 @@ def test_add_imports_negative(session_cnx):
         with pytest.raises(KeyError) as ex_info:
             session.removeImports("file_not_found.py")
         assert "is not found in the existing imports" in str(ex_info)
+
+        with pytest.raises(ValueError) as ex_info:
+            session.addImports(
+                test_files.test_udf_py_file, import_as="test_udf_dir.test_udf_file.py"
+            )
+        assert "import_as test_udf_dir.test_udf_file.py is invalid" in str(ex_info)
+
+        with pytest.raises(TypeError) as ex_info:
+            session.addImports(test_files.test_udf_py_file, import_as=1)
+        assert "import_as can only be str or list" in str(ex_info)
+
+        with pytest.raises(ValueError) as ex_info:
+            session.addImports(
+                test_files.test_udf_directory,
+                test_files.test_udf_py_file,
+                import_as="test_udf.test_udf_file",
+            )
+        assert (
+            "The length of paths (2) should be same with the length of import_as (1)"
+            in str(ex_info)
+        )
+
+        def plus4_then_mod5(x):
+            from test.resources.test_udf_dir.test_udf_file import mod5
+
+            return mod5(x + 4)
+
+        df = session.range(-5, 5).toDF("a")
+        for import_as in [
+            None,
+            "resources.test_udf_dir.test_udf_file",
+            "test_udf_dir.test_udf_file",
+            "test_udf_file",
+        ]:
+            session.addImports(test_files.test_udf_py_file, import_as=import_as)
+            plus4_then_mod5_udf = udf(
+                plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+            )
+            with pytest.raises(ProgrammingError) as ex_info:
+                df.select(plus4_then_mod5_udf("a")).collect()
+            assert "No module named 'test.resources'" in str(ex_info)

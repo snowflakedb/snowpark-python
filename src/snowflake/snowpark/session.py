@@ -87,8 +87,10 @@ class Session(metaclass=_SessionMeta):
     def __init__(self, conn: ServerConnection):
         self.conn = conn
         self.__query_tag = None
-        self.__import_paths = {}
-        self.__cloudpickle_path = (os.path.dirname(cloudpickle.__file__), "cloudpickle")
+        self.__import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+        self.__cloudpickle_path = {
+            os.path.dirname(cloudpickle.__file__): ("cloudpickle", None)
+        }
         self.__session_id = self.conn.get_session_id()
         self._session_info = f"""
 "version" : {Utils.get_version()},
@@ -146,31 +148,52 @@ class Session(metaclass=_SessionMeta):
     def getPythonConnectorConnection(self) -> SnowflakeConnection:
         return self.conn.connection
 
-    def addImports(self, *paths: Union[str, List[str]]):
+    def addImports(
+        self,
+        *paths: Union[str, List[str]],
+        import_as: Optional[Union[str, List[str]]] = None,
+    ):
         """
         Registers file(s) in stage or local file(s) as imports of a user-defined function
         (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
         a directory, or any other file resource.
 
         Args:
-            paths: a list paths pointing to local files or remote files in the stage
-            1. If the path points to a local file, this file will be uploaded to a temporary
-            stage and Snowflake will import the file when executing a UDF.
-            2. If the path points to a local directory, the directory will be compressed as
-            a zip file and will be uploaded to a temporary stage and Snowflake will import
-            the zip file when executing a UDF.
-            3. If the path points to a file in a stage, the file is included in the imports
-            when executing a UDF.
+            paths: The paths of local files or remote files in the stage.
+                1. If the path points to a local file, this file will be uploaded to a temporary
+                stage and Snowflake will import the file when executing a UDF.
+                2. If the path points to a local directory, the directory will be compressed as
+                a zip file and will be uploaded to a temporary stage and Snowflake will import
+                the zip file when executing a UDF.
+                3. If the path points to a file in a stage, the file is included in the imports
+                when executing a UDF.
+            import_as: The relative Python import paths in a UDF, as a :class:`str` or a list
+                of :class:`str`. If it is not provided or it is None, the UDF will import it
+                directly without any leading package/module. This argument will become a no-op
+                if the path points to a stage file.
 
         Examples::
 
-            session.addImports(“/tmp/dir1/test.py”)
-            session.addImports(“/tmp/dir1”)
+            # import a local file
+            session.addImports(“/tmp/my_dir/my_module.py”)
+            @udf
+            def f():
+                import my_module import g
+                return g()
+
+            # import a local file with `import_as`
+            session.addImports(“/tmp/my_dir/my_module.py”, import_as="my_dir.my_module")
+            @udf
+            def f():
+                import my_dir.my_module import g
+                return g()
+
+            # import a stage file
             session.addImports(“@stage/test.py”)
 
         Note:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
-            immediately, and it will be uploaded when a UDF is created instead.
+            immediately, and it will be uploaded when a UDF is created.
             2. Snowpark library calculates a checksum for every file/directory.
             If there is a file or directory existing in the stage, Snowpark library will
             compare their checksums to determine whether it should be overwritten.
@@ -180,7 +203,25 @@ class Session(metaclass=_SessionMeta):
             overwritten.
         """
         trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
-        for path in trimmed_paths:
+        if import_as:
+            if type(import_as) == str:
+                import_as_list = [import_as.strip()]
+            elif type(import_as) in (list, tuple):
+                import_as_list = [i.strip() for i in import_as]
+            else:
+                raise TypeError(
+                    f"import_as can only be str or list, but got {type(import_as)}"
+                )
+            if len(trimmed_paths) != len(import_as_list):
+                raise ValueError(
+                    f"The length of paths ({len(trimmed_paths)}) should be same with "
+                    f"the length of import_as ({len(import_as_list)})."
+                )
+        else:
+            import_as_list = [None] * len(trimmed_paths)
+
+        for i in range(len(trimmed_paths)):
+            path = trimmed_paths[i]
             if not path.startswith(self.__STAGE_PREFIX):
                 if not os.path.exists(path):
                     raise FileNotFoundError(f"{path} is not found")
@@ -190,10 +231,33 @@ class Session(metaclass=_SessionMeta):
                         f" or a file in a stage, but got {path}"
                     )
                 abs_path = os.path.abspath(path)
-                self.__import_paths[abs_path] = Utils.calculate_md5(abs_path)
+
+                if import_as_list[i] is not None:
+                    if os.path.isdir(abs_path):
+                        import_as_path = import_as_list[i].replace(".", "/")
+                    elif os.path.isfile(abs_path) and abs_path.endswith(".py"):
+                        import_as_path = f"{import_as_list[i].replace('.', '/')}.py"
+                    else:
+                        import_as_path = None
+                    if import_as_path:
+                        if abs_path.endswith(import_as_path):
+                            leading_path = abs_path[: -len(import_as_path)]
+                        else:
+                            raise ValueError(
+                                f"import_as {import_as_list[i]} is invalid "
+                                f"because it's not a part of path {abs_path}"
+                            )
+                    else:
+                        leading_path = None
+                else:
+                    leading_path = None
+
+                self.__import_paths[abs_path] = (
+                    Utils.calculate_md5(abs_path, additional_info=leading_path),
+                    leading_path,
+                )
             else:
-                abs_path = path
-                self.__import_paths[abs_path] = None
+                self.__import_paths[path] = (None, None)
 
     def removeImports(self, *paths: Union[str, List[str]]):
         """
@@ -237,18 +301,14 @@ class Session(metaclass=_SessionMeta):
         normalized_stage_location = Utils.normalize_stage_location(stage_location)
 
         # always import cloudpickle
-        import_paths = {
-            **self.__import_paths,
-            self.__cloudpickle_path[0]: self.__cloudpickle_path[1],
-        }
-        for path, prefix in import_paths.items():
+        import_paths = {**self.__import_paths, **self.__cloudpickle_path}
+        for path, (prefix, leading_path) in import_paths.items():
             # stage file
             if path.startswith(self.__STAGE_PREFIX):
                 resolved_stage_files.append(path)
             else:
                 filename = (
                     f"{os.path.basename(path)}.zip"
-                    # TODO: SNOW-406036 don't zip .py file
                     if os.path.isdir(path) or path.endswith(".py")
                     else os.path.basename(path)
                 )
@@ -261,10 +321,10 @@ class Session(metaclass=_SessionMeta):
                     )
                 else:
                     # local directory or .py file
-                    # TODO: SNOW-406036 upload python file instead of zip containing udf
-                    #  after the server side issue is fixed
                     if os.path.isdir(path) or path.endswith(".py"):
-                        input_stream = Utils.zip_file_or_directory_to_stream(path)
+                        input_stream = Utils.zip_file_or_directory_to_stream(
+                            path, leading_path, add_init_py=True
+                        )
                         self.conn.upload_stream(
                             input_stream=input_stream,
                             stage_location=normalized_stage_location,
