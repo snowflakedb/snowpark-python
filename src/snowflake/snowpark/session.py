@@ -159,14 +159,18 @@ class Session(metaclass=_SessionMeta):
         a directory, or any other file resource.
 
         Args:
-            paths: The paths of local files or remote files in the stage.
-                1. If the path points to a local file, this file will be uploaded to a temporary
-                stage and Snowflake will import the file when executing a UDF.
-                2. If the path points to a local directory, the directory will be compressed as
-                a zip file and will be uploaded to a temporary stage and Snowflake will import
-                the zip file when executing a UDF.
-                3. If the path points to a file in a stage, the file is included in the imports
-                when executing a UDF.
+            paths: The paths of local files or remote files in the stage. In each case,
+
+                1. if the path points to a local file, this file will be uploaded to the
+                stage where the UDF is registered and Snowflake will import the file when
+                executing that UDF.
+
+                2. if the path points to a local directory, the directory will be compressed
+                as a zip file and will be uploaded to the stage where the UDF is registered
+                and Snowflake will import the file when executing that UDF.
+
+                3. if the path points to a file in a stage, the file will be included in the
+                imports when executing a UDF.
             import_as: The relative Python import paths in a UDF, as a :class:`str` or a list
                 of :class:`str`. If it is not provided or it is None, the UDF will import it
                 directly without any leading package/module. This argument will become a no-op
@@ -194,6 +198,7 @@ class Session(metaclass=_SessionMeta):
         Note:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
             immediately, and it will be uploaded when a UDF is created.
+
             2. Snowpark library calculates a checksum for every file/directory.
             If there is a file or directory existing in the stage, Snowpark library will
             compare their checksums to determine whether it should be overwritten.
