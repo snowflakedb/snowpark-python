@@ -5,6 +5,8 @@
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
+from snowflake.snowpark.functions import lit
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     BinaryType,
@@ -97,3 +99,21 @@ def test_verify_datatypes_reference(session_cnx):
         "StructField(ARRAY, ArrayType[String], Nullable=True), "
         "StructField(MAP, MapType[String,String], Nullable=True)]"
     )
+
+
+def test_verify_datatypes_reference(session_cnx):
+    with session_cnx() as session:
+        d1 = DecimalType(2, 1)
+        d2 = DecimalType(2, 1)
+        assert d1 == d2
+
+        df = session.range(1).select(
+            lit(0.05).cast(DecimalType(5, 2)).as_("a"),
+            lit(0.07).cast(DecimalType(7, 2)).as_("b"),
+        )
+
+        assert df.collect() == [Row([Decimal("0.05"), Decimal("0.07")])]
+        assert (
+            str(df.schema.fields)
+            == "[StructField(A, Decimal(5,2), Nullable=False), StructField(B, Decimal(7,2), Nullable=False)]"
+        )
