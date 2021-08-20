@@ -174,3 +174,44 @@ def test_df_agg_tuples_sum_basic(session_cnx):
         res = df.groupBy(col("first")).sum(col("second")).collect()
         res.sort(key=lambda x: x[0])
         assert res == [Row([1, 8]), Row([2, 11])]
+
+
+def test_df_agg_dict_arg(session_cnx):
+    """Test for making sure dict when passed to agg() works as expected"""
+    with session_cnx() as session:
+        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+            ["first", "second"]
+        )
+        res = df.agg({"first": "sum"}).collect()
+        assert res == [Row([6])]
+
+        res = df.agg({"second": "sum"}).collect()
+        assert res == [Row([19])]
+
+        res = df.agg({"second": "sum", "first": "sum"}).collect()
+        assert res == [Row([19, 6])]
+
+        res = df.agg({"first": "count", "second": "size"}).collect()
+        assert res == [Row([4, 4])]
+
+        # negative tests
+        with pytest.raises(TypeError) as ex_info:
+            df.agg({"second": 1, "first": "sum"})
+        assert (
+            "Dictionary passed to agg() should contain only strings: got key-value pair with types (<class 'str'>, <class 'int'>)"
+            in str(ex_info)
+        )
+
+        with pytest.raises(TypeError) as ex_info:
+            df.agg({"second": "sum", 1: "sum"})
+        assert (
+            "Dictionary passed to agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'str'>)"
+            in str(ex_info)
+        )
+
+        with pytest.raises(TypeError) as ex_info:
+            df.agg({"second": "sum", 1: 1})
+        assert (
+            "Dictionary passed to agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'int'>)"
+            in str(ex_info)
+        )
