@@ -149,6 +149,8 @@ class Utils:
             additional_info: Any additional information we might want to include
                 for checksum computation.
 
+        Returns:
+            The result checksum (md5).
         """
         if not os.path.exists(path):
             raise FileNotFoundError(f"{path} is not found")
