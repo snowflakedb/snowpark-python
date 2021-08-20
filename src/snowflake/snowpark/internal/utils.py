@@ -109,7 +109,10 @@ class Utils:
 
     @staticmethod
     def calculate_md5(
-        path: str, additional_info: Optional[str] = None, part_size: int = 8192
+        path: str,
+        additional_info: Optional[str] = None,
+        part_size: int = 8192,
+        ignore_generated_py_file=True,
     ) -> str:
         """
         Calculate the checksum (md5) of a file or a directory.
@@ -129,12 +132,18 @@ class Utils:
         elif os.path.isdir(path):
             current_size = 0
             for dirname, dirs, files in os.walk(path):
+                if ignore_generated_py_file and "__pycache__" in dirname:
+                    continue
                 for dir in sorted(dirs):
+                    if ignore_generated_py_file and dir == "__pycache__":
+                        continue
                     hash_md5.update(dir.encode("utf8"))
-                    print(dir)
                 for file in sorted(files):
+                    if ignore_generated_py_file and file.endswith(
+                        (".pyc", "pyo", "pyd", "$py.class")
+                    ):
+                        continue
                     hash_md5.update(file.encode("utf8"))
-                    print(file)
                     if current_size < part_size:
                         filename = os.path.join(dirname, file)
                         file_size = os.path.getsize(filename)
