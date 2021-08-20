@@ -73,9 +73,30 @@ class Utils:
     def zip_file_or_directory_to_stream(
         path: str, leading_path: Optional[str] = None, add_init_py: bool = False
     ) -> IO[bytes]:
-        """Compress the file or directory as a zip file to a binary stream."""
-        input_stream = io.BytesIO()
+        """Compresses the file or directory as a zip file to a binary stream.
+        Args:
+            path: The absolute path to a file or directory.
+            leading_path: This argument is used to determine where directory should
+                start in the zip file. Basically, this argument works as the role
+                of `start` argument in os.path.relpath(path, start), i.e.,
+                absolute path = [leading path]/[relative path]. For example,
+                when the path is "/tmp/dir1/dir2/test.py", and the leading path
+                is "/tmp/dir1", the generated filesystem structure in the zip file
+                will be "dir2/test.py".
+            add_init_py: Whether to add __init__.py along the compressed path.
+
+        Returns:
+            A byte stream.
+        """
+        if os.path.exists(path):
+            raise FileNotFoundError(f"{path} is not found")
+        if not path.startswith(leading_path):
+            raise ValueError(f"{leading_path} doesn't lead to {path}")
+        # if leading_path is not provided, just use the parent path,
+        # and the compression will start from the parent directory
         start_path = leading_path if leading_path else os.path.join(path, "..")
+
+        input_stream = io.BytesIO()
         with zipfile.ZipFile(
             input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
         ) as zf:
@@ -88,14 +109,12 @@ class Utils:
             else:
                 zf.write(path, os.path.relpath(path, start_path))
 
-            # __init__.py is needed for a module when it's imported as a zip file
+            # __init__.py is needed for  when a module imported as a zip file
             if add_init_py:
                 relative_path = os.path.relpath(path, start_path)
-                for i, c in enumerate(relative_path):
-                    if c == "/":
-                        zf.writestr(
-                            os.path.join(relative_path[: i + 1], "__init__.py"), ""
-                        )
+                while relative_path and relative_path != os.sep:
+                    relative_path, _ = os.path.split(relative_path)
+                    zf.writestr(os.path.join(relative_path, "__init__.py"), "")
 
         return input_stream
 
@@ -110,17 +129,25 @@ class Utils:
     @staticmethod
     def calculate_md5(
         path: str,
+        chunk_size: int = 8192,
+        ignore_generated_py_file: bool = True,
         additional_info: Optional[str] = None,
-        part_size: int = 8192,
-        ignore_generated_py_file=True,
     ) -> str:
-        """
-        Calculate the checksum (md5) of a file or a directory.
-        If the input path points to a file, we read a small chunk from the file
-        and calculate the checksum based on it.
-        If the input path points to a directory, the names of all files and
-        subdirectories in this directory will also be included for checksum
-        computation.
+        """Calculates the checksum (md5) of a file or a directory.
+
+        Args:
+            path: the path to a local file or directory.
+                If it points to a file, we read a small chunk from the file and
+                calculate the checksum based on it.
+                If it points to a directory, the names of all files and subdirectories
+                in this directory will also be included for checksum computation.
+            chunk_size: The size in byte we will read from the file/directory for
+                checksum computation.
+            ignore_generated_py_file: Whether to ignore some generated python files
+                in the directory.
+            additional_info: Any additional information we might want to include
+                for checksum computation.
+
         """
         if not os.path.exists(path):
             raise FileNotFoundError(f"{path} is not found")
@@ -128,28 +155,31 @@ class Utils:
         hash_md5 = hashlib.md5()
         if os.path.isfile(path):
             with open(path, "rb") as f:
-                hash_md5.update(f.read(part_size))
+                hash_md5.update(f.read(chunk_size))
         elif os.path.isdir(path):
             current_size = 0
             for dirname, dirs, files in os.walk(path):
+                # ignore __pycache__
                 if ignore_generated_py_file and "__pycache__" in dirname:
                     continue
+                # sort dirs and files so the result is consistent across different os
                 for dir in sorted(dirs):
                     if ignore_generated_py_file and dir == "__pycache__":
                         continue
                     hash_md5.update(dir.encode("utf8"))
                 for file in sorted(files):
                     if ignore_generated_py_file and file.endswith(
-                        (".pyc", "pyo", "pyd", "$py.class")
+                        # ignore byte-compiled (.pyc), optimized (.pyo)
+                        # and DLL (.pyd) python files
+                        (".pyc", ".pyo", ".pyd")
                     ):
                         continue
                     hash_md5.update(file.encode("utf8"))
-                    if current_size < part_size:
+                    if current_size < chunk_size:
                         filename = os.path.join(dirname, file)
                         file_size = os.path.getsize(filename)
-                        read_size = min(file_size, part_size - current_size)
+                        read_size = min(file_size, chunk_size - current_size)
                         current_size += read_size
-                        print(read_size)
                         with open(filename, "rb") as f:
                             hash_md5.update(f.read(read_size))
         else:

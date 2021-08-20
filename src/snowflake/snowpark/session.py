@@ -174,7 +174,7 @@ class Session(metaclass=_SessionMeta):
             import_as: The relative Python import paths in a UDF, as a :class:`str` or a list
                 of :class:`str`. If it is not provided or it is None, the UDF will import it
                 directly without any leading package/module. This argument will become a no-op
-                if the path points to a stage file.
+                if the path points to a stage file or a non-Python (.py) local file.
 
         Examples::
 
@@ -207,6 +207,7 @@ class Session(metaclass=_SessionMeta):
             function with the file path again, the existing file in the stage will be
             overwritten.
         """
+        # parse arguments to the lists and do some simple sanity checks
         trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
         if import_as:
             if type(import_as) == str:
@@ -237,7 +238,11 @@ class Session(metaclass=_SessionMeta):
                     )
                 abs_path = os.path.abspath(path)
 
+                # convert the Python import path to the file path
+                # and extract the leading path, where
+                # absolute path = [leading path]/[parsed file path of Python import path]
                 if import_as_list[i] is not None:
+                    # the import path only works for the directory and the Python file
                     if os.path.isdir(abs_path):
                         import_as_path = import_as_list[i].replace(".", "/")
                     elif os.path.isfile(abs_path) and abs_path.endswith(".py"):
@@ -258,6 +263,9 @@ class Session(metaclass=_SessionMeta):
                     leading_path = None
 
                 self.__import_paths[abs_path] = (
+                    # Include the information about import path to the checksum
+                    # calculation, so if the import path changes, the checksum
+                    # will change and the file in the stage will be overwritten.
                     Utils.calculate_md5(abs_path, additional_info=leading_path),
                     leading_path,
                 )
