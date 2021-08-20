@@ -109,7 +109,8 @@ class Utils:
             else:
                 zf.write(path, os.path.relpath(path, start_path))
 
-            # __init__.py is needed for  when a module imported as a zip file
+            # __init__.py is needed for all directories along the import path
+            # when importing a module as a zip file
             if add_init_py:
                 relative_path = os.path.relpath(path, start_path)
                 while relative_path and relative_path != os.sep:
