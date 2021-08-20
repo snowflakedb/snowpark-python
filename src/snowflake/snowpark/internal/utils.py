@@ -88,9 +88,9 @@ class Utils:
         Returns:
             A byte stream.
         """
-        if os.path.exists(path):
+        if not os.path.exists(path):
             raise FileNotFoundError(f"{path} is not found")
-        if not path.startswith(leading_path):
+        if leading_path and not path.startswith(leading_path):
             raise ValueError(f"{leading_path} doesn't lead to {path}")
         # if leading_path is not provided, just use the parent path,
         # and the compression will start from the parent directory
