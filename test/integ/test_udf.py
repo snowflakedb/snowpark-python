@@ -242,6 +242,20 @@ def test_annotation_syntax_udf(session_cnx):
         assert "input must be Column, str, or list" in str(ex_info)
 
 
+def test_session_register_udf(session_cnx):
+    with session_cnx() as session:
+        df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+        add_udf = session.udf.register(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+        )
+        assert df.select(add_udf("a", "b")).collect() == [
+            Row(3),
+            Row(7),
+        ]
+
+
 def test_add_imports_local_file(session_cnx, resources_path):
     test_files = TestFiles(resources_path)
     # This is a hack in the test such that we can just use `from test_udf import mod5`,
