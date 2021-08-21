@@ -86,7 +86,7 @@ def test_zip_file_or_directory_to_stream():
     def check_zip_files_and_close_stream(input_stream, expected_files):
         with zipfile.ZipFile(input_stream) as zf:
             assert zf.testzip() is None
-            assert zf.namelist() == expected_files
+            assert sorted(zf.namelist()) == sorted(expected_files)
         input_stream.close()
 
     stream = Utils.zip_file_or_directory_to_stream(test_files.test_udf_py_file)
