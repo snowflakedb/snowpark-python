@@ -47,10 +47,6 @@ def test_utils_validate_object_name():
 
 
 def test_md5():
-    resources_path = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "../../resources")
-    )
-    test_files = TestFiles(resources_path)
     assert (
         Utils.calculate_md5(test_files.test_file_avro)
         == "85bd7b9363853f1815254b1cbc608c22"
@@ -59,6 +55,7 @@ def test_md5():
         Utils.calculate_md5(test_files.test_udf_directory)
         == "956d97863a5e5f11840339bd208549ef"
     )
+    assert Utils.calculate_md5(resources_path) == "4a7e0e3ffda738600b344ac12c167aa4"
 
 
 def test_normalize_stage_location():
