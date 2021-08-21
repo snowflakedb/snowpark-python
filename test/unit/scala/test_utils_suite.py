@@ -4,9 +4,17 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import os
+import zipfile
 from test.utils import TestFiles
 
+import pytest
+
 from snowflake.snowpark.internal.utils import Utils
+
+resources_path = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "../../resources")
+)
+test_files = TestFiles(resources_path)
 
 
 def test_utils_validate_object_name():
@@ -72,3 +80,107 @@ def test_get_udf_upload_prefix():
     assert "SCHEMAVIEW_" in Utils.get_udf_upload_prefix('"SCHEMA"."VIEW"')
     assert "dbschematable" in Utils.get_udf_upload_prefix("db.schema.table")
     assert "dbschematable" in Utils.get_udf_upload_prefix('"db"."schema"."table"')
+
+
+def test_zip_file_or_directory_to_stream():
+    def check_zip_files_and_close_stream(input_stream, expected_files):
+        with zipfile.ZipFile(input_stream) as zf:
+            assert zf.testzip() is None
+            assert zf.namelist() == expected_files
+        input_stream.close()
+
+    stream = Utils.zip_file_or_directory_to_stream(test_files.test_udf_py_file)
+    check_zip_files_and_close_stream(stream, ["test_udf_file.py"])
+
+    stream = Utils.zip_file_or_directory_to_stream(
+        test_files.test_udf_py_file,
+        leading_path=test_files.test_udf_directory,
+        add_init_py=True,
+    )
+    check_zip_files_and_close_stream(stream, ["test_udf_file.py"])
+
+    stream = Utils.zip_file_or_directory_to_stream(
+        test_files.test_udf_py_file,
+        leading_path=os.path.dirname(test_files.test_udf_directory),
+    )
+    check_zip_files_and_close_stream(stream, ["test_udf_dir/test_udf_file.py"])
+
+    stream = Utils.zip_file_or_directory_to_stream(
+        test_files.test_udf_py_file,
+        leading_path=os.path.dirname(test_files.test_udf_directory),
+        add_init_py=True,
+    )
+    check_zip_files_and_close_stream(
+        stream, ["test_udf_dir/test_udf_file.py", "test_udf_dir/__init__.py"]
+    )
+
+    stream = Utils.zip_file_or_directory_to_stream(
+        test_files.test_udf_py_file,
+        leading_path=os.path.dirname(os.path.dirname(test_files.test_udf_directory)),
+        add_init_py=True,
+    )
+    check_zip_files_and_close_stream(
+        stream,
+        [
+            "resources/test_udf_dir/test_udf_file.py",
+            "resources/test_udf_dir/__init__.py",
+            "resources/__init__.py",
+        ],
+    )
+
+    stream = Utils.zip_file_or_directory_to_stream(test_files.test_udf_directory)
+    check_zip_files_and_close_stream(
+        stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
+    )
+
+    stream = Utils.zip_file_or_directory_to_stream(
+        test_files.test_udf_directory,
+        leading_path=os.path.dirname(test_files.test_udf_directory),
+        add_init_py=True,
+    )
+    check_zip_files_and_close_stream(
+        stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
+    )
+
+    stream = Utils.zip_file_or_directory_to_stream(
+        test_files.test_udf_directory,
+        leading_path=os.path.dirname(os.path.dirname(test_files.test_udf_directory)),
+        add_init_py=True,
+    )
+    check_zip_files_and_close_stream(
+        stream,
+        [
+            "resources/test_udf_dir/",
+            "resources/test_udf_dir/test_udf_file.py",
+            "resources/__init__.py",
+        ],
+    )
+
+    stream = Utils.zip_file_or_directory_to_stream(resources_path)
+    check_zip_files_and_close_stream(
+        stream,
+        [
+            "resources/",
+            "resources/broken.csv",
+            "resources/test.avro",
+            "resources/test.orc",
+            "resources/test.parquet",
+            "resources/test.xml",
+            "resources/test2CSV.csv",
+            "resources/testCSV.csv",
+            "resources/testCSVcolon.csv",
+            "resources/testCSVquotes.csv",
+            "resources/testJson.json",
+            "resources/test_udf_dir/",
+            "resources/test_udf_dir/test_udf_file.py",
+        ],
+    )
+
+    with pytest.raises(FileNotFoundError):
+        Utils.zip_file_or_directory_to_stream("file_not_found.txt")
+
+    with pytest.raises(ValueError) as ex_info:
+        Utils.zip_file_or_directory_to_stream(
+            test_files.test_udf_directory, test_files.test_udf_py_file
+        )
+    assert "doesn't lead to" in str(ex_info)

@@ -71,7 +71,10 @@ class Utils:
 
     @staticmethod
     def zip_file_or_directory_to_stream(
-        path: str, leading_path: Optional[str] = None, add_init_py: bool = False
+        path: str,
+        leading_path: Optional[str] = None,
+        add_init_py: bool = False,
+        ignore_generated_py_file: bool = True,
     ) -> IO[bytes]:
         """Compresses the file or directory as a zip file to a binary stream.
         Args:
@@ -84,6 +87,8 @@ class Utils:
                 is "/tmp/dir1", the generated filesystem structure in the zip file
                 will be "dir2/test.py".
             add_init_py: Whether to add __init__.py along the compressed path.
+            ignore_generated_py_file: Whether to ignore some generated python files
+                in the directory.
 
         Returns:
             A byte stream.
@@ -102,8 +107,17 @@ class Utils:
         ) as zf:
             if os.path.isdir(path):
                 for dirname, _, files in os.walk(path):
+                    # ignore __pycache__
+                    if ignore_generated_py_file and "__pycache__" in dirname:
+                        continue
                     zf.write(dirname, os.path.relpath(dirname, start_path))
                     for file in files:
+                        # ignore byte-compiled (.pyc), optimized (.pyo)
+                        # and DLL (.pyd) python files
+                        if ignore_generated_py_file and file.endswith(
+                            (".pyc", ".pyo", ".pyd")
+                        ):
+                            continue
                         filename = os.path.join(dirname, file)
                         zf.write(filename, os.path.relpath(filename, start_path))
             else:
@@ -113,9 +127,10 @@ class Utils:
             # when importing a module as a zip file
             if add_init_py:
                 relative_path = os.path.relpath(path, start_path)
-                while relative_path and relative_path != os.sep:
-                    relative_path, _ = os.path.split(relative_path)
-                    zf.writestr(os.path.join(relative_path, "__init__.py"), "")
+                head, _ = os.path.split(relative_path)
+                while head and head != os.sep:
+                    zf.writestr(os.path.join(head, "__init__.py"), "")
+                    head, _ = os.path.split(head)
 
         return input_stream
 
@@ -171,9 +186,9 @@ class Utils:
                         continue
                     hash_md5.update(dir.encode("utf8"))
                 for file in sorted(files):
+                    # ignore byte-compiled (.pyc), optimized (.pyo)
+                    # and DLL (.pyd) python files
                     if ignore_generated_py_file and file.endswith(
-                        # ignore byte-compiled (.pyc), optimized (.pyo)
-                        # and DLL (.pyd) python files
                         (".pyc", ".pyo", ".pyd")
                     ):
                         continue
