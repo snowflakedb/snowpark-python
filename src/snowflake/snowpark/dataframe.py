@@ -510,7 +510,9 @@ class DataFrame:
             ):
                 grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
             else:
-                raise TypeError("Lists passed to DataFrame.agg() should only contain Column-objects, or pairs of strings.")
+                raise TypeError(
+                    "Lists passed to DataFrame.agg() should only contain Column-objects, or pairs of strings."
+                )
         elif type(exprs) == dict:
             grouping_exprs = []
             for k, v in exprs.items():
