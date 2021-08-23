@@ -465,7 +465,7 @@ class DataFrame:
         return self.__with_plan(SPSort(sort_exprs, True, self.__plan))
 
     def agg(
-        self, exprs: Union[str, Column, Tuple[str, str], List[Union[str, Column]], Dict]
+        self, exprs: Union[Column, List[Column], Tuple[str, str], Dict[str, str]]
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
         group the data (:func:`groupBy`).
@@ -493,18 +493,14 @@ class DataFrame:
             :class:`DataFrame`
         """
         grouping_exprs = None
-        if type(exprs) == str:
-            grouping_exprs = [self.col(exprs)]
-        elif type(exprs) == Column:
+        if type(exprs) == Column:
             grouping_exprs = [exprs]
         elif type(exprs) == tuple:
             if len(exprs) == 2:
                 grouping_exprs = [(self.col(exprs[0]), exprs[1])]
         elif type(exprs) == list:
             # the first if-statement also handles the case of empty list
-            if all(type(e) == str for e in exprs):
-                grouping_exprs = [self.col(e) for e in exprs]
-            elif all(type(e) == Column for e in exprs):
+            if all(type(e) == Column for e in exprs):
                 grouping_exprs = [e for e in exprs]
             elif all(
                 type(e) in [list, tuple]
@@ -513,12 +509,14 @@ class DataFrame:
                 for e in exprs
             ):
                 grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
+            else:
+                raise TypeError("Lists passed to DataFrame.agg() should only contain Column-objects, or pairs of strings.")
         elif type(exprs) == dict:
             grouping_exprs = []
             for k, v in exprs.items():
                 if not type(k) == type(v) == str:
                     raise TypeError(
-                        f"Dictionary passed to agg() should contain only strings: got key-value pair with types {type(k), type(v)}"
+                        f"Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types {type(k), type(v)}"
                     )
                 grouping_exprs.append((self.col(k), v))
 
