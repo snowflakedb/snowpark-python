@@ -215,3 +215,14 @@ def test_df_agg_dict_arg(session_cnx):
             "Dictionary passed to agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'int'>)"
             in str(ex_info)
         )
+
+
+def test_df_agg_empty_args(session_cnx):
+    """Test for making sure dict when passed to agg() works as expected"""
+    with session_cnx() as session:
+        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+            ["first", "second"]
+        )
+
+        assert df.agg({}).collect() == [Row([1, 4])]
+        assert df.agg([]).collect() == [Row([1, 4])]

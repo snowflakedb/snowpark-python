@@ -477,8 +477,8 @@ class DataFrame:
         Alternatively, pass in a list of pairs, or a dictionary with key-value pairs,
         that specify the column names and aggregation functions. For each pair:
 
-            - Set the first pair-value to the name of the column to aggregate.
-            - Set the second pair-value to the name of the aggregation function to use on that column.
+            - Set the key of the key-value pair to the name of the column to aggregate.
+            - Set the value of the key-value pair to the name of the aggregation function to use on that column.
 
         Examples::
 
@@ -501,11 +501,12 @@ class DataFrame:
             if len(exprs) == 2:
                 grouping_exprs = [(self.col(exprs[0]), exprs[1])]
         elif type(exprs) == list:
+            # the first if-statement also handles the case of empty list
             if all(type(e) == str for e in exprs):
                 grouping_exprs = [self.col(e) for e in exprs]
-            if all(type(e) == Column for e in exprs):
+            elif all(type(e) == Column for e in exprs):
                 grouping_exprs = [e for e in exprs]
-            if all(
+            elif all(
                 type(e) in [list, tuple]
                 and len(e) == 2
                 and type(e[0]) == type(e[1]) == str
