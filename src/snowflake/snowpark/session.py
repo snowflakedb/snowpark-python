@@ -10,7 +10,7 @@ import os
 from array import array
 from functools import reduce
 from logging import getLogger
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Dict, List, NamedTuple, Optional, Set, Tuple, Union
 
 import cloudpickle
 
@@ -253,9 +253,7 @@ class Session(metaclass=_SessionMeta):
                     else os.path.basename(path)
                 )
                 filename_with_prefix = f"{prefix}/{filename}"
-                if any(
-                    filename_with_prefix in stage_file for stage_file in stage_file_list
-                ):
+                if filename_with_prefix in stage_file_list:
                     logger.info(
                         f"{filename} exists on {normalized_stage_location}, skipped"
                     )
@@ -288,16 +286,23 @@ class Session(metaclass=_SessionMeta):
 
         return resolved_stage_files
 
-    def _list_files_in_stage(self, stage_location: Optional[str] = None) -> List[str]:
+    def _list_files_in_stage(self, stage_location: Optional[str] = None) -> Set[str]:
         normalized = Utils.normalize_stage_location(
             stage_location if stage_location else self.__session_stage
         )
 
-        # TODO: get the prefix length of normalized stage string
-        return [
-            row.get_string(0)
+        # TODO: SNOW-425907 get the prefix length of normalized stage string
+        # currently only the session stage will be passed to this function
+        # so the parsing will be easy here:
+        # the session stage can only be '@"db"."schema".stage' or '@stage',
+        # with or without the ending slash
+        # the result prefix of a session stage will be 'stage/'
+        prefix_length = len(normalized.split(".")[-1].strip("@/")) + 1
+
+        return {
+            row.get_string(0)[prefix_length:]
             for row in self.sql(f"ls {normalized}").select('"name"').collect()
-        ]
+        }
 
     def set_query_tag(self, query_tag):
         self.__query_tag = query_tag
