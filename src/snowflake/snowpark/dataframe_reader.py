@@ -6,9 +6,10 @@ from typing import Dict
 
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import StructType, VariantType
+from snowflake.snowpark.internal.analyzer.staged_file_read_plan_builder import (
+    StagedFileReadPlanBuilder,
+)
+from snowflake.snowpark.types.sf_types import StructType
 
 
 class DataFrameReader:
@@ -82,8 +83,7 @@ class DataFrameReader:
 
     def __init__(self, session):
         self.session = session
-        self.__user_schema = None
-        self.__cur_options = {}
+        self.__file_read_plan_builder = StagedFileReadPlanBuilder(self.session)
 
     def table(self, name: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the specified
@@ -118,7 +118,7 @@ class DataFrameReader:
         Returns:
             :class:`DataFrameReader`
         """
-        self.__user_schema = schema
+        self.__file_read_plan_builder.user_schema(schema)
         return self
 
     def csv(self, path: str) -> DataFrame:
@@ -146,19 +146,11 @@ class DataFrameReader:
         Returns:
             :class:`DataFrame`
         """
-        if not self.__user_schema:
-            raise SnowparkClientException(
-                "Must provide user schema before reading file"
-            )
+        self.__file_read_plan_builder.path(path).format("csv").database_schema(
+            self.session.getFullyQualifiedCurrentSchema()
+        )
         return DataFrame(
-            self.session,
-            self.session._Session__plan_builder.read_file(
-                path,
-                "csv",
-                self.__cur_options,
-                self.session.getFullyQualifiedCurrentSchema(),
-                self.__user_schema.to_attributes(),
-            ),
+            self.session, self.__file_read_plan_builder.create_snowflake_plan()
         )
 
     def json(self, path: str) -> DataFrame:
@@ -339,7 +331,7 @@ class DataFrameReader:
         Returns:
             :class:`DataFrameReader`
         """
-        self.__cur_options[key.upper()] = self.__parse_value(value)
+        self.__file_read_plan_builder.option(key, value)
         return self
 
     def options(self, configs: Dict) -> "DataFrameReader":
@@ -372,8 +364,7 @@ class DataFrameReader:
         Returns:
             :class:`DataFrameReader`
         """
-        for k, v in configs.items():
-            self.option(k, v)
+        self.__file_read_plan_builder.options(configs)
         return self
 
     def __parse_value(self, v) -> str:
@@ -385,15 +376,9 @@ class DataFrameReader:
             return AnalyzerPackage.single_quote(str(v))
 
     def __read_semi_structured_file(self, path: str, format: str) -> "DataFrame":
-        if self.__user_schema:
-            raise ValueError(f"Read {format} does not support user schema")
+        self.__file_read_plan_builder.path(path).format(format).database_schema(
+            self.session.getFullyQualifiedCurrentSchema()
+        )
         return DataFrame(
-            self.session,
-            self.session._Session__plan_builder.read_file(
-                path,
-                format,
-                self.__cur_options,
-                self.session.getFullyQualifiedCurrentSchema(),
-                [Attribute('"$1"', VariantType())],
-            ),
+            self.session, self.__file_read_plan_builder.create_snowflake_plan()
         )

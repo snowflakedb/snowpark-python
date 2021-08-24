@@ -21,19 +21,6 @@ from snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
 
 class SnowflakePlan(LogicalPlan):
-    # for read_file()
-    __copy_option = {
-        "ON_ERROR",
-        "SIZE_LIMIT",
-        "PURGE",
-        "RETURN_FAILED_ONLY",
-        "MATCH_BY_COLUMN_NAME",
-        "ENFORCE_LENGTH",
-        "TRUNCATECOLUMNS",
-        "FORCE",
-        "LOAD_UNCERTAIN_FILES",
-    }
-
     def __init__(
         self,
         queries,

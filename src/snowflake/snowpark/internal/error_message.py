@@ -35,3 +35,9 @@ class SnowparkClientExceptionMessages:
             "You must specify either the fraction of rows or the number of rows to sample.",
             "0303",
         )
+
+    @staticmethod
+    def PLAN_UNSUPPORTED_FILE_FORMAT_TYPE(format: str):
+        return SnowparkClientException(
+            f"Internal error: unsupported file format type: '{format}'.", "0313"
+        )
