@@ -7,6 +7,7 @@ import datetime
 import math
 import os
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -261,122 +262,124 @@ def test_add_imports_local_file(session_cnx, resources_path):
     # This is a hack in the test such that we can just use `from test_udf import mod5`,
     # instead of `from test.resources.test_udf.test_udf import mod5`. Then we can test
     # `import_as` argument.
-    sys.path.append(resources_path)
-    sys.path.append(test_files.test_udf_directory)
+    with patch.object(
+        sys, "path", [*sys.path, resources_path, test_files.test_udf_directory]
+    ):
 
-    def plus4_then_mod5(x):
-        from test_udf_dir.test_udf_file import mod5
+        def plus4_then_mod5(x):
+            from test_udf_dir.test_udf_file import mod5
 
-        return mod5(x + 4)
+            return mod5(x + 4)
 
-    def plus4_then_mod5_direct_import(x):
-        from test_udf_file import mod5
+        def plus4_then_mod5_direct_import(x):
+            from test_udf_file import mod5
 
-        return mod5(x + 4)
+            return mod5(x + 4)
 
-    with session_cnx() as session:
-        df = session.range(-5, 5).toDF("a")
+        with session_cnx() as session:
+            df = session.range(-5, 5).toDF("a")
 
-        session.addImports(
-            test_files.test_udf_py_file, import_as="test_udf_dir.test_udf_file"
-        )
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
-        )
-        assert df.select(plus4_then_mod5_udf("a")).collect() == [
-            Row(plus4_then_mod5(i)) for i in range(-5, 5)
-        ]
+            session.addImports(
+                test_files.test_udf_py_file, import_as="test_udf_dir.test_udf_file"
+            )
+            plus4_then_mod5_udf = udf(
+                plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+            )
+            assert df.select(plus4_then_mod5_udf("a")).collect() == [
+                Row(plus4_then_mod5(i)) for i in range(-5, 5)
+            ]
 
-        # if import_as argument changes, the checksum of the file will also change
-        # and we will overwrite the file in the stage
-        session.addImports(test_files.test_udf_py_file)
-        plus4_then_mod5_direct_import_udf = udf(
-            plus4_then_mod5_direct_import,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-        assert df.select(plus4_then_mod5_direct_import_udf("a")).collect() == [
-            Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)
-        ]
+            # if import_as argument changes, the checksum of the file will also change
+            # and we will overwrite the file in the stage
+            session.addImports(test_files.test_udf_py_file)
+            plus4_then_mod5_direct_import_udf = udf(
+                plus4_then_mod5_direct_import,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+            )
+            assert df.select(plus4_then_mod5_direct_import_udf("a")).collect() == [
+                Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)
+            ]
 
-        # clean
-        session.clearImports()
+            # clean
+            session.clearImports()
 
 
 def test_add_imports_local_directory(session_cnx, resources_path):
     test_files = TestFiles(resources_path)
-    sys.path.append(resources_path)
-    sys.path.append(os.path.dirname(resources_path))
+    with patch.object(
+        sys, "path", [*sys.path, resources_path, os.path.dirname(resources_path)]
+    ):
 
-    def plus4_then_mod5(x):
-        from resources.test_udf_dir.test_udf_file import mod5
+        def plus4_then_mod5(x):
+            from resources.test_udf_dir.test_udf_file import mod5
 
-        return mod5(x + 4)
+            return mod5(x + 4)
 
-    def plus4_then_mod5_direct_import(x):
-        from test_udf_dir.test_udf_file import mod5
+        def plus4_then_mod5_direct_import(x):
+            from test_udf_dir.test_udf_file import mod5
 
-        return mod5(x + 4)
+            return mod5(x + 4)
 
-    with session_cnx() as session:
-        df = session.range(-5, 5).toDF("a")
+        with session_cnx() as session:
+            df = session.range(-5, 5).toDF("a")
 
-        session.addImports(
-            test_files.test_udf_directory, import_as="resources.test_udf_dir"
-        )
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
-        )
-        assert df.select(plus4_then_mod5_udf("a")).collect() == [
-            Row(plus4_then_mod5(i)) for i in range(-5, 5)
-        ]
+            session.addImports(
+                test_files.test_udf_directory, import_as="resources.test_udf_dir"
+            )
+            plus4_then_mod5_udf = udf(
+                plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+            )
+            assert df.select(plus4_then_mod5_udf("a")).collect() == [
+                Row(plus4_then_mod5(i)) for i in range(-5, 5)
+            ]
 
-        session.addImports(test_files.test_udf_directory)
-        plus4_then_mod5_direct_import_udf = udf(
-            plus4_then_mod5_direct_import,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-        assert df.select(plus4_then_mod5_direct_import_udf("a")).collect() == [
-            Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)
-        ]
+            session.addImports(test_files.test_udf_directory)
+            plus4_then_mod5_direct_import_udf = udf(
+                plus4_then_mod5_direct_import,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+            )
+            assert df.select(plus4_then_mod5_direct_import_udf("a")).collect() == [
+                Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)
+            ]
 
-        # clean
-        session.clearImports()
+            # clean
+            session.clearImports()
 
 
 # TODO: SNOW-406036 unblock this test after the server side issue is fixed
 @pytest.mark.skip(
-    "skip the test due to the issue on the server side aboit finding .py file"
+    "skip the test due to the issue on the server side about finding .py file"
 )
 def test_add_imports_stage_file(session_cnx, resources_path):
     test_files = TestFiles(resources_path)
-    sys.path.append(test_files.test_udf_directory)
+    with patch.object(sys, "path", [*sys.path, test_files.test_udf_directory]):
 
-    def plus4_then_mod5(x):
-        from test_udf_file import mod5
+        def plus4_then_mod5(x):
+            from test_udf_file import mod5
 
-        return mod5(x + 4)
+            return mod5(x + 4)
 
-    with session_cnx() as session:
-        stage_file = "@{}.{}/test_udf_file.py".format(
-            session.getFullyQualifiedCurrentSchema(), tmp_stage_name
-        )
-        Utils.upload_to_stage(
-            session, tmp_stage_name, test_files.test_udf_py_file, compress=False
-        )
-        session.addImports(stage_file)
-        plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
-        )
+        with session_cnx() as session:
+            stage_file = "@{}.{}/test_udf_file.py".format(
+                session.getFullyQualifiedCurrentSchema(), tmp_stage_name
+            )
+            Utils.upload_to_stage(
+                session, tmp_stage_name, test_files.test_udf_py_file, compress=False
+            )
+            session.addImports(stage_file)
+            plus4_then_mod5_udf = udf(
+                plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+            )
 
-        df = session.range(-5, 5).toDF("a")
-        assert df.select(plus4_then_mod5_udf("a")).collect() == [
-            Row(plus4_then_mod5(i)) for i in range(-5, 5)
-        ]
+            df = session.range(-5, 5).toDF("a")
+            assert df.select(plus4_then_mod5_udf("a")).collect() == [
+                Row(plus4_then_mod5(i)) for i in range(-5, 5)
+            ]
 
-        # clean
-        session.clearImports()
+            # clean
+            session.clearImports()
 
 
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")

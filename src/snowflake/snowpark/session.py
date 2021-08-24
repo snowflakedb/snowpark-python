@@ -182,14 +182,14 @@ class Session(metaclass=_SessionMeta):
             session.addImports(“/tmp/my_dir/my_module.py”)
             @udf
             def f():
-                import my_module import g
+                from my_module import g
                 return g()
 
             # import a local file with `import_as`
             session.addImports(“/tmp/my_dir/my_module.py”, import_as="my_dir.my_module")
             @udf
             def f():
-                import my_dir.my_module import g
+                from my_dir.my_module import g
                 return g()
 
             # import a stage file

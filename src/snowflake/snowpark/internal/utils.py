@@ -10,7 +10,7 @@ import platform
 import random
 import re
 import zipfile
-from typing import IO, List, Optional
+from typing import IO, List, Optional, Tuple
 
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
@@ -70,6 +70,12 @@ class Utils:
         return random.randint(0, 2 ** 31)
 
     @staticmethod
+    def generated_py_file_ext() -> Tuple[str, ...]:
+        # ignore byte-compiled (.pyc), optimized (.pyo), DLL (.pyd)
+        # and interface (.pyi) python files
+        return ".pyc", ".pyo", ".pyd", ".pyi"
+
+    @staticmethod
     def zip_file_or_directory_to_stream(
         path: str,
         leading_path: Optional[str] = None,
@@ -112,10 +118,9 @@ class Utils:
                         continue
                     zf.write(dirname, os.path.relpath(dirname, start_path))
                     for file in files:
-                        # ignore byte-compiled (.pyc), optimized (.pyo)
-                        # and DLL (.pyd) python files
+                        # ignore generated python files
                         if ignore_generated_py_file and file.endswith(
-                            (".pyc", ".pyo", ".pyd")
+                            Utils.generated_py_file_ext()
                         ):
                             continue
                         filename = os.path.join(dirname, file)
@@ -186,10 +191,9 @@ class Utils:
                         continue
                     hash_md5.update(dir.encode("utf8"))
                 for file in sorted(files):
-                    # ignore byte-compiled (.pyc), optimized (.pyo)
-                    # and DLL (.pyd) python files
+                    # ignore generated python files
                     if ignore_generated_py_file and file.endswith(
-                        (".pyc", ".pyo", ".pyd")
+                        Utils.generated_py_file_ext()
                     ):
                         continue
                     hash_md5.update(file.encode("utf8"))
