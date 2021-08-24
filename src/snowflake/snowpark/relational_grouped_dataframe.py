@@ -199,7 +199,7 @@ class RelationalGroupedDataFrame:
 
         Example::
 
-            import com.snowflake.snowpark.functions.col
+            from snowflake.snowpark.functions import col
             df.groupBy("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
 
         Returns:
