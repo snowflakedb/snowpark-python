@@ -3,11 +3,15 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import re
 from functools import reduce
 from typing import Callable, Dict, List, Optional
 
+import snowflake.connector
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.schema_utils import SchemaUtils
 from snowflake.snowpark.internal.sp_expressions import (
     Attribute as SPAttribute,
@@ -35,6 +39,11 @@ class SnowflakePlan(LogicalPlan):
         "LOAD_UNCERTAIN_FILES",
     }
 
+    __wrap_exception_regex_match = re.compile(
+        r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
+    )
+    __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
+
     def __init__(
         self,
         queries,
@@ -57,8 +66,51 @@ class SnowflakePlan(LogicalPlan):
         self.__placeholder_for_output = None
 
     # TODO
-    def wrap_exception(self):
-        pass
+    @classmethod
+    def wrap_exception(cls, func):
+        def wrap(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except snowflake.connector.errors.ProgrammingError as e:
+                if "unexpected 'as'" in e.msg.lower():
+                    raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() from e
+                elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
+                    match = SnowflakePlan.__wrap_exception_regex_match.match(e.msg)
+                    if not match:
+                        raise e
+                    col = match.group()
+                    children = [arg for arg in args if type(arg) == SnowflakePlan]
+                    remapped = [
+                        SnowflakePlan.__wrap_exception_regex_sub.sub("", val)
+                        for child in children
+                        for val in child.expr_to_alias.values()
+                    ]
+                    if col in remapped:
+                        unaliased_cols = DataFrame.get_unaliased(col)
+                        orig_col_name = (
+                            unaliased_cols[0] if unaliased_cols else "<colname>"
+                        )
+                        raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_INVALID_ID(
+                            orig_col_name
+                        ) from e
+                    elif (
+                        len(
+                            [
+                                unaliased
+                                for item in remapped
+                                for unaliased in DataFrame.get_unaliased(item)
+                                if unaliased == col
+                            ]
+                        )
+                        > 1
+                    ):
+                        raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_JOIN_AMBIGUOUS(
+                            col, col
+                        ) from e
+                    else:
+                        raise e
+
+        return wrap
 
     # TODO
     def analyze_if_needed(self):
