@@ -10,7 +10,8 @@ import platform
 import random
 import re
 import zipfile
-from typing import IO, List
+from enum import Enum
+from typing import IO, List, Type
 
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
@@ -129,3 +130,23 @@ class Utils:
             raise ValueError("md5 can only be calculated for a file or directory")
 
         return hash_md5.hexdigest()
+
+    @staticmethod
+    def str_to_enum(value: str, enum_class: Type[Enum], except_str: str):
+        try:
+            return enum_class(value)
+        except:
+            raise ValueError(
+                f"{except_str} must be one of {', '.join([Utils.quote_value(e.value) for e in enum_class])}"
+            )
+
+    @staticmethod
+    def quote_value(self, value: str):
+        return f"'{value}'"
+
+
+class _SaveMode(Enum):
+    APPEND = "append"
+    OVERWRITE = "overwrite"
+    ERROR_IF_EXISTS = "error_if_exists"
+    IGNORE = "ignore"

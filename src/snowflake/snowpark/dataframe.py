@@ -3,11 +3,13 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import enum
 import string
 from random import choice
 from typing import List, Optional, Tuple, Union
 
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark.internal.analyzer.sp_identifiers import TableIdentifier
@@ -179,6 +181,9 @@ class DataFrame:
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
         self.__placeholder_output = None
+
+        # For DataFrameWriter
+        self.__writer: DataFrameWriter = None
 
     @staticmethod
     def __generate_prefix(prefix: str) -> str:
@@ -886,6 +891,12 @@ class DataFrame:
             the number of rows.
         """
         return self.agg(("*", "count")).collect()[0].get_int(0)
+
+    @property
+    def write(self) -> DataFrameWriter:
+        if self.__writer is None:
+            self.__writer = DataFrameWriter(self)
+        return self.__writer
 
     def show(self, n: int = 10, max_width: int = 50):
         """Evaluates this DataFrame and prints out the first ``n`` rows with the
