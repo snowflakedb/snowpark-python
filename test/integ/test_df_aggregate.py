@@ -60,6 +60,9 @@ def test_df_agg_tuples_basic(session_cnx):
         res = df.agg([("second", "std")]).collect()
         assert res == [Row([0.9574272818339783])]
 
+        res = df.agg((("second", "std"))).collect()
+        assert res == [Row([0.9574272818339783])]
+
         # combine those together
         res = df.agg(
             [
