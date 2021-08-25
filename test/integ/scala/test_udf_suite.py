@@ -39,36 +39,26 @@ view1 = f'"{Utils.random_name()}"'
 view2 = f'"{Utils.random_name()}"'
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module", autouse=True)
 def before_all(session_cnx, resources_path):
-    def do():
-        test_files = TestFiles(resources_path)
-        with session_cnx() as session:
-            Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-            Utils.upload_to_stage(
-                session, tmp_stage_name, test_files.test_file_parquet, compress=False
-            )
-            Utils.create_table(session, table1, "a int")
-            session._run_query(f"insert into {table1} values(1),(2),(3)")
-            Utils.create_table(session, table2, "a int, b int")
-            session._run_query(f"insert into {table2} values(1, 2),(2, 3),(3, 4)")
-
-    return do
-
-
-@pytest.fixture(scope="module")
-def after_all(session_cnx):
-    def do():
-        with session_cnx() as session:
-            Utils.drop_table(session, tmp_table_name)
-            Utils.drop_table(session, table1)
-            Utils.drop_table(session, table2)
-            Utils.drop_table(session, semi_structured_table)
-            Utils.drop_table(session, view1)
-            Utils.drop_table(session, view2)
-            Utils.drop_stage(session, tmp_stage_name)
-
-    return do
+    test_files = TestFiles(resources_path)
+    with session_cnx() as session:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        Utils.upload_to_stage(
+            session, tmp_stage_name, test_files.test_file_parquet, compress=False
+        )
+        Utils.create_table(session, table1, "a int")
+        session._run_query(f"insert into {table1} values(1),(2),(3)")
+        Utils.create_table(session, table2, "a int, b int")
+        session._run_query(f"insert into {table2} values(1, 2),(2, 3),(3, 4)")
+        yield
+        Utils.drop_table(session, tmp_table_name)
+        Utils.drop_table(session, table1)
+        Utils.drop_table(session, table2)
+        Utils.drop_table(session, semi_structured_table)
+        Utils.drop_table(session, view1)
+        Utils.drop_table(session, view2)
+        Utils.drop_stage(session, tmp_stage_name)
 
 
 def test_basic_udf_function(session_cnx):

@@ -8,6 +8,7 @@ import uuid
 from contextlib import contextmanager
 from test.parameters import CONNECTION_PARAMETERS
 from typing import Callable, Dict
+from functools import partial
 
 import pytest
 
@@ -40,42 +41,19 @@ CONNECTION_PARAMETERS = {
 
 
 @pytest.fixture(scope="module")
-def before_all():
-    def do():
-        pass
-
-    return do
-
-
-@pytest.fixture(scope="module")
-def after_all():
-    def do():
-        pass
-
-    return do
-
-
-@pytest.fixture(scope="module", autouse=True)
-def init_session(request, db_parameters, resources_path, before_all, after_all):
+def session(db_parameters, resources_path):
     conn_params = db_parameters.copy()
     if not conn_params.get("timezone"):
         conn_params["timezone"] = "UTC"
     if not conn_params.get("converter_class"):
         conn_params["converter_class"] = DefaultConverterClass()
-    Session.builder.configs(db_parameters).create()
-    before_all()
-
-    def fin():
-        after_all()
-        active_session = Session._get_active_session()
-        if active_session:
-            active_session.close()
-
-    request.addfinalizer(fin)
+    session = Session.builder.configs(db_parameters).create()
+    yield session
+    session.close()
 
 
 @pytest.fixture(scope="session", autouse=True)
-def init_test_schema(request, db_parameters) -> None:
+def init_test_schema(db_parameters) -> None:
     """Initializes and Deinitializes the test schema. This is automatically called per test session."""
     ret = db_parameters
     with snowflake.connector.connect(
@@ -92,21 +70,10 @@ def init_test_schema(request, db_parameters) -> None:
         con.cursor().execute(
             "GRANT ALL PRIVILEGES ON SCHEMA {} TO ROLE PUBLIC".format(TEST_SCHEMA)
         )
-
-    def fin():
-        ret1 = db_parameters
-        with snowflake.connector.connect(
-            user=ret1["user"],
-            password=ret1["password"],
-            host=ret1["host"],
-            port=ret1["port"],
-            database=ret1["database"],
-            account=ret1["account"],
-            protocol=ret1["protocol"],
-        ) as con1:
-            con1.cursor().execute("DROP SCHEMA IF EXISTS {}".format(TEST_SCHEMA))
-
-    request.addfinalizer(fin)
+        yield
+        con.cursor().execute("DROP SCHEMA IF EXISTS {}".format(TEST_SCHEMA))
+        con.cursor().close()
+        con.close()
 
 
 @pytest.fixture(scope="session")
@@ -123,14 +90,12 @@ def resources_path() -> str:
 
 
 @pytest.fixture(scope="module")
-def session_cnx() -> Callable[..., "Session"]:
-    return get_session
+def session_cnx(session) -> Callable[..., "Session"]:
+    # For back-compatible with test code that uses `with session_cnx() as session:`.
+    # Tests should be able to use session directly.
+    return partial(get_session, session)
 
 
 @contextmanager
-def get_session(conn_params=None):
-    if conn_params or not Session._get_active_session():
-        session = Session.builder.configs(conn_params or CONNECTION_PARAMETERS).create()
-    else:
-        session = Session._get_active_session()
+def get_session(session):
     yield session

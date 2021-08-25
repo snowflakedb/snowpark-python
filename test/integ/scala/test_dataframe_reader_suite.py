@@ -56,79 +56,69 @@ tmp_stage_name1 = Utils.random_stage_name()
 tmp_stage_name2 = Utils.random_stage_name()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module", autouse=True)
 def before_all(session_cnx, resources_path):
-    def do():
-        test_files = TestFiles(resources_path)
-        with session_cnx() as session:
-            Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
-            Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
-            Utils.upload_to_stage(
-                session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
-            )
-            Utils.upload_to_stage(
-                session,
-                "@" + tmp_stage_name1,
-                test_files.test_file2_csv,
-                compress=False,
-            )
-            Utils.upload_to_stage(
-                session,
-                "@" + tmp_stage_name1,
-                test_files.test_file_csv_colon,
-                compress=False,
-            )
-            Utils.upload_to_stage(
-                session,
-                "@" + tmp_stage_name1,
-                test_files.test_file_csv_quotes,
-                compress=False,
-            )
-            Utils.upload_to_stage(
-                session,
-                "@" + tmp_stage_name1,
-                test_files.test_file_json,
-                compress=False,
-            )
-            Utils.upload_to_stage(
-                session,
-                "@" + tmp_stage_name1,
-                test_files.test_file_avro,
-                compress=False,
-            )
-            Utils.upload_to_stage(
-                session,
-                "@" + tmp_stage_name1,
-                test_files.test_file_parquet,
-                compress=False,
-            )
-            Utils.upload_to_stage(
-                session, "@" + tmp_stage_name1, test_files.test_file_orc, compress=False
-            )
-            Utils.upload_to_stage(
-                session, "@" + tmp_stage_name1, test_files.test_file_xml, compress=False
-            )
-            Utils.upload_to_stage(
-                session,
-                "@" + tmp_stage_name1,
-                test_files.test_broken_csv,
-                compress=False,
-            )
-            Utils.upload_to_stage(
-                session, "@" + tmp_stage_name2, test_files.test_file_csv, compress=False
-            )
-
-    return do
-
-
-@pytest.fixture(scope="module")
-def after_all(session_cnx):
-    def do():
-        with session_cnx() as session:
-            session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
-            session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
-
-    return do
+    test_files = TestFiles(resources_path)
+    with session_cnx() as session:
+        Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
+        Utils.create_stage(session, tmp_stage_name2, is_temporary=True)
+        Utils.upload_to_stage(
+            session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
+        )
+        Utils.upload_to_stage(
+            session,
+            "@" + tmp_stage_name1,
+            test_files.test_file2_csv,
+            compress=False,
+        )
+        Utils.upload_to_stage(
+            session,
+            "@" + tmp_stage_name1,
+            test_files.test_file_csv_colon,
+            compress=False,
+        )
+        Utils.upload_to_stage(
+            session,
+            "@" + tmp_stage_name1,
+            test_files.test_file_csv_quotes,
+            compress=False,
+        )
+        Utils.upload_to_stage(
+            session,
+            "@" + tmp_stage_name1,
+            test_files.test_file_json,
+            compress=False,
+        )
+        Utils.upload_to_stage(
+            session,
+            "@" + tmp_stage_name1,
+            test_files.test_file_avro,
+            compress=False,
+        )
+        Utils.upload_to_stage(
+            session,
+            "@" + tmp_stage_name1,
+            test_files.test_file_parquet,
+            compress=False,
+        )
+        Utils.upload_to_stage(
+            session, "@" + tmp_stage_name1, test_files.test_file_orc, compress=False
+        )
+        Utils.upload_to_stage(
+            session, "@" + tmp_stage_name1, test_files.test_file_xml, compress=False
+        )
+        Utils.upload_to_stage(
+            session,
+            "@" + tmp_stage_name1,
+            test_files.test_broken_csv,
+            compress=False,
+        )
+        Utils.upload_to_stage(
+            session, "@" + tmp_stage_name2, test_files.test_file_csv, compress=False
+        )
+        yield
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
+        session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
