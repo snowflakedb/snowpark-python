@@ -324,7 +324,7 @@ class SnowflakePlanBuilder:
                 child,
                 None,
             )
-        elif mode == _SaveMode.ERROR_IF_EXISTS:
+        elif mode in (_SaveMode.ERROR_IF_EXISTS, _SaveMode.ERROR):
             return self.build(
                 partial(
                     self.pkg.create_table_as_select_statement, table_name=table_name

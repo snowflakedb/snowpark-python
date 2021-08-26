@@ -182,9 +182,6 @@ class DataFrame:
         self.__placeholder_schema = None
         self.__placeholder_output = None
 
-        # For DataFrameWriter
-        self.__writer: DataFrameWriter = None
-
     @staticmethod
     def __generate_prefix(prefix: str) -> str:
         alphanumeric = string.ascii_lowercase + string.digits
@@ -894,9 +891,7 @@ class DataFrame:
 
     @property
     def write(self) -> DataFrameWriter:
-        if self.__writer is None:
-            self.__writer = DataFrameWriter(self)
-        return self.__writer
+        return DataFrameWriter(self)
 
     def show(self, n: int = 10, max_width: int = 50):
         """Evaluates this DataFrame and prints out the first ``n`` rows with the

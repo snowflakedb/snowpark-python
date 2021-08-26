@@ -148,5 +148,6 @@ class Utils:
 class _SaveMode(Enum):
     APPEND = "append"
     OVERWRITE = "overwrite"
-    ERROR_IF_EXISTS = "error_if_exists"
+    ERROR_IF_EXISTS = "errorifexists"
+    ERROR = "error"  # An alias of ERROR_IF_EXISTS. TODO: Scala doesn't have. Spark adds it in 3.x.
     IGNORE = "ignore"
