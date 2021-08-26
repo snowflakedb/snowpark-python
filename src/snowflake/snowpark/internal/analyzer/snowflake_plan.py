@@ -66,8 +66,8 @@ class SnowflakePlan(LogicalPlan):
         self.__placeholder_for_output = None
 
     # TODO
-    @classmethod
-    def wrap_exception(cls, func):
+    @staticmethod
+    def wrap_exception(func):
         def wrap(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
@@ -113,6 +113,7 @@ class SnowflakePlan(LogicalPlan):
         return wrap
 
     # TODO
+    @wrap_exception
     def analyze_if_needed(self):
         pass
 
@@ -166,6 +167,7 @@ class SnowflakePlanBuilder:
         self.__session = session
         self.pkg = AnalyzerPackage()
 
+    @SnowflakePlan.wrap_exception
     def build(self, sql_generator, child, source_plan, schema_query=None):
         select_child = self._add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
@@ -184,6 +186,7 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
+    @SnowflakePlan.wrap_exception
     def __build_binary(
         self,
         sql_generator: Callable[[str, str], str],

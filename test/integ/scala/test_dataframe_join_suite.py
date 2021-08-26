@@ -149,7 +149,6 @@ def test_join_with_multiple_conditions(session_cnx):
         assert res == []
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
 def test_join_with_ambiguous_column_in_condidtion(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([1, 2]).toDF(["a"])
@@ -262,7 +261,6 @@ def test_join_ambiguous_columns_with_specified_sources(session_cnx):
         assert sorted(res, key=lambda x: x[0]) == [Row([1, "test1"]), Row([4, "test2"])]
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
 def test_join_ambiguous_columns_without_specified_sources(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([[1, "one"], [2, "two"]]).toDF(
@@ -305,7 +303,6 @@ def test_join_expression_ambiguous_columns(session_cnx):
         assert res == [Row([2, -1, -10, "one", "one"]), Row([4, -2, -20, "two", "two"])]
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
 def semi_join_expression_ambiguous_columns(session_cnx):
     with session_cnx() as session:
         lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
@@ -682,7 +679,6 @@ def test_join_on_join(session_cnx):
             Utils.drop_table(session, table_name1)
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
 def test_negative_test_join_on_join(session_cnx):
     with session_cnx() as session:
         table_name1 = Utils.random_name()
@@ -911,7 +907,6 @@ def test_name_alias_on_multiple_join_unnormalized_name(session_cnx):
             Utils.drop_table(session, table_stations)
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
 def test_report_error_when_refer_common_col(session_cnx):
     with session_cnx() as session:
         df1 = session.createDataFrame([[1, 2]]).toDF(["a", "b"])
