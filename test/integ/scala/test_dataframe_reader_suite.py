@@ -300,12 +300,11 @@ def test_to_read_files_from_stage(session_cnx, resources_path, mode):
             session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
 
 
-@pytest.mark.skip("Needs DataFrameWriter.")
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_for_all_csv_compression_keywords(session_cnx, mode):
+def test_for_all_csv_compression_keywords(session_cnx, temp_schema, mode):
     with session_cnx() as session:
         tmp_table = (
-            Utils.get_fully_qualified_temp_schema(session) + "." + Utils.random_name()
+            temp_schema + "." + Utils.random_name()
         )
         test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
         format_name = Utils.random_name()
