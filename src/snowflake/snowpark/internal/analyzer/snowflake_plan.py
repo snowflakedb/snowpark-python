@@ -26,6 +26,59 @@ from snowflake.snowpark.types.types_package import snow_type_to_sp_type
 
 
 class SnowflakePlan(LogicalPlan):
+    class Decorator:
+        __wrap_exception_regex_match = re.compile(
+            r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
+        )
+        __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
+
+        # TODO
+        @staticmethod
+        def wrap_exception(func):
+            def wrap(*args, **kwargs):
+                try:
+                    return func(*args, **kwargs)
+                except snowflake.connector.errors.ProgrammingError as e:
+                    if "unexpected 'as'" in e.msg.lower():
+                        raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() from e
+                    elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
+                        match = SnowflakePlan.__wrap_exception_regex_match.match(e.msg)
+                        if not match:
+                            raise e
+                        col = match.group()
+                        children = [arg for arg in args if type(arg) == SnowflakePlan]
+                        remapped = [
+                            SnowflakePlan.__wrap_exception_regex_sub.sub("", val)
+                            for child in children
+                            for val in child.expr_to_alias.values()
+                        ]
+                        if col in remapped:
+                            unaliased_cols = DataFrame.get_unaliased(col)
+                            orig_col_name = (
+                                unaliased_cols[0] if unaliased_cols else "<colname>"
+                            )
+                            raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_INVALID_ID(
+                                orig_col_name
+                            ) from e
+                        elif (
+                            len(
+                                [
+                                    unaliased
+                                    for item in remapped
+                                    for unaliased in DataFrame.get_unaliased(item)
+                                    if unaliased == col
+                                ]
+                            )
+                            > 1
+                        ):
+                            raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_JOIN_AMBIGUOUS(
+                                col, col
+                            ) from e
+                        else:
+                            raise e
+
+            return wrap
+
     # for read_file()
     __copy_option = {
         "ON_ERROR",
@@ -38,11 +91,6 @@ class SnowflakePlan(LogicalPlan):
         "FORCE",
         "LOAD_UNCERTAIN_FILES",
     }
-
-    __wrap_exception_regex_match = re.compile(
-        r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
-    )
-    __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
 
     def __init__(
         self,
@@ -66,54 +114,7 @@ class SnowflakePlan(LogicalPlan):
         self.__placeholder_for_output = None
 
     # TODO
-    @staticmethod
-    def wrap_exception(func):
-        def wrap(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except snowflake.connector.errors.ProgrammingError as e:
-                if "unexpected 'as'" in e.msg.lower():
-                    raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() from e
-                elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
-                    match = SnowflakePlan.__wrap_exception_regex_match.match(e.msg)
-                    if not match:
-                        raise e
-                    col = match.group()
-                    children = [arg for arg in args if type(arg) == SnowflakePlan]
-                    remapped = [
-                        SnowflakePlan.__wrap_exception_regex_sub.sub("", val)
-                        for child in children
-                        for val in child.expr_to_alias.values()
-                    ]
-                    if col in remapped:
-                        unaliased_cols = DataFrame.get_unaliased(col)
-                        orig_col_name = (
-                            unaliased_cols[0] if unaliased_cols else "<colname>"
-                        )
-                        raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_INVALID_ID(
-                            orig_col_name
-                        ) from e
-                    elif (
-                        len(
-                            [
-                                unaliased
-                                for item in remapped
-                                for unaliased in DataFrame.get_unaliased(item)
-                                if unaliased == col
-                            ]
-                        )
-                        > 1
-                    ):
-                        raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_JOIN_AMBIGUOUS(
-                            col, col
-                        ) from e
-                    else:
-                        raise e
-
-        return wrap
-
-    # TODO
-    @wrap_exception
+    @Decorator.wrap_exception
     def analyze_if_needed(self):
         pass
 
@@ -167,7 +168,7 @@ class SnowflakePlanBuilder:
         self.__session = session
         self.pkg = AnalyzerPackage()
 
-    @SnowflakePlan.wrap_exception
+    @SnowflakePlan.Decorator.wrap_exception
     def build(self, sql_generator, child, source_plan, schema_query=None):
         select_child = self._add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
@@ -186,7 +187,7 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    @SnowflakePlan.wrap_exception
+    @SnowflakePlan.Decorator.wrap_exception
     def __build_binary(
         self,
         sql_generator: Callable[[str, str], str],
@@ -194,55 +195,45 @@ class SnowflakePlanBuilder:
         right: SnowflakePlan,
         source_plan: LogicalPlan,
     ):
-        try:
-            select_left = self._add_result_scan_if_not_select(left)
-            select_right = self._add_result_scan_if_not_select(right)
-            queries = (
-                select_left.queries[:-1]
-                + select_right.queries[:-1]
-                + [
-                    Query(
-                        sql_generator(
-                            select_left.queries[-1].sql, select_right.queries[-1].sql
-                        ),
-                        None,
-                    )
-                ]
-            )
+        select_left = self._add_result_scan_if_not_select(left)
+        select_right = self._add_result_scan_if_not_select(right)
+        queries = (
+            select_left.queries[:-1]
+            + select_right.queries[:-1]
+            + [
+                Query(
+                    sql_generator(
+                        select_left.queries[-1].sql, select_right.queries[-1].sql
+                    ),
+                    None,
+                )
+            ]
+        )
 
-            left_schema_query = self.pkg.schema_value_statement(
-                select_left.attributes()
-            )
-            right_schema_query = self.pkg.schema_value_statement(
-                select_right.attributes()
-            )
-            schema_query = sql_generator(left_schema_query, right_schema_query)
+        left_schema_query = self.pkg.schema_value_statement(select_left.attributes())
+        right_schema_query = self.pkg.schema_value_statement(select_right.attributes())
+        schema_query = sql_generator(left_schema_query, right_schema_query)
 
-            common_columns = set(select_left.expr_to_alias.keys()).intersection(
-                select_right.expr_to_alias.keys()
-            )
-            new_expr_to_alias = {
-                k: v
-                for k, v in {
-                    **select_left.expr_to_alias,
-                    **select_right.expr_to_alias,
-                }.items()
-                if k not in common_columns
-            }
+        common_columns = set(select_left.expr_to_alias.keys()).intersection(
+            select_right.expr_to_alias.keys()
+        )
+        new_expr_to_alias = {
+            k: v
+            for k, v in {
+                **select_left.expr_to_alias,
+                **select_right.expr_to_alias,
+            }.items()
+            if k not in common_columns
+        }
 
-            return SnowflakePlan(
-                queries,
-                schema_query,
-                select_left.post_actions + select_right.post_actions,
-                new_expr_to_alias,
-                self.__session,
-                source_plan,
-            )
-
-        except Exception as ex:
-            # TODO
-            # self.__wrap_exception(ex, left, right)
-            raise ex
+        return SnowflakePlan(
+            queries,
+            schema_query,
+            select_left.post_actions + select_right.post_actions,
+            new_expr_to_alias,
+            self.__session,
+            source_plan,
+        )
 
     def query(self, sql, source_plan):
         """
