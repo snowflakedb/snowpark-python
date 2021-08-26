@@ -11,7 +11,7 @@ import random
 import re
 import zipfile
 from enum import Enum
-from typing import IO, List, Type
+from typing import IO, List, Optional, Tuple, Type
 
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
@@ -71,21 +71,72 @@ class Utils:
         return random.randint(0, 2 ** 31)
 
     @staticmethod
-    def zip_file_or_directory_to_stream(path: str) -> IO[bytes]:
-        """Compress the file or directory as a zip file to a binary stream."""
+    def generated_py_file_ext() -> Tuple[str, ...]:
+        # ignore byte-compiled (.pyc), optimized (.pyo), DLL (.pyd)
+        # and interface (.pyi) python files
+        return ".pyc", ".pyo", ".pyd", ".pyi"
+
+    @staticmethod
+    def zip_file_or_directory_to_stream(
+        path: str,
+        leading_path: Optional[str] = None,
+        add_init_py: bool = False,
+        ignore_generated_py_file: bool = True,
+    ) -> IO[bytes]:
+        """Compresses the file or directory as a zip file to a binary stream.
+        Args:
+            path: The absolute path to a file or directory.
+            leading_path: This argument is used to determine where directory should
+                start in the zip file. Basically, this argument works as the role
+                of `start` argument in os.path.relpath(path, start), i.e.,
+                absolute path = [leading path]/[relative path]. For example,
+                when the path is "/tmp/dir1/dir2/test.py", and the leading path
+                is "/tmp/dir1", the generated filesystem structure in the zip file
+                will be "dir2/test.py".
+            add_init_py: Whether to add __init__.py along the compressed path.
+            ignore_generated_py_file: Whether to ignore some generated python files
+                in the directory.
+
+        Returns:
+            A byte stream.
+        """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{path} is not found")
+        if leading_path and not path.startswith(leading_path):
+            raise ValueError(f"{leading_path} doesn't lead to {path}")
+        # if leading_path is not provided, just use the parent path,
+        # and the compression will start from the parent directory
+        start_path = leading_path if leading_path else os.path.join(path, "..")
+
         input_stream = io.BytesIO()
-        parent_path = os.path.join(path, "..")
         with zipfile.ZipFile(
             input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
         ) as zf:
             if os.path.isdir(path):
                 for dirname, _, files in os.walk(path):
-                    zf.write(dirname, os.path.relpath(dirname, parent_path))
+                    # ignore __pycache__
+                    if ignore_generated_py_file and "__pycache__" in dirname:
+                        continue
+                    zf.write(dirname, os.path.relpath(dirname, start_path))
                     for file in files:
+                        # ignore generated python files
+                        if ignore_generated_py_file and file.endswith(
+                            Utils.generated_py_file_ext()
+                        ):
+                            continue
                         filename = os.path.join(dirname, file)
-                        zf.write(filename, os.path.relpath(filename, parent_path))
+                        zf.write(filename, os.path.relpath(filename, start_path))
             else:
-                zf.write(path, os.path.relpath(path, parent_path))
+                zf.write(path, os.path.relpath(path, start_path))
+
+            # __init__.py is needed for all directories along the import path
+            # when importing a module as a zip file
+            if add_init_py:
+                relative_path = os.path.relpath(path, start_path)
+                head, _ = os.path.split(relative_path)
+                while head and head != os.sep:
+                    zf.writestr(os.path.join(head, "__init__.py"), "")
+                    head, _ = os.path.split(head)
 
         return input_stream
 
@@ -98,14 +149,29 @@ class Utils:
             return [*inputs]
 
     @staticmethod
-    def calculate_md5(path: str, part_size: int = 8192) -> str:
-        """
-        Calculate the checksum (md5) of a file or a directory.
-        If the input path points to a file, we read a small chunk from the file
-        and calculate the checksum based on it.
-        If the input path points to a directory, the names of all files and
-        subdirectories in this directory will also be included for checksum
-        computation.
+    def calculate_md5(
+        path: str,
+        chunk_size: int = 8192,
+        ignore_generated_py_file: bool = True,
+        additional_info: Optional[str] = None,
+    ) -> str:
+        """Calculates the checksum (md5) of a file or a directory.
+
+        Args:
+            path: the path to a local file or directory.
+                If it points to a file, we read a small chunk from the file and
+                calculate the checksum based on it.
+                If it points to a directory, the names of all files and subdirectories
+                in this directory will also be included for checksum computation.
+            chunk_size: The size in byte we will read from the file/directory for
+                checksum computation.
+            ignore_generated_py_file: Whether to ignore some generated python files
+                in the directory.
+            additional_info: Any additional information we might want to include
+                for checksum computation.
+
+        Returns:
+            The result checksum (md5).
         """
         if not os.path.exists(path):
             raise FileNotFoundError(f"{path} is not found")
@@ -113,21 +179,37 @@ class Utils:
         hash_md5 = hashlib.md5()
         if os.path.isfile(path):
             with open(path, "rb") as f:
-                hash_md5.update(f.read(part_size))
+                hash_md5.update(f.read(chunk_size))
         elif os.path.isdir(path):
             current_size = 0
-            for dirname, _, files in os.walk(path):
-                hash_md5.update(os.path.basename(dirname).encode("utf8"))
-                for file in files:
-                    if current_size < part_size:
+            for dirname, dirs, files in os.walk(path):
+                # ignore __pycache__
+                if ignore_generated_py_file and "__pycache__" in dirname:
+                    continue
+                # sort dirs and files so the result is consistent across different os
+                for dir in sorted(dirs):
+                    if ignore_generated_py_file and dir == "__pycache__":
+                        continue
+                    hash_md5.update(dir.encode("utf8"))
+                for file in sorted(files):
+                    # ignore generated python files
+                    if ignore_generated_py_file and file.endswith(
+                        Utils.generated_py_file_ext()
+                    ):
+                        continue
+                    hash_md5.update(file.encode("utf8"))
+                    if current_size < chunk_size:
                         filename = os.path.join(dirname, file)
                         file_size = os.path.getsize(filename)
-                        read_size = min(file_size, part_size - current_size)
+                        read_size = min(file_size, chunk_size - current_size)
                         current_size += read_size
                         with open(filename, "rb") as f:
                             hash_md5.update(f.read(read_size))
         else:
             raise ValueError("md5 can only be calculated for a file or directory")
+
+        if additional_info:
+            hash_md5.update(additional_info.encode("utf8"))
 
         return hash_md5.hexdigest()
 

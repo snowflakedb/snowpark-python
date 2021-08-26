@@ -6,7 +6,7 @@
 import enum
 import string
 from random import choice
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
@@ -467,7 +467,10 @@ class DataFrame:
         return self.__with_plan(SPSort(sort_exprs, True, self.__plan))
 
     def agg(
-        self, exprs: Union[str, Column, Tuple[str, str], List[Union[str, Column]]]
+        self,
+        exprs: Union[
+            Column, Tuple[str, str], List[Column], List[Tuple[str, str]], Dict[str, str]
+        ],
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
         group the data (:func:`groupBy`).
@@ -476,35 +479,54 @@ class DataFrame:
         functions to columns (functions that are defined in the
         :mod:`snowflake.snowpark.functions` module).
 
-        Alternatively, pass in a list of pairs that specify the column names and
-        aggregation functions. For each pair in the list:
+        Alternatively, pass in a list of pairs, or a dictionary with key-value pairs,
+        that specify the column names and aggregation functions. For each pair:
 
-            - Set the first pair-value to the name of the column to aggregate.
-            - Set the second pair-value to the name of the aggregation function to use on that column.
+            - Set the key of the key-value pair to the name of the column to aggregate.
+            - Set the value of the key-value pair to the name of the aggregation function to use on that column.
+
+        Examples::
+
+            from snowflake.snowpark.functions import col, stddev, stddev_pop
+            df.agg(stddev(col("a")))
+            df.agg([stddev(col("a")), stddev_pop(col("a"))])
+
+            df.agg([("length", "min"), ("width", "max")])
+            df.agg({"customers": "count", "amount": "sum"})
 
         Returns:
             :class:`DataFrame`
         """
         grouping_exprs = None
-        if type(exprs) == str:
-            grouping_exprs = [self.col(exprs)]
-        elif type(exprs) == Column:
+        if type(exprs) == Column:
             grouping_exprs = [exprs]
-        elif type(exprs) == tuple:
-            if len(exprs) == 2:
-                grouping_exprs = [(self.col(exprs[0]), exprs[1])]
-        elif type(exprs) == list:
-            if all(type(e) == str for e in exprs):
-                grouping_exprs = [self.col(e) for e in exprs]
+        elif type(exprs) in [list, tuple]:
+            # the first if-statement also handles the case of empty list
             if all(type(e) == Column for e in exprs):
                 grouping_exprs = [e for e in exprs]
-            if all(
+            elif all(
                 type(e) in [list, tuple]
                 and len(e) == 2
                 and type(e[0]) == type(e[1]) == str
                 for e in exprs
             ):
                 grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
+            # case for just a single pair passed as input
+            elif len(exprs) == 2:
+                if type(exprs[0]) == type(exprs[1]) == str:
+                    grouping_exprs = [(self.col(exprs[0]), exprs[1])]
+            else:
+                raise TypeError(
+                    "Lists passed to DataFrame.agg() should only contain Column-objects, or pairs of strings."
+                )
+        elif type(exprs) == dict:
+            grouping_exprs = []
+            for k, v in exprs.items():
+                if not type(k) == type(v) == str:
+                    raise TypeError(
+                        f"Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types {type(k), type(v)}"
+                    )
+                grouping_exprs.append((self.col(k), v))
 
         if grouping_exprs is None:
             raise TypeError(f"Invalid type passed to agg(): {type(exprs)}")
