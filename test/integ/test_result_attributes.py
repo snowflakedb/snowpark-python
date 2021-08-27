@@ -3,9 +3,10 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-import uuid
 from test.utils import Utils as utils
 from typing import List
+
+import pytest
 
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.session import Session
@@ -120,6 +121,7 @@ def test_array_type(session_cnx):
     assert type(attributes[0].datatype) == ArrayType
 
 
+@pytest.mark.skip("SNOW-442047: show shares doesn't work; re-enable after the fix")
 def test_describe_schema_matches_execute_schema_for_show_queries(
     session_cnx, db_parameters
 ):
