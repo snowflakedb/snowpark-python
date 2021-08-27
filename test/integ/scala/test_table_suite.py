@@ -31,7 +31,8 @@ def table_name_4(session: Session):
     Utils.drop_table(session, table_name)
 
 
-def test_save_as_snowflake_table(session, table_name_1):
+@pytest.mark.parametrize("mode_place", ["method", "param"])
+def test_save_as_snowflake_table(session, table_name_1, mode_place):
     df = session.table(table_name_1)
     assert df.collect() == [Row(1), Row(2), Row(3)]
     table_name_2 = Utils.random_name()
@@ -44,23 +45,35 @@ def test_save_as_snowflake_table(session, table_name_1):
         assert df2.collect() == [Row(1), Row(2), Row(3)]
 
         # append mode
-        df.write.mode("append").saveAsTable(table_name_2)
+        if mode_place == "method":
+            df.write.mode("append").saveAsTable(table_name_2)
+        else:
+            df.write.saveAsTable(table_name_2, "append")
         df4 = session.table(table_name_2)
         assert df4.collect() == [Row(1), Row(2), Row(3), Row(1), Row(2), Row(3)]
 
         # ignore mode
-        df.write.mode("IGNORE").saveAsTable(table_name_2)
+        if mode_place == "method":
+            df.write.mode("IGNORE").saveAsTable(table_name_2)
+        else:
+            df.write.saveAsTable(table_name_2, "IGNORE")
         df3 = session.table(table_name_2)
         assert df3.collect() == [Row(1), Row(2), Row(3), Row(1), Row(2), Row(3)]
 
         # overwrite mode
-        df.write.mode("OvErWrItE").saveAsTable(table_name_2)
+        if mode_place == "method":
+            df.write.mode("OvErWrItE").saveAsTable(table_name_2)
+        else:
+            df.write.saveAsTable(table_name_2, "OvErWrItE")
         df5 = session.table(table_name_2)
         assert df5.collect() == [Row(1), Row(2), Row(3)]
 
         # test for append when the original table does not exist
         # need to create the table before insertion
-        df.write.mode("aPpEnD").saveAsTable(table_name_3)
+        if mode_place == "method":
+            df.write.mode("aPpEnD").saveAsTable(table_name_3)
+        else:
+            df.write.saveAsTable(table_name_3, "aPpEnD")
         df6 = session.table(table_name_3)
         assert df6.collect() == [Row(1), Row(2), Row(3)]
 
@@ -70,12 +83,16 @@ def test_save_as_snowflake_table(session, table_name_1):
 
         # error mode, same as errorifexists
         with pytest.raises(ProgrammingError):
-            df.write.mode("error").saveAsTable(table_name_2)
+            if mode_place == "method":
+                df.write.mode("error").saveAsTable(table_name_2)
+            else:
+                df.write.saveAsTable(table_name_2, "error")
     finally:
         Utils.drop_table(session, table_name_2)
         Utils.drop_table(session, table_name_3)
 
 
+@pytest.mark.skip("Python doesn't have non-string argument for mode. Scala has this test but python doesn't need to.")
 def test_save_as_snowflake_table_string_argument(table_name_4):
     """
     Scala's `DataFrameWriter.mode()` accepts both enum values of SaveMode and str.
