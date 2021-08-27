@@ -178,6 +178,6 @@ def test_zip_file_or_directory_to_stream():
 
     with pytest.raises(ValueError) as ex_info:
         Utils.zip_file_or_directory_to_stream(
-            test_files.test_udf_directory, test_files.test_udf_py_file
+            test_files.test_udf_directory, "test_udf_dir"
         )
     assert "doesn't lead to" in str(ex_info)
