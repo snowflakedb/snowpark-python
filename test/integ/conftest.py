@@ -6,7 +6,6 @@
 import os
 import uuid
 from contextlib import contextmanager
-from test.parameters import CONNECTION_PARAMETERS
 from typing import Callable, Dict
 
 import pytest
@@ -14,6 +13,8 @@ import pytest
 import snowflake.connector
 from snowflake.connector.connection import DefaultConverterClass
 from snowflake.snowpark.session import Session
+
+from ..parameters import CONNECTION_PARAMETERS
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
