@@ -174,7 +174,7 @@ class DataFrame:
     """
 
     __NUM_PREFIX_DIGITS = 4
-    __get_unaliased_regex = re.compile(f"""._[a-zA-Z0-9]{{numPrefixDigits}}_(.*)""")
+    __get_unaliased_regex = re.compile(f"""._[a-zA-Z0-9]{__NUM_PREFIX_DIGITS}_(.*)""")
 
     def __init__(self, session=None, plan=None):
         self.session = session
