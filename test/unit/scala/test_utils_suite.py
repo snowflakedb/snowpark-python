@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import os
+import platform
 import zipfile
 from test.utils import TestFiles
 
@@ -51,10 +52,16 @@ def test_md5():
         Utils.calculate_md5(test_files.test_file_avro)
         == "85bd7b9363853f1815254b1cbc608c22"
     )
-    assert (
-        Utils.calculate_md5(test_files.test_udf_directory)
-        == "956d97863a5e5f11840339bd208549ef"
-    )
+    if platform.system() == "Windows":
+        assert (
+            Utils.calculate_md5(test_files.test_udf_directory)
+            == "051593215a8fa0445d81154e5fdfd89e"
+        )
+    else:
+        assert (
+            Utils.calculate_md5(test_files.test_udf_directory)
+            == "956d97863a5e5f11840339bd208549ef"
+        )
     assert Utils.calculate_md5(resources_path) == "4a7e0e3ffda738600b344ac12c167aa4"
 
 

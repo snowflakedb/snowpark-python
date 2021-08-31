@@ -114,7 +114,7 @@ def test_variant_negative():
     else:
         with pytest.raises(ValueError) as ex_info:
             Variant(time.time() * 1000).as_datetime()
-    assert "out of range" in str(ex_info)
+        assert "out of range" in str(ex_info)
     t = datetime.datetime.strptime("2021-02-03T04:05:06.000007", "%Y-%m-%dT%H:%M:%S.%f")
     with pytest.raises(AssertionError) as ex_info:
         Variant(t)
