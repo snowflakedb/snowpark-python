@@ -12,7 +12,7 @@ import pytest
 from snowflake.snowpark.internal.utils import Utils
 
 resources_path = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "../../resources")
+    os.path.join(os.path.dirname(__file__), ".." "..", "resources")
 )
 test_files = TestFiles(resources_path)
 
