@@ -162,9 +162,9 @@ def test_consistent_table_name_behaviors(session):
     finally:
         Utils.drop_table(session, table_name)
 
-    # for tn in table_names:
-    #     df.write.mode("Overwrite").saveAsTable(tn)
-    #     try:
-    #         Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
-    #     finally:
-    #         Utils.drop_table(session, table_name)
+    for tn in table_names:
+        df.write.mode("Overwrite").saveAsTable(tn)
+        try:
+            Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
+        finally:
+            Utils.drop_table(session, table_name)

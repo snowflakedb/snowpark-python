@@ -29,9 +29,7 @@ class DataFrameWriter:
 
     def __init__(self, dataframe: "DataFrame"):
         self.__dataframe = dataframe
-        self.__save_mode = (
-            _SaveMode.APPEND
-        )  # spark default value is error.
+        self.__save_mode = _SaveMode.APPEND  # spark default value is error.
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this `DataFrameWriter`.
