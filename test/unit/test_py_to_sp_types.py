@@ -32,6 +32,7 @@ from snowflake.snowpark.types.types_package import _infer_type
 
 # TODO complete for schema case
 def test_py_to_sp_type():
+    is_windows = platform.system() == "Windows"
     assert type(_infer_type(None)) == SPNullType
     assert type(_infer_type(1)) == SPLongType
     assert type(_infer_type(3.14)) == SPDoubleType
@@ -87,13 +88,18 @@ def test_py_to_sp_type():
 
     res = _infer_type(array("l"))
     assert type(res) == SPArrayType
-    if platform.system() == "Windows":
+    if is_windows:
         assert type(res.element_type) == SPIntegerType
     else:
         assert type(res.element_type) == SPLongType
 
-    with pytest.raises(TypeError):
-        _infer_type(array("L"))
+    if is_windows:
+        res = _infer_type(array("L"))
+        assert type(res) == SPArrayType
+        assert type(res.element_type) == SPLongType
+    else:
+        with pytest.raises(TypeError):
+            _infer_type(array("L"))
 
     res = _infer_type(array("b"))
     assert type(res) == SPArrayType
@@ -123,8 +129,13 @@ def test_py_to_sp_type():
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPLongType
 
-    with pytest.raises(TypeError):
-        _infer_type(array("q"))
+    if is_windows:
+        res = _infer_type(array("q"))
+        assert type(res) == SPArrayType
+        assert type(res.element_type) == SPLongType
+    else:
+        with pytest.raises(TypeError):
+            _infer_type(array("q"))
 
     with pytest.raises(TypeError):
         _infer_type(array("Q"))
