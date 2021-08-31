@@ -17,7 +17,7 @@ class DataFrameWriter:
     1. Create an instance of a :class:`DataFrameWriter` by accessing the :attr:`DataFrame.write` property.
     2. Specify the save mode by calling :meth:`mode`, which returns the same `DataFrameWriter` that is configured to
         save data using the specified mode.
-        The default mode is "error".
+        The default mode is "errorifexists".
     3. Call the :meth:`saveAsTable` method to save the data to the specified destination.
 
     Example::
@@ -45,7 +45,7 @@ class DataFrameWriter:
 
                 "ignore": Ignore this operation if data already exists.
 
-                Default value is "error".
+                Default value is "errorifexists".
 
         Returns:
             The :class:`DataFrameWriter` itself.
@@ -64,7 +64,7 @@ class DataFrameWriter:
             table_name: A string or list of strings that specify the table name or fully-qualified object identifier
                 (database name, schema name, and table name).
             mode: Optionally, override the default save mode of the 'DataFrameWriter' and use the specified save mode:
-                "append", "overwrite", "error", "errorifexists" or "ignore".
+                "append", "overwrite", "errorifexists" or "ignore".
 
         Returns:
             None
