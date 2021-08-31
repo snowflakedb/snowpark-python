@@ -9,7 +9,6 @@ from contextlib import contextmanager
 from test.parameters import CONNECTION_PARAMETERS
 from test.utils import Utils
 from typing import Callable, Dict
-from functools import partial
 
 import pytest
 
@@ -70,8 +69,8 @@ def connection(db_parameters):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def init_test_schema(connection) -> None:
-    """Initializes and Deinitializes the test schema. This is automatically called per test session."""
+def test_schema(connection) -> None:
+    """Set up and tear down the test schema. This is automatically called per test session."""
     with connection.cursor() as cursor:
         cursor.execute("CREATE SCHEMA IF NOT EXISTS {}".format(TEST_SCHEMA))
         # This is needed for test_get_schema_database_works_after_use_role in test_session_suite

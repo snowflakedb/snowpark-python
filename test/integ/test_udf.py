@@ -40,7 +40,7 @@ tmp_stage_name = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def before_all(session_cnx):
+def setup(session_cnx):
     with session_cnx() as session:
         Utils.create_stage(session, tmp_stage_name, is_temporary=True)
 

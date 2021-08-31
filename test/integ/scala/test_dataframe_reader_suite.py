@@ -57,7 +57,7 @@ tmp_stage_name2 = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def before_all(session_cnx, resources_path):
+def setup(session_cnx, resources_path):
     test_files = TestFiles(resources_path)
     with session_cnx() as session:
         Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
@@ -117,6 +117,8 @@ def before_all(session_cnx, resources_path):
             session, "@" + tmp_stage_name2, test_files.test_file_csv, compress=False
         )
         yield
+        # tear down the resources after yield (pytest fixture feature)
+        # https://docs.pytest.org/en/6.2.x/fixture.html#yield-fixtures-recommended
         session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
         session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name2}").collect()
 
@@ -303,9 +305,7 @@ def test_to_read_files_from_stage(session_cnx, resources_path, mode):
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_for_all_csv_compression_keywords(session_cnx, temp_schema, mode):
     with session_cnx() as session:
-        tmp_table = (
-            temp_schema + "." + Utils.random_name()
-        )
+        tmp_table = temp_schema + "." + Utils.random_name()
         test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
         format_name = Utils.random_name()
         try:

@@ -913,17 +913,17 @@ class DataFrame:
 
     @property
     def write(self) -> DataFrameWriter:
-        """Returns a new :class:`DataFrameWriter` object that you can use to write the data of this `DataFrame` to
-        Snowflake database.
+        """Returns a new :class:`DataFrameWriter` object that you can use to write the data in the `DataFrame` to
+        a Snowflake database.
 
-        Examples::
+        Example::
 
             df.write.saveAsTable("table1")
 
         Returns:
-            None
-
+            :class:`DataFrameWriter`
         """
+
         return DataFrameWriter(self)
 
     def show(self, n: int = 10, max_width: int = 50):

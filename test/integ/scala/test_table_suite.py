@@ -79,20 +79,18 @@ def test_save_as_snowflake_table(session, table_name_1, mode_place):
 
         # errorifexists mode
         with pytest.raises(ProgrammingError):
-            df.write.mode("errorifexists").saveAsTable(table_name_2)
-
-        # error mode, same as errorifexists
-        with pytest.raises(ProgrammingError):
             if mode_place == "method":
-                df.write.mode("error").saveAsTable(table_name_2)
+                df.write.mode("errorifexists").saveAsTable(table_name_2)
             else:
-                df.write.saveAsTable(table_name_2, "error")
+                df.write.saveAsTable(table_name_2, "errorifexists")
     finally:
         Utils.drop_table(session, table_name_2)
         Utils.drop_table(session, table_name_3)
 
 
-@pytest.mark.skip("Python doesn't have non-string argument for mode. Scala has this test but python doesn't need to.")
+@pytest.mark.skip(
+    "Python doesn't have non-string argument for mode. Scala has this test but python doesn't need to."
+)
 def test_save_as_snowflake_table_string_argument(table_name_4):
     """
     Scala's `DataFrameWriter.mode()` accepts both enum values of SaveMode and str.
@@ -164,9 +162,9 @@ def test_consistent_table_name_behaviors(session):
     finally:
         Utils.drop_table(session, table_name)
 
-    for tn in table_names:
-        df.write.mode("Overwrite").saveAsTable(tn)
-        try:
-            Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
-        finally:
-            Utils.drop_table(session, table_name)
+    # for tn in table_names:
+    #     df.write.mode("Overwrite").saveAsTable(tn)
+    #     try:
+    #         Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
+    #     finally:
+    #         Utils.drop_table(session, table_name)

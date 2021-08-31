@@ -489,6 +489,8 @@ class AnalyzerPackage:
     def batch_insert_into_statement(
         self, table_name: str, column_names: List[str]
     ) -> str:
+        """This method is not used yet. In scala, it's for largeLocalRelationPlan.
+        Please add test cases to it when largeLocalRelationPlan is implemented in Python"""
         return (
             f"{self._Insert}{self._Into}{table_name}"
             f"{self._LeftParenthesis}{self._Comma.join(column_names)}{self._RightParenthesis}"
@@ -497,7 +499,7 @@ class AnalyzerPackage:
         )
 
     def create_table_as_select_statement(
-        self, child: str, table_name: str, replace: bool = False, error: bool = True
+        self, table_name: str, child: str, replace: bool = False, error: bool = True
     ) -> str:
         return (
             f"{self._Create}{self._Or + self._Replace if replace else self._EmptyString}{self._Table}"

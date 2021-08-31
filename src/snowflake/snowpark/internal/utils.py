@@ -214,22 +214,19 @@ class Utils:
         return hash_md5.hexdigest()
 
     @staticmethod
-    def str_to_enum(value: str, enum_class: Type[Enum], except_str: str):
+    def str_to_enum(value: str, enum_class: Type[Enum], except_str: str) -> Enum:
         try:
             return enum_class(value)
         except:
             raise ValueError(
-                f"{except_str} must be one of {', '.join([Utils.quote_value(e.value) for e in enum_class])}"
+                f"{except_str} must be one of {', '.join([e.value for e in enum_class])}"
             )
-
-    @staticmethod
-    def quote_value(self, value: str):
-        return f"'{value}'"
 
 
 class _SaveMode(Enum):
+    # Tempararily put in utils.py because snowflake_play.py uses _SaveMode.
+    # There would be circular error if _SaveMode is put in dataframe_writer.py
     APPEND = "append"
     OVERWRITE = "overwrite"
     ERROR_IF_EXISTS = "errorifexists"
-    ERROR = "error"  # An alias of ERROR_IF_EXISTS. TODO: Scala doesn't have. Spark adds it in 3.x.
     IGNORE = "ignore"

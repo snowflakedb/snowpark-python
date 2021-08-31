@@ -392,7 +392,9 @@ class Analyzer:
 
         if type(logical_plan) == SnowflakeCreateTable:
             return self.plan_builder.save_as_table(
-                logical_plan.table_name, logical_plan.mode, logical_plan.query
+                logical_plan.table_name,
+                logical_plan.mode,
+                resolved_children[logical_plan.children[0]],
             )
 
         if type(logical_plan) == SPLimit:

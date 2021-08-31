@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from functools import partial, reduce
+from functools import reduce
 from typing import Callable, Dict, List, Optional
 
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
@@ -306,29 +306,23 @@ class SnowflakePlanBuilder:
             )
         elif mode == _SaveMode.OVERWRITE:
             return self.build(
-                partial(
-                    self.pkg.create_table_as_select_statement,
-                    table_name=table_name,
-                    replace=True,
+                lambda x: self.pkg.create_table_as_select_statement(
+                    table_name, x, replace=True
                 ),
                 child,
                 None,
             )
         elif mode == _SaveMode.IGNORE:
             return self.build(
-                partial(
-                    self.pkg.create_table_as_select_statement,
-                    table_name=table_name,
-                    error=False,
+                lambda x: self.pkg.create_table_as_select_statement(
+                    table_name, x, error=False
                 ),
                 child,
                 None,
             )
-        elif mode in (_SaveMode.ERROR_IF_EXISTS, _SaveMode.ERROR):
+        elif mode == _SaveMode.ERROR_IF_EXISTS:
             return self.build(
-                partial(
-                    self.pkg.create_table_as_select_statement, table_name=table_name
-                ),
+                lambda x: self.pkg.create_table_as_select_statement(table_name, x),
                 child,
                 None,
             )
@@ -518,7 +512,7 @@ class SnowflakeValues(LeafNode):
         self.data = data
 
 
-# TODO: this class was taken from SnowflakeCreateTable.scala
+# TODO: Similar to the above SnowflakeValues, this should be moved to a different file
 class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self, table_name: str, mode: "_SaveMode", query: Optional[LogicalPlan]
@@ -526,4 +520,4 @@ class SnowflakeCreateTable(LogicalPlan):
         super().__init__()
         self.table_name = table_name
         self.mode = mode
-        self.query = query
+        self.children.append(query)

@@ -3,14 +3,14 @@
 #
 
 from enum import Enum
-from typing import Dict, Iterable, Union
+from typing import Dict, Iterable, Optional, Union
 
 from snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakeCreateTable
 from snowflake.snowpark.internal.utils import Utils, _SaveMode
 
 
 class DataFrameWriter:
-    """Provides methods for writing data from a DataFrame to supported output destinations.
+    """Provides methods for writing data from a :class:`DataFrame` to supported output destinations.
 
     To use this object:
 
@@ -20,16 +20,18 @@ class DataFrameWriter:
         The default mode is "error".
     3. Call the :meth:`saveAsTable` method to save the data to the specified destination.
 
-    Examples::
+    Example::
 
         df.write.mode("overwrite").saveAsTable("T")
 
 
     """
 
-    def __init__(self, data_frame: "DataFrame"):
-        self.__data_frame = data_frame
-        self.__save_mode = _SaveMode.ERROR  # TODO: spark default value is error. Scala snowpark is append.
+    def __init__(self, dataframe: "DataFrame"):
+        self.__dataframe = dataframe
+        self.__save_mode = (
+            _SaveMode.APPEND
+        )  # spark default value is error.
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this `DataFrameWriter`.
@@ -41,26 +43,30 @@ class DataFrameWriter:
 
                 "overwrite": Overwrite existing data.
 
-                "error" or "errorifexists": Throw an exception if data already exists.
+                "errorifexists": Throw an exception if data already exists.
 
                 "ignore": Ignore this operation if data already exists.
 
                 Default value is "error".
 
         Returns:
-            The `DataFrameWriter` itself.
+            The :class:`DataFrameWriter` itself.
         """
-        self.__save_mode = Utils.str_to_enum(save_mode.lower(), _SaveMode, "`save_mode`")
+        self.__save_mode = Utils.str_to_enum(
+            save_mode.lower(), _SaveMode, "`save_mode`"
+        )
         return self
 
-    def saveAsTable(self, table_name: Union[str, Iterable[str]], mode: str = None) -> None:
+    def saveAsTable(
+        self, table_name: Union[str, Iterable[str]], mode: Optional[str] = None
+    ) -> None:
         """Writes the data to the specified table in a Snowflake database.
 
         Args:
-            table_name: This can be a str that has the table name or fully-qualified object identifier,
-                which includes database, schema, and table name.
-                It can also be a list of strs that have the database, schema, and table name.
-            mode: The save mode used to write the data. This param will override :meth:mode if both are used.
+            table_name: A string or list of strings that specify the table name or fully-qualified object identifier
+                (database name, schema name, and table name).
+            mode: Optionally, override the default save mode of the 'DataFrameWriter' and use the specified save mode:
+                "append", "overwrite", "error", "errorifexists" or "ignore".
 
         Returns:
             None
@@ -72,10 +78,14 @@ class DataFrameWriter:
         )
         # TODO: Should we validate this in the client or allow the server to throw the error?
         Utils.validate_object_name(full_table_name)
-        save_mode = Utils.str_to_enum(mode.lower(), _SaveMode, "`mode`") if mode else self.__save_mode
-        create_table_logic_plan = SnowflakeCreateTable(
-            full_table_name, save_mode, self.__data_frame._DataFrame__plan
+        save_mode = (
+            Utils.str_to_enum(mode.lower(), _SaveMode, "`mode`")
+            if mode
+            else self.__save_mode
         )
-        session = self.__data_frame.session
+        create_table_logic_plan = SnowflakeCreateTable(
+            full_table_name, save_mode, self.__dataframe._DataFrame__plan
+        )
+        session = self.__dataframe.session
         snowflake_plan = session.analyzer.resolve(create_table_logic_plan)
         session.conn.execute(snowflake_plan)
