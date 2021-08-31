@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import platform
 from array import array
 from datetime import date, datetime, time
 from decimal import Decimal
@@ -86,7 +87,10 @@ def test_py_to_sp_type():
 
     res = _infer_type(array("l"))
     assert type(res) == SPArrayType
-    assert type(res.element_type) == SPLongType
+    if platform.system() == "Windows":
+        assert type(res.element_type) == SPIntegerType
+    else:
+        assert type(res.element_type) == SPLongType
 
     with pytest.raises(TypeError):
         _infer_type(array("L"))
