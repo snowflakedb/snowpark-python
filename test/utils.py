@@ -17,7 +17,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 
 IS_WINDOWS = platform.system() == "Windows"
-IS_MACOS = platform.system() == "Windows"
+IS_MACOS = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
 IS_UNIX = IS_LINUX or IS_MACOS
 
