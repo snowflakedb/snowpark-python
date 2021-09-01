@@ -287,6 +287,7 @@ _array_signed_int_typecode_ctype_mappings = {
     "h": ctypes.c_short,
     "i": ctypes.c_int,
     "l": ctypes.c_long,
+    "q": ctypes.c_longlong,
 }
 
 _array_unsigned_int_typecode_ctype_mappings = {
@@ -294,6 +295,7 @@ _array_unsigned_int_typecode_ctype_mappings = {
     "H": ctypes.c_ushort,
     "I": ctypes.c_uint,
     "L": ctypes.c_ulong,
+    "Q": ctypes.c_ulonglong,
 }
 
 
