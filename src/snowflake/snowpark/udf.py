@@ -184,11 +184,16 @@ def compute({args}):
         sql_func_args = ",".join(
             [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
         )
+        # TODO: always have `RUNTIME_VERSION=3.8` fields when prod has this commit
+        #  https://github.com/snowflakedb/snowflake/commit/22fe9c4caa46ef9d47a58591d3a74cfde9c571dc
+        current_sf_version = float(
+            self.session._run_query("select current_version()")[0][0][:4]
+        )
         create_udf_query = f"""
 CREATE {"TEMPORARY" if is_temporary else ""} FUNCTION {udf_name}({sql_func_args})
 RETURNS {return_sql_type}
 LANGUAGE PYTHON
-RUNTIME_VERSION=3.8
+{"RUNTIME_VERSION=3.8" if current_sf_version >= 5.32 else ""}
 IMPORTS=({all_imports})
 HANDLER='{py_file_name.split(".")[0]}.compute'
 """
