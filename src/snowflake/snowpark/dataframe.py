@@ -918,7 +918,7 @@ class DataFrame:
 
         Example::
 
-            df.write.saveAsTable("table1")
+            df.write.mode("overwrite").saveAsTable("table1")
 
         Returns:
             :class:`DataFrameWriter`

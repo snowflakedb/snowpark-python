@@ -22,7 +22,7 @@ class DataFrameWriter:
 
     Example::
 
-        df.write.mode("overwrite").saveAsTable("T")
+        df.write.mode("overwrite").saveAsTable("table1")
 
 
     """
@@ -55,19 +55,20 @@ class DataFrameWriter:
         )
         return self
 
-    def saveAsTable(
-        self, table_name: Union[str, Iterable[str]], mode: Optional[str] = None
-    ) -> None:
+    def saveAsTable(self, table_name: Union[str, Iterable[str]]) -> None:
         """Writes the data to the specified table in a Snowflake database.
 
         Args:
             table_name: A string or list of strings that specify the table name or fully-qualified object identifier
                 (database name, schema name, and table name).
-            mode: Optionally, override the default save mode of the 'DataFrameWriter' and use the specified save mode:
-                "append", "overwrite", "errorifexists" or "ignore".
 
         Returns:
             None
+
+        Example::
+
+            df.write.mode("overwrite").saveAsTable("table1")
+
         """
         # Snowpark scala doesn't have mode as a param but pyspark has it.
         # They both have mode()
@@ -76,13 +77,8 @@ class DataFrameWriter:
         )
         # TODO: Should we validate this in the client or allow the server to throw the error?
         Utils.validate_object_name(full_table_name)
-        save_mode = (
-            Utils.str_to_enum(mode.lower(), _SaveMode, "`mode`")
-            if mode
-            else self.__save_mode
-        )
         create_table_logic_plan = SnowflakeCreateTable(
-            full_table_name, save_mode, self.__dataframe._DataFrame__plan
+            full_table_name, self.__save_mode, self.__dataframe._DataFrame__plan
         )
         session = self.__dataframe.session
         snowflake_plan = session.analyzer.resolve(create_table_logic_plan)
