@@ -129,13 +129,9 @@ def test_py_to_sp_type():
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPLongType
 
-    if is_windows:
-        res = _infer_type(array("q"))
-        assert type(res) == SPArrayType
-        assert type(res.element_type) == SPLongType
-    else:
-        with pytest.raises(TypeError):
-            _infer_type(array("q"))
+    res = _infer_type(array("q"))
+    assert type(res) == SPArrayType
+    assert type(res.element_type) == SPLongType
 
     with pytest.raises(TypeError):
         _infer_type(array("Q"))
