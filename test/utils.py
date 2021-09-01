@@ -5,6 +5,7 @@
 #
 import functools
 import os
+import platform
 import random
 import uuid
 from decimal import Decimal
@@ -14,6 +15,11 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
+
+IS_WINDOWS = platform.system() == "Windows"
+IS_MACOS = platform.system() == "Windows"
+IS_LINUX = platform.system() == "Linux"
+IS_UNIX = IS_LINUX or IS_MACOS
 
 
 class Utils:

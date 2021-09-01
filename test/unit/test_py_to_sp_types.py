@@ -7,6 +7,7 @@ import platform
 from array import array
 from datetime import date, datetime, time
 from decimal import Decimal
+from test.utils import IS_WINDOWS
 
 import pytest
 
@@ -32,7 +33,6 @@ from snowflake.snowpark.types.types_package import _infer_type
 
 # TODO complete for schema case
 def test_py_to_sp_type():
-    is_windows = platform.system() == "Windows"
     assert type(_infer_type(None)) == SPNullType
     assert type(_infer_type(1)) == SPLongType
     assert type(_infer_type(3.14)) == SPDoubleType
@@ -88,12 +88,12 @@ def test_py_to_sp_type():
 
     res = _infer_type(array("l"))
     assert type(res) == SPArrayType
-    if is_windows:
+    if IS_WINDOWS:
         assert type(res.element_type) == SPIntegerType
     else:
         assert type(res.element_type) == SPLongType
 
-    if is_windows:
+    if IS_WINDOWS:
         res = _infer_type(array("L"))
         assert type(res) == SPArrayType
         assert type(res.element_type) == SPLongType

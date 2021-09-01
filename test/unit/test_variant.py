@@ -9,6 +9,7 @@ import time
 from array import array
 from decimal import Decimal
 from json.decoder import JSONDecodeError
+from test.utils import IS_WINDOWS
 
 import pytest
 
@@ -108,7 +109,7 @@ def test_variant_negative():
     with pytest.raises(ValueError) as ex_info:
         Variant(time.time()).as_time()
     assert "Conversion from Variant of Number to Time is not supported." in str(ex_info)
-    if platform.system() == "Windows":
+    if IS_WINDOWS:
         with pytest.raises(OSError) as ex_info:
             Variant(time.time() * 1000).as_datetime()
     else:
