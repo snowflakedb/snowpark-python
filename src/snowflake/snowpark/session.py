@@ -244,9 +244,11 @@ class Session(metaclass=_SessionMeta):
                 if import_as_list[i] is not None:
                     # the import path only works for the directory and the Python file
                     if os.path.isdir(abs_path):
-                        import_as_path = import_as_list[i].replace(".", "/")
+                        import_as_path = import_as_list[i].replace(".", os.path.sep)
                     elif os.path.isfile(abs_path) and abs_path.endswith(".py"):
-                        import_as_path = f"{import_as_list[i].replace('.', '/')}.py"
+                        import_as_path = (
+                            f"{import_as_list[i].replace('.', os.path.sep)}.py"
+                        )
                     else:
                         import_as_path = None
                     if import_as_path:

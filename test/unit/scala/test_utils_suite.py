@@ -5,7 +5,7 @@
 #
 import os
 import zipfile
-from test.utils import TestFiles
+from test.utils import IS_WINDOWS, TestFiles
 
 import pytest
 
@@ -51,11 +51,18 @@ def test_md5():
         Utils.calculate_md5(test_files.test_file_avro)
         == "85bd7b9363853f1815254b1cbc608c22"
     )
-    assert (
-        Utils.calculate_md5(test_files.test_udf_directory)
-        == "956d97863a5e5f11840339bd208549ef"
-    )
-    assert Utils.calculate_md5(resources_path) == "4a7e0e3ffda738600b344ac12c167aa4"
+    if IS_WINDOWS:
+        assert (
+            Utils.calculate_md5(test_files.test_udf_directory)
+            == "051593215a8fa0445d81154e5fdfd89e"
+        )
+        assert Utils.calculate_md5(resources_path) == "bdb9d0f05314e528a2267393ce4c46fb"
+    else:
+        assert (
+            Utils.calculate_md5(test_files.test_udf_directory)
+            == "956d97863a5e5f11840339bd208549ef"
+        )
+        assert Utils.calculate_md5(resources_path) == "4a7e0e3ffda738600b344ac12c167aa4"
 
 
 def test_normalize_stage_location():

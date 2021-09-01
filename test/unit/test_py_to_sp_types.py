@@ -6,6 +6,7 @@
 from array import array
 from datetime import date, datetime, time
 from decimal import Decimal
+from test.utils import IS_WINDOWS
 
 import pytest
 
@@ -86,10 +87,18 @@ def test_py_to_sp_type():
 
     res = _infer_type(array("l"))
     assert type(res) == SPArrayType
-    assert type(res.element_type) == SPLongType
+    if IS_WINDOWS:
+        assert type(res.element_type) == SPIntegerType
+    else:
+        assert type(res.element_type) == SPLongType
 
-    with pytest.raises(TypeError):
-        _infer_type(array("L"))
+    if IS_WINDOWS:
+        res = _infer_type(array("L"))
+        assert type(res) == SPArrayType
+        assert type(res.element_type) == SPLongType
+    else:
+        with pytest.raises(TypeError):
+            _infer_type(array("L"))
 
     res = _infer_type(array("b"))
     assert type(res) == SPArrayType
@@ -119,8 +128,9 @@ def test_py_to_sp_type():
     assert type(res) == SPArrayType
     assert type(res.element_type) == SPLongType
 
-    with pytest.raises(TypeError):
-        _infer_type(array("q"))
+    res = _infer_type(array("q"))
+    assert type(res) == SPArrayType
+    assert type(res.element_type) == SPLongType
 
     with pytest.raises(TypeError):
         _infer_type(array("Q"))
