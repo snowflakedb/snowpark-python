@@ -705,6 +705,69 @@ def test_negative_test_join_on_join(session_cnx):
             Utils.drop_table(session, table_name1)
 
 
+@pytest.mark.skip("Need to fix DataFrame.drop() ASAP")
+def test_drop_on_join(session):
+    table_name_1 = Utils.random_name()
+    table_name_2 = Utils.random_name()
+    try:
+        session.createDataFrame([[1, "a", True], [2, "b", False]]).toDF(
+            "a", "b", "c"
+        ).write.saveAsTable(table_name_1)
+        session.createDataFrame([[3, "a", True], [4, "b", False]]).toDF(
+            "a", "b", "c"
+        ).write.saveAsTable(table_name_2)
+        df1 = session.table(table_name_1)
+        df2 = session.table(table_name_2)
+        df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
+        Utils.check_answer(df3, [Row(("a", 3, True)), Row(("b", 4, False))])
+        df4 = df3.drop(df2["c"], df1["b"], col("other"))
+        Utils.check_answer(df4, [Row(3), Row(4)])
+    finally:
+        Utils.drop_table(session, table_name_1)
+        Utils.drop_table(session, table_name_2)
+
+
+@pytest.mark.skip("Need to fix DataFrame.drop() ASAP")
+def test_drop_on_self_join(session):
+    table_name_1 = Utils.random_name()
+    try:
+        session.createDataFrame([[1, "a", True], [2, "b", False]]).toDF(
+            "a", "b", "c"
+        ).write.saveAsTable(table_name_1)
+        df1 = session.table(table_name_1)
+        df2 = df1.clone()
+        df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
+        Utils.check_answer(df3, [Row(("a", 1, True)), Row(("a", 2, False))])
+        df4 = df3.drop(df2["c"], df1["b"], col("other"))
+        Utils.check_answer(df4, [Row(1), Row(2)])
+    finally:
+        Utils.drop_table(session, table_name_1)
+
+
+@pytest.mark.skip("Need to fix DataFrame.drop() ASAP")
+def test_with_column_on_join(session):
+    table_name_1 = Utils.random_name()
+    table_name_2 = Utils.random_name()
+    try:
+        session.createDataFrame([[1, "a", True], [2, "b", False]]).toDF(
+            "a", "b", "c"
+        ).write.saveAsTable(table_name_1)
+        session.createDataFrame([[3, "a", True], [4, "b", False]]).toDF(
+            "a", "b", "c"
+        ).write.saveAsTable(table_name_2)
+        df1 = session.table(table_name_1)
+        df2 = session.table(table_name_2)
+        Utils.check_answer(
+            df1.join(df2, df1["c"] == df2["c"])
+            .drop(df1["b"], df2["b"], df1["c"])
+            .withColumn("newColumn", df1["a"] + df2["a"]),
+            [Row((1, 2, True, 4)), Row((2, 4, False, 6))],
+        )
+    finally:
+        Utils.drop_table(session, table_name_1)
+        Utils.drop_table(session, table_name_2)
+
+
 def test_outer_join_conversion(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([(1, 2, "1"), (3, 4, "3")]).toDF(

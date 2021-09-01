@@ -40,7 +40,7 @@ view2 = f'"{Utils.random_name()}"'
 
 
 @pytest.fixture(scope="module", autouse=True)
-def before_all(session_cnx, resources_path):
+def setup(session_cnx, resources_path):
     test_files = TestFiles(resources_path)
     with session_cnx() as session:
         Utils.create_stage(session, tmp_stage_name, is_temporary=True)

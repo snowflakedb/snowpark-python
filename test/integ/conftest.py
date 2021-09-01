@@ -13,7 +13,6 @@ from typing import Callable, Dict
 import pytest
 
 import snowflake.connector
-from snowflake.connector.connection import DefaultConverterClass
 from snowflake.snowpark.session import Session
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
@@ -83,11 +82,6 @@ def test_schema(connection) -> None:
 
 @pytest.fixture(scope="module")
 def session(db_parameters, resources_path):
-    conn_params = db_parameters.copy()
-    if not conn_params.get("timezone"):
-        conn_params["timezone"] = "UTC"
-    if not conn_params.get("converter_class"):
-        conn_params["converter_class"] = DefaultConverterClass()
     session = Session.builder.configs(db_parameters).create()
     yield session
     session.close()
@@ -95,7 +89,7 @@ def session(db_parameters, resources_path):
 
 @pytest.fixture(scope="module")
 def temp_schema(connection, session) -> None:
-    """Initializes and Deinitializes a temp schema for cross-schema test.
+    """Set up and tear down a temp schema for cross-schema test.
     This is automatically called per test module."""
     temp_schema_name = Utils.get_fully_qualified_temp_schema(session)
     with connection.cursor() as cursor:
