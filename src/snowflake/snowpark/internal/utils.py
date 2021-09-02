@@ -189,6 +189,7 @@ class Utils:
                 for dir in sorted(dirs):
                     if ignore_generated_py_file and dir == "__pycache__":
                         continue
+                    print(dir)
                     hash_md5.update(dir.encode("utf8"))
                 for file in sorted(files):
                     # ignore generated python files
@@ -196,6 +197,7 @@ class Utils:
                         Utils.generated_py_file_ext()
                     ):
                         continue
+                    print(file)
                     hash_md5.update(file.encode("utf8"))
                     if current_size < chunk_size:
                         filename = os.path.join(dirname, file)
