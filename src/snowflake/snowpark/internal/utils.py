@@ -204,6 +204,7 @@ class Utils:
                         file_size = os.path.getsize(filename)
                         read_size = min(file_size, chunk_size - current_size)
                         current_size += read_size
+                        print(read_size)
                         with open(filename, "rb") as f:
                             hash_md5.update(f.read(read_size))
         else:
