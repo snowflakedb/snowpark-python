@@ -705,7 +705,6 @@ def test_negative_test_join_on_join(session_cnx):
             Utils.drop_table(session, table_name1)
 
 
-@pytest.mark.skip("Need to fix DataFrame.drop() ASAP")
 def test_drop_on_join(session):
     table_name_1 = Utils.random_name()
     table_name_2 = Utils.random_name()
@@ -727,7 +726,6 @@ def test_drop_on_join(session):
         Utils.drop_table(session, table_name_2)
 
 
-@pytest.mark.skip("Need to fix DataFrame.drop() ASAP")
 def test_drop_on_self_join(session):
     table_name_1 = Utils.random_name()
     try:
@@ -737,14 +735,13 @@ def test_drop_on_self_join(session):
         df1 = session.table(table_name_1)
         df2 = df1.clone()
         df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
-        Utils.check_answer(df3, [Row(("a", 1, True)), Row(("a", 2, False))])
+        Utils.check_answer(df3, [Row(("a", 1, True)), Row(("b", 2, False))])
         df4 = df3.drop(df2["c"], df1["b"], col("other"))
         Utils.check_answer(df4, [Row(1), Row(2)])
     finally:
         Utils.drop_table(session, table_name_1)
 
 
-@pytest.mark.skip("Need to fix DataFrame.drop() ASAP")
 def test_with_column_on_join(session):
     table_name_1 = Utils.random_name()
     table_name_2 = Utils.random_name()
@@ -761,7 +758,7 @@ def test_with_column_on_join(session):
             df1.join(df2, df1["c"] == df2["c"])
             .drop(df1["b"], df2["b"], df1["c"])
             .withColumn("newColumn", df1["a"] + df2["a"]),
-            [Row((1, 2, True, 4)), Row((2, 4, False, 6))],
+            [Row((1, 3, True, 4)), Row((2, 4, False, 6))],
         )
     finally:
         Utils.drop_table(session, table_name_1)

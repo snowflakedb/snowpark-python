@@ -350,6 +350,12 @@ class DataFrame:
         for c in exprs:
             if type(c) is str:
                 names.append(c)
+            elif type(c) is Column and isinstance(c.expression, SPAttribute):
+                names.append(
+                    self.__plan.expr_to_alias.get(
+                        c.expression.expr_id, c.expression.name
+                    )
+                )
             elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
                 names.append(c.expression.name)
             else:
