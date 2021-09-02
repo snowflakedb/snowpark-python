@@ -40,7 +40,7 @@ from snowflake.snowpark.internal.server_connection import ServerConnection
 from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
 )
-from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark.internal.utils import PythonObjJSONEncoder, Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import Range
 from snowflake.snowpark.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark.row import Row
@@ -539,17 +539,11 @@ class Session(metaclass=_SessionMeta):
                 elif (
                     type(value) in [list, tuple, array] and type(data_type) == ArrayType
                 ):
-                    converted_row.append(
-                        json.dumps(Utils.python_obj_to_json_serializable_obj(value))
-                    )
+                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif type(value) == dict and type(data_type) == MapType:
-                    converted_row.append(
-                        json.dumps(Utils.python_obj_to_json_serializable_obj(value))
-                    )
+                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif type(data_type) == VariantType:
-                    converted_row.append(
-                        json.dumps(Utils.python_obj_to_json_serializable_obj(value))
-                    )
+                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
                     raise SnowparkClientException(
                         "{} {} can't be converted to {}".format(
