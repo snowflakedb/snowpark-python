@@ -39,13 +39,10 @@ from snowflake.snowpark.types.sf_types import (
 tmp_stage_name = Utils.random_stage_name()
 
 
-@pytest.fixture(scope="module")
-def before_all(session_cnx):
-    def do():
-        with session_cnx() as session:
-            Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-
-    return do
+@pytest.fixture(scope="module", autouse=True)
+def setup(session_cnx):
+    with session_cnx() as session:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
 
 
 def test_basic_udf(session_cnx):

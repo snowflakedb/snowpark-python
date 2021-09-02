@@ -9,6 +9,7 @@ from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackag
 from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark.internal.analyzer.snowflake_plan import (
+    SnowflakeCreateTable,
     SnowflakePlan,
     SnowflakePlanBuilder,
     SnowflakeValues,
@@ -388,6 +389,13 @@ class Analyzer:
 
         if type(logical_plan) == SPUnresolvedRelation:
             return self.plan_builder.table(".".join(logical_plan.multipart_identifier))
+
+        if type(logical_plan) == SnowflakeCreateTable:
+            return self.plan_builder.save_as_table(
+                logical_plan.table_name,
+                logical_plan.mode,
+                resolved_children[logical_plan.children[0]],
+            )
 
         if type(logical_plan) == SPLimit:
             if isinstance(logical_plan.child, SPSort):

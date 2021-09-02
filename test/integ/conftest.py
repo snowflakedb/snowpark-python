@@ -7,12 +7,12 @@ import os
 import uuid
 from contextlib import contextmanager
 from test.parameters import CONNECTION_PARAMETERS
+from test.utils import Utils
 from typing import Callable, Dict
 
 import pytest
 
 import snowflake.connector
-from snowflake.connector.connection import DefaultConverterClass
 from snowflake.snowpark.session import Session
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
@@ -39,76 +39,6 @@ CONNECTION_PARAMETERS = {
     )
 
 
-@pytest.fixture(scope="module")
-def before_all():
-    def do():
-        pass
-
-    return do
-
-
-@pytest.fixture(scope="module")
-def after_all():
-    def do():
-        pass
-
-    return do
-
-
-@pytest.fixture(scope="module", autouse=True)
-def init_session(request, db_parameters, resources_path, before_all, after_all):
-    conn_params = db_parameters.copy()
-    if not conn_params.get("timezone"):
-        conn_params["timezone"] = "UTC"
-    if not conn_params.get("converter_class"):
-        conn_params["converter_class"] = DefaultConverterClass()
-    Session.builder.configs(db_parameters).create()
-    before_all()
-
-    def fin():
-        after_all()
-        active_session = Session._get_active_session()
-        if active_session:
-            active_session.close()
-
-    request.addfinalizer(fin)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def init_test_schema(request, db_parameters) -> None:
-    """Initializes and Deinitializes the test schema. This is automatically called per test session."""
-    ret = db_parameters
-    with snowflake.connector.connect(
-        user=ret["user"],
-        password=ret["password"],
-        host=ret["host"],
-        port=ret["port"],
-        database=ret["database"],
-        account=ret["account"],
-        protocol=ret["protocol"],
-    ) as con:
-        con.cursor().execute("CREATE SCHEMA IF NOT EXISTS {}".format(TEST_SCHEMA))
-        # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
-        con.cursor().execute(
-            "GRANT ALL PRIVILEGES ON SCHEMA {} TO ROLE PUBLIC".format(TEST_SCHEMA)
-        )
-
-    def fin():
-        ret1 = db_parameters
-        with snowflake.connector.connect(
-            user=ret1["user"],
-            password=ret1["password"],
-            host=ret1["host"],
-            port=ret1["port"],
-            database=ret1["database"],
-            account=ret1["account"],
-            protocol=ret1["protocol"],
-        ) as con1:
-            con1.cursor().execute("DROP SCHEMA IF EXISTS {}".format(TEST_SCHEMA))
-
-    request.addfinalizer(fin)
-
-
 @pytest.fixture(scope="session")
 def db_parameters() -> Dict[str, str]:
     # If its running on our public CI, replace the schema
@@ -122,8 +52,61 @@ def resources_path() -> str:
     return os.path.normpath(os.path.join(os.path.dirname(__file__), "../resources"))
 
 
+@pytest.fixture(scope="session")
+def connection(db_parameters):
+    ret = db_parameters
+    with snowflake.connector.connect(
+        user=ret["user"],
+        password=ret["password"],
+        host=ret["host"],
+        port=ret["port"],
+        database=ret["database"],
+        account=ret["account"],
+        protocol=ret["protocol"],
+    ) as con:
+        yield con
+
+
+@pytest.fixture(scope="session", autouse=True)
+def test_schema(connection) -> None:
+    """Set up and tear down the test schema. This is automatically called per test session."""
+    with connection.cursor() as cursor:
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS {}".format(TEST_SCHEMA))
+        # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
+        cursor.execute(
+            "GRANT ALL PRIVILEGES ON SCHEMA {} TO ROLE PUBLIC".format(TEST_SCHEMA)
+        )
+        yield
+        cursor.execute("DROP SCHEMA IF EXISTS {}".format(TEST_SCHEMA))
+
+
 @pytest.fixture(scope="module")
-def session_cnx() -> Callable[..., "Session"]:
+def session(db_parameters, resources_path):
+    session = Session.builder.configs(db_parameters).create()
+    yield session
+    session.close()
+
+
+@pytest.fixture(scope="module")
+def temp_schema(connection, session) -> None:
+    """Set up and tear down a temp schema for cross-schema test.
+    This is automatically called per test module."""
+    temp_schema_name = Utils.get_fully_qualified_temp_schema(session)
+    with connection.cursor() as cursor:
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS {}".format(temp_schema_name))
+        # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
+        cursor.execute(
+            "GRANT ALL PRIVILEGES ON SCHEMA {} TO ROLE PUBLIC".format(temp_schema_name)
+        )
+        yield temp_schema_name
+        cursor.execute("DROP SCHEMA IF EXISTS {}".format(temp_schema_name))
+
+
+@pytest.fixture(scope="module")
+def session_cnx(session) -> Callable[..., "Session"]:
+    # For back-compatible with test code that uses `with session_cnx() as session:`.
+    # Tests should be able to use session directly.
+    # This should be removed once all test uses `session` instead of `session_cnx()`
     return get_session
 
 

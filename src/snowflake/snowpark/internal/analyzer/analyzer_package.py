@@ -474,6 +474,39 @@ class AnalyzerPackage:
             left, right, join_type, condition
         )
 
+    def create_table_statement(
+        self, table_name: str, schema: str, replace: bool = False, error: bool = True
+    ) -> str:
+        return (
+            f"{self._Create}{(self._Or + self._Replace) if replace else self._EmptyString} "
+            f"{self._Table}{table_name}{(self._If + self._Not + self._Exists) if not replace and not error else ''}"
+            f"{self._LeftParenthesis}{schema}{self._RightParenthesis}"
+        )
+
+    def insert_into_statement(self, table_name: str, child: str) -> str:
+        return f"{self._Insert}{self._Into}{table_name} {self.project_statement(None, child)}"
+
+    def batch_insert_into_statement(
+        self, table_name: str, column_names: List[str]
+    ) -> str:
+        """This method is not used yet. In scala, it's for largeLocalRelationPlan.
+        Please add test cases to it when largeLocalRelationPlan is implemented in Python"""
+        return (
+            f"{self._Insert}{self._Into}{table_name}"
+            f"{self._LeftParenthesis}{self._Comma.join(column_names)}{self._RightParenthesis}"
+            f"{self._Values}{self._LeftParenthesis}"
+            f"{self._Comma.join([_QuestionMark * len(column_names)])}{self._RightParenthesis}"
+        )
+
+    def create_table_as_select_statement(
+        self, table_name: str, child: str, replace: bool = False, error: bool = True
+    ) -> str:
+        return (
+            f"{self._Create}{self._Or + self._Replace if replace else self._EmptyString}{self._Table}"
+            f"{self._If + self._Not + self._Exists if not replace and not error else self._EmptyString}"
+            f" {table_name}{self._As}{self.project_statement(None, child)}"
+        )
+
     def limit_statement(
         self, row_count: str, child: str, on_top_of_order_by: bool
     ) -> str:
