@@ -35,7 +35,6 @@ from snowflake.snowpark.types.sf_types import (
     StructType,
     TimestampType,
     TimeType,
-    Variant,
     VariantType,
 )
 from snowflake.snowpark.types.sp_data_types import (
@@ -60,28 +59,6 @@ from snowflake.snowpark.types.sp_data_types import (
     TimeType as SPTimeType,
     VariantType as SPVariantType,
 )
-
-
-def udf_option_supported(datatype: DataType) -> bool:
-    return type(datatype) in [
-        IntegerType,
-        LongType,
-        DoubleType,
-        FloatType,
-        ShortType,
-        ByteType,
-        BooleanType,
-    ]
-
-
-# TODO revisit when dealing with Java UDFs. We'll probably hard-code the return values.
-def to_java_type(datatype):
-    pass
-
-
-# TODO revisit when dealing with Java UDFs. We'll probably hard-code the return values.
-def to_udf_argument_type(datatype) -> str:
-    pass
 
 
 # TODO maybe change to isinstance()
@@ -120,7 +97,7 @@ def convert_to_sf_type(datatype: DataType) -> str:
         return "VARIANT"
     # if type(datatype) is GeographyType:
     #    return "GEOGRAPHY"
-    raise Exception(f"Unsupported data type: {datatype.type_name}")
+    raise TypeError(f"Unsupported data type: {datatype.type_name}")
 
 
 def snow_type_to_sp_type(datatype: DataType) -> Optional[SPDataType]:
@@ -376,8 +353,6 @@ def _infer_type(obj):
             return SPArrayType(_array_type_mappings[obj.typecode](), False)
         else:
             raise TypeError("not supported type: array(%s)" % obj.typecode)
-    elif isinstance(obj, Variant):
-        return SPVariantType()
     else:
         raise TypeError("not supported type: %s" % type(obj))
 

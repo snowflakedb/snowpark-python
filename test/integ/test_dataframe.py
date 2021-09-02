@@ -29,9 +29,10 @@ from snowflake.snowpark.types.sf_types import (
     LongType,
     MapType,
     StringType,
+    StructField,
+    StructType,
     TimestampType,
     TimeType,
-    Variant,
     VariantType,
 )
 
@@ -698,9 +699,11 @@ def test_create_dataframe_with_basic_data_types(session_cnx):
             1,
             "one",
             1.0,
-            datetime.datetime.now(),
-            datetime.date.today(),
-            datetime.time(),
+            datetime.datetime.strptime(
+                "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
+            ),
+            datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+            datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
             True,
             bytearray("a", "utf-8"),
             Decimal(0.5),
@@ -743,7 +746,6 @@ def test_create_dataframe_with_semi_structured_data_types(session_cnx):
             [[1, 2], [2, 1]],
             array("I", [1, 2, 3]),
             {"'": 1},
-            Variant(1),
         ]
         df = session.createDataFrame([data])
         assert [type(field.datatype) for field in df.schema.fields] == [
@@ -752,7 +754,6 @@ def test_create_dataframe_with_semi_structured_data_types(session_cnx):
             ArrayType,
             ArrayType,
             MapType,
-            VariantType,
         ]
         assert df.collect() == [
             Row(
@@ -762,7 +763,6 @@ def test_create_dataframe_with_semi_structured_data_types(session_cnx):
                     "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
                     "[\n  1,\n  2,\n  3\n]",
                     '{\n  "\'": 1\n}',
-                    "1",
                 ]
             )
         ]
@@ -791,6 +791,48 @@ def test_create_dataframe_with_namedtuple(session_cnx):
             assert Utils.equals_ignore_case(field.name, expected_name)
         assert df.collect() == expected_rows
         assert df.select(expected_names).collect() == expected_rows
+
+
+def test_create_dataframe_with_variant(session_cnx):
+    with session_cnx() as session:
+        data = [
+            1,
+            "one",
+            1.1,
+            datetime.datetime.strptime(
+                "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
+            ),
+            datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+            datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+            True,
+            bytearray("a", "utf-8"),
+            Decimal(0.5),
+            [1, 2, 3],
+            {"a": "foo"},
+        ]
+        df = session.createDataFrame(
+            [data],
+            schema=StructType(
+                [StructField(f"col_{i+1}", VariantType()) for i in range(len(data))]
+            ),
+        )
+        assert df.collect() == [
+            Row(
+                [
+                    "1",
+                    '"one"',
+                    "1.1",
+                    '"2017-02-24T12:00:05.456000"',
+                    '"20:57:06"',
+                    '"2017-02-25"',
+                    "true",
+                    '"61"',
+                    "0.5",
+                    "[\n  1,\n  2,\n  3\n]",
+                    '{\n  "a": "foo"\n}',
+                ]
+            )
+        ]
 
 
 def test_create_dataframe_with_single_value(session_cnx):
@@ -868,9 +910,6 @@ def test_create_dataframe_with_invalid_data(session_cnx):
         assert "Cannot merge type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame([[[1, 2, 3], 1], [{1: 2}, 1]])
-        assert "Cannot merge type" in str(ex_info)
-        with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame([[[1, 2, 3], 1], [Variant({1: 2}), 1]])
         assert "Cannot merge type" in str(ex_info)
 
         # inconsistent length

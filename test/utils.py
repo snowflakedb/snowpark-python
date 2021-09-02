@@ -50,16 +50,16 @@ class Utils:
         session._run_query(f"drop table if exists {AnalyzerPackage.quote_name(name)}")
 
     @staticmethod
+    def drop_view(session: "Session", name: str):
+        session._run_query(f"drop view if exists {AnalyzerPackage.quote_name(name)}")
+
+    @staticmethod
     def upload_to_stage(
         session: "Session", stage_name: str, filename: str, compress: bool
     ):
         session.conn.upload_file(
             stage_location=stage_name, path=filename, compress_data=compress
         )
-
-    @staticmethod
-    def drop_view(session: "Session", name: str):
-        session._run_query(f"drop view if exists {AnalyzerPackage.quote_name(name)}")
 
     @staticmethod
     def equals_ignore_case(a: str, b: str) -> bool:
@@ -215,6 +215,24 @@ class TestData:
         return session.sql(
             "select array_construct(a,b,c) as arr1, d, e, f from"
             " values(1,2,3,2,'e1','[{a:1}]'),(6,7,8,1,'e2','[{a:1},{b:2}]') as T(a,b,c,d,e,f)"
+        )
+
+    @classmethod
+    def variant1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select to_variant(to_array('Example')) as arr1,"
+            + ' to_variant(to_object(parse_json(\'{"Tree": "Pine"}\'))) as obj1, '
+            + " to_variant(to_binary('snow', 'utf-8')) as bin1,"
+            + " to_variant(true) as bool1,"
+            + " to_variant('X') as str1, "
+            + " to_variant(to_date('2017-02-24')) as date1, "
+            + " to_variant(to_time('20:57:01.123456789+07:00')) as time1, "
+            + " to_variant(to_timestamp_ntz('2017-02-24 12:00:00.456')) as timestamp_ntz1, "
+            + " to_variant(to_timestamp_ltz('2017-02-24 13:00:00.123 +01:00')) as timestamp_ltz1, "
+            + " to_variant(to_timestamp_tz('2017-02-24 13:00:00.123 +01:00')) as timestamp_tz1, "
+            + " to_variant(1.23::decimal(6, 3)) as decimal1, "
+            + " to_variant(3.21::double) as double1, "
+            + " to_variant(15) as num1 "
         )
 
     @classmethod
