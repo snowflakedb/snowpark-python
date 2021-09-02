@@ -43,6 +43,15 @@ tmp_stage_name = Utils.random_stage_name()
 def setup(session_cnx):
     with session_cnx() as session:
         Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        # TODO: remove this snippet (don't need to set this parameter for Python UDF)
+        #  after prpr
+        current_sf_version = float(
+            session._run_query("select current_version()")[0][0][:4]
+        )
+        if current_sf_version >= 5.35:
+            session._run_query(
+                "alter session set PYTHON_UDF_X86_PRPR_TOP_LEVEL_PACKAGES_FROZEN_SOLVE_VERSIONS='{}'"
+            )
 
 
 def test_basic_udf(session_cnx):
