@@ -66,6 +66,16 @@ def test_project_null_values(session_cnx):
         assert df2.collect() == [Row(None), Row(None)]
 
 
+def test_write_null_data_to_table(session):
+    table_name = Utils.random_name()
+    df = session.createDataFrame([(1, None), (2, None), (3, None)]).toDF("a", "b")
+    try:
+        df.write.saveAsTable(table_name)
+        Utils.check_answer(session.table(table_name), df, True)
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 def test_createOrReplaceView_with_null_data(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([[1, None], [2, "NotNull"], [3, None]]).toDF(
@@ -761,6 +771,13 @@ def test_clone_with_union_dataframe(session_cnx):
             assert res == [Row([1, 1]), Row([1, 1]), Row([2, 2]), Row([2, 2])]
         finally:
             Utils.drop_table(session, table_name)
+
+
+def test_negative_test_to_input_invalid_table_name_for_saveAsTable(session):
+    df = session.createDataFrame([(1, None), (2, "NotNull"), (3, None)]).toDF("a", "b")
+    with pytest.raises(SnowparkClientException) as ex_info:
+        df.write.saveAsTable("negative test invalid table name")
+    assert re.compile("The object name .* is invalid.").match(ex_info.value.message)
 
 
 def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(

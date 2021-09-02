@@ -3,11 +3,13 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import enum
 import string
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark.internal.analyzer.sp_identifiers import TableIdentifier
@@ -908,6 +910,21 @@ class DataFrame:
             the number of rows.
         """
         return self.agg(("*", "count")).collect()[0].get_int(0)
+
+    @property
+    def write(self) -> DataFrameWriter:
+        """Returns a new :class:`DataFrameWriter` object that you can use to write the data in the `DataFrame` to
+        a Snowflake database.
+
+        Example::
+
+            df.write.mode("overwrite").saveAsTable("table1")
+
+        Returns:
+            :class:`DataFrameWriter`
+        """
+
+        return DataFrameWriter(self)
 
     def show(self, n: int = 10, max_width: int = 50):
         """Evaluates this DataFrame and prints out the first ``n`` rows with the

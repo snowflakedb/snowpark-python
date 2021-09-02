@@ -13,6 +13,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     Attribute as SPAttribute,
     AttributeReference as SPAttributeReference,
 )
+from snowflake.snowpark.internal.utils import _SaveMode
 from snowflake.snowpark.plans.logical.basic_logical_operators import SetOperation
 from snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
 from snowflake.snowpark.row import Row
@@ -278,6 +279,54 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
+    def save_as_table(
+        self, table_name: str, mode: _SaveMode, child: SnowflakePlan
+    ) -> SnowflakePlan:
+        if mode == _SaveMode.APPEND:
+            create_table = self.pkg.create_table_statement(
+                table_name,
+                self.pkg.attribute_to_schema_string(child.attributes()),
+                error=False,
+            )
+            return SnowflakePlan(
+                [
+                    *child.queries[0:-1],
+                    Query(create_table),
+                    Query(
+                        self.pkg.insert_into_statement(
+                            table_name, child.queries[-1].sql
+                        )
+                    ),
+                ],
+                create_table,
+                child.post_actions,
+                {},
+                self.__session,
+                None,
+            )
+        elif mode == _SaveMode.OVERWRITE:
+            return self.build(
+                lambda x: self.pkg.create_table_as_select_statement(
+                    table_name, x, replace=True
+                ),
+                child,
+                None,
+            )
+        elif mode == _SaveMode.IGNORE:
+            return self.build(
+                lambda x: self.pkg.create_table_as_select_statement(
+                    table_name, x, error=False
+                ),
+                child,
+                None,
+            )
+        elif mode == _SaveMode.ERROR_IF_EXISTS:
+            return self.build(
+                lambda x: self.pkg.create_table_as_select_statement(table_name, x),
+                child,
+                None,
+            )
+
     def limit(
         self,
         limit_expr: str,
@@ -461,3 +510,14 @@ class SnowflakeValues(LeafNode):
         super(SnowflakeValues, self).__init__()
         self.output = output
         self.data = data
+
+
+# TODO: Similar to the above SnowflakeValues, this should be moved to a different file
+class SnowflakeCreateTable(LogicalPlan):
+    def __init__(
+        self, table_name: str, mode: "_SaveMode", query: Optional[LogicalPlan]
+    ):
+        super().__init__()
+        self.table_name = table_name
+        self.mode = mode
+        self.children.append(query)

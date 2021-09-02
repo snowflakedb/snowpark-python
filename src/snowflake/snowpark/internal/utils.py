@@ -10,7 +10,8 @@ import platform
 import random
 import re
 import zipfile
-from typing import IO, List, Optional, Tuple
+from enum import Enum
+from typing import IO, List, Optional, Tuple, Type
 
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
@@ -211,3 +212,21 @@ class Utils:
             hash_md5.update(additional_info.encode("utf8"))
 
         return hash_md5.hexdigest()
+
+    @staticmethod
+    def str_to_enum(value: str, enum_class: Type[Enum], except_str: str) -> Enum:
+        try:
+            return enum_class(value)
+        except:
+            raise ValueError(
+                f"{except_str} must be one of {', '.join([e.value for e in enum_class])}"
+            )
+
+
+class _SaveMode(Enum):
+    # Tempararily put in utils.py because snowflake_play.py uses _SaveMode.
+    # There would be circular error if _SaveMode is put in dataframe_writer.py
+    APPEND = "append"
+    OVERWRITE = "overwrite"
+    ERROR_IF_EXISTS = "errorifexists"
+    IGNORE = "ignore"
