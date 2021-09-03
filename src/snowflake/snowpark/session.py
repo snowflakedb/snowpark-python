@@ -197,8 +197,8 @@ class Session(metaclass=_SessionMeta):
             1. In favor of the lazy execution, the file will not be uploaded to the stage
             immediately, and it will be uploaded when a UDF is created.
 
-            2. The Snowpark library calculates a checksum for every file/directory.
-            If there is a file or directory existing in the stage, the Snowpark
+            2. Snowpark library calculates a checksum for every file/directory.
+            If there is a file or directory existing in the stage, Snowpark library
             will compare their checksums to determine whether it should be overwritten.
             Therefore, after uploading a local file to the stage, if the user makes
             some changes on this file and intends to upload it again, just call this
@@ -418,7 +418,7 @@ class Session(metaclass=_SessionMeta):
 
     def getSessionStage(self) -> str:
         """
-        Returns the name of the temporary stage created by the Snowpark library for uploading and
+        Returns the name of the temporary stage created by Snowpark library for uploading and
         store temporary artifacts for this session. These artifacts include libraries and packages
         for UDFs that you define in this session via [[addImports]] or [[addRequirements]].
         """
