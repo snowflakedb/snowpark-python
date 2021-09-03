@@ -175,7 +175,7 @@ class DataTypeMapper:
         ):
             return "'{}' :: binary".format(binascii.hexlify(value).decode())
 
-        raise Exception(
+        raise TypeError(
             "Unsupported datatype {}, value {} by to_sql()".format(
                 spark_data_type, value
             )
