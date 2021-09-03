@@ -3,6 +3,9 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+import array
+import datetime
+import decimal
 import hashlib
 import io
 import os
@@ -11,6 +14,7 @@ import random
 import re
 import zipfile
 from enum import Enum
+from json import JSONEncoder
 from typing import IO, List, Optional, Tuple, Type
 
 from snowflake.connector.version import VERSION as connector_version
@@ -221,6 +225,22 @@ class Utils:
             raise ValueError(
                 f"{except_str} must be one of {', '.join([e.value for e in enum_class])}"
             )
+
+
+class PythonObjJSONEncoder(JSONEncoder):
+    """Converts common Python objects to json serializable objects."""
+
+    def default(self, value):
+        if isinstance(value, (bytes, bytearray)):
+            return value.hex()
+        elif isinstance(value, decimal.Decimal):
+            return float(value)
+        elif isinstance(value, (datetime.date, datetime.time, datetime.datetime)):
+            return value.isoformat()
+        elif isinstance(value, array.array):
+            return value.tolist()
+        else:
+            return super().default(value)
 
 
 class _SaveMode(Enum):

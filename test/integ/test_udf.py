@@ -22,7 +22,7 @@ try:
 except ImportError:
     is_dateutil_available = False
 
-from test.utils import TestFiles, Utils
+from test.utils import TestData, TestFiles, Utils
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.functions import call_udf, col, udf
@@ -34,6 +34,7 @@ from snowflake.snowpark.types.sf_types import (
     DoubleType,
     IntegerType,
     StringType,
+    VariantType,
 )
 
 tmp_stage_name = Utils.random_stage_name()
@@ -548,3 +549,83 @@ def test_add_imports_negative(session_cnx, resources_path):
             with pytest.raises(ProgrammingError) as ex_info:
                 df.select(plus4_then_mod5_udf("a")).collect()
             assert "No module named 'test.resources'" in str(ex_info)
+
+
+def test_udf_variant_type(session_cnx):
+    with session_cnx() as session:
+
+        def variant_get_data_type(v):
+            return str(type(v))
+
+        variant_udf = udf(
+            variant_get_data_type, return_type=StringType(), input_types=[VariantType()]
+        )
+
+        # TODO: SNOW-447601 change to the correct types after the server side has
+        #  the complete mapping, for binary and time-related data
+        assert TestData.variant1(session).select(variant_udf("bin1")).collect() == [
+            Row("<class 'str'>")
+        ]
+
+        assert TestData.variant1(session).select(variant_udf("bool1")).collect() == [
+            Row("<class 'bool'>")
+        ]
+
+        assert TestData.variant1(session).select(variant_udf("str1")).collect() == [
+            Row("<class 'str'>")
+        ]
+
+        assert TestData.variant1(session).select(variant_udf("num1")).collect() == [
+            Row("<class 'int'>")
+        ]
+
+        assert TestData.variant1(session).select(variant_udf("double1")).collect() == [
+            Row("<class 'float'>")
+        ]
+
+        assert TestData.variant1(session).select(variant_udf("decimal1")).collect() == [
+            Row("<class 'float'>")
+        ]
+
+        assert TestData.variant1(session).select(variant_udf("date1")).collect() == [
+            Row("<class 'str'>")
+        ]
+
+        assert TestData.variant1(session).select(variant_udf("time1")).collect() == [
+            Row("<class 'str'>")
+        ]
+
+        assert TestData.variant1(session).select(
+            variant_udf("timestamp_ntz1")
+        ).collect() == [Row("<class 'str'>")]
+
+        assert TestData.variant1(session).select(
+            variant_udf("timestamp_ltz1")
+        ).collect() == [Row("<class 'str'>")]
+
+        assert TestData.variant1(session).select(
+            variant_udf("timestamp_tz1")
+        ).collect() == [Row("<class 'str'>")]
+
+        assert TestData.variant1(session).select(variant_udf("arr1")).collect() == [
+            Row("<class 'list'>")
+        ]
+
+        assert TestData.variant1(session).select(variant_udf("obj1")).collect() == [
+            Row("<class 'dict'>")
+        ]
+
+        # dynamic typing on one single column
+        df = session.sql(
+            "select parse_json(column1) as a from values"
+            "('1'), ('1.1'), ('\"2\"'), ('true'), ('[1, 2, 3]'),"
+            ' (\'{"a": "foo"}\')'
+        )
+        assert df.select(variant_udf("a")).collect() == [
+            Row("<class 'int'>"),
+            Row("<class 'float'>"),
+            Row("<class 'str'>"),
+            Row("<class 'bool'>"),
+            Row("<class 'list'>"),
+            Row("<class 'dict'>"),
+        ]

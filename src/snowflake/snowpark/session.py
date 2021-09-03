@@ -5,6 +5,7 @@
 #
 import datetime
 import decimal
+import json
 import logging
 import os
 from array import array
@@ -39,7 +40,7 @@ from snowflake.snowpark.internal.server_connection import ServerConnection
 from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
 )
-from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark.internal.utils import PythonObjJSONEncoder, Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import Range
 from snowflake.snowpark.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark.row import Row
@@ -49,13 +50,10 @@ from snowflake.snowpark.types.sf_types import (
     AtomicType,
     DateType,
     DecimalType,
-    Geography,
-    GeographyType,
     MapType,
     StructType,
     TimestampType,
     TimeType,
-    Variant,
     VariantType,
 )
 from snowflake.snowpark.types.sp_data_types import StringType as SPStringType
@@ -200,12 +198,15 @@ class Session(metaclass=_SessionMeta):
             immediately, and it will be uploaded when a UDF is created.
 
             2. Snowpark library calculates a checksum for every file/directory.
-            If there is a file or directory existing in the stage, Snowpark library will
-            compare their checksums to determine whether it should be overwritten.
+            If there is a file or directory existing in the stage, Snowpark library
+            will compare their checksums to determine whether it should be overwritten.
             Therefore, after uploading a local file to the stage, if the user makes
             some changes on this file and intends to upload it again, just call this
             function with the file path again, the existing file in the stage will be
             overwritten.
+
+            3. Adding two different files with the same file name is not allowed, because
+            UDFs can't be created with two imports with the same name.
         """
         # parse arguments to the lists and do some simple sanity checks
         trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
@@ -417,7 +418,7 @@ class Session(metaclass=_SessionMeta):
 
     def getSessionStage(self) -> str:
         """
-        Returns the name of the temporary stage created by the Snowpark library for uploading and
+        Returns the name of the temporary stage created by Snowpark library for uploading and
         store temporary artifacts for this session. These artifacts include libraries and packages
         for UDFs that you define in this session via [[addImports]] or [[addRequirements]].
         """
@@ -502,7 +503,6 @@ class Session(metaclass=_SessionMeta):
                     VariantType,
                     ArrayType,
                     MapType,
-                    GeographyType,
                     TimeType,
                     DateType,
                     TimestampType,
@@ -536,20 +536,18 @@ class Session(metaclass=_SessionMeta):
                     converted_row.append(str(value))
                 elif isinstance(data_type, AtomicType):  # consider inheritance
                     converted_row.append(value)
-                elif type(value) == Variant and type(data_type) == VariantType:
-                    converted_row.append(value.as_json_string())
-                elif type(value) == Geography and type(data_type) == GeographyType:
-                    converted_row.append(value.as_geo_json())
                 elif (
                     type(value) in [list, tuple, array] and type(data_type) == ArrayType
                 ):
-                    converted_row.append(Variant(value).as_json_string())
+                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif type(value) == dict and type(data_type) == MapType:
-                    converted_row.append(Variant(value).as_json_string())
+                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
+                elif type(data_type) == VariantType:
+                    converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
                     raise SnowparkClientException(
                         "{} {} can't be converted to {}".format(
-                            type(value), value, data_type.to_string()
+                            type(value), value, str(data_type)
                         )
                     )
             converted.append(Row.from_list(converted_row))

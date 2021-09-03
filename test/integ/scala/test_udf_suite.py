@@ -6,7 +6,7 @@
 import datetime
 import random
 import string
-from test.utils import TestFiles, Utils
+from test.utils import TestData, TestFiles, Utils
 
 import pytest
 
@@ -22,11 +22,11 @@ from snowflake.snowpark.types.sf_types import (
     IntegerType,
     LongType,
     MapType,
+    NullType,
     ShortType,
     StringType,
     TimestampType,
     TimeType,
-    Variant,
     VariantType,
 )
 
@@ -65,8 +65,8 @@ def setup(session_cnx, resources_path):
         Utils.drop_table(session, table1)
         Utils.drop_table(session, table2)
         Utils.drop_table(session, semi_structured_table)
-        Utils.drop_table(session, view1)
-        Utils.drop_table(session, view2)
+        Utils.drop_view(session, view1)
+        Utils.drop_view(session, view2)
         Utils.drop_stage(session, tmp_stage_name)
 
 
@@ -211,6 +211,24 @@ def test_compose_on_dataframe_reader(session_cnx, resources_path):
         assert df.select(replace_udf("a")).collect() == [
             Row('{"id":1,"str":"str1"}'),
             Row('{"id":2,"str":"str2"}'),
+        ]
+
+
+def test_view_with_udf(session_cnx):
+    with session_cnx() as session:
+        TestData.column_has_special_char(session).createOrReplaceView(view1)
+        df1 = session.sql(f"select * from {view1}")
+        udf1 = udf(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+        )
+        df1.withColumn(
+            '"col #"', udf1(col('"col %"'), col('"col *"'))
+        ).createOrReplaceView(view2)
+        assert session.sql(f"select * from {view2}").collect() == [
+            Row([1, 2, 3]),
+            Row([3, 4, 7]),
         ]
 
 
@@ -420,3 +438,387 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session_cnx):
             df.select(add_udf("col1")).collect()[0].get_string(0)
             == "2020-01-02 00:00:05"
         )
+
+
+def test_variant_string_input(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=StringType(), input_types=[VariantType()])
+        def variant_string_input_udf(v):
+            return v.lower()
+
+        assert TestData.variant1(session).select(
+            variant_string_input_udf("str1")
+        ).collect() == [Row("x")]
+
+
+@pytest.mark.skip(
+    "SNOW-447601: enable this test after the server has "
+    "a full type mapping for variant data"
+)
+def test_variant_binary_input(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=BinaryType(), input_types=[VariantType()])
+        def variant_binary_input_udf(v):
+            return v
+
+        assert TestData.variant1(session).select(
+            variant_binary_input_udf("bin1")
+        ).collect() == [Row(bytes("snow", "utf8"))]
+
+
+def test_variant_boolean_input(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=BooleanType(), input_types=[VariantType()])
+        def variant_boolean_input_udf(v):
+            return v
+
+        assert TestData.variant1(session).select(
+            variant_boolean_input_udf("bool1")
+        ).collect() == [Row(True)]
+
+
+def test_variant_number_input(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=IntegerType(), input_types=[VariantType()])
+        def variant_number_input_udf(v):
+            return v + 20
+
+        assert TestData.variant1(session).select(
+            variant_number_input_udf("num1")
+        ).collect() == [Row(35)]
+
+
+@pytest.mark.skip(
+    "SNOW-447601: enable this test after the server has "
+    "a full type mapping for variant data"
+)
+def test_variant_timestamp_input(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=TimestampType(), input_types=[VariantType()])
+        def variant_timestamp_udf(v):
+            if not v:
+                return None
+            return v + datetime.timedelta(seconds=5)
+
+        assert TestData.variant1(session).select(
+            variant_timestamp_udf("timestamp_ntz1")
+        ).collect() == [
+            Row(
+                datetime.datetime.strptime(
+                    "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
+                )
+            )
+        ]
+
+
+@pytest.mark.skip(
+    "SNOW-447601: enable this test after the server has "
+    "a full type mapping for variant data"
+)
+def test_variant_time_input(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=TimeType(), input_types=[VariantType()])
+        def variant_time_udf(v):
+            if not v:
+                return None
+            return datetime.time(v.hour, v.minute, v.second + 5)
+
+        assert TestData.variant1(session).select(
+            variant_time_udf("time1")
+        ).collect() == [Row(datetime.datetime.strptime("20:57:06", "%H:%M:%S").time())]
+
+
+@pytest.mark.skip(
+    "SNOW-447601: enable this test after the server has "
+    "a full type mapping for variant data"
+)
+def test_variant_date_input(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=DateType(), input_types=[VariantType()])
+        def variant_date_udf(v):
+            if not v:
+                return None
+            return datetime.date(v.year, v.month, v.day + 1)
+
+        assert TestData.variant1(session).select(
+            variant_date_udf("date1")
+        ).collect() == [
+            Row(datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date())
+        ]
+
+
+def test_variant_null(session_cnx):
+    with session_cnx() as session:
+        with pytest.raises(TypeError) as ex_info:
+
+            @udf(return_type=NullType(), input_types=[VariantType()])
+            def variant_null_output_udf(_):
+                return None
+
+        assert "Unsupported data type" in str(ex_info)
+
+        @udf(return_type=StringType(), input_types=[VariantType()])
+        def variant_null_output_udf(_):
+            return None
+
+        assert session.sql("select 1 as a").select(
+            variant_null_output_udf("a")
+        ).collect() == [Row(None)]
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_null_output_udf2(_):
+            return None
+
+        assert session.sql("select 1 as a").select(
+            variant_null_output_udf2("a")
+        ).collect() == [Row("null")]
+
+        @udf(return_type=StringType(), input_types=[VariantType()])
+        def variant_null_input_udf(v):
+            # we need to parse sqlNullWrapper on the server side
+            return None if hasattr(v, "is_sql_null") else v["a"]
+
+        assert TestData.null_json1(session).select(
+            variant_null_input_udf("v")
+        ).collect() == [Row(None), Row("foo"), Row(None)]
+
+
+def test_variant_string_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_string_output_udf(_):
+            return "foo"
+
+        assert TestData.variant1(session).select(
+            variant_string_output_udf("num1")
+        ).collect() == [Row('"foo"')]
+
+
+# The behavior of Variant("null") in Python UDF is different from the one in Java UDF
+# Given a string "null", Python UDF will just a string "null", instead of NULL value
+def test_variant_null_string_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_null_string_output_udf(_):
+            return "null"
+
+        assert TestData.variant1(session).select(
+            variant_null_string_output_udf("num1")
+        ).collect() == [Row('"null"')]
+
+
+def test_variant_number_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_int_output_udf(_):
+            return 1
+
+        assert TestData.variant1(session).select(
+            variant_int_output_udf("num1")
+        ).collect() == [Row("1")]
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_float_output_udf(_):
+            return 1.1
+
+        assert TestData.variant1(session).select(
+            variant_float_output_udf("num1")
+        ).collect() == [Row("1.1")]
+
+        # TODO: SNOW-447601: enable this test after the server has
+        #  a full type mapping for variant data
+        # @udf(
+        #     return_type=VariantType(),
+        #     input_types=[VariantType()],
+        # )
+        # def variant_decimal_output_udf(_):
+        #     import decimal
+        #
+        #     return decimal.Decimal(1.1)
+        #
+        # assert TestData.variant1(session).select(
+        #     variant_decimal_output_udf("num1")
+        # ).collect() == [Row("1.1")]
+
+
+def test_variant_boolean_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_boolean_output_udf(_):
+            return True
+
+        assert TestData.variant1(session).select(
+            variant_boolean_output_udf("num1")
+        ).collect() == [Row("true")]
+
+
+@pytest.mark.skip(
+    "SNOW-447601: enable this test after the server has "
+    "a full type mapping for variant data"
+)
+def test_variant_binary_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_binary_output_udf(_):
+            return bytes("snow", "utf8")
+
+        assert TestData.variant1(session).select(
+            variant_binary_output_udf("num1")
+        ).collect() == [Row('"736E6F77"')]
+
+
+def test_variant_dict_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_dict_output_udf(_):
+            return {"a": "foo"}
+
+        assert TestData.variant1(session).select(
+            variant_dict_output_udf("num1")
+        ).collect() == [Row('{\n  "a": "foo"\n}')]
+
+
+def test_variant_list_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_list_output_udf(_):
+            return [1, 2, 3]
+
+        assert TestData.variant1(session).select(
+            variant_list_output_udf("num1")
+        ).collect() == [Row("[\n  1,\n  2,\n  3\n]")]
+
+
+@pytest.mark.skip(
+    "SNOW-447601: enable this test after the server has "
+    "a full type mapping for variant data"
+)
+def test_variant_timestamp_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_timestamp_output_udf(_):
+            return datetime.datetime.strptime(
+                "2020-10-10 01:02:03", "%Y-%m-%d %H:%M:%S"
+            )
+
+        assert TestData.variant1(session).select(
+            variant_timestamp_output_udf("num1")
+        ).collect() == [Row('"2020-10-10 01:02:03.000"')]
+
+
+@pytest.mark.skip(
+    "SNOW-447601: enable this test after the server has "
+    "a full type mapping for variant data"
+)
+def test_variant_time_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_time_output_udf(_):
+            return datetime.datetime.strptime("01:02:03", "%H:%M:%S").time()
+
+        assert TestData.variant1(session).select(
+            variant_time_output_udf("num1")
+        ).collect() == [Row('"01:02:03"')]
+
+
+@pytest.mark.skip(
+    "SNOW-447601: enable this test after the server has "
+    "a full type mapping for variant data"
+)
+def test_variant_date_output(session_cnx):
+    with session_cnx() as session:
+
+        @udf(return_type=VariantType(), input_types=[VariantType()])
+        def variant_date_output_udf(_):
+            return datetime.datetime.strptime("2020-10-10", "%Y-%m-%d").date()
+
+        assert TestData.variant1(session).select(
+            variant_date_output_udf("num1")
+        ).collect() == [Row('"2020-10-10"')]
+
+
+def test_array_variant(session_cnx):
+    with session_cnx() as session:
+
+        @udf(
+            return_type=ArrayType(VariantType()), input_types=[ArrayType(VariantType())]
+        )
+        def variant_udf(v):
+            return v + [1]
+
+        assert TestData.variant1(session).select(variant_udf("arr1")).collect() == [
+            Row('[\n  "Example",\n  1\n]')
+        ]
+
+        @udf(
+            return_type=ArrayType(VariantType()), input_types=[ArrayType(VariantType())]
+        )
+        def variant_udf_none(v):
+            return v + [None]
+
+        assert TestData.variant1(session).select(
+            variant_udf_none("arr1")
+        ).collect() == [Row('[\n  "Example",\n  null\n]')]
+
+        @udf(
+            return_type=ArrayType(VariantType()), input_types=[ArrayType(VariantType())]
+        )
+        def variant_udf_none_if_true(_):
+            return None if True else [1]
+
+        assert TestData.variant1(session).select(
+            variant_udf_none_if_true("arr1")
+        ).collect() == [Row(None)]
+
+
+def test_map_variant(session_cnx):
+    with session_cnx() as session:
+
+        @udf(
+            return_type=MapType(StringType(), VariantType()),
+            input_types=[MapType(StringType(), VariantType())],
+        )
+        def variant_udf(v):
+            return {**v, "a": 1}
+
+        assert TestData.variant1(session).select(variant_udf("obj1")).collect() == [
+            Row('{\n  "Tree": "Pine",\n  "a": 1\n}')
+        ]
+
+        @udf(
+            return_type=MapType(StringType(), VariantType()),
+            input_types=[MapType(StringType(), VariantType())],
+        )
+        def variant_udf_none(v):
+            return {**v, "a": None}
+
+        assert TestData.variant1(session).select(
+            variant_udf_none("obj1")
+        ).collect() == [Row('{\n  "Tree": "Pine",\n  "a": null\n}')]
+
+        @udf(
+            return_type=MapType(StringType(), VariantType()),
+            input_types=[MapType(StringType(), VariantType())],
+        )
+        def variant_udf_none_if_true(_):
+            return None if True else {"a": 1}
+
+        assert TestData.variant1(session).select(
+            variant_udf_none_if_true("obj1")
+        ).collect() == [Row(None)]
