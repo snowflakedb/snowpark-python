@@ -141,9 +141,7 @@ class ServerConnection:
 
     def _get_string_datum(self, query: str) -> Optional[str]:
         rows = self.result_set_to_rows(self.run_query(query)["data"])
-        return (
-            rows[0].get_string(0) if len(rows) > 0 and rows[0][0] is not None else None
-        )
+        return rows[0][0] if len(rows) > 0 else None
 
     @staticmethod
     def _get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
@@ -320,7 +318,7 @@ class ServerConnection:
 
     # TODO revisit
     def result_set_to_rows(self, result_set):
-        rows = [Row(row) for row in result_set]
+        rows = [Row(*row) for row in result_set]
         return rows
 
     def execute(self, plan: "SnowflakePlan", to_pandas=False, **kwargs):

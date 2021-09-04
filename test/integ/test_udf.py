@@ -85,14 +85,14 @@ def test_basic_udf(session_cnx):
         df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
         assert df.select(return1_udf()).collect() == [Row("1"), Row("1")]
         assert df.select(plus1_udf(col("a")), "a").collect() == [
-            Row([2, 1]),
-            Row([4, 3]),
+            Row(2, 1),
+            Row(4, 3),
         ]
         assert df.select(add_udf("a", "b")).collect() == [Row(3), Row(7)]
         assert df.select(int2str_udf("a")).collect() == [Row("1"), Row("3")]
         assert df.select(pow_udf(col("a"), "b"), "b").collect() == [
-            Row([1.0, 2]),
-            Row([81.0, 4]),
+            Row(1.0, 2),
+            Row(81.0, 4),
         ]
 
 
@@ -159,8 +159,8 @@ def test_nested_udf(session_cnx):
         # but we can still register function square()
         square_udf = udf(square, return_type=IntegerType(), input_types=[IntegerType()])
         assert df.select(cube_udf("a"), square_udf("a")).collect() == [
-            Row([1, 1]),
-            Row([8, 4]),
+            Row(1, 1),
+            Row(8, 4),
         ]
 
 
@@ -211,16 +211,12 @@ def test_decorator_udf(session_cnx):
         ).collect()
         assert res == [
             Row(
-                [
-                    "[\n  1,\n  2,\n  1,\n  2,\n  1,\n  2,\n  1,\n  2\n]",
-                    "[\n  2,\n  3,\n  2,\n  3,\n  2,\n  3,\n  2,\n  3\n]",
-                ]
+                "[\n  1,\n  2,\n  1,\n  2,\n  1,\n  2,\n  1,\n  2\n]",
+                "[\n  2,\n  3,\n  2,\n  3,\n  2,\n  3,\n  2,\n  3\n]",
             ),
             Row(
-                [
-                    "[\n  3,\n  4,\n  3,\n  4,\n  3,\n  4,\n  3,\n  4\n]",
-                    "[\n  4,\n  5,\n  4,\n  5,\n  4,\n  5,\n  4,\n  5\n]",
-                ]
+                "[\n  3,\n  4,\n  3,\n  4,\n  3,\n  4,\n  3,\n  4\n]",
+                "[\n  4,\n  5,\n  4,\n  5,\n  4,\n  5,\n  4,\n  5\n]",
             ),
         ]
 
@@ -238,8 +234,8 @@ def test_annotation_syntax_udf(session_cnx):
 
         df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
         assert df.select(add_udf("a", "b"), snow()).collect() == [
-            Row([3, "snow"]),
-            Row([7, "snow"]),
+            Row(3, "snow"),
+            Row(7, "snow"),
         ]
 
         # add_udf is a UDF instead of a normal python function,

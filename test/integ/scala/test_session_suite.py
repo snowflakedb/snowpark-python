@@ -16,7 +16,7 @@ def test_createDataFrame_sequence(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([[1, "one", 1.0], [2, "two", 2.0]])
         assert [field.name for field in df.schema.fields] == ["_1", "_2", "_3"]
-        assert df.collect() == [Row([1, "one", 1.0]), Row([2, "two", 2.0])]
+        assert df.collect() == [Row(1, "one", 1.0), Row(2, "two", 2.0)]
 
         df = session.createDataFrame([1, 2])
         assert [field.name for field in df.schema.fields] == ["VALUES"]

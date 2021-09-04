@@ -112,7 +112,7 @@ def test_verify_datatypes_reference(session_cnx):
             lit(0.07).cast(DecimalType(7, 2)).as_("b"),
         )
 
-        assert df.collect() == [Row([Decimal("0.05"), Decimal("0.07")])]
+        assert df.collect() == [Row(Decimal("0.05"), Decimal("0.07"))]
         assert (
             str(df.schema.fields)
             == "[StructField(A, Decimal(5,2), Nullable=False), StructField(B, Decimal(7,2), Nullable=False)]"

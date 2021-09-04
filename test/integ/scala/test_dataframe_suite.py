@@ -26,7 +26,7 @@ def test_null_data_in_tables(session_cnx):
                 f"insert into {table_name} values(null),(null),(null)"
             ).collect()
             res = session.table(table_name).collect()
-            assert res == [Row([None]), Row([None]), Row([None])]
+            assert res == [Row(None), Row(None), Row(None)]
         finally:
             Utils.drop_table(session, table_name)
 
@@ -36,21 +36,21 @@ def test_null_data_in_local_relation_with_filters(session_cnx):
         df = session.createDataFrame([[1, None], [2, "NotNull"], [3, None]]).toDF(
             ["a", "b"]
         )
-        assert df.collect() == [Row([1, None]), Row([2, "NotNull"]), Row([3, None])]
+        assert df.collect() == [Row(1, None), Row(2, "NotNull"), Row(3, None)]
         df2 = session.createDataFrame([[1, None], [2, "NotNull"], [3, None]]).toDF(
             ["a", "b"]
         )
         assert df.collect() == df2.collect()
 
         assert df.filter(col("b").is_null()).collect() == [
-            Row([1, None]),
-            Row([3, None]),
+            Row(1, None),
+            Row(3, None),
         ]
-        assert df.filter(col("b").is_not_null()).collect() == [Row([2, "NotNull"])]
+        assert df.filter(col("b").is_not_null()).collect() == [Row(2, "NotNull")]
         assert df.sort(col("b").asc_nulls_last()).collect() == [
-            Row([2, "NotNull"]),
-            Row([1, None]),
-            Row([3, None]),
+            Row(2, "NotNull"),
+            Row(1, None),
+            Row(3, None),
         ]
 
 
@@ -58,7 +58,7 @@ def test_project_null_values(session_cnx):
     """Tests projecting null values onto different columns in a dataframe"""
     with session_cnx() as session:
         df = session.createDataFrame([1, 2]).toDF("a").withColumn("b", lit(None))
-        assert df.collect() == [Row([1, None]), Row([2, None])]
+        assert df.collect() == [Row(1, None), Row(2, None)]
 
         df2 = session.createDataFrame([1, 2]).toDF("a").select(lit(None))
         assert len(df2.schema.fields) == 1
@@ -87,7 +87,7 @@ def test_createOrReplaceView_with_null_data(session_cnx):
 
             res = session.sql(f"select * from {view_name}").collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1, None]), Row([2, "NotNull"]), Row([3, None])]
+            assert res == [Row(1, None), Row(2, "NotNull"), Row(3, None)]
         finally:
             Utils.drop_view(session, view_name)
 
@@ -398,7 +398,7 @@ def test_select(session_cnx):
         )
 
         # select(String, String*) with 1 column
-        expected_result = [Row([1]), Row([2]), Row([3])]
+        expected_result = [Row(1), Row(2), Row(3)]
         assert df.select("a").collect() == expected_result
         # select(Seq[String]) with 1 column
         assert df.select(["a"]).collect() == expected_result
@@ -407,7 +407,7 @@ def test_select(session_cnx):
         # select(Seq[Column]) with 1 column
         assert df.select([col("a")]).collect() == expected_result
 
-        expected_result = [Row([1, "a", 10]), Row([2, "b", 20]), Row([3, "c", 30])]
+        expected_result = [Row(1, "a", 10), Row(2, "b", 20), Row(3, "c", 30)]
         # select(String, String*) with 3 columns
         assert df.select(["a", "b", "c"]).collect() == expected_result
         # select(Seq[String]) with 3 column
@@ -418,7 +418,7 @@ def test_select(session_cnx):
         assert df.select([col("a"), col("b"), col("c")]).collect() == expected_result
 
         # test col("a") + col("c")
-        expected_result = [Row(["a", 11]), Row(["b", 22]), Row(["c", 33])]
+        expected_result = [Row("a", 11), Row("b", 22), Row("c", 33)]
         # select(Column, Column*) with col("a") + col("b")
         assert df.select(col("b"), col("a") + col("c")).collect() == expected_result
         # select(Seq[Column]) with col("a") + col("b")
@@ -464,7 +464,7 @@ def test_drop_and_dropcolumns(session_cnx):
             ["a", "b", "c"]
         )
 
-        expected_result = [Row([1, "a", 10]), Row([2, "b", 20]), Row([3, "c", 30])]
+        expected_result = [Row(1, "a", 10), Row(2, "b", 20), Row(3, "c", 30)]
 
         # drop non-exist-column (do nothing)
         assert df.drop("not_exist_column").collect() == expected_result
@@ -473,21 +473,21 @@ def test_drop_and_dropcolumns(session_cnx):
         assert df.drop([col("not_exist_column")]).collect() == expected_result
 
         # drop 1st column
-        expected_result = [Row(["a", 10]), Row(["b", 20]), Row(["c", 30])]
+        expected_result = [Row("a", 10), Row("b", 20), Row("c", 30)]
         assert df.drop("a").collect() == expected_result
         assert df.drop(["a"]).collect() == expected_result
         assert df.drop(col("a")).collect() == expected_result
         assert df.drop([col("a")]).collect() == expected_result
 
         # drop 2nd column
-        expected_result = [Row([1, 10]), Row([2, 20]), Row([3, 30])]
+        expected_result = [Row(1, 10), Row(2, 20), Row(3, 30)]
         assert df.drop("b").collect() == expected_result
         assert df.drop(["b"]).collect() == expected_result
         assert df.drop(col("b")).collect() == expected_result
         assert df.drop([col("b")]).collect() == expected_result
 
         # drop 2nd and 3rd column
-        expected_result = [Row([1]), Row([2]), Row([3])]
+        expected_result = [Row(1), Row(2), Row(3)]
         assert df.drop("b", "c").collect() == expected_result
         assert df.drop(["b", "c"]).collect() == expected_result
         assert df.drop(col("b"), col("c")).collect() == expected_result
@@ -527,12 +527,12 @@ def test_groupby(session_cnx):
         ).toDF(["country", "state", "value"])
 
         # groupBy without column
-        assert df.groupBy().agg(max(col("value"))).collect() == [Row([100])]
-        assert df.groupBy([]).agg(sum(col("value"))).collect() == [Row([330])]
-        assert df.groupBy().agg([sum(col("value"))]).collect() == [Row([330])]
+        assert df.groupBy().agg(max(col("value"))).collect() == [Row(100)]
+        assert df.groupBy([]).agg(sum(col("value"))).collect() == [Row(330)]
+        assert df.groupBy().agg([sum(col("value"))]).collect() == [Row(330)]
 
         # groupBy() on 1 column
-        expected_res = [Row(["country A", 110]), Row(["country B", 220])]
+        expected_res = [Row("country A", 110), Row("country B", 220)]
         assert df.groupBy("country").agg(sum(col("value"))).collect() == expected_res
         assert df.groupBy(["country"]).agg(sum(col("value"))).collect() == expected_res
         assert (
@@ -545,10 +545,10 @@ def test_groupby(session_cnx):
 
         # groupBy() on 2 columns
         expected_res = [
-            Row(["country A", "state B", 10]),
-            Row(["country B", "state B", 20]),
-            Row(["country A", "state A", 100]),
-            Row(["country B", "state A", 200]),
+            Row("country A", "state B", 10),
+            Row("country B", "state B", 20),
+            Row("country A", "state A", 100),
+            Row("country B", "state A", 200),
         ]
 
         res = df.groupBy(["country", "state"]).agg(sum(col("value"))).collect()
@@ -564,7 +564,7 @@ def test_escaped_character(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame(["'", "\\", "\n"]).toDF("a")
         res = df.collect()
-        assert res == [Row(["'"]), Row(["\\"]), Row(["\n"])]
+        assert res == [Row("'"), Row("\\"), Row("\n")]
 
 
 def test_create_or_replace_temporary_view(session_cnx, db_parameters):
@@ -578,25 +578,25 @@ def test_create_or_replace_temporary_view(session_cnx, db_parameters):
             df.createOrReplaceTempView(view_name)
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
 
             # test replace
             df2 = session.createDataFrame(["a", "b", "c"]).toDF("b")
             df2.createOrReplaceTempView(view_name)
             res = session.table(view_name).collect()
-            assert res == [Row(["a"]), Row(["b"]), Row(["c"])]
+            assert res == [Row("a"), Row("b"), Row("c")]
 
             # view name has special char
             df.createOrReplaceTempView(view_name1)
             res = session.table(view_name1).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
 
             # view name has quote
             df.createOrReplaceTempView(view_name2)
             res = session.table(view_name2).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
 
             # Get a second session object
             session2 = Session.builder.configs(db_parameters).create()
@@ -650,7 +650,7 @@ def test_quoted_column_names(session_cnx):
             assert schema1.fields[4].name == quoteMiddle
             assert schema1.fields[5].name == quoteAllCases
 
-            assert df1.collect() == [Row([1, 2, 3, 4, 5, 6])]
+            assert df1.collect() == [Row(1, 2, 3, 4, 5, 6)]
 
             # test select() + cacheResult() + select()
             # TODO uncomment cacheResult when available
@@ -675,7 +675,7 @@ def test_quoted_column_names(session_cnx):
             assert schema2.fields[4].name == quoteMiddle
             assert schema2.fields[5].name == quoteAllCases
 
-            assert df1.collect() == [Row([1, 2, 3, 4, 5, 6])]
+            assert df1.collect() == [Row(1, 2, 3, 4, 5, 6)]
 
             # Test drop()
             df3 = session.table(table_name).drop(
@@ -684,7 +684,7 @@ def test_quoted_column_names(session_cnx):
             schema3 = df3.schema
             assert len(schema3.fields) == 1
             assert schema3.fields[0].name == normalName
-            assert df3.collect() == [Row([1])]
+            assert df3.collect() == [Row(1)]
 
             # Test select() + cacheResult() + drop()
             # TODO uncomment cacheResult when available
@@ -703,7 +703,7 @@ def test_quoted_column_names(session_cnx):
             schema4 = df4.schema
             assert len(schema4.fields) == 1
             assert schema4.fields[0].name == normalName
-            assert df4.collect() == [Row([1])]
+            assert df4.collect() == [Row(1)]
 
         finally:
             Utils.drop_table(session, table_name)
@@ -741,7 +741,7 @@ def test_column_names_without_surrounding_quote(session_cnx):
             assert schema1.fields[0].name == quoteStart
             assert schema1.fields[1].name == quoteEnd
             assert schema1.fields[2].name == quoteMiddle
-            assert df1.collect() == [Row([3, 4, 5])]
+            assert df1.collect() == [Row(3, 4, 5)]
 
         finally:
             Utils.drop_table(session, table_name)
@@ -768,7 +768,7 @@ def test_clone_with_union_dataframe(session_cnx):
             cloned_union_df = union_df.clone()
             res = cloned_union_df.collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1, 1]), Row([1, 1]), Row([2, 2]), Row([2, 2])]
+            assert res == [Row(1, 1), Row(1, 1), Row(2, 2), Row(2, 2)]
         finally:
             Utils.drop_table(session, table_name)
 
@@ -793,6 +793,6 @@ def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(
 def test_variant_in_array_and_dict(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame(
-            [Row([[Variant(1), Variant("\"'")], {"a": Variant("\"'")}])]
+            [Row([Variant(1), Variant("\"'")], {"a": Variant("\"'")})]
         )
-        assert df.collect() == [Row(['[\n  1,\n  "\\"\'"\n]', '{\n  "a": "\\"\'"\n}'])]
+        assert df.collect() == [Row('[\n  1,\n  "\\"\'"\n]', '{\n  "a": "\\"\'"\n}')]

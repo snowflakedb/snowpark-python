@@ -5,6 +5,7 @@
 #
 
 import math
+from decimal import Decimal
 from test.utils import TestData
 
 import pytest
@@ -39,11 +40,11 @@ def test_unary_operator(session_cnx):
     with session_cnx() as session:
         test_data1 = TestData.test_data1(session)
         # unary minus
-        assert test_data1.select(-test_data1["NUM"]).collect() == [Row([-1]), Row([-2])]
+        assert test_data1.select(-test_data1["NUM"]).collect() == [Row(-1), Row(-2)]
         # not
         assert test_data1.select(~test_data1["BOOL"]).collect() == [
-            Row([False]),
-            Row([True]),
+            Row(False),
+            Row(True),
         ]
 
 
@@ -51,33 +52,27 @@ def test_equal_and_not_equal(session_cnx):
     with session_cnx() as session:
         test_data1 = TestData.test_data1(session)
         assert test_data1.where(test_data1["BOOL"] == True).collect() == [
-            Row([1, True, "a"])
+            Row(1, True, "a")
         ]
         assert test_data1.where(test_data1["BOOL"] == False).collect() == [
-            Row([2, False, "b"])
+            Row(2, False, "b")
         ]
 
 
 def test_gt_and_lt(session_cnx):
     with session_cnx() as session:
         test_data1 = TestData.test_data1(session)
-        assert test_data1.where(test_data1["NUM"] > 1).collect() == [
-            Row([2, False, "b"])
-        ]
-        assert test_data1.where(test_data1["NUM"] < 2).collect() == [
-            Row([1, True, "a"])
-        ]
+        assert test_data1.where(test_data1["NUM"] > 1).collect() == [Row(2, False, "b")]
+        assert test_data1.where(test_data1["NUM"] < 2).collect() == [Row(1, True, "a")]
 
 
 def test_ge_and_le(session_cnx):
     with session_cnx() as session:
         test_data1 = TestData.test_data1(session)
         assert test_data1.where(test_data1["NUM"] >= 2).collect() == [
-            Row([2, False, "b"])
+            Row(2, False, "b")
         ]
-        assert test_data1.where(test_data1["NUM"] <= 1).collect() == [
-            Row([1, True, "a"])
-        ]
+        assert test_data1.where(test_data1["NUM"] <= 1).collect() == [Row(1, True, "a")]
 
 
 def test_equal_null_safe(session_cnx):
@@ -98,9 +93,9 @@ def test_nan_and_null(session_cnx):
         res_row = df.where(df["A"].equal_nan()).collect()[0]
         assert math.isnan(res_row[0])
         assert res_row[1] == 3
-        assert df.where(df["A"].is_null()).collect() == [Row([None, 2])]
+        assert df.where(df["A"].is_null()).collect() == [Row(None, 2)]
         res_row1, res_row2 = df.where(df["A"].is_not_null()).collect()
-        assert res_row1 == Row([1.1, 1])
+        assert res_row1 == Row(1.1, 1)
         assert math.isnan(res_row2[0])
         assert res_row2[1] == 3
 
@@ -110,11 +105,11 @@ def test_and_or(session_cnx):
         df = session.sql(
             "select * from values(true,true),(true,false),(false,true),(false,false) as T(a, b)"
         )
-        assert df.where(df["A"] & df["B"]).collect() == [Row([True, True])]
+        assert df.where(df["A"] & df["B"]).collect() == [Row(True, True)]
         assert df.where(df["A"] | df["B"]).collect() == [
-            Row([True, True]),
-            Row([True, False]),
-            Row([False, True]),
+            Row(True, True),
+            Row(True, False),
+            Row(False, True),
         ]
 
 
@@ -129,7 +124,7 @@ def test_add_subtract_multiply_divide_mod_pow(session_cnx):
         res = df.select(df["A"] / df["B"]).collect()
         assert len(res) == 1
         assert len(res[0]) == 1
-        assert res[0].get_decimal(0).to_eng_string() == "0.846154"
+        assert res[0][0].to_eng_string() == "0.846154"
 
         # test reverse operator
         assert df.select(2 + df["B"]).collect() == [Row(15)]
@@ -140,7 +135,7 @@ def test_add_subtract_multiply_divide_mod_pow(session_cnx):
         res = df.select(2 / df["B"]).collect()
         assert len(res) == 1
         assert len(res[0]) == 1
-        assert res[0].get_decimal(0).to_eng_string() == "0.153846"
+        assert res[0][0].to_eng_string() == "0.153846"
 
 
 def test_bitwise_operator(session_cnx):

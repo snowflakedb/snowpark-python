@@ -915,7 +915,7 @@ class DataFrame:
         Returns:
             the number of rows.
         """
-        return self.agg(("*", "count")).collect()[0].get_int(0)
+        return self.agg(("*", "count")).collect()[0][0]
 
     @property
     def write(self) -> DataFrameWriter:

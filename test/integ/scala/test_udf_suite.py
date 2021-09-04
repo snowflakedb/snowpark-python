@@ -147,9 +147,9 @@ def test_udf_with_map_return(session_cnx):
         res = df.select(map_udf("a1")).collect()
         assert len(res) == 2
         for i in [1, 2, 3]:
-            assert f"convert_to_map{i}" in res[0].get_string(0)
+            assert f"convert_to_map{i}" in res[0][0]
         for i in [4, 5, 6]:
-            assert f"convert_to_map{i}" in res[1].get_string(0)
+            assert f"convert_to_map{i}" in res[1][0]
 
 
 def test_udf_with_multiple_args_of_map_array(session_cnx):
@@ -187,8 +187,8 @@ def test_udf_with_multiple_args_of_map_array(session_cnx):
         )
         res = df.select(map_udf("o1", "o2", "id")).collect()
         assert len(res) == 2
-        assert '"ID1": "30"' in res[0].get_string(0)
-        assert '"ID2": "70"' in res[1].get_string(0)
+        assert '"ID1": "30"' in res[0][0]
+        assert '"ID2": "70"' in res[1][0]
 
 
 def test_filter_on_top_of_udf(session_cnx):
@@ -225,7 +225,7 @@ def test_large_closure(session_cnx):
             input_types=[IntegerType()],
         )
         rows = df.select(string_udf("a")).collect()
-        assert rows[1].get_string(0).startswith(long_string)
+        assert rows[1][0].startswith(long_string)
 
 
 def test_string_return_type(session_cnx):
@@ -238,9 +238,9 @@ def test_string_return_type(session_cnx):
             input_types=[IntegerType()],
         )
         assert df.select("a", string_udf("a")).collect() == [
-            Row([1, "Hello1"]),
-            Row([2, "Hello2"]),
-            Row([3, "Hello3"]),
+            Row(1, "Hello1"),
+            Row(2, "Hello2"),
+            Row(3, "Hello3"),
         ]
 
 
@@ -251,9 +251,9 @@ def test_long_type(session_cnx):
             lambda x: x + x, return_type=LongType(), input_types=[LongType()]
         )
         assert df.select("a", long_udf("a")).collect() == [
-            Row([1, 2]),
-            Row([2, 4]),
-            Row([3, 6]),
+            Row(1, 2),
+            Row(2, 4),
+            Row(3, 6),
         ]
 
 
@@ -264,9 +264,9 @@ def test_short_type(session_cnx):
             lambda x: x + x, return_type=ShortType(), input_types=[ShortType()]
         )
         assert df.select("a", short_udf("a")).collect() == [
-            Row([1, 2]),
-            Row([2, 4]),
-            Row([3, 6]),
+            Row(1, 2),
+            Row(2, 4),
+            Row(3, 6),
         ]
 
 
@@ -277,9 +277,9 @@ def test_float_type(session_cnx):
             lambda x: x + x, return_type=FloatType(), input_types=[FloatType()]
         )
         assert df.select("a", float_udf("a")).collect() == [
-            Row([1.1, 2.2]),
-            Row([2.2, 4.4]),
-            Row([3.3, 6.6]),
+            Row(1.1, 2.2),
+            Row(2.2, 4.4),
+            Row(3.3, 6.6),
         ]
 
 
@@ -290,9 +290,9 @@ def test_double_type(session_cnx):
             lambda x: x + x, return_type=DoubleType(), input_types=[DoubleType()]
         )
         assert df.select("a", double_udf("a")).collect() == [
-            Row([1.01, 2.02]),
-            Row([2.01, 4.02]),
-            Row([3.01, 6.02]),
+            Row(1.01, 2.02),
+            Row(2.01, 4.02),
+            Row(3.01, 6.02),
         ]
 
 
@@ -345,7 +345,7 @@ def test_date_and_timestamp_type(session_cnx):
         def to_date(t):
             return t.date() if t else None
 
-        out = [Row([to_timestamp(d), to_date(t)]) for d, t in data]
+        out = [Row(to_timestamp(d), to_date(t)) for d, t in data]
         df = session.createDataFrame(data).toDF("date", "timestamp")
         to_timestamp_udf = udf(
             to_timestamp, return_type=TimestampType(), input_types=[DateType()]
@@ -384,9 +384,9 @@ def test_time_and_timestamp_type(session_cnx):
             to_time, return_type=TimeType(), input_types=[TimestampType()]
         )
         res = df.select(to_timestamp_udf("time"), to_time_udf("timestamp")).collect()
-        assert res[0].get_string(0) == "1970-01-01 01:02:03"
-        assert res[0].get_string(1) == "01:02:03"
-        assert res[1] == Row([None, None])
+        assert str(res[0][0]) == "1970-01-01 01:02:03"
+        assert str(res[0][1]) == "01:02:03"
+        assert res[1] == Row(None, None)
 
 
 def test_time_date_timestamp_type_with_snowflake_timezone(session_cnx):
@@ -398,7 +398,7 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session_cnx):
             return_type=TimeType(),
             input_types=[TimeType()],
         )
-        assert df.select(add_udf("col1")).collect()[0].get_string(0) == "00:00:05"
+        assert str(df.select(add_udf("col1")).collect()[0][0]) == "00:00:05"
 
         df = session.sql("select '2020-1-1' :: date as col1")
         add_udf = udf(
@@ -406,7 +406,7 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session_cnx):
             return_type=DateType(),
             input_types=[DateType()],
         )
-        assert df.select(add_udf("col1")).collect()[0].get_string(0) == "2020-01-02"
+        assert str(df.select(add_udf("col1")).collect()[0][0]) == "2020-01-02"
 
         df = session.sql("select '2020-1-1 00:00:00' :: date as col1")
         add_udf = udf(
@@ -416,7 +416,4 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session_cnx):
             return_type=TimestampType(),
             input_types=[TimestampType()],
         )
-        assert (
-            df.select(add_udf("col1")).collect()[0].get_string(0)
-            == "2020-01-02 00:00:05"
-        )
+        assert str(df.select(add_udf("col1")).collect()[0][0]) == "2020-01-02 00:00:05"
