@@ -6,8 +6,8 @@ from typing import Dict
 
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.staged_file_read_plan_builder import (
-    StagedFileReadPlanBuilder,
+from snowflake.snowpark.internal.analyzer.staged_file_reader import (
+    StagedFileReader,
 )
 from snowflake.snowpark.types.sf_types import StructType
 
@@ -83,7 +83,7 @@ class DataFrameReader:
 
     def __init__(self, session):
         self.session = session
-        self.__file_read_plan_builder = StagedFileReadPlanBuilder(self.session)
+        self.__staged_file_reader = StagedFileReader.from_session(self.session)
 
     def table(self, name: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the specified
@@ -118,10 +118,10 @@ class DataFrameReader:
         Returns:
             :class:`DataFrameReader`
         """
-        self.__file_read_plan_builder.user_schema(schema)
+        self.__staged_file_reader.user_schema(schema)
         return self
 
-    def csv(self, path: str) -> DataFrame:
+    def csv(self, path: str) -> "CopyableDataFrame":
         """Returns a ``DataFrame`` that is set up to load data from the specified CSV
         file.
 
@@ -146,11 +146,12 @@ class DataFrameReader:
         Returns:
             :class:`DataFrame`
         """
-        self.__file_read_plan_builder.path(path).format("csv").database_schema(
+        self.__staged_file_reader.path(path).format("csv").database_schema(
             self.session.getFullyQualifiedCurrentSchema()
         )
-        return DataFrame(
-            self.session, self.__file_read_plan_builder.create_snowflake_plan()
+        from snowflake.snowpark.copyable_dataframe import CopyableDataFrame
+        return CopyableDataFrame(
+            self.session, self.__staged_file_reader.create_snowflake_plan(), self.__staged_file_reader
         )
 
     def json(self, path: str) -> DataFrame:
@@ -331,7 +332,7 @@ class DataFrameReader:
         Returns:
             :class:`DataFrameReader`
         """
-        self.__file_read_plan_builder.option(key, value)
+        self.__staged_file_reader.option(key, value)
         return self
 
     def options(self, configs: Dict) -> "DataFrameReader":
@@ -364,7 +365,7 @@ class DataFrameReader:
         Returns:
             :class:`DataFrameReader`
         """
-        self.__file_read_plan_builder.options(configs)
+        self.__staged_file_reader.options(configs)
         return self
 
     def __parse_value(self, v) -> str:
@@ -376,9 +377,9 @@ class DataFrameReader:
             return AnalyzerPackage.single_quote(str(v))
 
     def __read_semi_structured_file(self, path: str, format: str) -> "DataFrame":
-        self.__file_read_plan_builder.path(path).format(format).database_schema(
+        self.__staged_file_reader.path(path).format(format).database_schema(
             self.session.getFullyQualifiedCurrentSchema()
         )
         return DataFrame(
-            self.session, self.__file_read_plan_builder.create_snowflake_plan()
+            self.session, self.__staged_file_reader.create_snowflake_plan()
         )

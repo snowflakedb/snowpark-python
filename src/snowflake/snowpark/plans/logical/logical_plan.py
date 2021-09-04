@@ -7,7 +7,9 @@
 # existing code originally distributed by the Apache Software Foundation as part of the
 # Apache Spark project, under the Apache License, Version 2.0.
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+
+from snowflake.snowpark.internal.sp_expressions import Expression
 
 
 class LogicalPlan:
@@ -32,6 +34,15 @@ class UnresolvedRelation(LeafNode, NamedRelation):
     def __init__(self, multipart_identifier):
         super().__init__()
         self.multipart_identifier = multipart_identifier
+
+
+class CopyIntoNode(LeafNode):
+    def __init__(self, table_name: str, transformations: List[Expression], options: Dict[str, Any], staged_file_reader: "StagedFiledReader"):
+        super().__init__()
+        self.table_name = table_name
+        self.transformations = transformations
+        self.options = options
+        self.staged_file_reader = staged_file_reader
 
 
 class UnaryNode(LogicalPlan):

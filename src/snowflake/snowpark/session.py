@@ -107,10 +107,10 @@ class Session(metaclass=_SessionMeta):
         self.__last_action_id = 0
         self.__last_canceled_id = 0
 
+        self.__temp_objects_map = {}
+
         self.analyzer = Analyzer(self)
 
-        # TODO
-        # self.factory
 
     def _generate_new_action_id(self):
         self.__last_action_id += 1
@@ -654,6 +654,17 @@ class Session(metaclass=_SessionMeta):
         # applications. It also has no effect on the output of subprocesses. However, it is still
         # a useful approach for many utility scripts."
         pass
+
+    def __record_temp_object(self, temp_object_type, name:str):
+        # Make the name fully qualified by prepending database and schema to the name.
+        multipart_identifier = name.split(".")
+        if len(multipart_identifier) == 1:
+            multipart_identifier = [self.getCurrentSchema()] + multipart_identifier
+        if len(multipart_identifier) == 2:
+            multipart_identifier = [self.getCurrentDatabase()] + multipart_identifier
+
+        fully_qualified_name = ".".join(multipart_identifier)
+        self.__temp_objects_map[fully_qualified_name] = temp_object_type
 
     class _SessionBuilder:
         """The SessionBuilder holds all the configuration properties

@@ -6,6 +6,7 @@
 import functools
 import os
 import random
+import re
 import uuid
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
@@ -113,6 +114,11 @@ class Utils:
             )
         else:
             assert expected_rows == actual_rows
+
+    @staticmethod
+    def contain_ignore_case_and_whitespace(data: str, keyword: str) -> bool:
+        e = re.compile(r"\s+")
+        return e.sub("", keyword).lower() in e.sub("", data).lower()
 
 
 class TestData:

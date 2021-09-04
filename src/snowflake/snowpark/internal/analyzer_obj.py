@@ -61,7 +61,7 @@ from snowflake.snowpark.plans.logical.logical_plan import (
     Filter as SPFilter,
     Project as SPProject,
     Sample as SPSample,
-    UnresolvedRelation as SPUnresolvedRelation,
+    UnresolvedRelation as SPUnresolvedRelation, CopyIntoNode as SPCopyIntoNode,
 )
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sp_data_types import (
@@ -420,3 +420,6 @@ class Analyzer:
             return self.plan_builder.create_or_replace_view(
                 logical_plan.name.table, self.resolve(logical_plan.child), is_temp
             )
+
+        if type(logical_plan) == SPCopyIntoNode:
+            return logical_plan.staged_file_reader.table(logical_plan.table_name).create_snowflake_plan()

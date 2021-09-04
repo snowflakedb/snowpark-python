@@ -9,6 +9,7 @@ import os
 import platform
 import random
 import re
+import string
 import zipfile
 from typing import IO, List, Optional, Tuple
 
@@ -18,6 +19,8 @@ from snowflake.snowpark.version import VERSION as snowpark_version
 
 
 class Utils:
+    _TEMP_OBJECT_PREFIX = "SNOWPARK_TEMP"
+
     @staticmethod
     def validate_object_name(name: str):
         # Valid name can be:
@@ -211,3 +214,31 @@ class Utils:
             hash_md5.update(additional_info.encode("utf8"))
 
         return hash_md5.hexdigest()
+
+    class TempObjectType:
+        pass
+
+    class Table(TempObjectType):
+        pass
+
+    class Stage(TempObjectType):
+        pass
+
+    class View(TempObjectType):
+        pass
+
+    class Function(TempObjectType):
+        pass
+
+    class FileFormat(TempObjectType):
+        def __repr__(self):
+            return "File Format"
+
+    @classmethod
+    def random_name_for_temp_object(cls, temp_object_type: TempObjectType) -> str:
+        # Replace white space in the type name with `_`
+        type_str = temp_object_type.__class__.__name__.replace(" ", "_")
+        # Making random digits to 15 to match the length of session id.
+        alphanumeric = string.ascii_lowercase + string.digits
+        rand_str = ("".join(random.choice(alphanumeric) for _ in range(10))).upper()
+        return f"{cls._TEMP_OBJECT_PREFIX}_{type_str}_{rand_str}"

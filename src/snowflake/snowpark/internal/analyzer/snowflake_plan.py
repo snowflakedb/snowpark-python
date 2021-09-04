@@ -13,6 +13,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     Attribute as SPAttribute,
     AttributeReference as SPAttributeReference,
 )
+from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import SetOperation
 from snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
 from snowflake.snowpark.row import Row
@@ -322,16 +323,14 @@ class SnowflakePlanBuilder:
         # if pattern:
         #   session.conn.telemetry.reportUsageOfCopyPattern()
 
-        temp_object_name = (
-            fully_qualified_schema + "." + AnalyzerPackage.random_name_for_temp_object()
-        )
-
         pkg = AnalyzerPackage()
         if not copy_options:  # use select
+            temp_file_format_name = fully_qualified_schema + "." + Utils.random_name_for_temp_object(Utils.FileFormat)
+
             queries = [
                 Query(
                     pkg.create_file_format_statement(
-                        temp_object_name,
+                        temp_file_format_name,
                         format,
                         format_type_options,
                         temp=True,
@@ -340,10 +339,13 @@ class SnowflakePlanBuilder:
                 ),
                 Query(
                     pkg.select_from_path_with_format_statement(
-                        pkg.schema_cast_seq(schema), path, temp_object_name, pattern
+                        pkg.schema_cast_seq(schema), path, temp_file_format_name, pattern
                     )
                 ),
             ]
+
+            self.__session._Session__record_temp_object(Utils.FileFormat, temp_file_format_name)
+
             return SnowflakePlan(
                 queries,
                 pkg.schema_value_statement(schema),
@@ -353,6 +355,8 @@ class SnowflakePlanBuilder:
                 None,
             )
         else:  # otherwise use COPY
+            temp_table_name = fully_qualified_schema + "." + Utils.random_name_for_temp_object(Utils.Table)
+
             if "FORCE" in copy_options and copy_options["FORCE"].lower() != "true":
                 raise SnowparkClientException(
                     f"Copy option 'FORCE = {copy_options['FORCE']}' is not supported. Snowpark doesn't skip any loaded files in COPY."
@@ -373,13 +377,13 @@ class SnowflakePlanBuilder:
             queries = [
                 Query(
                     pkg.create_temp_table_statement(
-                        temp_object_name,
+                        temp_table_name,
                         pkg.attribute_to_schema_string(temp_table_schema),
                     )
                 ),
                 Query(
                     pkg.copy_into_table(
-                        temp_object_name,
+                        temp_table_name,
                         path,
                         format,
                         format_type_options,
@@ -393,12 +397,14 @@ class SnowflakePlanBuilder:
                             f"{new_att.name} AS {input_att.name}"
                             for new_att, input_att in zip(temp_table_schema, schema)
                         ],
-                        temp_object_name,
+                        temp_table_name,
                     )
                 ),
             ]
 
-            post_actions = [pkg.drop_table_if_exists_statement(temp_object_name)]
+            self.__session._Session__record_temp_object(Utils.Table, temp_table_name)
+
+            post_actions = [pkg.drop_table_if_exists_statement(temp_table_name)]
             return SnowflakePlan(
                 queries,
                 pkg.schema_value_statement(schema),
@@ -407,6 +413,34 @@ class SnowflakePlanBuilder:
                 self.__session,
                 None,
             )
+
+    def copy_into(self, table_name:str, path:str, format:str, options:Dict[str,str], fully_qualified_shcema:str, schema:List[Attribute]):
+        copy_options = {}
+        format_type_options = {}
+
+        for k, v in options.items():
+            if k != "PATTERN":
+                if k in self.CopyOption:
+                    copy_options[k] = v
+                else:
+                    format_type_options[k] = v
+
+        pattern = options.get("PATTERN", None)
+        # TODO track usage of pattern, will refactor this function in future
+        # Telemetry: https://snowflakecomputing.atlassian.net/browse/SNOW-363951
+        # if pattern:
+        #   session.conn.telemetry.reportUsageOfCopyPattern()
+
+        # If target table doesn't exist, create target table from schema automatically,
+        # and then run COPY
+        pkg = AnalyzerPackage()
+        queries = [
+            Query(pkg.create_table_statement(table_name,
+                                             pkg.attribute_to_schema_string(schema), False, False)),
+            Query(pkg.copy_into_table(table_name, path, format, format_type_options, copy_options, pattern))
+        ]
+
+        return SnowflakePlan(queries, pkg.schema_value_statement(schema), [], {}, self.__session, None)
 
     def _add_result_scan_if_not_select(self, plan):
         if isinstance(plan.source_plan, SetOperation):

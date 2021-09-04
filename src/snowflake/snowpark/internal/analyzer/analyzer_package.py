@@ -474,6 +474,9 @@ class AnalyzerPackage:
             left, right, join_type, condition
         )
 
+    def create_table_statement(self, table_name: str, schema: str, replace: bool = False, error: bool = True) -> str:
+        return self._Create + (self._Or + self._Replace if replace else self._EmptyString) + self._Table + table_name + ( self._If + self._Not + self._Exists if (not replace and not error) else self._EmptyString) + self._LeftParenthesis + schema + self._RightParenthesis
+
     def limit_statement(
         self, row_count: str, child: str, on_top_of_order_by: bool
     ) -> str:
