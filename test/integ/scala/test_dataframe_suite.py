@@ -12,7 +12,12 @@ from snowflake.snowpark.functions import col, lit, max, sum
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import StringType, Variant
+from snowflake.snowpark.types.sf_types import (
+    StringType,
+    StructField,
+    StructType,
+    VariantType,
+)
 
 SAMPLING_DEVIATION = 0.4
 
@@ -793,6 +798,9 @@ def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(
 def test_variant_in_array_and_dict(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame(
-            [Row([Variant(1), Variant("\"'")], {"a": Variant("\"'")})]
+            [Row([1, "\"'"], {"a": "\"'"})],
+            schema=StructType(
+                [StructField("col1", VariantType()), StructField("col2", VariantType())]
+            ),
         )
         assert df.collect() == [Row('[\n  1,\n  "\\"\'"\n]', '{\n  "a": "\\"\'"\n}')]
