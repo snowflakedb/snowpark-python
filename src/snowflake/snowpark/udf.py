@@ -6,7 +6,7 @@
 import io
 import pickle
 import zipfile
-from typing import Callable, List, NamedTuple, Optional, Tuple, Union
+from typing import Callable, List, NamedTuple, Optional, Tuple, Union, get_type_hints
 
 import cloudpickle
 
@@ -18,6 +18,7 @@ from snowflake.snowpark.internal.sp_expressions import (
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.types.sf_types import DataType, StringType
 from snowflake.snowpark.types.types_package import (
+    _python_type_to_snowpark_type,
     convert_to_sf_type,
     snow_type_to_sp_type,
 )
@@ -30,11 +31,13 @@ class UserDefinedFunction:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
+        is_nullable: bool = False,
     ):
         self.func = func
         self.return_type = return_type
         self.input_types = input_types
         self.name = name
+        self.is_nullable = is_nullable
 
     def __call__(
         self,
@@ -65,11 +68,11 @@ class UserDefinedFunction:
             self.name,
             exprs,
             snow_type_to_sp_type(self.return_type),
-            nullable=(self.return_type is None),
+            nullable=self.is_nullable,
         )
 
 
-class UDFColumn(NamedTuple):
+class _UDFColumn(NamedTuple):
     datatype: DataType
     name: str
 
@@ -81,7 +84,7 @@ class UDFRegistration:
     def register(
         self,
         func: Callable,
-        return_type: DataType = StringType(),
+        return_type: Optional[DataType] = None,
         input_types: Optional[List[DataType]] = None,
         name: Optional[str] = None,
         stage_location: Optional[str] = None,
@@ -92,16 +95,57 @@ class UDFRegistration:
                 f"(__call__ is not defined): {type(func)}"
             )
 
+        # get the udf name
         udf_name = (
             name
             or f"{self.session.getFullyQualifiedCurrentSchema()}.tempUDF_{Utils.random_number()}"
         )
         Utils.validate_object_name(udf_name)
-        input_types_list = input_types if input_types else []
+
+        # get return and input types
+        if return_type or input_types:
+            new_return_type = return_type if return_type else StringType()
+            is_nullable = False
+            new_input_types = input_types if input_types else []
+        else:
+            (
+                new_return_type,
+                is_nullable,
+                new_input_types,
+            ) = self.__get_types_from_type_hints(func)
+
+        # register udf
         self.__do_register_udf(
-            func, return_type, input_types_list, udf_name, stage_location
+            func, new_return_type, new_input_types, udf_name, stage_location
         )
-        return UserDefinedFunction(func, return_type, input_types_list, udf_name)
+        return UserDefinedFunction(
+            func, return_type, new_input_types, udf_name, is_nullable
+        )
+
+    def __get_types_from_type_hints(
+        self, func: Callable
+    ) -> Tuple[DataType, bool, List[DataType]]:
+        # For Python 3.10+, all type hints will become strings.
+        # So we have to change the implementation here at that time
+        # https://www.python.org/dev/peps/pep-0563/
+        num_args = func.__code__.co_argcount
+        python_types_dict = get_type_hints(func)
+        assert "return" in python_types_dict, f"The return type must be specified"
+        assert len(python_types_dict) - 1 == num_args, (
+            f"The number of arguments ({num_args}) is different from "
+            f"the number of argument type hints ({len(python_types_dict) - 1})"
+        )
+
+        return_type, is_nullable = _python_type_to_snowpark_type(
+            python_types_dict["return"]
+        )
+        input_types = []
+        # types are in order
+        for key, python_type in python_types_dict.items():
+            if key != "return":
+                input_types.append(_python_type_to_snowpark_type(python_type)[0])
+
+        return return_type, is_nullable, input_types
 
     def __do_register_udf(
         self,
@@ -113,7 +157,7 @@ class UDFRegistration:
     ):
         arg_names = [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
-            UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
+            _UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
         ]
         code = self.__generate_python_code(func, arg_names)
 
@@ -173,7 +217,7 @@ def compute({args}):
     def __create_python_udf(
         self,
         return_type: DataType,
-        input_args: List[UDFColumn],
+        input_args: List[_UDFColumn],
         py_file_name: str,
         udf_name: str,
         all_imports: str,

@@ -256,7 +256,7 @@ def when(condition: Column, value: Column) -> CaseExpr:
 def udf(
     func: Optional[Callable] = None,
     *,
-    return_type: DataType = StringType(),
+    return_type: Optional[DataType] = None,
     input_types: Optional[List[DataType]] = None,
     name: Optional[str] = None,
 ) -> Callable:
