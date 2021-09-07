@@ -265,9 +265,9 @@ def udf(
     Args:
         func: A Python function used for creating the UDF.
         return_type: A :class:`sf_types.DataType` representing the return data
-            type of the UDF.
+            type of the UDF. Optional if type hints are provided.
         input_types: A list of :class:`sf_types.DataType` representing the input
-            data types of the UDF.
+            data types of the UDF. Optional if type hints are provided.
         name: The name to use for the UDF in Snowflake. If not provided, the name of
             the UDF will be generated automatically.
 
@@ -279,8 +279,8 @@ def udf(
         from snowflake.snowpark.types.sf_types import IntegerType
         add_one = udf(lambda x: x+1, return_types=IntegerType(), input_types=[IntegerType()])
 
-        @udf(return_types=IntegerType(), input_types=[IntegerType()], name="minus_one")
-        def minus_one(x):
+        @udf(name="minus_one")
+        def minus_one(x: int) -> int:
             return x-1
 
         df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
@@ -288,7 +288,10 @@ def udf(
         session.sql("select minus_one(1)")
 
     Note:
-        ``return_type``, ``input_types`` and ``name`` must be passed with keyword arguments.
+        1. ``return_type``, ``input_types`` and ``name`` must be passed with keyword arguments.
+
+        2. When type hints are provided and complete for a function, ``return_type`` and
+        ``input_types`` are optional and will be ignored.
     """
     from snowflake.snowpark.session import Session
 
