@@ -105,24 +105,82 @@ def after_all(session_cnx):
 
 def test_copy_csv_test_basic(session_cnx):
     with session_cnx() as session:
-        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-
-        # create target table
         test_table_name = Utils.random_name()
-        Utils.create_table(session, test_table_name, "a Int, b String, c Double")
+        try:
+            test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
-        assert session.table(test_table_name).count() == 0
+            # create target table
+            Utils.create_table(session, test_table_name, "a Int, b String, c Double")
 
-        # When the feature is ready, csv() will return CopyableDataFrame.
-        df = session.read.schema(user_schema).csv(test_file_on_stage)
+            assert session.table(test_table_name).count() == 0
 
-        df.copyInto(test_table_name)
-        Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+            # When the feature is ready, csv() will return CopyableDataFrame.
+            df = session.read.schema(user_schema).csv(test_file_on_stage)
 
-        # run COPY again, the loaded files will be skipped by default
-        df.copyInto(test_table_name)
-        Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+            df.copyInto(test_table_name)
+            Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2])])
 
-        # Copy again with FORCE = TRUE, loaded file are NOT skipped.
-        session.read.schema(user_schema).option("FORCE", True).csv(test_file_on_stage).copyInto(test_table_name)
-        Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2]), Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+            # run COPY again, the loaded files will be skipped by default
+            df.copyInto(test_table_name)
+            Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+
+            # Copy again with FORCE = TRUE, loaded file are NOT skipped.
+            session.read.schema(user_schema).option("FORCE", True).csv(test_file_on_stage).copyInto(test_table_name)
+            Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2]), Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+        finally:
+            Utils.drop_table(session, test_table_name)
+
+def test_copy_csv_test_create_table_automatically_if_not_exists(session_cnx):
+    with session_cnx() as session:
+        test_table_name = Utils.random_name()
+        try:
+            test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+            df = session.read.schema(user_schema).csv(test_file_on_stage)
+            df.copyInto(test_table_name)
+
+            Utils.check_answer(session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+
+            # target table is created from schema
+            assert str(session.table(test_table_name).schema.fields) == "[StructField(A, Long, Nullable=True), StructField(B, String, Nullable=True), StructField(C, Double, Nullable=True)]"
+
+            # run COPY again, the loaded files will be skipped by default
+            df.copyInto(test_table_name)
+            Utils.check_answer(session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+
+        finally:
+            Utils.drop_table(session, test_table_name)
+
+def test_copy_csv_test_saveAsTable_doesnt_affect_copyInto(session_cnx):
+    with session_cnx() as session:
+        test_table_name = Utils.random_name()
+        try:
+            test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+            # create target table
+            Utils.create_table(session, test_table_name, "c1 Int, c2 String, c3 Double")
+            assert session.table(test_table_name).count() == 0
+
+            # When the feature is ready, csv() will return CopyableDataFrame.
+            df = session.read.schema(user_schema).csv(test_file_on_stage)
+
+            df.copyInto(test_table_name)
+            Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+
+            # Target table schema is the existing table schema
+            assert str(session.table(test_table_name).schema.fields) == "[StructField(C1, Long, Nullable=True), StructField(C2, String, Nullable=True), StructField(C3, Double, Nullable=True)]"
+
+            # run COPY again, the loaded files will be skipped by default
+            df.copyInto(test_table_name)
+            Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+
+            # Write data with saveAsTable(), loaded files are NOT skipped
+            df.write.saveAsTable(test_table_name)
+            Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2]), Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+
+            # Write data with saveAsTable() again, loaded files are NOT skipped
+            df.write.saveAsTable(test_table_name)
+            Utils.check_answer(df.session.table(test_table_name), [Row([1, "one", 1.2]), Row([2, "two", 2.2]), Row([1, "one", 1.2]), Row([2, "two", 2.2]), Row([1, "one", 1.2]), Row([2, "two", 2.2])])
+
+        finally:
+            Utils.drop_table(session, test_table_name)
