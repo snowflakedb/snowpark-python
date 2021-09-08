@@ -268,8 +268,9 @@ def udf(
             type of the UDF. Optional if type hints are provided.
         input_types: A list of :class:`sf_types.DataType` representing the input
             data types of the UDF. Optional if type hints are provided.
-        name: The name to use for the UDF in Snowflake. If not provided, the name of
-            the UDF will be generated automatically.
+        name: The name to use for the UDF in Snowflake, which allows to call this UDF
+            in a SQL command or via :func:`call_udf()`. If it is not provided,
+            a random name will be generated automatically for the UDF.
 
     Returns:
         A UDF function that can be called with Column expressions (:class:`Column` or :class:`str`)
@@ -288,9 +289,7 @@ def udf(
         session.sql("select minus_one(1)")
 
     Note:
-        1. ``return_type``, ``input_types`` and ``name`` must be passed with keyword arguments.
-
-        2. When type hints are provided and complete for a function, ``return_type`` and
+        When type hints are provided and are complete for a function, ``return_type`` and
         ``input_types`` are optional and will be ignored.
     """
     from snowflake.snowpark.session import Session
