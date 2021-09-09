@@ -88,6 +88,8 @@ class SnowflakePlan(LogicalPlan):
                             ) from e
                         else:
                             raise e
+                    else:
+                        raise e
 
             return wrap
 
