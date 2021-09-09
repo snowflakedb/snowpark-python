@@ -25,7 +25,6 @@ setup(
     license="Apache License, Version 2.0",
     keywords="Snowflake db database cloud analytics warehouse",
     url="https://www.snowflake.com/",
-    use_2to3=False,
     project_urls={
         "Documentation": "https://docs.snowflake.com/",
         # TODO: update it when we have documentation
