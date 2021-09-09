@@ -13,6 +13,10 @@ class SnowparkClientExceptionMessages:
 
     # TODO Add the rest of the exception messages
     @staticmethod
+    def INTERNAL_TEST_MESSAGE(message: str) -> SnowparkClientException:
+        return SnowparkClientException(f"internal test message: {message}.", "0010")
+
+    @staticmethod
     def DF_JOIN_INVALID_JOIN_TYPE(type1: str, types: str) -> SnowparkClientException:
         return SnowparkClientException(
             f"Unsupported join type '{type1}'. Supported join types include: {types}.",
