@@ -32,7 +32,6 @@ class SnowflakePlan(LogicalPlan):
         )
         __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
 
-        # TODO
         @staticmethod
         def wrap_exception(func):
             def wrap(*args, **kwargs):
