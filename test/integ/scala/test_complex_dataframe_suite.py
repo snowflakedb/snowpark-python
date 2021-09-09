@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from utils import TestFiles, Utils
+from test.utils import TestFiles, Utils
 
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
