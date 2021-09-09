@@ -8,7 +8,7 @@ from functools import reduce
 from typing import Callable, Dict, List, Optional
 
 import snowflake.connector
-from snowflake.snowpark.dataframe import DataFrame
+import snowflake.snowpark.dataframe
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
@@ -42,18 +42,28 @@ class SnowflakePlan(LogicalPlan):
                     if "unexpected 'as'" in e.msg.lower():
                         raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() from e
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
-                        match = SnowflakePlan.__wrap_exception_regex_match.match(e.msg)
+                        match = (
+                            SnowflakePlan.Decorator.__wrap_exception_regex_match.match(
+                                e.msg
+                            )
+                        )
                         if not match:
                             raise e
-                        col = match.group()
+                        col = match.group(1)
                         children = [arg for arg in args if type(arg) == SnowflakePlan]
                         remapped = [
-                            SnowflakePlan.__wrap_exception_regex_sub.sub("", val)
+                            SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
+                                "", val
+                            )
                             for child in children
                             for val in child.expr_to_alias.values()
                         ]
                         if col in remapped:
-                            unaliased_cols = DataFrame.get_unaliased(col)
+                            unaliased_cols = (
+                                snowflake.snowpark.dataframe.DataFrame.get_unaliased(
+                                    col
+                                )
+                            )
                             orig_col_name = (
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
                             )
@@ -65,7 +75,9 @@ class SnowflakePlan(LogicalPlan):
                                 [
                                     unaliased
                                     for item in remapped
-                                    for unaliased in DataFrame.get_unaliased(item)
+                                    for unaliased in snowflake.snowpark.dataframe.DataFrame.get_unaliased(
+                                        item
+                                    )
                                     if unaliased == col
                                 ]
                             )
