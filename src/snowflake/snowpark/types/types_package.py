@@ -429,7 +429,7 @@ def _merge_type(a: DataType, b: DataType, name: str = None) -> DataType:
         return a
 
 
-def _python_type_to_snowpark_type(tp: Type) -> Tuple[DataType, bool]:
+def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
     """Converts a Python type to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
@@ -448,13 +448,13 @@ def _python_type_to_snowpark_type(tp: Type) -> Tuple[DataType, bool]:
         and len(tp_args) == 2
         and tp_args[1] == type(None)
     ):
-        return _python_type_to_snowpark_type(tp_args[0])[0], True
+        return _python_type_to_snow_type(tp_args[0])[0], True
 
     # typing.List, typing.Tuple, list, tuple
     list_tps = [list, tuple, typing.List, typing.Tuple]
     if tp in list_tps or (tp_origin and tp_origin in list_tps):
         element_type = (
-            _python_type_to_snowpark_type(tp_args[0])[0] if tp_args else StringType()
+            _python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
         )
         return ArrayType(element_type), False
 
@@ -462,11 +462,9 @@ def _python_type_to_snowpark_type(tp: Type) -> Tuple[DataType, bool]:
     # TODO: add typing.OrderedDict after upgrading to Python 3.8
     dict_tps = [dict, defaultdict, OrderedDict, typing.Dict, typing.DefaultDict]
     if tp in dict_tps or (tp_origin and tp_origin in dict_tps):
-        key_type = (
-            _python_type_to_snowpark_type(tp_args[0])[0] if tp_args else StringType()
-        )
+        key_type = _python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
         value_type = (
-            _python_type_to_snowpark_type(tp_args[1])[0] if tp_args else StringType()
+            _python_type_to_snow_type(tp_args[1])[0] if tp_args else StringType()
         )
         return MapType(key_type, value_type), False
 

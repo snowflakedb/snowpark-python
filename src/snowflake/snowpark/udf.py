@@ -18,7 +18,7 @@ from snowflake.snowpark.internal.sp_expressions import (
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.types.sf_types import DataType, StringType
 from snowflake.snowpark.types.types_package import (
-    _python_type_to_snowpark_type,
+    _python_type_to_snow_type,
     convert_to_sf_type,
     snow_type_to_sp_type,
 )
@@ -136,14 +136,14 @@ class UDFRegistration:
             f"the number of argument type hints ({len(python_types_dict) - 1})"
         )
 
-        return_type, is_nullable = _python_type_to_snowpark_type(
+        return_type, is_nullable = _python_type_to_snow_type(
             python_types_dict["return"]
         )
         input_types = []
         # types are in order
         for key, python_type in python_types_dict.items():
             if key != "return":
-                input_types.append(_python_type_to_snowpark_type(python_type)[0])
+                input_types.append(_python_type_to_snow_type(python_type)[0])
 
         return return_type, is_nullable, input_types
 

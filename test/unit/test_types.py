@@ -55,7 +55,7 @@ from snowflake.snowpark.types.sp_data_types import (
 )
 from snowflake.snowpark.types.types_package import (
     _infer_type,
-    _python_type_to_snowpark_type,
+    _python_type_to_snow_type,
 )
 
 
@@ -165,8 +165,7 @@ def test_py_to_sp_type():
         _infer_type(array("Q"))
 
 
-def test_datatype_names():
-
+def test_sf_datatype_names():
     assert DataType().type_name == "Data"
     assert MapType(BinaryType(), FloatType()).type_name == "MapType[Binary,Float]"
     assert VariantType().type_name == "Variant"
@@ -278,63 +277,63 @@ def test_strip_unnecessary_quotes():
     assert func('" $abc  "') == '" $abc  "'
 
 
-def test_python_type_to_snowpark_type():
+def test_python_type_to_snow_type():
     # basic types
-    assert _python_type_to_snowpark_type(int) == (LongType(), False)
-    assert _python_type_to_snowpark_type(float) == (DoubleType(), False)
-    assert _python_type_to_snowpark_type(str) == (StringType(), False)
-    assert _python_type_to_snowpark_type(bool) == (BooleanType(), False)
-    assert _python_type_to_snowpark_type(bytes) == (BinaryType(), False)
-    assert _python_type_to_snowpark_type(bytearray) == (BinaryType(), False)
-    assert _python_type_to_snowpark_type(type(None)) == (NullType(), False)
-    assert _python_type_to_snowpark_type(date) == (DateType(), False)
-    assert _python_type_to_snowpark_type(time) == (TimeType(), False)
-    assert _python_type_to_snowpark_type(datetime) == (TimestampType(), False)
-    assert _python_type_to_snowpark_type(Decimal) == (DecimalType(), False)
-    assert _python_type_to_snowpark_type(typing.Optional[str]) == (StringType(), True)
-    assert _python_type_to_snowpark_type(typing.Union[str, None]) == (
+    assert _python_type_to_snow_type(int) == (LongType(), False)
+    assert _python_type_to_snow_type(float) == (DoubleType(), False)
+    assert _python_type_to_snow_type(str) == (StringType(), False)
+    assert _python_type_to_snow_type(bool) == (BooleanType(), False)
+    assert _python_type_to_snow_type(bytes) == (BinaryType(), False)
+    assert _python_type_to_snow_type(bytearray) == (BinaryType(), False)
+    assert _python_type_to_snow_type(type(None)) == (NullType(), False)
+    assert _python_type_to_snow_type(date) == (DateType(), False)
+    assert _python_type_to_snow_type(time) == (TimeType(), False)
+    assert _python_type_to_snow_type(datetime) == (TimestampType(), False)
+    assert _python_type_to_snow_type(Decimal) == (DecimalType(), False)
+    assert _python_type_to_snow_type(typing.Optional[str]) == (StringType(), True)
+    assert _python_type_to_snow_type(typing.Union[str, None]) == (
         StringType(),
         True,
     )
-    assert _python_type_to_snowpark_type(typing.List[int]) == (
+    assert _python_type_to_snow_type(typing.List[int]) == (
         ArrayType(LongType()),
         False,
     )
-    assert _python_type_to_snowpark_type(typing.List) == (
+    assert _python_type_to_snow_type(typing.List) == (
         ArrayType(StringType()),
         False,
     )
-    assert _python_type_to_snowpark_type(list) == (ArrayType(StringType()), False)
-    assert _python_type_to_snowpark_type(typing.Tuple[int]) == (
+    assert _python_type_to_snow_type(list) == (ArrayType(StringType()), False)
+    assert _python_type_to_snow_type(typing.Tuple[int]) == (
         ArrayType(LongType()),
         False,
     )
-    assert _python_type_to_snowpark_type(typing.Tuple) == (
+    assert _python_type_to_snow_type(typing.Tuple) == (
         ArrayType(StringType()),
         False,
     )
-    assert _python_type_to_snowpark_type(tuple) == (ArrayType(StringType()), False)
-    assert _python_type_to_snowpark_type(typing.Dict[str, int]) == (
+    assert _python_type_to_snow_type(tuple) == (ArrayType(StringType()), False)
+    assert _python_type_to_snow_type(typing.Dict[str, int]) == (
         MapType(StringType(), LongType()),
         False,
     )
-    assert _python_type_to_snowpark_type(typing.Dict) == (
+    assert _python_type_to_snow_type(typing.Dict) == (
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snowpark_type(dict) == (
+    assert _python_type_to_snow_type(dict) == (
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snowpark_type(typing.DefaultDict[str, int]) == (
+    assert _python_type_to_snow_type(typing.DefaultDict[str, int]) == (
         MapType(StringType(), LongType()),
         False,
     )
-    assert _python_type_to_snowpark_type(typing.DefaultDict) == (
+    assert _python_type_to_snow_type(typing.DefaultDict) == (
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snowpark_type(defaultdict) == (
+    assert _python_type_to_snow_type(defaultdict) == (
         MapType(StringType(), StringType()),
         False,
     )
@@ -347,53 +346,53 @@ def test_python_type_to_snowpark_type():
     #     MapType(StringType(), StringType()),
     #     False,
     # )
-    assert _python_type_to_snowpark_type(OrderedDict) == (
+    assert _python_type_to_snow_type(OrderedDict) == (
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snowpark_type(typing.Any) == (VariantType(), False)
+    assert _python_type_to_snow_type(typing.Any) == (VariantType(), False)
 
     # complicated (nested) types
-    assert _python_type_to_snowpark_type(typing.Optional[typing.Optional[str]]) == (
+    assert _python_type_to_snow_type(typing.Optional[typing.Optional[str]]) == (
         StringType(),
         True,
     )
-    assert _python_type_to_snowpark_type(typing.Optional[typing.List[str]]) == (
+    assert _python_type_to_snow_type(typing.Optional[typing.List[str]]) == (
         ArrayType(StringType()),
         True,
     )
-    assert _python_type_to_snowpark_type(typing.List[typing.List[float]]) == (
+    assert _python_type_to_snow_type(typing.List[typing.List[float]]) == (
         ArrayType(ArrayType(DoubleType())),
         False,
     )
-    assert _python_type_to_snowpark_type(
+    assert _python_type_to_snow_type(
         typing.List[typing.List[typing.Optional[datetime]]]
     ) == (ArrayType(ArrayType(TimestampType())), False)
-    assert _python_type_to_snowpark_type(typing.Dict[str, typing.List]) == (
+    assert _python_type_to_snow_type(typing.Dict[str, typing.List]) == (
         MapType(StringType(), ArrayType(StringType())),
         False,
     )
 
     # unsupported types
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(typing.AnyStr)
+        _python_type_to_snow_type(typing.AnyStr)
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(typing.TypeVar)
+        _python_type_to_snow_type(typing.TypeVar)
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(typing.Callable)
+        _python_type_to_snow_type(typing.Callable)
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(typing.IO)
+        _python_type_to_snow_type(typing.IO)
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(typing.Iterable)
+        _python_type_to_snow_type(typing.Iterable)
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(typing.Generic)
+        _python_type_to_snow_type(typing.Generic)
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(typing.Set)
+        _python_type_to_snow_type(typing.Set)
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(set)
+        _python_type_to_snow_type(set)
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(typing.Union[str, int, None])
+        _python_type_to_snow_type(typing.Union[str, int, None])
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(typing.Union[None, str])
+        _python_type_to_snow_type(typing.Union[None, str])
     with pytest.raises(TypeError):
-        _python_type_to_snowpark_type(StringType)
+        _python_type_to_snow_type(StringType)
