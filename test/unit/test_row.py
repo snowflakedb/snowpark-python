@@ -100,13 +100,13 @@ def test_asDict():
     row1 = Row(1, 2, 3)
     with pytest.raises(TypeError) as te:
         row1.asDict()
-    row2 = Row(a=1, b=2, c=Row(d=3))
-    assert row2.asDict() == {"a": 1, "b": 2, "c": Row(d=3)}
+    row2 = Row(a=1, b=2, c=[Row(d=3), Row(d=4)])
+    assert row2.asDict() == {"a": 1, "b": 2, "c": [Row(d=3), Row(d=4)]}
 
 
 def test_asDict_recursive():
-    row = Row(a=1, b=2, c=Row(d=3))
-    assert row.asDict(True) == {"a": 1, "b": 2, "c": {"d": 3}}
+    row = Row(a=1, b=2, c=(Row(d=3), Row(d=4)))
+    assert row.asDict(True) == {"a": 1, "b": 2, "c": [{"d": 3}, {"d": 4}]}
 
 
 @pytest.mark.parametrize("row", [Row(1, 2, 3), Row(a=1, b=2, c=3)])
@@ -132,7 +132,7 @@ def test_row_pickle(row):
     assert row == restored
 
 
-def test_dundo_call():
+def test_dunder_call():
     Employee = Row("name", "salary")
     emp = Employee("John Berry", 10000)
     assert emp.name == "John Berry" and emp.salary == 10000
@@ -142,7 +142,7 @@ def test_dundo_call():
     assert emp2.name == "James Zee" and emp2.salary == 10000
 
 
-def test_negative_dundo_call():
+def test_negative_dunder_call():
     Employee = Row("name", "salary")
     with pytest.raises(ValueError):
         emp = Employee(name="John Berry", salary=10000)

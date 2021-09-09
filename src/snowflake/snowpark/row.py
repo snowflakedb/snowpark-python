@@ -6,7 +6,7 @@
 
 from decimal import Decimal
 from functools import total_ordering
-from typing import Any, Dict, List, Union
+from typing import Any, AnyStr, Dict, Iterable, List, Union
 
 
 def _restore_row_from_pickle(values, named_values):
@@ -54,7 +54,7 @@ class Row:
 
     def __init__(self, *values: Any, **named_values: Any):
         if values and named_values:
-            raise ValueError("Either values or named_values are required but not both.")
+            raise ValueError("Either values or named_values is required but not both.")
         if named_values:
             # After py3.7, dict is ordered(not sorted) by item insertion sequence.
             # If we support 3.6 or older someday, this implementation needs changing.
@@ -80,11 +80,11 @@ class Row:
 
     def __getattr__(self, item):
         if not self._named_values:
-            raise AttributeError(f"attribute {item} doesn't exist.")
+            raise AttributeError(f"Row object has no attribute {item}")
         try:
             return self._named_values[item]
         except KeyError:
-            raise AttributeError(f"attribute {item} doesn't exist.")
+            raise AttributeError(f"Row object has no attribute {item}")
 
     def __setattr__(self, key, value):
         if key not in ("_values", "_named_values"):
@@ -94,7 +94,7 @@ class Row:
         return self._named_values and item in self._named_values
 
     def __call__(self, *args, **kwargs):
-        """create a new Row from current row."""
+        """Create a new Row from current row."""
         if args and kwargs:
             raise ValueError(
                 "A Row instance should have either values or field-value pairs but not both."
@@ -153,11 +153,11 @@ class Row:
 
     def __repr__(self):
         if self._named_values:
-            return "Row(%s)" % ", ".join(
-                "{}={!r}".format(k, v) for k, v in self._named_values.items()
+            return "Row({})".format(
+                ", ".join("{}={!r}".format(k, v) for k, v in self._named_values.items())
             )
         else:
-            return "Row(%s)" % ", ".join("%r" % v for v in self._values)
+            return "Row({})".format(", ".join("%r" % v for v in self._values))
 
     def __iter__(self):
         return iter(self._values)
@@ -166,7 +166,7 @@ class Row:
         return (_restore_row_from_pickle, (self._values, self._named_values))
 
     def count(self, value):
-        """Returns number of occurences of a value.
+        """Returns the number of occurrences of a value.
 
         >>> row = Row("a", "b") * 3
         >>> row
@@ -177,7 +177,7 @@ class Row:
         return self._values.count(value)
 
     def index(self, value, start=None, stop=None):
-        """Returns the first index of a value.
+        """Returns the index of the first occurrence of a value.
 
         >>> row = Row("a", "b", "c")
         >>> row.index("c")
@@ -189,7 +189,7 @@ class Row:
         """Convert to a dict if this row object has both keys and values.
 
         Args:
-            recursive: Recursively convert children `Row` objects to dicts. Default is False.
+            recursive: Recursively convert child `Row` objects to dicts. Default is False.
 
         >>> row = Row(name1=1, name2=2, name3=Row(childname=3))
         >>> row.asDict()
@@ -198,7 +198,7 @@ class Row:
         {'name1': 1, 'name2': 2, 'name3': {'childname': 3}}
         """
         if not self._named_values:
-            raise TypeError("Can not convert a Row without key values to a dict")
+            raise TypeError("Cannot convert a Row without key values to a dict.")
         if not recursive:
             return dict(self._named_values)
         return self._convert_dict(self._named_values)
@@ -206,11 +206,12 @@ class Row:
     def _convert_dict(self, obj):
         if isinstance(obj, Row):
             return obj.asDict(True)
-        elif isinstance(obj, list):
-            return [self._convert_object(x) for x in obj]
-        elif isinstance(obj, dict):
+        elif isinstance(obj, Dict):
             child_dict = {}
             for k, v in obj.items():
                 child_dict[k] = self._convert_dict(v)
             return child_dict
+        elif isinstance(obj, Iterable) and not isinstance(obj, (str, bytes)):
+            return [self._convert_dict(x) for x in obj]
+
         return obj
