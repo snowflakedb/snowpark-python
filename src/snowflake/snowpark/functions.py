@@ -42,6 +42,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     CaseWhen as SPCaseWhen,
     Count as SPCount,
     Expression as SPExpression,
+    IsNull as SPIsNull,
     Literal as SPLiteral,
     Max as SPMax,
     Min as SPMin,
@@ -114,6 +115,13 @@ def count_distinct(col: Union[Column, str], *columns: Union[Column, str]) -> Col
     )
 
 
+def kurtosis(e: Union[Column, str]) -> Column:
+    """Returns the population excess kurtosis of non-NULL records. If all records
+    inside a group are NULL, the function returns NULL."""
+    c = __to_col_if_str(e, "kurtosis")
+    return builtin("kurtosis")(c)
+
+
 def max(e: Union[Column, str]) -> Column:
     """Returns the maximum value for the records in a group. NULL values are ignored
     unless all the records are NULL, in which case a NULL value is returned."""
@@ -184,6 +192,40 @@ def sum_distinct(e: Union[Column, str]) -> Column:
     inside a group are NULL, the function returns NULL."""
     c = __to_col_if_str(e, "sum_distinct")
     return __with_aggregate_function(SPSum(c.expression), is_distinct=True)
+
+
+def variance(e: Union[Column, str]) -> Column:
+    """Returns the sample variance of non-NULL records in a group. If all records
+    inside a group are NULL, a NULL is returned."""
+    c = __to_col_if_str(e, "sum_distinct")
+    return builtin("variance")(c)
+
+
+def var_samp(e: Union[Column, str]) -> Column:
+    """Returns the sample variance of non-NULL records in a group. If all records
+    inside a group are NULL, a NULL is returned. Alias of :func:`variance`"""
+    c = __to_col_if_str(e, "var_samp")
+    return variance(e)
+
+
+def var_pop(e: Union[Column, str]) -> Column:
+    """Returns the population variance of non-NULL records in a group. If all records
+    inside a group are NULL, a NULL is returned."""
+    c = __to_col_if_str(e, "var_pop")
+    return builtin("var_pop")(c)
+
+
+def coalesce(*e: Union[Column, str]) -> Column:
+    """Returns the first non-NULL expression among its arguments, or NULL if all its
+    arguments are NULL."""
+    c = [__to_col_if_str(ex, "coalesce") for ex in e]
+    return builtin("coalesce")(*c)
+
+
+def is_null(e: Union[Column, str]) -> Column:
+    """Return true if the value in the column is null."""
+    c = __to_col_if_str(e, "is_null")
+    return Column(SPIsNull(c.expression))
 
 
 def parse_json(e: Union[Column, str]) -> Column:
