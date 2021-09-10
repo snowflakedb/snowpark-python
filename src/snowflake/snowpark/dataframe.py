@@ -630,7 +630,7 @@ class DataFrame:
             :class:`DataFrame`
         """
         return self.__with_plan(
-            SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
+            SPUnion(self.__plan, other._DataFrame__plan, is_all=False)
         )
 
     def unionAll(self, other: "DataFrame") -> "DataFrame":
@@ -650,7 +650,41 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
-        return self.union(other)
+        return self.__with_plan(
+            SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
+        )
+
+    def unionByName(self, other: "DataFrame") -> "DataFrame":
+        return self.internalUnionByName(other, is_all=False)
+
+    def unionByNameAll(self, other: "DataFrame") -> "DataFrame":
+        return self.internalUnionByName(other, is_all=True)
+
+    def internalUnionByName(
+        self, other: "DataFrame", is_all: bool = False
+    ) -> "DataFrame":
+        left_output_attrs = self.__output()
+        right_output_attrs = other.__output()
+        right_output_attr_names = [rattr.name for rattr in right_output_attrs]
+
+        def match_attrs(lattr: SPAttribute):
+            try:
+                return right_output_attrs[right_output_attr_names.index(lattr.name)]
+            except ValueError:
+                raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
+                    lattr.name, ", ".join(right_output_attr_names)
+                )
+
+        right_project_list = [match_attrs(lattr) for lattr in left_output_attrs]
+        not_found_attrs = [
+            rattr for rattr in right_output_attrs if rattr not in right_project_list
+        ]
+
+        right_child = self.__with_plan(
+            SPProject(right_project_list + not_found_attrs, other.__plan)
+        )
+
+        return self.__with_plan(SPUnion(self.__plan, right_child.__plan, is_all))
 
     def intersect(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the

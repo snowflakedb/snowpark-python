@@ -135,6 +135,14 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
+    def DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(col_name: str, all_columns: str) -> SnowparkClientException:
+        return SnowparkClientException(
+            f'Cannot combine the DataFrames by column names. The column "{col_name}" is '
+            f"not a column in the other DataFrame ({all_columns}).",
+            "0103",
+        )
+
+    @staticmethod
     def DF_JOIN_INVALID_JOIN_TYPE(type1: str, types: str) -> SnowparkClientException:
         return SnowparkClientException(
             f"Unsupported join type '{type1}'. Supported join types include: {types}.",
