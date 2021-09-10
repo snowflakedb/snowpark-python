@@ -79,7 +79,7 @@ def convert_to_sf_type(datatype: DataType) -> str:
         return "FLOAT"
     if type(datatype) == DoubleType:
         return "DOUBLE"
-    if type(datatype) == StringType:
+    if type(datatype) in [StringType, NullType]:
         return "STRING"
     if type(datatype) == BooleanType:
         return "BOOLEAN"
@@ -169,7 +169,7 @@ def to_sp_struct_type(struct_type: StructType) -> SPStructType:
     return snow_type_to_sp_type(struct_type)
 
 
-def sp_type_to_snow_type(datatype: SPDateType) -> DataType:
+def sp_type_to_snow_type(datatype: SPDataType) -> DataType:
     """Mapping from SP data-types, to snowflake data-types"""
     if type(datatype) == SPNullType:
         return NullType()

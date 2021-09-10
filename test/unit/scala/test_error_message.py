@@ -185,6 +185,15 @@ def test_df_join_invalid_using_join_type():
     assert ex.message == f"Unsupported using join type '{tpe}'."
 
 
+def test_plan_last_query_return_resultset():
+    ex = SnowparkClientExceptionMessages.PLAN_LAST_QUERY_RETURN_RESULTSET()
+    assert ex.error_code == "0300"
+    assert (
+        ex.message == "Internal error: the execution for the last query "
+        "in the snowflake plan doesn't return a ResultSet."
+    )
+
+
 def test_plan_sampling_need_one_parameter():
     ex = SnowparkClientExceptionMessages.PLAN_SAMPLING_NEED_ONE_PARAMETER()
     assert ex.error_code == "0303"
@@ -226,4 +235,20 @@ def test_plan_report_join_ambiguous():
         f"DataFrame that you want to use in the reference, use the syntax "
         f'<df>("{c2}") in join conditions and in select() calls on the '
         f"result of the join."
+    )
+
+
+def test_misc_query_cancelled():
+    ex = SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
+    assert ex.error_code == "0402"
+    assert ex.message == "The query has been cancelled by the user."
+
+
+def test_misc_session_expired():
+    err_msg = "err"
+    ex = SnowparkClientExceptionMessages.MISC_SESSION_EXPIRED(err_msg)
+    assert ex.error_code == "0408"
+    assert (
+        ex.message
+        == f"Your Snowpark session has expired. You must recreate your session.\n{err_msg}"
     )

@@ -6,17 +6,20 @@
 import functools
 import time
 from logging import getLogger
-from typing import IO, Any, Dict, List, Optional, Tuple, Union
+from typing import IO, Any, Dict, List, Optional, Union
 
+from snowflake import connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
+from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.network import ReauthenticationRequest
+from snowflake.connector.options import pandas
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     BinaryType,
@@ -36,6 +39,9 @@ from snowflake.snowpark.types.sf_types import (
 
 logger = getLogger(__name__)
 
+# set `paramstyle` to qmark for batch insertion
+connector.paramstyle = "qmark"
+
 
 class ServerConnection:
     class _Decorator:
@@ -45,10 +51,7 @@ class ServerConnection:
                 try:
                     return func(*args, **kwargs)
                 except ReauthenticationRequest as ex:
-                    raise SnowparkClientException(
-                        "Snowpark session expired, please recreate your session\n"
-                        + ex.cause
-                    )
+                    raise SnowparkClientExceptionMessages.MISC_SESSION_EXPIRED(ex.cause)
                 except Exception as ex:
                     # TODO: SNOW-363951 handle telemetry
                     raise ex
@@ -81,9 +84,6 @@ class ServerConnection:
         if conn:
             self.__conn = conn
         else:
-            # TODO: SNOW-372520 Manage connection url and parameters
-            if "host" not in self._lower_case_parameters:
-                raise ValueError("missing required parameter host.")
             self.__conn = connect(**self._lower_case_parameters)
         self._cursor = self.__conn.cursor()
 
@@ -183,7 +183,7 @@ class ServerConnection:
                 else:
                     return DecimalType(precision, scale)
             else:
-                return DecimalType(38, 15)  # Spark 1.5.0 default
+                return DecimalType(38, 18)
         if column_type_name == "REAL":
             return DoubleType()
         if column_type_name == "FIXED" and scale == 0:
@@ -195,9 +195,7 @@ class ServerConnection:
         )
 
     @staticmethod
-    def convert_result_meta_to_attribute(
-        meta: List[Tuple[Any, ...]]
-    ) -> List["Attribute"]:
+    def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
         attributes = []
         for column_name, type_value, _, _, precision, scale, nullable in meta:
             quoted_name = AnalyzerPackage.quote_name_without_upper_casing(column_name)
@@ -213,7 +211,7 @@ class ServerConnection:
         return attributes
 
     @_Decorator.wrap_exception
-    def get_result_attributes(self, query: str) -> List["Attribute"]:
+    def get_result_attributes(self, query: str) -> List[Attribute]:
         lowercase = query.strip().lower()
         if lowercase.startswith("put") or lowercase.startswith("get"):
             return []
@@ -233,7 +231,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
-    ):
+    ) -> None:
         uri = f"file://{path}"
         self.run_query(
             self.__build_put_statement(
@@ -259,7 +257,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
-    ):
+    ) -> None:
         uri = f"file:///tmp/placeholder/{dest_filename}"
         self.run_query(
             self.__build_put_statement(
@@ -301,7 +299,9 @@ class ServerConnection:
         return final_statement
 
     @_Decorator.wrap_exception
-    def run_query(self, query, to_pandas=False, **kwargs):
+    def run_query(
+        self, query: str, to_pandas: bool = False, **kwargs
+    ) -> Dict[str, Any]:
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
             logger.info(
@@ -316,53 +316,56 @@ class ServerConnection:
             data = results_cursor.fetchall()
         return {"data": data, "sfqid": results_cursor.sfqid}
 
-    # TODO revisit
-    def result_set_to_rows(self, result_set):
+    def result_set_to_rows(self, result_set: List[Any]) -> List[Row]:
         rows = [Row(*row) for row in result_set]
         return rows
 
-    def execute(self, plan: "SnowflakePlan", to_pandas=False, **kwargs):
-        if to_pandas:
-            return self.get_result_set(plan, to_pandas=True, **kwargs)
-        else:
-            return self.result_set_to_rows(self.get_result_set(plan))
+    def execute(
+        self, plan: SnowflakePlan, to_pandas: bool = False, **kwargs
+    ) -> Union[List[Any], "pandas.DataFrame"]:
+        result_set = self.get_result_set(plan, to_pandas, **kwargs)
+        return result_set if to_pandas else self.result_set_to_rows(result_set)
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
         self,
-        plan,
-        to_pandas=False,
+        plan: SnowflakePlan,
+        to_pandas: bool = False,
         **kwargs,
-    ):
+    ) -> Union[List[Any], "pandas.DataFrame"]:
         action_id = plan.session._generate_new_action_id()
 
         result = None
         try:
             placeholders = {}
             for query in plan.queries:
-                final_query = query.sql
-                for holder, Id in placeholders.items():
-                    # TODO revisit
-                    final_query = final_query.replace(holder, Id)
                 if action_id < plan.session.get_last_canceled_id():
-                    raise SnowparkClientException("Query was canceled by user")
-                result = self.run_query(final_query, to_pandas, **kwargs)
-                # TODO revisit
-                last_id = result["sfqid"]
-                placeholders[query.query_id_place_holder] = last_id
+                    raise SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
+                result = query.run(self, placeholders, to_pandas, **kwargs)
         finally:
-            # delete create tmp object
+            # delete created tmp object
             for action in plan.post_actions:
                 self.run_query(action)
 
-        return result["data"]
+        if result is None:
+            raise SnowparkClientExceptionMessages.PLAN_LAST_QUERY_RETURN_RESULTSET()
+
+        return result
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan
-    ) -> (List["Row"], List["Attribute"]):
+    ) -> (List[Row], List[Attribute]):
         result_set = self.get_result_set(plan)
         result = self.result_set_to_rows(result_set)
         meta = ServerConnection.convert_result_meta_to_attribute(
             self._cursor.description
         )
         return result, meta
+
+    @_Decorator.wrap_exception
+    def run_batch_insert(self, query: str, rows: List[Row]) -> None:
+        # with qmark, Python data type will be dynamically mapped to Snowflake data type
+        # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings
+        params = [list(row) for row in rows]
+        self._cursor.executemany(query, params)
+        logger.info(f"Execute query [queryID: null] {query}")

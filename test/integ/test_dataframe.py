@@ -12,6 +12,7 @@ from test.utils import Utils
 
 import pytest
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.internal.sp_expressions import (
@@ -862,6 +863,21 @@ def test_create_dataframe_from_none_data(session_cnx):
             Row(1, "1"),
             Row(None, None),
         ]
+
+        # large None data
+        assert session.createDataFrame([None] * 20000).collect() == [Row(None)] * 20000
+
+
+def test_create_dataframe_large_without_batch_insert(session):
+    original_value = session.analyzer._array_bind_threshold
+    try:
+        session.analyzer._array_bind_threshold = 40000
+        with pytest.raises(ProgrammingError) as ex_info:
+            session.createDataFrame([1] * 20000).collect()
+        assert "SQL compilation error" in str(ex_info)
+        assert "maximum number of expressions in a list exceeded" in str(ex_info)
+    finally:
+        session.analyzer._array_bind_threshold = original_value
 
 
 def test_create_dataframe_with_invalid_data(session_cnx):
