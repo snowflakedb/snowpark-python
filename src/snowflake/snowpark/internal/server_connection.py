@@ -183,7 +183,7 @@ class ServerConnection:
                 else:
                     return DecimalType(precision, scale)
             else:
-                return DecimalType(38, 0)
+                return DecimalType(38, 15)  # Spark 1.5.0 default
         if column_type_name == "REAL":
             return DoubleType()
         if column_type_name == "FIXED" and scale == 0:
