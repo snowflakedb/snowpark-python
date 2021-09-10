@@ -148,7 +148,6 @@ def test_join_with_multiple_conditions(session):
     assert res == []
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
 def test_join_with_ambiguous_column_in_condidtion(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([1, 2]).toDF(["a"])
@@ -158,7 +157,7 @@ def test_join_with_ambiguous_column_in_condidtion(session_cnx):
 
         with pytest.raises(SnowparkClientException) as ex_info:
             df.join(df2, col("a") == col("a")).collect()
-        assert "Possible ambiguous reference to" in str(ex_info)
+        assert "The reference to the column 'A' is ambiguous." in ex_info.value.message
 
 
 def test_join_using_multiple_columns_and_specifying_join_type(session, db_parameters):
@@ -298,7 +297,6 @@ def test_join_ambiguous_columns_with_specified_sources(session):
     assert sorted(res, key=lambda x: x[0]) == [Row([1, "test1"]), Row([4, "test2"])]
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
 def test_join_ambiguous_columns_without_specified_sources(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([[1, "one"], [2, "two"]]).toDF(
@@ -311,13 +309,17 @@ def test_join_ambiguous_columns_without_specified_sources(session_cnx):
         for join_type in ["inner", "leftouter", "rightouter", "full_outer"]:
             with pytest.raises(SnowparkClientException) as ex_info:
                 df.join(df2, col("intcol") == col("intcol")).collect()
-            assert "Possible ambiguous reference to" in str(ex_info)
-            assert "INTCOL" in str(ex_info)
+            assert (
+                "The reference to the column 'INTCOL' is ambiguous."
+                in ex_info.value.message
+            )
 
             with pytest.raises(SnowparkClientException) as ex_info:
-                df.join(df2, df["intcol"] == df["intcol"]).collect()
-            assert "Possible ambiguous reference to" in str(ex_info)
-            assert "INTCOL" in str(ex_info)
+                df.join(df2, df["intcol"] == df2["intcol"]).select("intcol").collect()
+            assert (
+                "The reference to the column 'INTCOL' is ambiguous."
+                in ex_info.value.message
+            )
 
 
 def test_join_expression_ambiguous_columns(session):
@@ -340,8 +342,8 @@ def test_join_expression_ambiguous_columns(session):
     assert res == [Row([2, -1, -10, "one", "one"]), Row([4, -2, -20, "two", "two"])]
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
-def semi_join_expression_ambiguous_columns(session_cnx):
+@pytest.mark.skip(message="Ignored in Scala tests since this only produces a warning")
+def test_semi_join_expression_ambiguous_columns(session_cnx):
     with session_cnx() as session:
         lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
             ["intcol", "negcol", "lhscol"]
@@ -710,7 +712,7 @@ def test_join_on_join(session):
         Utils.drop_table(session, table_name1)
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
+@pytest.mark.skip(message="We are not generating the right join for this statement")
 def test_negative_test_join_on_join(session_cnx):
     with session_cnx() as session:
         table_name1 = Utils.random_name()
@@ -957,7 +959,6 @@ def test_name_alias_on_multiple_join_unnormalized_name(session):
         Utils.drop_table(session, table_stations)
 
 
-@pytest.mark.skip(message="Requires wrapException in SnowflakePlan")
 def test_report_error_when_refer_common_col(session_cnx):
     with session_cnx() as session:
         df1 = session.createDataFrame([[1, 2]]).toDF(["a", "b"])
@@ -968,11 +969,9 @@ def test_report_error_when_refer_common_col(session_cnx):
         df5 = df3.join(df2, df2["c"] == df3["e"])
         df6 = df4.join(df5, df4["a"] == df5["e"])
 
-        with pytest.raises(Exception) as ex_info:
+        with pytest.raises(SnowparkClientException) as ex_info:
             df6.select("*").select(df2["c"]).collect()
-        assert "Possible ambiguous reference to 'C' present in both join sides." in str(
-            ex_info
-        )
+        assert "The reference to the column 'C' is ambiguous." in ex_info.value.message
 
 
 def test_select_all_on_join_result(session):

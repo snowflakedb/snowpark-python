@@ -329,6 +329,7 @@ class ServerConnection:
         else:
             return self.result_set_to_rows(self.get_result_set(plan))
 
+    @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
         self,
         plan,
