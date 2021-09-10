@@ -287,12 +287,12 @@ def test_sql_expr_column(session_cnx):
 def test_errors_for_aliased_columns(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([[1]]).toDF("c")
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkClientException) as ex_info:
             df.select(col("a").as_("b") + 10).collect()
-        assert "syntax error" in str(ex_info)
-        with pytest.raises(ProgrammingError) as ex_info:
+        assert "root" in ex_info.value.message
+        with pytest.raises(SnowparkClientException) as ex_info:
             df.groupBy(col("a")).agg(avg(col("a").as_("b"))).collect()
-        assert "syntax error" in str(ex_info)
+        assert "root" in ex_info.value.message
 
 
 def test_lit_contains_single_quote(session_cnx):

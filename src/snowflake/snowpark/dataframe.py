@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import enum
+import re
 import string
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
@@ -173,6 +174,9 @@ class DataFrame:
     """
 
     __NUM_PREFIX_DIGITS = 4
+    __get_unaliased_regex = re.compile(
+        f"""._[a-zA-Z0-9]{{{__NUM_PREFIX_DIGITS}}}_(.*)"""
+    )
 
     def __init__(self, session=None, plan=None):
         self.session = session
@@ -181,6 +185,20 @@ class DataFrame:
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
         self.__placeholder_output = None
+
+    @staticmethod
+    def get_unaliased(col_name: str) -> List[str]:
+        unaliased = list()
+        c = col_name
+        while True:
+            match = DataFrame.__get_unaliased_regex.match(c)
+            if match:
+                c = match.group(1)
+                unaliased.append(c)
+            else:
+                break
+
+        return unaliased
 
     @staticmethod
     def __generate_prefix(prefix: str) -> str:
