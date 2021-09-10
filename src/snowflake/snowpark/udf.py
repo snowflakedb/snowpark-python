@@ -31,13 +31,13 @@ class UserDefinedFunction:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
-        is_nullable: bool = False,
+        is_return_nullable: bool = False,
     ):
         self.func = func
         self.return_type = return_type
         self.input_types = input_types
         self.name = name
-        self.is_nullable = is_nullable
+        self.is_return_nullable = is_return_nullable
 
     def __call__(
         self,
@@ -68,7 +68,7 @@ class UserDefinedFunction:
             self.name,
             exprs,
             snow_type_to_sp_type(self.return_type),
-            nullable=self.is_nullable,
+            nullable=self.is_return_nullable,
         )
 
 
@@ -105,12 +105,12 @@ class UDFRegistration:
         # get return and input types
         if return_type or input_types:
             new_return_type = return_type if return_type else StringType()
-            is_nullable = False
+            is_return_nullable = False
             new_input_types = input_types if input_types else []
         else:
             (
                 new_return_type,
-                is_nullable,
+                is_return_nullable,
                 new_input_types,
             ) = self.__get_types_from_type_hints(func)
 
@@ -119,15 +119,15 @@ class UDFRegistration:
             func, new_return_type, new_input_types, udf_name, stage_location
         )
         return UserDefinedFunction(
-            func, return_type, new_input_types, udf_name, is_nullable
+            func, return_type, new_input_types, udf_name, is_return_nullable
         )
 
     def __get_types_from_type_hints(
         self, func: Callable
     ) -> Tuple[DataType, bool, List[DataType]]:
-        # For Python 3.10+, all type hints will become strings.
-        # So we have to change the implementation here at that time
-        # https://www.python.org/dev/peps/pep-0563/
+        # For Python 3.10+, the result values of get_type_hints()
+        # will become strings, which we have to change the implementation
+        # here at that time. https://www.python.org/dev/peps/pep-0563/
         num_args = func.__code__.co_argcount
         python_types_dict = get_type_hints(func)
         assert "return" in python_types_dict, f"The return type must be specified"
