@@ -197,7 +197,7 @@ def sum_distinct(e: Union[Column, str]) -> Column:
 def variance(e: Union[Column, str]) -> Column:
     """Returns the sample variance of non-NULL records in a group. If all records
     inside a group are NULL, a NULL is returned."""
-    c = __to_col_if_str(e, "sum_distinct")
+    c = __to_col_if_str(e, "variance")
     return builtin("variance")(c)
 
 
