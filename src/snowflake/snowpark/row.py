@@ -19,7 +19,7 @@ def _restore_row_from_pickle(values, named_values):
 class Row:
     """Represents a row in :class:`DataFrame`.
 
-    It works like a tuple or a named tuple.
+    It is immutable and works like a tuple or a named tuple.
 
     >>> row = Row(1, 2)
     >>> row
@@ -157,7 +157,7 @@ class Row:
                 ", ".join("{}={!r}".format(k, v) for k, v in self._named_values.items())
             )
         else:
-            return "Row({})".format(", ".join("%r" % v for v in self._values))
+            return "Row({})".format(", ".join("{!r}".format(v) for v in self._values))
 
     def __iter__(self):
         return iter(self._values)
