@@ -40,7 +40,9 @@ class SnowparkClientExceptionMessages:
         return SnowparkClientException("Cannot drop all columns", "0102")
 
     @staticmethod
-    def DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(col_name: str, all_columns: str) -> SnowparkClientException:
+    def DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
+        col_name: str, all_columns: str
+    ) -> SnowparkClientException:
         return SnowparkClientException(
             f'Cannot combine the DataFrames by column names. The column "{col_name}" is '
             f"not a column in the other DataFrame ({all_columns}).",
@@ -91,7 +93,9 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def DF_CROSS_TAB_COUNT_TOO_LARGE(count: int, max_count: int) -> SnowparkClientException:
+    def DF_CROSS_TAB_COUNT_TOO_LARGE(
+        count: int, max_count: int
+    ) -> SnowparkClientException:
         return SnowparkClientException(
             f"The number of distinct values in the second input column ({count}) exceeds "
             f"the maximum number of distinct values allowed ({max_count}).",
@@ -99,7 +103,9 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def DF_DATAFRAME_IS_NOT_QUALIFIED_FOR_SCALAR_QUERY(count: int, columns: str) -> SnowparkClientException:
+    def DF_DATAFRAME_IS_NOT_QUALIFIED_FOR_SCALAR_QUERY(
+        count: int, columns: str
+    ) -> SnowparkClientException:
         return SnowparkClientException(
             f"The DataFrame passed in to this function must have only one output column. "
             f"This DataFrame has {count} output columns: {columns}",
@@ -193,5 +199,5 @@ class SnowparkClientExceptionMessages:
             f"result of the join.",
             "0310",
         )
-    
+
     # Miscellaneous Messages 04XX
