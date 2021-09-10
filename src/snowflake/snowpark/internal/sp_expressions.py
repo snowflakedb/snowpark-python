@@ -122,11 +122,11 @@ class UnresolvedFunction(
         distinct = "DISTINCT " if self.is_distinct else ""
         return f"{self.pretty_name()}({distinct}{', '.join(c.sql() for c in self.children)})"
 
-    def to_string(self) -> str:
-        return f"{self.name}({', '.join((c.to_string() for c in self.children))})"
+    def __str__(self) -> str:
+        return f"{self.name}({', '.join((str(c) for c in self.children))})"
 
     def __repr__(self):
-        return self.to_string()
+        return self.__str__()
 
 
 # ##### AggregateModes
@@ -173,8 +173,8 @@ class AggregateExpression(Expression):
     def name(self):
         return self.aggregate_function.name
 
-    def to_string(self):
-        return f"{self.aggregate_function.name}({', '.join((c.to_string() for c in self.aggregate_function.children))})"
+    def __str__(self):
+        return f"{self.aggregate_function.name}({', '.join((str(c) for c in self.aggregate_function.children))})"
 
     def sql(self) -> str:
         return self.children[0].sql() if self.children else ""
@@ -316,14 +316,14 @@ class Literal(LeafExpression):
     def create(cls, value):
         return cls(value, _infer_type(value))
 
-    def to_string(self):
+    def __str__(self):
         return DataTypeMapper.to_sql_without_cast(self.value, self.datatype)
 
     def sql(self):
-        return self.to_string()
+        return self.__str__()
 
     def __repr__(self):
-        return self.to_string()
+        return self.__str__()
 
 
 class BinaryArithmeticExpression(BinaryExpression):
@@ -458,11 +458,11 @@ class AttributeReference(Attribute):
         else:
             return AttributeReference(self.name, self.datatype, self.nullable)
 
-    def to_string(self):
+    def __str__(self):
         return self.name
 
     def __repr__(self):
-        return self.to_string()
+        return self.__str__()
 
 
 class UnresolvedAttribute(Attribute):
@@ -489,11 +489,11 @@ class UnresolvedAttribute(Attribute):
         # TODO
         return name
 
-    def to_string(self):
+    def __str__(self):
         return ".".join(self.name_parts)
 
     def sql(self):
-        return self.to_string()
+        return self.__str__()
 
 
 class Like(Expression):
