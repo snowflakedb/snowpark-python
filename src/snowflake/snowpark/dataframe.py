@@ -20,6 +20,7 @@ from snowflake.snowpark.internal.analyzer.sp_views import (
     PersistedView as SPPersistedView,
     ViewType as SPViewType,
 )
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import (
     Ascending as SPAscending,
     Attribute as SPAttribute,
@@ -377,15 +378,13 @@ class DataFrame:
             elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
                 names.append(c.expression.name)
             else:
-                raise SnowparkClientException(
-                    f"Could not drop column {str(c)}. Can only drop columns by name."
-                )
+                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
 
         normalized = {AnalyzerPackage.quote_name(n) for n in names}
         existing = [attr.name for attr in self.__output()]
         keep_col_names = [c for c in existing if c not in normalized]
         if not keep_col_names:
-            raise SnowparkClientException("Cannot drop all columns")
+            raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
         else:
             return self.select(list(keep_col_names))
 
@@ -737,9 +736,7 @@ class DataFrame:
         """
         if isinstance(right, DataFrame):
             if self is right or self.__plan is right._DataFrame__plan:
-                raise SnowparkClientException(
-                    "Joining a DataFrame to itself can lead to incorrect results due to ambiguity of column references. Instead, join this DataFrame to a clone() of itself."
-                )
+                raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
 
             if type(join_type) == SPCrossJoin or (
                 type(join_type) == str
@@ -1165,7 +1162,9 @@ class DataFrame:
         if len(cols) == 1:
             return cols[0].with_name(normalized_col_name)
         else:
-            raise SnowparkClientException(f"Cannot resolve column name {col_name}")
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
+                col_name
+            )
 
     @staticmethod
     def __alias_if_needed(
