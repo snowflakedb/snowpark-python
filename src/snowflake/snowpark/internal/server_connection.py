@@ -8,7 +8,7 @@ import time
 from logging import getLogger
 from typing import IO, Any, Dict, List, Optional, Union
 
-from snowflake import connector
+import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
@@ -40,7 +40,7 @@ from snowflake.snowpark.types.sf_types import (
 logger = getLogger(__name__)
 
 # set `paramstyle` to qmark for batch insertion
-connector.paramstyle = "qmark"
+snowflake.connector.paramstyle = "qmark"
 
 
 class ServerConnection:

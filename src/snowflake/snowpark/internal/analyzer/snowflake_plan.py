@@ -267,7 +267,7 @@ class SnowflakePlanBuilder:
         output: List[SPAttribute],
         data: List[Row],
         source_plan: Optional[LogicalPlan],
-    ):
+    ) -> SnowflakePlan:
         temp_table_name = self.pkg.random_name_for_temp_object()
         attributes = [
             Attribute(
