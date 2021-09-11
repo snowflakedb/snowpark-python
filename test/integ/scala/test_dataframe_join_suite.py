@@ -583,6 +583,11 @@ def test_negative_test_for_self_join_with_conditions(session):
 
 
 def test_clone_can_help_these_self_joins(session):
+    msg = (
+        "You cannot join a DataFrame with itself because the column references cannot be resolved "
+        "correctly. Instead, call clone() to create a copy of the DataFrame, and join the DataFrame with "
+        "this copy. "
+    )
 
     table_name1 = Utils.random_name()
     try:

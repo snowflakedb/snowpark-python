@@ -273,6 +273,8 @@ class RelationalGroupedDataFrame:
         self, func_name: str, *cols: Union[Column, str]
     ) -> "DataFrame":
         if not cols:
-            raise SnowparkClientExceptionMessages.DF_FUNCTION_ARGS_CANNOT_BE_EMPTY()
+            raise SnowparkClientExceptionMessages.DF_FUNCTION_ARGS_CANNOT_BE_EMPTY(
+                func_name
+            )
         else:
             return self.builtin(func_name)(*cols)
