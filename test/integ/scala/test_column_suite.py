@@ -36,19 +36,19 @@ def test_withcolumn_with_special_column_names(session_cnx):
             session.createDataFrame([[1]])
             .toDF(['"One"'])
             .withColumn("Two", lit("two")),
-            Row([1, "two"]),
+            Row(1, "two"),
         )
         Utils.check_answer(
             session.createDataFrame([[1]])
             .toDF(['"One"'])
             .withColumn("One", lit("two")),
-            Row([1, "two"]),
+            Row(1, "two"),
         )
         Utils.check_answer(
             session.createDataFrame([[1]])
             .toDF(["One"])
             .withColumn('"One"', lit("two")),
-            Row([1, "two"]),
+            Row(1, "two"),
         )
 
         # Ensure that One and ONE are the same
@@ -298,4 +298,4 @@ def test_errors_for_aliased_columns(session_cnx):
 def test_lit_contains_single_quote(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame([[1, "'"], [2, "''"]]).toDF(["a", "b"])
-        assert df.where(col("b") == "'").collect() == [Row([1, "'"])]
+        assert df.where(col("b") == "'").collect() == [Row(1, "'")]

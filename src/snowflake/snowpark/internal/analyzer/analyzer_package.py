@@ -326,7 +326,7 @@ class AnalyzerPackage:
         for row in data:
             cells = [
                 DataTypeMapper.to_sql(value, data_type)
-                for value, data_type in zip(row.to_list(), data_types)
+                for value, data_type in zip(row, data_types)
             ]
             rows.append(
                 self._LeftParenthesis + self._Comma.join(cells) + self._RightParenthesis
@@ -343,7 +343,7 @@ class AnalyzerPackage:
         return self.project_statement([], query_source)
 
     def empty_values_statement(self, output: List["SPAttribute"]):
-        data = [Row.from_list([None] * len(output))]
+        data = [Row(*[None] * len(output))]
         self.filter_statement(self._UnsatFilter, self.values_statement(output, data))
 
     def set_operator_statement(self, left: str, right: str, operator: str):

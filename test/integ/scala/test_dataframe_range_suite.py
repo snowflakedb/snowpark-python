@@ -95,8 +95,8 @@ def test_range_with_randomized_parameters(session_cnx):
                 .collect()
             )
             assert len(res) != 0
-            assert res[0].get_int(0) == expected_count
-            assert res[0].get_int(1) == expected_sum
+            assert res[0][0] == expected_count
+            assert res[0][1] == expected_sum
 
 
 def test_range_with_max_and_min(session_cnx):

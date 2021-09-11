@@ -63,28 +63,28 @@ def test_count(session_cnx):
 def test_max_min_mean(session_cnx):
     with session_cnx() as session:
         df = TestData.xyz(session).select(max(col("X")), min(col("Y")), mean(col("Z")))
-        assert df.collect() == [Row([2, 1, Decimal("3.6")])]
+        assert df.collect() == [Row(2, 1, Decimal("3.6"))]
 
         # same as above, but pass str instead of Column
         df = TestData.xyz(session).select(max("X"), min("Y"), mean("Z"))
-        assert df.collect() == [Row([2, 1, Decimal("3.6")])]
+        assert df.collect() == [Row(2, 1, Decimal("3.6"))]
 
 
 def test_sum(session_cnx):
     with session_cnx() as session:
         df = TestData.duplicated_numbers(session).groupBy("A").agg(sum(col("A")))
-        assert df.collect() == [Row([3, 6]), Row([2, 4]), Row([1, 1])]
+        assert df.collect() == [Row(3, 6), Row(2, 4), Row(1, 1)]
 
         df = (
             TestData.duplicated_numbers(session)
             .groupBy("A")
             .agg(sum_distinct(col("A")))
         )
-        assert df.collect() == [Row([3, 3]), Row([2, 2]), Row([1, 1])]
+        assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]
 
         # same as above, but pass str instead of Column
         df = TestData.duplicated_numbers(session).groupBy("A").agg(sum("A"))
-        assert df.collect() == [Row([3, 6]), Row([2, 4]), Row([1, 1])]
+        assert df.collect() == [Row(3, 6), Row(2, 4), Row(1, 1)]
 
         df = TestData.duplicated_numbers(session).groupBy("A").agg(sum_distinct("A"))
-        assert df.collect() == [Row([3, 3]), Row([2, 2]), Row([1, 1])]
+        assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]

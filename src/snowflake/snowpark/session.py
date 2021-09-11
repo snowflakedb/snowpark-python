@@ -376,7 +376,7 @@ class Session(metaclass=_SessionMeta):
         prefix_length = len(normalized.split(".")[-1].strip("@/")) + 1
 
         return {
-            row.get_string(0)[prefix_length:]
+            str(row[0])[prefix_length:]
             for row in self.sql(f"ls {normalized}").select('"name"').collect()
         }
 
@@ -474,23 +474,23 @@ class Session(metaclass=_SessionMeta):
             elif isinstance(row, dict):
                 if not names:
                     names = list(row.keys())
-                rows.append(Row(list(row.values())))
+                rows.append(Row(**row))
             elif isinstance(row, (tuple, list)):
                 if hasattr(row, "_fields") and not names:  # namedtuple
                     names = list(row._fields)
-                rows.append(Row(row))
+                rows.append(Row(*row))
             else:
-                rows.append(Row([row]))
+                rows.append(Row(row))
 
         # check the length of every row, which should be same across data
-        if len({row.size() for row in rows}) != 1:
+        if len({len(row) for row in rows}) != 1:
             raise ValueError("Data consists of rows with different lengths.")
 
         # infer the schema based on the data
         if not schema:
             schema = reduce(
                 _merge_type,
-                (_infer_schema_from_list(row.to_list(), names) for row in rows),
+                (_infer_schema_from_list(list(row), names) for row in rows),
             )
 
         # get spark attributes and data types
@@ -520,7 +520,7 @@ class Session(metaclass=_SessionMeta):
         converted = []
         for row in rows:
             converted_row = []
-            for value, data_type in zip(row.to_list(), data_types):
+            for value, data_type in zip(row, data_types):
                 if value is None:
                     converted_row.append(None)
                 elif type(value) == decimal.Decimal and type(data_type) == DecimalType:
@@ -550,7 +550,7 @@ class Session(metaclass=_SessionMeta):
                             type(value), value, str(data_type)
                         )
                     )
-            converted.append(Row.from_list(converted_row))
+            converted.append(Row(*converted_row))
 
         # construct a project statement to convert string value back to variant
         project_columns = []
