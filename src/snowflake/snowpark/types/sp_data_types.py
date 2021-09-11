@@ -202,7 +202,7 @@ class DecimalType(FractionalType):
     MAX_PRECISION = 38
     MAX_SCALE = 38
 
-    def __init__(self, precision, scale):
+    def __init__(self, precision: int = 38, scale: int = 0):
         self.precision = precision
         self.scale = scale
 
