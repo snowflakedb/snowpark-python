@@ -482,12 +482,12 @@ def test_sql_expr_column(session):
 
 def test_errors_for_aliased_columns(session):
     df = session.createDataFrame([[1]]).toDF("c")
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkClientException) as ex_info:
         df.select(col("a").as_("b") + 10).collect()
-    assert "syntax error" in str(ex_info)
-    with pytest.raises(ProgrammingError) as ex_info:
+    assert "You can only define aliases for the root" in str(ex_info)
+    with pytest.raises(SnowparkClientException) as ex_info:
         df.groupBy(col("a")).agg(avg(col("a").as_("b"))).collect()
-    assert "syntax error" in str(ex_info)
+    assert "You can only define aliases for the root" in str(ex_info)
 
 
 def test_like(session):
