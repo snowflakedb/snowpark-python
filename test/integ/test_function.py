@@ -3,13 +3,15 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from test.utils import TestData
+from test.utils import TestData, Utils
 
 import pytest
 
+from snowflake.connector import ProgrammingError
 from snowflake.snowpark.functions import (
     builtin,
     call_builtin,
+    coalesce,
     col,
     count_distinct,
     parse_json,
@@ -204,3 +206,22 @@ def test_to_binary(session_cnx):
             TestData.all_nulls(session).toDF("a").select(to_binary(col("a"))).collect()
         )
         assert res == [Row(None), Row(None), Row(None), Row(None)]
+
+
+def test_coalesce(session_cnx):
+    with session_cnx() as session:
+        # Taken from FunctionSuite.scala
+        Utils.check_answer(
+            TestData.null_data2(session).select(coalesce("A", "B", "C")),
+            [Row(1), Row(2), Row(3), Row(None), Row(1), Row(1), Row(1)],
+            sort=False,
+        )
+
+        # single input column
+        with pytest.raises(ProgrammingError) as ex_info:
+            TestData.null_data2(session).select(coalesce(col("A"))).collect()
+        assert "not enough arguments for function [COALESCE" in str(ex_info)
+
+        with pytest.raises(TypeError) as ex_info:
+            TestData.null_data2(session).select(coalesce(["A", "B", "C"]))
+        assert "COALESCE expected Column or str, got: <class 'list'>" in str(ex_info)

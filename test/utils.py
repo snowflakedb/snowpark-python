@@ -185,6 +185,12 @@ class TestData:
         return session.sql("select * from values(null),(2),(1),(3),(null) as T(a)")
 
     @classmethod
+    def null_data2(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values(1,2,3),(null,2,3),(null,null,3),(null,null,null),(1,null,3),(1,null,null),(1,2,null) as T(a,b,c)"
+        )
+
+    @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
         return session.sql("select * from values(1),(2),(3) as T(a)")
 
