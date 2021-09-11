@@ -23,6 +23,7 @@ except ImportError:
     is_dateutil_available = False
 
 from test.utils import TestData, TestFiles, Utils
+from typing import Any, Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.functions import call_udf, col, udf
@@ -69,7 +70,7 @@ def test_basic_udf(session_cnx):
         return str(x)
 
     with session_cnx() as session:
-        return1_udf = udf(return1)
+        return1_udf = udf(return1, return_type=StringType())
         plus1_udf = udf(plus1, return_type=IntegerType(), input_types=[IntegerType()])
         add_udf = udf(
             add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
@@ -229,7 +230,7 @@ def test_annotation_syntax_udf(session_cnx):
         def add_udf(x, y):
             return x + y
 
-        @udf
+        @udf(return_type=StringType())
         def snow():
             return "snow"
 
@@ -428,6 +429,45 @@ def test_add_imports_duplicate(session_cnx, resources_path, caplog):
         assert len(session.getImports()) == 0
 
 
+def test_type_hints(session):
+    @udf
+    def add_udf(x: int, y: int) -> int:
+        return x + y
+
+    @udf
+    def snow_udf(x: int) -> Optional[str]:
+        return "snow" if x % 2 else None
+
+    @udf
+    def double_str_list_udf(x: str) -> List[str]:
+        return [x, x]
+
+    dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
+
+    @udf
+    def return_datetime_udf() -> datetime.datetime:
+        return dt
+
+    @udf
+    def return_variant_dict_udf(v: Any) -> Dict[str, str]:
+        return {str(k): f"{str(k)} {str(v)}" for k, v in v.items()}
+
+    df = session.createDataFrame([[1, 4], [2, 3]]).toDF("a", "b")
+    assert df.select(
+        add_udf("a", "b"),
+        snow_udf("a"),
+        double_str_list_udf(snow_udf("b")),
+        return_datetime_udf(),
+    ).collect() == [
+        Row(5, "snow", "[\n  null,\n  null\n]", dt),
+        Row(5, None, '[\n  "snow",\n  "snow"\n]', dt),
+    ]
+
+    assert TestData.variant1(session).select(
+        return_variant_dict_udf("obj1")
+    ).collect() == [Row('{\n  "Tree": "Tree Pine"\n}')]
+
+
 def test_udf_negative(session_cnx):
     def f(x):
         return x
@@ -492,6 +532,33 @@ def test_udf_negative(session_cnx):
                 return x
 
         assert "Invalid function: not a function or callable" in str(ex_info)
+
+        with pytest.raises(AssertionError) as ex_info:
+
+            @udf
+            def add_udf(x: int, y: int):
+                return x + y
+
+        assert "The return type must be specified" in str(ex_info)
+
+        with pytest.raises(AssertionError) as ex_info:
+
+            @udf
+            def add_udf(x, y: int) -> int:
+                return x + y
+
+        assert (
+            "The number of arguments (2) is different from"
+            " the number of argument type hints (1)" in str(ex_info)
+        )
+
+        with pytest.raises(TypeError) as ex_info:
+
+            @udf
+            def add_udf(x: int, y: Union[int, float]) -> Union[int, float]:
+                return x + y
+
+        assert "invalid type typing.Union[int, float]" in str(ex_info)
 
 
 def test_add_imports_negative(session_cnx, resources_path):

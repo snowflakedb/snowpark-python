@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import re
-from typing import List, Optional, Union
+from typing import List, Union
 
 
 class DataType:
@@ -141,7 +141,7 @@ class DecimalType(FractionalType):
     MAX_PRECISION = 38
     MAX_SCALE = 38
 
-    def __init__(self, precision, scale):
+    def __init__(self, precision: int = 38, scale: int = 0):
         self.precision = precision
         self.scale = scale
 

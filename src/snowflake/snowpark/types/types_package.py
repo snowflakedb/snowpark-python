@@ -11,8 +11,10 @@ import ctypes
 import datetime
 import decimal
 import sys
+import typing
 from array import array
-from typing import List, Optional
+from collections import OrderedDict, defaultdict
+from typing import List, Optional, Tuple, Type
 
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
@@ -425,3 +427,48 @@ def _merge_type(a: DataType, b: DataType, name: str = None) -> DataType:
         )
     else:
         return a
+
+
+def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
+    """Converts a Python type to a Snowpark type.
+    Returns a Snowpark type and whether it's nullable.
+    """
+    if tp in _type_mappings:
+        return sp_type_to_snow_type(_type_mappings[tp]()), False
+
+    # TODO: use get_origin and get_args after upgrading to Python 3.8
+    tp_origin = getattr(tp, "__origin__", None)
+    tp_args = getattr(tp, "__args__", None)
+
+    # only typing.Optional[X], i.e., typing.Union[X, None] is accepted
+    if (
+        tp_origin
+        and tp_origin == typing.Union
+        and tp_args
+        and len(tp_args) == 2
+        and tp_args[1] == type(None)
+    ):
+        return _python_type_to_snow_type(tp_args[0])[0], True
+
+    # typing.List, typing.Tuple, list, tuple
+    list_tps = [list, tuple, typing.List, typing.Tuple]
+    if tp in list_tps or (tp_origin and tp_origin in list_tps):
+        element_type = (
+            _python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
+        )
+        return ArrayType(element_type), False
+
+    # typing.Dict, typing.DefaultDict, dict, defaultdict
+    # TODO: add typing.OrderedDict after upgrading to Python 3.8
+    dict_tps = [dict, defaultdict, OrderedDict, typing.Dict, typing.DefaultDict]
+    if tp in dict_tps or (tp_origin and tp_origin in dict_tps):
+        key_type = _python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
+        value_type = (
+            _python_type_to_snow_type(tp_args[1])[0] if tp_args else StringType()
+        )
+        return MapType(key_type, value_type), False
+
+    if tp == typing.Any:
+        return VariantType(), False
+
+    raise TypeError(f"invalid type {tp}")
