@@ -885,7 +885,7 @@ def test_create_dataframe_with_invalid_data(session_cnx):
         # None input
         with pytest.raises(ValueError) as ex_info:
             session.createDataFrame(None)
-        assert "Data cannot be None" in str(ex_info)
+        assert "data cannot be None" in str(ex_info)
 
         # input other than list, tuple, namedtuple and dict
         with pytest.raises(TypeError) as ex_info:
