@@ -15,8 +15,7 @@ def _restore_row_from_pickle(values, named_values):
     return Row(*values)
 
 
-@total_ordering
-class Row:
+class Row(tuple):
     """Represents a row in :class:`DataFrame`.
 
     It is immutable and works like a tuple or a named tuple.
@@ -52,26 +51,24 @@ class Row:
 
     """
 
-    def __init__(self, *values: Any, **named_values: Any):
+    def __new__(cls, *values: Any, **named_values: Any):
         if values and named_values:
             raise ValueError("Either values or named_values is required but not both.")
         if named_values:
             # After py3.7, dict is ordered(not sorted) by item insertion sequence.
             # If we support 3.6 or older someday, this implementation needs changing.
-            self.__dict__["_values"] = tuple(named_values.values())
-            self.__dict__["_named_values"] = named_values
+            row = tuple.__new__(cls, tuple(named_values.values()))
+            row.__dict__["_named_values"] = named_values
         else:
-            self.__dict__["_values"] = tuple(values) if values else ()
-            self.__dict__["_named_values"] = None
-
-    def __len__(self) -> int:
-        return len(self._values)
+            row = tuple.__new__(cls, values)
+            row.__dict__["_named_values"] = None
+        return row
 
     def __getitem__(self, item: Union[int, str]):
         if isinstance(item, int):
-            return self._values[item]
+            return super().__getitem__(item)
         elif isinstance(item, slice):
-            return Row(*self._values[item])
+            return Row(*super().__getitem__(item))
         else:
             return self._named_values[item]
 
@@ -87,7 +84,7 @@ class Row:
             raise AttributeError(f"Row object has no attribute {item}")
 
     def __setattr__(self, key, value):
-        if key not in ("_values", "_named_values"):
+        if key != "_named_values":
             raise AttributeError("Can't set attribute to Row object")
 
     def __contains__(self, item):
@@ -99,8 +96,8 @@ class Row:
             raise ValueError(
                 "A Row instance should have either values or field-value pairs but not both."
             )
-        elif args and len(args) != len(self._values):
-            raise ValueError(f"{len(self._values)} values are expected.")
+        elif args and len(args) != len(self):
+            raise ValueError(f"{len(self)} values are expected.")
         if self._named_values:
             if args:
                 raise ValueError(
@@ -121,35 +118,18 @@ class Row:
                     "The Row object can't be called with field-value pairs "
                     "because it doesn't have field-value pairs"
                 )
-            if len(args) != len(self._values) or any(
-                not isinstance(value, str) for value in self._values
+            if len(args) != len(self) or any(
+                not isinstance(value, str) for value in self
             ):
                 raise ValueError(
                     "The called Row object with and input values must have the same size."
                 )
-            return Row(**{k: v for k, v in zip(self._values, args)})
+            return Row(**{k: v for k, v in zip(self, args)})
 
     def __copy__(self):
         if self._named_values:
             return Row(**self._named_values)
-        return Row(*self._values)
-
-    def __eq__(self, other):
-        return self._values == other._values
-
-    def __lt__(
-        self, other
-    ):  # __le__(), __gt__(), and __ge__() are automatically defined by @total_ordering
-        return self._values < other._values
-
-    def __hash__(self):
-        return hash(self._values)
-
-    def __mul__(self, other):
-        return Row(*self._values * other)
-
-    def __rmul__(self, other):
-        return Row(*self._values * other)
+        return Row(*self)
 
     def __repr__(self):
         if self._named_values:
@@ -157,33 +137,10 @@ class Row:
                 ", ".join("{}={!r}".format(k, v) for k, v in self._named_values.items())
             )
         else:
-            return "Row({})".format(", ".join("{!r}".format(v) for v in self._values))
-
-    def __iter__(self):
-        return iter(self._values)
+            return "Row({})".format(", ".join("{!r}".format(v) for v in self))
 
     def __reduce__(self):
-        return (_restore_row_from_pickle, (self._values, self._named_values))
-
-    def count(self, value):
-        """Returns the number of occurrences of a value.
-
-        >>> row = Row("a", "b") * 3
-        >>> row
-        Row('a', 'b', 'a', 'b', 'a', 'b')
-        >>> row.count('b')
-        3
-        """
-        return self._values.count(value)
-
-    def index(self, value, start=None, stop=None):
-        """Returns the index of the first occurrence of a value.
-
-        >>> row = Row("a", "b", "c")
-        >>> row.index("c")
-        2
-        """
-        return self._values.index(value, start or 0, stop or len(self._values))
+        return (_restore_row_from_pickle, (tuple(self), self._named_values))
 
     def asDict(self, recursive=False):
         """Convert to a dict if this row object has both keys and values.
