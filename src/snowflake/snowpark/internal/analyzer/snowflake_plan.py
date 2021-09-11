@@ -5,7 +5,7 @@
 #
 import re
 from functools import reduce
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import snowflake.connector
 import snowflake.snowpark.dataframe
@@ -26,6 +26,9 @@ from snowflake.snowpark.types.types_package import (
     snow_type_to_sp_type,
     sp_type_to_snow_type,
 )
+
+if TYPE_CHECKING:  # pragma: no cover
+    from snowflake.snowpark.internal.server_connection import ServerConnection
 
 
 class SnowflakePlan(LogicalPlan):
@@ -592,8 +595,6 @@ class SnowflakePlanBuilder:
 
 
 class Query:
-    from snowflake.snowpark.internal.server_connection import ServerConnection
-
     def __init__(self, sql: str, query_id_place_holder: Optional[str] = None):
         self.sql = sql
         self.query_id_place_holder = (
@@ -604,7 +605,7 @@ class Query:
 
     def run(
         self,
-        conn: ServerConnection,
+        conn: "ServerConnection",
         placeholders: Dict[str, str],
         to_pandas: bool = False,
         **kwargs,
@@ -619,8 +620,6 @@ class Query:
 
 
 class BatchInsertQuery(Query):
-    from snowflake.snowpark.internal.server_connection import ServerConnection
-
     def __init__(
         self,
         sql: str,
@@ -631,7 +630,7 @@ class BatchInsertQuery(Query):
 
     def run(
         self,
-        conn: ServerConnection,
+        conn: "ServerConnection",
         placeholders: Dict[str, str],
         to_pandas: bool = False,
         **kwargs,

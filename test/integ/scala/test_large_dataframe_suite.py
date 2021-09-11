@@ -4,6 +4,10 @@
 import datetime
 import decimal
 
+import pytest
+
+from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
@@ -14,8 +18,10 @@ from snowflake.snowpark.types.sf_types import (
     DecimalType,
     DoubleType,
     FloatType,
+    IntegerType,
     LongType,
     MapType,
+    ShortType,
     StringType,
     StructField,
     StructType,
@@ -25,18 +31,57 @@ from snowflake.snowpark.types.sf_types import (
 )
 
 
+def test_limit_on_order_by(session):
+    # Tests using SNOWFLAKE_SAMPLE_DATA, it may be not available on some test deployments
+    try:
+        a = (
+            session.table("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.LINEITEM")
+            .select("L_RETURNFLAG", "L_SHIPMODE")
+            .filter(col("L_RETURNFLAG") == "A")
+            .groupBy("L_RETURNFLAG", "L_SHIPMODE")
+            .count()
+        )
+        n = (
+            session.table("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.LINEITEM")
+            .select("L_RETURNFLAG", "L_SHIPMODE")
+            .filter(col("L_RETURNFLAG") == "N")
+            .groupBy("L_RETURNFLAG", "L_SHIPMODE")
+            .count()
+        )
+    except ProgrammingError as ex:
+        if (
+            "Database 'SNOWFLAKE_SAMPLE_DATA' does not exist or not authorized"
+            in ex.msg
+        ):
+            pytest.skip(ex.msg)
+        raise ex
+    except Exception as ex:
+        raise ex
+
+    union = a.unionAll(n)
+    result = union.select(col("COUNT")).sort(col("COUNT")).limit(10).collect()
+    for e1, e2 in zip(result[:-1], result[1:]):
+        assert int(e1[0]) < int(e2[0])
+
+
 def test_create_dataframe_for_large_values_check_plan(session):
+    def check_plan(df, data):
+        assert (
+            df._DataFrame__plan.queries[0]
+            .sql.strip()
+            .startswith("CREATE  TEMPORARY  TABLE")
+        )
+        assert df._DataFrame__plan.queries[1].sql.strip().startswith("INSERT  INTO")
+        assert df._DataFrame__plan.queries[2].sql.strip().startswith("SELECT")
+        assert len(df._DataFrame__plan.post_actions) == 1
+        assert df.sort("id").collect() == data
+
     large_data = [Row(i) for i in range(1025)]
-    df = session.createDataFrame(large_data).toDF("id")
-    assert (
-        df._DataFrame__plan.queries[0]
-        .sql.strip()
-        .startswith("CREATE  TEMPORARY  TABLE")
-    )
-    assert df._DataFrame__plan.queries[1].sql.strip().startswith("INSERT  INTO")
-    assert df._DataFrame__plan.queries[2].sql.strip().startswith("SELECT")
-    assert len(df._DataFrame__plan.post_actions) == 1
-    assert df.sort("id").collect() == large_data
+    schema = StructType([StructField("ID", LongType())])
+    df1 = session.createDataFrame(large_data, schema)
+    df2 = session.createDataFrame(large_data).toDF("id")
+    check_plan(df1, large_data)
+    check_plan(df2, large_data)
 
 
 def test_create_dataframe_for_large_values_basic_types(session):
@@ -45,7 +90,11 @@ def test_create_dataframe_for_large_values_basic_types(session):
             StructField("ID", LongType()),
             StructField("string", StringType()),
             StructField("byte", ByteType()),
+            StructField("short", ShortType()),
+            StructField("int", IntegerType()),
+            StructField("long", LongType()),
             StructField("float", FloatType()),
+            StructField("double", DoubleType()),
             StructField("decimal", DecimalType(10, 3)),
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
@@ -60,7 +109,11 @@ def test_create_dataframe_for_large_values_basic_types(session):
                 i,
                 "a",
                 1,
+                2,
+                3,
+                4,
                 1.1,
+                1.2,
                 decimal.Decimal(0.5),
                 True,
                 bytearray([1, 2]),
@@ -78,6 +131,10 @@ def test_create_dataframe_for_large_values_basic_types(session):
         LongType,
         StringType,
         LongType,
+        LongType,
+        LongType,
+        LongType,
+        DoubleType,
         DoubleType,
         DecimalType,
         BooleanType,
