@@ -23,7 +23,7 @@ def test_combination_of_multiple_operators(session):
 
     res = df1.join(df2, "a").intersect(df2).collect()
     res.sort(key=lambda x: x[0])
-    assert res == [Row([1, "test1"]), Row([2, "test2"])]
+    assert res == [Row(1, "test1"), Row(2, "test2")]
 
     res1 = df1.join(df2, "a").collect()
     res1.sort(key=lambda x: x[0])
@@ -38,10 +38,10 @@ def test_combination_of_multiple_operators(session):
     )
     res.sort(key=lambda x: x[0])
     assert res == [
-        Row([1, "test1"]),
-        Row([1, "test1"]),
-        Row([2, "test2"]),
-        Row([2, "test2"]),
+        Row(1, "test1"),
+        Row(1, "test1"),
+        Row(2, "test2"),
+        Row(2, "test2"),
     ]
 
 
@@ -69,7 +69,7 @@ def test_combination_of_multiple_operators_with_filters(session):
 
     df = df1.filter(col("a") < 6).join(df2, "a").union(df2.filter(col("a") > 5))
     # don't sort
-    assert df.collect() == [Row([i, f"test{i}"]) for i in range(1, 11)]
+    assert df.collect() == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
 def test_join_on_top_of_unions(session):
@@ -81,7 +81,7 @@ def test_join_on_top_of_unions(session):
     )
 
     res = df1.union(df2).join(df3.union(df4), "a").sort(col("a")).collect()
-    assert res == [Row([i, f"test{i}"]) for i in range(1, 11)]
+    assert res == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
 def test_combination_of_multiple_data_sources(session, resources_path):
@@ -111,16 +111,18 @@ def test_combination_of_multiple_data_sources(session, resources_path):
 
         Utils.check_answer(
             df2.join(df1, df1["a"] == df2["num"]),
-            [Row([1, 1, "one", 1.2]), Row([2, 2, "two", 2.2])],
+            [Row(1, 1, "one", 1.2), Row(2, 2, "two", 2.2)],
         )
 
         Utils.check_answer(
             df2.filter(col("num") == 1).join(
                 df1.select("a", "b"), df1["a"] == df2["num"]
             ),
-            [Row([1, 1, "one"])],
+            [Row(1, 1, "one")],
         )
 
     finally:
         Utils.drop_table(session, tmp_table_name)
         Utils.drop_stage(session, tmp_stage_name)
+
+

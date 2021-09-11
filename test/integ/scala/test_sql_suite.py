@@ -60,7 +60,7 @@ def test_run_sql_query(session_cnx):
 
         res = df6.collect()
         res.sort(key=lambda x: (x[0], x[1]))
-        assert res == [Row([1, 1]), Row([1, 2]), Row([2, 1]), Row([2, 2])]
+        assert res == [Row(1, 1), Row(1, 2), Row(2, 1), Row(2, 2)]
 
         with pytest.raises(ProgrammingError) as ex_info:
             session.sql("select * from (1)").collect()

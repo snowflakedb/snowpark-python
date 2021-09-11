@@ -72,61 +72,45 @@ def test_kurtosis(session_cnx):
         )
         Utils.check_answer(
             df,
-            [
-                Row(
-                    [
-                        Decimal("-3.333333333333"),
-                        Decimal("5.0"),
-                        Decimal("3.613736609956"),
-                    ]
-                )
-            ],
+            [Row(Decimal("-3.333333333333"), Decimal("5.0"), Decimal("3.613736609956"))]
         )
 
         # same as above, but pass str instead of Column
         df = TestData.xyz(session).select(kurtosis("X"), kurtosis("Y"), kurtosis("Z"))
         Utils.check_answer(
             df,
-            [
-                Row(
-                    [
-                        Decimal("-3.333333333333"),
-                        Decimal("5.0"),
-                        Decimal("3.613736609956"),
-                    ]
-                )
-            ],
+            [Row(Decimal("-3.333333333333"), Decimal("5.0"), Decimal("3.613736609956"))],
         )
 
 
 def test_max_min_mean(session_cnx):
     with session_cnx() as session:
         df = TestData.xyz(session).select(max(col("X")), min(col("Y")), mean(col("Z")))
-        assert df.collect() == [Row([2, 1, Decimal("3.6")])]
+        assert df.collect() == [Row(2, 1, Decimal("3.6"))]
 
         # same as above, but pass str instead of Column
         df = TestData.xyz(session).select(max("X"), min("Y"), mean("Z"))
-        assert df.collect() == [Row([2, 1, Decimal("3.6")])]
+        assert df.collect() == [Row(2, 1, Decimal("3.6"))]
 
 
 def test_sum(session_cnx):
     with session_cnx() as session:
         df = TestData.duplicated_numbers(session).groupBy("A").agg(sum(col("A")))
-        assert df.collect() == [Row([3, 6]), Row([2, 4]), Row([1, 1])]
+        assert df.collect() == [Row(3, 6), Row(2, 4), Row(1, 1)]
 
         df = (
             TestData.duplicated_numbers(session)
             .groupBy("A")
             .agg(sum_distinct(col("A")))
         )
-        assert df.collect() == [Row([3, 3]), Row([2, 2]), Row([1, 1])]
+        assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]
 
         # same as above, but pass str instead of Column
         df = TestData.duplicated_numbers(session).groupBy("A").agg(sum("A"))
-        assert df.collect() == [Row([3, 6]), Row([2, 4]), Row([1, 1])]
+        assert df.collect() == [Row(3, 6), Row(2, 4), Row(1, 1)]
 
         df = TestData.duplicated_numbers(session).groupBy("A").agg(sum_distinct("A"))
-        assert df.collect() == [Row([3, 3]), Row([2, 2]), Row([1, 1])]
+        assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]
 
 
 def test_variance(session_cnx):
@@ -139,14 +123,12 @@ def test_variance(session_cnx):
         Utils.check_answer(
             df,
             [
-                Row([Decimal(1), Decimal(0.00), Decimal(1.0), Decimal(2.0)]),
+                Row(Decimal(1), Decimal(0.00), Decimal(1.0), Decimal(2.0)),
                 Row(
-                    [
                         Decimal(2),
                         Decimal("0.333333"),
                         Decimal("14.888889"),
                         Decimal("22.333333"),
-                    ]
                 ),
             ],
         )
@@ -160,14 +142,12 @@ def test_variance(session_cnx):
         Utils.check_answer(
             df,
             [
-                Row([Decimal(1), Decimal(0.00), Decimal(1.0), Decimal(2.0)]),
+                Row(Decimal(1), Decimal(0.00), Decimal(1.0), Decimal(2.0)),
                 Row(
-                    [
                         Decimal(2),
                         Decimal("0.333333"),
                         Decimal("14.888889"),
                         Decimal("22.333333"),
-                    ]
                 ),
             ],
         )

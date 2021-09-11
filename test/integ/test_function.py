@@ -42,10 +42,10 @@ def test_count_distinct(session_cnx):
             count_distinct(df["value"]),
             count_distinct(df["other"]),
         ).collect()
-        assert res == [Row([4, 3, 2])]
+        assert res == [Row(4, 3, 2)]
 
         res = df.select(count_distinct(df["id"], df["value"])).collect()
-        assert res == [Row([4])]
+        assert res == [Row(4)]
 
         # Pass invalid type - list of numbers
         with pytest.raises(TypeError) as ex_info:
@@ -64,12 +64,12 @@ def test_builtin_avg_from_range(session_cnx):
 
         df = session.range(1, 10, 2).select(avg(col("id")))
         res = df.collect()
-        expected = [Row([5.000])]
+        expected = [Row(5.000)]
         assert res == expected
 
         df = session.range(1, 10, 2).filter(col("id") > 2).select(avg(col("id")))
         res = df.collect()
-        expected = [Row([6.000])]
+        expected = [Row(6.000)]
         assert res == expected
 
         # Add extra select on existing column
@@ -80,7 +80,7 @@ def test_builtin_avg_from_range(session_cnx):
             .select(avg(col("id")))
         )
         res = df.collect()
-        expected = [Row([6.000])]
+        expected = [Row(6.000)]
         assert res == expected
 
         # Add extra selects on existing column
@@ -94,7 +94,7 @@ def test_builtin_avg_from_range(session_cnx):
             .select(avg(col("id")))
         )
         res = df.collect()
-        expected = [Row([6.000])]
+        expected = [Row(6.000)]
         assert res == expected
 
 
@@ -103,7 +103,7 @@ def test_call_builtin_avg_from_range(session_cnx):
     with session_cnx() as session:
         df = session.range(1, 10, 2).select(call_builtin("avg", col("id")))
         res = df.collect()
-        expected = [Row([5.000])]
+        expected = [Row(5.000)]
         assert res == expected
 
         df = (
@@ -112,7 +112,7 @@ def test_call_builtin_avg_from_range(session_cnx):
             .select(call_builtin("avg", col("id")))
         )
         res = df.collect()
-        expected = [Row([6.000])]
+        expected = [Row(6.000)]
         assert res == expected
 
         # Add extra select on existing column
@@ -123,7 +123,7 @@ def test_call_builtin_avg_from_range(session_cnx):
             .select(call_builtin("avg", col("id")))
         )
         res = df.collect()
-        expected = [Row([6.000])]
+        expected = [Row(6.000)]
         assert res == expected
 
         # Add extra selects on existing column
@@ -137,7 +137,7 @@ def test_call_builtin_avg_from_range(session_cnx):
             .select(call_builtin("avg", col("id")))
         )
         res = df.collect()
-        expected = [Row([6.000])]
+        expected = [Row(6.000)]
         assert res == expected
 
 

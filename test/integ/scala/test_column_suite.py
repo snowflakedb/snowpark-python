@@ -45,11 +45,11 @@ def test_column_alias_and_case_sensitive_name(session):
 def test_unary_operator(session):
     test_data1 = TestData.test_data1(session)
     # unary minus
-    assert test_data1.select(-test_data1["NUM"]).collect() == [Row([-1]), Row([-2])]
+    assert test_data1.select(-test_data1["NUM"]).collect() == [Row(-1), Row(-2)]
     # not
     assert test_data1.select(~test_data1["BOOL"]).collect() == [
-        Row([False]),
-        Row([True]),
+        Row(False),
+        Row(True),
     ]
 
 
@@ -73,50 +73,50 @@ def test_alias(session):
 def test_equal_and_not_equal(session):
     test_data1 = TestData.test_data1(session)
     assert test_data1.where(test_data1["BOOL"] == True).collect() == [
-        Row([1, True, "a"])
+        Row(1, True, "a")
     ]
     assert test_data1.where(test_data1["BOOL"] == lit(True)).collect() == [
-        Row([1, True, "a"])
+        Row(1, True, "a")
     ]
 
     assert test_data1.where(test_data1["BOOL"] == False).collect() == [
-        Row([2, False, "b"])
+        Row(2, False, "b")
     ]
     assert test_data1.where(test_data1["BOOL"] != True).collect() == [
-        Row([2, False, "b"])
+        Row(2, False, "b")
     ]
     assert test_data1.where(test_data1["BOOL"] != lit(True)).collect() == [
-        Row([2, False, "b"])
+        Row(2, False, "b")
     ]
 
 
 def test_gt_and_lt(session):
     test_data1 = TestData.test_data1(session)
-    assert test_data1.where(test_data1["NUM"] > 1).collect() == [Row([2, False, "b"])]
+    assert test_data1.where(test_data1["NUM"] > 1).collect() == [Row(2, False, "b")]
     assert test_data1.where(test_data1["NUM"] > lit(1)).collect() == [
-        Row([2, False, "b"])
+        Row(2, False, "b")
     ]
-    assert test_data1.where(test_data1["NUM"] < 2).collect() == [Row([1, True, "a"])]
+    assert test_data1.where(test_data1["NUM"] < 2).collect() == [Row(1, True, "a")]
     assert test_data1.where(test_data1["NUM"] < lit(2)).collect() == [
-        Row([1, True, "a"])
+        Row(1, True, "a")
     ]
 
 
 def test_leq_and_geq(session):
     test_data1 = TestData.test_data1(session)
-    assert test_data1.where(test_data1["NUM"] >= 2).collect() == [Row([2, False, "b"])]
+    assert test_data1.where(test_data1["NUM"] >= 2).collect() == [Row(2, False, "b")]
     assert test_data1.where(test_data1["NUM"] >= lit(2)).collect() == [
-        Row([2, False, "b"])
+        Row(2, False, "b")
     ]
-    assert test_data1.where(test_data1["NUM"] <= 1).collect() == [Row([1, True, "a"])]
+    assert test_data1.where(test_data1["NUM"] <= 1).collect() == [Row(1, True, "a")]
     assert test_data1.where(test_data1["NUM"] <= lit(1)).collect() == [
-        Row([1, True, "a"])
+        Row(1, True, "a")
     ]
     assert test_data1.where(test_data1["NUM"].between(lit(0), lit(1))).collect() == [
-        Row([1, True, "a"])
+        Row(1, True, "a")
     ]
     assert test_data1.where(test_data1["NUM"].between(0, 1)).collect() == [
-        Row([1, True, "a"])
+        Row(1, True, "a")
     ]
 
 
@@ -138,9 +138,9 @@ def test_nan_and_null(session):
     res_row = res[0]
     assert math.isnan(res_row[0])
     assert res_row[1] == 3
-    assert df.where(df["A"].is_null()).collect() == [Row([None, 2])]
+    assert df.where(df["A"].is_null()).collect() == [Row(None, 2)]
     res_row1, res_row2 = df.where(df["A"].is_not_null()).collect()
-    assert res_row1 == Row([1.1, 1])
+    assert res_row1 == Row(1.1, 1)
     assert math.isnan(res_row2[0])
     assert res_row2[1] == 3
 
@@ -149,11 +149,11 @@ def test_and_or(session):
     df = session.sql(
         "select * from values(true,true),(true,false),(false,true),(false,false) as T(a, b)"
     )
-    assert df.where(df["A"] & df["B"]).collect() == [Row([True, True])]
+    assert df.where(df["A"] & df["B"]).collect() == [Row(True, True)]
     assert df.where(df["A"] | df["B"]).collect() == [
-        Row([True, True]),
-        Row([True, False]),
-        Row([False, True]),
+        Row(True, True),
+        Row(True, False),
+        Row(False, True),
     ]
 
 
@@ -167,7 +167,7 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     res = df.select(df["A"] / df["B"]).collect()
     assert len(res) == 1
     assert len(res[0]) == 1
-    assert res[0].get_decimal(0).to_eng_string() == "0.846154"
+    assert res[0][0].to_eng_string() == "0.846154"
 
     # test reverse operator
     assert df.select(2 + df["B"]).collect() == [Row(15)]
@@ -178,7 +178,7 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     res = df.select(2 / df["B"]).collect()
     assert len(res) == 1
     assert len(res[0]) == 1
-    assert res[0].get_decimal(0).to_eng_string() == "0.153846"
+    assert res[0][0].to_eng_string() == "0.153846"
 
 
 def test_cast(session):
@@ -247,15 +247,15 @@ def test_withcolumn_with_special_column_names(session):
     # Ensure that One and "One" are different column names
     Utils.check_answer(
         session.createDataFrame([[1]]).toDF(['"One"']).withColumn("Two", lit("two")),
-        Row([1, "two"]),
+        Row(1, "two"),
     )
     Utils.check_answer(
         session.createDataFrame([[1]]).toDF(['"One"']).withColumn("One", lit("two")),
-        Row([1, "two"]),
+        Row(1, "two"),
     )
     Utils.check_answer(
         session.createDataFrame([[1]]).toDF(["One"]).withColumn('"One"', lit("two")),
-        Row([1, "two"]),
+        Row(1, "two"),
     )
 
     # Ensure that One and ONE are the same
@@ -600,4 +600,4 @@ def test_when_case(session):
 
 def test_lit_contains_single_quote(session):
     df = session.createDataFrame([[1, "'"], [2, "''"]]).toDF(["a", "b"])
-    assert df.where(col("b") == "'").collect() == [Row([1, "'"])]
+    assert df.where(col("b") == "'").collect() == [Row(1, "'")]

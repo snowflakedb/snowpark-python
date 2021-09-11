@@ -16,23 +16,20 @@ from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
 def test_join_using(session):
-
     df = session.createDataFrame([[i, str(i)] for i in range(1, 4)]).toDF(
         ["int", "str"]
     )
     df2 = session.createDataFrame([[i, str(i + 1)] for i in range(1, 4)]).toDF(
         ["int", "str"]
     )
-
     assert df.join(df2, "int").collect() == [
-        Row([1, "1", "2"]),
-        Row([2, "2", "3"]),
-        Row([3, "3", "4"]),
+        Row(1, "1", "2"),
+        Row(2, "2", "3"),
+        Row(3, "3", "4"),
     ]
 
 
 def test_join_using_multiple_columns(session):
-
     df = session.createDataFrame([[i, i + 1, str(i)] for i in range(1, 4)]).toDF(
         ["int", "int2", "str"]
     )
@@ -42,11 +39,10 @@ def test_join_using_multiple_columns(session):
 
     res = df.join(df2, ["int", "int2"]).collect()
     assert sorted(res, key=lambda x: x[0]) == [
-        Row([1, 2, "1", "2"]),
-        Row([2, 3, "2", "3"]),
-        Row([3, 4, "3", "4"]),
+        Row(1, 2, "1", "2"),
+        Row(2, 3, "2", "3"),
+        Row(3, 4, "3", "4"),
     ]
-
 
 def test_full_outer_join_followed_by_inner_join(session):
 
@@ -56,11 +52,10 @@ def test_full_outer_join_followed_by_inner_join(session):
 
     ab = a.join(b, ["a"], "fullouter")
     abc = ab.join(c, "a")
-    assert abc.collect() == [Row([3, None, 4, 1])]
+    assert abc.collect() == [Row(3, None, 4, 1)]
 
 
 def test_limit_with_join(session):
-
     df = session.createDataFrame([[1, 1, "1"], [2, 2, "3"]]).toDF(
         ["int", "int2", "str"]
     )
@@ -73,11 +68,10 @@ def test_limit_with_join(session):
         .join(df2.limit(limit), ["int", "int2"], "inner")
         .agg(count(col("int")))
     )
-    assert inner.collect() == [Row([1])]
+    assert inner.collect() == [Row(1)]
 
 
 def test_default_inner_join(session):
-
     df = session.createDataFrame([1, 2]).toDF(["a"])
     df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
         ["a", "b"]
@@ -86,10 +80,10 @@ def test_default_inner_join(session):
     res = df.join(df2).collect()
     res.sort(key=lambda x: (x[0], x[1]))
     assert res == [
-        Row([1, 1, "test1"]),
-        Row([1, 2, "test2"]),
-        Row([2, 1, "test1"]),
-        Row([2, 2, "test2"]),
+        Row(1, 1, "test1"),
+        Row(1, 2, "test2"),
+        Row(2, 1, "test1"),
+        Row(2, 2, "test2"),
     ]
 
 
@@ -100,8 +94,8 @@ def test_default_inner_join_using_column(session):
         ["a", "b"]
     )
 
-    assert df.join(df2, "a").collect() == [Row([1, "test1"]), Row([2, "test2"])]
-    assert df.join(df2, "a").filter(col("a") > 1).collect() == [Row([2, "test2"])]
+    assert df.join(df2, "a").collect() == [Row(1, "test1"), Row(2, "test2")]
+    assert df.join(df2, "a").filter(col("a") > 1).collect() == [Row(2, "test2")]
 
 
 def test_3_way_joins(session):
@@ -116,7 +110,7 @@ def test_3_way_joins(session):
 
     # 3 way join with column renaming
     res = df1.join(df2, "a").toDF(["num", "key"]).join(df3, ["key"]).collect()
-    assert res == [Row(["test1", 1, "hello1"]), Row(["test2", 2, "hello2"])]
+    assert res == [Row("test1", 1, "hello1"), Row("test2", 2, "hello2")]
 
 
 def test_default_inner_join_with_join_conditions(session):
@@ -130,8 +124,8 @@ def test_default_inner_join_with_join_conditions(session):
 
     res = df1.join(df2, df1["a"] == df2["num"]).collect()
     assert sorted(res, key=lambda x: x[0]) == [
-        Row([1, "test1", 1, "num1"]),
-        Row([2, "test2", 2, "num2"]),
+        Row(1, "test1", 1, "num1"),
+        Row(2, "test2", 2, "num2"),
     ]
 
 
@@ -176,33 +170,34 @@ def test_join_using_multiple_columns_and_specifying_join_type(session, db_parame
         df = session.table(table_name1)
         df2 = session.table(table_name2)
 
-        assert df.join(df2, ["int", "str"], "inner").collect() == [Row([1, "1", 2, 3])]
+        assert df.join(df2, ["int", "str"], "inner").collect() == [Row(1, "1", 2, 3)]
 
         res = df.join(df2, ["int", "str"], "left").collect()
         assert sorted(res, key=lambda x: x[0]) == [
-            Row([1, "1", 2, 3]),
-            Row([3, "3", 4, None]),
+            Row(1, "1", 2, 3),
+            Row(3, "3", 4, None),
         ]
 
         res = df.join(df2, ["int", "str"], "right").collect()
         assert sorted(res, key=lambda x: x[0]) == [
-            Row([1, "1", 2, 3]),
-            Row([5, "5", None, 6]),
+            Row(1, "1", 2, 3),
+            Row(5, "5", None, 6),
         ]
 
         res = df.join(df2, ["int", "str"], "outer").collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-            Row([1, "1", 2, 3]),
-            Row([3, "3", 4, None]),
-            Row([5, "5", None, 6]),
+
+            Row(1, "1", 2, 3),
+            Row(3, "3", 4, None),
+            Row(5, "5", None, 6),
         ]
 
-        assert df.join(df2, ["int", "str"], "left_semi").collect() == [Row([1, 2, "1"])]
-        assert df.join(df2, ["int", "str"], "semi").collect() == [Row([1, 2, "1"])]
+        assert df.join(df2, ["int", "str"], "left_semi").collect() == [Row(1, 2, "1")]
+        assert df.join(df2, ["int", "str"], "semi").collect() == [Row(1, 2, "1")]
 
-        assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row([3, 4, "3"])]
-        assert df.join(df2, ["int", "str"], "anti").collect() == [Row([3, 4, "3"])]
+        assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row(3, 4, "3")]
+        assert df.join(df2, ["int", "str"], "anti").collect() == [Row(3, 4, "3")]
     finally:
         Utils.drop_table(session, table_name1)
         Utils.drop_table(session, table_name2)
@@ -227,10 +222,10 @@ def test_join_using_conditions_and_specifying_join_type(session):
 
         join_cond = (df["a1"] == df2["a2"]) & (df["str1"] == df2["str2"])
 
-        Utils.check_answer(df.join(df2, join_cond, "left_semi"), [Row([1, 2, "1"])])
-        Utils.check_answer(df.join(df2, join_cond, "semi"), [Row([1, 2, "1"])])
-        Utils.check_answer(df.join(df2, join_cond, "left_anti"), [Row([3, 4, "3"])])
-        Utils.check_answer(df.join(df2, join_cond, "anti"), [Row([3, 4, "3"])])
+        Utils.check_answer(df.join(df2, join_cond, "left_semi"), [Row(1, 2, "1")])
+        Utils.check_answer(df.join(df2, join_cond, "semi"), [Row(1, 2, "1")])
+        Utils.check_answer(df.join(df2, join_cond, "left_anti"), [Row(3, 4, "3")])
+        Utils.check_answer(df.join(df2, join_cond, "anti"), [Row(3, 4, "3")])
     finally:
         Utils.drop_table(session, table_name1)
         Utils.drop_table(session, table_name2)
@@ -239,21 +234,21 @@ def test_join_using_conditions_and_specifying_join_type(session):
 def test_natural_join(session):
     df = session.createDataFrame([1, 2]).toDF("a")
     df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF("a", "b")
-    Utils.check_answer(df.naturalJoin(df2), [Row([1, "test1"]), Row([2, "test2"])])
+    Utils.check_answer(df.naturalJoin(df2), [Row(1, "test1"), Row(2, "test2")])
 
 
 def test_natural_outer_join(session):
     df1 = session.createDataFrame([[1, "1"], [3, "3"]]).toDF("a", "b")
     df2 = session.createDataFrame([[1, "1"], [4, "4"]]).toDF("a", "c")
     Utils.check_answer(
-        df1.naturalJoin(df2, "left"), [Row([1, "1", "1"]), Row([3, "3", None])]
+        df1.naturalJoin(df2, "left"), [Row(1, "1", "1"), Row(3, "3", None)]
     )
     Utils.check_answer(
-        df1.naturalJoin(df2, "right"), [Row([1, "1", "1"]), Row([4, None, "4"])]
+        df1.naturalJoin(df2, "right"), [Row(1, "1", "1"), Row(4, None, "4")]
     )
     Utils.check_answer(
         df1.naturalJoin(df2, "outer"),
-        [Row([1, "1", "1"]), Row([3, "3", None]), Row([4, None, "4"])],
+        [Row(1, "1", "1"), Row(3, "3", None), Row(4, None, "4")],
     )
 
 
@@ -264,19 +259,19 @@ def test_cross_join(session):
     res = df1.crossJoin(df2).collect()
     res.sort(key=lambda x: x[0])
     assert res == [
-        Row([1, "1", 2, "2"]),
-        Row([1, "1", 4, "4"]),
-        Row([3, "3", 2, "2"]),
-        Row([3, "3", 4, "4"]),
+        Row(1, "1", 2, "2"),
+        Row(1, "1", 4, "4"),
+        Row(3, "3", 2, "2"),
+        Row(3, "3", 4, "4"),
     ]
 
     res = df2.crossJoin(df1).collect()
     res.sort(key=lambda x: (x[0], x[2]))
     assert res == [
-        Row([2, "2", 1, "1"]),
-        Row([2, "2", 3, "3"]),
-        Row([4, "4", 1, "1"]),
-        Row([4, "4", 3, "3"]),
+        Row(2, "2", 1, "1"),
+        Row(2, "2", 3, "3"),
+        Row(4, "4", 1, "1"),
+        Row(4, "4", 3, "3"),
     ]
 
 
@@ -289,12 +284,12 @@ def test_join_ambiguous_columns_with_specified_sources(session):
 
     res = df.join(df2, df["a"] == df2["a"]).collect()
     assert sorted(res, key=lambda x: x[0]) == [
-        Row([1, 1, "test1"]),
-        Row([2, 2, "test2"]),
+        Row(1, 1, "test1"),
+        Row(2, 2, "test2"),
     ]
 
     res = df.join(df2, df["a"] == df2["a"]).select(df["a"] * df2["a"], "b").collect()
-    assert sorted(res, key=lambda x: x[0]) == [Row([1, "test1"]), Row([4, "test2"])]
+    assert sorted(res, key=lambda x: x[0]) == [Row(1, "test1"), Row(4, "test2")]
 
 
 def test_join_ambiguous_columns_without_specified_sources(session_cnx):
@@ -339,7 +334,7 @@ def test_join_expression_ambiguous_columns(session):
     )
 
     res = sorted(df.collect(), key=lambda x: x[0])
-    assert res == [Row([2, -1, -10, "one", "one"]), Row([4, -2, -20, "two", "two"])]
+    assert res == [Row(2, -1, -10, "one", "one"), Row(4, -2, -20, "two", "two")]
 
 
 @pytest.mark.skip(message="Ignored in Scala tests since this only produces a warning")
@@ -380,14 +375,14 @@ def test_semi_join_with_columns_from_LHS(session):
         .select("intcol")
         .collect()
     )
-    assert res == [Row([1]), Row([2])]
+    assert res == [Row(1), Row(2)]
 
     res = (
         rhs.join(lhs, lhs["intcol"] == rhs["intcol"], "leftsemi")
         .select("intcol")
         .collect()
     )
-    assert res == [Row([1]), Row([2])]
+    assert res == [Row(1), Row(2)]
 
     res = (
         lhs.join(
@@ -423,11 +418,10 @@ def test_semi_join_with_columns_from_LHS(session):
         .select(lhs["intcol"])
         .collect()
     )
-    assert sorted(res, key=lambda x: x[0]) == [Row([1]), Row([2])]
+    assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
 
 
 def test_using_joins(session):
-
     lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
         ["intcol", "negcol", "lhscol"]
     )
@@ -438,14 +432,14 @@ def test_using_joins(session):
     for join_type in ["inner", "leftouter", "rightouter", "full_outer"]:
         res = lhs.join(rhs, ["intcol"], join_type).select("*").collect()
         assert res == [
-            Row([1, -1, "one", -10, "one"]),
-            Row([2, -2, "two", -20, "two"]),
+            Row(1, -1, "one", -10, "one"),
+            Row(2, -2, "two", -20, "two"),
         ]
 
         res = lhs.join(rhs, ["intcol"], join_type).collect()
         assert res == [
-            Row([1, -1, "one", -10, "one"]),
-            Row([2, -2, "two", -20, "two"]),
+            Row(1, -1, "one", -10, "one"),
+            Row(2, -2, "two", -20, "two"),
         ]
 
         # TODO requires wrapException
@@ -455,13 +449,13 @@ def test_using_joins(session):
         # assert 'ambiguous' in str(ex_info)
 
         res = lhs.join(rhs, ["intcol"], join_type).select("intcol").collect()
-        assert res == [Row([1]), Row([2])]
+        assert res == [Row(1), Row(2)]
         res = (
             lhs.join(rhs, ["intcol"], join_type)
             .select(lhs["negcol"], rhs["negcol"])
             .collect()
         )
-        assert sorted(res, key=lambda x: -x[0]) == [Row([-1, -10]), Row([-2, -20])]
+        assert sorted(res, key=lambda x: -x[0]) == [Row(-1, -10), Row(-2, -20)]
 
 
 def test_columns_with_and_without_quotes(session):
@@ -474,7 +468,7 @@ def test_columns_with_and_without_quotes(session):
         .select(lhs['"INTCOL"'], rhs["intcol"], "doublecol", col('"DoubleCol"'))
         .collect()
     )
-    assert res == [Row([1, 1, 1.0, 2.0])]
+    assert res == [Row(1, 1, 1.0, 2.0)]
 
     res = (
         lhs.join(rhs, lhs["doublecol"] == rhs['"DoubleCol"'])
@@ -517,7 +511,7 @@ def test_aliases_multiple_levels_deep(session):
         .select((lhs["intcol"] + rhs["intcol"]), "newCol")
         .collect()
     )
-    assert sorted(res, key=lambda x: x[0]) == [Row([2, -11]), Row([4, -22])]
+    assert sorted(res, key=lambda x: x[0]) == [Row(2, -11), Row(4, -22)]
 
 
 def test_join_sql_as_the_backing_dataframe(session):
@@ -534,31 +528,31 @@ def test_join_sql_as_the_backing_dataframe(session):
             "select 1 as INT, 3 as INT2, '1' as STR UNION select 5 as INT, 6 as INT2, '5' as STR"
         )
 
-        assert df.join(df2, ["int", "str"], "inner").collect() == [Row([1, "1", 2, 3])]
+        assert df.join(df2, ["int", "str"], "inner").collect() == [Row(1, "1", 2, 3)]
 
         assert df.join(df2, ["int", "str"], "left").collect() == [
-            Row([1, "1", 2, 3]),
-            Row([3, "3", 4, None]),
+            Row(1, "1", 2, 3),
+            Row(3, "3", 4, None),
         ]
 
         assert df.join(df2, ["int", "str"], "right").collect() == [
-            Row([1, "1", 2, 3]),
-            Row([5, "5", None, 6]),
+            Row(1, "1", 2, 3),
+            Row(5, "5", None, 6),
         ]
 
         res = df.join(df2, ["int", "str"], "outer").collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-            Row([1, "1", 2, 3]),
-            Row([3, "3", 4, None]),
-            Row([5, "5", None, 6]),
+            Row(1, "1", 2, 3),
+            Row(3, "3", 4, None),
+            Row(5, "5", None, 6),
         ]
 
-        assert df.join(df2, ["int", "str"], "left_semi").collect() == [Row([1, 2, "1"])]
-        assert df.join(df2, ["int", "str"], "semi").collect() == [Row([1, 2, "1"])]
+        assert df.join(df2, ["int", "str"], "left_semi").collect() == [Row(1, 2, "1")]
+        assert df.join(df2, ["int", "str"], "semi").collect() == [Row(1, 2, "1")]
 
-        assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row([3, 4, "3"])]
-        assert df.join(df2, ["int", "str"], "anti").collect() == [Row([3, 4, "3"])]
+        assert df.join(df2, ["int", "str"], "left_anti").collect() == [Row(3, 4, "3")]
+        assert df.join(df2, ["int", "str"], "anti").collect() == [Row(3, 4, "3")]
 
     finally:
         Utils.drop_table(session, table_name1)
@@ -599,26 +593,26 @@ def test_clone_can_help_these_self_joins(session):
 
         # inner self join
         assert df.join(cloned_df, df["c1"] == cloned_df["c2"]).collect() == [
-            Row([2, 3, 1, 2])
+            Row(2, 3, 1, 2)
         ]
 
         # left self join
         res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "left").collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, 2, None, None]), Row([2, 3, 1, 2])]
+        assert res == [Row(1, 2, None, None), Row(2, 3, 1, 2)]
 
         # right self join
         res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "right").collect()
         res.sort(key=lambda x: x[0] or 0)
-        assert res == [Row([None, None, 2, 3]), Row([2, 3, 1, 2])]
+        assert res == [Row(None, None, 2, 3), Row(2, 3, 1, 2)]
 
         # outer self join
         res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "outer").collect()
         res.sort(key=lambda x: x[0] or 0)
         assert res == [
-            Row([None, None, 2, 3]),
-            Row([1, 2, None, None]),
-            Row([2, 3, 1, 2]),
+            Row(None, None, 2, 3),
+            Row(1, 2, None, None),
+            Row(2, 3, 1, 2),
         ]
 
     finally:
@@ -636,26 +630,26 @@ def test_natural_cross_joins(session):
         cloned_df = df.clone()
 
         # "natural join" supports self join
-        assert df.naturalJoin(df2).collect() == [Row([1, 2]), Row([2, 3])]
-        assert df.naturalJoin(cloned_df).collect() == [Row([1, 2]), Row([2, 3])]
+        assert df.naturalJoin(df2).collect() == [Row(1, 2), Row(2, 3)]
+        assert df.naturalJoin(cloned_df).collect() == [Row(1, 2), Row(2, 3)]
 
         # "cross join" supports self join
         res = df.crossJoin(df2).collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-            Row([1, 2, 1, 2]),
-            Row([1, 2, 2, 3]),
-            Row([2, 3, 1, 2]),
-            Row([2, 3, 2, 3]),
+            Row(1, 2, 1, 2),
+            Row(1, 2, 2, 3),
+            Row(2, 3, 1, 2),
+            Row(2, 3, 2, 3),
         ]
 
         res = df.crossJoin(df2).collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-            Row([1, 2, 1, 2]),
-            Row([1, 2, 2, 3]),
-            Row([2, 3, 1, 2]),
-            Row([2, 3, 2, 3]),
+            Row(1, 2, 1, 2),
+            Row(1, 2, 2, 3),
+            Row(2, 3, 1, 2),
+            Row(2, 3, 2, 3),
         ]
 
     finally:
@@ -670,24 +664,23 @@ def test_clone_with_join_dataframe(session):
         session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
         df = session.table(table_name1)
 
-        assert df.collect() == [Row([1, 2]), Row([2, 3])]
+        assert df.collect() == [Row(1, 2), Row(2, 3)]
 
         cloned_df = df.clone()
         #  Cloned DF has the same conent with original DF
-        assert cloned_df.collect() == [Row([1, 2]), Row([2, 3])]
+        assert cloned_df.collect() == [Row(1, 2), Row(2, 3)]
 
         join_df = df.join(cloned_df, df["c1"] == cloned_df["c2"])
-        assert join_df.collect() == [Row([2, 3, 1, 2])]
+        assert join_df.collect() == [Row(2, 3, 1, 2)]
         # Cloned join DF
         cloned_join_df = join_df.clone()
-        assert cloned_join_df.collect() == [Row([2, 3, 1, 2])]
+        assert cloned_join_df.collect() == [Row(2, 3, 1, 2)]
 
     finally:
         Utils.drop_table(session, table_name1)
 
 
 def test_join_on_join(session):
-
     table_name1 = Utils.random_name()
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -696,7 +689,7 @@ def test_join_on_join(session):
         df_r = df_l.clone()
         df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
 
-        assert df_j.collect() == [Row([1, 1, 1, 1]), Row([2, 2, 2, 2])]
+        assert df_j.collect() == [Row(1, 1, 1, 1), Row(2, 2, 2, 2)]
 
         df_j_clone = df_j.clone()
         # Because of duplicate column name rename, we have to get a name.
@@ -704,8 +697,8 @@ def test_join_on_join(session):
         df_j_j = df_j.join(df_j_clone, df_j[col_name] == df_j_clone[col_name])
 
         assert df_j_j.collect() == [
-            Row([1, 1, 1, 1, 1, 1, 1, 1]),
-            Row([2, 2, 2, 2, 2, 2, 2, 2]),
+            Row(1, 1, 1, 1, 1, 1, 1, 1),
+            Row(2, 2, 2, 2, 2, 2, 2, 2),
         ]
 
     finally:
@@ -748,7 +741,7 @@ def test_drop_on_join(session):
         df1 = session.table(table_name_1)
         df2 = session.table(table_name_2)
         df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
-        Utils.check_answer(df3, [Row(("a", 3, True)), Row(("b", 4, False))])
+        Utils.check_answer(df3, [Row("a", 3, True), Row("b", 4, False)])
         df4 = df3.drop(df2["c"], df1["b"], col("other"))
         Utils.check_answer(df4, [Row(3), Row(4)])
     finally:
@@ -765,7 +758,7 @@ def test_drop_on_self_join(session):
         df1 = session.table(table_name_1)
         df2 = df1.clone()
         df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
-        Utils.check_answer(df3, [Row(("a", 1, True)), Row(("b", 2, False))])
+        Utils.check_answer(df3, [Row("a", 1, True), Row("b", 2, False)])
         df4 = df3.drop(df2["c"], df1["b"], col("other"))
         Utils.check_answer(df4, [Row(1), Row(2)])
     finally:
@@ -788,7 +781,7 @@ def test_with_column_on_join(session):
             df1.join(df2, df1["c"] == df2["c"])
             .drop(df1["b"], df2["b"], df1["c"])
             .withColumn("newColumn", df1["a"] + df2["a"]),
-            [Row((1, 3, True, 4)), Row((2, 4, False, 6))],
+            [Row(1, 3, True, 4), Row(2, 4, False, 6)],
         )
     finally:
         Utils.drop_table(session, table_name_1)
@@ -807,7 +800,7 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
         df1.join(df2, df1["id"] == df2["id"], "left_outer").filter(
             is_null(df2["count"])
         ),
-        [Row([2, 0, None, None]), Row([3, 0, None, None]), Row([4, 0, None, None])],
+        [Row(2, 0, None, None), Row(3, 0, None, None), Row(4, 0, None, None)],
     )
 
     # Coallesce data using non-nullable columns in input tables
@@ -817,7 +810,7 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
         df3.join(df4, df3["a"] == df4["a"], "outer").select(
             coalesce(df3["a"], df3["b"]), coalesce(df4["a"], df4["b"])
         ),
-        [Row([1, None]), Row([None, 2])],
+        [Row(1, None), Row(None, 2)],
     )
 
 
@@ -834,13 +827,13 @@ def test_outer_join_conversion(session):
     outer_join_2_left = (
         df.join(df2, df["int"] == df2["int"], "outer").where(df["int"] >= 3).collect()
     )
-    assert outer_join_2_left == [Row([3, 4, "3", None, None, None])]
+    assert outer_join_2_left == [Row(3, 4, "3", None, None, None)]
 
     # outer -> right
     outer_join_2_right = (
         df.join(df2, df["int"] == df2["int"], "outer").where(df2["int"] >= 3).collect()
     )
-    assert outer_join_2_right == [Row([None, None, None, 5, 6, "5"])]
+    assert outer_join_2_right == [Row(None, None, None, 5, 6, "5")]
 
     # outer -> inner
     outer_join_2_inner = (
@@ -848,24 +841,23 @@ def test_outer_join_conversion(session):
         .where(df["int"] == 1 and df2["int2"] == 3)
         .collect()
     )
-    assert outer_join_2_inner == [Row([1, 2, "1", 1, 3, "1"])]
+    assert outer_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
 
     # right -> inner
     right_join_2_inner = (
         df.join(df2, df["int"] == df2["int"], "right").where(df["int"] > 0).collect()
     )
-    assert right_join_2_inner == [Row([1, 2, "1", 1, 3, "1"])]
+    assert right_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
 
     # left -> inner
     left_join_2_inner = (
         df.join(df2, df["int"] == df2["int"], "left").where(df2["int"] > 0).collect()
     )
-    assert left_join_2_inner == [Row([1, 2, "1", 1, 3, "1"])]
+    assert left_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
 
 
 def test_dont_throw_analysis_exception_in_check_cartesian(session):
     """Don't throw Analysis Exception in CheckCartesianProduct when join condition is false or null"""
-
     df = session.range(10).toDF(["id"])
     dfNull = session.range(10).select(lit(None).as_("b"))
     df.join(dfNull, col("id") == col("b"), "left").collect()
@@ -876,7 +868,6 @@ def test_dont_throw_analysis_exception_in_check_cartesian(session):
 
 
 def test_name_alias_on_multiple_join(session):
-
     table_trips = Utils.random_name()
     table_stations = Utils.random_name()
     try:
@@ -1118,7 +1109,7 @@ def test_select_columns_on_join_result_with_conflict_name(session):
     assert df1.schema.fields[1].name == "B"
     assert len(re.search('"r_.*_A"', df1.schema.fields[2].name).group(0)) > 0
     assert df1.schema.fields[3].name == "D"
-    assert df1.collect() == [Row([1, 2, 3, 4])]
+    assert df1.collect() == [Row(1, 2, 3, 4)]
 
     df2 = df.select(df_right.a, df_left.a)
     # Get right-left conflict columns
@@ -1126,7 +1117,7 @@ def test_select_columns_on_join_result_with_conflict_name(session):
     # |"r_v3Ms_A"  |"l_Xb7d_A"  |
     assert len(re.search('"r_.*_A"', df2.schema.fields[0].name).group(0)) > 0
     assert len(re.search('"l_.*_A"', df2.schema.fields[1].name).group(0)) > 0
-    assert df2.collect() == [Row([3, 1])]
+    assert df2.collect() == [Row(3, 1)]
 
     df3 = df.select(df_left.a, df_right.a)
     # Get left-right conflict columns
@@ -1134,7 +1125,7 @@ def test_select_columns_on_join_result_with_conflict_name(session):
     # |"l_v3Ms_A"  |"r_Xb7d_A"  |
     assert len(re.search('"l_.*_A"', df3.schema.fields[0].name).group(0)) > 0
     assert len(re.search('"r_.*_A"', df3.schema.fields[1].name).group(0)) > 0
-    assert df3.collect() == [Row([1, 3])]
+    assert df3.collect() == [Row(1, 3)]
 
     df4 = df.select(df_right["*"], df_left.a)
     # Get rightAll-left conflict columns
@@ -1143,4 +1134,4 @@ def test_select_columns_on_join_result_with_conflict_name(session):
     assert len(re.search('"r_.*_A"', df4.schema.fields[0].name).group(0)) > 0
     assert df4.schema.fields[1].name == "D"
     assert len(re.search('"l_.*_A"', df4.schema.fields[2].name).group(0)) > 0
-    assert df4.collect() == [Row([3, 4, 1])]
+    assert df4.collect() == [Row(3, 4, 1)]

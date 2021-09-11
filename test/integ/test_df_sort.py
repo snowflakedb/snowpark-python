@@ -18,27 +18,27 @@ def test_sort_basic(session_cnx):
         # asc with 1 column
         sorted_rows = df.sort(Column("a").asc()).collect()
         for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1].get_int(0) <= sorted_rows[idx].get_int(0)
+            assert sorted_rows[idx - 1][0] <= sorted_rows[idx][0]
 
         # desc with 1 column
         sorted_rows = df.sort(Column("a").desc()).collect()
         for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1].get_int(0) >= sorted_rows[idx].get_int(0)
+            assert sorted_rows[idx - 1][0] >= sorted_rows[idx][0]
 
         # asc with 2 columns
         sorted_rows = df.sort(Column("a").asc(), Column("b").asc()).collect()
         for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1].get_int(0) < sorted_rows[idx].get_int(0) or (
-                sorted_rows[idx - 1].get_int(0) == sorted_rows[idx].get_int(0)
-                and sorted_rows[idx - 1].get_int(1) <= sorted_rows[idx].get_int(1)
+            assert sorted_rows[idx - 1][0] < sorted_rows[idx][0] or (
+                sorted_rows[idx - 1][0] == sorted_rows[idx][0]
+                and sorted_rows[idx - 1][1] <= sorted_rows[idx][1]
             )
 
         # desc with 2 columns
         sorted_rows = df.sort(Column("a").desc(), Column("b").desc()).collect()
         for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1].get_int(0) > sorted_rows[idx].get_int(0) or (
-                sorted_rows[idx - 1].get_int(0) == sorted_rows[idx].get_int(0)
-                and sorted_rows[idx - 1].get_int(1) >= sorted_rows[idx].get_int(1)
+            assert sorted_rows[idx - 1][0] > sorted_rows[idx][0] or (
+                sorted_rows[idx - 1][0] == sorted_rows[idx][0]
+                and sorted_rows[idx - 1][1] >= sorted_rows[idx][1]
             )
 
 
@@ -51,35 +51,35 @@ def test_sort_different_inputs(session_cnx):
         # str and asc
         sorted_rows = df.sort("a", ascending=True).collect()
         for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1].get_int(0) <= sorted_rows[idx].get_int(0)
+            assert sorted_rows[idx - 1][0] <= sorted_rows[idx][0]
 
         # Column and desc
         sorted_rows = df.sort(Column("a"), ascending=False).collect()
         for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1].get_int(0) >= sorted_rows[idx].get_int(0)
+            assert sorted_rows[idx - 1][0] >= sorted_rows[idx][0]
 
         # str, str and order default (asc)
         sorted_rows = df.sort("a", "b").collect()
         for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1].get_int(0) < sorted_rows[idx].get_int(0) or (
-                sorted_rows[idx - 1].get_int(0) == sorted_rows[idx].get_int(0)
-                and sorted_rows[idx - 1].get_int(1) <= sorted_rows[idx].get_int(1)
+            assert sorted_rows[idx - 1][0] < sorted_rows[idx][0] or (
+                sorted_rows[idx - 1][0] == sorted_rows[idx][0]
+                and sorted_rows[idx - 1][1] <= sorted_rows[idx][1]
             )
 
         # List[str] and order list
         sorted_rows = df.sort(["a", "b"], ascending=[True, False]).collect()
         for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1].get_int(0) < sorted_rows[idx].get_int(0) or (
-                sorted_rows[idx - 1].get_int(0) == sorted_rows[idx].get_int(0)
-                and sorted_rows[idx - 1].get_int(1) >= sorted_rows[idx].get_int(1)
+            assert sorted_rows[idx - 1][0] < sorted_rows[idx][0] or (
+                sorted_rows[idx - 1][0] == sorted_rows[idx][0]
+                and sorted_rows[idx - 1][1] >= sorted_rows[idx][1]
             )
 
         # List[Union[str, Column]] and order list overwrites the column
         sorted_rows = df.sort(["a", Column("b").desc()], ascending=[1, 1]).collect()
         for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1].get_int(0) < sorted_rows[idx].get_int(0) or (
-                sorted_rows[idx - 1].get_int(0) == sorted_rows[idx].get_int(0)
-                and sorted_rows[idx - 1].get_int(1) <= sorted_rows[idx].get_int(1)
+            assert sorted_rows[idx - 1][0] < sorted_rows[idx][0] or (
+                sorted_rows[idx - 1][0] == sorted_rows[idx][0]
+                and sorted_rows[idx - 1][1] <= sorted_rows[idx][1]
             )
 
 

@@ -18,7 +18,7 @@ from snowflake.snowpark.session import Session
 def test_select_1(session_cnx):
     with session_cnx() as session:
         res = session.sql("select 1").collect()
-        assert res == [Row([1])]
+        assert res == [Row(1)]
 
 
 def test_invalid_configs(db_parameters):
