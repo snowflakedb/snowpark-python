@@ -106,22 +106,22 @@ def test_create_dataframe_for_large_values_basic_types(session):
     row_count = 1024
     large_data = [
         Row(
-                i,
-                "a",
-                1,
-                2,
-                3,
-                4,
-                1.1,
-                1.2,
-                decimal.Decimal(0.5),
-                True,
-                bytearray([1, 2]),
-                datetime.datetime.strptime(
-                    "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
-                ),
-                datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
-                datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+            i,
+            "a",
+            1,
+            2,
+            3,
+            4,
+            1.1,
+            1.2,
+            decimal.Decimal(0.5),
+            True,
+            bytearray([1, 2]),
+            datetime.datetime.strptime(
+                "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
+            ),
+            datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+            datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
         )
         for i in range(row_count)
     ]
