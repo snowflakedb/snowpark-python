@@ -30,19 +30,19 @@ def test_union_with_filters(session_cnx):
         check(
             lit(None).cast(IntegerType()),
             col("c").is_null(),
-            [Row([1, 1, None, 100]), Row([1, 1, None, 100])],
+            [Row(1, 1, None, 100), Row(1, 1, None, 100)],
         )
         check(lit(None).cast(IntegerType()), col("c").is_not_null(), list())
         check(lit(2).cast(IntegerType()), col("c").is_null(), list())
         check(
             lit(2).cast(IntegerType()),
             col("c").is_not_null(),
-            [Row([1, 1, 2, 100]), Row([1, 1, 2, 100])],
+            [Row(1, 1, 2, 100), Row(1, 1, 2, 100)],
         )
         check(
             lit(2).cast(IntegerType()),
             col("c") == 2,
-            [Row([1, 1, 2, 100]), Row([1, 1, 2, 100])],
+            [Row(1, 1, 2, 100), Row(1, 1, 2, 100)],
         )
         check(lit(2).cast(IntegerType()), col("c") != 2, list())
 
@@ -54,10 +54,10 @@ def test_except(session_cnx):
         Utils.check_answer(
             lower_case_data.except_(upper_case_data),
             [
-                Row((1, "a")),
-                Row((2, "b")),
-                Row((3, "c")),
-                Row((4, "d")),
+                Row(1, "a"),
+                Row(2, "b"),
+                Row(3, "c"),
+                Row(4, "d"),
             ],
         )
         Utils.check_answer(lower_case_data.except_(lower_case_data), [])
@@ -83,7 +83,7 @@ def test_except(session_cnx):
         ).toDF("id", "value")
         Utils.check_answer(
             df.except_(df.filter(lit(0) == 1)),
-            [Row(("id", 1)), Row(("id1", 1)), Row(("id1", 2))],
+            [Row("id", 1), Row("id1", 1), Row("id1", 2)],
         )
 
         # check if the empty set on the left side works
@@ -125,7 +125,7 @@ def test_union_all(session_cnx):
         union_df = td4.union(td4).union(td4).union(td4).union(td4)
 
         res = union_df.agg([min(col("key")), sum(col("key"))]).collect()
-        assert res == [Row([1, 25250])]
+        assert res == [Row(1, 25250)]
 
         # unionAll is an alias of union
         union_all_df = td4.unionAll(td4).unionAll(td4).unionAll(td4).unionAll(td4)
@@ -198,7 +198,7 @@ def test_intersect(session_cnx):
         lcd = TestData.lower_case_data(session)
         res = lcd.intersect(lcd).collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "a"]), Row([2, "b"]), Row([3, "c"]), Row([4, "d"])]
+        assert res == [Row(1, "a"), Row(2, "b"), Row(3, "c"), Row(4, "d")]
 
         assert lcd.intersect(TestData.upper_case_data(session)).collect() == []
 
@@ -206,7 +206,7 @@ def test_intersect(session_cnx):
         df = TestData.null_ints(session).intersect(TestData.null_ints(session))
         res = df.collect()
         res.sort(key=lambda x: x[0] or 0)
-        assert res == [Row([None]), Row([1]), Row([2]), Row([3])]
+        assert res == [Row(None), Row(1), Row(2), Row(3)]
 
         # check if values are de-duplicated
         df = TestData.all_nulls(session).intersect(TestData.all_nulls(session))
@@ -218,7 +218,7 @@ def test_intersect(session_cnx):
         ).toDF("id", "value")
         res = df.intersect(df).collect()
         res.sort(key=lambda x: (x[0], x[1]))
-        assert res == [Row(["id", 1]), Row(["id1", 1]), Row(["id1", 2])]
+        assert res == [Row("id", 1), Row("id1", 1), Row("id1", 2)]
 
 
 def test_project_should_not_be_pushed_down_through_intersect_or_except(session_cnx):

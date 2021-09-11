@@ -56,21 +56,21 @@ def test_distinct(session_cnx):
 
         res = df.distinct().sort(["id", "v"]).collect()
         assert res == [
-            Row([None, None]),
-            Row([None, 1]),
-            Row([1, None]),
-            Row([1, 1]),
-            Row([2, 2]),
-            Row([3, 3]),
-            Row([4, 4]),
-            Row([5, 5]),
+            Row(None, None),
+            Row(None, 1),
+            Row(1, None),
+            Row(1, 1),
+            Row(2, 2),
+            Row(3, 3),
+            Row(4, 4),
+            Row(5, 5),
         ]
 
         res = df.select(col("id")).distinct().sort(["id"]).collect()
-        assert res == [Row([None]), Row([1]), Row([2]), Row([3]), Row([4]), Row([5])]
+        assert res == [Row(None), Row(1), Row(2), Row(3), Row(4), Row(5)]
 
         res = df.select(col("v")).distinct().sort(["v"]).collect()
-        assert res == [Row([None]), Row([1]), Row([2]), Row([3]), Row([4]), Row([5])]
+        assert res == [Row(None), Row(1), Row(2), Row(3), Row(4), Row(5)]
 
 
 def test_first(session_cnx):
@@ -82,35 +82,35 @@ def test_first(session_cnx):
 
         # empty first, should default to 1
         res = df.first()
-        assert res == Row([1, "a"])
+        assert res == Row(1, "a")
 
         res = df.first(0)
         assert res == []
 
         res = df.first(1)
-        assert res == [Row([1, "a"])]
+        assert res == [Row(1, "a")]
 
         res = df.first(2)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "a"]), Row([2, "b"])]
+        assert res == [Row(1, "a"), Row(2, "b")]
 
         res = df.first(3)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "a"]), Row([2, "b"]), Row([3, "c"])]
+        assert res == [Row(1, "a"), Row(2, "b"), Row(3, "c")]
 
         res = df.first(4)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "a"]), Row([2, "b"]), Row([3, "c"]), Row([4, "d"])]
+        assert res == [Row(1, "a"), Row(2, "b"), Row(3, "c"), Row(4, "d")]
 
         # Negative value is equivalent to collect()
         res = df.first(-1)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "a"]), Row([2, "b"]), Row([3, "c"]), Row([4, "d"])]
+        assert res == [Row(1, "a"), Row(2, "b"), Row(3, "c"), Row(4, "d")]
 
         # first-value larger than cardinality
         res = df.first(123)
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "a"]), Row([2, "b"]), Row([3, "c"]), Row([4, "d"])]
+        assert res == [Row(1, "a"), Row(2, "b"), Row(3, "c"), Row(4, "d")]
 
         # test invalid type argument passed to first
         with pytest.raises(ValueError) as ex_info:
@@ -124,22 +124,22 @@ def test_new_df_from_range(session_cnx):
         # range(start, end, step)
         df = session.range(1, 10, 2)
         res = df.collect()
-        expected = [Row([1]), Row([3]), Row([5]), Row([7]), Row([9])]
+        expected = [Row(1), Row(3), Row(5), Row(7), Row(9)]
         assert res == expected
 
         # range(start, end)
         df = session.range(1, 10)
         res = df.collect()
         expected = [
-            Row([1]),
-            Row([2]),
-            Row([3]),
-            Row([4]),
-            Row([5]),
-            Row([6]),
-            Row([7]),
-            Row([8]),
-            Row([9]),
+            Row(1),
+            Row(2),
+            Row(3),
+            Row(4),
+            Row(5),
+            Row(6),
+            Row(7),
+            Row(8),
+            Row(9),
         ]
         assert res == expected
 
@@ -147,16 +147,16 @@ def test_new_df_from_range(session_cnx):
         df = session.range(10)
         res = df.collect()
         expected = [
-            Row([0]),
-            Row([1]),
-            Row([2]),
-            Row([3]),
-            Row([4]),
-            Row([5]),
-            Row([6]),
-            Row([7]),
-            Row([8]),
-            Row([9]),
+            Row(0),
+            Row(1),
+            Row(2),
+            Row(3),
+            Row(4),
+            Row(5),
+            Row(6),
+            Row(7),
+            Row(8),
+            Row(9),
         ]
         assert res == expected
 
@@ -166,20 +166,20 @@ def test_select_single_column(session_cnx):
     with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).select("id").collect()
-        expected = [Row([5]), Row([7]), Row([9])]
+        expected = [Row(5), Row(7), Row(9)]
         assert res == expected
 
         df = session.range(1, 10, 2)
         res = df.filter(col("id") < 4).select("id").collect()
-        expected = [Row([1]), Row([3])]
+        expected = [Row(1), Row(3)]
         assert res == expected
 
         res = session.range(1, 10, 2).select("id").filter(col("id") <= 4).collect()
-        expected = [Row([1]), Row([3])]
+        expected = [Row(1), Row(3)]
         assert res == expected
 
         res = session.range(1, 10, 2).select("id").filter(col("id") <= 3).collect()
-        expected = [Row([1]), Row([3])]
+        expected = [Row(1), Row(3)]
         assert res == expected
 
         res = session.range(1, 10, 2).select("id").filter(col("id") <= 0).collect()
@@ -192,13 +192,14 @@ def test_select_star(session_cnx):
     with session_cnx() as session:
         # Single column
         res = session.range(3, 8).select("*").collect()
-        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
-        assert res == expected
+        expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
+        result = res == expected
+        assert result
 
         # Two columns
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         res = df.select("*").collect()
-        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        expected = [Row(3, 3), Row(4, 4), Row(5, 5), Row(6, 6), Row(7, 7)]
         assert res == expected
 
 
@@ -207,13 +208,13 @@ def test_df_subscriptable(session_cnx):
     with session_cnx() as session:
         # Star, single column
         res = session.range(3, 8)[["*"]].collect()
-        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
         assert res == expected
 
         # Star, two columns
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         res = df[["*"]].collect()
-        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        expected = [Row(3, 3), Row(4, 4), Row(5, 5), Row(6, 6), Row(7, 7)]
         assert res == expected
         # without double brackets should refer to a Column object
         assert type(df["*"]) == Column
@@ -221,33 +222,33 @@ def test_df_subscriptable(session_cnx):
         # single column, str type
         df = session.range(3, 8)
         res = df[["ID"]].collect()
-        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
         assert res == expected
         assert type(df["ID"]) == Column
 
         # single column, int type
         df = session.range(3, 8)
         res = df[df[0] > 5].collect()
-        expected = [Row([6]), Row([7])]
+        expected = [Row(6), Row(7)]
         assert res == expected
         assert type(df[0]) == Column
 
         # two columns, list type
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         res = df[["ID", "ID_PRIME"]].collect()
-        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        expected = [Row(3, 3), Row(4, 4), Row(5, 5), Row(6, 6), Row(7, 7)]
         assert res == expected
 
         # two columns, tuple type
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         res = df[("ID", "ID_PRIME")].collect()
-        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        expected = [Row(3, 3), Row(4, 4), Row(5, 5), Row(6, 6), Row(7, 7)]
         assert res == expected
 
         # two columns, int type
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         res = df[[df[1].getName()]].collect()
-        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
         assert res == expected
 
 
@@ -256,20 +257,20 @@ def test_filter(session_cnx):
     with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).collect()
-        expected = [Row([5]), Row([7]), Row([9])]
+        expected = [Row(5), Row(7), Row(9)]
         assert res == expected
 
         df = session.range(1, 10, 2)
         res = df.filter(col("id") < 4).collect()
-        expected = [Row([1]), Row([3])]
+        expected = [Row(1), Row(3)]
         assert res == expected
 
         res = session.range(1, 10, 2).filter(col("id") <= 4).collect()
-        expected = [Row([1]), Row([3])]
+        expected = [Row(1), Row(3)]
         assert res == expected
 
         res = session.range(1, 10, 2).filter(col("id") <= 3).collect()
-        expected = [Row([1]), Row([3])]
+        expected = [Row(1), Row(3)]
         assert res == expected
 
         res = session.range(1, 10, 2).filter(col("id") <= 0).collect()
@@ -304,17 +305,17 @@ def test_filter_chained(session_cnx):
     with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).filter(col("id") > 1).collect()
-        expected = [Row([5]), Row([7]), Row([9])]
+        expected = [Row(5), Row(7), Row(9)]
         assert res == expected
 
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 1).filter(col("id") > 4).collect()
-        expected = [Row([5]), Row([7]), Row([9])]
+        expected = [Row(5), Row(7), Row(9)]
         assert res == expected
 
         df = session.range(1, 10, 2)
         res = df.filter(col("id") < 4).filter(col("id") < 4).collect()
-        expected = [Row([1]), Row([3])]
+        expected = [Row(1), Row(3)]
         assert res == expected
 
         res = (
@@ -323,7 +324,7 @@ def test_filter_chained(session_cnx):
             .filter(col("id") >= 0)
             .collect()
         )
-        expected = [Row([1]), Row([3])]
+        expected = [Row(1), Row(3)]
         assert res == expected
 
         res = (
@@ -332,7 +333,7 @@ def test_filter_chained(session_cnx):
             .filter(col("id") != 5)
             .collect()
         )
-        expected = [Row([1]), Row([3])]
+        expected = [Row(1), Row(3)]
         assert res == expected
 
 
@@ -341,27 +342,27 @@ def test_filter_chained_col_objects_int(session_cnx):
     with session_cnx() as session:
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 4).filter(col("id") > 1).collect()
-        expected = [Row([5]), Row([7]), Row([9])]
+        expected = [Row(5), Row(7), Row(9)]
         assert res == expected
 
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 1).filter(col("id") > 4).collect()
-        expected = [Row([5]), Row([7]), Row([9])]
+        expected = [Row(5), Row(7), Row(9)]
         assert res == expected
 
         df = session.range(1, 10, 2)
         res = df.filter(col("id") > 1).filter(col("id") >= 5).collect()
-        expected = [Row([5]), Row([7]), Row([9])]
+        expected = [Row(5), Row(7), Row(9)]
         assert res == expected
 
         df = session.range(1, 10, 2)
         res = df.filter(col("id") >= 1).filter(col("id") >= 5).collect()
-        expected = [Row([5]), Row([7]), Row([9])]
+        expected = [Row(5), Row(7), Row(9)]
         assert res == expected
 
         df = session.range(1, 10, 2)
         res = df.filter(col("id") == 5).collect()
-        expected = [Row([5])]
+        expected = [Row(5)]
         assert res == expected
 
 
@@ -370,7 +371,7 @@ def test_drop(session_cnx):
     with session_cnx() as session:
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         res = df.drop("id").select("id_prime").collect()
-        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
         assert res == expected
 
         # dropping all columns should raise exception
@@ -387,7 +388,7 @@ def test_drop(session_cnx):
             .drop("id_prime_4")
         )
         res = df2.select("id").collect()
-        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
         assert res == expected
 
 
@@ -409,7 +410,7 @@ def test_alias(session_cnx):
             .select(col("id_prime_3").alias("id_prime_4"))
         )
         res = df.select("id_prime_4").collect()
-        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
+        expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
         assert res == expected
 
 
@@ -420,26 +421,26 @@ def test_join_inner(session_cnx):
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id").collect()
-        expected = [Row([5]), Row([6]), Row([7])]
+        expected = [Row(5), Row(6), Row(7)]
         assert res == expected
 
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "inner").collect()
-        expected = [Row([5]), Row([6]), Row([7])]
+        expected = [Row(5), Row(6), Row(7)]
         assert res == expected
 
         # Join on same-name column, other columns have same name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime")])
         res = df1.join(df2, "id").collect()
-        expected = [Row([5, 5, 5]), Row([6, 6, 6]), Row([7, 7, 7])]
+        expected = [Row(5, 5, 5), Row(6, 6, 6), Row(7, 7, 7)]
         assert res == expected
 
         # Case, join on same-name column, other columns have different name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
-        expected = [Row([5, 5, 5]), Row([6, 6, 6]), Row([7, 7, 7])]
+        expected = [Row(5, 5, 5), Row(6, 6, 6), Row(7, 7, 7)]
         res = df1.join(df2, "id").collect()
         assert res == expected
 
@@ -451,22 +452,22 @@ def test_join_left_anti(session_cnx):
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "left_anti").collect()
-        expected = [Row([3]), Row([4])]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        expected = [Row(3), Row(4)]
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Case, join on same-name column, other columns have same name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime")])
         res = df1.join(df2, "id", "left_anti").collect()
-        expected = [Row([3, 3]), Row([4, 4])]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        expected = [Row(3, 3), Row(4, 4)]
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Case, join on same-name column, other columns have different name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
         res = df1.join(df2, "id", "left_anti").collect()
-        expected = [Row([3, 3]), Row([4, 4])]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        expected = [Row(3, 3), Row(4, 4)]
+        assert sorted(res, key=lambda r: r[0]) == expected
 
 
 def test_join_left_outer(session_cnx):
@@ -476,34 +477,34 @@ def test_join_left_outer(session_cnx):
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "left_outer").collect()
-        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Case, join on same-name column, other columns have same name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime")])
         res = df1.join(df2, "id", "left_outer").collect()
         expected = [
-            Row([3, 3, None]),
-            Row([4, 4, None]),
-            Row([5, 5, 5]),
-            Row([6, 6, 6]),
-            Row([7, 7, 7]),
+            Row(3, 3, None),
+            Row(4, 4, None),
+            Row(5, 5, 5),
+            Row(6, 6, 6),
+            Row(7, 7, 7),
         ]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Case, join on same-name column, other columns have different name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
         res = df1.join(df2, "id", "left_outer").collect()
         expected = [
-            Row([3, 3, None]),
-            Row([4, 4, None]),
-            Row([5, 5, 5]),
-            Row([6, 6, 6]),
-            Row([7, 7, 7]),
+            Row(3, 3, None),
+            Row(4, 4, None),
+            Row(5, 5, 5),
+            Row(6, 6, 6),
+            Row(7, 7, 7),
         ]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        assert sorted(res, key=lambda r: r[0]) == expected
 
 
 def test_join_right_outer(session_cnx):
@@ -513,34 +514,34 @@ def test_join_right_outer(session_cnx):
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "right_outer").collect()
-        expected = [Row([5]), Row([6]), Row([7]), Row([8]), Row([9])]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        expected = [Row(5), Row(6), Row(7), Row(8), Row(9)]
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Case, join on same-name column, other columns have same name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime")])
         res = df1.join(df2, "id", "right_outer").collect()
         expected = [
-            Row([5, 5, 5]),
-            Row([6, 6, 6]),
-            Row([7, 7, 7]),
-            Row([8, None, 8]),
-            Row([9, None, 9]),
+            Row(5, 5, 5),
+            Row(6, 6, 6),
+            Row(7, 7, 7),
+            Row(8, None, 8),
+            Row(9, None, 9),
         ]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Case, join on same-name column, other columns have different name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
         res = df1.join(df2, "id", "right_outer").collect()
         expected = [
-            Row([5, 5, 5]),
-            Row([6, 6, 6]),
-            Row([7, 7, 7]),
-            Row([8, None, 8]),
-            Row([9, None, 9]),
+            Row(5, 5, 5),
+            Row(6, 6, 6),
+            Row(7, 7, 7),
+            Row(8, None, 8),
+            Row(9, None, 9),
         ]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        assert sorted(res, key=lambda r: r[0]) == expected
 
 
 def test_join_left_semi(session_cnx):
@@ -549,22 +550,22 @@ def test_join_left_semi(session_cnx):
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "left_semi").collect()
-        expected = [Row([5]), Row([6]), Row([7])]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        expected = [Row(5), Row(6), Row(7)]
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Join on same-name column, other columns have same name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime")])
         res = df1.join(df2, "id", "left_semi").collect()
-        expected = [Row([5, 5]), Row([6, 6]), Row([7, 7])]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        expected = [Row(5, 5), Row(6, 6), Row(7, 7)]
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Case, join on same-name column, other columns have different name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
-        expected = [Row([5, 5]), Row([6, 6]), Row([7, 7])]
+        expected = [Row(5, 5), Row(6, 6), Row(7, 7)]
         res = df1.join(df2, "id", "left_semi").collect()
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        assert sorted(res, key=lambda r: r[0]) == expected
 
 
 def test_join_cross(session_cnx):
@@ -573,22 +574,22 @@ def test_join_cross(session_cnx):
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
         res = df1.crossJoin(df2).collect()
-        expected = [Row([x, y]) for x, y in product(range(3, 8), range(5, 10))]
-        assert sorted(res, key=lambda r: (r.get(0), r.get(1))) == expected
+        expected = [Row(x, y) for x, y in product(range(3, 8), range(5, 10))]
+        assert sorted(res, key=lambda r: (r[0], r[1])) == expected
 
         # Join on same-name column, other columns have same name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime")])
         res = df1.crossJoin(df2).collect()
-        expected = [Row([x, x, y, y]) for x, y in product(range(3, 8), range(5, 10))]
-        assert sorted(res, key=lambda r: (r.get(0), r.get(1))) == expected
+        expected = [Row(x, x, y, y) for x, y in product(range(3, 8), range(5, 10))]
+        assert sorted(res, key=lambda r: (r[0], r[1])) == expected
 
         # Case, join on same-name column, other columns have different name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
-        expected = [Row([x, x, y, y]) for x, y in product(range(3, 8), range(5, 10))]
+        expected = [Row(x, x, y, y) for x, y in product(range(3, 8), range(5, 10))]
         res = df1.crossJoin(df2).collect()
-        assert sorted(res, key=lambda r: (r.get(0), r.get(2))) == expected
+        assert sorted(res, key=lambda r: (r[0], r[2])) == expected
 
         with pytest.raises(Exception) as ex:
             df1.join(df2, col("id"), "cross")
@@ -599,8 +600,8 @@ def test_join_cross(session_cnx):
         other = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
         df_cross = this.crossJoin(other).select([this.col("id"), other.col("id")])
         res = df_cross.collect()
-        expected = [Row([x, y]) for x, y in product(range(3, 8), range(5, 10))]
-        assert sorted(res, key=lambda r: (r.get(0), r.get(1))) == expected
+        expected = [Row(x, y) for x, y in product(range(3, 8), range(5, 10))]
+        assert sorted(res, key=lambda r: (r[0], r[1])) == expected
 
 
 def test_join_outer(session_cnx):
@@ -610,45 +611,45 @@ def test_join_outer(session_cnx):
         df2 = session.range(5, 10)
         res = df1.join(df2, "id", "outer").collect()
         expected = [
-            Row([3]),
-            Row([4]),
-            Row([5]),
-            Row([6]),
-            Row([7]),
-            Row([8]),
-            Row([9]),
+            Row(3),
+            Row(4),
+            Row(5),
+            Row(6),
+            Row(7),
+            Row(8),
+            Row(9),
         ]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Join on same-name column, other columns have same name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime")])
         res = df1.join(df2, "id", "outer").collect()
         expected = [
-            Row([3, 3, None]),
-            Row([4, 4, None]),
-            Row([5, 5, 5]),
-            Row([6, 6, 6]),
-            Row([7, 7, 7]),
-            Row([8, None, 8]),
-            Row([9, None, 9]),
+            Row(3, 3, None),
+            Row(4, 4, None),
+            Row(5, 5, 5),
+            Row(6, 6, 6),
+            Row(7, 7, 7),
+            Row(8, None, 8),
+            Row(9, None, 9),
         ]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         # Case, join on same-name column, other columns have different name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
         expected = [
-            Row([3, 3, None]),
-            Row([4, 4, None]),
-            Row([5, 5, 5]),
-            Row([6, 6, 6]),
-            Row([7, 7, 7]),
-            Row([8, None, 8]),
-            Row([9, None, 9]),
+            Row(3, 3, None),
+            Row(4, 4, None),
+            Row(5, 5, 5),
+            Row(6, 6, 6),
+            Row(7, 7, 7),
+            Row(8, None, 8),
+            Row(9, None, 9),
         ]
         res = df1.join(df2, "id", "outer").collect()
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        assert sorted(res, key=lambda r: r[0]) == expected
 
 
 def test_toDF(session_cnx):
@@ -668,16 +669,16 @@ def test_toDF(session_cnx):
             .select([col("rename1"), col("rename2")])
             .collect()
         )
-        expected = [Row([3, 3]), Row([4, 4]), Row([5, 5]), Row([6, 6]), Row([7, 7])]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        expected = [Row(3, 3), Row(4, 4), Row(5, 5), Row(6, 6), Row(7, 7)]
+        assert sorted(res, key=lambda r: r[0]) == expected
 
         res = df.toDF(["rename1", "rename2"]).columns
         assert res == ['"RENAME1"', '"RENAME2"']
 
         df_prime = df.toDF(["rename1", "rename2"])
         res = df_prime.select(df_prime.RENAME1).collect()
-        expected = [Row([3]), Row([4]), Row([5]), Row([6]), Row([7])]
-        assert sorted(res, key=lambda r: r.get(0)) == expected
+        expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
+        assert sorted(res, key=lambda r: r[0]) == expected
 
 
 def test_df_col(session_cnx):
@@ -720,7 +721,7 @@ def test_create_dataframe_with_basic_data_types(session_cnx):
             Decimal(0),
         ]
         expected_names = ["_{}".format(idx + 1) for idx in range(len(data1))]
-        expected_rows = [Row(data1), Row(data2)]
+        expected_rows = [Row(*data1), Row(*data2)]
         df = session.createDataFrame([data1, data2])
         assert [field.name for field in df.schema.fields] == expected_names
         assert [type(field.datatype) for field in df.schema.fields] == [
@@ -757,13 +758,11 @@ def test_create_dataframe_with_semi_structured_data_types(session_cnx):
         ]
         assert df.collect() == [
             Row(
-                [
-                    '[\n  "\'",\n  2\n]',
-                    '[\n  "\'",\n  2\n]',
-                    "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
-                    "[\n  1,\n  2,\n  3\n]",
-                    '{\n  "\'": 1\n}',
-                ]
+                '[\n  "\'",\n  2\n]',
+                '[\n  "\'",\n  2\n]',
+                "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
+                "[\n  1,\n  2,\n  3\n]",
+                '{\n  "\'": 1\n}',
             )
         ]
 
@@ -772,7 +771,7 @@ def test_create_dataframe_with_dict(session_cnx):
     with session_cnx() as session:
         data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
         expected_names = list(data.keys())
-        expected_rows = [Row(list(data.values()))]
+        expected_rows = [Row(*data.values())]
         df = session.createDataFrame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
             assert Utils.equals_ignore_case(field.name, expected_name)
@@ -785,7 +784,7 @@ def test_create_dataframe_with_namedtuple(session_cnx):
     with session_cnx() as session:
         data = Data(*[idx ** 3 for idx in range(5)])
         expected_names = list(data._fields)
-        expected_rows = [Row(data)]
+        expected_rows = [Row(*data)]
         df = session.createDataFrame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
             assert Utils.equals_ignore_case(field.name, expected_name)
@@ -818,19 +817,17 @@ def test_create_dataframe_with_variant(session_cnx):
         )
         assert df.collect() == [
             Row(
-                [
-                    "1",
-                    '"one"',
-                    "1.1",
-                    '"2017-02-24T12:00:05.456000"',
-                    '"20:57:06"',
-                    '"2017-02-25"',
-                    "true",
-                    '"61"',
-                    "0.5",
-                    "[\n  1,\n  2,\n  3\n]",
-                    '{\n  "a": "foo"\n}',
-                ]
+                "1",
+                '"one"',
+                "1.1",
+                '"2017-02-24T12:00:05.456000"',
+                '"20:57:06"',
+                '"2017-02-25"',
+                "true",
+                '"61"',
+                "0.5",
+                "[\n  1,\n  2,\n  3\n]",
+                '{\n  "a": "foo"\n}',
             )
         ]
 
@@ -858,12 +855,12 @@ def test_create_dataframe_from_none_data(session_cnx):
     with session_cnx() as session:
         assert session.createDataFrame([None, None]).collect() == [Row(None), Row(None)]
         assert session.createDataFrame([[None, None], [1, "1"]]).collect() == [
-            Row([None, None]),
-            Row([1, "1"]),
+            Row(None, None),
+            Row(1, "1"),
         ]
         assert session.createDataFrame([[1, "1"], [None, None]]).collect() == [
-            Row([1, "1"]),
-            Row([None, None]),
+            Row(1, "1"),
+            Row(None, None),
         ]
 
 

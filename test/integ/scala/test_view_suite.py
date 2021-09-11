@@ -21,16 +21,16 @@ def test_create_view(session_cnx):
 
             res = session.sql(f"select * from {view_name}").collect()
             # don't sort
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
 
             # Test replace
             TestData.double1(session).createOrReplaceView(view_name)
             res = session.sql(f"select * from {view_name}").collect()
             # don't sort
             assert res == [
-                Row([Decimal("1.111")]),
-                Row([Decimal("2.222")]),
-                Row([Decimal("3.333")]),
+                Row(Decimal("1.111")),
+                Row(Decimal("2.222")),
+                Row(Decimal("3.333")),
             ]
         finally:
             Utils.drop_view(session, view_name)
@@ -46,7 +46,7 @@ def test_view_name_with_special_character(session_cnx):
                 f"select * from {AnalyzerPackage.quote_name(view_name)}"
             ).collect()
             # don't sort
-            assert res == [Row([1, 2]), Row([3, 4])]
+            assert res == [Row(1, 2), Row(3, 4)]
         finally:
             Utils.drop_view(session, view_name)
 
@@ -72,62 +72,62 @@ def test_consistent_view_name_behaviors(session_cnx):
             df.createOrReplaceView(view_name)
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
             df.createOrReplaceView(name_parts)
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
             df.createOrReplaceView([sc, view_name])
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
             df.createOrReplaceView([view_name])
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
             df.createOrReplaceView(f"{db}.{sc}.{view_name}")
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
             # create temp view
             df.createOrReplaceTempView(view_name)
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
             df.createOrReplaceTempView(name_parts)
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
             df.createOrReplaceTempView([sc, view_name])
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
             df.createOrReplaceTempView([view_name])
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
             df.createOrReplaceTempView(f"{db}.{sc}.{view_name}")
             res = session.table(view_name).collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row([1]), Row([2]), Row([3])]
+            assert res == [Row(1), Row(2), Row(3)]
             Utils.drop_view(session, view_name)
 
         finally:

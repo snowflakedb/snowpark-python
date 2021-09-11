@@ -134,7 +134,7 @@ def test_read_csv(session_cnx, mode):
 
         assert len(res) == 2
         assert len(res[0]) == 3
-        assert res == [Row([1, "one", 1.2]), Row([2, "two", 2.2])]
+        assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
         with pytest.raises(SnowparkClientException):
             session.read.csv(test_file_on_stage)
@@ -187,7 +187,7 @@ def test_read_csv_with_more_operations(session_cnx):
         )
         res = df1.collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "one", 1.2])]
+        assert res == [Row(1, "one", 1.2)]
 
         # test for self union
         df = session.read.schema(user_schema).csv(test_file_on_stage)
@@ -195,10 +195,10 @@ def test_read_csv_with_more_operations(session_cnx):
         res = df2.collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-            Row([1, "one", 1.2]),
-            Row([1, "one", 1.2]),
-            Row([2, "two", 2.2]),
-            Row([2, "two", 2.2]),
+            Row(1, "one", 1.2),
+            Row(1, "one", 1.2),
+            Row(2, "two", 2.2),
+            Row(2, "two", 2.2),
         ]
 
         # test for union between two stages
@@ -208,10 +208,10 @@ def test_read_csv_with_more_operations(session_cnx):
         res = df4.collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-            Row([1, "one", 1.2]),
-            Row([1, "one", 1.2]),
-            Row([2, "two", 2.2]),
-            Row([2, "two", 2.2]),
+            Row(1, "one", 1.2),
+            Row(1, "one", 1.2),
+            Row(2, "two", 2.2),
+            Row(2, "two", 2.2),
         ]
 
 
@@ -232,7 +232,7 @@ def test_read_csv_with_format_type_options(session_cnx, mode):
         )
         res = df1.collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "one", 1.2]), Row([2, "two", 2.2])]
+        assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
         # test when user does not input a right option:
         df2 = get_reader(session, mode).schema(user_schema).csv(test_file_csv_colon)
@@ -253,7 +253,7 @@ def test_read_csv_with_format_type_options(session_cnx, mode):
         )
         res = df3.collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "one", 1.2]), Row([2, "two", 2.2])]
+        assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
         # test for union between files with different schema and different stage
         test_file_on_stage2 = f"@{tmp_stage_name2}/{test_file_csv}"
@@ -262,10 +262,10 @@ def test_read_csv_with_format_type_options(session_cnx, mode):
         res = df5.collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-            Row([1, "one", 1.2]),
-            Row([1, "one", 1.2]),
-            Row([2, "two", 2.2]),
-            Row([2, "two", 2.2]),
+            Row(1, "one", 1.2),
+            Row(1, "one", 1.2),
+            Row(2, "two", 2.2),
+            Row(2, "two", 2.2),
         ]
 
 
@@ -293,10 +293,10 @@ def test_to_read_files_from_stage(session_cnx, resources_path, mode):
             res = df.collect()
             res.sort(key=lambda x: x[0])
             assert res == [
-                Row([1, "one", 1.2]),
-                Row([2, "two", 2.2]),
-                Row([3, "three", 3.3]),
-                Row([4, "four", 4.4]),
+                Row(1, "one", 1.2),
+                Row(2, "two", 2.2),
+                Row(3, "three", 3.3),
+                Row(4, "four", 4.4),
             ]
         finally:
             session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
@@ -331,7 +331,7 @@ def test_for_all_csv_compression_keywords(session_cnx, temp_schema, mode):
                 )
                 res = df.collect()
                 res.sort(key=lambda x: x[0])
-                assert res == [Row([1, "one", 1.2]), Row([2, "two", 2.2])]
+                assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
         finally:
             session.sql(f"drop file format {format_name}")
 
@@ -358,7 +358,7 @@ def test_read_csv_with_special_chars_in_format_type_options(session_cnx, mode):
         )
         res = df1.collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "one", 1.2, 1]), Row([2, "two", 2.2, 2])]
+        assert res == [Row(1, "one", 1.2, 1), Row(2, "two", 2.2, 2)]
 
         # without the setting it should fail schema validation
         df2 = get_reader(session, mode).schema(schema1).csv(test_file)
@@ -558,7 +558,7 @@ def test_copy(session_cnx):
 
         res = df.collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "one", 1.2]), Row([2, "two", 2.2])]
+        assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
         # fail to read since the file is not compressed.
         # return empty result since enable on_error = continue
@@ -620,7 +620,7 @@ def test_read_file_on_error_continue_on_csv(session_cnx, db_parameters, resource
         )
         res = df.collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row([1, "one", 1.1]), Row([3, "three", 3.3])]
+        assert res == [Row(1, "one", 1.1), Row(3, "three", 3.3)]
 
 
 def test_read_file_on_error_continue_on_avro(session_cnx):
