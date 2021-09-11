@@ -459,13 +459,13 @@ def test_type_hints(session):
         double_str_list_udf(snow_udf("b")),
         return_datetime_udf(),
     ).collect() == [
-        Row([5, "snow", "[\n  null,\n  null\n]", dt]),
-        Row([5, None, '[\n  "snow",\n  "snow"\n]', dt]),
+        Row(5, "snow", "[\n  null,\n  null\n]", dt),
+        Row(5, None, '[\n  "snow",\n  "snow"\n]', dt),
     ]
 
     assert TestData.variant1(session).select(
         return_variant_dict_udf("obj1")
-    ).collect() == [Row(['{\n  "Tree": "Tree Pine"\n}'])]
+    ).collect() == [Row('{\n  "Tree": "Tree Pine"\n}')]
 
 
 def test_udf_negative(session_cnx):
