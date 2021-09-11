@@ -890,14 +890,10 @@ def test_create_dataframe_with_invalid_data(session_cnx):
         # input other than list, tuple, namedtuple and dict
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame(1)
-        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
-            ex_info
-        )
+        assert "only accepts data in List, Tuple or Dict type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame({1, 2})
-        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
-            ex_info
-        )
+        assert "only accepts data in List, Tuple or Dict type" in str(ex_info)
 
         # inconsistent type
         with pytest.raises(TypeError) as ex_info:
