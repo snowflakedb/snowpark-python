@@ -189,8 +189,8 @@ def test_plan_last_query_return_resultset():
     ex = SnowparkClientExceptionMessages.PLAN_LAST_QUERY_RETURN_RESULTSET()
     assert ex.error_code == "0300"
     assert (
-        ex.message == "Internal error: the execution for the last query "
-        "in the snowflake plan doesn't return a ResultSet."
+        ex.message == "Internal error: The execution for the last query "
+        "in the Snowflake plan doesn't return a ResultSet."
     )
 
 
