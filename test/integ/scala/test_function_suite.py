@@ -72,14 +72,26 @@ def test_kurtosis(session_cnx):
         )
         Utils.check_answer(
             df,
-            [Row(Decimal("-3.333333333333"), Decimal("5.0"), Decimal("3.613736609956"))]
+            [
+                Row(
+                    Decimal("-3.333333333333"),
+                    Decimal("5.0"),
+                    Decimal("3.613736609956"),
+                )
+            ],
         )
 
         # same as above, but pass str instead of Column
         df = TestData.xyz(session).select(kurtosis("X"), kurtosis("Y"), kurtosis("Z"))
         Utils.check_answer(
             df,
-            [Row(Decimal("-3.333333333333"), Decimal("5.0"), Decimal("3.613736609956"))],
+            [
+                Row(
+                    Decimal("-3.333333333333"),
+                    Decimal("5.0"),
+                    Decimal("3.613736609956"),
+                )
+            ],
         )
 
 
@@ -125,10 +137,10 @@ def test_variance(session_cnx):
             [
                 Row(Decimal(1), Decimal(0.00), Decimal(1.0), Decimal(2.0)),
                 Row(
-                        Decimal(2),
-                        Decimal("0.333333"),
-                        Decimal("14.888889"),
-                        Decimal("22.333333"),
+                    Decimal(2),
+                    Decimal("0.333333"),
+                    Decimal("14.888889"),
+                    Decimal("22.333333"),
                 ),
             ],
         )
@@ -144,10 +156,10 @@ def test_variance(session_cnx):
             [
                 Row(Decimal(1), Decimal(0.00), Decimal(1.0), Decimal(2.0)),
                 Row(
-                        Decimal(2),
-                        Decimal("0.333333"),
-                        Decimal("14.888889"),
-                        Decimal("22.333333"),
+                    Decimal(2),
+                    Decimal("0.333333"),
+                    Decimal("14.888889"),
+                    Decimal("22.333333"),
                 ),
             ],
         )

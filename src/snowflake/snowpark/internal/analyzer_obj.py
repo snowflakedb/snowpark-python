@@ -302,7 +302,9 @@ class Analyzer:
         # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
         for k, v in resolved_children.items():
             if v.expr_to_alias:
-                use_maps.update({p:q for p,q in v.expr_to_alias.items() if counts[p]<2})
+                use_maps.update(
+                    {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
+                )
 
         self.alias_maps_to_use = use_maps
         return self.do_resolve_inner(logical_plan, resolved_children)

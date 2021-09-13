@@ -72,9 +72,7 @@ def test_alias(session):
 
 def test_equal_and_not_equal(session):
     test_data1 = TestData.test_data1(session)
-    assert test_data1.where(test_data1["BOOL"] == True).collect() == [
-        Row(1, True, "a")
-    ]
+    assert test_data1.where(test_data1["BOOL"] == True).collect() == [Row(1, True, "a")]
     assert test_data1.where(test_data1["BOOL"] == lit(True)).collect() == [
         Row(1, True, "a")
     ]
@@ -97,9 +95,7 @@ def test_gt_and_lt(session):
         Row(2, False, "b")
     ]
     assert test_data1.where(test_data1["NUM"] < 2).collect() == [Row(1, True, "a")]
-    assert test_data1.where(test_data1["NUM"] < lit(2)).collect() == [
-        Row(1, True, "a")
-    ]
+    assert test_data1.where(test_data1["NUM"] < lit(2)).collect() == [Row(1, True, "a")]
 
 
 def test_leq_and_geq(session):

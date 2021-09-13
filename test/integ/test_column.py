@@ -7,7 +7,6 @@
 import pytest
 
 from snowflake.snowpark.row import Row
-
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 

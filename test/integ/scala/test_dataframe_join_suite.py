@@ -44,6 +44,7 @@ def test_join_using_multiple_columns(session):
         Row(3, 4, "3", "4"),
     ]
 
+
 def test_full_outer_join_followed_by_inner_join(session):
 
     a = session.createDataFrame([[1, 2], [2, 3]]).toDF(["a", "b"])
@@ -187,7 +188,6 @@ def test_join_using_multiple_columns_and_specifying_join_type(session, db_parame
         res = df.join(df2, ["int", "str"], "outer").collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-
             Row(1, "1", 2, 3),
             Row(3, "3", 4, None),
             Row(5, "5", None, 6),
@@ -443,7 +443,7 @@ def test_using_joins(session):
         ]
 
         with pytest.raises(SnowparkClientException) as ex_info:
-             lhs.join(rhs, ['intcol'], join_type).select('negcol').collect()
+            lhs.join(rhs, ["intcol"], join_type).select("negcol").collect()
         assert "reference to the column 'NEGCOL' is ambiguous" in ex_info.value.message
 
         res = lhs.join(rhs, ["intcol"], join_type).select("intcol").collect()
@@ -484,7 +484,7 @@ def test_columns_with_and_without_quotes(session):
     assert res == []
 
     with pytest.raises(SnowparkClientException) as ex_info:
-         lhs.join(rhs, col('intcol') == col('"INTCOL"')).collect()
+        lhs.join(rhs, col("intcol") == col('"INTCOL"')).collect()
     assert "reference to the column 'INTCOL' is ambiguous." in ex_info.value.message
 
 
