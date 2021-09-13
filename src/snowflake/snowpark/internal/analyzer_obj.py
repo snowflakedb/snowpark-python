@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+from collections import Counter
 from typing import Optional
 
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
@@ -273,7 +274,6 @@ class Analyzer:
         else:
             return self.analyze(expr)
 
-    # TODO
     def resolve(self, logical_plan) -> SnowflakePlan:
         self.subquery_plans = []
         self.generated_alias_maps = {}
@@ -292,9 +292,19 @@ class Analyzer:
             resolved_children[c] = self.resolve(c)
 
         use_maps = {}
+        # get counts of expr_to_alias keys
+        counts = Counter()
         for k, v in resolved_children.items():
             if v.expr_to_alias:
-                use_maps.update(v.expr_to_alias)
+                counts.update(list(v.expr_to_alias.keys()))
+
+        # Keep only non-shared expr_to_alias keys
+        # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
+        for k, v in resolved_children.items():
+            if v.expr_to_alias:
+                use_maps.update(
+                    {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
+                )
 
         self.alias_maps_to_use = use_maps
         return self.do_resolve_inner(logical_plan, resolved_children)
