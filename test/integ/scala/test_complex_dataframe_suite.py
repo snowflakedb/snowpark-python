@@ -124,5 +124,3 @@ def test_combination_of_multiple_data_sources(session, resources_path):
     finally:
         Utils.drop_table(session, tmp_table_name)
         Utils.drop_stage(session, tmp_stage_name)
-
-
