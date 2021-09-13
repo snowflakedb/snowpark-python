@@ -121,13 +121,6 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def DF_FUNCTION_ARGS_CANNOT_BE_EMPTY(func_name: str) -> SnowparkClientException:
-        return SnowparkClientException(
-            f"You must pass a Seq of one or more Columns to function: {func_name}",
-            "0113",
-        )
-
-    @staticmethod
     def DF_WINDOW_BOUNDARY_START_INVALID(start_value: int) -> SnowparkClientException:
         return SnowparkClientException(
             f"The starting point for the window frame is not a valid integer: {start_value}.",
@@ -157,10 +150,6 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def DF_JOIN_INVALID_USING_JOIN_TYPE(tpe: str) -> SnowparkClientException:
         return SnowparkClientException(f"Unsupported using join type '{tpe}'.", "0118")
-
-    @staticmethod
-    def DF_RANGE_STEP_CANNOT_BE_ZERO() -> SnowparkClientException:
-        return SnowparkClientException("The step for range() cannot be 0.", "0119")
 
     # UDF error codes 02XX
 

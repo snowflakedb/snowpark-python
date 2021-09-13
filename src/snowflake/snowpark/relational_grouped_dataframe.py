@@ -273,8 +273,8 @@ class RelationalGroupedDataFrame:
         self, func_name: str, *cols: Union[Column, str]
     ) -> "DataFrame":
         if not cols:
-            raise SnowparkClientExceptionMessages.DF_FUNCTION_ARGS_CANNOT_BE_EMPTY(
-                func_name
+            raise ValueError(
+                f"You must pass a list of one or more Columns to function: {func_name}"
             )
         else:
             return self.builtin(func_name)(*cols)

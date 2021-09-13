@@ -140,16 +140,6 @@ def test_df_pivot_only_support_one_agg_expr():
     )
 
 
-def test_df_function_args_cannot_be_empty():
-    func_name = "some_func"
-    ex = SnowparkClientExceptionMessages.DF_FUNCTION_ARGS_CANNOT_BE_EMPTY(func_name)
-    assert ex.error_code == "0113"
-    assert (
-        ex.message
-        == f"You must pass a Seq of one or more Columns to function: {func_name}"
-    )
-
-
 def test_df_window_boundary_start_invalid():
     start_value = -1
     ex = SnowparkClientExceptionMessages.DF_WINDOW_BOUNDARY_START_INVALID(start_value)
@@ -193,12 +183,6 @@ def test_df_join_invalid_using_join_type():
     ex = SnowparkClientExceptionMessages.DF_JOIN_INVALID_USING_JOIN_TYPE(tpe)
     assert ex.error_code == "0118"
     assert ex.message == f"Unsupported using join type '{tpe}'."
-
-
-def test_df_range_step_cannot_be_zero():
-    ex = SnowparkClientExceptionMessages.DF_RANGE_STEP_CANNOT_BE_ZERO()
-    assert ex.error_code == "0119"
-    assert ex.message == "The step for range() cannot be 0."
 
 
 def test_plan_sampling_need_one_parameter():
