@@ -16,7 +16,10 @@ from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark.internal.analyzer.snowflake_plan import (
+    BatchInsertQuery,
+    SnowflakePlan,
+)
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.row import Row
@@ -339,9 +342,16 @@ class ServerConnection:
         try:
             placeholders = {}
             for query in plan.queries:
-                if action_id < plan.session.get_last_canceled_id():
-                    raise SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
-                result = query.run(self, placeholders, to_pandas, **kwargs)
+                if isinstance(query, BatchInsertQuery):
+                    self.run_batch_insert(query.sql, query.rows)
+                else:
+                    final_query = query.sql
+                    for holder, id_ in placeholders.items():
+                        final_query = final_query.replace(holder, id_)
+                    if action_id < plan.session.get_last_canceled_id():
+                        raise SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
+                    result = self.run_query(final_query, to_pandas, **kwargs)
+                    placeholders[query.query_id_place_holder] = result["sfqid"]
         finally:
             # delete created tmp object
             for action in plan.post_actions:
@@ -350,7 +360,7 @@ class ServerConnection:
         if result is None:
             raise SnowparkClientExceptionMessages.PLAN_LAST_QUERY_RETURN_RESULTSET()
 
-        return result
+        return result["data"]
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan

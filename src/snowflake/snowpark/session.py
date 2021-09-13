@@ -453,9 +453,9 @@ class Session(metaclass=_SessionMeta):
         Examples::
 
             # infer schema
-            session.createDataFrame([1, 2, 3, 4])
-            session.createDataFrame([[1, 2, 3, 4]])
-            session.createDataFrame([[1, 2], [3, 4]])
+            session.createDataFrame([1, 2, 3, 4]).toDF("a")  # one single column
+            session.createDataFrame([[1, 2, 3, 4]]).toDF("a")
+            session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
             session.createDataFrame([{"a": "snow", "b": "flake"}])
 
             # given a schema

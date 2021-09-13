@@ -79,6 +79,8 @@ def convert_to_sf_type(datatype: DataType) -> str:
         return "FLOAT"
     if type(datatype) == DoubleType:
         return "DOUBLE"
+    # We regard NullType as String, which is required when creating
+    # a dataframe from local data with all None values
     if type(datatype) in [StringType, NullType]:
         return "STRING"
     if type(datatype) == BooleanType:

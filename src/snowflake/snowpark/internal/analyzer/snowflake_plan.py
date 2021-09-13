@@ -5,7 +5,7 @@
 #
 import re
 from functools import reduce
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import snowflake.connector
 import snowflake.snowpark.dataframe
@@ -26,9 +26,6 @@ from snowflake.snowpark.types.types_package import (
     snow_type_to_sp_type,
     sp_type_to_snow_type,
 )
-
-if TYPE_CHECKING:  # pragma: no cover
-    from snowflake.snowpark.internal.server_connection import ServerConnection
 
 
 class SnowflakePlan(LogicalPlan):
@@ -603,21 +600,6 @@ class Query:
             else f"query_id_place_holder_{SchemaUtils.random_string()}"
         )
 
-    def run(
-        self,
-        conn: "ServerConnection",
-        placeholders: Dict[str, str],
-        to_pandas: bool = False,
-        **kwargs,
-    ) -> List[Any]:
-        final_query = self.sql
-        for holder, id_ in placeholders.items():
-            final_query = final_query.replace(holder, id_)
-        result = conn.run_query(final_query, to_pandas, **kwargs)
-        id_ = result["sfqid"]
-        placeholders[self.query_id_place_holder] = id_
-        return result["data"]
-
 
 class BatchInsertQuery(Query):
     def __init__(
@@ -627,15 +609,6 @@ class BatchInsertQuery(Query):
     ):
         super().__init__(sql)
         self.rows = rows
-
-    def run(
-        self,
-        conn: "ServerConnection",
-        placeholders: Dict[str, str],
-        to_pandas: bool = False,
-        **kwargs,
-    ) -> None:
-        conn.run_batch_insert(self.sql, self.rows)
 
 
 # TODO: this class was taken from SnowflakePlanNonde.scala, we might have to move it to a new file
