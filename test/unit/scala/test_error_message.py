@@ -7,6 +7,159 @@ import pytest
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 
 
+def test_internal_test_message():
+    message = "a generic message"
+    ex = SnowparkClientExceptionMessages.INTERNAL_TEST_MESSAGE(message)
+    assert ex.error_code == "0010"
+    assert ex.message == f"internal test message: {message}."
+
+
+def test_df_cannot_drop_column_name():
+    col_name = "C1"
+    ex = SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(col_name)
+    assert ex.error_code == "0100"
+    assert (
+        ex.message
+        == f"Unable to drop the column {col_name}. You must specify the column by name "
+        f'(e.g. df.drop(col("a"))).'
+    )
+
+
+def test_df_sort_need_at_least_one_expr():
+    ex = SnowparkClientExceptionMessages.DF_SORT_NEED_AT_LEAST_ONE_EXPR()
+    assert ex.error_code == "0101"
+    assert ex.message == "For sort(), you must specify at least one sort expression."
+
+
+def test_df_cannot_drop_all_columns():
+    ex = SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+    assert ex.error_code == "0102"
+    assert ex.message == "Cannot drop all columns"
+
+
+def test_df_cannot_resolve_column_name_among():
+    col_name = "C1"
+    all_columns = ", ".join(["A1", "B1", "D1"])
+    ex = SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
+        col_name, all_columns
+    )
+    assert ex.error_code == "0103"
+    assert (
+        ex.message
+        == f'Cannot combine the DataFrames by column names. The column "{col_name}" is '
+        f"not a column in the other DataFrame ({all_columns})."
+    )
+
+
+def test_df_join_not_supported():
+    ex = SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
+    assert ex.error_code == "0104"
+    assert (
+        ex.message
+        == "You cannot join a DataFrame with itself because the column references cannot "
+        "be resolved correctly. Instead, call clone() to create a copy of the "
+        "DataFrame, and join the DataFrame with this copy."
+    )
+
+
+def test_df_random_split_weight_invalid():
+    ex = SnowparkClientExceptionMessages.DF_RANDOM_SPLIT_WEIGHT_INVALID()
+    assert ex.error_code == "0105"
+    assert (
+        ex.message
+        == "The specified weights for randomSplit() must not be negative numbers."
+    )
+
+
+def test_df_random_split_weight_array_empty():
+    ex = SnowparkClientExceptionMessages.DF_RANDOM_SPLIT_WEIGHT_ARRAY_EMPTY()
+    assert ex.error_code == "0106"
+    assert ex.message == "You cannot pass an empty array of weights to randomSplit()."
+
+
+def test_df_flatten_unsupported_input_mode():
+    mode = "JSON"
+    ex = SnowparkClientExceptionMessages.DF_FLATTEN_UNSUPPORTED_INPUT_MODE(mode)
+    assert ex.error_code == "0107"
+    assert (
+        ex.message
+        == f"Unsupported input mode {mode}. For the mode parameter in flatten(), you must "
+        f"specify OBJECT, ARRAY, or BOTH."
+    )
+
+
+def test_df_cannot_resolve_column_name():
+    col_name = "C1"
+    ex = SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(col_name)
+    assert ex.error_code == "0108"
+    assert ex.message == f"The DataFrame does not contain the column named {col_name}."
+
+
+def test_df_must_provide_schema_for_reading_file():
+    ex = SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
+    assert ex.error_code == "0109"
+    assert (
+        ex.message
+        == "You must call DataFrameReader.schema() and specify the schema for the file."
+    )
+
+
+def test_df_cross_tab_count_too_large():
+    count = 100
+    max_count = 99
+    ex = SnowparkClientExceptionMessages.DF_CROSS_TAB_COUNT_TOO_LARGE(count, max_count)
+    assert ex.error_code == "0110"
+    assert (
+        ex.message
+        == f"The number of distinct values in the second input column ({count}) exceeds "
+        f"the maximum number of distinct values allowed ({max_count})."
+    )
+
+
+def test_df_dataframe_is_not_qualified_for_scalar_query():
+    count = 3
+    columns = ", ".join(["A1", "B1", "C1"])
+    ex = SnowparkClientExceptionMessages.DF_DATAFRAME_IS_NOT_QUALIFIED_FOR_SCALAR_QUERY(
+        count, columns
+    )
+    assert ex.error_code == "0111"
+    assert (
+        ex.message
+        == f"The DataFrame passed in to this function must have only one output column. "
+        f"This DataFrame has {count} output columns: {columns}"
+    )
+
+
+def test_df_pivot_only_support_one_agg_expr():
+    ex = SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
+    assert ex.error_code == "0112"
+    assert (
+        ex.message
+        == "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
+        "returned by the pivot() method."
+    )
+
+
+def test_df_window_boundary_start_invalid():
+    start_value = -1
+    ex = SnowparkClientExceptionMessages.DF_WINDOW_BOUNDARY_START_INVALID(start_value)
+    assert ex.error_code == "0114"
+    assert (
+        ex.message
+        == f"The starting point for the window frame is not a valid integer: {start_value}."
+    )
+
+
+def test_df_window_boundary_end_invalid():
+    end_value = 100000000000
+    ex = SnowparkClientExceptionMessages.DF_WINDOW_BOUNDARY_END_INVALID(end_value)
+    assert ex.error_code == "0115"
+    assert (
+        ex.message
+        == f"The ending point for the window frame is not a valid integer: {end_value}."
+    )
+
+
 def test_df_join_invalid_join_type():
     type1 = "inner"
     types = "outer, left, right"

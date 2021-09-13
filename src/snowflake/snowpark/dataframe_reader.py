@@ -7,6 +7,7 @@ from typing import Dict
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import StructType, VariantType
 
@@ -147,9 +148,7 @@ class DataFrameReader:
             :class:`DataFrame`
         """
         if not self.__user_schema:
-            raise SnowparkClientException(
-                "Must provide user schema before reading file"
-            )
+            raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
         return DataFrame(
             self.session,
             self.session._Session__plan_builder.read_file(

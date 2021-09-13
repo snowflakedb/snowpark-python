@@ -48,7 +48,7 @@ class Range(LeafNode):
         self.start = start
         self.end = end
         if step == 0:
-            raise ValueError("step cannot be 0")
+            raise ValueError("The step for range() cannot be 0.")
         self.step = step
         self.num_slices = num_slices
 
