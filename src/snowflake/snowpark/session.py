@@ -454,8 +454,9 @@ class Session(metaclass=_SessionMeta):
 
             # infer schema
             session.createDataFrame([1, 2, 3, 4])
+            session.createDataFrame([[1, 2, 3, 4]])
             session.createDataFrame([[1, 2], [3, 4]])
-            session.createDataFrame({"a": "snow", "b": "flake"})
+            session.createDataFrame([{"a": "snow", "b": "flake"}])
 
             # given a schema
             from snowflake.snowpark.types.sf_types import IntegerType, StringType()

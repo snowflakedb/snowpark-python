@@ -368,4 +368,4 @@ class ServerConnection:
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings
         params = [list(row) for row in rows]
         self._cursor.executemany(query, params)
-        logger.info(f"Execute query [queryID: null] {query}")
+        logger.info(f"Execute batch insertion query %s", query)

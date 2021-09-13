@@ -158,8 +158,8 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def PLAN_LAST_QUERY_RETURN_RESULTSET() -> SnowparkClientException:
         return SnowparkClientException(
-            "Internal error: the execution for the last query "
-            "in the snowflake plan doesn't return a ResultSet.",
+            "Internal error: The execution for the last query "
+            "in the Snowflake plan doesn't return a ResultSet.",
             "0300",
         )
 
