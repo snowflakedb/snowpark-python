@@ -24,7 +24,7 @@ def test_negative_test(session_cnx):
     with session_cnx() as session:
         with pytest.raises(ValueError) as ex_info:
             session.range(-3, 5, 0)
-        assert "step cannot be 0" in str(ex_info)
+        assert "The step for range() cannot be 0." in str(ex_info)
 
 
 def test_empty_result_and_negative_start_end_step(session_cnx):

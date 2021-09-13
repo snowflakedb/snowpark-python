@@ -7,7 +7,6 @@
 import pytest
 
 from snowflake.snowpark.row import Row
-
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 
@@ -22,7 +21,7 @@ def test_column_constructors_subscriptable(session):
 
     with pytest.raises(SnowparkClientException) as ex_info:
         df.select(df['"Col"']).collect()
-    assert "Cannot resolve column name" in str(ex_info)
+    assert "The DataFrame does not contain the column" in str(ex_info)
     with pytest.raises(SnowparkClientException) as ex_info:
         df.select(df["COL ."]).collect()
-    assert "Cannot resolve column name" in str(ex_info)
+    assert "The DataFrame does not contain the column" in str(ex_info)

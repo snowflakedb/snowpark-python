@@ -72,9 +72,7 @@ def test_alias(session):
 
 def test_equal_and_not_equal(session):
     test_data1 = TestData.test_data1(session)
-    assert test_data1.where(test_data1["BOOL"] == True).collect() == [
-        Row(1, True, "a")
-    ]
+    assert test_data1.where(test_data1["BOOL"] == True).collect() == [Row(1, True, "a")]
     assert test_data1.where(test_data1["BOOL"] == lit(True)).collect() == [
         Row(1, True, "a")
     ]
@@ -97,9 +95,7 @@ def test_gt_and_lt(session):
         Row(2, False, "b")
     ]
     assert test_data1.where(test_data1["NUM"] < 2).collect() == [Row(1, True, "a")]
-    assert test_data1.where(test_data1["NUM"] < lit(2)).collect() == [
-        Row(1, True, "a")
-    ]
+    assert test_data1.where(test_data1["NUM"] < lit(2)).collect() == [Row(1, True, "a")]
 
 
 def test_leq_and_geq(session):
@@ -364,7 +360,7 @@ def test_drop_columns_by_column(session):
 
     with pytest.raises(SnowparkClientException) as ex_info:
         df.drop(df["ONE"] + col('"One"'))
-    assert "Can only drop columns by name" in str(ex_info)
+    assert "You must specify the column by name" in str(ex_info)
 
     # Note below should arguably not work, but does because the semantics is to drop by name.
     df2 = session.createDataFrame([[1, 2]]).toDF(["One", '"One"'])
