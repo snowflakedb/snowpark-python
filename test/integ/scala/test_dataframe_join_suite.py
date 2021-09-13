@@ -44,6 +44,7 @@ def test_join_using_multiple_columns(session):
         Row(3, 4, "3", "4"),
     ]
 
+
 def test_full_outer_join_followed_by_inner_join(session):
 
     a = session.createDataFrame([[1, 2], [2, 3]]).toDF(["a", "b"])
@@ -187,7 +188,6 @@ def test_join_using_multiple_columns_and_specifying_join_type(session, db_parame
         res = df.join(df2, ["int", "str"], "outer").collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-
             Row(1, "1", 2, 3),
             Row(3, "3", 4, None),
             Row(5, "5", None, 6),
@@ -567,7 +567,11 @@ def test_negative_test_for_self_join_with_conditions(session):
         df = session.table(table_name1)
         self_dfs = [df, DataFrame(df.session, df._DataFrame__plan)]
 
-        msg = "Joining a DataFrame to itself can lead to incorrect results due to ambiguity of column references. Instead, join this DataFrame to a clone() of itself."
+        msg = (
+            "You cannot join a DataFrame with itself because the column references cannot be resolved "
+            "correctly. Instead, call clone() to create a copy of the DataFrame, and join the DataFrame with "
+            "this copy."
+        )
 
         for df2 in self_dfs:
             for join_type in ["", "inner", "left", "right", "outer"]:
@@ -576,14 +580,13 @@ def test_negative_test_for_self_join_with_conditions(session):
                         df.join(df2, df["c1"] == df["c2"]).collect()
                     else:
                         df.join(df2, df["c1"] == df["c2"], join_type).collect()
-                assert msg in str(ex_info)
+                assert msg in ex_info.value.message
 
     finally:
         Utils.drop_table(session, table_name1)
 
 
 def test_clone_can_help_these_self_joins(session):
-
     table_name1 = Utils.random_name()
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
