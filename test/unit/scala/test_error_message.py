@@ -194,6 +194,24 @@ def test_plan_last_query_return_resultset():
     )
 
 
+def test_plan_analyzer_invalid_identifier():
+    name = "c1"
+    ex = SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
+    assert ex.error_code == "0301"
+    assert ex.message == f"Invalid identifier {name}"
+
+
+def test_plan_unsupported_view_type():
+    type_name = "MaterializedView"
+    ex = SnowparkClientExceptionMessages.PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(type_name)
+    assert ex.error_code == "0302"
+    assert (
+        ex.message
+        == f"Internal Error: Only PersistedView and LocalTempView are supported. "
+        f"view type: {type_name}"
+    )
+
+
 def test_plan_sampling_need_one_parameter():
     ex = SnowparkClientExceptionMessages.PLAN_SAMPLING_NEED_ONE_PARAMETER()
     assert ex.error_code == "0303"
@@ -238,17 +256,85 @@ def test_plan_report_join_ambiguous():
     )
 
 
-def test_misc_query_cancelled():
+def test_plan_copy_dont_support_skip_loaded_files():
+    value = "False"
+    ex = SnowparkClientExceptionMessages.PLAN_COPY_DONT_SUPPORT_SKIP_LOADED_FILES(value)
+    assert ex.error_code == "0311"
+    assert (
+        ex.message
+        == f"The COPY option 'FORCE = {value}' is not supported by the Snowpark library. "
+        f"The Snowflake library loads all files, even if the files have been loaded "
+        f"previously and have not changed since they were loaded."
+    )
+
+
+def test_plan_create_view_from_ddl_dml_operations():
+    ex = SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
+    assert ex.error_code == "0314"
+    assert (
+        ex.message
+        == "Your dataframe may include DDL or DML operations. Creating a view from "
+        "this DataFrame is currently not supported."
+    )
+
+
+def test_plan_create_views_from_select_only():
+    ex = SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
+    assert ex.error_code == "0315"
+    assert ex.message == "Creating views from SELECT queries supported only."
+
+
+def test_misc_cannot_cast_value():
+    source_type = "List"
+    value = "[0, 1, 2]"
+    target_type = "int"
+    ex = SnowparkClientExceptionMessages.MISC_CANNOT_CAST_VALUE(
+        source_type, value, target_type
+    )
+    assert ex.error_code == "0400"
+    assert ex.message == f"Cannot cast {source_type}({value}) to {target_type}."
+
+
+def test_misc_cannot_find_current_db_or_schema():
+    v1 = "SCHEMA"
+    v2 = v1
+    v3 = v1
+    ex = SnowparkClientExceptionMessages.MISC_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
+        v1, v2, v3
+    )
+    assert ex.error_code == "0401"
+    assert (
+        ex.message
+        == f"The {v1} is not set for the current session. To set this, either run "
+        f'session.sql("USE {v2}").collect() or set the {v3} connection property in '
+        f"the Map or properties file that you specify when creating a session."
+    )
+
+
+def test_misc_query_is_cancelled():
     ex = SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
     assert ex.error_code == "0402"
     assert ex.message == "The query has been cancelled by the user."
 
 
 def test_misc_session_expired():
-    err_msg = "err"
-    ex = SnowparkClientExceptionMessages.MISC_SESSION_EXPIRED(err_msg)
+    error_message = "No valid session left"
+    ex = SnowparkClientExceptionMessages.MISC_SESSION_EXPIRED(error_message)
     assert ex.error_code == "0408"
     assert (
-        ex.message
-        == f"Your Snowpark session has expired. You must recreate your session.\n{err_msg}"
+        ex.message == f"Your Snowpark session has expired. You must recreate your "
+        f"session.\n{error_message}"
     )
+
+
+def test_misc_invalid_object_name():
+    type_name = "Iterable"
+    ex = SnowparkClientExceptionMessages.MISC_INVALID_OBJECT_NAME(type_name)
+    assert ex.error_code == "0412"
+    assert ex.message == f"The object name '{type_name}' is invalid."
+
+
+def test_misc_no_default_session():
+    ex = SnowparkClientExceptionMessages.MISC_NO_DEFAULT_SESSION()
+    assert ex.error_code == "0418"
+    assert ex.message == "No default SnowflakeSession found"
