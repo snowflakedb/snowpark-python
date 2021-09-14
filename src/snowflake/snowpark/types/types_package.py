@@ -79,7 +79,9 @@ def convert_to_sf_type(datatype: DataType) -> str:
         return "FLOAT"
     if type(datatype) == DoubleType:
         return "DOUBLE"
-    if type(datatype) == StringType:
+    # We regard NullType as String, which is required when creating
+    # a dataframe from local data with all None values
+    if type(datatype) in [StringType, NullType]:
         return "STRING"
     if type(datatype) == BooleanType:
         return "BOOLEAN"
@@ -103,7 +105,7 @@ def convert_to_sf_type(datatype: DataType) -> str:
 
 
 def snow_type_to_sp_type(datatype: DataType) -> Optional[SPDataType]:
-    """Mapping from snowflake data-types, to SP data-types"""
+    """Mapping from snowflake data-types to SP data-types."""
 
     # handling the corner case that a UDF doesn't accept any input.
     if datatype is None:
@@ -169,7 +171,7 @@ def to_sp_struct_type(struct_type: StructType) -> SPStructType:
     return snow_type_to_sp_type(struct_type)
 
 
-def sp_type_to_snow_type(datatype: SPDateType) -> DataType:
+def sp_type_to_snow_type(datatype: SPDataType) -> DataType:
     """Mapping from SP data-types, to snowflake data-types"""
     if type(datatype) == SPNullType:
         return NullType()

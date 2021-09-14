@@ -22,7 +22,10 @@ from snowflake.snowpark.plans.logical.basic_logical_operators import SetOperatio
 from snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.types_package import snow_type_to_sp_type
+from snowflake.snowpark.types.types_package import (
+    snow_type_to_sp_type,
+    sp_type_to_snow_type,
+)
 
 
 class SnowflakePlan(LogicalPlan):
@@ -255,6 +258,41 @@ class SnowflakePlanBuilder:
         return SnowflakePlan(
             queries=[Query(sql, None)],
             schema_query=sql,
+            session=self.__session,
+            source_plan=source_plan,
+        )
+
+    def large_local_relation_plan(
+        self,
+        output: List[SPAttribute],
+        data: List[Row],
+        source_plan: Optional[LogicalPlan],
+    ) -> SnowflakePlan:
+        temp_table_name = self.pkg.random_name_for_temp_object()
+        attributes = [
+            Attribute(
+                sp_attr.name, sp_type_to_snow_type(sp_attr.datatype), sp_attr.nullable
+            )
+            for sp_attr in output
+        ]
+        create_table_stmt = self.pkg.create_temp_table_statement(
+            temp_table_name, self.pkg.attribute_to_schema_string(attributes)
+        )
+        insert_stmt = self.pkg.batch_insert_into_statement(
+            temp_table_name, [attr.name for attr in attributes]
+        )
+        select_stmt = self.pkg.project_statement([], temp_table_name)
+        drop_table_stmt = self.pkg.drop_table_if_exists_statement(temp_table_name)
+        schema_query = self.pkg.schema_value_statement(attributes)
+        queries = [
+            Query(create_table_stmt),
+            BatchInsertQuery(insert_stmt, data),
+            Query(select_stmt),
+        ]
+        return SnowflakePlan(
+            queries=queries,
+            schema_query=schema_query,
+            post_actions=[drop_table_stmt],
             session=self.__session,
             source_plan=source_plan,
         )
@@ -554,13 +592,23 @@ class SnowflakePlanBuilder:
 
 
 class Query:
-    def __init__(self, query_string, query_id_placeholder=None):
-        self.sql = query_string
+    def __init__(self, sql: str, query_id_place_holder: Optional[str] = None):
+        self.sql = sql
         self.query_id_place_holder = (
-            query_id_placeholder
-            if query_id_placeholder
+            query_id_place_holder
+            if query_id_place_holder
             else f"query_id_place_holder_{SchemaUtils.random_string()}"
         )
+
+
+class BatchInsertQuery(Query):
+    def __init__(
+        self,
+        sql: str,
+        rows: Optional[List[Row]] = None,
+    ):
+        super().__init__(sql)
+        self.rows = rows
 
 
 # TODO: this class was taken from SnowflakePlanNonde.scala, we might have to move it to a new file

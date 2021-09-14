@@ -11,7 +11,7 @@ import os
 from array import array
 from functools import reduce
 from logging import getLogger
-from typing import Dict, List, NamedTuple, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 
@@ -434,28 +434,42 @@ class Session(metaclass=_SessionMeta):
 
     def createDataFrame(
         self,
-        data: Union[List, Tuple, NamedTuple, Dict],
+        data: Union[List, Tuple, Dict],
         schema: Optional[StructType] = None,
     ) -> DataFrame:
-        """Creates a new DataFrame containing the specified values from the local
-        data. When `schema` is None, the schema will be inferred from the data across
-        all rows. Any type and length inconsistency across rows will be reported.
+        """Creates a new DataFrame containing the specified values from the local data.
 
+        Args:
+            data: The local data for building a :class:`DataFrame`. ``data`` can only
+                be an instance of :class:`list`, :class:`tuple` or :class:`dict`.
+                Every element in ``data`` will constitute a row in the dataframe.
+            schema: A :class:`StructType` containing names and data types of columns.
+                When ``schema`` is ``None``, the schema will be inferred from the data
+                across all rows.
 
-        Valid inputs:
+        Returns:
+            A :class:`DataFrame`.
 
-        1. `data` can only be a list, tuple, nametuple or dict.
-        2. If `data` is a 1D list and tuple, nametuple or dict, every element will constitute a row in the dataframe.
-        3. Otherwise, `data` can only be a list or tuple of lists, tuples, nametuples or dicts, where every iterable in this list will constitute a row in the dataframe.
+        Examples::
+
+            # infer schema
+            session.createDataFrame([1, 2, 3, 4]).toDF("a")  # one single column
+            session.createDataFrame([[1, 2, 3, 4]]).toDF("a", "b", "c", "d")
+            session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+            session.createDataFrame([{"a": "snow", "b": "flake"}])
+
+            # given a schema
+            from snowflake.snowpark.types.sf_types import IntegerType, StringType()
+            schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
+            session.createDataFrame([[1, "snow"], [3, "flake"]], schema)
         """
         if data is None:
-            raise ValueError("Data cannot be None.")
+            raise ValueError("data cannot be None.")
 
         # check the type of data
         if not isinstance(data, (list, tuple, dict)):
             raise TypeError(
-                "createDataFrame() function only accepts data in List, NamedTuple,"
-                " Tuple or Dict type."
+                "createDataFrame() function only accepts data in List, Tuple or Dict type."
             )
 
         # check whether data is empty
