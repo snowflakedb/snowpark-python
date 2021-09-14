@@ -162,9 +162,7 @@ def snow_type_to_sp_type(datatype: DataType) -> Optional[SPDataType]:
     # if type(datatype) == GeographyType:
     #    return GeographyType(snow_type_to_sp_type(valueType))
     # raise internal error
-    raise SnowparkClientException(
-        "Could not convert snowflake type {}".format(datatype)
-    )
+    raise TypeError(f"Could not convert snowflake type {datatype}")
 
 
 def to_sp_struct_type(struct_type: StructType) -> SPStructType:

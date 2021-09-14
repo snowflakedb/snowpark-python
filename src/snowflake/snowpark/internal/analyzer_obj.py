@@ -20,6 +20,7 @@ from snowflake.snowpark.internal.analyzer.sp_views import (
     LocalTempView as SPLocalTempView,
     PersistedView as SPPersistedView,
 )
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
     AggregateFunction as SPAggregateFunction,
@@ -132,8 +133,8 @@ class Analyzer:
             if len(expr.name_parts) == 1:
                 return expr.name_parts[0]
             else:
-                raise SnowparkClientException(
-                    f"Invalid name {'.'.join(expr.name_parts)}"
+                raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(
+                    ".".join(expr.name_parts)
                 )
         if type(expr) is SPUnresolvedFunction:
             # TODO expr.name should return FunctionIdentifier, and we should pass expr.name.funcName
@@ -168,7 +169,7 @@ class Analyzer:
         if isinstance(expr, SPBinaryExpression):
             return self.binary_operator_extractor(expr)
 
-        raise SnowparkClientException(f"Invalid type, analyze. {str(expr)}")
+        raise TypeError(f"Invalid type, analyze. {str(expr)}")
 
     # TODO
     def table_function_expression_extractor(self, expr):
@@ -440,8 +441,8 @@ class Analyzer:
             elif type(logical_plan.view_type) == SPLocalTempView:
                 is_temp = True
             else:
-                raise SnowparkClientException(
-                    f"Internal Error: Only PersistedView and LocalTempView are supported. View type: {type(logical_plan.view_type)}"
+                raise SnowparkClientExceptionMessages.PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
+                    type(logical_plan.view_type)
                 )
 
             return self.plan_builder.create_or_replace_view(

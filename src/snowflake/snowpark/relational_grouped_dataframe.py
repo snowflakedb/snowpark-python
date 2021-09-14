@@ -206,7 +206,7 @@ class RelationalGroupedDataFrame:
                 [self.__str_to_expr(expr)(col.expression) for col, expr in exprs]
             )
         else:
-            raise SnowparkClientException("Invalid input types for agg()")
+            raise ValueError("Invalid input types for agg()")
 
     def avg(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the average for the specified numeric columns."""

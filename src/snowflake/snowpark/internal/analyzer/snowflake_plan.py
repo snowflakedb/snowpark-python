@@ -441,15 +441,10 @@ class SnowflakePlanBuilder:
         self, name: str, child: SnowflakePlan, is_temp: bool
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
-            raise SnowparkClientException(
-                "Your dataframe may include DDL or DML operations. "
-                + "Creating a view from this DataFrame is currently not supported."
-            )
+            raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
 
         if not child.queries[0].sql.lower().strip().startswith("select"):
-            raise SnowparkClientException(
-                "Creating views from SELECT queries supported only."
-            )
+            raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         return self.build(
             lambda x: self.pkg.create_or_replace_view_statement(name, x, is_temp),
@@ -513,8 +508,8 @@ class SnowflakePlanBuilder:
             )
         else:  # otherwise use COPY
             if "FORCE" in copy_options and copy_options["FORCE"].lower() != "true":
-                raise SnowparkClientException(
-                    f"Copy option 'FORCE = {copy_options['FORCE']}' is not supported. Snowpark doesn't skip any loaded files in COPY."
+                raise SnowparkClientExceptionMessages.PLAN_COPY_DONT_SUPPORT_SKIP_LOADED_FILES(
+                    copy_options["FORCE"]
                 )
 
             # set force to true.
