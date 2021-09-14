@@ -754,7 +754,7 @@ class AnalyzerPackage:
     @classmethod
     def validate_quoted_name(cls, name: str) -> str:
         if '"' in name[1:-1].replace('""', ""):
-            raise SnowparkClientException(f"invalid identifier '{name}'")
+            raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
         else:
             return name
 

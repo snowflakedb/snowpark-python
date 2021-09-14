@@ -45,9 +45,7 @@ class UserDefinedFunction:
     ) -> Column:
         exprs = Utils.parse_positional_args_to_list(*cols)
         if not all(type(e) in [Column, str] for e in exprs):
-            raise TypeError(
-                "UDF {} input must be Column, str, or list".format(self.name)
-            )
+            raise TypeError(f"UDF {self.name} input must be Column, str, or list")
 
         return Column(
             self.__create_udf_expression(
@@ -61,8 +59,8 @@ class UserDefinedFunction:
     def __create_udf_expression(self, exprs: List[SPExpression]) -> SnowflakeUDF:
         if len(exprs) != len(self.input_types):
             raise ValueError(
-                "Incorrect number of arguments passed to the UDF:"
-                " Expected: {}, Found: {}".format(len(exprs), len(self.input_types))
+                f"Incorrect number of arguments passed to the UDF:"
+                f" Expected: {len(exprs)}, Found: {len(self.input_types)}"
             )
         return SnowflakeUDF(
             self.name,

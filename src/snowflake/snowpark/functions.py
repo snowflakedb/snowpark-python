@@ -36,6 +36,7 @@ import functools
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 from snowflake.snowpark.column import CaseExpr, Column
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     Avg as SPAverage,
@@ -345,7 +346,7 @@ def udf(
 
     session = Session._get_active_session()
     if not session:
-        raise SnowparkClientException("No default SnowflakeSession found")
+        raise SnowparkClientExceptionMessages.MISC_NO_DEFAULT_SESSION()
 
     if func is None:
         return functools.partial(
