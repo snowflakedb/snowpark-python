@@ -156,6 +156,14 @@ class SnowparkClientExceptionMessages:
     # Plan analysis and execution error codes 03XX
 
     @staticmethod
+    def PLAN_LAST_QUERY_RETURN_RESULTSET() -> SnowparkClientException:
+        return SnowparkClientException(
+            "Internal error: The execution for the last query "
+            "in the Snowflake plan doesn't return a ResultSet.",
+            "0300",
+        )
+
+    @staticmethod
     def PLAN_SAMPLING_NEED_ONE_PARAMETER() -> SnowparkClientException:
         return SnowparkClientException(
             "You must specify either the fraction of rows or the number of rows to sample.",
@@ -190,3 +198,17 @@ class SnowparkClientExceptionMessages:
         )
 
     # Miscellaneous Messages 04XX
+
+    @staticmethod
+    def MISC_QUERY_IS_CANCELLED() -> SnowparkClientException:
+        return SnowparkClientException(
+            "The query has been cancelled by the user.", "0402"
+        )
+
+    @staticmethod
+    def MISC_SESSION_EXPIRED(err_msg: str) -> SnowparkClientException:
+        return SnowparkClientException(
+            f"Your Snowpark session has expired. "
+            f"You must recreate your session.\n{err_msg}",
+            "0408",
+        )

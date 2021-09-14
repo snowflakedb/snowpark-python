@@ -34,14 +34,6 @@ def test_create_dataFrame_namedtuple(session_cnx):
         assert [field.name for field in df.schema.fields] == ["A", "B", "C"]
 
 
-def test_session_build_no_reuse(db_parameters):
-    Session.builder.configs(db_parameters)
-
-    with pytest.raises(ValueError) as ex_info:
-        Session.builder.create()
-    assert "missing required parameter host" in str(ex_info)
-
-
 # this test requires the parameters used for connection has `public role`,
 # and the public role has the privilege to access the current database and
 # schema of the current role

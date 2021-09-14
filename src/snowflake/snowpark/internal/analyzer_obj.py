@@ -84,6 +84,8 @@ class Analyzer:
         self.subquery_plans = {}
         self.alias_maps_to_use = None
 
+        self._array_bind_threshold = 512
+
     def analyze(self, expr) -> str:
         if type(expr) == SPLike:
             return self.package.like_expression(
@@ -384,13 +386,20 @@ class Analyzer:
 
         if type(logical_plan) == SnowflakeValues:
             if logical_plan.data:
-                # TODO: SNOW-367105 handle large values with largeLocalRelationPlan
-                return self.plan_builder.query(
-                    self.package.values_statement(
-                        logical_plan.output, logical_plan.data
-                    ),
-                    logical_plan,
-                )
+                if (
+                    len(logical_plan.output) * len(logical_plan.data)
+                    < self._array_bind_threshold
+                ):
+                    return self.plan_builder.query(
+                        self.package.values_statement(
+                            logical_plan.output, logical_plan.data
+                        ),
+                        logical_plan,
+                    )
+                else:
+                    return self.plan_builder.large_local_relation_plan(
+                        logical_plan.output, logical_plan.data, logical_plan
+                    )
             else:
                 return self.plan_builder.query(
                     self.package.empty_values_statement(logical_plan.output),

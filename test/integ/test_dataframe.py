@@ -12,6 +12,7 @@ from test.utils import Utils
 
 import pytest
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.internal.sp_expressions import (
@@ -863,25 +864,36 @@ def test_create_dataframe_from_none_data(session_cnx):
             Row(None, None),
         ]
 
+        # large None data
+        assert session.createDataFrame([None] * 20000).collect() == [Row(None)] * 20000
+
+
+def test_create_dataframe_large_without_batch_insert(session):
+    original_value = session.analyzer._array_bind_threshold
+    try:
+        session.analyzer._array_bind_threshold = 40000
+        with pytest.raises(ProgrammingError) as ex_info:
+            session.createDataFrame([1] * 20000).collect()
+        assert "SQL compilation error" in str(ex_info)
+        assert "maximum number of expressions in a list exceeded" in str(ex_info)
+    finally:
+        session.analyzer._array_bind_threshold = original_value
+
 
 def test_create_dataframe_with_invalid_data(session_cnx):
     with session_cnx() as session:
         # None input
         with pytest.raises(ValueError) as ex_info:
             session.createDataFrame(None)
-        assert "Data cannot be None" in str(ex_info)
+        assert "data cannot be None" in str(ex_info)
 
         # input other than list, tuple, namedtuple and dict
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame(1)
-        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
-            ex_info
-        )
+        assert "only accepts data in List, Tuple or Dict type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame({1, 2})
-        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
-            ex_info
-        )
+        assert "only accepts data in List, Tuple or Dict type" in str(ex_info)
 
         # inconsistent type
         with pytest.raises(TypeError) as ex_info:
