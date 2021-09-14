@@ -163,6 +163,7 @@ class SnowparkClientExceptionMessages:
             "0300",
         )
 
+    @staticmethod
     def PLAN_ANALYZER_INVALID_IDENTIFIER(name: str) -> SnowparkClientException:
         return SnowparkClientException(f"Invalid identifier {name}", "0301")
 
