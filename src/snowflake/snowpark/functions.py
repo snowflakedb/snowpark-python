@@ -53,7 +53,6 @@ from snowflake.snowpark.internal.sp_expressions import (
     UnresolvedFunction as SPUnresolvedFunction,
 )
 from snowflake.snowpark.internal.utils import Utils
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import DataType, StringType
 from snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType
 

@@ -21,7 +21,6 @@ from snowflake.snowpark.internal.utils import _SaveMode
 from snowflake.snowpark.plans.logical.basic_logical_operators import SetOperation
 from snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.types_package import (
     snow_type_to_sp_type,
     sp_type_to_snow_type,
