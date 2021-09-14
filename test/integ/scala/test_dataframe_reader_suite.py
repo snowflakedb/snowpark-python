@@ -593,21 +593,30 @@ def test_copy_option_force(session):
             test_file_on_stage
         ).collect()
 
-    assert "Copy option 'FORCE = false' is not supported." in str(ex_info)
+    assert (
+        "The COPY option 'FORCE = false' is not supported by the Snowpark library"
+        in ex_info.value.message
+    )
 
     with pytest.raises(SnowparkClientException) as ex_info:
         session.read.schema(user_schema).option("FORCE", "FALSE").csv(
             test_file_on_stage
         ).collect()
 
-    assert "Copy option 'FORCE = FALSE' is not supported." in str(ex_info)
+    assert (
+        "The COPY option 'FORCE = FALSE' is not supported by the Snowpark library"
+        in ex_info.value.message
+    )
 
     with pytest.raises(SnowparkClientException) as ex_info:
         session.read.schema(user_schema).option("fORce", "faLsE").csv(
             test_file_on_stage
         ).collect()
 
-        assert "Copy option 'FORCE = faLsE' is not supported." in str(ex_info)
+    assert (
+            "The COPY option 'FORCE = faLsE' is not supported by the Snowpark library"
+            in ex_info.value.message
+    )
 
     # no error
     session.read.schema(user_schema).option("fORce", "true").csv(

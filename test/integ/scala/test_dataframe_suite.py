@@ -1104,7 +1104,7 @@ def test_negative_test_for_user_input_invalid_quoted_name(session):
     df = session.createDataFrame([1, 2, 3]).toDF("a")
     with pytest.raises(SnowparkClientException) as ex_info:
         df.where(col('"A" = "A" --"') == 2).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "Invalid identifier" in str(ex_info)
 
 
 def test_clone_with_union_dataframe(session):
