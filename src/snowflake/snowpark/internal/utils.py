@@ -19,7 +19,6 @@ from typing import IO, List, Optional, Tuple, Type
 
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 

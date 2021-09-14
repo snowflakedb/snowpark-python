@@ -16,7 +16,6 @@ from array import array
 from collections import OrderedDict, defaultdict
 from typing import List, Optional, Tuple, Type
 
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     BinaryType,
