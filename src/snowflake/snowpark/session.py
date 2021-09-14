@@ -36,6 +36,7 @@ from snowflake.snowpark.internal.analyzer.snowflake_plan import (
     SnowflakeValues,
 )
 from snowflake.snowpark.internal.analyzer_obj import Analyzer
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.server_connection import ServerConnection
 from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
@@ -559,10 +560,8 @@ class Session(metaclass=_SessionMeta):
                 elif type(data_type) == VariantType:
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
-                    raise SnowparkClientException(
-                        "{} {} can't be converted to {}".format(
-                            type(value), value, str(data_type)
-                        )
+                    raise SnowparkClientExceptionMessages.MISC_CANNOT_CAST_VALUE(
+                        type(value), value, str(data_type)
                     )
             converted.append(Row(*converted_row))
 
@@ -638,8 +637,8 @@ class Session(metaclass=_SessionMeta):
         if database is None or schema is None:
             missing_item = "DATABASE" if not database else "SCHEMA"
             # TODO: SNOW-372569 Use ErrorMessage
-            raise SnowparkClientException(
-                "The {} is not set for the current session.".format(missing_item)
+            raise SnowparkClientExceptionMessages.MISC_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
+                missing_item, missing_item, missing_item
             )
         return database + "." + schema
 

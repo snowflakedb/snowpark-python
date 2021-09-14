@@ -163,6 +163,17 @@ class SnowparkClientExceptionMessages:
             "0300",
         )
 
+    def PLAN_ANALYZER_INVALID_IDENTIFIER(name: str) -> SnowparkClientException:
+        return SnowparkClientException(f"Invalid identifier {name}", "0301")
+
+    @staticmethod
+    def PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(type_name: str) -> SnowparkClientException:
+        return SnowparkClientException(
+            f"Internal Error: Only PersistedView and LocalTempView are supported. "
+            f"view type: {type_name}",
+            "0302",
+        )
+
     @staticmethod
     def PLAN_SAMPLING_NEED_ONE_PARAMETER() -> SnowparkClientException:
         return SnowparkClientException(
@@ -197,7 +208,49 @@ class SnowparkClientExceptionMessages:
             "0310",
         )
 
+    @staticmethod
+    def PLAN_COPY_DONT_SUPPORT_SKIP_LOADED_FILES(value: str) -> SnowparkClientException:
+        return SnowparkClientException(
+            f"The COPY option 'FORCE = {value}' is not supported by the Snowpark library. "
+            f"The Snowflake library loads all files, even if the files have been loaded "
+            f"previously and have not changed since they were loaded.",
+            "0311",
+        )
+
+    @staticmethod
+    def PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS() -> SnowparkClientException:
+        return SnowparkClientException(
+            "Your dataframe may include DDL or DML operations. Creating a view from "
+            "this DataFrame is currently not supported.",
+            "0314",
+        )
+
+    @staticmethod
+    def PLAN_CREATE_VIEWS_FROM_SELECT_ONLY() -> SnowparkClientException:
+        return SnowparkClientException(
+            "Creating views from SELECT queries supported only.", "0315"
+        )
+
     # Miscellaneous Messages 04XX
+
+    @staticmethod
+    def MISC_CANNOT_CAST_VALUE(
+        source_type: str, value: str, target_type: str
+    ) -> SnowparkClientException:
+        return SnowparkClientException(
+            f"Cannot cast {source_type}({value}) to {target_type}.", "0400"
+        )
+
+    @staticmethod
+    def MISC_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
+        v1: str, v2: str, v3: str
+    ) -> SnowparkClientException:
+        return SnowparkClientException(
+            f"The {v1} is not set for the current session. To set this, either run "
+            f'session.sql("USE {v2}").collect() or set the {v3} connection property in '
+            f"the Map or properties file that you specify when creating a session.",
+            "0401",
+        )
 
     @staticmethod
     def MISC_QUERY_IS_CANCELLED() -> SnowparkClientException:
@@ -206,9 +259,19 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def MISC_SESSION_EXPIRED(err_msg: str) -> SnowparkClientException:
+    def MISC_SESSION_EXPIRED(error_message: str) -> SnowparkClientException:
         return SnowparkClientException(
-            f"Your Snowpark session has expired. "
-            f"You must recreate your session.\n{err_msg}",
+            f"Your Snowpark session has expired. You must recreate your "
+            f"session.\n{error_message}",
             "0408",
         )
+
+    @staticmethod
+    def MISC_INVALID_OBJECT_NAME(type_name: str) -> SnowparkClientException:
+        return SnowparkClientException(
+            f"The object name '{type_name}' is invalid.", "0412"
+        )
+
+    @staticmethod
+    def MISC_NO_DEFAULT_SESSION() -> SnowparkClientException:
+        return SnowparkClientException("No default SnowflakeSession found", "0418")
