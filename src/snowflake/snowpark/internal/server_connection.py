@@ -348,10 +348,10 @@ class ServerConnection:
                     final_query = query.sql
                     for holder, id_ in placeholders.items():
                         final_query = final_query.replace(holder, id_)
-                    if action_id < plan.session.get_last_canceled_id():
-                        raise SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
                     result = self.run_query(final_query, to_pandas, **kwargs)
                     placeholders[query.query_id_place_holder] = result["sfqid"]
+                if action_id < plan.session.get_last_canceled_id():
+                    raise SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
             for action in plan.post_actions:
