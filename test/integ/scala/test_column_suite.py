@@ -404,13 +404,13 @@ def test_column_names_with_quotes(session):
 
     with pytest.raises(SnowparkClientException) as ex_info:
         df.select(col('"col""')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "Invalid identifier" in str(ex_info)
     with pytest.raises(SnowparkClientException) as ex_info:
         df.select(col('""col"')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "Invalid identifier" in str(ex_info)
     with pytest.raises(SnowparkClientException) as ex_info:
         df.select(col('"col""""')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "Invalid identifier" in str(ex_info)
 
 
 def test_column_constructors_col(session):
