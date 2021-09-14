@@ -30,7 +30,6 @@ from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Aggregate as SPAggregate,
     Pivot as SPPivot,
 )
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sp_data_types import IntegerType as SPInteger
 
 

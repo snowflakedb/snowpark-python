@@ -66,7 +66,6 @@ from snowflake.snowpark.plans.logical.logical_plan import (
     Sample as SPSample,
     UnresolvedRelation as SPUnresolvedRelation,
 )
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sp_data_types import (
     ByteType as SPByteType,
     IntegerType as SPIntegerType,

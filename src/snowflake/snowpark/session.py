@@ -45,7 +45,6 @@ from snowflake.snowpark.internal.utils import PythonObjJSONEncoder, Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import Range
 from snowflake.snowpark.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     AtomicType,
