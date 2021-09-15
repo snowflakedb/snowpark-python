@@ -756,49 +756,45 @@ def test_createDataFrame_with_given_schema_time(session):
     assert df.collect() == data
 
 
-@pytest.mark.skipif(IS_WINDOWS, reason="TemporaryDirectory() returns short-named path")
-def test_show_collect_with_misc_commands(session, resources_path):
+def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
     object_name = Utils.random_name()
     stage_name = Utils.random_stage_name()
     # In scala, they create a temp JAR file, here we just upload an existing CSV file
     filepath = TestFiles(resources_path).test_file_csv
     escaped_filepath = Utils.escape_path(filepath)
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        canonical_dir_path = os.path.normpath(temp_dir)
-        if not canonical_dir_path.endswith(os.path.sep):
-            canonical_dir_path += os.path.sep
-        escaped_temp_dir = Utils.escape_path(canonical_dir_path)
+    canonical_dir_path = tmpdir.strpath + os.path.sep
+    escaped_temp_dir = Utils.escape_path(canonical_dir_path)
 
-        misc_commands = [
-            f"create or replace temp stage {stage_name}",
-            f"put file://{escaped_filepath} @{stage_name}",
-            f"get @{stage_name} file://{escaped_temp_dir}",
-            f"list @{stage_name}",
-            f"remove @{stage_name}",
-            f"remove @{stage_name}",  # second REMOVE returns 0 rows.
-            f"create temp table {object_name} (c1 int)",
-            f"drop table {object_name}",
-            f"create temp view {object_name} (string) as select current_version()",
-            f"drop view {object_name}",
-            f"show tables",
-            f"drop stage {stage_name}",
-        ]
+    misc_commands = [
+        f"create or replace temp stage {stage_name}",
+        f"put file://{escaped_filepath} @{stage_name}",
+        f"get @{stage_name} file://{escaped_temp_dir}",
+        f"list @{stage_name}",
+        f"remove @{stage_name}",
+        f"remove @{stage_name}",  # second REMOVE returns 0 rows.
+        f"create temp table {object_name} (c1 int)",
+        f"drop table {object_name}",
+        f"create temp view {object_name} (string) as select current_version()",
+        f"drop view {object_name}",
+        f"show tables",
+        f"drop stage {stage_name}",
+    ]
 
-        # Misc commands with show
-        for command in misc_commands:
-            session.sql(command).show()
+    # Misc commands with show
+    for command in misc_commands:
+        session.sql(command).show()
 
-        # Misc commands with collect()
-        for command in misc_commands:
-            session.sql(command).collect()
+    # Misc commands with collect()
+    for command in misc_commands:
+        session.sql(command).collect()
 
-        # Misc commands with session.conn.getResultAndMetadata
-        for command in misc_commands:
-            rows, meta = session.conn.get_result_and_metadata(
-                session.sql(command)._DataFrame__plan
-            )
-            assert len(rows) == 0 or len(rows[0]) == len(meta)
+    # Misc commands with session.conn.getResultAndMetadata
+    for command in misc_commands:
+        rows, meta = session.conn.get_result_and_metadata(
+            session.sql(command)._DataFrame__plan
+        )
+        assert len(rows) == 0 or len(rows[0]) == len(meta)
 
 
 def test_createDataFrame_with_given_schema_array_map_variant(session):
