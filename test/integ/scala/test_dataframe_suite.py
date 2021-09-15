@@ -764,7 +764,7 @@ def test_show_collect_with_misc_commands(session, resources_path):
     escaped_filepath = Utils.escape_path(filepath)
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        canonical_dir_path = os.path.abspath(temp_dir)
+        canonical_dir_path = os.path.normpath(temp_dir)
         if not canonical_dir_path.endswith(os.path.sep):
             canonical_dir_path += os.path.sep
         escaped_temp_dir = Utils.escape_path(canonical_dir_path)
