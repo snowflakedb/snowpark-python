@@ -11,7 +11,6 @@ import tempfile
 import uuid
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
-
 from typing.io import IO
 
 from snowflake.snowpark.dataframe import DataFrame
@@ -29,7 +28,7 @@ class Utils:
     @staticmethod
     def escape_path(path):
         if IS_WINDOWS:
-            return path.replace('\\', '\\\\')
+            return path.replace("\\", "\\\\")
         else:
             return path
 

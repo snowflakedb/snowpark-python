@@ -35,7 +35,7 @@ def test_verify_datatypes_reference(session):
     schema = StructType(
         [
             StructField("var", VariantType()),
-            #StructField("geo", GeographyType()),
+            # StructField("geo", GeographyType()),
             StructField("date", DateType()),
             StructField("time", TimeType()),
             StructField("timestamp", TimestampType()),
@@ -58,7 +58,7 @@ def test_verify_datatypes_reference(session):
         [
             [
                 None,
-                #None,
+                # None,
                 None,
                 None,
                 None,

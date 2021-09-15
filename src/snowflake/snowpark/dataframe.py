@@ -257,11 +257,11 @@ class DataFrame:
 
         if len(self.__output()) != len(col_names):
             raise ValueError(
-            f"The number of columns doesn't match. "
-            f"Old column names ({len(self.__output())}): "
-            f"{','.join(attr.name for attr in self.__output())}. "
-            f"New column names ({len(col_names)}): {','.join(col_names)}."
-        )
+                f"The number of columns doesn't match. "
+                f"Old column names ({len(self.__output())}): "
+                f"{','.join(attr.name for attr in self.__output())}. "
+                f"New column names ({len(col_names)}): {','.join(col_names)}."
+            )
 
         new_cols = []
         for attr, name in zip(self.__output(), col_names):

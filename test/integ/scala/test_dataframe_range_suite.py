@@ -29,9 +29,7 @@ def test_empty_result_and_negative_start_end_step(session):
     assert session.range(3, 5, -1).count() == 0
     assert session.range(-3, -5, 1).count() == 0
 
-    assert session.range(-3, -10, -2).collect() == [
-        Row(i) for i in range(-3, -10, -2)
-    ]
+    assert session.range(-3, -10, -2).collect() == [Row(i) for i in range(-3, -10, -2)]
     assert session.range(10, 3, -3).collect() == [Row(i) for i in range(10, 3, -3)]
 
 

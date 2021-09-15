@@ -163,11 +163,7 @@ def test_read_csv_incorrect_schema(session, mode):
             StructField("d", IntegerType()),
         ]
     )
-    df = (
-        reader.option("purge", False)
-        .schema(incorrect_schema)
-        .csv(test_file_on_stage)
-    )
+    df = reader.option("purge", False).schema(incorrect_schema).csv(test_file_on_stage)
     with pytest.raises(ProgrammingError) as ex_info:
         df.collect()
     assert "Number of columns in file (3) does not match" in str(ex_info)
@@ -175,11 +171,7 @@ def test_read_csv_incorrect_schema(session, mode):
 
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    df1 = (
-        session.read.schema(user_schema)
-        .csv(test_file_on_stage)
-        .filter(col("a") < 2)
-    )
+    df1 = session.read.schema(user_schema).csv(test_file_on_stage).filter(col("a") < 2)
     res = df1.collect()
     res.sort(key=lambda x: x[0])
     assert res == [Row(1, "one", 1.2)]
@@ -301,9 +293,9 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     format_name = Utils.random_name()
     try:
-        get_reader(session, mode).schema(user_schema).option(
-            "compression", "auto"
-        ).csv(test_file_on_stage).write.saveAsTable(tmp_table)
+        get_reader(session, mode).schema(user_schema).option("compression", "auto").csv(
+            test_file_on_stage
+        ).write.saveAsTable(tmp_table)
 
         session.sql(f"create file format {format_name} type = 'csv'").collect()
 
@@ -438,10 +430,14 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
     session.sql(f"create file format {format_name} type = 'parquet'").collect()
     for ctype in ["snappy", "lzo"]:
         # upload data
-        session.sql(f"copy into @{tmp_stage_name1}/{ctype}/ from ( select * from {tmp_table}) file_format=(format_name='{format_name}' compression='$ctype') overwrite = true").collect()
+        session.sql(
+            f"copy into @{tmp_stage_name1}/{ctype}/ from ( select * from {tmp_table}) file_format=(format_name='{format_name}' compression='$ctype') overwrite = true"
+        ).collect()
 
         # read the data
-        get_reader(session, mode).option("COMPRESSION", ctype).parquet(f"@{tmp_stage_name1}/${ctype}/").collect()
+        get_reader(session, mode).option("COMPRESSION", ctype).parquet(
+            f"@{tmp_stage_name1}/${ctype}/"
+        ).collect()
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -635,9 +631,7 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
     path = f"@{tmp_stage_name1}/{test_file_parquet}"
 
     copy = (
-        session.read.option("purge", False)
-        .option("COMPRESSION", "none")
-        .parquet(path)
+        session.read.option("purge", False).option("COMPRESSION", "none").parquet(path)
     )
     select = session.read.option("COMPRESSION", "none").parquet(path)
 
@@ -650,8 +644,7 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
         assert c.name == f.name
         assert c.nullable == f.nullable
         assert (
-            c.column_identifier.normalized_name
-            == f.column_identifier.normalized_name
+            c.column_identifier.normalized_name == f.column_identifier.normalized_name
         )
         assert c.column_identifier.quoted_name == f.column_identifier.quoted_name
 

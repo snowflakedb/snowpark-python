@@ -15,11 +15,10 @@ from snowflake.snowpark.types.sf_types import IntegerType
 
 def test_union_with_filters(session):
     """Tests union queries with a filter added"""
+
     def check(new_col: Column, cfilter: Column, result: List[Row]):
         df1 = (
-            session.createDataFrame([[1, 1]])
-            .toDF(["a", "b"])
-            .withColumn("c", new_col)
+            session.createDataFrame([[1, 1]]).toDF(["a", "b"]).withColumn("c", new_col)
         )
         df2 = df1.union(df1).withColumn("d", lit(100)).filter(cfilter)
 
@@ -69,15 +68,13 @@ def test_except(session):
 
     # check all null equality and de-duplication
     all_nulls = TestData.all_nulls(session)
-    Utils.check_answer(
-        all_nulls.except_(all_nulls.filter(lit(0) == 1)), [Row(None)]
-    )
+    Utils.check_answer(all_nulls.except_(all_nulls.filter(lit(0) == 1)), [Row(None)])
     Utils.check_answer(all_nulls.except_(all_nulls), [])
 
     # check if values are de-duplicated
-    df = session.createDataFrame(
-        (("id1", 1), ("id1", 1), ("id", 1), ("id1", 2))
-    ).toDF("id", "value")
+    df = session.createDataFrame((("id1", 1), ("id1", 1), ("id", 1), ("id1", 2))).toDF(
+        "id", "value"
+    )
     Utils.check_answer(
         df.except_(df.filter(lit(0) == 1)),
         [Row("id", 1), Row("id1", 1), Row("id1", 2)],
@@ -204,9 +201,9 @@ def test_intersect(session):
     assert df.collect() == [Row(None)]
 
     # check if values are de-duplicated
-    df = session.createDataFrame(
-        [("id1", 1), ("id1", 1), ("id", 1), ("id1", 2)]
-    ).toDF("id", "value")
+    df = session.createDataFrame([("id1", 1), ("id1", 1), ("id", 1), ("id1", 2)]).toDF(
+        "id", "value"
+    )
     res = df.intersect(df).collect()
     res.sort(key=lambda x: (x[0], x[1]))
     assert res == [Row("id", 1), Row("id1", 1), Row("id1", 2)]
@@ -248,9 +245,7 @@ def test_except_nullability(session):
 
 
 def test_except_distinct_sql_compliance(session):
-    df_left = session.createDataFrame([(1,), (2,), (2,), (3,), (3,), (4,)]).toDF(
-        "id"
-    )
+    df_left = session.createDataFrame([(1,), (2,), (2,), (3,), (3,), (4,)]).toDF("id")
     df_right = session.createDataFrame([(1,), (3,)]).toDF("id")
     Utils.check_answer(df_left.except_(df_right), [Row(2), Row(4)])
 
