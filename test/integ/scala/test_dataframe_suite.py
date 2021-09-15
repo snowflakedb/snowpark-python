@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-
+import os
 import re
 import tempfile
 from datetime import datetime
@@ -764,7 +764,10 @@ def test_show_collect_with_misc_commands(session, resources_path):
     escaped_filepath = Utils.escape_path(filepath)
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        escaped_temp_dir = Utils.escape_path(temp_dir)
+        canonical_dir_path = os.path.abspath(temp_dir)
+        if not canonical_dir_path.endswith(os.path.sep):
+            canonical_dir_path += os.path.sep
+        escaped_temp_dir = Utils.escape_path(canonical_dir_path)
 
         misc_commands = [
             f"create or replace temp stage {stage_name}",
