@@ -756,7 +756,6 @@ def test_createDataFrame_with_given_schema_time(session):
     assert df.collect() == data
 
 
-@pytest.mark.skipif(IS_WINDOWS, reason="TemporaryDirectory() returns short-named path")
 def test_show_collect_with_misc_commands(session, resources_path):
     object_name = Utils.random_name()
     stage_name = Utils.random_stage_name()
@@ -768,6 +767,8 @@ def test_show_collect_with_misc_commands(session, resources_path):
         canonical_dir_path = os.path.normpath(temp_dir)
         if not canonical_dir_path.endswith(os.path.sep):
             canonical_dir_path += os.path.sep
+        if IS_WINDOWS and '~' in canonical_dir_path:
+            canonical_dir_path = f"\"{canonical_dir_path}\""
         escaped_temp_dir = Utils.escape_path(canonical_dir_path)
 
         misc_commands = [
