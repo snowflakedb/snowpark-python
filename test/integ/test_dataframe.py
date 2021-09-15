@@ -4,11 +4,12 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import datetime
+import os
 from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
-from test.utils import Utils
+from test.utils import Utils, TestFiles
 
 import pytest
 
@@ -37,6 +38,25 @@ from snowflake.snowpark.types.sf_types import (
     VariantType,
 )
 
+
+def test_show(session, resources_path):
+    tmp_stage_name1 = "test_stage_show"
+
+    try:
+        Utils.create_stage(session, tmp_stage_name1, is_temporary=False)
+        file_name = os.path.join(resources_path, "small_matrix.txt")
+        session.sql("put file://" + file_name + " @" + tmp_stage_name1).collect()
+
+        col_names = ["name"] + ["sample" + str(i) for i in range(1, 17)]
+
+        table_schema = StructType([StructField(name, (StringType() if (i == 0) else DoubleType()))
+             for i, name in enumerate(col_names)])
+
+        session.read.option("field_delimiter", "\t").option("skip_header", 1).option("purge", False).schema(table_schema).csv(f"@{tmp_stage_name1}/small_matrix.txt").show()
+    except Exception as e:
+        a = str(e)
+    finally:
+        Utils.drop_stage(tmp_stage_name1)
 
 def test_distinct(session_cnx):
     """Tests df.distinct()."""

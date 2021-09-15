@@ -1,0 +1,979 @@
+NAME	Sample1	Sample2	Sample3	Sample4	Sample5	Sample6	Sample7	Sample8	Sample9	Sample10	Sample11	Sample12	Sample13	Sample14	Sample15	Sample16
+"100015  ESTs, Moderately similar to RDHUD dihydrofolate reductase [H.sapiens] Hs.374327 R00884 DHFR=Dihydrofolate reductase  "	-0.74	-0.2	0.3	-0.06	0.22	-0.32	-0.38	-0.12	0.04	0.74	0.19	-0.51	-0.06	0.4	-0.4	0.13
+100040 POLRMT polymerase (RNA) mitochondrial (DNA directed) Hs.153880 R31115  5442 	0.19	0.16	0.4	0.66	1.02	0.03	0.47	-0.44	-0.62	-0.25	-0.67	-0.35	0.45	-0.36	-1.19	0.31
+100044 JUNB jun B proto-oncogene Hs.198951 T99236  3726 	0.34	0.46	0.72	2.46	0.84	1.58	0.48	1.44	-1.79	-0.4	0.19	-0.39	-0.97	-0.85	-2.06	-0.12
+100069 KIAA0179 KIAA0179 protein Hs.152629 AA644334  23076 	-0.15	0.71	0.13	0.14	-0.42	-0.19	1.05	-0.14	0.63	-0.6	1.18	0.84	1.03	0.67	0.81	1.48
+100072 NFS1 NFS1 nitrogen fixation 1 (S. cerevisiae) Hs.194692 AA476244  9054 	-0.2	0.63	1.06	-0.16	-0.2	-0.22	-0.01	0.27	-0.09	0.11	-0.24	0.04	0.28	-0.41	0.47	0.46
+100099 TYMS **thymidylate synthetase Hs.82962 N66132  7298 	-0.28	-0.8	0.65	-0.7	0.29	-0.15	0.18	-0.59	-0.14	0.61	-0.55	0.78	-0.28	1.49	1.18	1.17
+100111  Homo sapiens mRNA; cDNA DKFZp434A012 (from clone DKFZp434A012) Hs.306327 AA039230   	0	-0.15	0.18	-0.01	0.35	-0.09	-0.13	0.04	-0.05	0.87	-0.29	0.35	-0.12	0.09	0.89	0.22
+100118 NS1-BP NS1-binding protein Hs.197298 AA486796  10625 	-0.03	1.08	1.57	0.61	0.61	-0.29	0.55	1.02	-0.31	-0.13	-0.49	0.94	0.49	0.51	-0.33	-0.48
+100162 FLJ10535 hypothetical protein FLJ10535 Hs.267963 AA455478  55163 	0	1.24	0.41	0.94	0.88	-0.06	-0.42	-1.27	-0.39	0.14	-2.33	0.83	-1.68	-0.49	0.02	0.47
+"100185 TNFRSF12 tumor necrosis factor receptor superfamily, member 12 (translocating chain-association membrane protein) Hs.180338 W71984 DR3=Apo-3=death receptor 3 8718 "	0.82	0.54	-0.04	0.52	0.99	0.43	0.85	1.06	-0.48	-0.63	-0.37	-0.35	-0.04	-0.07	0.06	-0.22
+100223 PTOV1 prostate tumor over expressed gene 1 Hs.19555 AA486332  53635 	1.14	1.24	0.11	0.24	0.62	0.57	0.22	-0.26	-0.52	0	-0.95	0.28	-0.65	-0.24	-0.02	-0.01
+100233 LOC54543 6.2 kd protein Hs.112318 AA069704  54543 	-0.17	-0.79	0.53	0.31	0.43	-0.12	0.28	0	0.08	-0.66	-0.35	0.85	0.6	0.33	0.44	0.5
+100234 FOSL2 FOS-like antigen 2 Hs.301612 AA101616  2355 	0.53	1.3	1.34	1.27	0.84	1.04	1.78	2.34	-1.19	-1.17	-1.67	-1.35	-3.99	-1.72	0	-2.03
+100247 KNSL4 kinesin-like 4 Hs.119324 AA430503  3835 	-0.48	0.71	0.25	-0.44	0.27	-0.02	-0.59	0.47	-0.51	0.44	-0.25	1.19	0.84	0.53	1.21	0.15
+100256 C21orf33 chromosome 21 open reading frame 33 Hs.182423 AA025421  8209 	1.04	1.33	0.06	0.47	0.03	0.48	-0.09	-0.05	-0.2	0.3	0.12	-0.18	1.11	0.14	1.93	0.7
+100279 TOP2A topoisomerase (DNA) II alpha (170kD) Hs.156346 AA504348  7153 	-1.03	0.07	0.51	-0.45	-1.71	-0.92	-0.68	0.27	0.79	0.17	0.61	1.21	1.17	1.09	1.33	0.3
+"100330 RNPC2 RNA-binding region (RNP1, RRM) containing 2 Hs.145696 H47069  9584 "	-0.38	1.16	0.66	-0.12	-0.44	0.82	1.42	1.32	0.13	-0.17	-0.15	0.28	0.88	-0.65	-0.79	0.59
+"100453  Homo sapiens cDNA FLJ32453 fis, clone SKMUS2001703 Hs.352402 N63598   "	-1.31	-0.33	0.19	-0.65	-0.17	-0.41	-0.01	0.49	-0.14	0.52	-0.41	0	0.57	-0.13	-1.56	-0.45
+100489 CBS cystathionine-beta-synthase Hs.84152 AA430367  875 	0.15	-0.16	1.32	-0.5	-1.72	0.25	1.09	0.4	0.16	0.5	-1.21	1.3	0.73	0.69	1.8	-0.91
+100496 SARS seryl-tRNA synthetase Hs.4888 AA630734  6301 	-0.09	0.94	-0.27	0.15	0.84	0.12	0.03	0.61	0.87	0.74	0.28	0.48	0.01	0.42	-0.85	0.24
+100521 SNRPA **small nuclear ribonucleoprotein polypeptide A Hs.173255 R70488  6626 	-0.8	-0.46	0.33	0.49	-0.3	0.17	0.1	0.46	0.7	-0.31	-0.44	0.48	0.94	0.69	-1.34	-0.02
+100577 TRIP8 thyroid hormone receptor interactor 8 Hs.6685 T52320  9323 	0	0.57	0.23	-0.4	0.18	-0.2	-0.23	1.08	1.33	0.14	0.83	-0.56	0.02	-0.03	0.45	-1.23
+100583 ETR101 immediate early protein Hs.737 AA496359  9592 	0	0	0.16	0.47	0.94	1.66	-0.33	0.27	-0.92	0.42	-0.2	0.21	0.11	0.4	-0.23	0.26
+100600 FLJ21047 hypothetical protein FLJ21047 Hs.14891 AA464422  79620 	0.7	0.02	-0.12	0	0.69	0.25	0.23	0.13	-0.03	0.42	0.08	1.67	1.91	0.59	0.68	1.35
+100625 VATI vesicle amine transport protein 1 Hs.157236 AA669603  10493 	0	0.33	-0.01	0.35	0.5	0.46	-0.76	-0.18	0.4	0.32	1.08	-0.05	-0.77	0.15	-0.58	-0.11
+100637 MGC2835 ATP-dependent RNA helicase Hs.70582 AA400151  79039 	1.44	1.06	0.87	0.62	0.92	0.28	0.4	0.81	-0.38	0.61	0.33	-0.19	0.7	0.41	-1.24	0.01
+100675 SPG4 spastic paraplegia 4 (autosomal dominant; spastin) Hs.26334 AA171421  6683 	-0.47	0.83	0.35	0.49	0.28	-0.18	0.74	0.33	-0.34	0.51	0.26	0.54	0.74	0.53	0	1.09
+100693 SHMT2 serine hydroxymethyltransferase 2 (mitochondrial) Hs.75069 AA620477  6472 	2.28	0.99	0.01	0.67	0.44	-0.03	0.88	0.09	0.06	0.91	0.04	-0.78	0.41	0.71	0.38	-0.33
+100722 LOC51189 ATPase inhibitor precursor Hs.241336 T69273  51189 	-1.23	1.68	-0.37	-1.02	-0.19	-0.27	0.47	0.89	-0.73	1.02	-0.37	0.24	-0.49	0.29	0.64	0.36
+100749 ARCN1 archain 1 Hs.33642 AA598401  372 	-0.37	0.51	-0.43	0.33	0.6	0.4	-0.2	0.67	0.19	0.58	0.01	0.8	0.93	0.69	-0.13	1.08
+100751 EFNB1 ephrin-B1 Hs.144700 AA428778  1947 	1.08	1.61	0.66	1.41	1.7	0.7	0.84	1.02	0.82	0	-0.84	-1.3	-0.61	-0.62	-0.42	-0.51
+100781 FEN1 flap structure-specific endonuclease 1 Hs.4756 AA620553  2237 	0.02	0.39	0.53	0.46	-0.31	0.11	-0.52	0.12	1.07	0.25	0.18	0.66	1.55	1.55	1.1	-0.71
+"100784  Homo sapiens cDNA FLJ14407 fis, clone HEMBA1004295, weakly similar to Homo sapiens NY-REN-25 antigen mRNA Hs.14337 R17095   "	0.31	0.5	-0.02	0.94	1.05	0.21	0.14	0.19	-0.66	0.25	-0.4	0.56	0.26	0.05	0.19	0.93
+100801 EVPL envoplakin Hs.25482 AA029418  2125 	0.87	1.61	-0.02	-0.38	0.81	-0.51	-0.64	-0.36	-0.66	0	0.49	1.51	-0.41	0.33	0.37	1.73
+100822 MPO myeloperoxidase Hs.1817 AA703058  4353 	0.75	-0.14	0.91	-0.31	0.94	2.2	0.97	1.09	1.1	-0.93	-1.03	-0.26	-0.31	0.26	-3.07	-1.06
+"100888 CRSP2 cofactor required for Sp1 transcriptional activation, subunit 2 (150kD) Hs.21586 AA150093  9282 "	-0.43	0.6	0.51	-0.3	0.04	-0.26	-0.2	0.3	0.82	0.26	-0.03	0.01	0.07	0.46	-0.24	-0.53
+"100889  ESTs, Highly similar to A47214 Jk-recombination signal binding protein IGKJRB, extended splice form aPCR-2 [H.sapiens] Hs.356806 R16902   "	-0.64	-0.46	-0.05	0.25	0.1	-0.28	-0.37	0.24	-0.21	0	0.09	-0.41	0.28	-0.22	0.64	0.13
+100917 TTC3 tetratricopeptide repeat domain 3 Hs.118174 AA670134  7267 	0	0.84	-0.05	0.69	0.45	0.11	0.03	-0.71	-0.25	0.2	-0.1	0.44	0.77	0.21	2.07	1.53
+100975 76P gamma tubulin ring complex protein (76p gene) Hs.20621 AA464569  27229 	-0.26	0.79	0.19	0.21	0.64	0.08	0.72	0.3	-0.15	0.56	-0.43	-0.52	0.32	-0.02	0	0.69
+101053 FOXD1 forkhead box D1 Hs.96028 AA069132  2297 	1.31	-0.28	-0.46	-0.41	0.46	0.56	-0.93	-1	0.58	1.3	-1.14	-0.1	0.59	1.51	1.1	-0.17
+"101075 GBE1 glucan (1,4-alpha-), branching enzyme 1 (glycogen branching enzyme, Andersen disease, glycogen storage disease type IV) Hs.1691 R09068  2632 "	0	1.16	0.88	1.28	0	1.37	0.11	0.58	0.45	0.24	0.15	0.21	-0.94	0.25	1.34	-0.75
+101116 DDT D-dopachrome tautomerase Hs.180015 AA292995  1652 	-0.06	0.01	-0.3	0	-0.6	-0.22	-1.67	-0.24	0.19	0.72	0.16	-0.03	0.13	0.34	0.96	0.48
+"101117 SMARCA1 SWI/SNF related, matrix associated, actin dependent regulator of chromatin, subfamily a, member 1 Hs.152292 AA496809  6594 "	-0.53	0.6	0.56	-0.31	0.62	0.33	0.5	1.35	0.74	0.83	-0.47	1.25	-0.23	0.17	1.6	1.17
+101181 OXCT 3-oxoacid CoA transferase Hs.177584 R13381  5019 	-0.96	-0.33	0.05	-0.28	0.14	-0.09	-0.09	0.3	1.43	1.38	0.1	0.53	0.75	0.92	1.72	0.64
+101214 DAG1 dystroglycan 1 (dystrophin-associated glycoprotein 1) Hs.76111 AA496691  1605 	0.45	0.97	0.93	0.59	0.74	0.83	0.27	0.69	-0.34	0.13	-0.31	0.09	-0.24	-0.29	0.03	-0.21
+101226 BBS2 Bardet-Biedl syndrome 2 Hs.332633 AA486738  583 	0.4	0.79	-0.11	0.9	0.93	-0.38	0.71	1.04	0.37	-0.56	-0.08	0.69	-0.88	0	0.15	0.7
+101254 PPOX protoporphyrinogen oxidase Hs.100016 AA151248  5498 	-0.15	0.28	-0.16	0	0.46	-0.15	0.16	1.19	-0.88	-0.29	-0.57	0.39	1.35	-0.05	0.62	2.16
+101360 CAT56 CAT56 protein Hs.118354 AA456966  80742 	0.12	0.76	0.44	0.56	0.66	0.65	0.8	0.43	0.46	0.45	-0.36	0.58	0.69	1.1	0.78	0.87
+101375 MGC13090 hypothetical protein MGC13090 Hs.333389 AA150896  84797 	-0.1	0.68	0	0.18	0.28	0.58	-0.57	0.12	0.54	0	0.58	0.58	0.23	0.58	0.44	0.15
+101477 LOC51608 CGI-20 protein Hs.107387 R02578  51608 	0.46	0.19	0.6	0.35	0.72	-0.48	0.77	0.6	0.11	-0.69	-1.75	0.62	0.68	-0.35	-0.68	0.45
+101503 H105E3 NAD(P) dependent steroid dehydrogenase-like; H105e3 Hs.57698 AA436425  50814 	0	0.49	-0.11	0.26	0	-0.15	-0.57	-0.4	-0.03	0.49	-0.95	0.41	0.8	0.27	0.75	0.37
+"101555 ROCK2 Rho-associated, coiled-coil containing protein kinase 2 Hs.58617 R94947  9475 "	-0.24	0.45	0.74	1.1	0.79	0.16	0.92	0.38	0.64	0.22	-0.79	0.7	0.48	0.81	0.9	1.35
+101556 USP19 ubiquitin specific protease 19 Hs.301373 AA455107  10869 	0.26	0.55	0.57	-0.05	0.73	0.23	0.34	0.36	-0.45	0.65	-0.32	-0.1	0.25	0.13	0	0.55
+101557 ITM1 integral membrane protein 1 Hs.287850 R68805  3703 	0.01	0.75	0.15	0.43	0.22	-0.28	0.33	0.76	0.34	0.21	-0.85	0.23	0.42	1.19	0.05	0.86
+"101591 PRKCI protein kinase C, iota Hs.1904 T57875 PKC iota=Protein kinase C, iota 5584 "	-0.02	1.42	1.36	-0.58	-0.08	-0.31	0.72	0.47	0.88	-0.48	0.49	-1.14	-1.14	-0.43	-0.37	-1.53
+101637 VEGF vascular endothelial growth factor Hs.73793 R19956  7422 	1.01	1.48	1.39	0.97	-1.11	-0.4	1.12	1.23	0.89	0.12	1.26	0.83	-0.3	0.56	0.54	-0.22
+"101659 MJD Machado-Joseph disease (spinocerebellar ataxia 3, olivopontocerebellar ataxia 3, autosomal dominant, ataxin 3) Hs.66521 AA702422  4287 "	0.19	0.13	0.27	0.42	0.17	-0.34	0.52	0.42	0.21	0.37	-0.85	-0.5	-0.09	0.13	0.3	-0.44
+101660 FLJ23306 hypothetical protein FLJ23306 Hs.5890 N34799 fra-2=fos-related antigen 2 79579 	-0.28	0.32	0.44	0.94	0.45	0.53	0.49	1	-0.81	-0.11	0.9	0.54	0	-0.02	-1.25	0.51
+101721 TROAP trophinin associated protein (tastin) Hs.171955 H94949  10024 	-1.02	-0.2	0.24	-1.4	-1.01	0.28	0.11	-0.06	0.89	0.74	-0.37	0.05	0.33	1.04	-0.23	-0.29
+"101722 EIF3S8 eukaryotic translation initiation factor 3, subunit 8 (110kD) Hs.4835 AA598863  8663 "	-0.09	0.22	0.13	0.23	1.43	0.27	0.35	1.53	-0.81	-0.02	-0.07	1.02	0.62	-0.39	0	0.66
+101738 E46L **like mouse brain protein E46 Hs.13493 R20246  25814 	0.11	-0.06	-0.28	-0.13	0.08	-1.2	-1.09	-0.59	-0.01	0.65	0.9	0.33	0.09	0.49	0.82	0.94
+101768 DDX38 DEAD/H (Asp-Glu-Ala-Asp/His) box polypeptide 38 Hs.78054 AA454703  9785 	1.69	0.73	0.47	0.34	1	0.57	0.17	0.24	-0.02	0.43	-0.35	0.94	0.73	0.36	1.34	1.2
+101782 FMR1 fragile X mental retardation 1 Hs.89764 N48355  2332 	-0.04	0.43	0.8	0.09	0.26	-0.62	0.25	1.65	-0.14	-0.03	-0.17	0.07	1.1	0.4	0	0.77
+"101788 NR1H2 nuclear receptor subfamily 1, group H, member 2 Hs.100221 AA629265  7376 "	0.55	0.67	0.03	0	0.05	0.04	-0.2	-0.08	-0.22	-0.28	-0.4	0.3	-0.4	0.31	-0.09	0.46
+"101789  ESTs, Weakly similar to AC004858 3 U1 small ribonucleoprotein 1SNRP homolog [H.sapiens] Hs.355702 AA454562   "	0.37	1.35	1.1	-0.37	-0.17	-0.55	2.22	2.05	0.39	0	-0.48	-1.01	1.1	0.2	0.15	1.51
+101816 MMP14 matrix metalloproteinase 14 (membrane-inserted) Hs.2399 N33214 MMP-14=Matrix metalloproteinase 14=MT-1-MMP=membrane-type ma 4323 	3.22	1.9	2.43	1.52	2.9	0.31	1.3	2.2	-0.62	1.07	-0.07	-0.19	-3.22	-0.45	-0.23	0.61
+101829 TRIP8 thyroid hormone receptor interactor 8 Hs.6685 H09113  9323 	0	0.57	0.39	0.57	0.46	-0.14	0.57	1.26	1.16	1.25	0.48	0.05	0.48	0.62	0.07	-0.16
+101833 MMP15 matrix metalloproteinase 15 (membrane-inserted) Hs.80343 AA443300 MMP-15=Matrix metalloproteinase 15=MT-2-MMP=membrane-type ma 4324 	0.92	1.21	0.5	-0.41	0.61	0.15	0.19	0.19	0.01	0.83	-1.18	-0.49	-0.91	-0.48	-0.36	-0.47
+101861 MKI67 antigen identified by monoclonal antibody Ki-67 Hs.80976 AA425973 Ki67 (long type) 4288 	-1.16	0.01	0.08	0.01	-1.98	-0.33	-0.01	-0.06	0.34	0.67	-0.08	0.11	2.27	1.02	0	0.38
+101902 EDR1 early development regulator 1 (polyhomeotic 1 homolog) Hs.305985 H96213  1911 	1.22	0.5	0.37	0.34	0.93	0.68	1.46	0.06	0.34	-0.61	0.23	-0.99	0.68	0.55	-1.11	-0.94
+101919 FLJ22269 hypothetical protein FLJ22269 Hs.334789 AA463986  84179 	0.47	0.34	0.6	-0.25	0.57	-0.29	-0.78	0.11	-0.52	0.38	0.03	0.46	0.09	-0.33	-1.5	1.18
+101926 KIAA0599 KIAA0599 protein Hs.198037 T49575  26030 	0.81	2.16	1.05	0.6	1.2	0.66	1.21	1.47	-0.75	0.74	-0.81	0.36	-0.24	-0.38	0.34	-0.22
+101932 NP nucleoside phosphorylase Hs.75514 AA430382  4860 	0.1	1.08	0.8	0.37	0.03	0.04	-0.24	0.9	-0.13	0.93	0.32	-0.01	-0.79	0.09	1.06	0.33
+101973 LCAT lecithin-cholesterol acyltransferase Hs.348401 R06458  3931 	0	0.24	0.46	0.76	1.26	0.41	0.42	0.49	0.17	0.21	-0.76	0.54	0.73	-0.55	1.03	0.94
+101993 RPN1 ribophorin I Hs.2280 AA125915  6184 	0.61	0.8	0.88	0.23	0.34	0.14	0.17	1.33	0.05	-0.06	0.5	0.31	0.06	0.33	0.01	0.39
+101999 ANGPTL4 angiopoietin-like 4 Hs.9613 N98757  51129 	-0.78	0.21	-0.13	-0.08	-1.09	-0.13	-0.56	0.8	-1.3	0.21	0.37	1.51	-1.5	-0.36	0.7	2.71
+102023 LC27 putative integral membrane transporter Hs.296398 AA600214  55353 	1.03	2.12	0.33	-0.18	-0.03	-0.68	0.43	0.87	0.11	0.37	0.74	0.5	0.69	0.47	1.76	0.81
+102036 KIAA0095 KIAA0095 gene product Hs.155314 AA428939  9688 	-0.19	1.79	-0.33	0.22	0.14	-0.01	0.26	0.71	0.18	0.55	0.7	0.89	0.36	0.74	0.5	0.54
+102056 FLJ20551 hypothetical protein FLJ20551 Hs.7994 H61978  54977 	0.22	2.55	0.86	0.48	0.66	-0.07	0.83	-0.56	-0.92	-0.49	-0.67	-0.39	-1.09	-0.64	-1.17	-0.6
+102057  **Human transposon-like element mRNA Hs.84775 AA496746   	0.17	-0.29	-0.07	0.34	-0.05	-0.26	0.03	-0.07	0.73	0.14	0.12	0.25	-0.47	0.17	0	1.12
+102059 LTBP4 latent transforming growth factor beta binding protein 4 Hs.85087 R87406  8425 	-0.72	0.09	0.07	-0.18	-0.99	-0.2	0.08	-0.04	0.12	0.35	0.17	1.18	0.64	0.09	0.29	-0.38
+102060  Homo sapiens clone 23872 mRNA sequence Hs.188882 AA598834   	0.05	1.15	0.48	0.57	0.57	-0.14	0.95	0.25	0	0.06	0.92	0.44	1.18	0.4	0	1.05
+"102082 PPP5C protein phosphatase 5, catalytic subunit Hs.75180 N54551 PP5=serine-threonine phosphatase 5536 "	0.7	0.28	0.63	0.5	0.02	0.23	0.3	1.24	-0.04	0.4	-0.12	0.27	-0.36	1.12	0.96	-0.52
+102163 TMPO thymopoietin Hs.11355 T63980  7112 	-0.09	0.27	0.6	-0.4	-0.72	-0.65	0.62	-0.23	0.36	0.03	-0.05	0.21	1.35	1.53	0.88	0.31
+"102204 ARHE ras homolog gene family, member E Hs.6838 AA443302  390 "	0.56	0.48	0.4	1.04	0.69	0.3	1.69	1.18	0.11	0.46	0.48	0.26	-0.81	0.36	-0.56	-0.49
+"102220  Homo sapiens cDNA: FLJ21366 fis, clone COL03012, highly similar to AB002445 Homo sapiens mRNA from chromosome 5q21-22 Hs.21056 AA454725   "	-0.52	-0.34	1.09	0.14	-0.23	-0.06	0	0.17	-0.8	0.18	-0.77	0.28	0.95	0.72	0.07	0.29
+102223 TARS threonyl-tRNA synthetase Hs.84131 AA630628  6897 	0.5	0.25	0	0.92	0.17	-0.19	-0.2	0.52	1.43	0.82	0.58	-0.25	0.27	0.01	0.28	-0.43
+"102241 SPTAN1 spectrin, alpha, non-erythrocytic 1 (alpha-fodrin) Hs.77196 T60117  6709 "	1.11	1.42	0.82	0.56	1.15	0.42	0.29	0.6	-0.38	0.28	0.13	0.58	0.3	-0.07	-0.21	0.01
+"102251 TGFB2 transforming growth factor, beta 2 Hs.169300 AA233738  7042 "	-1.22	-0.18	-0.09	-0.55	0.47	0.41	0.41	0.44	0.91	-0.21	-2.68	0.03	-0.15	-0.72	0	-0.35
+102253 ERp44 endoplasmic reticulum resident protein 44 kDa Hs.154023 AA620519  23071 	0.5	0.71	0.84	0.21	0.12	0.2	-0.12	0.24	0.47	0.23	0.39	0.17	0.18	0.8	0.92	0.26
+102254 DPYSL3 dihydropyrimidinase-like 3 Hs.74566 AI831083  1809 	0.17	0.71	0.85	1.5	1.27	1.71	0.87	0.59	0.08	-0.04	-0.02	-0.26	-0.01	0.15	-0.3	-0.45
+102283 CTBP1 C-terminal binding protein 1 Hs.239737 W81570  1487 	0.11	0.04	0.65	1.29	0.62	0.17	0.66	1.36	0.2	-0.37	0.62	0.04	-0.56	0.13	-1.23	0.18
+"102299 DCT **dopachrome tautomerase (dopachrome delta-isomerase, tyrosine-related protein 2) Hs.301865 AA478553  1638 "	0.77	0	0.84	1.36	1.74	1.8	1.22	0.18	-0.58	-0.53	-0.9	-1.41	-0.99	0.35	-2.46	-0.92
+102373 MGC2491 hypothetical protein MGC2491 Hs.11270 AA015607  79004 	1.02	0.4	0.47	0.64	0.61	0.48	0.01	0.31	-0.56	0.11	-0.19	-0.39	0.94	-1.07	-0.33	-0.74
+102401 ITPA inosine triphosphatase (nucleoside triphosphate pyrophosphatase) Hs.6817 AA610004  3704 	-0.57	0.93	0.2	-0.65	0.57	0.07	0.9	0.38	-0.41	0.24	0.15	0.96	0.19	-0.06	0.67	0.23
+"102411 MTHFD2 methylene tetrahydrofolate dehydrogenase (NAD+ dependent), methenyltetrahydrofolate cyclohydrolase Hs.355859 AA630320  10797 "	0	0.52	0.85	-0.23	0.26	0.34	0.03	0.7	-0.49	0.53	-0.35	0.3	0.49	0.75	-0.57	-0.61
+102434 PFDN4 prefoldin 4 Hs.91161 AA250726  5203 	2.12	1.09	0.33	0.55	0.65	0.52	-1	-0.08	0.3	-0.36	-0.59	-0.65	-0.08	-0.1	-0.75	-0.78
+"102454 GOLGA3 golgi autoantigen, golgin subfamily a, 3 Hs.4953 AA663910  2802 "	0.27	0.6	0.02	0.4	0.72	0.49	-0.55	0.64	-0.47	0.23	0.16	1.07	1.25	0.08	1.81	2.33
+"102469 SMN1 survival of motor neuron 1, telomeric Hs.288986 AA004858  6606 "	0	0.47	0.72	-0.4	-0.32	-0.75	0.55	0.45	0	0.57	0.31	-0.14	-0.1	0.69	0.06	0.47
+102510 ZD52F10 hypothetical gene ZD52F10 Hs.32343 AA457707  93099 	0	1.29	0.39	1.53	1.33	0.16	1.81	0.57	0.51	0.72	-1.87	0.14	-2	-1.19	0.15	1.09
+102513 CKS2 CDC28 protein kinase 2 Hs.83758 AA010065 ckshs2=homolog of Cks1=p34Cdc28/Cdc2-associated protein 1164 	-0.86	-0.43	0.09	-1.29	-1.94	-0.77	-0.17	0.27	0.59	0.37	0.95	0.77	0.98	1.25	1.47	-0.29
+102557 MGC14439 hypothetical protein MGC14439 Hs.107001 R99346  84991 	0.17	2.17	0.92	0.08	-0.16	0.25	0.49	0.89	0.56	0.01	-0.27	0.62	1.1	0.82	1.23	1.14
+102558 PRKCBP1 protein kinase C binding protein 1 Hs.75871 AA480906  23613 	0.49	1.05	0.57	-0.53	0.24	-0.01	0.14	0	-0.8	-0.35	-0.63	0.07	-0.6	-1.36	-0.5	-0.21
+"102560  Homo sapiens cDNA FLJ32137 fis, clone PEBLM2000479, highly similar to PROTO-ONCOGENE TYROSINE-PROTEIN KINASE FYN (EC 2.7.1.112) Hs.348742 H91826   "	0	0.11	0.09	1.57	0.14	1.02	-0.08	0.41	-0.11	-0.28	-0.06	-0.22	-0.46	0.29	1.08	0.21
+102569 CDK6 cyclin-dependent kinase 6 Hs.38481 H73225  1021 	0.06	0.47	1.01	1.45	0.09	0.75	1.27	0.18	0.77	-0.04	-0.7	-0.38	0.1	-0.04	0.15	1.25
+102575 RANBP16 RAN binding protein 16 Hs.172685 H73639  23039 	0.31	-0.04	0.61	-0.27	0.07	0.1	1.12	0.52	0.72	-0.19	0.76	-0.45	-1.25	0.95	0.05	-0.08
+102603 MAD2L1 MAD2 mitotic arrest deficient-like 1 (yeast) Hs.79078 AA481076 mitotic feedback control protein Madp2 homolog 4085 	-0.65	0.08	-0.17	-0.1	-1.46	-0.52	-0.8	0.22	1.29	0.6	1.57	0.18	0.44	1.26	0	-0.21
+"102645 SLC2A1 solute carrier family 2 (facilitated glucose transporter), member 1 Hs.169902 H58872  6513 "	0.8	1.9	0	0	-0.01	0	1.88	0	1.72	-0.2	1.47	0.01	-0.8	-0.61	-0.13	-0.24
+102658 KIAA0057 TRAM-like protein Hs.153954 T74606  9697 	0.64	0.84	0.82	0.4	0.15	0.83	-0.2	-0.12	1	0	-0.04	-0.85	-0.69	-0.23	-0.71	-1.07
+102670 SNRPA1 small nuclear ribonucleoprotein polypeptide A' Hs.80506 AA122272  6627 	-0.08	0.79	-0.23	-1.48	0.03	0.04	-0.44	1.27	0.65	0.93	0.37	1.04	1.09	0.68	0.45	0.68
+"102691  Homo sapiens cDNA: FLJ21425 fis, clone COL04162 Hs.302738 W15263   "	0.43	0.65	2.02	0.82	0.72	0.49	-0.12	0.57	-0.24	0.07	-0.77	-0.44	1.07	0.48	1.96	4.94
+"102708  **ESTs, Highly similar to A30319 casein kinase II [H.sapiens] Hs.355532 T98414   "	-0.92	-0.11	0.03	-0.32	-1.94	0.6	0.17	0.5	0.49	0.21	0.68	-1.01	-0.17	-0.17	-1.13	-1.19
+"102713 SDC2 syndecan 2 (heparan sulfate proteoglycan 1, cell surface-associated, fibroglycan) Hs.1501 AA122056  6383 "	1.35	1.52	0.6	0.37	1.03	0.17	-0.62	0.87	0.42	-0.32	0.54	-0.44	1	0.74	1.7	0.35
+102739 PRO2000 PRO2000 protein Hs.46677 H58234  29028 	0	-0.41	-0.09	0	-2.25	-0.13	-0.83	1.22	0.78	-0.24	0.54	0.68	1.21	2.36	1.94	0.92
+102749 HNRPH1 heterogeneous nuclear ribonucleoprotein H1 (H) Hs.245710 R11018  3187 	-0.7	-0.08	0.84	-0.12	-0.54	0.42	0.09	1.2	0.08	0.34	-0.39	0.87	0	0.64	-1.27	-1.55
+102831    AA457728   	-0.21	0.43	-0.45	1.15	2.03	0.1	-2.27	0.28	-1.83	0.02	0.48	1.25	0.45	0.11	-0.66	-0.39
+102867 NOT56L Not56 (D. melanogaster)-like protein Hs.153591 R23251  10195 	-0.36	0.13	0.13	-0.41	-0.05	-0.28	-0.35	-0.21	-0.02	-0.69	0.09	-0.14	0.44	0.4	-0.47	0.42
+102872  Homo sapiens mRNA; cDNA DKFZp586J0720 (from clone DKFZp586J0720) Hs.324504 AA040269   	-0.2	-0.05	0.21	-0.39	-0.68	0.5	-0.15	1.58	0.42	1.17	0.53	0.36	0.4	0.38	1.12	1.37
+"102893 GAD1 glutamate decarboxylase 1 (brain, 67kD) Hs.324784 AA018457  2571 "	-0.65	-0.11	-0.12	-0.4	-0.13	-0.19	-0.2	0.14	0.07	0.29	-0.58	0.65	0.28	0.28	0.46	0.11
+102920 UROD uroporphyrinogen decarboxylase Hs.78601 AA424344  7389 	-1.14	0.46	0.04	-0.36	0.43	0.05	-0.48	-0.35	0.56	-0.21	-1.05	0.32	0.35	0.21	0.56	0.98
+"102932 ACADVL acyl-Coenzyme A dehydrogenase, very long chain Hs.82208 AA464163  37 "	1.11	-0.11	0.16	0.26	1.66	0.95	-0.99	0.63	-0.21	0.18	-0.4	-0.16	-0.31	-0.34	-0.19	-0.23
+102940 FLJ20811 hypothetical protein Hs.83530 AA485442  54470 	-0.6	0.33	-0.17	-0.84	-0.16	-0.25	-0.85	-0.12	0.15	0.22	-0.57	0.44	0.05	0.38	1.37	0.55
+"102975 RCN2 reticulocalbin 2, EF-hand calcium binding domain Hs.79088 AA598676  5955 "	-0.43	1.68	0.83	-0.54	0.12	-0.75	1.01	1.29	0.39	0.19	-0.19	0.19	0.09	0.03	0	0.69
+102981    T57062   	-0.98	-0.19	-0.8	-0.04	0.18	-0.13	-1.36	0	-0.1	0.4	0.34	0.2	0.49	0.56	2.21	0.34
+"102987 FANCG Fanconi anemia, complementation group G Hs.8047 AA427484  2189 "	2.24	1.03	1.19	0.86	1.4	1.31	-0.59	0.53	-0.22	-0.22	-0.75	0.15	1.01	0.67	1.21	0.07
+103006 MGC4172 hypothetical protein MGC4172 Hs.8949 AA448177  79154 	0.61	1.07	0.55	0.23	0.84	-0.11	-0.08	-0.37	-0.1	0.16	0.01	0.36	-0.98	0.11	1.26	0.09
+103023 POLR2A polymerase (RNA) II (DNA directed) polypeptide A (220kD) Hs.171880 AA477535  5430 	-0.44	0.92	0.09	-0.44	0	-0.01	0.24	0.26	0.31	0.24	0.28	0.03	-0.37	0.25	0	1.17
+"103026 GABPB2 **GA binding protein transcription factor, beta subunit 2 (47kD) Hs.278238 H91651  2553 "	0	0	1.4	0.3	0	0.37	-0.15	-0.24	0.68	0.83	0.42	-0.16	-0.08	0.87	0.04	-0.31
+103029 AGRN agrin Hs.273330 AA458878  180 	0.28	0.81	0	0.21	1.2	-0.05	1.45	0.52	-0.35	-0.07	-0.58	0.49	-0.35	-0.78	0.82	1.23
+103040 TM4SF6 transmembrane 4 superfamily member 6 Hs.121068 H87106  7105 	-0.41	0.14	0.14	-0.06	0.9	-0.18	0.5	1.03	0.62	0.05	0.12	0.7	-0.28	0.66	1.33	0.72
+103100 KIAA0401 KIAA0401 protein Hs.17803 N51529  23298 	-0.47	0.69	0.42	-0.94	0.26	0	0.82	0.84	0.22	0.5	0.02	1.18	1.97	0.77	1.55	1.53
+"103115 GNAI3 guanine nucleotide binding protein (G protein), alpha inhibiting activity polypeptide 3 Hs.73799 AA490256  2773 "	0	0.35	-0.17	0.6	0.28	0.84	-0.28	0.13	0.35	0.64	0.53	0.3	-0.06	0.23	0.26	0.47
+103138 PPIC peptidylprolyl isomerase C (cyclophilin C) Hs.110364 AA676404  5480 	0.5	1.47	-0.14	0.44	0.98	0.21	0.15	1.18	0.08	-0.14	-0.06	0.48	-0.15	0.05	0.44	0.61
+"103139 SUPV3L1 suppressor of var1, 3-like 1 (S. cerevisiae) Hs.106469 AA046407  6832 "	-0.4	0.43	0.61	-0.38	0.37	0.01	0.61	0.79	0.61	0.85	0.4	-0.13	1.3	0.57	1.1	-0.13
+103179 ASB1 ankyrin repeat and SOCS box-containing 1 Hs.153489 T68710  51665 	-0.25	-0.5	-0.16	0.29	0.31	0.09	-0.71	0.42	-0.25	0.23	0.63	0.21	0.45	0.12	0.46	0.47
+"103185 SLC34A2 solute carrier family 34 (sodium phosphate), member 2 Hs.105039 AA459296  10568 "	0.87	1.15	2.38	1.48	3.1	1.39	1.27	2.02	-1.28	-0.99	1.26	-3.22	-0.13	-1.49	0	-1.63
+"103193 CD1D CD1D antigen, d polypeptide Hs.1799 AA451684  912 "	-0.17	0.38	0.48	0.55	0.39	0.45	0.97	0.49	-0.34	-0.33	-0.43	-0.47	0.08	0.17	-1.68	-0.44
+103201 ACAS2 acetyl-Coenzyme A synthetase 2 (ADP forming) Hs.14779 AA455146  55902 	0.49	0.4	0.29	0.68	0.86	0.65	-0.16	0.26	-0.57	0.57	-0.18	0.35	-0.49	-0.16	0.56	0.74
+103205 GPI glucose phosphate isomerase Hs.279789 AA401111  2821 	0.41	1.47	0.39	0.27	-0.4	-0.42	-0.04	0.24	0.74	0.63	0.34	1.64	0.19	0.26	0	-0.83
+103214 SUPT5H suppressor of Ty 5 homolog (S. cerevisiae) Hs.70186 R21511  6829 	0.31	0.42	0.1	0.82	0.28	0.42	0.4	0.63	-0.18	-0.48	0.19	0.83	0	0.4	0.16	0.2
+103234 PTTG1 pituitary tumor-transforming 1 Hs.252587 AA430032  9232 	-0.68	0.17	0.22	-0.72	-2.33	-0.53	-0.46	0.64	0.76	0.62	0.77	1.2	1.27	1.03	1.52	-0.07
+103264 SEC63L SEC63 protein Hs.31575 N66750  11231 	-0.52	0.03	-0.16	-0.38	0.01	0.14	-0.79	-0.05	-0.04	1.03	0.52	0.67	0.73	1.17	0.63	0.67
+103273 LOC55862 uncharacterized hypothalamus protein HCDASE Hs.239218 AA173532  55862 	-0.05	-0.31	-0.13	0.62	0.33	-0.28	-0.87	0.47	0.82	0.34	1.08	0.98	1.05	0.44	1.13	0.8
+103286 ARIH2 ariadne homolog 2 (Drosophila) Hs.241558 AA037809  10425 	0	0.33	0.38	0.41	-0.1	0.31	0.64	0.11	-0.3	-0.11	-0.78	-0.61	-0.22	-0.16	0	0.2
+103307 ETF1 **eukaryotic translation termination factor 1 Hs.77324 AA456664  2107 	-0.02	-0.04	0.21	0.25	-0.2	-0.2	-0.09	-0.65	-0.05	0.34	-0.46	1.31	-0.35	0.61	0.2	0.17
+103338 LRMP lymphoid-restricted membrane protein Hs.40202 AA456895 JAW1=lymphoid-restricted membrane protein 4033 	-0.48	0.49	-0.19	0.69	0.27	1.28	0.95	0.83	-1.43	-1.62	-0.02	-1.01	-1.25	-0.69	-1.46	-2.01
+"103348 CDH3 cadherin 3, type 1, P-cadherin (placental) Hs.2877 AA425217 P-cadherin 1001 "	0.29	0.3	-0.46	0.32	1.62	-0.18	-0.35	-0.18	-0.45	0.6	1.12	1.07	-0.34	0.23	1.9	0.63
+"103381 PLOD2 procollagen-lysine, 2-oxoglutarate 5-dioxygenase (lysine hydroxylase) 2 Hs.41270 AA136707  5352 "	-0.35	0.96	0.12	0.66	0.24	1.1	0.14	1.23	0.33	0.53	0.29	0.91	-0.59	-0.08	1.37	1.14
+103385 FLJ20450 hypothetical protein FLJ20450 Hs.14220 AA443105  54938 	-0.08	0.81	-0.31	-0.74	0.28	0.68	1.17	0.82	-0.18	-0.37	0.07	-0.09	0.11	-0.13	-0.81	-0.5
+103400 INPPL1 inositol polyphosphate phosphatase-like 1 Hs.75339 AA279072  3636 	-0.83	-0.15	1.09	0.02	-0.18	0.18	0.78	0.85	0.24	-0.1	-0.28	-0.29	-0.11	-0.19	-2.39	-0.59
+"103412 NT5C3 5-nucleotidase, cytosolic III Hs.55189 AA187938  51251 "	0	-0.76	0.21	-0.03	-0.2	0.14	0.34	0.13	0.27	0.15	0.47	-0.04	-0.14	0.32	-0.36	0.83
+103469 COPEB core promoter element binding protein Hs.285313 AA055584 CPBP=CBA1=DNA-binding protein 1316 	-0.74	0.4	-0.15	1.3	0.26	0.72	0.54	-0.09	-0.59	-0.28	0.21	0.02	-1.01	-0.38	0.09	-1.04
+103470 UBE1L ubiquitin-activating enzyme E1-like Hs.16695 H96834 ubiquitin-activating enzyme E1 related protein 7318 	0.23	0.54	0.27	0.35	0.43	0.35	-0.91	0.08	-0.72	0.2	0.03	0.3	0.1	0.15	0	0.14
+"103473  Homo sapiens, clone IMAGE:3028427, mRNA, partial cds Hs.306117 AA443127   "	0.15	0.68	0.67	0.76	0	-0.33	0.9	0.28	-0.04	0.03	-0.28	0.95	1.12	0.39	1.96	0.23
+103495 NUP88 nucleoporin 88kD Hs.172108 AA485982  4927 	-0.2	-0.34	0.62	0.48	0.26	-0.14	-0.14	-0.25	0.3	-0.17	0.29	-0.4	-0.02	0.17	-0.06	-0.22
+"103509 GOLGA2 **golgi autoantigen, golgin subfamily a, 2 Hs.24049 AA424786  2801 "	0.35	1.27	1.29	0.68	1.28	0.96	0.77	0.79	0.24	-0.98	-0.76	-1.16	0.56	0.49	-0.85	1.28
+"103520  Homo sapiens cDNA FLJ33107 fis, clone TRACH2000959 Hs.349150 AA427406   "	0.28	0.44	0.55	0.19	0.43	-0.26	0.43	0.14	0.18	-0.42	-0.28	0.4	0.66	0.89	1.37	1.17
+103523 ARHGAP5 Rho GTPase activating protein 5 Hs.267831 R94174  394 	-0.43	0.22	0.09	0.09	0.64	0.34	0.67	-0.12	0.28	-0.19	-0.39	0.4	-0.01	0.09	-0.33	0.16
+"103559 PRKDC protein kinase, DNA-activated, catalytic polypeptide Hs.155637 R27615 DNA-PKcs=DNA-dependent Ser/Thr kinase catalytic subunit=muta 5591 "	0.08	0.08	0.18	0.15	-0.02	-0.55	0.51	0.44	-0.12	0.41	-0.06	1.47	2.21	0.96	1.15	-0.09
+103599 UNG uracil-DNA glycosylase Hs.78853 H15111  7374 	0.19	0.31	0.65	0.14	-0.27	-0.49	0.23	0.57	0.72	0.03	0.06	-0.61	0.75	0.55	-0.22	0.18
+103611 LOC51644 CGI-120 protein Hs.181271 AA486228  51644 	0.7	0.9	0.18	0.22	0.58	-0.2	-0.39	-0.31	-0.78	0.52	-0.07	0.34	0.17	0.04	-0.45	0.38
+103618  ESTs Hs.99480 AA485454   	-1.7	0.23	-0.33	0.77	-0.76	0.53	2.7	-0.87	0.55	-0.16	0	-0.17	0.48	0.63	-1.58	-0.43
+103629 FLJ11198 hypothetical protein FLJ11198 Hs.91251 R06391  55324 	0.08	-0.06	0.02	0.03	0.3	-0.17	0.12	0.77	0.05	-0.01	-0.08	-0.39	-0.23	0.13	-0.04	0.62
+"103640 SFRS3 splicing factor, arginine/serine-rich 3 Hs.167460 AA598400  6428 "	-0.19	0.41	0.12	0.13	0.28	-0.29	-0.16	-0.13	-0.1	0.01	0.39	0.91	0.88	0.53	0.55	0.88
+"103664 TAF1C TATA box binding protein (TBP)-associated factor, RNA polymerase I, C, 110kD Hs.153022 AA454217  9013 "	1.19	0.66	-0.41	0.06	0.77	0.22	-0.07	0.79	0	0.46	-0.63	1.01	0.07	0.71	0	0.97
+103667 KIAA1078 KIAA1078 protein Hs.23585 AA146962  23271 	0.64	0.68	0.33	0.14	0.56	-0.07	0.25	0.59	-0.3	0.49	-0.73	0.83	0.47	0.18	1.35	1.05
+"103691  Homo sapiens cDNA FLJ31360 fis, clone MESAN2000572 Hs.180059 AA031989   "	1.24	0.78	-0.39	0.42	1.21	0.39	1.45	0.83	1.44	1.1	1.36	0.85	2.68	2.21	3.57	3.91
+103709 FARSL phenylalanine-tRNA synthetase-like Hs.23111 W96450  2193 	1.33	0.57	-0.03	0.04	0.52	0.65	-0.9	0.04	-0.2	0.42	0.37	0.43	0.7	0.06	0.14	-0.08
+103731 HMG2 high-mobility group (nonhistone chromosomal) protein 2 Hs.80684 AA019203  3148 	-1.22	0.55	0.1	-1.1	-1.28	0.46	-0.42	-0.03	0.34	0.01	-0.39	0.45	0.82	0.76	0.94	0.42
+103756 HIBCH 3-hydroxyisobutyryl-Coenzyme A hydrolase Hs.236642 AA459668  26275 	-0.41	-0.03	0.63	-0.27	0.14	0.01	1.27	1.67	-0.07	0.2	-0.56	-0.09	0.03	0.13	2.08	1.93
+103774 SCAMP-4 secretory carrier membrane protein 4 Hs.306019 R65622  113178 	1.02	1.04	0.96	0.24	1.49	-0.04	0.12	0.64	-0.23	-0.8	-0.32	0.01	-0.52	-0.18	-0.5	-0.34
+"103849 NR4A1 nuclear receptor subfamily 4, group A, member 1 Hs.1119 N94487 Nak1=TR3 orphan receptor=homologue of Nur77/NGIF-B/N10 anti- 3164 "	-0.31	0.64	1.25	2.55	0.67	2.6	1.22	0.33	-0.62	-0.25	-1.29	-0.13	-0.44	-0.28	0.38	0.29
+"103898 PRIM2A primase, polypeptide 2A (58kD) Hs.74519 AA434404  5558 "	2.16	0.78	1.06	1.29	1.61	1.5	0.06	-0.97	0.56	0.22	-0.88	0.1	0.76	0.54	0.29	0.44
+103938 ERO1L ERO1-like (S. cerevisiae) Hs.25740 AA186803  30001 	-0.07	0.57	0.36	-0.23	-0.62	-0.31	-0.32	1.14	0.53	0.82	1.74	1.17	-1.48	0.17	0.61	-2
+"103951  Homo sapiens cDNA FLJ14761 fis, clone NT2RP3003302 Hs.250848 W93120   "	0	0.47	1.06	0.66	0.04	0.8	0.29	2.41	0.98	0	0.35	0.13	2.95	1.81	1.55	1.64
+"103970 ANKRA2 ankyrin repeat, family A (RFXANK-like), 2 Hs.239154 R62727  57763 "	0.34	0.9	0.37	-1.05	-0.58	0.37	0.02	-0.21	0.56	0.27	-0.26	-0.3	0.21	0.21	0.44	-0.1
+"104010 TNFAIP3 tumor necrosis factor, alpha-induced protein 3 Hs.211600 AA433807  7128 "	-1.38	-0.54	1.05	0.81	0.85	0.17	-1.86	-0.72	-0.64	0.06	1.08	-0.02	2.01	0.89	0	0.39
+104036 LOC51312 mitochondrial solute carrier Hs.300496 H40448  51312 	-0.85	0.03	-0.59	-1.01	-0.33	-0.56	0.12	-0.45	1.17	0.14	2.75	0.87	1.29	1.02	0	1.12
+"104054 NAGA N-acetylgalactosaminidase, alpha- Hs.75372 R25825  4668 "	-0.26	-0.15	-0.09	-0.3	0.25	-0.11	-0.95	0.19	0.29	0.09	1.03	-0.87	-1.06	-0.24	-0.03	0.04
+104066 TGIF TGFB-induced factor (TALE family homeobox) Hs.90077 H51705  7050 	-0.03	-0.1	0.26	0.36	0.28	-0.17	0.11	-0.18	-0.92	0.08	-0.2	0.54	-0.05	0.23	0.09	0.41
+"104067 NAPB N-ethylmaleimide-sensitive factor attachment protein, beta Hs.12600 R55798  63908 "	0.4	1.09	0.89	-0.34	0.68	0.63	1.05	1.45	-0.69	0	-0.5	-0.52	0.5	0.31	1.22	1.04
+104095 MYBL2 v-myb myeloblastosis viral oncogene homolog (avian)-like 2 Hs.179718 AA456878 myb-related gene B=B-myb 4605 	-0.04	0.61	0	0	-1.14	0.11	-0.4	0.16	0.12	0.9	0.81	1.84	1.81	0.99	0.69	-0.67
+104118 KIAA0339 KIAA0339 gene product Hs.112078 AA700213  9739 	0.22	1.09	0.41	0.51	0.72	0.49	0.7	0.93	-0.33	-0.02	-0.44	0.41	0.87	0.23	0.68	0.42
+"104120  Homo sapiens cDNA FLJ30932 fis, clone FEBRA2006942, moderately similar to ZINC FINGER PROTEIN 33A Hs.349444 AA476220   "	0	0.42	0.89	0.07	0.73	0.51	0.77	1.31	-1.05	-0.55	-0.8	-0.24	0.52	-0.14	0	0.93
+104186 NSAP1 NS1-associated protein 1 Hs.155489 AA142968  10492 	0.04	-0.39	-0.04	0.04	0.27	-0.18	-0.19	0.44	0.62	0.22	0.82	0.1	0.1	1.03	1.18	-0.33
+104227 C20orf130 chromosome 20 open reading frame 130 Hs.25897 W61323  90187 	0.55	1.11	0.37	0.47	1.16	0.58	0.67	1.02	-1.14	0.05	-0.86	0.45	0.14	-1.03	-0.64	0.89
+104290 MYO9B myosin IXB Hs.159629 N51705 myosin-IXb 4650 	-0.09	-0.07	1.34	0.71	0.44	0.6	0.19	0.05	0.28	-0.14	1.33	0.4	-0.69	0.84	0	-0.7
+104310 LOC51218 clone FLB4739 Hs.294083 R06705  51218 	-0.21	-0.27	0.4	0.51	-0.57	0.78	0.69	0.66	0.33	0.58	-0.55	0.24	0.33	0.96	1.18	0.47
+104312 FLJ11286 hypothetical protein FLJ11286 Hs.12151 AA456589  55337 	0.28	0.39	-0.15	0.02	1.44	0.47	-0.88	-0.43	-1.33	-0.58	-0.84	0.41	0.16	-0.27	-0.58	0.14
+"104369 ZDHHC5 **zinc finger, DHHC domain containing 5 Hs.27239 AA448941  25921 "	0	3.74	1.98	0.64	2.32	0.91	1.03	1.43	-0.25	0.04	-0.2	-0.74	-0.91	0.74	2.02	3.74
+104392 PPT2 palmitoyl-protein thioesterase 2 Hs.81737 AA633751  9374 	-0.56	0.77	0.29	-1.13	-0.09	0.25	0.12	0.87	0.95	0.18	-0.53	-0.32	-0.11	-0.34	-0.28	0.19
+104423 PARG poly (ADP-ribose) glycohydrolase Hs.91390 H94720  8505 	0	0.8	0.39	-0.02	-0.36	0.41	0.3	0.05	0.1	0.82	0.17	0.14	0.99	-0.13	0	-0.63
+104458 EPRS glutamyl-prolyl-tRNA synthetase Hs.55921 AA599158  2058 	0.01	0.58	0.15	0.12	0.47	0.1	0.1	-0.54	-0.62	0.29	0.01	0.31	0.65	0.13	0	0.63
+"104460 PPP1R7 protein phosphatase 1, regulatory subunit 7 Hs.36587 AA459351  5510 "	0.24	0.15	0.29	0	0.49	0.16	0.02	0.54	-0.1	0.63	-0.03	0.15	-0.14	-0.27	0	-0.15
+104461 APOC3 apolipoprotein C-III Hs.73849 N53169  345 	-0.22	0.57	0.48	0.64	0.6	-0.4	1.3	-0.57	0.13	0.06	-1.45	-0.48	-0.5	0.14	-0.78	-0.73
+"104470 PRKCL2 protein kinase C-like 2 Hs.69171 AA098980 PRK2=lipid-activated, protein kinase 5586 "	0	0	0.09	-0.01	0	-0.08	-0.15	-0.31	0.9	-0.43	0.83	0	-1.01	0.09	-1.31	-0.25
+104478 MTX1 metaxin 1 Hs.247551 AA670347  4580 	0.13	0.07	-0.14	-0.2	0.05	0.34	-0.12	0.71	-0.2	0.2	-0.08	0.16	0.33	-0.14	-0.04	-0.1
+104484 BAK1 BCL2-antagonist/killer 1 Hs.93213 H52672 BAK=BCL-2 family member 578 	-0.3	1.4	0.12	-0.12	0.09	-0.17	-0.58	1.76	0.4	0.18	0.63	0.32	0.67	0.26	0.35	0.9
+104533 TRIP TRAF interacting protein Hs.21254 AA186426  10293 	-0.23	0.53	1.09	-0.22	0.12	0.28	0.55	0.68	-0.1	-0.21	-0.02	-0.04	0.01	0.56	-0.85	0.06
+"104568 PIGF phosphatidylinositol glycan, class F Hs.348397 AA098979  5281 "	-0.87	0.2	-0.26	0.29	-0.29	-0.3	0.22	0.26	0.89	0.39	0.08	0.15	-0.12	-0.05	0.48	1.14
+"104584 MAN2A2 mannosidase, alpha, class 2A, member 2 Hs.295605 AA454175  4122 "	0.28	1.07	-0.36	0.01	0.69	0.3	-0.04	1.81	-0.53	1.01	-1.29	0.41	-0.44	-0.07	0.08	0.25
+104592  ESTs Hs.356545 N93715   	-0.4	0.44	-0.23	-0.56	0.25	-0.04	-1.04	0.19	0.15	0.26	0.33	0.79	0.57	0.92	1.36	0.7
+104612 LOC51042 zinc finger protein Hs.102419 AA033532  51042 	-0.73	0.72	-0.42	-0.35	0	-0.05	0	0.34	-0.16	0.52	-0.44	0.97	0.23	0.26	0.47	0.26
+"104616 PTN pleiotrophin (heparin binding growth factor 8, neurite growth-promoting factor 1) Hs.44 AA001449  5764 "	-0.52	0	-0.07	0.8	0.31	0.31	-0.05	1.61	2.65	-0.4	1.15	-1.66	-2	2.35	-0.78	-0.9
+"104620 SMARCD1 SWI/SNF related, matrix associated, actin dependent regulator of chromatin, subfamily d, member 1 Hs.79335 H91691  6602 "	0.71	1	0.47	0.54	0.92	0.41	0.7	-0.3	-0.08	0.38	-0.08	0.12	0.18	0.46	-0.85	0.14
+"104629 ATP5D ATP synthase, H+ transporting, mitochondrial F1 complex, delta subunit Hs.89761 AA669314  513 "	0.59	0.39	0.44	0.36	0.84	0.42	-0.82	0.41	-0.79	0.38	-0.43	-0.09	-0.08	-0.41	-0.64	-0.42
+"104637  ESTs, Weakly similar to ALU1_HUMAN ALU SUBFAMILY J SEQUENCE CONTAMINATION WARNING ENTRY [H.sapiens] Hs.173699 AA427735   "	-0.05	0.04	0.62	-0.75	0.67	-0.04	0.75	0.14	0.67	-0.46	-0.68	-0.16	0.1	0.29	0.55	0.84
+104653 MRPS21 mitochondrial ribosomal protein S21 Hs.81281 AA429483  54460 	-0.64	0.64	-0.19	-0.43	0.09	-0.23	0.41	0.49	0.16	0.43	0.63	-0.34	1.78	0.18	0.93	0.53
+"104659 FABP7 fatty acid binding protein 7, brain Hs.26770 W72051  2173 "	-0.83	-1.08	0.38	-2.59	-1.49	0.72	0.11	-0.28	1.25	-0.54	5.13	4.58	2.56	4.81	5.93	2.89
+104674 BMP7 bone morphogenetic protein 7 (osteogenic protein 1) Hs.170195 W73473 OP-1=osteogenic protein in the TGF-beta family 655 	1.06	0.51	1.7	-0.7	0.94	0.64	1.56	1	1.82	0.39	-0.81	-1.06	0.45	-0.1	0	-0.87
+104679 XPR1 xenotropic and polytropic retrovirus receptor Hs.227656 AA453474  9213 	0.19	1.86	1.75	1.61	1.1	-0.68	1.71	1.53	-0.46	0.37	-1.4	-0.11	-0.9	-0.79	-0.57	-0.6
+"104693  **Homo sapiens, clone MGC:4710 IMAGE:3534806, mRNA, complete cds Hs.12705 N91589   "	-0.1	-0.34	0.12	0	0.41	-0.31	0.6	0.14	-0.93	-0.09	-1.12	-0.04	0.16	0.76	-0.65	0.57
+104738 SYNGR1 synaptogyrin 1 Hs.6139 AA007632  9145 	-1.21	-0.51	-0.63	-0.25	0.67	0.03	-0.87	-0.42	0.84	-0.05	0.24	0.5	-1.16	0.35	1.94	1.33
+104763 GPI **glucose phosphate isomerase Hs.279789 H88540  2821 	-0.54	-2.06	-0.43	-1.69	0	-0.32	0.18	0.38	0.4	-0.13	-1.33	0	0	-1.2	0.08	0.61
+104819 ARHGEF2 rho/rac guanine nucleotide exchange factor (GEF) 2 Hs.337774 AA464578  9181 	-0.37	1.19	0.57	1.02	0.61	-0.01	0.97	0.6	0.15	0.04	0.07	-0.53	1.14	0.45	0.54	1.42
+"104849 GGH gamma-glutamyl hydrolase (conjugase, folylpolygammaglutamyl hydrolase) Hs.78619 AA455800  8836 "	-0.97	0.14	-0.5	-0.36	-2.82	-1.58	0.51	0.19	0.37	0.87	0.92	1.37	0.42	0.98	1.41	1.21
+104853  ESTs Hs.356537 N51744   	0.63	1.23	0.41	0.01	0.74	-0.76	1.24	0.29	-1.1	0.97	-0.66	-0.17	-0.79	0.02	0.99	1.56
+104910 MFAP4 microfibrillar-associated protein 4 Hs.296049 AA442695  4239 	-0.87	-0.88	0.27	1.32	1.13	0.96	0.7	0.93	0.42	-0.34	-0.85	-1.36	-2.09	-0.72	0	-1.46
+104913 MAPK3 **mitogen-activated protein kinase 3 Hs.861 AA460363  5595 	0.21	0.95	-0.44	0.23	0.14	0.08	-0.73	0.87	-0.63	0.01	-0.43	0.03	-0.33	-0.34	0.68	0.7
+104933 ACN likely ortholog of mouse acinus Hs.227133 H75861  22985 	0.58	0.66	0.73	-0.49	1.06	0.38	0.54	0.53	-0.71	0.19	-0.33	0.45	0.39	0.09	0.58	0.49
+"104934 SERPINB1 serine (or cysteine) proteinase inhibitor, clade B (ovalbumin), member 1 Hs.183583 AA486275  1992 "	1	0.69	2.06	1.81	1.04	-0.33	-0.18	1.36	-0.59	-0.17	1.05	0.32	-1.57	-0.75	-2.01	-0.69
+"104988 PFKP phosphofructokinase, platelet Hs.99910 AA608558  5214 "	1.96	2.65	1.12	0.95	-0.51	0.17	0.97	1.56	0.44	0.96	1.01	1.09	-0.32	0.95	0.24	-0.15
+"105020  Homo sapiens, clone MGC:20576 IMAGE:4300206, mRNA, complete cds Hs.374303 H50993   "	0.38	0.77	-0.42	-0.25	0.18	0.05	0.32	0.65	-0.14	-0.39	0.45	0.63	-0.44	-0.32	0.94	1.08
+105033 RFXANK regulatory factor X-associated ankyrin-containing protein Hs.296776 AA459311  8625 	0.34	0.65	0.45	0.5	1.04	0.35	0.75	-0.18	-0.52	-0.17	0.51	-0.15	0.11	-0.23	0.08	0.21
+"105035 PSMD9 proteasome (prosome, macropain) 26S subunit, non-ATPase, 9 Hs.5648 AA401853  5715 "	0.25	0.73	0.2	-0.54	0.24	-0.06	-0.2	0.69	-0.68	0.45	0.45	-0.08	0.4	0.01	1.07	0.46
+"105050 PLCG2 phospholipase C, gamma 2 (phosphatidylinositol-specific) Hs.75648 H57180  5336 "	0.01	0.67	0.47	1.76	1.54	0.33	0.51	0.36	-0.64	0.02	1.4	0.72	0.35	0.32	0.61	2.51
+105091 KIAA1320 KIAA1320 protein Hs.117414 N52788  57531 	-1.24	0.2	-0.29	0.12	-0.51	-0.09	-0.55	0.08	0.81	-0.09	0.59	-0.1	0.25	0.94	-0.2	-0.1
+105092 GSTM2 **glutathione S-transferase M2 (muscle) Hs.279837 AA232327  2946 	-0.06	1.51	-1.17	0.23	0.34	0.53	1.09	0.19	-0.5	-0.19	0.26	0.54	-0.32	1.05	-1.09	-2.25
+105102 GNL1 guanine nucleotide binding protein-like 1 Hs.83147 N30302  2794 	1.19	1.09	0.51	0.45	0.86	0.76	0.56	0.81	-0.04	0.03	-0.39	0.27	-0.11	-0.05	-0.51	0.79
+105132    N58107   	-0.16	-0.38	-0.01	0.91	0.08	0.61	-0.17	-0.64	-0.05	0.2	0	-0.23	-0.51	-0.74	-1.57	-0.13
+105163 SCG2 secretogranin II (chromogranin C) Hs.75426 H27864  7857 	2.2	1.08	0	1.03	0.77	2.14	-0.05	1.9	0.21	0.12	-1.14	-0.05	-0.85	-0.46	0	-1.37
+"105199 CTNNA1 catenin (cadherin-associated protein), alpha 1 (102kD) Hs.178452 AA676957  1495 "	0.5	0.56	0.65	-0.05	0.57	-0.61	-0.38	0.39	-0.43	0.51	-0.3	0.36	0.23	-0.66	-0.01	-0.06
+105208 FLJ20485 hypothetical protein FLJ20485 Hs.98806 AA434411  54517 	1.64	0.06	0.69	-0.25	0.25	0.73	0.36	0	-0.28	0	0.22	0.44	0.8	0.84	1.62	0.62
+105212 HAX1 HS1 binding protein Hs.15318 R76263  10456 	-0.43	0.15	-0.24	0.36	-0.39	-0.88	-0.08	0.54	0.03	0.19	0.09	-0.22	1.02	0.13	0.24	0.49
+105225 KIAA0146 KIAA0146 protein Hs.278634 AA401448  23514 	0	0.36	-0.37	0.62	0.45	0.11	0.41	0.61	-0.73	-1.43	-0.38	-0.02	0.73	-0.62	-0.4	0.1
+"105262 TP53BP2 tumor protein p53 binding protein, 2 Hs.44585 H69077 BBP/53BP2=Bcl2, p53 binding protein 7159 "	-0.48	0.97	0.51	0.65	0.3	0.27	0.94	0.93	0.29	-0.27	0.94	-0.54	1.2	0.4	1.84	1.76
+"105275 GPX2 glutathione peroxidase 2 (gastrointestinal) Hs.2704 AA135152 Glutathione peroxidase 2, gastrointestinal 2877 "	-0.37	-0.74	-0.64	-0.99	-0.39	1.01	0.45	-0.17	0.52	-0.17	-3.55	-1.33	-1.61	-0.25	0	-1.52
+105279 DSCR1L1 Down syndrome critical region gene 1-like 1 Hs.156007 H19439  10231 	0	0.67	0.64	0.89	1.82	1.4	-0.72	0.18	0.61	-1.3	-1.73	-0.95	-1.38	-0.69	0.63	0.01
+"105408 SDC2 syndecan 2 (heparan sulfate proteoglycan 1, cell surface-associated, fibroglycan) Hs.1501 H64346  6383 "	-0.69	-0.44	0.36	0.49	0.37	1.26	-0.38	-0.32	1.05	-0.26	0.08	-0.76	0.6	0.96	3.07	1.36
+"105427 EIF3S4 eukaryotic translation initiation factor 3, subunit 4 (delta, 44kD) Hs.28081 AA668703  8666 "	0.29	0.06	0.71	0.31	0.82	0.42	-0.68	0	-0.82	-0.17	-0.25	0	0.21	-0.27	-0.37	-0.02
+105471 LANP-L lecuine-rich acidic protein-like protein Hs.71331 AA130595  81611 	-0.43	0.02	0.08	-0.28	-0.27	0.38	0.93	0.54	0.38	-0.17	1.96	-1.97	1.43	1.29	1.42	0.41
+"105490 DDX11 **DEAD/H (Asp-Glu-Ala-Asp/His) box polypeptide 11 (CHL1-like helicase homolog, S. cerevisiae) Hs.27424 AA032090  1663 "	0.8	0.6	0.62	0.63	0.68	0.52	0.36	-0.24	-0.04	-0.13	-0.62	0.76	2.4	1.45	-0.12	-0.12
+105515 LOC51186 pp21 homolog Hs.15984 H96654  51186 	0.27	0.81	0.97	0.34	0.19	-0.23	-0.61	0.38	0.8	0.46	-0.13	0.56	0.29	0.44	0.59	-0.24
+105542 ADSL adenylosuccinate lyase Hs.75527 AA455931  158 	-0.43	-0.16	-0.24	-0.24	-0.05	-0.25	-0.7	-0.51	0.55	0.24	-0.37	-0.01	0.09	0.62	0.64	0.5
+105550 IMPA2 inositol(myo)-1(or 4)-monophosphatase 2 Hs.5753 R17337  3613 	-0.67	-1.32	0	-0.55	-1.23	-0.37	-1.07	-0.39	0.56	0.54	0.74	-0.34	0.2	1.66	1.04	0.63
+105560 ATP11 hypothetical protein FLJ22351 Hs.10964 T71965  64756 	-1.11	0.51	-0.19	-0.34	-0.1	-0.62	0.11	-0.04	0.05	0.58	-0.35	-0.44	-0.2	0.39	0.9	0.42
+105576 FLJ10404 **hypothetical protein FLJ10404 Hs.111279 W84472  54540 	0.37	0.6	-0.12	0.72	1.3	-0.17	0	0.04	-0.35	0	-1.8	0.04	0.56	-0.16	-0.28	0.36
+"105588 SERPINH2 serine (or cysteine) proteinase inhibitor, clade H (heat shock protein 47), member 2 Hs.9930 R71093  872 "	0.51	1.48	0.99	1.18	0.99	1.22	-0.68	1.46	1.17	0.14	-0.01	0.37	-0.33	1.15	0.99	-0.72
+"105638 ETV4 ets variant gene 4 (E1A enhancer binding protein, E1AF) Hs.77711 AA010400 E1A-F=E1A enhancer binding protein=ETS translocation variant 2118 "	1.04	2.68	3.49	3.3	1.15	1.43	1.67	1.81	0.21	-0.47	-0.38	-0.68	-0.54	-0.23	0.2	-0.07
+105640 RBM14 RNA binding motif protein 14 Hs.11170 AA417283  10432 	0.23	0.61	0.15	0.11	0.77	-0.27	0.25	-0.14	-0.35	0.32	-0.34	0.44	1.02	0.59	-0.03	0.66
+105700 ASGR2 asialoglycoprotein receptor 2 Hs.1259 R98050  433 	0	-0.86	1.15	0.27	0.65	1.63	0.7	0.6	0.39	-0.92	-1.68	-0.96	-0.16	0.7	-2.17	-0.5
+"105705 LRP8 low density lipoprotein receptor-related protein 8, apolipoprotein e receptor Hs.54481 W78784  7804 "	-1.05	0.33	-0.31	-0.31	0.35	1.08	0.09	0.39	0.27	1.26	0.85	0.45	0.03	1.1	-0.27	-0.17
+"105724 GNB2L1 guanine nucleotide binding protein (G protein), beta polypeptide 2-like 1 Hs.5662 R96220  10399 "	0.15	0.57	0.27	0.27	1.17	-0.03	0.38	-0.23	-0.35	0.7	-0.59	0.54	0.67	-0.12	-0.32	-0.97
+"105805  Homo sapiens, clone IMAGE:4242700, mRNA Hs.348710 W37448   "	0.75	-1.2	-0.11	0.23	0.07	-0.45	0.44	0.25	0.59	-0.59	0.96	0.33	0.3	0.68	2.4	1.66
+"105847 UBE2E3 ubiquitin-conjugating enzyme E2E 3 (UBC4/5 homolog, yeast) Hs.4890 AA459868  10477 "	0.64	0.16	0.31	0.92	0.43	0.51	1.19	0.75	0.44	-0.5	0.51	0.51	-0.07	0.56	1.34	1.46
+"105870 ALDH1A2 aldehyde dehydrogenase 1 family, member A2 Hs.95197 AA447978  8854 "	-1.8	0.2	1.39	1.31	1.24	1.89	-0.48	1.05	-0.41	0.01	-5.17	-1.34	-0.68	0.05	0	-0.49
+"105873 PRKRA protein kinase, interferon-inducible double stranded RNA dependent activator Hs.18571 AA460968  8575 "	-1.22	-0.28	0.12	0.07	-0.18	0.26	0.11	0.11	0.71	0.62	-0.58	0.9	0.16	0.18	0	0.17
+"105876 NEDD5 **neural precursor cell expressed, developmentally down-regulated 5 Hs.155595 T39376  4735 "	0.75	0.77	0.37	-0.53	0.35	0.14	-0.07	0.85	0.16	0.53	0.15	0.51	-0.52	-0.25	0.74	0.55
+105886 HEL308 **similar to Unknown (protein for MGC:20604) Hs.27104 AA148536  113510 	-0.57	0.52	0.66	-0.01	0.6	0.21	0.5	0.49	0.04	0.72	-0.05	-0.13	0.73	0.92	0	0.28
+105894 FLJ12592 hypothetical protein FLJ12592 Hs.23100 H93118  84129 	1.59	0.78	0.1	0.02	1.32	0.5	-0.05	0.4	-0.55	0.35	-0.67	-0.25	-0.11	-0.05	0.56	1.71
+105931 KIAA1184 KIAA1184 protein Hs.100747 R01094  64583 	-0.29	1.03	1.04	0.93	1.04	0.11	0.94	1.31	-0.97	0.12	-0.25	0.12	0.31	-0.48	-1.07	-1.68
+105938 ARL7 ADP-ribosylation factor-like 7 Hs.111554 N35301  10123 	0.72	2.36	0.82	0.34	0.93	0.8	1.7	3.25	0.96	-0.36	-0.2	-0.11	-0.99	0.36	-3.3	-0.79
+105954 GPR49 G protein-coupled receptor 49 Hs.285529 AA460529  8549 	-0.73	2.16	0.33	-1.74	-0.15	1.38	1.82	1.07	-0.28	0.23	0.87	0.71	1.51	0.21	0.36	-0.42
+105979 DKFZP566D1346 hypothetical protein DKFZp566D1346 Hs.22612 N39413  81573 	-2.04	0.02	-0.42	-0.39	-0.39	0.14	0.54	0.45	0.6	-0.3	-0.43	-0.34	0.05	0.87	0.54	0.11
+106001 EWSR1 Ewing sarcoma breakpoint region 1 Hs.129953 R32755  2130 	0.36	0.34	-0.15	-0.75	0.88	0.11	-0.5	0.59	0.23	0.86	0.15	1.14	0.27	0.75	0.78	0.38
+106015 HDAC6 histone deacetylase 6 Hs.6764 T55835  10013 	0	0.53	0.5	-0.25	0.77	0.58	-0.3	1.75	0.25	0.12	-0.8	0.03	0.63	-0.11	0	1.7
+106027 SPS selenium donor protein Hs.124027 W80692  22929 	1.85	1.35	0.67	-0.3	0.67	1.37	0.01	-0.06	-0.03	-0.1	0.25	0.15	1.12	0.14	1.78	0.66
+106064 GSTT1 glutathione S-transferase theta 1 Hs.77490 H99813  2952 	0.81	0	1.2	0.71	0.66	0.59	-0.48	0	0.71	1.19	-1.48	0.79	-3.23	-0.52	-2.64	0.48
+106072 FZD7 frizzled homolog 7 (Drosophila) Hs.173859 N69049  8324 	-1.39	-0.38	0.66	0.25	0.74	0.37	0.68	-0.23	1.58	-0.15	1.86	0.54	1.74	1.58	1.42	3.32
+106077 PMSCL1 **polymyositis/scleroderma autoantigen 1 (75kD) Hs.91728 AA458994 Cyclin A 5393 	0.59	0.46	0.22	0.05	0.18	0.32	-0.48	0.1	0.21	0.56	0.26	0.04	0.55	0.87	1.28	0.08
+"106094 PAFAH1B3 platelet-activating factor acetylhydrolase, isoform Ib, gamma subunit (29kD) Hs.6793 AA464238  5050 "	-0.96	0.04	-0.38	0.29	-0.75	-0.25	-0.3	-0.59	-0.25	0.03	0.25	0.45	0.33	0.56	0.84	-0.16
+106095 PTK7 **PTK7 protein tyrosine kinase 7 Hs.90572 AA453789 Protein-tyrosine kinase 7 and KIAA0370 (Double hit) 5754 	0.34	1.69	0.25	0.53	1.91	0	0.61	-0.22	1.4	0.44	0.1	1.19	0.56	0.19	1.65	0.58
+"106139  **Homo sapiens, Similar to glutathione S-transferase M1, clone MGC:26563 IMAGE:4823313, mRNA, complete cds Hs.353150 AA290737 Glutathione S-transferase subunit 4 (EC 2.5.1.18)  "	0.91	1.43	-0.85	0.11	0.68	0.98	0.73	0.31	0.01	-0.76	-1.2	-1.59	-0.81	0.26	-1.01	1.15
+106201 C22orf19 chromosome 22 open reading frame 19 Hs.75361 AA700048  8563 	-0.49	-0.15	-0.25	-0.18	0.12	0.15	-0.93	0.03	0.59	1.16	0.32	0.13	-0.46	0.43	0.77	0.13
+106244 ENC1 ectodermal-neural cortex (with BTB-like domain) Hs.104925 AA100036 Pig10=p53-inducible gene=Similar to actin-binding protein EN 8507 	-0.1	0.05	2.12	1.32	0.91	0.55	-0.05	-0.24	0.84	0.12	1.07	0.91	-0.76	1.53	0.02	-0.97
+106289 ETS2 v-ets erythroblastosis virus E26 oncogene homolog 2 (avian) Hs.85146 H96235 ets-2=ets family transcription factor 2114 	0.04	0.03	-0.01	0.9	-0.3	0.14	-0.78	0.91	0.55	-0.15	-0.02	0.01	-0.05	-0.16	-0.33	-0.23
+"106309 PTPRU protein tyrosine phosphatase, receptor type, U Hs.19718 AA644448 R-PTP-psi=receptor protein tyrosine phosphatase psi 10076 "	0.73	1.66	0.75	1.16	1.3	-0.01	1.45	0.08	0.62	-0.08	-2.02	-1.32	0.45	-1.23	0	1.3
+"106328  ESTs, Moderately similar to T17330 hypothetical protein DKFZp434B105.1 [H.sapiens] Hs.15282 T99650   "	0	0.85	1.26	0.09	0.76	0.6	0.95	0.72	-0.33	-0.59	-1.09	0.45	0.08	0.43	1.71	1.71
+106336 MGC2714 hypothetical protein MGC2714 Hs.74284 AA186873  84259 	0	0	0.46	0.76	0	0.8	0.41	0.62	-0.06	0.53	-0.14	0.4	0.84	0.13	-0.56	0.16
+"106348 MCM5 MCM5 minichromosome maintenance deficient 5, cell division cycle 46 (S. cerevisiae) Hs.77171 AA075920  4174 "	0.63	-0.22	-0.25	0.19	-0.35	-0.91	-0.99	0.18	0.46	0.49	0.47	0.42	-0.11	1.61	0.38	-0.47
+106357 LMO7 LIM domain only 7 Hs.5978 H22825  4008 	3.37	1.63	1.29	1.53	0.96	0.77	0.58	2.89	0.25	-0.81	0.06	0.15	0.51	-0.14	0.44	-1.08
+"106365  **ESTs, Weakly similar to hypothetical protein FLJ20489 [Homo sapiens] [H.sapiens] Hs.128783 H48508   "	-0.48	0.66	0.74	0.52	0.57	0.6	0.34	0.57	1.5	-0.43	0.12	0.18	0.32	0.25	1.18	-0.33
+106378 MYOZ2 myozenin 2 Hs.42346 AA064973  51778 	-0.38	-1.46	-0.26	0.25	0.46	0.5	0.2	1.05	0.69	0	-1.79	-0.05	0.31	0.36	0	0.13
+"106404 PTPNS1 protein tyrosine phosphatase, non-receptor type substrate 1 Hs.156114 AA417269  140885 "	-0.45	0.32	0.55	0.68	0.84	0.66	-1.95	0	-0.17	0.3	1.14	-0.35	0.49	1.04	2.22	1.36
+106429 LTBP1 latent transforming growth factor beta binding protein 1 Hs.241257 AA490011  4052 	-0.2	0.12	0.11	0.39	0.64	0.17	0.18	0.35	0.73	0.34	-0.41	-0.83	0.09	0.07	0	-1.01
+"106494 NFATC3 nuclear factor of activated T-cells, cytoplasmic, calcineurin-dependent 3 Hs.172674 AA293819 NFAT4=NFATc3=NFATx 4775 "	0.43	0.45	0.35	0.12	0.6	0.03	0.33	-0.26	-0.37	0.68	0.12	0.12	-0.46	0.13	0.67	0.1
+106499 ENIGMA enigma (LIM domain protein) Hs.102948 AA125911  9260 	0.42	1.77	0.51	0.82	1.57	1.32	-0.24	0.73	-0.34	0.47	-0.47	-0.36	-0.8	-0.02	-0.42	-0.06
+106519 NDRG1 N-myc downstream regulated gene 1 Hs.75789 AA486403  10397 	1.58	0.03	-0.73	0.66	-0.96	-0.24	-1.38	0.73	0.71	0.24	1.64	1.11	0.23	-0.79	-0.25	1.95
+"106530 SPTBN2 spectrin, beta, non-erythrocytic 2 Hs.26915 H28127  6712 "	0.3	2.43	0.49	0.28	1.14	0.26	0.14	0.83	0.26	0.39	0.48	0.93	1.12	0.36	0.39	1.2
+106531 SHMT1 serine hydroxymethyltransferase 1 (soluble) Hs.8889 R52639  6470 	0.5	0.95	0.99	0.4	1.37	0.25	0.7	0.46	0.56	0.23	-0.14	-1.12	-0.32	0.05	-0.29	-0.51
+106548 GARS glycyl-tRNA synthetase Hs.283108 AA629909  2617 	-0.58	0.07	0.26	0.75	0.02	-0.26	-0.14	0.34	0.62	0.59	0.17	0.43	0.25	0.8	0.09	0.53
+106574 SDBCAG84 serologically defined breast cancer antigen 84 Hs.169992 AA457092  51614 	0.24	0.7	0.06	-0.14	0.38	-0.54	0.27	0.45	0.09	-0.24	-0.08	0.36	-0.39	-0.44	0.29	0.23
+"106620 MTHFD2 methylene tetrahydrofolate dehydrogenase (NAD+ dependent), methenyltetrahydrofolate cyclohydrolase Hs.154672 AA480994  10797 "	-1.6	0.25	1.05	-0.59	-1.18	-0.61	-0.4	0.25	0.26	0.4	0.67	0.69	0.54	0.86	1.16	1
+106621 GSTP1 glutathione S-transferase pi Hs.226795 R33642  2950 	1.62	1.59	0.63	1.41	1.07	0.61	-0.25	1.38	0.39	-0.4	0.63	-0.09	0.64	0.56	0.68	0.48
+"106637 CSTF1 cleavage stimulation factor, 3' pre-RNA, subunit 1, 50kD Hs.172865 W72815  1477 "	-0.69	0.67	0.34	-0.2	-0.33	0.26	0.3	-0.56	0.66	-0.19	0.02	0.14	0.13	-0.14	0	-0.21
+106643 ERp44 **endoplasmic reticulum resident protein 44 kDa Hs.154023 AA394240  23071 	0.49	0.93	0.65	0.2	0.55	-0.42	-0.04	0.64	0.34	-0.08	0.16	0.21	0.27	0.51	0.33	0.36
+106736 KIAA0370 KIAA0370 protein Hs.70500 AA026169  23214 	-0.1	0.94	0.65	-0.74	0	-0.1	0.12	1.22	-0.35	0.12	0.21	0.85	0.33	0.34	0.98	-0.12
+106851 MST1 macrophage stimulating 1 (hepatocyte growth factor-like) Hs.349110 T47812 Macrophage stimulating 1 (hepatocyte growth factor-like) 4485 	0.9	1.4	0.66	-0.29	1.5	-0.18	1.53	0.71	-0.58	-0.59	-0.96	-0.72	-0.58	-0.76	-1.37	1.06
+106865 AFAP actin filament associated protein Hs.80306 R69355  60312 	0.28	0.06	1.38	0.64	0.71	0.13	-0.46	1.3	0.14	0.64	-0.06	0.33	-0.26	0.21	-0.52	1.37
+"106911 HBZ hemoglobin, zeta Hs.272003 N59636  3050 "	-0.23	0.85	1.27	1.01	0.63	2.32	1.42	0.91	0.63	0.64	-2.27	-0.11	-0.79	1.49	-3.73	-1.17
+106945 LOC84528 homeobox protein from AL590526 Hs.28937 R69071  84528 	0.95	1.01	1.21	0	0.64	0	1.4	0.81	0.11	1.6	-0.76	-1.61	0.02	0.97	0	-1.18
+107004 RBBP2 retinoblastoma binding protein 2 Hs.76272 AA487492  5927 	0.26	-0.33	-0.28	0.18	-0.32	-0.11	1.25	0.42	1.2	-0.2	0.72	-0.7	-1.03	0.49	0.41	-0.85
+"107009 AP3D1 adaptor-related protein complex 3, delta 1 subunit Hs.75056 AA630776  8943 "	0	-0.14	-0.11	-0.27	0.3	-0.07	-0.68	0.09	0.46	0.12	0.69	0.27	0.26	0.22	0.44	0.01
+"107012 ARAP3 ARF-GAP, RHO-GAP, ankyrin repeat and plekstrin homology domains-containing protein 3 Hs.25277 AA458491  64411 "	1.11	1.86	0.87	1.38	1.19	0.41	1.98	1.44	0.48	-0.2	-0.61	0.13	-1.63	0.01	0	-0.11
+107027 MUTYH mutY homolog (E. coli) Hs.271353 N24004 MYH=DNA mismatch repair protein=mutY homologue 4595 	-0.38	0.29	0.02	-0.83	0.36	0.28	-0.13	0.58	-0.36	-0.16	0.25	0.4	1.27	0.43	-0.44	0.6
+107045 FLJ20920 hypothetical protein FLJ20920 Hs.288959 AA489586  80221 	1.09	-0.13	0.81	-0.04	1.13	0.16	-0.92	1.36	-0.34	0.62	0.59	0.16	-1.28	-0.73	-1.67	-0.1
+"107054 SFRS9 splicing factor, arginine/serine-rich 9 Hs.77608 N47892  8683 "	0	0	0.58	0.49	0	0.19	0.64	0.88	0.53	0.28	0.42	-0.64	0.16	0.48	0.82	0.75
+"107056 TRAP240 thyroid hormone receptor-associated protein, 240 kDa subunit Hs.11861 AA457462  9969 "	1.27	0.39	0.08	-0.03	-0.13	1.3	0.05	0.97	1.19	-0.64	0.16	-0.68	-1.61	-0.58	-0.22	-0.6
+"107073 ADARB1 adenosine deaminase, RNA-specific, B1 (RED1 homolog rat) Hs.85302 AA489331  104 "	0	0.64	0.57	0.61	0	0.59	0.92	-0.45	0.36	0	0.91	0.28	1.17	0	1.59	3.24
+107107 ZNF165 zinc finger protein 165 Hs.55481 W31899  7718 	-0.16	0.38	0.13	-0.41	0.19	-0.79	-0.2	0.37	-0.4	-0.06	0.24	0.19	0.51	0.05	1.25	0.95
+107118 FLJ22638 hypothetical protein FLJ22638 Hs.183232 AA453186  79897 	-0.38	0.42	-0.24	0.1	0.51	-0.59	0.1	0.07	0.1	-0.09	0.13	0.51	0.29	0.25	0.22	0.57
+107148 UMPK uridine monophosphate kinase Hs.75939 W69906  7371 	-0.91	-0.01	0.05	-0.26	-0.55	-0.34	0.44	-0.16	-0.03	0.28	0.15	0.47	-0.19	0.18	-0.16	1.03
+107168 ITM3 integral membrane protein 3 Hs.111577 AA034213  81618 	2.46	3.38	0.97	1.18	0.87	0.79	0	3.13	0.81	0.07	-0.05	0.45	0.01	0.66	1.74	0.03
+107169 FKBP8 FK506 binding protein 8 (38kD) Hs.173464 N95418  23770 	0.51	-0.04	0.47	0.92	0.13	-0.15	0.68	0.51	0.39	-0.53	0.57	0.19	-0.02	-0.02	-1.15	0.44
+107203 LOC157378 hypothetical protein BC017881 Hs.157068 AA485369  157378 	-1.1	-0.31	-0.36	-1.43	-0.57	0.21	1.08	1.04	0.75	0.69	1.05	0.74	-0.33	0.97	1.72	-0.13
+107204 FLJ14525 hypothetical protein FLJ14525 Hs.26812 AA464028  84886 	-1	0.2	-0.04	1.58	1.05	0.35	0.2	0.41	0.21	0.68	0.97	0.95	0.77	0.65	4	0.8
+107210 CDK8 cyclin-dependent kinase 8 Hs.25283 R59697  1024 	-0.03	0.46	0.08	-0.22	0.12	0.51	-0.08	0	0.44	0.68	0.74	1.09	0.39	0.23	-0.24	-0.01
+"107211 PLEC1 plectin 1, intermediate filament binding protein, 500kD Hs.79706 AA448400  5339 "	0.96	0.92	-0.01	1.06	1.44	0.28	-0.43	2.44	-0.36	-1.07	-0.49	-0.49	-0.56	-1.1	0.26	0.5
+107227 MP1 metalloprotease 1 (pitrilysin family) Hs.260116 AA447691  10531 	0.35	2.1	0.51	0.17	-0.47	-0.18	0.32	0.38	0	0.44	1.1	0	1.01	0.8	0.63	1.17
+107249  Homo sapiens mRNA; cDNA DKFZp564C2063 (from clone DKFZp564C2063) Hs.4055 AA135912   	-0.91	-0.18	-0.13	0.77	-0.21	1.2	0.68	1.11	-0.94	0.22	0.23	1.06	0.15	0.23	0.38	0.67
+107262 C1orf33 chromosome 1 open reading frame 33 Hs.274201 R89308  51154 	-0.61	0.32	-0.59	-0.3	-0.12	1.89	0.86	0.04	0.87	0.39	0.3	-0.16	-0.68	-0.08	-0.32	0.33
+107263 RPL5 ribosomal protein L5 Hs.180946 AA496838  6125 	-0.43	0.51	0.39	0	1	-0.12	0.85	0.36	0.24	0.17	0.21	0.08	0.3	-0.72	-0.52	0.37
+"107283 SLC26A2 solute carrier family 26 (sulfate transporter), member 2 Hs.29981 N73101  1836 "	-0.76	0.8	0	0.53	-0.08	0.33	0.58	0.76	0.67	0.05	0.01	-1.03	-0.36	0.29	1.4	3.38
+"107287  ESTs, Weakly similar to 2004399A chromosomal protein [H.sapiens] Hs.372504 AA485422   "	0	1.74	0.25	0.1	1.12	0.2	-0.49	-0.07	-0.68	-0.22	0.2	0.01	0.4	-0.21	0.07	0.39
+"107303 CDC2 cell division cycle 2, G1 to S and G2 to M Hs.334562 AA598974  983 "	-1.06	0.4	0.29	-0.35	-2.26	-1.42	-1.11	0.34	2.08	1.74	1.35	0.53	1.17	1.29	0.84	0.22
+107318 RELN reelin Hs.12246 R19878  5649 	0.18	0.61	0.26	0.22	0.29	0.38	-0.45	0.31	-0.65	0.76	-0.39	-0.64	-0.14	0.51	0	-0.35
+107410 RFC4 replication factor C (activator 1) 4 (37kD) Hs.35120 N93924 replication factor C 5984 	-0.06	-0.02	0.61	0.04	-1.05	-0.07	0.08	0.46	0.38	-0.19	0.05	0.18	1.21	1.3	0.67	0.18
+107418 PP3111 PP3111 protein Hs.351484 AA599073  64118 	-0.21	0.23	-0.07	-0.71	0.25	0.29	-0.53	0.46	0.41	0.52	0.43	0.92	0.75	1.25	1.02	1.09
+107455 YARS tyrosyl-tRNA synthetase Hs.239307 AA102052  8565 	-0.47	0.81	0	0.21	0.21	-0.08	-0.22	0.69	0.54	0.45	1.2	0.28	-0.21	0.8	-0.1	0.87
+107459    T63511   	0.26	0.71	-0.09	0.56	1.49	0.17	0.12	-0.31	-0.57	0.3	0.87	1.19	0.64	-0.64	1.72	1.11
+"107461 ATP6V1B1 ATPase, H+ transporting, lysosomal 56/58kD, V1 subunit B, isoform 1 (Renal tubular acidosis with deafness) Hs.64173 AI668571  525 "	2.23	1.87	2.27	1.64	1.46	-0.99	1.89	1.56	-1.72	-2.21	-2.44	-1.89	-2.33	-1.71	1.76	-2
+107467 IGF2 insulin-like growth factor 2 (somatomedin A) Hs.349109 N74623 Insulin-like growth factor 2 (somatomedin A) 3481 	-1.33	1.52	2.96	0.77	1.66	1.16	4.77	4.3	2.56	-1.11	-2.01	-1.9	-2.48	-2.1	-3.83	-2.71
+107489 FLJ10747 hypothetical protein FLJ10747 Hs.189782 R53371  55219 	-0.54	0.05	-0.16	0	-0.07	0.12	-0.45	-0.04	-0.3	0.05	0.31	0.07	-0.11	-0.3	0.65	0.07
+107500 ADFP adipose differentiation-related protein Hs.3416 AA142916  123 	-1.94	0.31	-1.15	-1.18	-1.38	-0.08	-0.47	0.48	1.24	-0.17	2.84	0.78	-0.5	0.2	1.27	-1.03
+"107504 ACYP1 acylphosphatase 1, erythrocyte (common) type Hs.18573 W78754  97 "	0.56	0.45	0.82	-0.1	0.47	0.63	0.62	1.55	-0.22	0	-0.65	1.22	1.56	0.56	1.92	1.24
+107528 WBSCR22 Williams Beuren syndrome chromosome region 22 Hs.334837 AA455506  114049 	-0.01	1.39	0.53	-0.46	0.74	0.64	0.7	0.77	-0.87	-0.06	-0.1	-0.08	0.85	0.22	0.64	1.02
+"107551 MUC1 mucin 1, transmembrane Hs.89603 N27731  4582 "	0	0	0.22	1.09	0	-0.62	-0.58	0.2	-3.3	-1.65	-1.5	-0.7	-0.84	-1.56	0	0.59
+"107565  Homo sapiens cDNA FLJ31373 fis, clone NB9N42000342 Hs.281434 AA454682   "	0.28	0.69	1.01	1.72	1.67	0.51	0.26	0.14	0.4	0.33	-0.81	0.97	1.44	0.88	2.29	0.9
+107684 EXT1 exostoses (multiple) 1 Hs.184161 AA487582  2131 	-0.52	0.89	0.22	0.47	0.38	0.2	-0.06	1.07	0.09	1.54	0.49	0.25	-0.48	0.69	1.73	1.09
+107699 FLJ20093 hypothetical protein FLJ20093 Hs.172572 AA416684  55608 	1.28	0.35	-0.08	0.43	1.01	0.66	0.49	1.91	-0.25	-0.26	-0.01	-0.58	-0.48	0.26	0.28	-0.97
+107710 DDEF1 development and differentiation enhancing factor 1 Hs.10669 N72878  50807 	-0.08	0.2	0.32	0.69	0.5	-0.19	0.53	-0.09	0.25	0.02	0.51	0.3	0.36	0.29	0.25	0.38
+"107787 ADAMTS1 a disintegrin-like and metalloprotease (reprolysin type) with thrombospondin type 1 motif, 1 Hs.8230 AA057170  9510 "	-0.56	0	0.05	0.64	-0.65	1.52	0.88	3.48	-0.57	0.26	-0.98	-0.79	0.03	0.06	2.66	-0.99
+107839 TES testis derived transcript (3 LIM domains) Hs.165986 T52325  26136 	0.57	1.24	0.27	0.78	1.67	-0.22	-0.03	1.21	-0.39	0.48	0.64	0.43	-0.39	0.21	0.63	0.24
+107868 MPI mannose phosphate isomerase Hs.75694 AA482198  4351 	0.78	1.45	0.1	0.1	0.55	0.3	0.32	0.23	0.25	0	-0.02	-1.1	-0.76	-0.07	-0.02	-0.05
+107897 P12 DNA polymerase epsilon p12 subunit Hs.19980 AA400317  56655 	-0.41	0.05	-0.16	-0.09	-0.09	-0.19	-0.11	0.09	0.04	0.06	0.04	0.36	-0.42	0.77	1.73	0.73
+107949 GALNT3 UDP-N-acetyl-alpha-D-galactosamine:polypeptide N-acetylgalactosaminyltransferase 3 (GalNAc-T3) Hs.278611 H13688  2591 	0.26	-1.38	0.22	-0.02	0.41	-0.49	0.08	0.51	0.64	0.65	0.15	0.44	-0.88	0.58	0	1.48
+"107957 ITGA3 integrin, alpha 3 (antigen CD49C, alpha 3 subunit of VLA-3 receptor) Hs.265829 AA418994  3675 "	1.65	1.07	0.53	0.99	1.87	0.25	-0.7	0.75	-1.33	0.24	-0.31	0.12	-0.93	-0.51	-1.7	-0.72
+107975 ODC1 ornithine decarboxylase 1 Hs.75212 AA460115  4953 	0.46	1.59	0.44	0.49	0	-0.3	1.45	1	0.34	-0.37	-0.15	-0.01	0.36	0	0.39	0.18
+"108002  Homo sapiens cDNA FLJ23711 fis, clone HEP12371 Hs.355279 N38891   "	-0.59	0.18	0.5	0.38	-0.42	0.63	0.51	-0.34	0.78	0.73	-0.27	0.4	0.02	0.3	-1.05	0.04
+108083 NUDT1 nudix (nucleoside diphosphate linked moiety X)-type motif 1 Hs.388 AA443998  4521 	0.08	0	0.51	0.6	-0.13	0.72	-0.17	0.5	1.61	0.38	-0.06	0.96	1.19	0.64	0.42	-0.84
+108084 ADRM1 **adhesion regulating molecule 1 Hs.90107 AA459658  11047 	0.73	1.94	0.71	0.04	0.3	0.02	1.33	1.27	-0.48	0	-0.66	-0.31	-0.15	-0.53	-0.38	0.22
+108094 CDK5 cyclin-dependent kinase 5 Hs.166071 AA401479 CDK5=cell division protein kinase 5 (kinase PSSALRE) 1020 	-0.67	0.31	-0.03	-0.11	0.64	-0.13	-1.02	0.2	0.54	-0.52	-0.06	-0.45	-0.24	-0.01	0	-0.39
+"108126 SCYD1 small inducible cytokine subfamily D (Cys-X3-Cys), member 1 (fractalkine, neurotactin) Hs.80420 R66139 CX3C chemokine=orthologue of mouse fractalkine 6376 "	0.63	0.11	0.57	0.21	1.34	-0.67	-1.37	-2.55	-0.27	1.92	2.14	2.87	-0.36	1.72	1.92	2.95
+108164 KNSL2 kinesin-like 2 Hs.20830 N69491  3833 	-1.06	1.1	0.2	-1.15	-1.92	1.4	-0.49	0.34	0.49	0.25	-0.07	1.39	0	0.6	1.03	-0.25
+108171 BYSL bystin-like Hs.106880 AA701929  705 	-0.15	0.96	0.44	0.4	0.4	-0.03	-0.04	-0.2	0.68	-0.04	0.34	0.79	1.74	0.96	0.95	0.12
+108218 FLJ22021 hypothetical protein FLJ22021 Hs.7258 H17517  79585 	0.1	0.52	0.95	0.76	0.69	0.4	-0.73	0.43	-0.46	0	0.01	-0.04	0.14	0.07	-0.26	0.28
+"108245 SEPN1 selenoprotein N, 1 Hs.8518 AA459310  57190 "	-0.07	0.87	-0.12	0.39	0.75	0.56	0.2	-0.12	-0.83	-0.06	-0.73	-0.57	-0.78	-0.5	0	0.19
+108261 TRIP7 thyroid hormone receptor interactor 7 Hs.77558 AA431321  9324 	0.01	-0.14	0.67	-0.37	0.68	-0.22	0.98	0.39	0.6	0.29	0.03	0.2	0.79	0.31	1.63	-0.09
+108265 DKFZp564A176 hypothetical protein DKFZp564A176 Hs.322844 R11698  84202 	0	0	0.01	-0.37	0	-0.13	-0.09	0.38	0.47	-0.55	0.62	0.25	1.33	0.12	-0.79	0.46
+108327 TEAD4 TEA domain family member 4 Hs.94865 W72159  7004 	0	0.65	0.83	0.21	0.33	0.56	-0.31	0.62	0.2	1	-0.47	0.41	1.79	0.39	0.41	-0.58
+108417 ADFP adipose differentiation-related protein Hs.3416 AA700054  123 	-1.68	-0.35	-0.71	-0.79	-1.81	0.35	-0.78	0.31	1.35	0.02	2.6	0.91	0.15	0.04	0	-0.88
+"108443 ZFP36 zinc finger protein 36, C3H type, homolog (mouse) Hs.343586 R38383  7538 "	-0.3	0.2	0.61	1.18	0.12	1.57	0.84	0.89	-0.88	-0.03	-0.43	-0.35	-0.38	-0.43	-1.31	-0.21
+"108492 SERPINC1 serine (or cysteine) proteinase inhibitor, clade C (antithrombin), member 1 Hs.75599 T62060  462 "	0.17	0.63	0.45	0	0.5	0.4	0.05	0.38	-0.6	-0.29	-0.21	-0.3	-0.12	-0.35	-0.62	-0.03
+"108510 ICAM1 intercellular adhesion molecule 1 (CD54), human rhinovirus receptor Hs.168383 R77293 CD54=ICAM-1 3383 "	-0.78	-0.18	0.08	0.55	0.33	0.2	-1.42	-0.25	-0.27	0.55	1.21	0.13	0.59	0.58	-1.9	-1.21
+108539 CNTNAP1 contactin associated protein 1 Hs.31622 AA028905  8506 	0	0.2	0.19	-0.13	0.25	0.34	0.03	0	-0.67	0.98	-1.69	-0.9	0	0.09	-2.24	-0.65
+108575 RNF11 ring finger protein 11 Hs.96334 W94868  26994 	0	-0.28	-0.82	0	-0.16	-0.37	-0.36	0.29	-0.55	0.63	-0.08	0.84	-0.76	-0.51	1.67	0.63
+108578 IRF3 interferon regulatory factor 3 Hs.75254 AA455767 IRF-3=interferon regulatory factor-3 3661 	0.37	0.4	-0.16	-0.17	0.57	0.32	0.19	0.31	-0.51	0.03	-0.33	0.85	0.71	0.25	0.18	0.84
+108603 GPX3 glutathione peroxidase 3 (plasma) Hs.336920 AA664180  2878 	0.12	1.49	-0.79	-0.31	0.83	1.08	-2.57	-0.85	-1.18	0.61	-0.71	-1.47	-1.61	-1.37	-1.38	-0.32
+108633 JTV1 JTV1 gene Hs.301613 AA419142  7965 	-0.76	-0.4	0.69	0.13	-0.22	-0.05	0.57	0.13	0.54	0.64	-0.76	0.72	0.78	0.55	0.02	0.02
+"108644 P2RX5 purinergic receptor P2X, ligand-gated ion channel, 5 Hs.77807 AA044167  5026 "	0.17	-0.15	0.62	-0.01	-0.46	0	0.71	0.36	0.3	0.44	-0.43	0.12	0.6	0.11	0.48	-0.67
+108645 COPEB core promoter element binding protein Hs.285313 AA013481  1316 	-0.7	0.74	-0.01	0	0.21	1.31	1.04	1.05	-0.61	-0.66	0.32	0.77	-0.78	-0.18	0.49	-1.46
+108666 DKFZP566C134 DKFZP566C134 protein Hs.20237 AA456319  25948 	0.01	-0.03	0.71	0.21	0.18	-0.27	0	0.59	0.21	0.41	-0.28	0.59	0.48	0.43	0.13	1.57
+108707 ISYNA1 myo-inositol 1-phosphate synthase A1 Hs.33713 AA454554  51477 	1.02	1.04	-0.17	-0.49	0.86	0.24	1.72	1.44	-0.34	-0.17	0.36	-0.12	-0.61	-1.08	-0.6	-0.01
+108713 RANBP1 RAN binding protein 1 Hs.24763 R14822  5902 	-0.21	-0.12	-0.54	-0.38	-0.38	-0.27	-0.96	-0.99	0.6	1.19	0.18	0.99	0.83	1.35	0.81	1.54
+108725 MAFG v-maf musculoaponeurotic fibrosarcoma oncogene homolog G (avian) Hs.252229 N21609 MafG=basic-leucine zipper transcription factor 4097 	-0.2	0	0.15	0.02	0.54	0.38	0.19	0.65	0.48	-0.49	0.61	0.34	-0.17	0.17	0.35	-0.25
+108732 DOC-1R tumor suppressor deleted in oral cancer-related 1 Hs.355753 AA457108  10263 	0	1.74	0.22	0.26	0.5	0.25	-0.35	0.02	-0.05	-0.25	-0.69	0.31	-0.13	-0.17	-1.09	0.13
+"108733 TMLHE trimethyllysine hydroxylase, epsilon Hs.103816 AA130866  55217 "	0.13	0	0.47	0.19	0.42	0.44	0.12	0.79	1.26	-0.48	0.39	-0.39	0.16	0.23	0	0.01
+"108748  Homo sapiens cDNA: FLJ21887 fis, clone HEP03135, highly similar to AF090900 Homo sapiens clone HQ0189 PRO0189 mRNA Hs.91393 H73337   "	-0.39	0.16	-0.08	0.31	0.29	-0.05	0.78	0.31	-0.15	0.52	-0.32	0.55	0.72	0.87	0.87	0.72
+108788 WTAP Wilms' tumour 1-associating protein Hs.119 N49763  9589 	1.18	-0.24	-0.47	1.3	1	0.94	-1.02	-0.09	-0.85	0.63	0.17	0.6	1.21	-0.02	0	1.09
+"108795 LIG1 ligase I, DNA, ATP-dependent Hs.1770 AA291715 DNA ligase I 3978 "	0.29	-0.14	0.23	0.39	-0.54	0.28	0.14	0.32	0.58	-0.94	-0.29	0.13	0.8	1.12	-0.05	0.33
+108818 E2F3 E2F transcription factor 3 Hs.1189 N92519 E2F-3=pRB-binding transcription factor=KIAA0075 1871 	-0.89	0.65	0.5	0.59	0.09	-0.26	0.96	1.82	1.23	0.08	-0.04	0.73	1.09	0.73	1.41	0.37
+108824 CENPB centromere protein B (80kD) Hs.85004 AA455480  1059 	0.44	0.24	-0.6	-0.46	0.59	0.12	-0.61	-0.63	-0.67	0.1	0.01	1.12	-0.1	0.51	0.88	0.35
+"108830 ITPKC inositol 1,4,5-trisphosphate 3-kinase C Hs.21453 N46828  80271 "	0.38	-0.09	-0.59	-0.19	-0.13	0.16	-0.39	1.65	-0.69	0	-0.14	0.58	0.17	-0.65	-0.11	0.67
+108832 MBD1 methyl-CpG binding domain protein 1 Hs.6211 AA459922  4152 	0.43	-0.07	0.52	0.1	0.64	0.09	1.28	0.39	0.17	-0.42	-0.11	0.1	0.06	0.7	0.74	0.58
+108845 SON SON DNA binding protein Hs.92909 AA431848  6651 	-0.18	0.86	-0.19	-0.41	-0.15	-0.13	0.13	0.33	0.18	0.15	0.22	1.15	0.9	0.62	1.45	0.74
+108879 TXNRD2 thioredoxin reductase 2 Hs.12971 R19886  10587 	0.09	0.3	-0.38	0	0.23	0	-0.8	-0.81	-0.38	1.15	0.17	0.1	0.08	-0.07	-0.38	0.63
+108882 CEP2 centrosomal protein 2 Hs.27910 R87989  11190 	0.21	1.32	0.32	0.64	0.5	-0.12	1.14	0.6	-0.42	0.18	-0.25	0.76	-0.05	0.17	0.82	0.19
+108915 AGER advanced glycosylation end product-specific receptor Hs.184 W74536  177 	1.12	0.91	0.73	0.71	1.02	0.18	1.94	0.34	-0.3	-0.24	-1.32	0.1	0.66	0.03	0	0.96
+108920 KNSL5 kinesin-like 5 (mitotic kinesin-like protein 1) Hs.270845 AA452513 Mitotic kinesin-like protein-1 9493 	-0.6	0.64	0.05	-0.51	-1.95	-0.73	-0.33	0.34	0.37	2.17	0.03	1.34	1.33	1.32	1.97	-0.02
+108986 FLOT2 flotillin 2 Hs.184488 R72913  2319 	0.2	0.5	0.25	0.74	0.82	-0.19	-0.11	-0.13	-0.77	3.26	-0.22	0.26	-0.19	-0.56	-0.26	-0.15
+109035 LRPAP1 low density lipoprotein-related protein-associated protein 1 (alpha-2-macroglobulin receptor-associated protein 1) Hs.75140 AA486209  4043 	0.12	-0.05	0.79	0.01	0.58	-0.38	-0.14	0.78	-0.3	-0.9	0.28	-0.87	-1.28	-0.24	-1.25	-0.36
+"109060 ORC1L origin recognition complex, subunit 1-like (yeast) Hs.17908 H51719  4998 "	-0.69	0.42	-0.14	0.07	0.07	1.13	0.45	-0.24	0.16	-0.09	-0.67	-0.28	-0.03	0.44	0	-0.9
+"109119  ESTs, Weakly similar to A43932 mucin 2 precursor, intestinal [H.sapiens] Hs.348955 W72666   "	1.16	1.15	0.94	1.52	0.91	-0.15	1.58	-0.45	2.63	-0.83	0.12	-0.05	-0.78	0.26	0	-0.4
+109146 PROL2 proline rich 2 Hs.75969 AA669637  10957 	0	0	-0.24	0.12	0	-0.19	-1.41	0.3	0.71	0.38	1.34	-0.4	0.8	0.13	-0.38	-0.36
+"109206  Homo sapiens cDNA FLJ31797 fis, clone NT2RI2008942, weakly similar to NEURAL CELL ADHESION MOLECULE L1 PRECURSOR Hs.118321 N31808   "	0.12	0.39	0.1	0.4	0.44	0.08	0.16	0.05	0.08	0.15	0.63	0.07	-0.05	0.34	0.9	0.78
+109224 CTGF connective tissue growth factor Hs.75511 AA598794  1490 	-0.84	0.43	1.33	2.23	2.58	2.29	1.15	0.86	1.2	-0.3	-0.25	0.37	0.5	0.41	0.44	0.97
+"109242 MAL mal, T-cell differentiation protein Hs.80395 AA227594  4118 "	-0.16	-1.8	3.83	-1.67	1.46	0.54	-1.45	1.82	0.43	0.29	-0.31	-0.47	0.38	-0.35	-2.72	1.04
+109251 RRM2 ribonucleotide reductase M2 polypeptide Hs.75319 AA187351  6241 	-1.94	-0.18	0.05	-0.44	-1.75	-0.28	-1.16	0.25	1.22	1.34	0.74	1.62	0.6	0.89	-0.77	-0.64
+109252 POP3 popeye protein 3 Hs.356642 N20482  64208 	0.05	0.47	-0.06	0.47	-0.96	1.39	-0.29	0.18	1.6	-2.06	-2.1	-0.39	0.43	0.33	0	-0.01
+"109273 BTG3 BTG family, member 3 Hs.77311 N52496  10950 "	-0.66	0.24	0.13	0.56	-0.94	0.09	1.11	1.03	0.29	-0.15	0.28	0.94	0.83	0.61	1.49	0.55
+109287 DKFZp762L0311 hypothetical protein DKFZp762L0311 Hs.351623 AA486418  55536 	0.17	0.44	-0.06	1	-0.06	0.28	1.15	0.63	0.82	-0.16	-1.62	1.41	0.35	1	0.42	-0.27
+"109288 CDH2 **cadherin 2, type 1, N-cadherin (neuronal) Hs.161 W48793 N-Cadherin=Neural cadherin precursor 1000 "	2.05	-0.08	2.07	1.01	1.91	1.38	3.29	1.7	0.2	-0.42	-0.23	-0.79	-0.25	1.04	0.07	-1.57
+109293 KIAA0092 KIAA0092 gene product Hs.151791 AA099372  9702 	-0.34	0.23	-0.01	0.29	0	0.63	0.65	0.76	0.38	0.57	-1.04	0.35	1	0.8	-0.73	0.48
+"109298  Homo sapiens cDNA FLJ31353 fis, clone MESAN2000264 Hs.352554 AA115248   "	0.25	-0.01	0	0.83	1.07	0.35	0.18	-0.71	-0.34	0.27	0.64	0.53	0.33	1.21	1.97	1.25
+109301 HMGIY high-mobility group (nonhistone chromosomal) protein isoforms I and Y Hs.139800 AA448261  3159 	0.26	1.24	0.08	1.05	-0.07	0.11	-0.03	0.89	0.19	0.27	0.56	0.22	1.33	0.23	-1.19	-0.07
+109314 C21orf45 chromosome 21 open reading frame 45 Hs.49932 W72813  54069 	0.06	0.12	-0.35	-0.72	-0.91	2.67	0.3	-0.05	-0.26	0.89	-0.7	0.45	0.33	0.71	1.56	0.76
+"109319 TCF7L2 transcription factor 7-like 2 (T-cell specific, HMG-box) Hs.348412 AA417665  6934 "	0	0.21	0.39	-0.11	0.18	0.06	0.27	-0.84	0.2	0.04	-0.16	-0.19	0.22	0.05	-0.89	0.37
+109365  ESTs Hs.268892 H53290   	0.02	0.64	-0.04	0.12	0.2	0.69	0.36	0.5	0.26	0.26	-0.22	0.18	0.56	0.59	0	0.16
+109366 CDC25B cell division cycle 25B Hs.153752 AA448659 cdc25B=M-phase inducer phosphatase 2 994 	-0.38	0.48	0.01	0.09	0.02	0.28	-0.92	-0.78	-0.7	1.44	0.04	0.92	0.72	0.93	0.66	0.29
+109369 CDC25B cell division cycle 25B Hs.153752 H14343 cdc25B=M-phase inducer phosphatase 2 994 	-0.73	0.1	0.16	-0.62	-0.2	0.25	-0.43	0.33	0.02	0.91	0.25	0.67	-0.72	0.95	0	-0.56
+109428 FOS v-fos FBJ murine osteosarcoma viral oncogene homolog Hs.25647 N36944  2353 	1.47	0.75	1.93	2.51	1.68	2.64	3.6	2.35	-2.14	-1.67	-1.96	-1.8	-1.63	-0.86	-1.81	-1.13
+109458  ESTs Hs.12250 W31675   	0.96	0.98	0.51	0.57	0.94	0	0.91	0.28	-0.69	-0.48	-0.1	-0.53	1.95	1.02	0.4	1.35
+109462 CMAR cell matrix adhesion regulator Hs.272480 AA504482  1216 	0.41	1.27	0.11	0.28	0.86	0.38	0.95	1.15	0.01	0.54	-0.35	0.69	0.14	0.24	0.29	1.8
+109490 DXS1357E accessory proteins BAP31/BAP29 Hs.291904 AA625628  10134 	0.34	0.88	0.18	-0.27	0.06	-0.55	-0.84	0.01	-0.24	0.16	-0.44	0.38	0.75	0.4	1.17	0.53
+109498 FLJ10539 hypothetical protein FLJ10539 Hs.93391 AA010868  55164 	-0.25	0.14	0.34	0.54	0.31	0.08	0.39	-0.43	0.07	0.42	-2.02	-0.23	-0.32	0.27	0	0.95
+"109499  ESTs, Weakly similar to hypothetical protein FLJ13241 [Homo sapiens] [H.sapiens] Hs.173044 N30327   "	0.39	0.4	0.33	0.21	-0.32	0.05	0.72	-0.39	0.22	0.94	-0.59	0	-0.32	0.4	-0.52	0.1
+109531 RPE ribulose-5-phosphate-3-epimerase Hs.125845 AA443063  6120 	-0.41	0.35	-0.02	0.35	0.31	0	-0.36	0.62	0.54	-0.12	0.46	0.33	0.16	0.71	0.78	0.24
+109546 EPHB3 EphB3 Hs.2913 AA455591 HEK2=tyrosine kinase receptor=large erk kinase 2049 	-0.58	0.36	-0.42	0.02	-0.04	-0.02	-0.88	0.57	1.66	-0.41	1.42	0.14	0.36	1.47	2.82	5.1
+109560 DTR diphtheria toxin receptor (heparin-binding epidermal growth factor-like growth factor) Hs.799 R14663  1839 	-0.03	0.28	0.4	1.58	0.36	1.24	0.01	0.64	0.05	-0.86	-1.2	-0.59	0.24	-0.09	-1.77	-0.4
+109563 TOM1 target of myb1 (chicken) Hs.9482 AA485934  10043 	0.38	0.15	-0.72	0.32	1.04	-0.28	-1.45	-1.1	-0.24	0.8	0.41	0.62	-0.36	-0.14	1.02	1.89
+109584 MVK mevalonate kinase (mevalonic aciduria) Hs.130607 H08205  4598 	0.21	0.31	0.18	0.2	0.09	0.27	0.46	0.78	-0.09	1.36	-0.35	-0.43	-0.57	-0.47	0.03	0.18
+"109600 DPM2 dolichyl-phosphate mannosyltransferase polypeptide 2, regulatory subunit Hs.108973 R78591  8818 "	0.7	0.91	0.29	-0.13	0.06	0.12	-0.25	0.24	0.31	0.48	-0.27	0.26	0.97	-0.14	-0.05	0.1
+109620 BRD4 bromodomain-containing 4 Hs.278675 AA085917  23476 	-0.2	0.91	0.22	0.25	0	-0.27	0.31	0.44	0.05	-0.26	0.27	0.31	-0.38	0	-0.57	-0.07
+"109627  Human BRCA2 region, mRNA sequence CG006 Hs.110630 W78779   "	1.01	0	0.04	0.78	0	0.48	0.81	0.05	-0.14	0.32	-0.97	0.25	0.36	-0.31	-0.2	-0.24
+109628 UBE2L3 ubiquitin-conjugating enzyme E2L 3 Hs.108104 AA669526  7332 	-0.25	-0.1	-0.32	-0.28	0.24	-0.16	-0.78	-0.74	0.36	0.58	0.17	0.71	-0.31	0.61	0.08	0.14
+109648 NFIB nuclear factor I/B Hs.33287 W87528  4781 	-1.2	-0.05	-1.3	0.45	1.65	0.5	-0.44	0.4	0.41	-0.43	1.96	0.24	-0.36	0.35	3.52	0.65
+"109661 FGFR3 fibroblast growth factor receptor 3 (achondroplasia, thanatophoric dwarfism) Hs.1420 AA417654 FGFR3=Fibroblast growth factor receptor 3 2261 "	1.02	-0.64	0.62	-0.31	0.57	0.01	0.1	1.41	0.57	0.47	-0.65	-0.38	-0.13	-0.06	-0.82	0.72
+109696 KIAA0191 KIAA0191 protein Hs.12413 AA448593  23318 	-0.43	0.81	0.05	-0.01	0.56	0.21	1.27	0.35	0.51	0.04	0.38	0.26	0.37	0.58	0.45	1.25
+"109699 TCEB3 transcription elongation factor B (SIII), polypeptide 3 (110kD, elongin A) Hs.155202 AA128607  6924 "	-0.72	0.62	1.3	1.95	2.42	2.36	1.15	0.83	0.7	-0.09	-0.09	0.61	0.55	0.44	0.05	0.89
+109714 LIF leukemia inhibitory factor (cholinergic differentiation factor) Hs.2250 R50018 LIF 3976 	1.21	-0.74	0.85	1.83	2.94	2	-0.66	1.39	-0.46	-0.19	0.24	0.61	-0.52	-0.74	-2.94	0.15
+"109746 SERPINB2 serine (or cysteine) proteinase inhibitor, clade B (ovalbumin), member 2 Hs.75716 T49158  5055 "	-0.95	0.13	-0.05	0.37	-0.28	0.61	-0.1	1.19	0.53	-0.56	-1.36	-1.97	-0.74	0.91	0	1.84
+109769 EXT2 **exostoses (multiple) 2 Hs.75334 N93247  2132 	-0.62	0.6	0.3	0.69	0.91	0.17	0.43	0.82	0.74	0.17	-0.34	0.02	0.64	0.6	1.23	0.3
+109785 UXS1 UDP-glucuronate decarboxylase 1 Hs.288158 H63402  80146 	0.5	0.46	0.99	0.31	0.25	0.26	0.27	0.17	0.4	-0.17	0.04	-0.08	-0.05	0.26	0	-0.12
+109885 ATF3 activating transcription factor 3 Hs.460 H21041 ATF-3=activating transcription factor 3 467 	-0.15	0.34	1.12	1.62	0.78	1.85	3.16	1.25	-1.34	0.04	0.01	0.69	0.71	0	0.16	0.48
+109895 C20orf42 chromosome 20 open reading frame 42 Hs.180479 AA488420  55612 	-0.22	0.9	0.8	0.93	0.48	0.12	0.43	0.82	-0.28	-0.24	0.39	-0.74	0.49	0.61	0.83	-0.1
+109926 CHN1 chimerin (chimaerin) 1 Hs.22660 AA598668  1123 	-0.05	0.93	0.37	0.75	0.94	0.35	-1.02	-0.13	0.37	0.18	-0.19	0.5	-0.31	0.18	0	-0.8
+"109939 SEMA3B sema domain, immunoglobulin domain (Ig), short basic domain, secreted, (semaphorin) 3B Hs.82222 AA455145  7869 "	0	0.41	0.04	-0.14	0.31	-0.04	0.17	0.29	0.06	-0.37	0.66	0	0.13	0.33	0.4	-0.22
+109981 NET-7 transmembrane 4 superfamily member (tetraspan NET-7) Hs.95583 AA159102  23555 	-0.07	0.19	0.4	-0.2	0.09	0.31	0.03	-0.07	0.31	-0.01	0.92	-0.1	0.11	0.38	-0.15	0.31
+110009 MLF1 myeloid leukemia factor 1 Hs.85195 W56334  4291 	0.65	0.06	-0.62	-0.1	-0.91	-0.59	1.1	1.13	1.56	-1.22	0.39	-0.16	-0.08	-0.15	0	0.98
+110034 MGC2752 hypothetical protein MGC2752 Hs.7845 H19106  65996 	0.89	0.78	0.62	0.7	0.34	0.5	0.5	0.77	1.54	-1.02	-0.27	0	-0.67	0.16	-1.65	-0.35
+"110036  Homo sapiens cDNA FLJ30904 fis, clone FEBRA2005824 Hs.7913 N35592   "	0.2	-1.46	0.23	0.81	1.45	0.01	0.59	0.46	-0.16	0.05	-1.44	-0.39	0.29	-0.19	-0.1	2.59
+"110053  ESTs, Moderately similar to ZRF1_HUMAN ZUOTIN RELATED FACTOR-1 (M-PHASE PHOSPHOPROTEIN 11) [H.sapiens] Hs.20321 R09196   "	0.74	0.43	0.26	-0.5	0.53	-0.16	-0.35	0.52	0.48	0.33	0.31	0.24	-0.2	-0.27	0.61	-0.75
+110081 ARHGEF10 Rho guanine nucleotide exchange factor (GEF) 10 Hs.20695 N53385  9639 	1.82	0.24	0.55	0.96	1.45	0.72	0.95	1.01	-0.88	-0.55	0.51	1.04	0.67	0.57	1.76	0.71
+"110101  Homo sapiens cDNA FLJ31056 fis, clone HSYRA2000760 Hs.13034 T67088   "	-0.45	-0.57	0.31	-0.12	-0.72	0.12	-0.02	-0.17	0.54	1.28	0.11	-0.36	-0.05	1.34	0.28	-1.25
+110102 FLJ22009 hypothetical protein FLJ22009 Hs.123253 AA401234  79801 	-0.59	0.88	-0.07	-0.82	-0.31	0.28	-0.71	-0.44	0.02	0.71	0.57	0.39	0.83	0.59	1.13	-0.39
+110130    N74332   	0.49	0.58	0.55	-0.24	0.06	-0.06	1.12	0.97	-0.16	-0.45	-0.47	0.01	0.59	0.4	0.54	-1.17
+"110162 DDX11 DEAD/H (Asp-Glu-Ala-Asp/His) box polypeptide 11 (CHL1-like helicase homolog, S. cerevisiae) Hs.27424 AA402879  1663 "	0.72	0.3	0.16	0.57	0.49	0.37	0.19	0.19	-0.09	0.16	0.07	0.73	1.86	1.27	-0.07	-0.35
+110202 TPR **translocated promoter region (to activated MET oncogene) Hs.169750 AA451832  7175 	-0.85	-0.26	0.39	-0.61	-0.84	-0.53	-0.11	0.17	0.44	-0.65	0.32	0.12	-0.42	-0.45	-0.51	-0.65
+110214 ZNF263 zinc finger protein 263 Hs.182528 AA421783  10127 	1.05	1.15	0	-0.19	1	0.45	-0.08	0.02	-0.37	-0.02	-1.01	0.01	0.84	0.67	0.62	0.22
+110227 BIRC5 baculoviral IAP repeat-containing 5 (survivin) Hs.1578 AA460685 Survivin=apoptosis inhibitor=effector cell protease EPR-1 332 	-0.36	0.01	0.12	-0.05	1.27	-0.2	-1.66	0.29	1.2	-0.34	0.45	0.31	0.1	1.5	1.8	-0.08
+"110246  ESTs, Weakly similar to POL2 MOUSE RETROVIRUS-RELATED POL POLYPROTEIN [M.musculus] Hs.268911 H51255   "	0.22	1.14	0.49	0.73	0.46	0.81	0.56	0.97	0.06	-0.12	-0.8	1.78	0.63	1.15	2	1.94
+"110260  Homo sapiens, clone IMAGE:3957135, mRNA, partial cds Hs.333388 T53430   "	1.43	0.52	-0.5	0.35	0.19	0.09	-0.79	2.52	-0.34	0.12	0.12	0.11	0.54	-0.3	0.69	2.41
+"110289  ESTs, Moderately similar to Unknown protein product CIT987SK-A-589H1 1 splice form 1 [H.sapiens] Hs.356391 AA448998   "	0.49	1.24	1.27	0.38	1.13	1.37	0.61	1.27	-0.85	-0.3	-0.62	-0.08	0.42	-0.4	1.72	0.86
+110291 ILF1 interleukin enhancer binding factor 1 Hs.296281 R56552  3607 	-0.75	0.6	0.03	-0.6	-0.25	0.8	-0.19	0.71	0.74	0.74	0.81	0.95	0.42	1.09	0	0.61
+110311 ZAP3 ZAP3 protein Hs.159471 AA402877  56252 	0.27	0.27	0.8	0.51	0.49	0.24	1.09	0.61	-0.13	-0.08	-0.27	0.16	-0.24	0.43	1.33	0.35
+110355 GCS1 glucosidase I Hs.83919 AA291490  7841 	1.08	0.15	0.02	-0.54	0.26	0.04	0	-0.21	-0.07	0.15	-0.19	0.03	-0.2	0.22	0.83	1.57
+110357 76P gamma tubulin ring complex protein (76p gene) Hs.20621 AA464952  27229 	-0.77	0.41	-0.05	-0.67	0.02	0.13	-0.17	0.64	0.25	0.51	-0.43	-0.7	-0.04	0	0	0.11
+110376 MAPK7 mitogen-activated protein kinase 7 Hs.3080 H39192 ERK5=BMK1 alpha kinase 5598 	-0.15	-0.43	0.07	0	1.37	0.87	-0.3	0.08	0.19	0.12	-0.88	-0.62	-0.61	-0.31	-1.35	-0.18
+110398 PPIB peptidylprolyl isomerase B (cyclophilin B) Hs.699 AA481464  5479 	-0.29	1.68	-0.18	-0.18	0.54	-0.15	0.13	1.73	0.61	-0.26	0.08	0.1	-0.3	0.62	1.24	0.05
+"110442  Homo sapiens cDNA FLJ14041 fis, clone HEMBA1005780 Hs.214783 T68844   "	-0.3	-0.04	-0.1	-0.65	0	0.23	-1.05	0.73	-0.12	0	0.67	0.1	0.98	-0.06	0.87	0.24
+"110473 MUC1 mucin 1, transmembrane Hs.89603 AA486365  4582 "	0.3	1.82	1.04	2.18	0.6	-0.75	0.24	0.72	-3.47	-1.35	-0.86	-0.6	-1.16	-1.37	0	0.6
+110530 IL1RL1 interleukin 1 receptor-like 1 Hs.66 AA125917 ST2=Suppression of tumorigenicity 2=interleukin-1 receptor h 9173 	-0.22	-0.46	-0.86	0	0.52	0.27	-1.01	-0.12	0.16	-1	1.33	0.53	-0.34	0.15	2.98	0.8
+"110589 ERCC2 excision repair cross-complementing rodent repair deficiency, complementation group 2 (xeroderma pigmentosum D) Hs.99987 R05503 ERCC2=XPD=Nucleotide excision repair protein=Mutated in xero 2068 "	-0.48	0.23	0.17	-0.17	0.68	0.54	1.09	0.44	0.27	-0.19	-0.46	0.49	-1.47	0.28	0.94	-0.28
+110592 HSPC109 hypothetical protein Hs.224137 AA629804  51490 	0.15	0.27	-0.43	-0.4	0.42	-0.13	-0.36	1.08	-0.02	0.75	-0.25	0.05	0.13	-0.4	0	-0.07
+"110598 SEC24A SEC24 related gene family, member A (S. cerevisiae) Hs.211612 R78521  10802 "	0.96	-0.09	0.04	0.61	0.01	0.08	-0.07	-0.01	0.03	0.27	-1.02	0.08	-0.14	-0.33	0	0
+110619 RPL21 ribosomal protein L21 Hs.350077 AA464034  6144 	0.46	0.34	-0.24	1.31	0.82	-0.06	0.75	-0.04	0.14	0.03	0.2	0.25	1.5	-0.72	-0.76	-0.27
+110630 WHSC1 Wolf-Hirschhorn syndrome candidate 1 Hs.110457 AA159311  7468 	-0.43	0.38	0.47	-0.02	-0.01	-0.34	0.04	0.49	0.39	0.23	0.77	0.75	0.51	0.35	0.59	0.32
+110661 HUMAUANTIG nucleolar GTPase Hs.75528 AA446557  29889 	-0.95	0.12	0.07	-0.15	0.05	-0.36	0.1	0.87	0.89	0.02	0.06	0.15	-0.55	-0.1	-0.18	0.18
+110663 PBX2 pre-B-cell leukemia transcription factor 2 Hs.93728 T59641 pbx-2 = pre-B cell leukemia transcription factor-2 5089 	-0.64	1.46	0.14	-0.52	0.22	0.02	0.67	0.5	0.03	-1.16	-0.35	-0.77	-0.51	-0.94	0.16	0.21
+"110713  Homo sapiens pTM5 mariner-like transposon mRNA, partial sequence Hs.153527 T53021   "	-0.02	0.44	-0.34	0.54	0.46	0	0.5	1.3	0.05	-0.1	-0.23	1.54	0	0	0.79	1.22
+110744 LOC92799 hypothetical protein BC007653 Hs.26506 AA457723  92799 	0.58	-0.06	-0.01	-0.42	0.15	0.38	-0.04	-0.17	-0.8	-0.29	-0.2	0.34	0.77	-0.12	-1.23	-0.37
+"110746 SERPINB1 serine (or cysteine) proteinase inhibitor, clade B (ovalbumin), member 1 Hs.183583 R54664  1992 "	0.66	0.63	1.75	0.96	1.04	-0.59	-0.37	1.06	-0.85	-0.51	0.69	0.19	-1.3	-0.61	-1.49	-1
+"110762 P4HA1 procollagen-proline, 2-oxoglutarate 4-dioxygenase (proline 4-hydroxylase), alpha polypeptide I Hs.76768 AA457671  5033 "	1.32	1.33	0	1.14	0	0.06	1.44	1.1	0.22	0.9	1.04	-0.4	-0.68	-0.57	1.61	-1.63
+110764 MFGE8 milk fat globule-EGF factor 8 protein Hs.3745 AA054753  4240 	0	1.7	0.7	0.4	0	0.07	-0.34	0.55	-0.04	0.05	0.2	-0.61	-0.34	0.71	0.91	3.69
+110765 P84 nuclear matrix protein p84 Hs.1540 AA129297  9984 	1.1	-0.44	0.52	-0.08	0.43	0.58	0.8	-0.07	-0.14	-0.17	-0.39	0.02	0.33	0.85	0.64	0.92
+110780    T50139   	0.09	0.36	0.62	0.26	0.78	0.67	0.01	-0.77	0.1	-0.08	-0.19	-0.14	0.6	0.01	-0.63	0.18
+110817 TRIP7 thyroid hormone receptor interactor 7 Hs.77558 T56513  9324 	-0.17	-0.21	0	-0.82	0.3	-0.6	0.86	0.56	1.42	0.69	0.76	0.6	1.23	0.98	0.69	-0.05
+"110861 ALAS1 aminolevulinate, delta-, synthase 1 Hs.78712 AA447761  211 "	0.14	1.24	1.26	1	0.63	0.67	0.5	0.52	0.3	-0.11	0.12	-1.09	-0.9	-0.12	-0.81	-0.18
+110877 CIZ1 Cip1-interacting zinc finger protein Hs.23476 AA434135  25792 	0.49	0	0.84	0.75	0.79	0.16	1.17	0.93	0.72	-0.37	0.4	0.33	0.75	-0.08	-0.65	-0.5
+"110890 CIT citron (rho-interacting, serine/threonine kinase 21) Hs.15767 N33778  11113 "	0.86	0.34	-0.15	0.84	0.27	0.06	0.26	0.53	-0.36	0.01	-0.21	-0.35	0.58	-0.1	-0.17	0.89
+"110950  Homo sapiens cDNA FLJ30869 fis, clone FEBRA2004224 Hs.349611 AA424937   "	-0.23	1.67	1.9	0.45	1.7	1.74	-0.04	1.48	0.15	0.83	-0.69	-0.74	1.7	1.48	-1.49	1.98
+"110979 PSMB1 proteasome (prosome, macropain) subunit, beta type, 1 Hs.75748 T68758  5689 "	-0.47	-0.13	-0.35	-0.59	0.17	-0.89	-1.48	-0.56	-0.21	0.49	0.71	0.63	-0.46	0.18	0.04	1.34
+110999 KLF4 Kruppel-like factor 4 (gut) Hs.356370 H45668  9314 	1.23	-0.93	0.48	0.77	0.78	0.97	-0.38	0.47	-0.48	0.75	-0.3	-0.02	-0.09	-0.11	-2.15	-0.38
+"111017 PTPN14 protein tyrosine phosphatase, non-receptor type 14 Hs.159238 AA130874  5784 "	0.83	0.85	0.14	1.55	1.34	0.41	1.54	0.18	1.07	-0.43	0.13	-0.28	-0.38	-0.58	0	-0.75
+111062 C20orf14 **chromosome 20 open reading frame 14 Hs.31334 AA489815  24148 	0.5	1.6	0.65	0.06	0.48	-0.13	0.68	0.85	-0.23	0.33	-0.53	0.17	0.59	-0.3	-0.95	-0.19
+111076 C9orf3 chromosome 9 open reading frame 3 Hs.18075 AA485743  23733 	3.07	1.09	1.07	0.31	2.29	0.94	0.74	2.27	0.36	0.01	-0.38	-0.37	0.44	0.27	0.81	0.52
+111077 SKI v-ski sarcoma viral oncogene homolog (avian) Hs.2969 AA005328  6497 	-0.84	0.61	0.25	0.8	0.96	0.09	1.08	-0.03	0.49	0.23	0.06	0.02	-0.84	0.13	-0.01	1.61
+"111094 RNPC1 RNA-binding region (RNP1, RRM) containing 1 Hs.236361 AA459363  55544 "	0.94	1.9	1.05	0.41	0.18	0.05	0.85	0.76	-0.13	-0.06	0.98	-0.13	0.55	-0.18	-1.38	-0.47
+111193 SMC4L1 SMC4 structural maintenance of chromosomes 4-like 1 (yeast) Hs.50758 AA452095  10051 	0.4	-0.56	0.09	-0.26	-0.44	-0.71	-1.04	0.61	0.89	0.51	0.37	1.03	1.65	0.68	0.71	0.1
+"111216  Homo sapiens, clone MGC:21483 IMAGE:3854163, mRNA, complete cds Hs.18724 W87709   "	-1.98	-0.66	0.03	-0.88	-0.39	0.37	1.18	0.03	1.01	0.3	-0.86	0.44	0.18	0.49	0.75	0.19
+111248    T61547   	1.26	0.56	-0.02	-0.24	0.84	0.55	-0.67	-0.06	-0.6	-0.45	-0.15	-0.55	0.03	-0.07	0	0.33
+111258 LAD1 ladinin 1 Hs.18141 T97710  3898 	1.31	-0.6	0.49	0.94	0.89	-0.03	0.31	0.47	-0.09	0.42	1	0.02	0.88	0.79	0.41	0.03
+"111338 ARPC1A actin related protein 2/3 complex, subunit 1A (41 kD) Hs.90370 AA490209  10552 "	-0.12	0.04	-0.1	0	-0.07	-0.23	-0.77	-0.38	-0.51	0.33	0.32	0.68	0.46	0.35	0.46	0.69
+111367 ESDN endothelial and smooth muscle cell-derived neuropilin-like protein Hs.173374 H99543  131566 	0.3	0.87	0.99	0.77	0.12	1.16	0.53	0.08	0.47	-1.35	-0.32	-0.65	-0.95	-0.41	0	-0.97
+111387 FOSL1 FOS-like antigen 1 Hs.283565 T82817 fra-1=fos-related antigen 1 8061 	0.37	-0.16	0.19	-0.23	1	0.26	0.14	1.08	0.41	0.02	0.16	0.62	-0.78	0.52	0.41	0.17
+111420 NPTX1 neuronal pentraxin I Hs.84154 H22445  4884 	-0.54	0	0.05	0.52	-0.61	1.84	0.34	0.33	0.79	-0.28	-2.65	-0.96	-1.21	0.02	-1.13	-0.63
+"111434 IL1B interleukin 1, beta Hs.126256 W47101 IL-1 beta 3553 "	-1.54	-0.22	0.12	0	0.05	0.1	-0.88	-0.95	0.13	-0.6	1.66	-0.85	0.23	0.22	0	0.09
+111440 CHK **choline kinase Hs.77221 H09958  1119 	-1.14	0.55	0.72	-0.36	-0.41	-0.16	0.22	0.79	0.07	0.63	-0.52	0.81	1.17	0.06	0.54	-0.35
+"111446  **ESTs, Highly similar to hypothetical protein [H.sapiens] Hs.374452 AA485730   "	0.65	0.73	0.75	0.91	0.78	0.25	0.69	1.16	-0.72	-0.33	-0.52	-0.1	0.45	-0.14	-0.56	1
+111448 MAPK8 mitogen-activated protein kinase 8 Hs.267445 T94087 JNK1=Stress-activated protein kinase 5599 	-0.01	0.65	1.76	0.42	0.31	0.44	0.04	0.44	-0.29	-0.27	-0.1	-0.37	0.51	0.16	1.55	3.67
+111492 FLJ10607 hypothetical protein FLJ10607 similar to glucosamine-phosphate N-acetyltransferase Hs.27931 N25262  64841 	-1.44	0.22	0.38	-0.11	-0.98	-0.24	-0.33	0.46	-0.18	0	-0.5	-0.27	-0.26	0.24	0.41	-1.02
+111558 HMMR hyaluronan-mediated motility receptor (RHAMM) Hs.72550 R10284  3161 	-1.72	-0.19	0.55	-0.85	-2.16	0.77	-0.04	0.43	0.21	0.36	0.71	0.74	1.25	-0.1	-1.09	-1.24
+111563    H61303   	-0.68	-0.19	-0.46	-1.1	-0.94	-1.01	-0.32	-0.26	0.86	1	0.63	0.63	0.76	1.45	0.31	0.08
+"111601 CUTL1 cut-like 1, CCAAT displacement protein (Drosophila) Hs.147049 AA284408  1523 "	1.25	0.81	0.4	1.55	1.01	0.78	-0.53	-0.17	-0.33	-0.47	-0.34	-0.67	-0.53	-0.46	-1.57	-0.36
+"111602 PPI5PIV phosphatidylinositol (4,5) bisphosphate 5-phosphatase homolog; phosphatidylinositol polyphosphate 5-phosphatase type IV Hs.25156 R94222  56623 "	0.14	0.25	0.49	0.76	0.54	0.22	0.43	1.43	-0.15	-0.04	-0.24	0.47	0.75	-0.14	-0.23	0.62
+"111619 NFIL3 nuclear factor, interleukin 3 regulated Hs.79334 AA633811  4783 "	-0.65	-0.12	0.03	0.33	-0.13	0.84	0.09	0.99	0.25	0.71	1.31	0.99	0.56	0.83	0.32	0.46
+111625 EED embryonic ectoderm development Hs.151461 AA629686  8726 	0.29	0.49	-0.72	-0.28	0.33	-0.04	0.1	0.77	0.22	0	0.6	0.62	1.02	0.91	1.46	0.31
+"111666 BHLHB3 basic helix-loop-helix domain containing, class B, 3 Hs.33829 AA164818  79365 "	1.66	0.92	1.54	1.62	2.57	0.43	1.4	0.89	0.38	-1.17	1.67	-1.09	0.33	-0.73	0	0.27
+"111673 MCM6 MCM6 minichromosome maintenance deficient 6 (MIS5 homolog, S. pombe) (S. cerevisiae) Hs.155462 AA663995  4175 "	-0.33	-0.32	0.48	-0.13	-0.94	-0.02	-0.33	0.76	0.39	1.02	0.35	0.94	1.24	1.82	0.77	-0.54
+111729 APOB apolipoprotein B (including Ag(x) antigen) Hs.585 H57778  338 	1.3	0.48	2.05	2.12	1.23	2.44	-0.04	-0.58	-0.35	2.94	-1.53	-1.82	-0.67	0.95	0	-0.28
+"111743 MEIS1 Meis1, myeloid ecotropic viral integration site 1 homolog (mouse) Hs.170177 AA001443  4211 "	0.45	1	1.46	0.24	0.77	0.05	1.51	0.83	0.07	0.04	-0.29	-0.31	-0.41	-0.05	-0.58	-0.19
+111787 LOC51312 mitochondrial solute carrier Hs.300496 T50019  51312 	0.11	-0.56	-0.31	-0.2	1.25	0.18	0.58	0.46	0.77	-0.37	2.51	1.1	1.25	1.07	-0.06	2.06
+111792 PLK polo-like kinase (Drosophila) Hs.77597 AA629262  5347 	0.11	0.45	0.83	-1.66	-0.92	-0.2	-0.77	0.3	0.54	1.33	0.63	0.58	1.09	1.41	1.46	-0.47
+111796 FOS v-fos FBJ murine osteosarcoma viral oncogene homolog Hs.25647 AA485377  2353 	1.63	0.87	2.11	3.52	1.96	2.62	2.98	2.52	-1.68	-2.22	-1.97	-1.97	-1.96	-0.84	-2.48	-2.16
+111813 JUN v-jun sarcoma virus 17 oncogene homolog (avian) Hs.78465 W96134  3725 	-1.24	-0.24	0.02	0.34	0.58	1.4	2.14	0.56	-1.68	-0.41	-0.6	-0.1	-0.45	-0.19	-0.61	0.38
+111828 SHC1 SHC (Src homology 2 domain containing) transforming protein 1 Hs.81972 T50498 SHC signaling adaptor protein 6464 	0.51	0.8	0.07	0.39	1.25	0.76	-0.48	0.63	0.53	0.36	-0.38	0.16	0.23	-0.13	0.53	0.57
+111830    W85890   	0.27	0.47	0.49	0	1.59	-0.02	0.21	-0.09	0.21	0.23	-0.18	0.77	1.3	1.23	1.8	0.56
+111873 KIAA0008 KIAA0008 gene product Hs.77695 AA262211  9787 	-1.42	0.43	0.21	-0.37	-1.24	-0.3	-0.65	0.22	0.41	0.57	1.06	0.93	-0.23	1.67	0	1.86
+111916 DRIM down-regulated in metastasis Hs.178614 N58318  27340 	-0.54	-0.15	0.33	-0.29	-0.03	-0.06	0.63	0.67	0.64	0.19	-1.29	0.19	-0.03	0.98	0.29	1.33
+111917 H2AV histone H2A.F/Z variant Hs.301005 H97000  94239 	0.23	1.67	0.6	1.96	1.53	0	-0.84	0.54	-0.49	-0.8	-0.32	-1.45	-2.47	-0.97	-2.38	-1.26
+111918 CRHSP-24 calcium-regulated heat-stable protein (24kD) Hs.92198 W72753  23589 	-0.68	-0.01	0.21	0.4	0.07	-0.18	-0.6	-0.94	-0.15	-1.05	0.41	0.6	-0.88	-0.37	-0.33	-0.43
+"111924  Homo sapiens cDNA: FLJ22066 fis, clone HEP10611 Hs.251664 H23457   "	0	0	1.67	0.33	1.12	0.69	2.95	2.66	0.59	0.11	0.78	0.2	-1.56	-0.74	-2.1	0.15
+"111928 CDH6 cadherin 6, type 2, K-cadherin (fetal kidney) Hs.32963 AA421819  1004 "	0.45	3.96	2.87	0.86	2.34	1.78	1.87	2.72	-0.62	1	-0.95	-1.29	-0.96	1.74	-0.13	-1
+"111971 MAN2C1 mannosidase, alpha, class 2C, member 1 Hs.26232 H45455  4123 "	0.53	1.06	-0.11	0.35	1.52	0.67	0.04	0.72	-0.86	1.94	-1.39	-0.24	0.74	-0.11	0.66	0.9
+"111987  Homo sapiens cDNA FLJ31992 fis, clone NT2RP7009149, weakly similar to GLUCOSE TRANSPORTER TYPE 2, LIVER Hs.26691 N20862   "	0.23	0.44	0.19	-0.09	-0.06	0.04	-0.33	-0.35	0.24	0.62	0.51	-0.26	0.3	1.76	0.11	0.08
+111994 GS3786 predicted osteoblast protein Hs.29882 H88598  10447 	0.65	0.8	0.32	-0.65	0.44	0.2	0.06	0.7	0.15	-0.22	-0.1	-0.55	-0.91	0.57	1	0.13
+112015 SEP2 septin 6 Hs.90998 R76459  23157 	-0.78	1.25	-0.48	-0.56	0.37	0.53	-0.31	-1.06	0.66	0.91	0.1	-0.52	0.05	0.33	-0.24	-0.32
+112038  EST Hs.322859 N47786   	-0.6	-0.3	0.35	0.3	0.37	-0.06	-1.02	0.26	0.49	0.17	0.88	0.9	0.75	0.53	0.96	0.55
+"112053  ESTs, Highly similar to TOB1_HUMAN TOB1 PROTEIN [H.sapiens] Hs.352579 AA009511   "	0	0.39	-0.25	-0.25	-0.84	-0.12	-0.12	-1.08	-0.52	0.25	-0.78	0.55	0.55	-0.32	1.12	-0.38
+112056 CHC1 chromosome condensation 1 Hs.84746 AA291398 RCC1=regulator of chromosome condensation 1104 	-1.29	0.74	0.23	-0.23	-0.29	-0.07	-0.84	-0.32	0.21	0.31	0.34	0.66	-0.67	0.01	-1.4	-0.12
+"112087 UGT2B4 UDP glycosyltransferase 2 family, polypeptide B4 Hs.89691 N53031  7363 "	0	1.3	-1.17	0.2	0.41	0.03	0.79	0.11	0.16	2.61	0	-0.88	-0.48	-1.11	0	-0.17
+112088 AGS3 likely ortholog of rat activator of G-protein signaling 3 Hs.239370 AA428497  26086 	1.42	1	0.35	0.57	1.13	0.53	1.37	1.35	0.05	0.13	-0.27	0.13	1.09	-0.1	-0.51	0.33
+"112102  **Homo sapiens cDNA: FLJ23482 fis, clone KAIA03142 Hs.347508 R84893   "	0.54	1.02	1.18	0.96	0.71	0.3	0.83	1.77	-0.52	-0.3	-0.49	0.12	0.6	-0.17	0.92	1.73
+112114 POLR2C polymerase (RNA) II (DNA directed) polypeptide C (33kD) Hs.79402 AA427495  5432 	0.51	0.4	-0.64	0.5	0.53	-0.05	-0.16	-0.09	0.5	0.92	0.27	0.7	0.18	0.51	1.2	0.93
+"112122 PPM1D **protein phosphatase 1D magnesium-dependent, delta isoform Hs.100980 N33955 protein phosphatase Wip1 8493 "	0	0.33	0.05	0.06	-0.08	0.08	-0.84	-0.74	0.4	0.72	-0.13	-0.29	-0.27	0.09	0	0.99
+112186 PRDX5 peroxiredoxin 5 Hs.31731 N68467  25824 	1.66	0.49	0.3	-0.19	1.51	0.23	0.9	1.6	-0.34	0.5	-0.7	-0.4	0.04	-0.68	0.7	-0.55
+112270 WASPIP Wiskott-Aldrich syndrome protein interacting protein Hs.24143 N73094  7456 	-0.19	0.29	0.29	0.68	0.27	-0.08	-0.47	0.03	0.2	0.55	1.16	0.5	0.09	0.37	0.49	-0.01
+112298 MSLN mesothelin Hs.155981 AA488406  10232 	2.49	3.21	2.04	2.36	2.96	1.08	2.87	1.93	-2.6	-2.94	1.31	-2.74	-1.89	-2.21	0	2.06
+112341 KIAA1014 KIAA1014 protein Hs.6834 R93727  23360 	-0.74	0.12	0.54	-0.08	-0.11	0.23	0.72	0.27	0.85	-0.08	0.66	-0.34	0.31	0.22	0	0.31
+"112349 SPINT2 serine protease inhibitor, Kunitz type, 2 Hs.31439 AA458849  10653 "	0.43	0.69	0	-0.84	-1.14	-0.69	0.09	1.23	-0.9	0.28	-0.19	1.14	-0.2	-0.59	0.78	0.02
+112369 TARBP1 TAR (HIV) RNA binding protein 1 Hs.151518 N62244  6894 	-0.68	1.51	0.42	0.01	-0.38	-0.6	1.64	1.61	0.51	-0.35	0.08	0.86	1.17	0.55	1.93	1.53
+112387 TOP2A topoisomerase (DNA) II alpha (170kD) Hs.156346 AA026682  7153 	-0.82	-0.25	0.78	-0.97	-1.52	-0.38	-0.03	0.33	1.79	1.65	1.01	0.37	0.16	0.3	0.4	-1.4
+"112431 FXR1 fragile X mental retardation, autosomal homolog 1 Hs.82712 N57551  8087 "	0.44	0.33	0.82	-1.06	-0.04	-0.24	0.92	0.58	0.43	-0.54	-0.28	-1.03	-0.65	0	0.16	-0.18
+112440 F2RL1 coagulation factor II (thrombin) receptor-like 1 Hs.154299 AA454652  2150 	0.65	0.08	1.83	-0.07	0.84	-0.47	0.35	2.01	-0.92	0.36	-2.98	0.65	-1.28	-0.52	0	-0.61
+"112466 CSNK2A2 casein kinase 2, alpha prime polypeptide Hs.82201 AA054996  1459 "	0	0.72	0.34	0.83	0.6	0.17	-0.15	-0.19	0.12	0.43	0.45	0.91	0.35	0.21	-0.38	0.84
+112474 KIAA0161 KIAA0161 gene product Hs.78894 W91930  9781 	0	0.81	1.16	1.08	0.56	0.58	-0.41	0.55	0.51	-0.33	-0.3	0.24	0.14	0.45	0.35	0.25
+"112511 DMD dystrophin (muscular dystrophy, Duchenne and Becker types) Hs.169470 AA461118  1756 "	-0.51	-0.17	0.01	-0.47	0.67	-0.19	-0.33	0.05	1.05	0.37	1.26	0.08	1.8	1.98	2.56	1.27
+"112519 SLC12A7 solute carrier family 12 (potassium/chloride transporters), member 7 Hs.172613 AA427732  10723 "	0.47	0.79	-0.21	0.48	0.77	-0.39	-0.6	0.57	-1.13	0.57	0.12	0.4	1.16	0.2	1	1.37
+112537 GSTM4 glutathione S-transferase M4 Hs.348387 AA486570 GST=glutathione transferase 2948 	0.45	1.69	-0.72	0.23	0.41	1.01	0.34	0.44	-0.13	-0.57	-0.7	-1.45	-0.51	-0.02	-1.14	0.41
+112584 BAT8 HLA-B associated transcript 8 Hs.75196 AA434117  10919 	-0.02	1.66	0.17	0.12	0.49	-0.1	1.09	-0.1	-0.44	-0.36	-0.18	0.23	0.77	-0.08	0.33	0.49
+112622 HSU54999 LGN protein Hs.278338 W92010  29899 	-3.43	-0.53	-0.5	-0.88	-0.72	0.98	-0.28	0.08	0.73	0.64	0.84	0.9	0.65	0.91	1.65	0.57
+112624 CTBP1 C-terminal binding protein 1 Hs.239737 AA478268  1487 	0.16	0.28	0.57	0	0.95	0.15	0.21	0.92	-0.23	0.38	0.15	0.45	0.4	-0.09	-0.43	1.22
+112653 NHP2L1 NHP2 non-histone chromosome protein 2-like 1 (S. cerevisiae) Hs.182255 AA608583  4809 	1.08	0.34	-0.22	-0.76	0.52	-0.31	-0.64	0.08	0.13	0.73	0.68	-0.17	0.06	0.67	1.17	0.92
+"112700 NRGN neurogranin (protein kinase C substrate, RC3) Hs.26944 H49511  4900 "	0.62	0.66	0.08	0.53	1.05	0.52	-0.79	0.3	0.21	-0.2	-0.91	-0.02	-0.71	-0.04	-1.25	-0.24
+112719 FUS2 putative tumor suppressor Hs.22919 R20196  24142 	-0.1	0.09	0.42	0	0.77	0.16	0.11	0.32	-0.35	-0.12	-1.3	-0.75	-0.02	-0.57	0	-0.27
+112847 FLJ10659 hypothetical protein FLJ10659 Hs.107882 R77239  55198 	0.67	0.04	-0.16	0.54	-0.08	0.51	0.07	-0.01	-0.42	0.06	-0.72	-0.55	0.47	-0.4	-0.3	0.25
+112883 CCNE1 cyclin E1 Hs.9700 T54121  898 	-0.72	-0.55	1.22	-0.02	-1.44	0.7	-0.85	0.95	0.35	0.21	-0.1	1.12	2.05	1.01	-0.13	0
+112887 KIAA1067 KIAA1067 protein Hs.325530 N75473  23265 	0.45	0.99	0.43	-0.37	0.95	0.43	0.18	1.58	0.35	0.1	0.11	0.43	0.15	0.42	0	0.63
+112892 DJ79P11.1 X-linked protein Hs.283719 AA464180  84707 	0.85	0.48	-0.33	-0.69	-0.41	-0.08	0.46	-0.07	0.67	0.2	-0.83	0.24	-0.17	0.32	-0.73	0.94
+112942 LOC55829 AD-015 protein Hs.32148 W69583  55829 	-0.68	0.74	0.23	-0.01	0.05	-0.25	-0.68	0.56	-0.23	0.39	-0.98	0.46	0.02	0.12	0.09	0.98
+"112948 CACNA1D calcium channel, voltage-dependent, L type, alpha 1D subunit Hs.23838 H29256  776 "	0.76	-0.02	-0.21	1.14	0.89	-0.5	-0.3	-0.45	-0.7	0.85	0.09	0.74	-0.47	-0.49	-0.24	1.05
+112950 CKS1 CDC28 protein kinase 1 Hs.348669 AA459292 ckshs1=homolog of Cks1=p34Cdc28/Cdc2-associated protein 1163 	-0.52	-0.3	-0.05	0.94	-1.23	-0.16	-0.92	-0.53	0.65	0.48	0.91	0.73	1.63	0.6	0.44	0.47
+113007 LOC58509 NY-REN-24 antigen Hs.128425 R12233  58509 	0.39	0.35	0.35	0.22	0.63	0.08	0.01	0.16	-0.14	-0.46	0.55	0.31	1.14	0.07	-0.46	-0.13
+113057 PL6 PL6 protein Hs.91566 H99532  11070 	0.03	0.77	0.36	0.42	0.67	-0.19	-0.03	0.74	-0.74	0.91	-0.55	0	0	0.11	-0.43	-0.06
+"113086 CDKN2D cyclin-dependent kinase inhibitor 2D (p19, inhibits CDK4) Hs.29656 R77517 p19-INK4D=Cyclin-dependent kinase 4 inhibitor D 1032 "	0	0.49	0.76	-0.31	-0.27	0.22	-1.33	1.05	-0.33	0.39	-0.52	0.23	0.17	0.27	0.43	0.5
+113087 MLC1SA myosin light chain 1 slow a Hs.90318 T52893  140465 	0.93	1.25	0.3	0.12	0.39	0.28	0.47	0.33	0.15	-0.09	0.55	-0.58	0.27	-0.22	-0.48	-0.34
+113168 RCL putative c-Myc-responsive Hs.109752 AA132086  10591 	-0.16	0.53	0.32	0.69	0.09	-0.48	0.51	0.01	0.3	0.35	-0.03	-0.24	0.82	0.33	1.11	0.37
+113178 OGT O-linked N-acetylglucosamine (GlcNAc) transferase (UDP-N-acetylglucosamine:polypeptide-N-acetylglucosaminyl transferase) Hs.100293 R75943  8473 	0.09	0.88	0.96	0.57	0.12	0.97	0.14	1.91	0.86	-0.55	-0.14	0.62	0.69	0.65	0.9	1.87
+113198    T71353   	1.16	-0.26	1.14	0	0.64	-0.13	1.07	-0.24	-0.56	0.03	-0.52	-0.72	0.32	-0.83	-0.63	-0.47
+113206 HSPG2 heparan sulfate proteoglycan 2 (perlecan) Hs.211573 AA427561  3339 	0.13	2.17	0.44	0	1.6	0.43	0.59	0.88	-0.26	0.41	-1.02	-0.14	-0.4	-1.1	-0.6	0.52
+113221 MEF-2 myelin gene expression factor 2 Hs.44268 H96671  50804 	0.93	0.31	-0.11	0	0.49	-0.19	0.22	1.2	-0.32	0.6	-0.54	0.06	-0.26	-0.31	1.54	1.21
+113222 FVT1 follicular lymphoma variant translocation 1 Hs.74050 AA458992 fvt1=Follicular lymphoma variant translocation 1=putatively 2531 	-0.07	0.35	0.42	0.62	0.87	-0.03	0.26	-0.22	-0.05	0.02	-0.01	-0.8	-1.18	0.26	0.74	0
+113243 KLF2 Kruppel-like factor 2 (lung) Hs.107740 W69213  10365 	0.68	0.02	0	-0.67	0.4	0.47	0.82	0.62	0.42	0.4	0.49	-0.9	-0.52	-0.31	0	0.28
+"113244 SLC23A1 **solute carrier family 23 (nucleobase transporters), member 1 Hs.82042 N23756  9962 "	0	0	0.83	1.15	0.64	1.32	1.02	0.44	0.27	-0.51	-0.1	-1.89	-0.85	-0.36	-0.14	-0.08
+113261 FOXM1 forkhead box M1 Hs.239 AA129552 MPP2=putative M phase phosphoprotein 2 2305 	-0.22	0.42	0.49	-0.13	-1.15	0	-0.24	-0.25	0.65	0.63	0.46	0.41	2.87	2.13	1.65	-0.19
+"113263 CXCR4 chemokine (C-X-C motif), receptor 4 (fusin) Hs.89414 T62491 CXC chemokine receptor 4= fusin=neuropeptide Y receptor=L3 7852 "	-1.65	-0.2	0.97	-0.26	-0.75	0.1	0.9	-1.31	-0.22	-0.5	1.23	-0.71	1.1	1.65	0.87	-0.25
+113277 FRDA Friedreich ataxia Hs.95998 AA253388  2395 	1.84	0	0.4	-0.26	0.49	1.21	-0.46	-0.8	0.45	-0.04	-0.46	0.01	-0.67	0.11	0.75	-0.26
+113285 DIPA **hepatitis delta antigen-interacting protein A Hs.66713 N94820  11007 	-0.68	0.36	-0.11	0	-0.21	-0.02	0	-0.28	0.34	0.46	0.06	0.09	0.59	0.57	1.74	0.84
+"113288  Homo sapiens cDNA FLJ30816 fis, clone FEBRA2001571 Hs.350229 W60310   "	1.52	1.57	0.79	-0.55	-0.07	0.44	0.1	0.17	0.01	-0.25	0.09	0.56	1.25	0.6	1.4	0.64
+113329 VEGFB vascular endothelial growth factor B Hs.78781 AA630120  7423 	0.64	0.55	0.55	0.41	0.33	0.67	-0.29	0.22	0.03	-0.07	-0.42	-0.58	-0.85	0.01	0	-0.26
+"113423 UBE2D2 ubiquitin-conjugating enzyme E2D 2 (UBC4/5 homolog, yeast) Hs.108332 AA431868  7322 "	-0.21	0.35	0.26	0.4	-0.1	-0.51	0.12	0.01	-0.35	0.4	-0.03	0.32	0.48	-0.29	-0.32	0.27
+113505 PCTK1 PCTAIRE protein kinase 1 Hs.171834 AA283125 PCTAIRE 1 serine/threonine protein kinase 5127 	-0.06	0.87	0.04	-0.55	0.18	-0.39	-0.11	0.83	0.33	0.09	-0.33	-0.63	-0.25	0.01	0.37	0.92
+"113510 TGM2 transglutaminase 2 (C polypeptide, protein-glutamine-gamma-glutamyltransferase) Hs.8265 R97066  7052 "	1.66	2.05	2.43	3.31	2.69	1.1	0.17	1.21	-1.03	-0.64	-0.12	0.08	-2.44	-0.87	0	-2.71
+113517 FLJ21156 hypothetical protein FLJ21156 Hs.26058 AA133632  79654 	-1.07	0.33	-0.63	-0.33	0.22	-0.17	-0.38	0.4	-0.11	-0.1	0.2	0.07	-0.13	-0.09	0.4	1.02
+113549 CDC6 CDC6 cell division cycle 6 homolog (S. cerevisiae) Hs.69563 H59203  990 	-4.42	-0.58	-0.01	-0.45	-1.31	-0.24	0.1	-0.07	1.02	-0.19	0.58	0.78	0.79	0.91	-0.54	-0.54
+113554 RBBP2 retinoblastoma binding protein 2 Hs.76272 AA460157  5927 	-0.18	-0.04	-0.21	-0.27	-0.14	0.04	0.55	0.03	0.46	-0.21	0.41	0.11	-0.46	1.11	0.47	0.09
+113567 384D8-2 hypothetical protein 384D8_6 Hs.180903 T83097  29781 	0.42	-0.01	-0.05	0.42	0.66	-0.39	-0.28	-1.51	0.13	0.33	0.72	0.58	0.38	1.02	1.08	1.21
+"113573 RAC1 ras-related C3 botulinum toxin substrate 1 (rho family, small GTP binding protein Rac1) Hs.173737 AA626787  5879 "	0.97	1.01	0.66	0.87	1.55	0.39	0.57	0.19	0.28	0.05	-1.06	-0.44	0.12	-0.19	0	0.4
+"113574 ACTN4 actinin, alpha 4 Hs.182485 R66604  81 "	0.36	1.25	-0.11	0.59	0.27	0.32	-0.41	0.48	0.13	-0.34	0.36	0.72	-1.03	-0.56	0.78	0.78
+"113623 LAMC2 laminin, gamma 2 (nicein (100kD), kalinin (105kD), BM600 (100kD), Herlitz junctional epidermolysis bullosa)) Hs.54451 AA677534  3918 "	2.25	2.11	2.42	1.97	3.14	0.76	1.22	2.79	-1.35	1.04	-0.15	0.11	-3.37	0.05	1.37	0.93
+113682 MGC2721 hypothetical protein MGC2721 Hs.76084 AA456868  84823 	0.4	0.26	0.55	0.56	-0.15	-0.21	0.31	0.34	-0.09	0.99	0.79	1.36	1.65	0.83	0.39	-0.2
+"113708 IL6 interleukin 6 (interferon, beta 2) Hs.93913 N98591 IL-6 3569 "	-0.97	0.04	0.06	0.78	0.17	0.12	-0.62	-0.3	-0.06	0.13	-0.02	-0.59	0.06	-0.19	0	-0.27
+113747 MCM3 MCM3 minichromosome maintenance deficient 3 (S. cerevisiae) Hs.179565 AA455786  4172 	-0.4	0.91	0.71	0.12	-0.33	-0.04	-0.1	-0.83	0.15	0.51	0.22	0.21	1.73	1.1	0.64	0.05
+"113771 PHCA phytoceramidase, alkaline Hs.23862 N90051  55331 "	0.21	0.14	0.98	0.8	-0.32	0.47	0.04	0.08	0.33	0.13	-0.13	-0.37	-1.15	0.07	0	-1.03
+113779 TLK2 tousled-like kinase 2 Hs.57553 AA599008  11011 	-0.42	0.26	0.54	-0.06	0.22	-0.21	0.1	-0.02	1.07	0.49	0.3	0.29	0.83	0.02	0	0.04
+113792 UBE1 ubiquitin-activating enzyme E1 (A1S9T and BN75 temperature sensitivity complementing) Hs.2055 AA598670  7317 	0	1.03	0.33	0.31	0.78	-0.24	-0.39	0.67	-0.03	0.06	-0.37	-0.23	0.07	-0.22	-0.53	0.65
+113864 NASP nuclear autoantigenic sperm protein (histone-binding) Hs.243886 AA644128  4678 	0.37	0.29	0.06	-0.59	0.41	0.36	0.25	0.41	0.35	0.54	0.44	0.97	1.67	0.96	1.48	-0.24
+113866 FLJ13044 hypothetical protein FLJ13044 Hs.99486 AA459651  79751 	-0.86	0.8	0.12	-0.18	0.39	0.41	0.57	-0.31	-0.56	0.84	0.04	-0.39	2.03	0.69	0.36	0.04
+113884 GSS glutathione synthetase Hs.82327 AA463458 Glutathione synthetase 2937 	0.27	0.96	0.13	-0.67	1.36	-0.11	-0.15	0.43	-0.57	0.73	-0.23	0.34	-0.27	-0.23	-0.03	0.93
+"113950 FABP1 fatty acid binding protein 1, liver Hs.351719 T53219  2168 "	-2.2	-1.41	-0.85	-1.37	-1.65	0.88	0.21	-0.64	0.5	-0.22	-1.75	-1.08	0.11	0.93	0.75	-0.49
+113989 HPS1 Hermansky-Pudlak syndrome 1 Hs.83951 AA418683  3257 	0.55	0.95	0.02	0.09	1.08	-0.04	-0.83	-0.22	-0.53	-0.08	0.04	0.57	0.92	-0.29	-0.33	0.58
+"113992 MMP7 matrix metalloproteinase 7 (matrilysin, uterine) Hs.2256 AA031513  4316 "	-0.63	0.31	-0.23	-0.19	3.1	-0.24	-1.6	1.71	-0.76	0.08	2.77	1.48	2.52	0.22	1.55	2.35
+114039 TRIP13 thyroid hormone receptor interactor 13 Hs.6566 AA630784  9319 	-1.16	0.48	0.14	-0.7	-0.9	0.06	-0.07	0.9	1.24	2.05	0.57	1.22	1.27	1.19	1.88	0.04
+114061 GABARAP GABA(A) receptor-associated protein Hs.7719 AA457725  11337 	0.08	-0.03	0.47	0.8	0.38	-0.3	-0.44	-0.62	-0.18	-0.43	0.3	-0.76	-1.24	-0.43	-0.22	0.1
+114080 KIAA0205 KIAA0205 gene product Hs.3610 R91263  9926 	-0.34	0.1	-0.26	0.07	-0.23	0.28	-0.24	-0.77	0.63	-0.62	-1.13	-1.32	-0.69	-0.3	-1.06	-1.18
+"114094  ESTs, Weakly similar to A Chain A, Coagulation Factor Xa-Trypsin Chimera Inhibited With D-Phe-Pro-Arg-Chloromethylketone [H.sapiens] Hs.98609 AA428657   "	0.63	0.39	0.5	0.27	-0.41	0.53	-0.69	0.26	0.14	-0.18	2.09	0.92	1.39	0.84	0	2.57
+"114106  Homo sapiens cDNA FLJ11918 fis, clone HEMBB1000272 Hs.289068 N39240   "	-0.23	0	0.18	0.68	0.68	0.34	0.6	0.72	-0.51	0.14	-0.51	0.18	0.89	0.38	-0.03	0.47
+114107 FLJ22479 hypothetical protein FLJ22479 Hs.238246 AA136664  79960 	-0.31	0.77	0.24	0.97	0.98	0.46	-0.09	0.03	-0.33	-1.16	-0.3	-0.94	-1.6	-0.79	1.64	-0.53
+114219 NPIP nuclear pore complex interacting protein Hs.251928 N54244  9284 	0.12	0.18	0.48	0.29	0.56	-0.34	0.71	0.87	-0.39	-0.48	-0.89	-0.12	0.43	0.14	0	-0.36
+"114235 GTF2E1 general transcription factor IIE, polypeptide 1 (alpha subunit, 56kD) Hs.145381 AA455437  2960 "	0	0	-0.12	0.09	-0.46	-0.33	-0.48	-0.81	-0.04	-0.2	0.02	0.53	0.48	-0.12	0.05	0.31
+"114280 KRT5 keratin 5 (epidermolysis bullosa simplex, Dowling-Meara/Kobner/Weber-Cockayne types) Hs.195850 W72110  3852 "	1.99	0.71	-0.2	0.81	0	0.97	-0.67	0.26	0.67	1.05	2.5	2.06	0.84	0.94	0.19	0.47
+114289 WWP2 Nedd-4-like ubiquitin-protein ligase Hs.333382 R66082  11060 	0.25	0.86	0.01	0.44	0.92	-0.04	-0.16	-0.96	0.82	0.34	0.15	-0.18	-0.03	0.59	3.4	4.18
+114291 LOC221955 KCCR13L Hs.131899 W93155  221955 	0.15	0.12	0.35	0.4	0.91	-0.04	-0.22	0.57	0.06	0.12	-0.8	0.86	0.84	-0.17	0	-0.03
+114309 MEOX1 mesenchyme homeo box 1 Hs.438 AA426311  4222 	0.46	1.92	1.27	0.44	0.53	0.67	0.85	0.65	-0.51	0.34	-0.24	-1.08	-0.26	-0.31	-1.85	-0.17
+114328 GPR39 **G protein-coupled receptor 39 Hs.85339 AA419214  2863 	0.24	1.81	3.12	1.45	0.87	0.25	1.47	2.5	0.17	-0.51	0.12	0.18	-0.65	-0.62	-0.43	-1.22
+114347  ESTs Hs.95612 AA074677   	-0.31	0.19	-0.11	-0.52	0	-0.71	0.5	0.73	1.53	0.3	0.78	1.4	2.04	1.1	3.74	0.99
+"114363 LTBR lymphotoxin beta receptor (TNFR superfamily, member 3) Hs.1116 AA454646 Lymphotoxin-Beta receptor precursor=Tumor necrosis factor re 4055 "	0	0.9	-0.11	0.02	0.62	-0.11	-0.19	0.65	-0.33	0.66	0.78	0.84	2.17	0.81	0.33	0.79
+114382 CTL2 CTL2 gene Hs.105509 AA454710  57153 	0.23	0.84	0.51	0.45	0.19	-0.38	0.67	0.04	-0.03	0.14	-0.25	0.98	1	0.4	1.73	0.15
+114443 KIAA1771 **KIAA1771 protein Hs.93560 N57773  85440 	-1.02	0.42	0	0.05	0.42	0.18	0.33	0.14	0.21	0.24	0.95	0.15	0.87	0.91	2.51	0.82
+114454 SP192 hypothetical protein SP192 Hs.169854 W84638  60313 	-0.46	0.1	-0.08	-0.53	0.07	0.04	0.22	0.12	0.26	0.51	0.62	-0.07	0.41	0.54	0	0.1
+114469 SGPL1 sphingosine-1-phosphate lyase 1 Hs.186613 AA459381  8879 	1.73	1.16	1.5	1	2.73	1.02	0.89	0.72	-1.16	0.2	-0.18	-0.4	0.51	-0.35	-0.52	-0.82
+114475 CKS2 CDC28 protein kinase 2 Hs.83758 AA292964  1164 	-0.76	-0.27	0.03	-0.54	-1.46	-0.23	-0.81	0.18	0.48	0.44	0.48	0.36	0.91	0.93	1.63	-0.45
+114541 LC27 putative integral membrane transporter Hs.296398 AA033947  55353 	1.16	2.11	0.39	-0.79	-0.28	-0.78	0.44	1.21	0.04	0.36	0.73	0.38	0.35	0.77	2.36	0.47
+"114584 PTPRZ1 protein tyrosine phosphatase, receptor-type, Z polypeptide 1 Hs.78867 AA476460 PTP zeta = protein tyrosine phosphatase zeta 5803 "	-0.81	0.26	-0.08	-0.36	-0.06	0.41	1.29	0.59	0.9	0.23	-0.11	-1.01	-0.38	0.85	1.48	2.57
+114630 SNRPB2 small nuclear ribonucleoprotein polypeptide B'' Hs.82575 AA521249  6629 	-0.75	0.41	-0.13	-0.65	-0.29	-0.2	-0.38	-0.94	0.19	0.8	0.29	-1.58	0.18	0.88	0.17	-0.4
+114639  **Homo sapiens mRNA; cDNA DKFZp547N024 (from clone DKFZp547N024) Hs.306521 AA487433   	0.3	0.45	0.07	-0.35	0.28	-0.07	-0.28	-0.74	-0.47	0.23	-0.01	0.16	0.28	0.46	0.76	1.42
+114651 NNT **nicotinamide nucleotide transhydrogenase Hs.18136 AA136612  23530 	0.09	0.27	0.84	0.09	0.45	0.45	0.05	1.13	0.53	0.04	-0.32	-0.26	-0.15	-0.21	1.1	0.3
+114664 MGC10500 hypothetical protein MGC10500 Hs.271599 W84592  83719 	0.03	0.81	-0.27	0.44	0.6	0	-0.73	0.3	-1	-1.28	-0.56	-1.12	0.24	-0.81	-0.43	0.33
+"114678 SCNN1A sodium channel, nonvoltage-gated 1 alpha Hs.2794 AA458982  6337 "	1.24	2.17	0.95	0.47	1.38	-0.18	1.36	1.48	-2.41	-0.26	-2.62	0.03	-2	-2.03	-6.08	-0.85
+"114702  ESTs, Weakly similar to S10889 proline-rich protein [H.sapiens] Hs.355952 AA454833   "	0.06	0.18	-0.15	-0.21	0.29	0.94	-0.09	0.21	-0.37	0.38	-0.22	0.35	0.15	0.37	-0.74	0.17
+"114719 UBTF **upstream binding transcription factor, RNA polymerase I Hs.89781 N92443  7343 "	-0.25	0.48	0.38	0.88	0.81	0.33	0.34	-0.04	0.07	0.03	-0.13	0.3	0.04	0.11	-0.59	0.45
+114729 BUB1 BUB1 budding uninhibited by benzimidazoles 1 homolog (yeast) Hs.98658 AA430092 BUB1=putative mitotic checkpoint protein ser/thr kinase 699 	-1.49	0.14	0.43	-0.69	-1.56	-0.17	-0.28	0.51	0.38	0.94	-0.11	1.07	0.8	1.1	1.42	-0.17
+"114760 BDH 3-hydroxybutyrate dehydrogenase (heart, mitochondrial) Hs.76893 T67057  622 "	-0.24	0.41	1.12	-0.1	-0.99	-0.16	0.4	0.07	-1.28	0.48	-0.76	0.46	0.34	-0.23	-3.05	0.43
+"114761 ALDH5A1 aldehyde dehydrogenase 5 family, member A1 (succinate-semialdehyde dehydrogenase) Hs.5299 H06675  7915 "	-0.22	1	0.8	-0.23	0.19	0.06	0.43	0.19	0.01	0.31	-0.13	0.18	-0.51	-0.39	-0.69	0.12
+"114802 MADH4 MAD, mothers against decapentaplegic homolog 4 (Drosophila) Hs.75862 AA456439  4089 "	0.33	-0.04	0.82	0.54	0.27	0.2	0.89	-0.23	0.93	-0.71	0.31	-0.12	0.03	0.75	0.96	1.12
+"114805 NR1D1 nuclear receptor subfamily 1, group D, member 1 Hs.276916 AA453202 thyroid hormone receptor alpha 1 9572 "	0	0.87	0.1	0.68	1.76	0.13	-0.08	-0.04	-0.11	0.2	-0.91	0.1	0.25	-0.58	-0.18	0.9
+114821 HCNGP transcriptional regulator protein Hs.27299 AA457232  29115 	0.06	0.6	0.03	0.18	0.55	0.2	-0.78	0.72	0.75	0.33	0.37	0.72	0.69	0.57	0.81	0.73
+114830 CDC7L1 CDC7 cell division cycle 7-like 1 (S. cerevisiae) Hs.28853 N62245 Cdc7-related kinase 8317 	-0.56	0.73	0.21	0	-1.81	-0.12	0.51	1.14	0.75	0.4	-0.31	1.09	0.18	1.41	-0.07	0.71
+114850 NIFIE14 seven transmembrane domain protein Hs.9234 AA485358  10430 	-0.55	0.15	-0.32	0.29	-0.92	1.09	0.07	-0.44	-0.16	0.22	0.2	0.84	0.2	-0.15	0.82	-0.1
+"114857 PLA2G2A phospholipase A2, group IIA (platelets, synovial fluid) Hs.76422 T61271  5320 "	0.95	1.15	1.46	2.24	0.32	3.03	0.9	1.24	-0.29	1.45	-1.84	0.75	2.15	0.31	-2.99	-0.55
+114949    AA281932   	-1.08	-0.31	-0.26	-0.41	-1.17	0.05	-1.36	1.72	-0.95	0.93	0.21	0.68	0.57	0.38	0	-0.13
+115038 KIAA0317 KIAA0317 gene product Hs.20126 AA496541  9870 	-0.22	0.01	0.63	0.65	0.47	0.51	0.91	1.34	-0.07	0.32	0.33	0.22	-0.04	0.17	1.18	0.29
+"115039 APEG1 nuclear protein, marker for differentiated aortic smooth muscle and down-regulated with vascular injury Hs.21639 R25020  10290 "	0.46	-0.35	0.22	0.66	1.51	0.35	0.26	-0.26	0.01	0.76	0.79	-0.31	-0.43	0.01	0.6	2.36
+115058 NLP_1 nucleoporin-like protein 1 Hs.168352 N65968  11097 	0.07	0	1.14	-0.32	0.4	0.1	0.8	1.01	0.86	0.21	-1.71	2.06	0.74	0.93	0.42	0.34
+115080 EPC1 enhancer of polycomb 1 Hs.129998 AA459697  80314 	0	0.61	-0.2	1.02	0.62	0.4	-0.46	-0.35	-0.74	0.05	-0.34	0.05	0.14	-0.34	0.51	1.01
+115100 SFRP1 secreted frizzled-related protein 1 Hs.7306 AA002080  6422 	-0.27	-0.06	-0.54	-0.23	0.2	0.4	-1.87	-1.55	2.62	0.2	2.07	-1.25	2.05	2.82	4.55	4.51
+"115120  ESTs, Weakly similar to S71512 hypothetical protein T2 - mouse [M.musculus] Hs.95734 AA133777   "	-0.66	0.07	0.71	0.59	0.19	-0.38	0.42	0.12	-0.25	0.1	-0.19	0.39	1	0.38	-0.37	1.74
+115158 CREB3 cAMP responsive element binding protein 3 (luman) Hs.287921 AA401477  10488 	0.99	0.78	0.82	0.66	0.62	0.4	0.13	1.68	0.31	-0.03	-0.44	0.24	0.58	1.28	0.58	0.67
+"115169 SLC26A6 solute carrier family 26, member 6 Hs.298476 AA458983  65010 "	0.03	0.3	-0.12	-0.27	0.48	0.03	0.16	0.48	-0.87	0.97	-0.3	1.2	-0.62	-0.34	0	0.26
+115186 DSS1 Deleted in split-hand/split-foot 1 region Hs.333495 H85464  7979 	-0.3	0.9	0.1	0.05	-0.09	-0.69	-0.33	0.33	-1.15	-0.24	0.18	0.86	0.58	0.25	0.63	0.71
+"115212 CENTB5 centaurin, beta 5 Hs.21446 AA024391  116983 "	0	0.85	-0.55	-0.15	0.62	0.22	-0.17	-0.19	-0.07	0.2	-0.15	0.39	0.52	0.56	0.47	0.45
+115214 KIAA0963 KIAA0963 protein Hs.7724 AA476273  22904 	0.42	0.49	0.39	0.4	1.38	-0.11	-0.79	0.41	-0.72	0.63	0.26	1.05	0.45	-0.32	-0.31	0.77
+115262 CSR1 CSR1 protein Hs.128856 R10674  51435 	-0.34	0.27	1.22	1.53	2.5	1.08	0.91	0.53	0.31	-0.83	0.21	-0.69	-1.67	0.31	0	0.23
+"115328 H2AFX H2A histone family, member X Hs.147097 H95392  3014 "	-0.05	0.32	-0.02	-0.61	-0.61	-1.02	-0.55	-0.64	0.54	0.92	0.21	1.16	0.94	1	0.12	-0.35
+"115397 CENPF centromere protein F (350/400kD, mitosin) Hs.77204 AA701455  1063 "	-0.21	1.34	1.84	-0.81	-1.95	-0.31	0.62	0.02	1.08	1.27	0.57	0.71	2.36	1.59	3.81	-0.42
+"115409 SLC3A2 solute carrier family 3 (activators of dibasic and neutral amino acid transport), member 2 Hs.79748 AA630794  6520 "	0.24	-0.24	0	-0.97	0.05	-0.22	0.26	0.74	0.01	0.48	0.04	0.28	-0.01	0.87	0.95	-0.15
+115445 KIAA0346 KIAA0346 protein Hs.103915 AA158658  23135 	0.39	0.15	0.97	0.08	0.54	0.03	0.26	0.35	-0.03	0.1	-0.09	-0.26	-0.14	0.25	-1.14	-0.15
+115449 FAF1 Fas (TNFRSF6) associated factor 1 Hs.25821 AA486789  11124 	-0.6	0.19	-0.16	-0.3	-0.05	-0.35	0.39	-0.18	0.4	0.9	0.46	0.69	0.43	0.92	1.11	0.58
+115476 TDG thymine-DNA glycosylase Hs.173824 AA490546 G/T mismatch-specific thymine DNA glycosylase=DNA alkylation 6996 	-0.15	0.33	0.24	-0.27	0.1	0.09	0.34	0.96	0.03	0.14	-0.25	-0.05	0.92	1.19	0.11	0.64
+115496 CST6 cystatin E/M Hs.83393 W72895  1474 	-0.05	0.15	0.04	-0.73	0.63	-0.08	-0.63	-0.25	-0.66	0.12	0.13	0.01	-0.06	-0.09	-0.16	-0.14
+115524 MAP4K2 mitogen-activated protein kinase kinase kinase kinase 2 Hs.82979 R35283 Germinal center kinase=BL44=B lymphocyte serine/threonine pr 5871 	0	-0.06	-0.17	-0.12	-0.29	0.46	0.36	0.21	0.08	-0.59	-0.96	-0.4	0.32	0.02	0.44	0.53
+"115567 ZFP36L1 **zinc finger protein 36, C3H type-like 1 Hs.85155 AA424743  677 "	0.01	-0.29	0.23	0.68	1.02	0.07	0.41	0.14	0.12	-0.32	-0.45	0.15	-0.36	-0.59	-0.88	0.13
+115581 NFIA nuclear factor I/A Hs.173933 AI912047  4774 	-0.26	0	-0.07	-0.54	-0.04	0.35	1.21	0.25	-0.78	2.02	-1.83	0.7	-0.76	-0.5	1.05	-1.64
+115613 FGR Gardner-Rasheed feline sarcoma viral (v-fgr) oncogene homolog Hs.1422 AA256172  2268 	0.15	0.77	1.32	0.71	0.94	1.34	0.25	0.8	-0.33	0.55	0.28	-0.58	-1.23	0.32	-2.24	-0.5
+115634 ADD3 adducin 3 (gamma) Hs.324470 AA459743  120 	0.51	0.34	0.66	0.47	0	0.49	0.74	0.45	0.54	-0.29	0.09	-0.38	0.25	-0.03	-0.9	-0.81
+115684 PM5 pM5 protein Hs.227823 AA629923  23420 	0.88	1.05	-0.04	-0.67	0.46	0.06	-0.6	0.3	-0.52	0.5	-0.88	0.28	-0.3	0.46	2.29	0.48
+"115692 PIK3R4 phosphoinositide-3-kinase, regulatory subunit 4, p150 Hs.83050 AA630620  30849 "	-1.67	-0.3	-0.07	0.29	-0.79	-0.15	-0.32	-0.25	1.01	-1	0.94	0.32	0.19	0	0	-0.7
+115703 IRF7 interferon regulatory factor 7 Hs.166120 AA443090  3665 	-0.79	0.91	0.75	0.37	0.29	-0.34	-0.03	0.43	-0.31	-0.1	-0.41	-0.37	-0.49	0.08	0	0.33
+115788 GOLGIN-67 golgin-67 Hs.182982 N48270  23015 	-0.16	0.94	0.33	-0.4	1.11	0.02	0.72	0.89	-0.4	0.97	-0.42	0.12	0.38	0.23	0.63	1.58
+115815 PEX10 peroxisome biogenesis factor 10 Hs.247220 AA412246  5192 	0.02	0.22	-0.09	0.09	1.18	-0.02	0.17	0.06	-0.2	-0.22	0.15	0.29	0.31	-0.45	0	1.7
+"115822 BF B-factor, properdin Hs.69771 AA401441  629 "	-0.24	-0.14	1.32	0.72	1.52	-0.61	-1.29	1.2	-3.91	-0.62	1	1.03	2.17	-0.18	-2.79	0.42
+"115828 ARD1 N-acetyltransferase, homolog of S. cerevisiae ARD1 Hs.333034 R55219  8260 "	0.11	0	0.53	1.11	0.71	0.52	-0.18	0.88	-0.63	-0.22	-0.75	-0.89	-1	-0.4	0.67	-1.45
+115887 LOC51580 H-2K binding factor-2 Hs.347340 R19314  51580 	-0.33	0.18	0.17	0.04	0.41	0.29	0.1	0.02	0.06	0.22	1.3	-0.09	-0.45	0.21	-0.98	-0.39
+"115949 SPON1 spondin 1, (f-spondin) extracellular matrix protein Hs.5378 H09099  10418 "	2.93	5.29	4.46	3.15	1.82	2.24	3.63	2.98	2.02	-0.72	-0.96	-1.67	-2.74	-1.46	-2.01	-2.43
+115959 ITCH itchy homolog E3 ubiquitin protein ligase (mouse) Hs.98074 AA448286  83737 	0.28	-0.13	0.43	-0.33	-1.58	0.61	0.03	0.3	0.48	0.7	0.28	-0.07	0.08	0.26	0.46	-0.64
+"116021 FGA fibrinogen, A alpha polypeptide Hs.351593 AA011414  2243 "	1.66	1.39	1.64	2.24	1.77	1.26	1.38	0.89	-0.33	-1.46	-1.42	-2.33	-2.25	-1.13	-2.97	-1.76
+"116042 ABCC1 **ATP-binding cassette, sub-family C (CFTR/MRP), member 1 Hs.89433 AA424804  4363 "	0.17	0.18	0.37	0.1	1.02	0.15	0.12	0.41	-0.31	-1.02	-0.2	0.01	0.15	-0.58	0.14	0.4
+116052 TFG TRK-fused gene Hs.250897 R60846  10342 	0.26	0.19	0.55	0.11	0.21	-0.48	-0.32	0.09	0.23	-0.1	0.7	-0.07	-0.19	0.42	0	0.18
+116071 KIAA1691 KIAA1691 protein Hs.94761 N58487  80727 	-0.19	-0.01	-0.36	-0.13	0.36	-0.36	-0.3	0.44	1.37	0.89	0.44	1.72	0.33	0.18	-1.38	-0.26
+"116083 ITGB4 integrin, beta 4 Hs.85266 AA485668  3691 "	0.92	0.53	0.79	1.16	1.72	0.1	-0.67	0.54	1.44	-0.37	1.06	0.49	-0.47	0.09	0	2.3
+"116095 NR2F6 nuclear receptor subfamily 2, group F, member 6 Hs.239752 AA666180  2063 "	-0.02	1.2	0.42	0.23	-0.1	-0.14	1.04	0.88	-0.86	-0.17	-0.01	0	-0.65	-0.47	-0.38	0.56
+116133 DKFZP434L243 **DKFZP434L243 protein Hs.21695 AA400512  25944 	0	0.59	0.36	-1.56	0	-0.31	-0.66	0.96	0.12	0.51	0.15	0.62	-0.39	-0.28	1.16	1.79
+"116151 ABCF2 ATP-binding cassette, sub-family F (GCN20), member 2 Hs.153612 N95462  10061 "	0.06	0.74	0.48	0.51	-0.59	0.01	-0.04	-0.14	0.63	0.07	0.63	-0.49	-0.06	0.61	1.09	-0.1
+116171 DNMT1 DNA (cytosine-5-)-methyltransferase 1 Hs.77462 N34857  1786 	0	0	0.45	0.18	0	0.85	0.38	0.66	0	0.42	-0.49	0.39	0.58	0.84	-0.29	0.17
+116182 DKFZp547D155 hypothetical protein DKFZp547D155 Hs.193235 H09966  84242 	-0.61	0.37	0.11	-0.11	0.3	0.92	1.16	1.16	-0.03	-1.73	-1.93	-2.02	-0.41	-0.7	0.12	-1.28
+116189 KIAA0443 KIAA0443 gene product Hs.113082 AA702949  9737 	1.33	0.33	1.01	1.85	1.04	1.46	1.28	1.21	0.78	-0.81	-1.62	-0.58	-0.92	0	-1.69	-0.87
+"116230 SGCE sarcoglycan, epsilon Hs.110708 AA432066  8910 "	0.79	0.77	0.53	0.16	0.53	0.34	0.2	0.54	1.08	1.01	-1.43	-0.89	0.37	0.4	-1.16	-0.03
+116243 LOC93343 hypothetical protein BC011840 Hs.106597 AA025746  93343 	0.72	1.14	0.45	-0.23	0.85	0.58	-0.63	0.49	-1.12	-0.59	-1.46	0.07	-0.33	-0.5	0.08	1.85
+116280 DSC2 desmocollin 2 Hs.239727 N69675  1824 	0	0	0.7	0.33	0.13	0.21	-0.17	0.36	0.33	0.1	0.04	0.71	0.6	0.5	0.35	0.7
+"116289 EIF2S3 eukaryotic translation initiation factor 2, subunit 3 (gamma, 52kD) Hs.211539 AA464708  1968 "	0	0.16	1.02	-0.03	0.53	-0.25	-0.25	-0.36	-0.15	1.24	-0.86	0.02	1.28	1.2	0.38	0.59
+116295 MRPL4 mitochondrial ribosomal protein L4 Hs.279652 AA490981  51073 	0.98	0.71	0.57	0.58	0	0.61	-0.91	0.65	-0.01	0.27	-0.18	0.35	0.28	0.37	-0.38	0.05
+"116311 BF B-factor, properdin Hs.69771 H80257  629 "	-0.08	-0.22	1.66	0.82	1.47	-0.83	-0.89	1.05	-4.61	-0.75	0.67	0.48	1.75	-0.52	0	0.27
+116320 FLJ10956 hypothetical protein FLJ10956 Hs.144407 H54262  55270 	0.46	0.62	-0.02	0.54	0.09	0.1	1.12	-0.02	-0.53	0.8	0.3	-0.13	-1.07	0.48	0.06	-0.41
+116336 MRPL20 mitochondrial ribosomal protein L20 Hs.182698 AA147499  55052 	0.4	0.72	-0.38	-1.16	0.24	-0.14	-0.63	0.2	-0.39	0.52	0.35	0.47	1.15	-0.23	0	0.5
+116357    H23425   	0.49	0.14	-0.07	0.54	1.37	0.02	-0.16	-0.3	0.42	-0.58	-0.26	-0.11	-0.85	0.04	1.07	0.03
+"116360 EIF3S9 eukaryotic translation initiation factor 3, subunit 9 (eta, 116kD) Hs.57783 AA676471  8662 "	0.27	0.04	0.53	0.56	0.11	-0.17	0.58	0.78	1.26	-0.06	-0.36	0.77	1	0.82	0.52	0.09
+"116400 IL11RA interleukin 11 receptor, alpha Hs.64310 AA454657 IL-11 receptor alpha chain 3590 "	-0.08	0.34	-0.08	-0.66	0.29	-0.15	0.43	0.76	0.07	0.08	-0.74	0.12	0.14	-0.18	0.95	1.01
+116419 FKBP9 FK506 binding protein 9 (63 kD) Hs.302749 AA487755  11328 	0.58	0.71	0.22	0.46	1.15	-0.09	0	0.01	0.59	0.19	-0.33	-0.11	-0.47	0.05	0.95	1.14
+"116426 MTERF transcription termination factor, mitochondrial Hs.97996 AA459396  7978 "	-0.75	0.28	0.22	0.66	0.02	0	0.03	-0.09	1.99	-0.05	-0.23	-0.68	0.35	0.45	0	0.4
+116471 SBBI31 SBBI31 protein Hs.184668 AA007634  28966 	-0.98	-0.4	0.74	0.38	0.78	0.25	0.21	0.12	-0.59	0	0	-0.36	-0.2	0	0	0.18
+116515 SRCAP Snf2-related CBP activator protein Hs.87908 AA419061  10847 	1.63	2.19	0.4	-0.17	2.3	-0.1	-0.81	1.37	-1.79	0.02	-0.61	0.75	0.2	-0.77	0.88	0.12
+"116517 ARHE ras homolog gene family, member E Hs.6838 W86282  390 "	0.47	0.38	0.45	0.21	0.7	0.44	1.52	1.41	0.43	0.58	1.03	-0.76	-1.03	-0.07	-1.9	-1.55
+116520 OGT O-linked N-acetylglucosamine (GlcNAc) transferase (UDP-N-acetylglucosamine:polypeptide-N-acetylglucosaminyl transferase) Hs.100293 AA425229  8473 	0.72	0.8	0.96	0.72	0.81	0.57	0.34	1.32	0.36	-0.65	-0.43	0.85	0.93	0.44	0.66	2.17
+116626 TSN translin Hs.75066 AA460927  7247 	-1	-0.04	0.63	0.05	-0.86	0.07	0.56	0.38	-0.51	0.57	0.16	1.1	1.86	0.82	1.22	-0.22
+116636 VASP vasodilator-stimulated phosphoprotein Hs.93183 AA410429  7408 	0.1	0.15	0.04	0.65	-0.24	-0.12	-0.59	0.18	0.04	0.5	0.67	0.69	-0.55	-0.06	0.47	0.06
+116638 CSDA cold shock domain protein A Hs.198726 AA455300  8531 	1.42	-0.32	-0.05	1.36	0.7	-0.12	0	0.33	0.43	0.42	1.07	0.8	1.63	0.48	-1.2	-0.44
+116649 PLS1 plastin 1 (I isoform) Hs.430 AA017378  5357 	0.62	1.19	0.41	0.04	0.44	1.18	0.2	1.01	-0.36	0.28	-2.18	0.1	-1.84	-0.54	0	-0.04
+116681 TRIM32 tripartite motif-containing 32 Hs.236218 AA055503  22954 	0.68	1.04	0.14	-0.1	0.48	0.72	0.26	0.12	0.57	0.71	0.13	0.07	0.25	-0.25	0.81	-0.64
+116689  Homo sapiens mRNA; cDNA DKFZp434J194 (from clone DKFZp434J194) Hs.323067 T63998   	0.46	0.39	0.49	0.8	1.06	-0.24	-0.38	-0.27	-0.8	-0.3	-0.57	0.28	0.14	0.3	0.17	0.11
+"116691 RAB2L RAB2, member RAS oncogene family-like Hs.170160 AA401972  5863 "	0.46	-0.1	0.25	0.63	0.49	-0.45	-0.1	1.47	-0.98	0.31	-0.93	-0.32	-0.6	-0.93	0.37	1.31
+116696 RGS19IP1 regulator of G-protein signalling 19 interacting protein 1 Hs.6454 AA434159  10755 	0.11	1.89	-0.06	-0.09	1.04	-0.14	-0.81	0.6	-1.08	0.02	-0.01	0.69	0.08	0.03	-0.39	1.14
+116711 FLJ13322 hypothetical protein FLJ13322 Hs.110298 W42736  79777 	1	0.04	0.64	0.26	0.48	0.48	0.2	0.37	-0.41	-1.07	-1.14	-0.36	-1.98	-0.54	0	1.16
+116712 FLJ10540 hypothetical protein FLJ10540 Hs.14559 AA131908  55165 	-0.92	0.35	1.16	-0.35	-1.82	-0.71	-1.11	-0.11	0.17	0.73	0.59	0.18	1.9	1.29	1.59	-0.81
+116778 KIAA0229 KIAA0229 protein Hs.20060 N22435  23294 	-0.64	0.42	0.81	0.57	-0.11	0.16	0.54	0	0.71	-0.1	0.17	-0.13	0.17	0.68	-0.05	0
+116805 LOC92170 hypothetical protein BC004409 Hs.301693 AA489470  92170 	-0.4	1.13	-0.43	-0.64	-0.09	-0.04	-0.48	0.33	0.17	0.41	-0.12	0.71	1.59	0.63	0.06	0.41
+116812 WFDC2 WAP four-disulfide core domain 2 Hs.2719 AA451904  10406 	1.29	2.75	1.9	0	2.16	2.01	2.22	1.46	-1.87	-3.04	-0.88	-0.8	0.68	-1.84	0	-0.65
+116827 HSPC002 HSPC002 protein Hs.76907 T67535  23587 	0.11	-0.11	0.44	0.25	0.54	0.39	-1.09	-0.47	0.52	-0.6	0.12	-1.08	0	-0.16	-0.43	0.12
+116829 IGF2 insulin-like growth factor 2 (somatomedin A) Hs.349109 N54596  3481 	-1.23	0.97	2.29	-0.02	1.23	0.83	3.92	3.53	1.95	-1.71	-2.78	-1.96	-2.07	-1.96	-2.86	-1.91
+"116869  ESTs, Weakly similar to JC5238 galactosylceramide-like protein, GCP [H.sapiens] Hs.356550 AA055215   "	0.29	1.09	0.16	0.83	1.03	0.22	-0.15	0.41	-0.67	0.29	-0.18	0.05	-0.68	-0.3	0.33	1.14
+116872 KIAA1320 KIAA1320 protein Hs.117414 R22315  57531 	-0.6	-0.06	0.1	0.4	-0.22	-0.15	-0.36	0.06	0.42	0.38	0.11	-0.14	-0.1	0.65	0.44	0.9
+116873 RPL28 ribosomal protein L28 Hs.4437 AA486746  6158 	0.44	0.61	0.39	0.96	0.53	0.23	-0.16	-0.9	0.37	-0.1	-0.11	0.42	-0.37	-0.3	-0.71	-0.39
+"116876 ALDH7A1 aldehyde dehydrogenase 7 family, member A1 Hs.74294 AA101299  501 "	0.03	-0.05	0.88	0.41	0.37	0.01	0.18	-0.05	0.58	1.1	-0.23	0.26	0.26	0.36	0.95	-0.3
+"116926 FGFR2 fibroblast growth factor receptor 2 (bacteria-expressed kinase, keratinocyte growth factor receptor, craniofacial dysostosis 1, Crouzon syndrome, Pfeiffer syndrome, Jackson-Weiss syndrome) Hs.278581 AA443093 FGFR2=Fibroblast growth factor receptor 2 2263 "	0.46	0.82	1.8	0.32	0.43	0.72	1.63	0.56	0.3	-1.42	-0.99	-1.73	1.5	1.07	0	1.75
+116973 PPIH peptidyl prolyl isomerase H (cyclophilin H) Hs.9880 AA418410  10465 	-0.92	0.04	-0.64	-0.33	-0.2	-0.49	-0.17	0.29	0	0.61	0	0.88	0.98	1.02	0.95	0.12
+116983 EPHB6 EphB6 Hs.3796 AA609284  2051 	1.24	0.34	0.68	0.19	2.21	1.97	-0.01	1.42	-0.18	-0.35	1.33	1.12	1.27	1.38	-2.66	-0.55
+117044 RTKN rhotekin Hs.58215 W72722  6242 	0.11	1.23	0.92	0.48	0.32	0.02	0.75	0.68	0.61	-0.27	0.78	0.55	0.16	0.34	1.08	0.52
+117048 FLJ20195 **hypothetical protein FLJ20195 Hs.286261 H61209  54853 	0.21	1.14	0.5	0.07	1.23	0.5	-0.07	0.37	-0.33	0.44	-0.39	0.64	0.98	-0.03	-0.09	0.56
+117063 MRPS12 mitochondrial ribosomal protein S12 Hs.9964 R23752  6183 	-0.5	0.34	0.39	-0.23	-0.66	0.11	-0.3	-0.1	0.4	0.24	0.02	1.25	0.95	0.23	0.56	-0.54
+"117071  Homo sapiens cDNA FLJ14831 fis, clone OVARC1001107, highly similar to Homo sapiens protein methyltransferase (JBP1) mRNA Hs.367854 AA496357   "	0.31	0.42	0.4	0.32	0.36	-0.38	0.57	0.67	-0.18	0.14	-0.01	0.08	0.36	0.03	0.65	-0.04
+117088 PASK PAS domain containing serine/threonine kinase Hs.79337 AA427740 KIAA0135=related to pim-1 kinase 23178 	0	-0.28	0.75	-0.58	-0.23	0.04	0.97	1.13	0.05	0.4	-1.18	-0.1	0.55	0.54	0.54	0.74
+117123 LDLB low density lipoprotein receptor defect B complementing Hs.283109 T58729  9382 	0	0.7	0	-0.05	0	-0.06	-1.41	0.89	0.54	0.56	-0.05	1.04	0.07	0.88	1.86	1.1
+"117134 POLD1 polymerase (DNA directed), delta 1, catalytic subunit (125kD) Hs.99890 AA429661  5424 "	0.21	0.3	0.4	-0.06	0.03	0.23	0.49	0.69	0.54	-0.56	-0.72	1.19	1.29	1.01	0.21	0.52
+117203 PKD2 protein kinase D2 Hs.91146 AA428451  25865 	0.42	0	0.03	0	0.39	-0.09	0.14	0.12	-0.48	0.44	0.13	1.21	-0.17	0.19	-0.13	0.11
+"117218 SEMA4D sema domain, immunoglobulin domain (Ig), transmembrane domain (TM) and short cytoplasmic domain, (semaphorin) 4D Hs.79089 N50444  10507 "	0.51	1.26	0.07	-0.13	0.41	0.33	-0.39	0.12	0.02	0.25	0.79	0.91	0.97	1.11	0.53	0.73
+117228 KIAA0211 KIAA0211 gene product Hs.79347 H23198  9640 	0.66	1.45	0.12	0.14	0.53	0.45	0.58	0.53	-0.26	0.76	-0.13	-0.27	-0.53	-0.2	0.19	0.18
+117247 KIAA0172 KIAA0172 protein Hs.77546 AA464605  23189 	0	-0.03	0.55	0	0.54	0.51	-1.03	0.6	-0.3	0.15	0.09	0.13	0.12	0.73	2.07	2.32
+117261 TACSTD2 tumor-associated calcium signal transducer 2 Hs.23582 AA041184  4070 	1.21	1.7	-2.55	-2.4	3.1	-1.29	-1.22	0.8	-1.52	0.59	0.92	0.32	-0.65	-0.64	0.75	2.32
+117269 KNSL6 kinesin-like 6 (mitotic centromere-associated kinesin) Hs.69360 AA400450  11004 	0.03	0.47	0.14	0.58	0.12	-0.36	0.05	-0.09	0.06	0.3	0.27	-0.07	-0.27	0.13	-0.18	-0.41
+117270 SRRM1 serine/arginine repetitive matrix 1 Hs.18192 R25344  10250 	-0.52	0.82	0.23	0.26	0.3	-0.16	1.26	1.06	-0.07	0.18	-0.7	0.6	-0.17	0.35	0.78	0.96
+117283 HSA249128 DIPB protein Hs.14512 AA460570  54765 	-1.72	0.74	0.44	0.45	0.23	-0.06	0.9	0.7	0.84	-0.04	0.11	-0.34	-0.23	-0.29	0.01	-2.07
+117327 LOC115817 hypothetical protein BC014057 Hs.348350 H52299  115817 	0.36	0.76	0.17	-0.15	0.8	-0.18	0.57	1.05	-0.54	0.15	-0.98	-0.06	0.1	-0.66	0.95	1.43
+"117329 KRT5 keratin 5 (epidermolysis bullosa simplex, Dowling-Meara/Kobner/Weber-Cockayne types) Hs.195850 AA160507  3852 "	3.18	-1.5	-1.45	-0.87	3.04	0.09	-1.43	0.96	1	1.1	2.78	2.96	1.76	1.47	2.39	1.05
+"117347 VCY variable charge, Y chromosome Hs.170076 AA406064  9084 "	0	0.13	-0.14	0.1	0	-0.02	-0.66	-0.69	0.33	0.68	0.02	0.6	0.39	0.3	0.18	0.16
+117365 FLJ10697 hypothetical protein FLJ10697 Hs.104557 H80748  55205 	0.45	0.85	0.83	0.57	1.47	0.35	1.17	0.83	0.7	-0.02	0.4	0.44	1	0.92	2.56	1.44
+117380 PWP2H PWP2 periodic tryptophan protein homolog (yeast) Hs.79380 H50886  5822 	0	0	0.37	-1.12	0.57	-0.14	1.51	0.37	0.36	-0.52	0.57	-0.03	-0.1	-0.54	-1.14	-0.64
+117424 PDHA1 pyruvate dehydrogenase (lipoamide) alpha 1 Hs.1023 T65758  5160 	-0.41	1.1	1.04	0.22	0.27	0.01	0.65	1.8	0.25	-0.12	-0.24	-0.5	-0.09	0.45	0.93	0.88
+"117427 SOX9 SRY (sex determining region Y)-box 9 (campomelic dysplasia, autosomal sex-reversal) Hs.2316 AA400464  6662 "	-0.42	-0.33	0.3	-0.56	1.72	-0.4	0.76	-1.18	1.77	1.41	1.87	1.47	1.71	1.03	0.29	1.74
+"117428  Homo sapiens cDNA FLJ31097 fis, clone IMR321000210 Hs.8037 H23278   "	0	-0.75	-0.78	-0.23	-0.03	0.21	-1.3	-0.32	-0.49	1.36	1.17	-1.18	-2.35	0.4	-0.49	0.25
+117450 HEAB ATP/GTP-binding protein Hs.87465 AA700336  10978 	-0.04	-0.54	0.27	-0.26	0.06	0.19	-0.26	0.2	0.51	0.57	0.59	0.86	0.62	0.36	0.49	-0.33
+"117451 FXR1 fragile X mental retardation, autosomal homolog 1 Hs.82712 N73976  8087 "	0	0.18	0.71	0.04	0	0	0.96	0.29	0.23	-0.12	0.2	-0.79	-0.05	0.27	0	-0.23
+117492 IFRD1 interferon-related developmental regulator 1 Hs.7879 T97762 IFRD1=Interferon-related developmental regulator 1=nerve gro 3475 	0.22	0.3	0.36	0.08	0.13	-0.06	0.18	0.88	0.53	0.31	0.87	0.36	0.44	0.7	0.39	0.04
+117499 CEP4 Cdc42 effector protein 4; binder of Rho GTPases 4 Hs.3903 W32509  23580 	0.41	0.41	0.69	-0.07	0.73	-0.1	-0.35	0.61	0.14	-0.28	2.11	0.96	1.52	0.47	0.34	-0.29
+117502 PELI1 pellino homolog 1 (Drosophila) Hs.7886 W86504  57162 	0.61	0	1.04	-0.32	1.85	0.07	0.82	0.86	0.29	0.91	0.25	0.93	2.05	0.79	1.72	1.92
+117520 PNUTL1 peanut-like 1 (Drosophila) Hs.3847 N92319  5413 	0.42	-0.65	-0.01	-0.32	-0.05	-0.01	-0.39	-0.23	0.02	0.6	-0.75	-0.6	-1.2	0.06	1.26	1.42
+117645 HCS cytochrome c Hs.169248 R63543  54205 	0.4	1.33	0.83	0.5	-0.71	-0.24	0.17	0.11	1.13	0.27	0	-0.02	0.51	0.65	0	-0.08
+117648 OSBPL3 oxysterol binding protein-like 3 Hs.197955 R62222  26031 	0	0.76	1.57	0.53	0.72	0.97	0.25	0.64	0.57	-0.26	-0.93	0.82	-0.04	0.32	0.92	0.02
+117656 APOE apolipoprotein E Hs.169401 AA478589  348 	0	1	0.99	1.8	1.53	0.2	-1.35	2	1.42	0.91	1.07	0.73	-1.28	0.23	0.34	0.11
+117718 MEP50 MEP50 protein Hs.11039 T62509  79084 	-1.99	0.4	-0.33	-0.98	0.18	-0.14	1.72	-0.04	0.99	0.37	0.19	0.34	0.76	0.59	0.62	2.48
+117739 KIAA0008 KIAA0008 gene product Hs.77695 W93568  9787 	-1.39	0.43	0.74	-0.76	-2.02	1.16	-0.47	1.03	0.57	0.7	0.62	0.71	-0.28	1.58	1.24	-1.45
+117761 USP8 ubiquitin specific protease 8 Hs.152818 AA399951  9101 	-1.94	0.09	0.05	-0.01	-0.06	-0.23	0.29	0.33	0.39	0.31	0.08	0.15	0.18	0.67	1.05	0.4
+117784 BAT3 HLA-B associated transcript 3 Hs.274348 AA598629  7917 	-0.13	1.07	0.17	0.26	0.5	0.21	0.68	0.28	-0.4	0.27	-0.26	0.26	0.51	-0.11	-0.05	0.91
+117800 SLPI secretory leukocyte protease inhibitor (antileukoproteinase) Hs.251754 AA026192  6590 	0	0	2.84	1.15	0	2.42	1.07	2.16	-1.97	-2.32	0.51	1.82	-1.51	-0.85	-1.12	1.64
+117811 MMP19 matrix metalloproteinase 19 Hs.154057 AA669222  4327 	0.55	1.22	0.48	1.22	1.34	0.65	0.93	0.07	0.02	-0.33	-1.17	-0.06	-0.16	-0.62	0.07	0.33
+117818  Homo sapiens mRNA; cDNA DKFZp586C1817 (from clone DKFZp586C1817) Hs.42458 AA039594   	-0.19	0.22	0.92	0.41	0.31	0.1	1.26	1.56	0.81	-0.46	-0.53	-0.84	-0.84	0.18	0.67	-0.27
+"117855 CD36L1 CD36 antigen (collagen type I receptor, thrombospondin receptor)-like 1 Hs.180616 AA443899  949 "	-0.06	-1.39	-0.85	-0.07	0.02	-0.02	-0.61	-0.45	0.64	0.53	1.4	0.43	0.56	0.94	2.54	2.93
+"117859 LGALS4 lectin, galactoside-binding, soluble, 4 (galectin 4) Hs.5302 AA130541  3960 "	0.07	0.09	0.44	-0.14	0.4	2.31	1.35	0.91	0.62	-0.43	-1.13	-1.12	-1.37	0.43	-0.91	-1.07
+"117860 UBE2G2 ubiquitin-conjugating enzyme E2G 2 (UBC7 homolog, yeast) Hs.192853 N69044  7327 "	-0.27	0.82	-0.07	-0.15	0.03	0.12	0.98	-0.33	-0.31	0.15	-0.61	0.11	0.66	0.45	2.06	0.79
+117879 SIVA CD27-binding (Siva) protein Hs.112058 AA167728 CD27 Binding Protein=Siva=proapoptotic protein 10572 	-0.21	-0.52	-0.64	-0.31	-0.69	-0.77	-0.19	-0.43	0.08	0.2	0.51	0.14	0.08	1	1.06	1.24
+117885 KIAA0265 KIAA0265 protein Hs.192966 R66158  23008 	0.24	0.68	1.26	0.59	0.02	0.12	1.2	0.67	1.1	-0.38	0.03	-0.96	0.01	0.17	-0.31	0.09
+117909 KIAA1078 KIAA1078 protein Hs.23585 N63447  23271 	-0.25	0.51	0.63	0.9	-0.15	0.61	0.3	0.22	0.27	0	-0.33	0.29	-0.22	0.08	0.01	0.12
+"117930 POU2F1 POU domain, class 2, transcription factor 1 Hs.182237 H38521 Oct-1=Octamer binding transcription factor 1 5451 "	-0.49	0.8	0.16	0.88	0.81	0.33	1.08	-0.5	-0.42	0	-1.12	0.19	-0.85	-0.82	-0.86	0.03
+"117952  **Homo sapiens cDNA: FLJ23037 fis, clone LNG02036, highly similar to HSU68019 Homo sapiens mad protein homolog (hMAD-3) mRNA Hs.288261 W72201   "	0.88	-0.42	0	0.02	0.37	0.36	-0.35	1.11	0.24	0.71	-1.69	-0.19	-1.42	-0.18	-0.53	0.19
+"117975 LAMA5 laminin, alpha 5 Hs.11669 AA459289  3911 "	0.63	1.33	0.66	0.18	0.68	0.36	1.04	1.19	-1.15	-0.43	-0.83	-0.42	-0.15	-0.81	-0.48	0.23
+117983 PICALM phosphatidylinositol binding clathrin assembly protein Hs.7885 AA441930  8301 	-0.11	0.39	-0.32	0.61	0.21	0.23	-0.26	0.32	0.63	0.37	0.44	0.27	0.56	0.72	0.68	0.71
+117994 TOP3A topoisomerase (DNA) III alpha Hs.91175 N21546  7156 	1.96	0.38	0.66	0.81	0.94	1.57	-0.14	-3.31	0.14	-0.35	-1	-1.13	0.02	0.11	0	-0.2
+118044 MDFI MyoD family inhibitor Hs.153203 R44617  4188 	0.01	1.02	0.37	0.24	-0.08	-0.42	0.91	0.16	-0.26	-0.09	0.14	0.13	-0.51	-0.15	0.14	0.32
+"118048 FANCA Fanconi anemia, complementation group A Hs.284153 AA644129  2175 "	0	0.38	0	-0.06	0.43	-0.1	0.07	0.55	0.06	0.29	0.13	0.83	1.02	1.39	1.38	0.72
+118119 MTMR2 myotubularin related protein 2 Hs.181326 AA436164  8898 	-0.64	-1.04	-0.11	-0.28	-0.24	-0.26	0.48	0.67	0	0.13	1.36	1.11	1.98	1.13	1.84	0.93
+118210 TRA1 tumor rejection antigen (gp96) 1 Hs.82689 AA598758  7184 	0.14	0.53	0.5	0.11	-0.06	-0.71	1.72	0.73	-0.17	0.2	-0.43	0.16	0.95	0.22	0.56	0.2
+"118231 HADH2 hydroxyacyl-Coenzyme A dehydrogenase, type II Hs.171280 AA458661  3028 "	-0.98	0.06	-0.31	-0.38	0.37	-0.41	-0.48	0.02	0	0.35	0.23	-0.01	0.31	0.21	0.58	0.6
+118238 IFRD2 interferon-related developmental regulator 2 Hs.315177 AA454813  7866 	-0.21	0.37	0.45	0.19	0.49	-0.31	-0.25	0.48	-0.3	0.21	0	0.42	0.16	0.21	-0.04	-0.14
+118260 U2AF1 U2(RNU2) small nuclear RNA auxillary factor 1 Hs.59271 W90505  7307 	-0.14	1.11	-0.14	-0.17	-0.57	-0.15	0.25	-0.05	0	0.05	0.06	1.11	0.6	0.58	2.01	1
+"118322 SLC1A3 solute carrier family 1 (glial high affinity glutamate transporter), member 3 Hs.75379 AA453742  6507 "	0.86	1.15	-0.19	0.17	1.81	-0.24	0.78	0.12	-0.09	0.85	-0.19	0.95	-0.72	0.17	0	-0.32
+118352 FLJ13195 hypothetical protein FLJ13195 similar to stromal antigen 3 Hs.213392 R08261  64940 	-0.88	0.08	0.43	-0.39	-0.38	-0.14	0.13	-0.22	0.78	-0.14	-1.7	-0.78	-0.26	-0.44	0	-1.01
+118382 DKFZP434L0718 hypothetical protein DKFZp434L0718 Hs.59236 AA437140  84079 	-0.4	0.58	0.35	-0.01	-0.45	-0.06	0.27	0.49	0.43	0.53	0.77	0.61	1.08	0.24	0.66	0.78
+118412 INSR insulin receptor Hs.89695 AA001106  3643 	-0.67	-0.09	-0.38	-0.34	0.16	-0.28	-0.5	-0.37	-0.88	0.34	-0.05	0.03	0.41	-0.21	-0.32	0.82
+"118416 RGL3 **RalGEF-like protein 3, mouse homolog Hs.127826 H15574  57139 "	2.23	3.1	1.63	0.44	0	1.55	0.78	2.34	-0.68	-0.35	-1.99	-0.22	-1.05	-1.32	-1.65	-0.08
+118423 MGC20781 hypothetical protein MGC20781 Hs.237536 AA420965  115024 	0.21	-0.2	0.41	-0.62	0.42	0.64	-0.26	0.26	0.94	0.69	0.05	1.07	-0.3	0.14	0.5	0.79
+"118427 POLE polymerase (DNA directed), epsilon Hs.166846 AA680129  5426 "	0	0	0.85	0.08	0.16	-0.03	0.26	0.87	-0.03	0.37	-0.2	0.96	1.14	1	0.52	0.36
+118480 FLJ10803 hypothetical protein FLJ10803 Hs.8173 AA043091  55744 	0.31	1.48	-0.32	0.1	1.21	0.64	0.2	0.96	0.05	0	-0.45	0.78	0.77	-0.18	-0.23	-0.26
+118511 CTGF connective tissue growth factor Hs.75511 AA044993  1490 	0.18	0.47	1.45	1.94	0	2.22	1.06	0.51	0.45	0.05	-0.26	0.57	0.39	1.09	0.27	0.61
+"118512 ERP70 protein disulfide isomerase related protein (calcium-binding protein, intestinal-related) Hs.93659 N59626  9601 "	0	0.82	0.7	0.1	0.01	-0.36	1.23	0.6	1.03	0.14	0.16	0.65	0.23	0.39	0.29	-1.45
+118529 NDUFS5 NADH dehydrogenase (ubiquinone) Fe-S protein 5 (15kD) (NADH-coenzyme Q reductase) Hs.80595 AA214053  4725 	-1.24	0.75	-0.38	-1.51	0.81	-0.36	-0.22	0.99	0.47	-0.21	0.43	0.41	1.12	0.5	1.4	0.37
+118567 FLJ21128 hypothetical protein FLJ21128 Hs.288389 N51702  80153 	-0.09	0.97	0	-0.28	0.25	0.14	0.09	0.49	0.68	-0.52	-0.03	-0.23	-0.03	0.54	0	0.2
+118586 DGAT2 diacylglycerol O-acyltransferase homolog 2 (mouse) Hs.334305 H25560  84649 	-1.38	-1.07	-0.34	0.22	-0.76	0.58	-0.28	-0.14	0.36	1.52	0.99	-0.34	0.92	1.24	1.85	2
+118587 ETV5 ets variant gene 5 (ets-related molecule) Hs.43697 AA460265  2119 	1.39	2.74	1.58	0.89	1.03	1.44	0.83	0.72	0.55	0.73	0.67	0	0	0.78	1.25	1.62
+118593 TARDBP TAR DNA binding protein Hs.193989 N69283  23435 	-0.24	0.46	0.28	-0.38	-0.23	-0.52	0.45	0.74	-0.06	0.28	-0.2	0.68	0.29	0.45	1.08	0.48
+118618  Homo sapiens mRNA; cDNA DKFZp434B0425 (from clone DKFZp434B0425) Hs.103305 AA010188   	-1	-0.07	0.25	-0.48	-0.62	0.19	1.36	1.42	0.91	0.36	0.03	2.06	0.91	2.35	1.84	-0.34
+118652 PAX8 paired box gene 8 Hs.73149 AA405767  7849 	2.52	3.62	3	2.12	3.83	3.12	3.12	2.55	-1.49	-2.4	-1.72	-1.41	-2.03	-1.2	-4.04	-2.83
+"118656 MBL2 mannose-binding lectin (protein C) 2, soluble (opsonic defect) Hs.2314 T69284  4153 "	0	0	0.43	-0.26	0	0.46	-0.49	0.34	-0.54	0.38	0.44	-0.18	0.96	0.19	0	-0.13
+"118703 SPINT2 serine protease inhibitor, Kunitz type, 2 Hs.31439 AA031287 Placental bikunin=xs97=kop=Kunitz-type protease inhibitor 10653 "	0.47	0.84	-0.31	-1.28	-1.1	-0.59	0.55	1.04	-0.8	-0.23	0.48	1.29	-0.38	-0.48	1.2	-0.29
+118740 HPCA hippocalcin Hs.288654 H18971  3208 	-0.15	0	0.05	0.46	0.16	0.61	0.01	0	0.57	0.05	-0.07	-0.41	-0.41	-0.34	-1.75	0
+118760 TRIM28 tripartite motif-containing 28 Hs.228059 AA663435  10155 	0.36	0.76	0.76	0.2	-0.27	-0.35	0.05	0.77	0.83	0	-0.25	1	-0.11	0.74	-0.97	-0.35
+"118781 ITGB8 integrin, beta 8 Hs.355722 W56709 Integrin beta 8 3696 "	0.59	-0.29	0.89	0.16	0.31	0.47	-0.09	0.55	1.17	-0.01	-0.68	0.63	0	0.37	0.74	0.43
+118827 TRIP6 thyroid hormone receptor interactor 6 Hs.119498 AA485677  7205 	0.91	0.85	0.2	0.87	1.05	0.2	1.16	0.95	-0.52	0.77	0.66	0.42	-0.38	0.23	0.84	0.79
+"118837 SLC2A3 solute carrier family 2 (facilitated glucose transporter), member 3 Hs.7594 AA406551  6515 "	0.43	0.27	0.46	1.2	-0.56	1.2	0.39	0.36	1.67	-0.33	1.15	0.42	-0.14	0.43	-2.66	-0.63
+"118861  Homo sapiens cDNA FLJ30301 fis, clone BRACE2003217 Hs.285728 AA045340   "	-0.23	-0.16	1.16	0.37	0.64	0.07	1.36	1	1.43	-0.51	0.02	0.05	-1.15	0.2	-0.25	0.85
+118863 RICH1 homolog of rat nadrin Hs.14169 AA431716  55114 	0.09	1.17	0.32	0.6	0.63	0.36	-0.34	1.05	-0.27	0.18	-0.17	0.56	0.97	0.42	1.09	0.64
+"118867 CRYAB crystallin, alpha B Hs.1940 AA504891  1410 "	0.79	0.23	-0.77	0.65	1.63	0.85	-2.24	0.27	1.55	0.87	0.82	-0.23	-1.39	0.22	0	3.91
+118930 GPRK6 G protein-coupled receptor kinase 6 Hs.76297 AA291284  2870 	-0.42	0.2	-0.13	-0.47	0.28	0.17	-0.27	0.5	0.13	0.84	0.11	0.23	0.36	0.65	-0.32	-0.05
+"118937 DBY DEAD/H (Asp-Glu-Ala-Asp/His) box polypeptide, Y chromosome Hs.99120 AA447588  8653 "	0	-0.01	0.42	-0.78	-0.99	0.9	-0.19	0.68	0.5	0.12	0.33	-0.22	-0.82	0.41	-0.48	-0.71
+"118956 PPFIA1 protein tyrosine phosphatase, receptor type, f polypeptide (PTPRF), interacting protein (liprin), alpha 1 Hs.183648 N49751  8500 "	-1.06	-0.13	-0.02	-0.43	-0.4	-0.19	0.04	0	0.55	-0.83	-0.7	1.06	-0.37	-0.31	0	0.67
+118966 CTPS CTP synthase Hs.251871 H09613  1503 	0	0	2.22	1.18	0	3.49	1.53	2.18	0.18	0.36	0.2	0.43	0.16	1.03	0.1	-0.86
+"118970 PTPRG protein tyrosine phosphatase, receptor type, G Hs.89627 R38343 R-PTP-gamma=receptor protein tyrosine phosphatase gamma 5793 "	0	1.37	1.69	0.52	0.22	0.83	1.13	1	0.4	-0.56	-1.12	-0.51	-0.71	-0.17	-1.04	-0.38
+"119014 SLC20A1 solute carrier family 20 (phosphate transporter), member 1 Hs.78452 W46972  6574 "	-0.81	-0.3	-0.38	0.11	0.07	0.53	-0.5	-0.05	0.13	-0.35	-0.63	-0.04	-0.82	0.1	-0.43	-1
+119015 BDNF brain-derived neurotrophic factor Hs.56023 AA234298  627 	2.08	1.24	1.33	0.74	1.45	2.09	0.07	-0.12	0.09	-1.3	0	-2.92	-0.39	-0.82	-3.34	-1.9
+"119020  Homo sapiens, clone MGC:20120 IMAGE:3677070, mRNA, complete cds Hs.348490 N89738   "	1.23	0.21	-0.27	-0.38	2.33	0.32	0.49	-0.66	-0.74	0.5	-1.29	-1.56	0.46	0.96	1.97	2.72
+119040 QKI **homolog of mouse quaking QKI (KH domain RNA binding protein) Hs.15020 W16659  9444 	0.29	0.14	0.84	0.2	0.49	0.45	0.96	0.43	-0.66	-0.08	-0.58	0.91	0.46	0.18	0.32	1.37
+"119049 ILF3 interleukin enhancer binding factor 3, 90kD Hs.256583 AA449048  3609 "	-0.95	0.96	0.42	-0.61	-0.1	-0.26	0.41	0.47	-0.07	0.53	-0.41	-0.5	0.82	0.45	1.78	-0.41
+119100 CCNA2 cyclin A2 Hs.85137 AA608568 Cyclin A 890 	-1.52	0.11	-0.04	-0.99	-0.62	0.98	-1.1	0.15	0.98	1.09	1.13	0.25	0.48	1.08	0.99	0.05
+119101 KIAA0335 KIAA0335 gene product Hs.29878 AA406185  9849 	-0.01	-0.43	0.64	0	-0.06	-0.04	0.8	0.64	-0.11	0.39	-0.24	0.76	0.76	0.07	1.38	1.48
+119102 BRAF v-raf murine sarcoma viral oncogene homolog B1 Hs.622 W88566 B-raf Ser/Thr protein kinase 673 	-0.54	0.11	-0.1	0.06	-0.02	0.66	-0.5	0.34	0.73	0.2	0.18	0.36	0.71	0.27	0.35	-0.02
+119139 FLJ11252 hypothetical protein FLJ11252 Hs.23495 N30185  55789 	-0.66	0.56	0.78	-1.83	-1.64	-0.15	-0.31	0.41	-0.06	1.31	0.29	0.97	1.2	0.95	1.59	1.91
+119140 C20orf33 chromosome 20 open reading frame 33 Hs.178576 AA442976  56259 	-0.01	0.24	0.09	0.34	-0.18	-0.23	0.45	0.01	0.88	0	0.39	0.27	0.06	0.25	-0.51	-0.45
+119170 MNT MAX binding protein Hs.25497 AA455508  4335 	0.13	0.4	0.68	0.39	0.78	0.23	0.21	0.33	0.02	-0.34	-0.25	-1.02	-0.53	-0.55	-0.01	-0.21
+119187 SQLE squalene epoxidase Hs.71465 R01118  6713 	-1.73	-0.4	-0.11	-0.08	-1.89	-0.28	0.63	0.29	0.18	0.58	-0.21	0.02	-1.19	-0.53	0.6	-0.72
+119201  ESTs Hs.11860 T71008   	1.06	-0.01	0	1.77	1.43	0.38	1.06	-0.05	-0.32	-1.03	-0.58	-0.86	-0.61	-0.68	-1.73	-0.16
+119205 BMP1 bone morphogenetic protein 1 Hs.1274 R56773  649 	1.63	1.52	0.8	1.93	2.03	1.46	0.43	1.53	-0.08	-0.02	-0.84	-0.03	-1.2	-0.05	-1.05	-0.69
+119241 PDE7A phosphodiesterase 7A Hs.150395 H65033  5150 	0	0.38	0.05	-0.61	0.47	0.89	0.56	0.09	1.16	0.31	1.37	1.68	2.23	0.93	-0.08	0.97
+119285 HMBS hydroxymethylbilane synthase Hs.82609 R06263  3145 	-1.02	-0.2	0.35	0	-0.08	0.56	0.68	0.46	0.42	0.14	-0.42	0.39	0.29	0.19	-2.35	-0.18
+"119334  Homo sapiens cDNA: FLJ23324 fis, clone HEP12482, highly similar to HUMMYOHCB Human nonmuscle myosin heavy chain-B (MYH10) mRNA Hs.296842 AA490477   "	-0.13	0.46	1.64	1.35	1.38	0.96	0.76	0.82	0.86	0.12	-0.37	0.18	0.39	0.09	-0.09	-0.28
+119361 TOMM40 translocase of outer mitochondrial membrane 40 homolog (yeast) Hs.30928 AA443094  10452 	-0.93	-0.38	0.01	-0.25	-0.95	-0.23	0.17	-0.03	0.39	0.76	0.73	0.88	0.98	1.29	0.43	-0.15
+"119366 HTATIP2 HIV-1 Tat interactive protein 2, 30 kD Hs.90753 AA148094 CC3=metastasis suppresor gene for small cell lung carcinoma 10553 "	-0.75	-0.43	-0.44	-0.09	-0.03	0	-1.44	-0.34	0.7	1.15	1.02	0.91	0.88	0.34	0.93	-0.43
+119379 TKT transketolase (Wernicke-Korsakoff syndrome) Hs.89643 AA070357  7086 	0	1.45	0.82	0.95	0.69	2.24	0.59	0.95	0.09	0.27	0.85	-0.44	-0.48	-0.47	-2.9	-1.4
+119383 FGFRL1 fibroblast growth factor receptor-like 1 Hs.193326 AA434090  53834 	1.42	1.19	1.33	0.76	1.86	0.69	2.36	2.11	0.05	-0.89	-0.03	-1.25	-1.47	-0.53	0.95	2.47
+119385 KRT17 keratin 17 Hs.2785 AA026100  3872 	4.08	-0.51	-1.37	0	3.55	-0.34	-0.54	1.77	1.54	0.85	2.87	0.32	-0.49	-0.27	1.5	1.58
+"119405 PPT1 **palmitoyl-protein thioesterase 1 (ceroid-lipofuscinosis, neuronal 1, infantile) Hs.3873 AA034250  5538 "	0.36	1.59	-0.25	0.18	-0.24	-0.01	-0.27	-0.22	-0.1	0.37	0.14	0.18	1.19	0.09	2.01	1.23
+119407 PL6 PL6 protein Hs.91566 AA456583  11070 	-0.03	1.03	0.29	0.22	0.74	0.22	0.08	0.53	-1.17	0.01	-0.71	-0.08	-0.83	-0.46	-1.05	-0.11
+119424  ESTs Hs.323017 N80149   	-0.61	-0.18	0.31	-0.16	-0.15	0.4	-0.26	-0.12	-0.13	0.29	-0.78	0.06	0.46	-0.16	0	-0.06
+"119426 MAGEA10 melanoma antigen, family A, 10 Hs.18048 R23725  4109 "	-0.01	0.61	0.96	-0.16	-0.05	0.58	0.5	0.52	0.02	0.14	-0.58	-0.84	-0.2	0.14	0.05	-0.4
+119476 TXNRD1 thioredoxin reductase 1 Hs.13046 AA453335 Thioredoxin reductase 7296 	0.1	0.75	0.57	0.44	0.03	0.11	-0.1	0.67	-0.55	0.62	-0.26	0.29	0.3	0.12	0.45	-0.21
+119491 QARS glutaminyl-tRNA synthetase Hs.79322 AA634166  5859 	-0.46	0.7	0.46	-0.11	0.79	0.46	0.13	0.32	-0.99	0.56	-0.26	-0.14	0.37	-0.48	-0.49	0.1
+"119538 SLC31A1 solute carrier family 31 (copper transporters), member 1 Hs.73614 AA190729  1317 "	-0.32	-0.28	0.08	0.29	-0.13	-0.5	-0.59	-1.04	0.71	0.3	0.67	-0.55	-1.42	-0.22	-0.57	-1.51
+119573 PCK1 phosphoenolpyruvate carboxykinase 1 (soluble) Hs.1872 AA405731  5105 	0	0	0.3	0.18	0	0.85	-0.37	-0.19	-1.55	0.59	-1.06	-0.39	-0.84	-0.61	-3.65	-0.79
+119580 GAK cyclin G associated kinase Hs.153227 AA428959  2580 	0.13	-0.04	0.16	-0.26	0.42	-0.15	-0.61	0.18	-0.46	0.36	0.09	0.02	0.19	0.21	-1	0.79
+119588 HNRPDL heterogeneous nuclear ribonucleoprotein D-like Hs.170311 AA598578  9987 	0.15	0.41	-0.34	-0.06	0.41	0.05	0.04	0.55	-0.43	0.07	-0.3	0.81	0.64	0.23	0.38	0.79
+119606 LOC96626 pinch-2 Hs.285130 AA460330  96626 	-0.53	1.31	1.2	1.41	0.81	0.12	0	0.82	-0.23	-1.47	-1.76	-0.83	-2.87	-1.83	0	-0.82
+119643 MBIP MBIP protein Hs.16755 W55967  51562 	0.33	0.62	0.69	-0.31	0.3	0.59	1.59	1.46	0.89	0.09	-0.07	0	-0.04	0.3	-0.23	0.57
+"119667 LOC57228 hypothetical protein from clone 643 Hs.206501 T53403 Unknown  UG Hs.110404  Homo sapiens clone 643 unknown mRNA, 57228 "	-0.26	0.08	0.01	-0.4	-0.25	-0.22	-1.27	-0.16	0.04	0.81	1.07	0.84	-0.69	1.01	0.43	0.79
+119678 TACSTD2 tumor-associated calcium signal transducer 2 Hs.23582 AA454810  4070 	0.59	0.46	-0.2	0.32	1.3	-0.22	-0.07	0.31	-0.38	-0.29	0.49	0.32	-0.19	-0.21	-0.42	0.74
+"119711 GOT1 glutamic-oxaloacetic transaminase 1, soluble (aspartate aminotransferase 1) Hs.597 H22855  2805 "	-0.1	0.63	0.59	0.07	0.49	0.04	-0.2	1.08	-0.08	1.49	-0.4	0	0.28	0.45	0.1	-0.66
+119724 MAD MAX dimerization protein Hs.109012 H86197 Mad1=MAD=MAX-binding protein=antagonizer of myc transcriptio 4084 	-0.16	-0.07	0.15	0.22	0.19	0.14	0	0.52	-0.07	0.16	-0.02	0.25	-0.17	0.14	1.09	0.35
+119737 CNAP1 chromosome condensation-related SMC-associated protein 1 Hs.5719 AA668256  9918 	-0.04	0.48	0.55	-0.09	-0.19	-0.33	0.58	0.44	1.06	0.82	0.92	0.95	3.4	1.41	0.06	-0.49
+119778 DYRK1A dual-specificity tyrosine-(Y)-phosphorylation regulated kinase 1A Hs.75842 AA676749  1859 	0.46	0.86	-0.11	-0.39	-0.37	-0.03	0.44	-0.68	-0.04	0.46	0.22	0.68	1.39	0.67	2.43	1.4
+119782 MFNG manic fringe homolog (Drosophila) Hs.31939 H22922  4242 	0.43	-0.09	0	0.34	0.52	0.06	-0.19	-0.86	-0.42	0.2	0.12	-0.49	-0.77	-0.1	0	-0.14
+"119805 CSTF2 cleavage stimulation factor, 3' pre-RNA, subunit 2, 64kD Hs.693 AA291995  1478 "	-0.07	-0.12	-0.3	0.59	0.18	0.82	-0.89	-0.41	0.14	0.34	0.42	0.19	0.41	0.6	-0.38	0.14
+"119821 SLC2A5 solute carrier family 2 (facilitated glucose/fructose transporter), member 5 Hs.33084 H38650  6518 "	-0.46	0.97	0.35	-0.15	-0.48	2.04	-0.04	0.42	0.46	-0.76	0.3	-0.44	-0.79	-0.12	-2.47	-1.61
+119834 LPHH1 latrophilin Hs.24212 W74533  23266 	-0.59	1.57	-0.19	0.35	0.03	0.66	2.74	2.03	2.29	-0.74	0.94	-0.71	-0.41	1.75	0.16	-1.55
+119849 PIG3 quinone oxidoreductase homolog Hs.50649 AA668595 Pig3=p53-inducible gene 9540 	0.74	0.65	1.05	1.16	1.85	0.07	-0.06	0.87	0.26	-0.21	-0.33	0.25	-0.95	0.17	1.28	-0.39
+119851 UBE2C ubiquitin-conjugating enzyme E2C Hs.93002 AA430504  11065 	-1.17	0.76	0.07	-2.37	-2.39	-0.71	-0.73	0.17	0.14	1	0.96	1.38	1.53	0.71	0.58	0.2
+"119864 TGFB2 transforming growth factor, beta 2 Hs.169300 N48082 TGF beta-2 7042 "	-0.39	0.01	0.22	-0.41	1.87	0.71	0.24	-0.04	1.29	0.25	0.07	1.14	-1.15	0.65	4.24	0.05
+119905 CLDN7 claudin 7 Hs.278562 AA487488  1366 	0.26	1.21	0.72	-0.03	0.8	-0.29	-0.3	0.21	-1.21	-0.6	-2.2	-0.53	-0.22	-1.71	-0.67	0.06
+119940 LDLR low density lipoprotein receptor (familial hypercholesterolemia) Hs.213289 AA504461  3949 	-0.27	0.4	0.15	-0.11	0.3	1.16	-0.68	0.5	-1.31	0.2	-0.59	-0.16	-2.79	-1.62	-0.89	-1.78
+"119966 GCA grancalcin, EF-hand calcium binding protein Hs.79381 R19937 grancalcin=EF-hand calcium-binding protein abundant in neutr 25801 "	-0.18	-0.54	0.76	0.29	-0.42	-0.17	0.83	0.82	-0.44	-0.5	-0.02	0.18	-0.2	0.26	-0.34	0.58
+119975 LSR68 lipopolysaccharide specific response-68 protein Hs.103189 R95913  55516 	-0.19	-0.44	0.33	0.27	0.23	-0.04	0.12	0.77	-0.52	0.31	-0.62	-0.27	-0.44	-0.27	0	0.45
+119991 PGM1 phosphoglucomutase 1 Hs.1869 AA488373  5236 	0	1.12	0.06	0.17	1.16	0.56	0.18	0.54	0.58	-0.14	0.92	0.16	-0.84	-0.31	-0.19	1.06
+120013 HSSEXGENE SEX gene Hs.21432 H15445  55558 	0.34	0.47	0.1	-0.36	0.94	-0.01	-0.49	0.6	-0.02	0.76	-0.41	0.21	0.35	0.44	1.22	1.09
+120020 GPS2 G protein pathway suppressor 2 Hs.7301 AA453458  2874 	0.11	0.05	0.53	0.4	0.82	0.47	0.18	0.25	-0.19	-0.46	-0.33	-0.24	-0.31	-0.12	0	0.3
+120021 FLJ10604 hypothetical protein FLJ10604 Hs.26516 N72697  55723 	-0.39	0.6	0	-1.24	-1.38	0.16	-0.71	0.52	0.13	0.67	0.68	1.08	1.23	0.66	0.23	-0.34
+"120063 CDKN2C cyclin-dependent kinase inhibitor 2C (p18, inhibits CDK4) Hs.4854 N72115 p18-INK6=Cyclin-dependent kinase 6 inhibitor 1031 "	-0.65	0.11	1.16	-0.96	1.14	-0.09	-1.17	0.1	0.41	0.46	0.07	0.49	0.04	0.73	1.9	0.57
+"120071  Homo sapiens cDNA: FLJ21460 fis, clone COL04722 Hs.20787 H94058   "	-0.23	0.55	0.09	0.39	0.59	-0.06	-0.03	-0.13	0.24	0.27	0.58	0.65	0.17	0.22	2	1.86
+120086 ADK adenosine kinase Hs.94382 R12473  132 	-0.86	-0.58	-0.32	-0.65	-0.41	0.11	-0.38	-0.29	-0.16	1.75	0.37	0.23	0.32	-0.02	-0.03	-1.21
+120094 PLXNB1 plexin B1 Hs.278311 AA496565  5364 	1.15	1.33	0	1.23	1.28	0.52	1.13	1.68	-1.12	-0.37	-0.62	-0.29	-0.16	-0.65	-0.19	1.23
+"120155 CBFB core-binding factor, beta subunit Hs.179881 AA187148  865 "	0.17	0.76	0.02	0.52	0.33	-0.36	-0.11	-0.18	0.55	0.58	0.92	0.5	0.35	1.26	1.02	1.15
+120161 HSPBP1 hsp70-interacting protein Hs.53066 AA401391  23640 	0.32	1.09	0.13	0.22	-0.04	0.07	0.35	1.06	0.83	0.23	-0.32	0.93	0.42	0.41	0.32	0.34
+120201 TNRC1 trinucleotide repeat containing 1 Hs.103315 AA147043  171017 	-0.35	0.38	0.36	-1.02	0.2	-0.26	0.3	0.35	0.34	-0.31	0.81	0.04	0.09	0.23	0.47	1.01
+120261 MY014 hypothetical protein My014 Hs.67619 N30674  81609 	-0.5	-0.29	0.43	-0.02	-0.04	0.16	0.46	0.22	-0.04	0.74	-0.7	0.71	1.39	0.43	-0.02	0.7
+120288 SE70-2 cutaneous T-cell lymphoma tumor antigen se70-2 Hs.39140 AA164557  64062 	0.31	0.16	-0.08	-0.03	0.24	0.3	0.77	0.33	0.83	-0.37	0.93	-0.27	1.02	-0.11	-0.28	0.12
+120298 PREP prolyl endopeptidase Hs.86978 AA664056  5550 	0.43	0.34	-0.19	0.14	0.02	-0.19	-0.88	0.12	0.75	0.27	0.78	0.25	0.33	1.25	1.26	-0.2
+"120303 CASP9 caspase 9, apoptosis-related cysteine protease Hs.100641 AA281152 CASPASE-9=Mch6=Icelap 6 842 "	0	0.62	0.07	-0.1	0.01	0.22	0.42	0.22	-0.17	-0.42	-0.69	-0.32	-0.59	-0.23	-0.66	0.12
+120314 CENPE centromere protein E (312kD) Hs.75573 AA402431 CENP-E=putative kinetochore motor that accumulates just befo 1062 	-1.33	0.07	0.1	-1.01	-2.55	1.31	-1.89	0.09	0.7	1.33	0.72	0.96	1.1	0.7	1.9	0.21
+120330    T49282   	0.51	1.33	0.33	0	1.04	0.34	0.93	0.27	-0.56	0.53	-0.09	0.81	0.28	-0.68	0.87	0.29
+120356 MADD MAP-kinase activating death domain Hs.82548 AA281945 MADD=DENN=MAP kinase-activating death domain protein 8567 	0	0.7	0.07	0.42	0.6	0.22	-0.25	-0.21	-0.13	0.36	-0.62	0.43	-0.08	-0.2	-0.21	0.31
+120358 HSF2 heat shock transcription factor 2 Hs.158195 AA250730  3298 	1.61	0	-0.02	-0.12	0	1.15	-0.87	0.24	-0.16	0.7	-0.04	0.13	0.91	2.4	0.99	1.26
+120364 SR-BP1 sigma receptor (SR31747 binding protein 1) Hs.24447 W47484  10280 	-0.33	0.38	0.3	0.03	0.1	0	0.24	0.55	-0.09	-0.25	-0.03	-0.06	0.16	0.33	0.48	-0.51
+120369 KIAA0419 KIAA0419 gene product Hs.279912 AA625653  9738 	0	-0.14	0.21	0.08	-0.09	-0.22	0.13	0.16	-0.4	-0.13	-1.03	-0.11	0.26	0.1	0.74	0.32
+"120382 AF3P21 SH3 protein interacting with Nck, 90 kDa Hs.102929 N94372  51517 "	0.93	1.06	0.43	0.05	0.27	0.16	0.79	0.59	-0.67	0.07	-0.35	-0.19	-0.27	-0.11	-0.08	0.56
+120401 PRL prolactin Hs.1905 AA130238  5617 	0.46	0.81	0.07	0.22	0.1	0.47	-0.33	-0.07	-0.06	0.25	-0.46	0.46	0.08	0.31	0.41	0.14
+120403 CFLAR CASP8 and FADD-like apoptosis regulator Hs.195175 AA453766  8837 	0	0.23	-0.19	-0.71	-0.43	0.04	0.3	0.08	0.11	0.49	0.19	0.12	1.14	0.62	0.31	0.47
+"120434  Homo sapiens cDNA FLJ14162 fis, clone NT2RM4002504 Hs.10949 AA457116   "	0.9	1.36	0.45	0.84	0.74	-0.01	0.17	1.22	-0.22	0.55	0.28	1.65	0.19	0.14	0.21	-0.55
+"120452 PCDHGC3 protocadherin gamma subfamily C, 3 Hs.284180 R89615  5098 "	-0.72	0.54	0.15	0.54	0.89	0.35	0.21	0.15	0.99	-0.66	-0.81	-0.91	-0.64	-0.9	0	-0.4
+120520 DOM3Z dom-3 homolog Z (C. elegans) Hs.153299 AA004835  1797 	-0.32	0.31	0.1	-0.04	0.32	0.04	0.77	1.6	0.01	-0.22	-0.38	0.43	0.27	0.3	-0.3	0.87
+"120534  ESTs, Moderately similar to RDHUD dihydrofolate reductase [H.sapiens] Hs.374327 N52980   "	-0.28	-0.44	0.96	-0.74	-0.33	-0.09	-0.61	0.18	-0.12	0.77	-0.34	-1.02	0.62	0.45	0.29	-1.28
+120536 PWP1 nuclear phosphoprotein similar to S. cerevisiae PWP1 Hs.172589 AA485992  11137 	0.12	0.08	0.33	0.34	-0.28	-0.07	0.27	-0.11	0.29	0.26	-0.1	0	0	1.02	-0.15	0.55
+120566 BACE2 beta-site APP-cleaving enzyme 2 Hs.271411 AA457119  25825 	0.28	1.52	-0.34	0	0.04	0.14	0.23	-0.25	0.59	-0.33	1.03	0.42	-0.63	1.18	2.26	-0.46
+"120603 NFKBIA nuclear factor of kappa light polypeptide gene enhancer in B-cells inhibitor, alpha Hs.81328 W55872 IkB alpha 4792 "	-1.38	-0.25	0.14	-1.09	0.04	-0.41	-0.5	1.1	-1.39	-0.03	0.04	-0.3	1.22	-0.27	-0.53	-0.17
+120605 KIAA0290 KIAA0290 protein Hs.96485 AA400186  23149 	1.61	1.5	0.16	0.47	0	1	0.2	0	-0.05	-0.02	-1.46	0.39	0.46	-0.04	-1.13	-0.39
+120609 NRD1 nardilysin (N-arginine dibasic convertase) Hs.4099 AA630302  4898 	-0.92	0.19	-0.2	-0.33	0.46	-0.07	-0.03	0.58	0.17	0.61	0.63	1.12	1	0.63	1.61	0.48
+433367  *mitoch. cont. uncharacterized bone marrow protein BM029     	-0.26	0.32	-0.72	0.14	-0.28	0.23	0.71	-0.28	-0.51	-0.33	-0.13	0.09	-1.02	0.39	0.39	0.34
+"98342 CDK5R1 cyclin-dependent kinase 5, regulatory subunit 1 (p35) Hs.93597 AA442853 Cyclin-dependent kinase 5, regulatory subunit 8851 "	-0.97	-0.09	0.46	1.85	-0.02	1.83	1.28	1.35	-1.62	-0.02	-0.76	-0.15	-0.75	-0.55	-0.99	-0.18
+"98362 CD8B1 CD8 antigen, beta polypeptide 1 (p37) Hs.2299 AA291562  926 "	0.51	-0.31	0.44	-0.75	0.48	1.41	-0.12	-0.18	0.23	-0.92	-0.26	0.03	-0.85	1.54	-0.88	-0.45
+98366 RANBP6 RAN binding protein 6 Hs.167496 AA489790  26953 	0.38	-0.15	0.4	0.06	0.59	-0.36	-0.4	0.01	-0.36	-0.76	0.74	0	0.74	0.8	0.67	0.23
+98374 EFNB2 ephrin-B2 Hs.30942 AA461108  1948 	1.35	2.02	1.21	0.89	1.4	0.82	1.64	0.84	0.39	-0.94	0.37	-0.4	-0.08	-0.42	-0.65	-0.66
+98405 GPM6B glycoprotein M6B Hs.5422 AA284329  2824 	-0.29	1.36	0.18	0.67	-0.26	0.03	0.24	0.33	0.25	0.83	-0.06	-0.42	-0.38	0.71	1.73	0.5
+98446 FLJ20580 hypothetical protein FLJ20580 Hs.146861 AA455374  54987 	-0.43	0.8	0.01	-0.12	0.18	0.11	0.46	0.34	0.03	0.22	-0.15	0.08	0.13	-0.11	0.84	1.17
+"98447 SSR4 signal sequence receptor, delta (translocon-associated protein delta) Hs.102135 AA486260  6748 "	-0.57	-0.51	-0.18	0.3	0.02	-0.69	-0.56	0.26	-0.18	0.02	-0.33	0.48	1.3	-0.01	0.85	0.03
+98450 ARVCF armadillo repeat gene deletes in velocardiofacial syndrome Hs.171900 H17198  421 	0.26	0.54	-0.26	-0.79	0	-0.22	0.19	-0.24	0.15	-1.57	-0.06	-1.14	-0.92	-1.18	0.76	-0.98
+"98451 ITPKB inositol 1,4,5-trisphosphate 3-kinase B Hs.78877 R94152  3707 "	0	0.48	-0.11	0.22	-0.05	-0.09	0	-0.53	-0.01	0.33	-0.38	-0.52	0.94	0.24	3.53	3.44
+"98491 DGKA diacylglycerol kinase, alpha (80kD) Hs.172690 AA456830 Diacylglycerol kinase alpha (80kD) 1606 "	1.83	-0.51	0.04	0.73	2.51	0.94	-0.44	0.58	-0.22	0.77	-0.71	0.25	-0.35	0.37	0	1.21
+"98493 TMSNB thymosin, beta, identified in neuroblastoma cells Hs.56145 N91887  11013 "	0	0	-0.34	-0.44	0	-0.42	-1.81	-1.03	1.98	-0.41	0.53	-0.67	1.39	1.57	0.94	0.62
+98494 S100A2 S100 calcium binding protein A2 Hs.38991 AA458884  6273 	2.08	0	0.02	0	4.3	1.35	-0.56	2.1	0.52	0.09	0.41	0.04	0.88	-0.13	-1.55	0.22
+98495 HSU53209 transformer-2 alpha (htra-2 alpha) Hs.24937 R09690  29896 	-0.36	0.35	0.7	0.16	-0.22	0.03	0.09	0.05	0.83	-0.27	-0.38	1.27	0.26	0.46	-1.69	-0.16
+98509    T51856   	-0.3	-0.06	0.38	-1.37	-0.15	0.32	-0.32	1.18	0.37	0.32	-0.16	0.37	0	-0.16	0	-0.04
+98539 FLJ20425 hypothetical protein FLJ20425 Hs.71040 AA063624  55646 	-0.39	-0.63	0.62	-0.09	0	0.33	0.06	0.05	0.39	0.91	0.48	0.3	0.15	0.4	0	0.25
+98567 RIN1 ras inhibitor Hs.1030 AA291556  9610 	1.27	0.15	1	0.54	2.27	0.49	-0.3	0.04	-0.17	-0.03	-1.41	-0.35	0.65	0.33	0	-0.6
+98569 AF311304 **hypothetical protein AF311304 Hs.300624 W88792  81927 	-0.54	0.44	-0.09	-0.33	0.04	-0.25	0.18	1.02	-0.07	0.48	-0.18	0.83	0.39	0.32	0.69	0.8
+98586 PLAGL1 pleiomorphic adenoma gene-like 1 Hs.75825 AA463204  5325 	0.26	0.23	-0.34	-0.25	0.21	0.29	-0.26	1.21	1.04	0	0.9	1.31	0.49	0.52	0.13	-1.73
+"98650 CPSF1 cleavage and polyadenylation specific factor 1, 160kD subunit Hs.83727 N92864  29894 "	-0.3	0.09	-0.13	-0.26	-0.4	-0.38	-0.25	0.23	0.64	0.02	0.19	0.59	0.35	0.25	0	0.64
+"98677  ESTs, Weakly similar to T16534 hypothetical protein K02F3.10 - Caenorhabditis elegans [C.elegans] Hs.17947 W87633   "	-4.17	0.68	0.06	-0.47	-0.54	0.26	-0.1	0.42	1.39	0.32	-0.53	-0.59	0	0.55	-0.1	0.18
+"98698  Homo sapiens cDNA FLJ31775 fis, clone NT2RI2008115 Hs.349227 AI304356   "	1.35	1.11	0	0.71	1.27	0.49	-0.46	-0.15	-0.47	0.22	0.13	0.27	-0.12	0.19	2.19	2.33
+98740 PCOLN3 procollagen (type III) N-endopeptidase Hs.183138 H98666  5119 	-0.45	0.36	1.73	0.15	0.16	-0.11	-0.23	0.28	0.12	0.03	0.05	-0.01	1.19	0.48	0.33	-0.18
+98747 ZNF148 zinc finger protein 148 (pHZ-52) Hs.112180 N26148  7707 	0.22	0.23	0.26	-0.45	0.13	-0.27	0.62	-0.07	0.25	-0.79	0.42	-0.78	-0.77	-0.29	-0.07	-0.78
+"98751  **ESTs, Moderately similar to WW domain binding protein-2 [H.sapiens] Hs.355830 T71990   "	0.36	0.73	-0.41	0.79	0.05	-0.24	-0.84	0.21	0.32	0.29	0.1	0.39	-0.28	0.5	0.98	1.8
+98753 MAP2K2 mitogen-activated protein kinase kinase 2 Hs.72241 AA425826  5605 	0.34	0.25	0.61	0.21	0.83	-0.29	-0.36	-0.24	-0.76	0.25	0.25	0.97	0.09	-0.35	-0.85	-0.04
+98780 CHEK1 CHK1 checkpoint homolog (S. pombe) Hs.20295 N53057 CHK1=Ser/Thr kinase=DNA damage checkpoint protein which bloc 1111 	-0.51	0.34	1.27	-0.66	-1.02	0.45	0.46	0.87	1.27	0.9	-0.09	0.61	0.54	1.3	0.23	-0.2
+98808  ESTs Hs.35962 W90323   	-1.41	-0.26	-0.73	-0.45	-1.37	0.11	-1.77	-0.15	0.6	0.35	1.42	1.2	0.88	1.78	0.7	-0.12
+98820 EPAC Rap1 guanine-nucleotide-exchange factor directly activated by cAMP Hs.8578 AA453497  10411 	1.98	2.26	1.44	0.24	1.82	1.54	-0.01	1.37	-2.33	-0.6	-2.6	-1.88	-3	-1.53	0	-1.65
+98822 IL24 interleukin 24 Hs.315463 AA281635 MDA-7=melanoma differentiation-associated 7=anti-proliferati 11009 	1.35	0.67	-0.43	0.49	0.68	0.72	-0.78	-0.44	-0.55	0	-0.85	-0.51	-0.45	-0.37	0	0.04
+98826 TYK2 tyrosine kinase 2 Hs.75516 AA482128 tyk2=non-receptor protein tyrosine kinase 7297 	-0.07	0.55	0.24	0.09	1.11	0.56	-0.86	-0.27	-0.67	0.16	-0.82	0.91	1.45	0.35	-0.38	0.77
+98897 LMO7 LIM domain only 7 Hs.5978 AA005111  4008 	3.07	1.79	1.04	0.96	0.88	1.18	0.42	2.36	0.35	-0.49	0.14	-0.27	-0.09	-0.46	0.17	-1.47
+"98916 ENO2 enolase 2, (gamma, neuronal) Hs.146580 AA450123  2026 "	2.77	2.57	0.71	1.17	0.15	0.41	0	0	0.83	0.17	0.4	0.4	0.53	-0.83	-1.54	-0.15
+"98950 SFRS6 splicing factor, arginine/serine-rich 6 Hs.6891 AA169645  6431 "	0.53	0.48	0.3	-0.18	0.75	0.29	0.23	0.19	-0.1	0.32	-0.31	0.49	1.33	0.33	0.97	1.08
+98982 STK15 **serine/threonine kinase 15 Hs.250822 R11407  8465 	-1.22	-0.19	0.18	-0.86	-1.82	-1.09	0.2	-0.17	1.14	0.81	0.22	0.55	-0.4	0.26	0.24	-0.47
+99037 DLC1 deleted in liver cancer 1 Hs.8700 AA679864  10395 	-0.39	-0.2	0.16	-0.96	-0.02	-0.52	0.16	0.49	0.69	-0.13	-0.81	1.6	0.6	0.86	0.53	1.24
+99053 CPA4 carboxypeptidase A4 Hs.93764 AA016234  51200 	0.19	-0.19	0	0.67	1.28	0.2	-0.34	-0.04	-0.37	1.63	0.98	2.05	0.28	-0.2	0	-0.58
+99055 MGC4618 hypothetical protein MGC4618 Hs.89072 AA025631  84286 	1.41	-0.19	-0.16	-0.7	0.9	0.66	-0.69	0.31	-0.46	0.14	0.07	0.13	0.72	0.12	-0.25	0.39
+"99056 PIGS phosphatidylinositol glycan, class S Hs.347950 AA401285  94005 "	0.96	0.52	0.94	0	0.33	0.62	0.08	0.61	-0.02	0.11	-0.62	-0.78	0.79	0.25	-0.28	1.89
+99117 LOC55862 uncharacterized hypothalamus protein HCDASE Hs.239218 R65792  55862 	-0.22	-0.41	0.01	-0.46	0.19	-0.3	-1.48	0.82	1.54	0.01	1.44	0.97	0.39	0.9	0.85	0.14
+99220 GPR37 G protein-coupled receptor 37 (endothelin receptor type B-like) Hs.355780 R52852  2861 	0.46	0.25	0.47	0.2	0.4	-0.42	0.58	-0.5	0.79	0.85	-0.68	0	0	-0.15	0.25	0.54
+99223 GATA6 GATA binding protein 6 Hs.50924 H77651  2627 	-0.69	1.08	-0.06	0.91	0.26	0.81	1.4	1.23	-0.6	-0.1	-0.44	-0.2	1.23	-0.26	0.77	-1.16
+99254 ANXA1 annexin A1 Hs.78225 H63077  301 	0	1.27	1.31	1.93	1.78	0.15	-1.42	2.36	1.42	0.95	0.57	1.05	-1.84	0.18	0.13	0.36
+99272 RPL27A ribosomal protein L27a Hs.76064 AA446013  6157 	-0.61	0.37	0.5	0	0.57	0.03	0.5	0.21	0.05	-0.42	0.12	-0.31	-0.8	-0.51	0	-0.81
+"99358 GLDC glycine dehydrogenase (decarboxylating; glycine decarboxylase, glycine cleavage system protein P) Hs.27 N58494  2731 "	0.97	1.88	1.1	0.32	0.59	0.64	-0.15	0.53	0.3	0.34	0.29	-0.47	0.56	0.59	0.19	-0.04
+99392 CDC20 CDC20 cell division cycle 20 homolog (S. cerevisiae) Hs.82906 AA598776 p55CDC 991 	0	1.09	-0.86	-1.12	-1.32	-0.21	-0.92	0.31	0.68	0.75	1.16	0.91	1.12	1.21	1.53	-0.42
+"99400 DCTN1 dynactin 1 (p150, glued homolog, Drosophila) Hs.74617 AA488168  1639 "	-0.07	1.24	0.48	-0.69	1.08	-0.02	-0.07	-0.11	-0.23	0.27	-0.44	0.27	-0.2	-0.09	0.69	1.07
+99448 KRT7 keratin 7 Hs.23881 AA485959  3855 	1.96	-0.64	0.33	0.87	2.23	-0.22	-0.43	0.87	-1.26	0.55	0.9	1.14	-0.47	-0.4	-0.62	1.31
+99474    H80335   	-1.76	-0.86	0.48	2.92	2.97	2.2	-2.62	0.76	-2.11	0.76	-0.48	0.67	-0.11	-0.23	-2.61	-0.54
+"99512 PHKA2 phosphorylase kinase, alpha 2 (liver) Hs.54941 AA677340  5256 "	0.35	0.53	0.55	0.12	0.85	-0.02	0.28	1.06	0.07	-0.4	-1.12	0.02	-0.14	-0.28	0.59	1.1
+99529 YKT6 SNARE protein Hs.296244 AA457731  10652 	-0.61	0.18	-0.03	0.04	0.03	-0.21	-0.28	0.16	1.18	0.12	0.55	0.11	-1.17	0.21	-0.32	-0.54
+"99530 PCCA propionyl Coenzyme A carboxylase, alpha polypeptide Hs.80741 AA608575  5095 "	0.13	0.67	0.16	0.72	0.53	0.28	0.33	0	-0.46	0.04	-0.33	-0.21	0.29	-0.47	-0.65	-0.09
+99532 KIAA0225 KIAA0225 protein Hs.84790 AA600190  23165 	-0.22	0.24	0.3	-0.31	0	-0.25	0.36	1.16	0.47	0.75	0.17	0.96	0.93	1.43	2.03	0.57
+99548 NXN nucleoredoxin 1 Hs.374534 T64216  64359 	1.3	1.54	2.07	0.9	1.85	0.64	0.13	0.09	0.75	-0.06	-1.47	0.2	-0.03	0	0	0.48
+99574 ZNF258 zinc finger protein 258 Hs.301637 AA280676 Similar to KIAA0425=contains Cys-rich domain 9204 	-0.08	0.28	0.35	0.31	0.19	0.49	-0.11	0.03	0.23	0.1	0.36	-0.14	-0.01	-0.19	0.06	-0.11
+99597 IFIT1 **interferon-induced protein with tetratricopeptide repeats 1 Hs.20315 AA157787  3434 	0.27	-0.17	1	0.02	-0.94	-0.18	0.38	1.34	-0.25	0.34	-0.01	0.28	1.67	1.04	0	0.32
+99619 JUND jun D proto-oncogene Hs.2780 AA418670  3727 	0.14	-0.41	0.09	0.23	0.3	0.63	0.55	0.15	-1.45	-0.01	-0.08	0.29	-0.56	-0.44	-0.6	-0.04
+99629 GAS6 growth arrest-specific 6 Hs.78501 AA461110  2621 	1.51	1.46	0.36	1.17	2.29	1.6	1.21	1.63	-0.86	-0.58	-0.48	-0.69	-0.61	-0.87	-0.6	-0.65
+99632 KIAA0220 **KIAA0220 protein Hs.110613 T94293  23117 	0.23	1.09	1.11	0.26	1.03	0.77	0.34	0.72	-1.13	-0.14	-0.53	0.1	0.83	0.21	0.72	0.76
+99658 MGC2654 hypothetical protein MGC2654 Hs.165428 AA442970  79091 	0.29	0.49	0.3	0.31	-0.09	1.39	0.5	-0.26	-0.04	0	-0.9	0.2	-0.6	0	-0.36	0.14
+99663 RES4-22 gene with multiple splice variants near HD locus on 4p16.3 Hs.325987 AA150741  8603 	-0.17	0.07	0.64	-0.02	0.29	0.38	0.15	0.05	-0.05	0	0.73	-0.5	-0.25	0.12	-1.11	0.41
+"99680  Homo sapiens, Similar to RIKEN cDNA 2010317E24 gene, clone IMAGE:3502019, mRNA, partial cds Hs.19322 AA088457   "	1.02	0.07	1.03	0.02	-0.47	0.34	1.1	0.84	0.2	1.07	0.51	0.87	1.61	-0.06	1.6	-0.36
+99683 FLJ10193 hypothetical protein FLJ10193 Hs.235195 H29512  55090 	0	-0.21	0.69	0.56	0.38	0.06	0.04	-0.29	0.39	-0.41	0.04	-0.61	0.71	0.09	0	0.48
+99709 PDCD5 programmed cell death 5 Hs.166468 AA156940  9141 	0.12	0.37	0.52	-0.07	0.82	-0.17	0.09	0.82	0.06	0.23	0.58	0.38	0.15	-0.05	0	1.17
+99722 HIBCH 3-hydroxyisobutyryl-Coenzyme A hydrolase Hs.236642 AA521228  26275 	-0.96	-0.07	0.16	-0.03	-0.2	0.01	0.59	0.29	0	0	-2.75	0.23	0.27	0.43	0	-0.02
+99724 GYG glycogenin Hs.174071 AA411678  2992 	-0.88	0.11	-0.38	0.03	-0.28	0	-1.58	-0.98	-0.39	0.6	0.71	1.01	1.55	0.68	0.92	0.18
+99752 LOC57209 Kruppel-type zinc finger protein Hs.25275 N50827  57209 	0.69	0.02	-0.37	0.44	1.73	0.17	-0.01	-0.09	-0.35	-0.26	0.15	-0.35	-0.34	0.14	1.58	1.75
+99780 CLGN calmegin Hs.86368 AA778675 Calmegin=putative testis-specific chaperon 1047 	-1.42	-0.19	-0.36	-1.06	-1.11	-0.59	-0.06	1.08	-0.61	0.32	-2.05	-1.56	0.09	-0.06	-0.07	-0.4
+99809 HDAC3 histone deacetylase 3 Hs.356442 H79778 HD3=histone deacetylase 3 8841 	0.18	0.45	0.18	-0.08	-0.05	-0.47	0.35	0.04	0.27	0.69	0.11	0.63	0.4	-0.41	-0.6	-0.11
+"99827 GJB1 gap junction protein, beta 1, 32kD (connexin 32, Charcot-Marie-Tooth neuropathy, X-linked) Hs.333303 N62394  2705 "	1.24	1.35	2.52	0.89	0	0.59	1.35	0.2	0.85	2.07	-6.72	-2.32	-4.18	-0.82	0	-1.42
+"99834 PLOD2 procollagen-lysine, 2-oxoglutarate 5-dioxygenase (lysine hydroxylase) 2 Hs.41270 H99816  5352 "	-0.32	0.77	0	1.49	0.46	0.94	0.06	1.29	0.47	0.44	0.42	0.9	-0.63	0.12	1.85	1.27
+99852 RRBP1 ribosome binding protein 1 homolog 180kD (dog) Hs.98614 AA464540  6238 	-0.18	1.34	0.96	0.92	0	0.34	0.47	0.88	-0.08	0.22	-0.47	-0.71	-0.88	0.47	0.59	0.73
+99878  Homo sapiens mRNA full length insert cDNA clone EUROIMAGE 1977059 Hs.351928 AA029415   	0.45	0.91	0.23	0.85	0.62	0.13	0.09	-0.09	0.92	0.08	0.66	0.09	1.36	0.97	0.7	0.8
+"99891  Homo sapiens cDNA: FLJ23269 fis, clone COL09533 Hs.4190 W86537   "	-0.82	-0.25	1.11	-0.3	0.28	0.71	0.16	0.92	0.48	0	0.09	0.43	-0.33	0.13	0.14	-0.37
+99894 HSPC216 hypothetical protein HSPC216 Hs.13525 T87341  51530 	-1.74	-0.03	0.55	-0.33	-2.16	0.95	0.37	0	1.6	0.72	0.03	-0.39	0.66	0.44	1.08	-1.84
+"99906 SERPINE1 serine (or cysteine) proteinase inhibitor, clade E (nexin, plasminogen activator inhibitor type 1), member 1 Hs.82085 N54794  5054 "	0	0	1.06	1.63	-0.27	1.93	-1.08	1.27	0.55	-0.23	-0.49	-0.53	-1.39	-0.48	0.06	-0.63
+99931 EML4 echinoderm microtubule associated protein like 4 Hs.333555 AA122021  27436 	1.02	0.58	0.67	0.48	0.9	0.15	0.54	1.24	1.13	1.27	1.04	0.77	0.98	1.46	0.5	1.8
+99935  Homo sapiens mRNA; cDNA DKFZp586I1420 (from clone DKFZp586I1420); partial cds Hs.112423 R09815   	-0.16	0.21	0.09	-0.61	0.44	0.32	-0.46	0.13	-0.13	0.07	0.41	0.7	0.44	-0.22	1.09	0.4
+99977  ESTs Hs.356487 AA131466   	-0.38	1.09	1.55	0.62	0.25	1.26	0.49	0.64	-0.55	-1.29	-0.8	-0.76	-0.54	0.28	-0.23	-1.21
+99981 FOSB FBJ murine osteosarcoma viral oncogene homolog B Hs.75678 T61948 FosB=G0S3 2354 	-0.83	-0.2	0.7	1.22	-0.3	1.59	0.93	0.51	-1.15	-0.44	-1.64	0.49	-0.97	-0.4	-0.11	0.24
