@@ -756,6 +756,7 @@ def test_createDataFrame_with_given_schema_time(session):
     assert df.collect() == data
 
 
+@pytest.mark.skipif(IS_WINDOWS, reason="TemporaryDirectory() returns short-named path")
 def test_show_collect_with_misc_commands(session, resources_path):
     object_name = Utils.random_name()
     stage_name = Utils.random_stage_name()
@@ -772,7 +773,7 @@ def test_show_collect_with_misc_commands(session, resources_path):
         misc_commands = [
             f"create or replace temp stage {stage_name}",
             f"put file://{escaped_filepath} @{stage_name}",
-            f"get @{stage_name} \"file://{escaped_temp_dir}\"",
+            f"get @{stage_name} file://{escaped_temp_dir}",
             f"list @{stage_name}",
             f"remove @{stage_name}",
             f"remove @{stage_name}",  # second REMOVE returns 0 rows.
