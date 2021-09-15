@@ -6,7 +6,7 @@ import re
 import tempfile
 from datetime import datetime
 from decimal import Decimal
-from test.utils import TestData, TestFiles, Utils
+from test.utils import IS_WINDOWS, TestData, TestFiles, Utils
 
 import pytest
 
@@ -756,6 +756,7 @@ def test_createDataFrame_with_given_schema_time(session):
     assert df.collect() == data
 
 
+@pytest.mark.skipif(IS_WINDOWS, reason="TemporaryDirectory() returns short-named path")
 def test_show_collect_with_misc_commands(session, resources_path):
     object_name = Utils.random_name()
     stage_name = Utils.random_stage_name()
@@ -813,7 +814,9 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
     df = session.createDataFrame(data, schema)
     assert (
         str(df.schema)
-        == "StructType[StructField(ARRAY, ArrayType[String], Nullable=True), StructField(MAP, MapType[String,String], Nullable=True), StructField(VARIANT, Variant, Nullable=True)]"
+        == "StructType[StructField(ARRAY, ArrayType[String], Nullable=True), "
+        "StructField(MAP, MapType[String,String], Nullable=True), "
+        "StructField(VARIANT, Variant, Nullable=True)]"
     )
     df.show()
     expected = [
@@ -901,8 +904,9 @@ def test_createDataFrame_with_schema_inference(session):
 def test_create_nullable_dataframe_with_schema_inference(session):
     df = session.createDataFrame([(1, 1, None), (2, 3, True)]).toDF("a", "b", "c")
     assert (
-        str(df.schema)
-        == "StructType[StructField(A, Long, Nullable=False), StructField(B, Long, Nullable=False), StructField(C, Boolean, Nullable=True)]"
+        str(df.schema) == "StructType[StructField(A, Long, Nullable=False), "
+        "StructField(B, Long, Nullable=False), "
+        "StructField(C, Boolean, Nullable=True)]"
     )
     Utils.check_answer(df, [Row(1, 1, None), Row(2, 3, True)])
 
@@ -1253,13 +1257,3 @@ def test_groupby_string_with_array_args(session):
     Utils.check_answer(
         df.groupBy(["country", "state"]).agg(sum(col("value"))), expected
     )
-
-
-def test_variant_in_array_and_dict(session):
-    df = session.createDataFrame(
-        [Row([1, "\"'"], {"a": "\"'"})],
-        schema=StructType(
-            [StructField("col1", VariantType()), StructField("col2", VariantType())]
-        ),
-    )
-    assert df.collect() == [Row('[\n  1,\n  "\\"\'"\n]', '{\n  "a": "\\"\'"\n}')]
