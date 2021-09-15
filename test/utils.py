@@ -7,9 +7,12 @@ import functools
 import os
 import platform
 import random
+import tempfile
 import uuid
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
+
+from typing.io import IO
 
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
@@ -23,6 +26,13 @@ IS_UNIX = IS_LINUX or IS_MACOS
 
 
 class Utils:
+    @staticmethod
+    def escape_path(path):
+        if IS_WINDOWS:
+            return path.replace('\\', '\\\\')
+        else:
+            return path
+
     @staticmethod
     def random_name() -> str:
         return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_")).upper()

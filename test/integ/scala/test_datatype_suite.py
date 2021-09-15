@@ -31,35 +31,34 @@ from snowflake.snowpark.types.sf_types import (
 )
 
 
-def test_verify_datatypes_reference(session_cnx):
-    with session_cnx() as session:
-        schema = StructType(
-            [
-                StructField("var", VariantType()),
-                StructField("geo", GeographyType()),
-                StructField("date", DateType()),
-                StructField("time", TimeType()),
-                StructField("timestamp", TimestampType()),
-                StructField("string", StringType()),
-                StructField("boolean", BooleanType()),
-                StructField("binary", BinaryType()),
-                StructField("byte", ByteType()),
-                StructField("short", ShortType()),
-                StructField("int", IntegerType()),
-                StructField("long", LongType()),
-                StructField("float", FloatType()),
-                StructField("double", DoubleType()),
-                StructField("decimal", DecimalType(10, 2)),
-                StructField("array", ArrayType(IntegerType())),
-                StructField("map", MapType(ByteType(), TimeType())),
-            ]
-        )
+def test_verify_datatypes_reference(session):
+    schema = StructType(
+        [
+            StructField("var", VariantType()),
+            #StructField("geo", GeographyType()),
+            StructField("date", DateType()),
+            StructField("time", TimeType()),
+            StructField("timestamp", TimestampType()),
+            StructField("string", StringType()),
+            StructField("boolean", BooleanType()),
+            StructField("binary", BinaryType()),
+            StructField("byte", ByteType()),
+            StructField("short", ShortType()),
+            StructField("int", IntegerType()),
+            StructField("long", LongType()),
+            StructField("float", FloatType()),
+            StructField("double", DoubleType()),
+            StructField("decimal", DecimalType(10, 2)),
+            StructField("array", ArrayType(IntegerType())),
+            StructField("map", MapType(ByteType(), TimeType())),
+        ]
+    )
 
     df = session.createDataFrame(
         [
             [
                 None,
-                None,
+                #None,
                 None,
                 None,
                 None,
@@ -82,7 +81,7 @@ def test_verify_datatypes_reference(session_cnx):
 
     assert (
         str(df.schema.fields) == "[StructField(VAR, Variant, Nullable=True), "
-        "StructField(GEO, String, Nullable=True), "
+        # "StructField(GEO, String, Nullable=True), "
         "StructField(DATE, Date, Nullable=True), "
         "StructField(TIME, Time, Nullable=True), "
         "StructField(TIMESTAMP, Timestamp, Nullable=True), "
@@ -101,19 +100,18 @@ def test_verify_datatypes_reference(session_cnx):
     )
 
 
-def test_verify_datatypes_reference(session_cnx):
-    with session_cnx() as session:
-        d1 = DecimalType(2, 1)
-        d2 = DecimalType(2, 1)
-        assert d1 == d2
+def test_verify_datatypes_reference2(session):
+    d1 = DecimalType(2, 1)
+    d2 = DecimalType(2, 1)
+    assert d1 == d2
 
-        df = session.range(1).select(
-            lit(0.05).cast(DecimalType(5, 2)).as_("a"),
-            lit(0.07).cast(DecimalType(7, 2)).as_("b"),
-        )
+    df = session.range(1).select(
+        lit(0.05).cast(DecimalType(5, 2)).as_("a"),
+        lit(0.07).cast(DecimalType(7, 2)).as_("b"),
+    )
 
-        assert df.collect() == [Row(Decimal("0.05"), Decimal("0.07"))]
-        assert (
-            str(df.schema.fields)
-            == "[StructField(A, Decimal(5,2), Nullable=False), StructField(B, Decimal(7,2), Nullable=False)]"
-        )
+    assert df.collect() == [Row(Decimal("0.05"), Decimal("0.07"))]
+    assert (
+        str(df.schema.fields)
+        == "[StructField(A, Decimal(5,2), Nullable=False), StructField(B, Decimal(7,2), Nullable=False)]"
+    )
