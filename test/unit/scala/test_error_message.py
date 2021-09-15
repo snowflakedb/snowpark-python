@@ -307,7 +307,7 @@ def test_misc_cannot_find_current_db_or_schema():
         ex.message
         == f"The {v1} is not set for the current session. To set this, either run "
         f'session.sql("USE {v2}").collect() or set the {v3} connection property in '
-        f"the Map or properties file that you specify when creating a session."
+        f"the dict or properties file that you specify when creating a session."
     )
 
 

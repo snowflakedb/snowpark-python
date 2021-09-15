@@ -559,8 +559,8 @@ class Session(metaclass=_SessionMeta):
                 elif type(data_type) == VariantType:
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
-                    raise SnowparkClientExceptionMessages.MISC_CANNOT_CAST_VALUE(
-                        type(value), value, str(data_type)
+                    raise TypeError(
+                        f"Cannot cast {type(value)}({value}) to {str(data_type)}."
                     )
             converted.append(Row(*converted_row))
 
