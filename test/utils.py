@@ -7,11 +7,9 @@ import functools
 import os
 import platform
 import random
-import tempfile
 import uuid
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
-from typing.io import IO
 
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
