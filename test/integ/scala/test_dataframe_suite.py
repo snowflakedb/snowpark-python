@@ -767,14 +767,12 @@ def test_show_collect_with_misc_commands(session, resources_path):
         canonical_dir_path = os.path.normpath(temp_dir)
         if not canonical_dir_path.endswith(os.path.sep):
             canonical_dir_path += os.path.sep
-        if IS_WINDOWS and '~' in canonical_dir_path:
-            canonical_dir_path = f"\"{canonical_dir_path}\""
         escaped_temp_dir = Utils.escape_path(canonical_dir_path)
 
         misc_commands = [
             f"create or replace temp stage {stage_name}",
             f"put file://{escaped_filepath} @{stage_name}",
-            f"get @{stage_name} file://{escaped_temp_dir}",
+            f"get @{stage_name} \"file://{escaped_temp_dir}\"",
             f"list @{stage_name}",
             f"remove @{stage_name}",
             f"remove @{stage_name}",  # second REMOVE returns 0 rows.
