@@ -419,10 +419,10 @@ def test_read_avro_with_no_schema(session, mode):
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_for_all_csv_compression_keywords(session, temp_schema, mode):
+def test_for_all_parquet_compression_keywords(session, temp_schema, mode):
     tmp_table = temp_schema + "." + Utils.random_name()
     reader = get_reader(session, mode)
-    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
 
     reader.parquet(test_file_on_stage).toDF("a").write.saveAsTable(tmp_table)
 
@@ -431,12 +431,12 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
     for ctype in ["snappy", "lzo"]:
         # upload data
         session.sql(
-            f"copy into @{tmp_stage_name1}/{ctype}/ from ( select * from {tmp_table}) file_format=(format_name='{format_name}' compression='$ctype') overwrite = true"
+            f"copy into @{tmp_stage_name1}/{ctype}/ from ( select * from {tmp_table}) file_format=(format_name='{format_name}' compression='{ctype}') overwrite = true"
         ).collect()
 
         # read the data
         get_reader(session, mode).option("COMPRESSION", ctype).parquet(
-            f"@{tmp_stage_name1}/${ctype}/"
+            f"@{tmp_stage_name1}/{ctype}/"
         ).collect()
 
 
