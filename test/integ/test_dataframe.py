@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import datetime
+import os
 from array import array
 from collections import namedtuple
 from decimal import Decimal
@@ -57,7 +58,8 @@ def test_read_stage_file_show(session, resources_path):
             ]
         )
         result_str = (
-            session.read.schema(user_schema)
+            session.read.option("purge", False)
+            .schema(user_schema)
             .csv(test_file_on_stage)
             ._DataFrame__show_string()
         )
