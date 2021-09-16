@@ -4,12 +4,11 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import datetime
-import os
 from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
-from test.utils import Utils, TestFiles
+from test.utils import TestFiles, Utils
 
 import pytest
 
@@ -28,6 +27,7 @@ from snowflake.snowpark.types.sf_types import (
     DateType,
     DecimalType,
     DoubleType,
+    IntegerType,
     LongType,
     MapType,
     StringType,
@@ -39,24 +39,42 @@ from snowflake.snowpark.types.sf_types import (
 )
 
 
-def test_show(session, resources_path):
-    tmp_stage_name1 = "test_stage_show"
+def test_read_stage_file_show(session, resources_path):
+    tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+    test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
 
     try:
-        Utils.create_stage(session, tmp_stage_name1, is_temporary=False)
-        file_name = os.path.join(resources_path, "small_matrix.txt")
-        session.sql("put file://" + file_name + " @" + tmp_stage_name1).collect()
-
-        col_names = ["name"] + ["sample" + str(i) for i in range(1, 17)]
-
-        table_schema = StructType([StructField(name, (StringType() if (i == 0) else DoubleType()))
-             for i, name in enumerate(col_names)])
-
-        session.read.option("field_delimiter", "\t").option("skip_header", 1).option("purge", False).schema(table_schema).csv(f"@{tmp_stage_name1}/small_matrix.txt").show()
-    except Exception as e:
-        a = str(e)
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        Utils.upload_to_stage(
+            session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
+        )
+        user_schema = StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", StringType()),
+                StructField("c", DoubleType()),
+            ]
+        )
+        result_str = (
+            session.read.schema(user_schema)
+            .csv(test_file_on_stage)
+            ._DataFrame__show_string()
+        )
+        assert (
+            result_str
+            == """
+-------------------
+|"A"  |"B"  |"C"  |
+-------------------
+|1    |one  |1.2  |
+|2    |two  |2.2  |
+-------------------
+""".lstrip()
+        )
     finally:
-        Utils.drop_stage(tmp_stage_name1)
+        Utils.drop_stage(session, tmp_stage_name)
+
 
 def test_distinct(session_cnx):
     """Tests df.distinct()."""

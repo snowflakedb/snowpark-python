@@ -326,7 +326,7 @@ class ServerConnection:
     def execute(
         self, plan: SnowflakePlan, to_pandas: bool = False, **kwargs
     ) -> Union[List[Any], "pandas.DataFrame"]:
-        result_set = self.get_result_set(plan, to_pandas, **kwargs)
+        result_set, _ = self.get_result_set(plan, to_pandas, **kwargs)
         return result_set if to_pandas else self.result_set_to_rows(result_set)
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -335,10 +335,10 @@ class ServerConnection:
         plan: SnowflakePlan,
         to_pandas: bool = False,
         **kwargs,
-    ) -> Union[List[Any], "pandas.DataFrame"]:
+    ) -> (Union[List[Any], "pandas.DataFrame"], List[ResultMetadata]):
         action_id = plan.session._generate_new_action_id()
 
-        result = None
+        result, result_meta = None, None
         try:
             placeholders = {}
             for query in plan.queries:
@@ -350,6 +350,7 @@ class ServerConnection:
                         final_query = final_query.replace(holder, id_)
                     result = self.run_query(final_query, to_pandas, **kwargs)
                     placeholders[query.query_id_place_holder] = result["sfqid"]
+                    result_meta = self._cursor.description
                 if action_id < plan.session.get_last_canceled_id():
                     raise SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
         finally:
@@ -360,16 +361,14 @@ class ServerConnection:
         if result is None:
             raise SnowparkClientExceptionMessages.PLAN_LAST_QUERY_RETURN_RESULTSET()
 
-        return result["data"]
+        return result["data"], result_meta
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan
     ) -> (List[Row], List[Attribute]):
-        result_set = self.get_result_set(plan)
+        result_set, result_meta = self.get_result_set(plan)
         result = self.result_set_to_rows(result_set)
-        meta = ServerConnection.convert_result_meta_to_attribute(
-            self._cursor.description
-        )
+        meta = ServerConnection.convert_result_meta_to_attribute(result_meta)
         return result, meta
 
     @_Decorator.wrap_exception
