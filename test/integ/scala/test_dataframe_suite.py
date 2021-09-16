@@ -233,6 +233,23 @@ def test_non_select_query_composition_union(session):
 
         df = df1.union(df2).select('"name"').filter(col('"name"') == table_name)
         res = df.collect()
+        assert len(res) == 1
+
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+def test_non_select_query_composition_unionall(session):
+    table_name = Utils.random_name()
+    try:
+        session.sql(
+            f"create or replace temporary table {table_name} (num int)"
+        ).collect()
+        df1 = session.sql("show tables")
+        df2 = session.sql("show tables")
+
+        df = df1.unionAll(df2).select('"name"').filter(col('"name"') == table_name)
+        res = df.collect()
         assert len(res) == 2
 
     finally:
@@ -248,6 +265,22 @@ def test_non_select_query_composition_self_union(session):
         df = session.sql("show tables")
 
         union = df.union(df).select('"name"').filter(col('"name"') == table_name)
+
+        assert len(union.collect()) == 1
+        assert len(union._DataFrame__plan.queries) == 3
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+def test_non_select_query_composition_self_unionall(session):
+    table_name = Utils.random_name()
+    try:
+        session.sql(
+            f"create or replace temporary table {table_name} (num int)"
+        ).collect()
+        df = session.sql("show tables")
+
+        union = df.unionAll(df).select('"name"').filter(col('"name"') == table_name)
 
         assert len(union.collect()) == 2
         assert len(union._DataFrame__plan.queries) == 3
@@ -1083,6 +1116,23 @@ def test_clone_with_union_dataframe(session):
         df = session.table(table_name)
 
         union_df = df.union(df)
+        cloned_union_df = union_df.clone()
+        res = cloned_union_df.collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [Row(1, 1), Row(2, 2)]
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+def test_clone_with_unionall_dataframe(session):
+    table_name = Utils.random_name()
+    try:
+        Utils.create_table(session, table_name, "c1 int, c2 int")
+
+        session.sql(f"insert into {table_name} values(1, 1),(2, 2)").collect()
+        df = session.table(table_name)
+
+        union_df = df.unionAll(df)
         cloned_union_df = union_df.clone()
         res = cloned_union_df.collect()
         res.sort(key=lambda x: x[0])

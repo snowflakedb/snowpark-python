@@ -657,7 +657,7 @@ class DataFrame:
     def unionByName(self, other: "DataFrame") -> "DataFrame":
         return self.internalUnionByName(other, is_all=False)
 
-    def unionByNameAll(self, other: "DataFrame") -> "DataFrame":
+    def unionAllByName(self, other: "DataFrame") -> "DataFrame":
         return self.internalUnionByName(other, is_all=True)
 
     def internalUnionByName(
