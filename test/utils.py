@@ -24,6 +24,13 @@ IS_UNIX = IS_LINUX or IS_MACOS
 
 class Utils:
     @staticmethod
+    def escape_path(path):
+        if IS_WINDOWS:
+            return path.replace("\\", "\\\\")
+        else:
+            return path
+
+    @staticmethod
     def random_name() -> str:
         return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_")).upper()
 
