@@ -167,7 +167,7 @@ def test_py_to_sp_type():
 
 def test_sf_datatype_names():
     assert DataType().type_name == "Data"
-    assert MapType(BinaryType(), FloatType()).type_name == "MapType[Binary,Float]"
+    assert MapType(BinaryType(), FloatType()).type_name == "MapType[Binary, Float]"
     assert VariantType().type_name == "Variant"
     assert BinaryType().type_name == "Binary"
     assert BooleanType().type_name == "Boolean"
@@ -183,10 +183,10 @@ def test_sf_datatype_names():
     assert LongType().type_name == "Long"
     assert FloatType().type_name == "Float"
     assert DoubleType().type_name == "Double"
-    assert DecimalType(1, 2).type_name == "Decimal(1,2)"
+    assert DecimalType(1, 2).type_name == "Decimal(1, 2)"
 
     assert str(DataType()) == "Data"
-    assert str(MapType(BinaryType(), FloatType())) == "MapType[Binary,Float]"
+    assert str(MapType(BinaryType(), FloatType())) == "MapType[Binary, Float]"
     assert str(VariantType()) == "Variant"
     assert str(BinaryType()) == "Binary"
     assert str(BooleanType()) == "Boolean"
@@ -202,7 +202,7 @@ def test_sf_datatype_names():
     assert str(LongType()) == "Long"
     assert str(FloatType()) == "Float"
     assert str(DoubleType()) == "Double"
-    assert str(DecimalType(1, 2)) == "Decimal(1,2)"
+    assert str(DecimalType(1, 2)) == "Decimal(1, 2)"
 
 
 def test_struct_field_name():
