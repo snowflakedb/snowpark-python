@@ -7,7 +7,7 @@
 import pytest
 
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.snowpark_client_exception import SnowparkColumnException
 
 
 def test_column_constructors_subscriptable(session):
@@ -19,9 +19,9 @@ def test_column_constructors_subscriptable(session):
     assert df.select(df["CoL"]).collect() == [Row(1)]
     assert df.select(df['"COL"']).collect() == [Row(1)]
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkColumnException) as ex_info:
         df.select(df['"Col"']).collect()
     assert "The DataFrame does not contain the column" in str(ex_info)
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkColumnException) as ex_info:
         df.select(df["COL ."]).collect()
     assert "The DataFrame does not contain the column" in str(ex_info)

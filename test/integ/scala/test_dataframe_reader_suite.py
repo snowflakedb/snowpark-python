@@ -10,7 +10,10 @@ import pytest
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark.functions import col, sql_expr
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.snowpark_client_exception import (
+    SnowparkDataframeReaderException,
+    SnowparkPlanException,
+)
 from snowflake.snowpark.types.sf_types import (
     DoubleType,
     IntegerType,
@@ -133,7 +136,7 @@ def test_read_csv(session, mode):
     assert len(res[0]) == 3
     assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
-    with pytest.raises(SnowparkClientException):
+    with pytest.raises(SnowparkDataframeReaderException):
         session.read.csv(test_file_on_stage)
 
     # if users give an incorrect schema with type error
@@ -588,7 +591,7 @@ def test_copy(session):
 def test_copy_option_force(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         session.read.schema(user_schema).option("force", "false").csv(
             test_file_on_stage
         ).collect()
@@ -598,7 +601,7 @@ def test_copy_option_force(session):
         in ex_info.value.message
     )
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         session.read.schema(user_schema).option("FORCE", "FALSE").csv(
             test_file_on_stage
         ).collect()
@@ -608,7 +611,7 @@ def test_copy_option_force(session):
         in ex_info.value.message
     )
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         session.read.schema(user_schema).option("fORce", "faLsE").csv(
             test_file_on_stage
         ).collect()

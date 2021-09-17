@@ -13,3 +13,63 @@ class SnowparkClientException(Exception):
         self.telemetry_message = message
 
     # TODO: SNOW-363951 handle telemetry
+
+
+class SnowparkInternalException(SnowparkClientException):
+    pass
+
+
+class SnowparkDataframeException(SnowparkClientException):
+    pass
+
+
+class SnowparkPlanException(SnowparkClientException):
+    pass
+
+
+class SnowparkMiscException(SnowparkClientException):
+    pass
+
+
+class SnowparkColumnException(SnowparkDataframeException):
+    pass
+
+
+class SnowparkJoinException(SnowparkDataframeException):
+    pass
+
+
+class SnowparkDataframeReaderException(SnowparkDataframeException):
+    pass
+
+
+class SnowparkCreateViewException(SnowparkPlanException):
+    pass
+
+
+class SnowparkPlanInternalException(SnowparkPlanException):
+    pass
+
+
+class SnowparkAmbiguousJoinException(SnowparkPlanException):
+    pass
+
+
+class SnowparkInvalidIdException(SnowparkPlanException):
+    pass
+
+
+class SnowparkUnexpectedAliasException(SnowparkPlanException):
+    pass
+
+
+class SnowparkSessionException(SnowparkMiscException):
+    pass
+
+
+class SnowparkMissingDbOrSchemaException(SnowparkMiscException):
+    pass
+
+
+class SnowparkQueryCancelledException(SnowparkMiscException):
+    pass
