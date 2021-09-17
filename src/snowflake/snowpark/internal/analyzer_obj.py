@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
+from collections import Counter
 from typing import Optional
 
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
@@ -82,6 +83,8 @@ class Analyzer:
         self.generated_alias_maps = {}
         self.subquery_plans = {}
         self.alias_maps_to_use = None
+
+        self._array_bind_threshold = 512
 
     def analyze(self, expr) -> str:
         if type(expr) == SPLike:
@@ -273,7 +276,6 @@ class Analyzer:
         else:
             return self.analyze(expr)
 
-    # TODO
     def resolve(self, logical_plan) -> SnowflakePlan:
         self.subquery_plans = []
         self.generated_alias_maps = {}
@@ -292,9 +294,19 @@ class Analyzer:
             resolved_children[c] = self.resolve(c)
 
         use_maps = {}
+        # get counts of expr_to_alias keys
+        counts = Counter()
         for k, v in resolved_children.items():
             if v.expr_to_alias:
-                use_maps.update(v.expr_to_alias)
+                counts.update(list(v.expr_to_alias.keys()))
+
+        # Keep only non-shared expr_to_alias keys
+        # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
+        for k, v in resolved_children.items():
+            if v.expr_to_alias:
+                use_maps.update(
+                    {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
+                )
 
         self.alias_maps_to_use = use_maps
         return self.do_resolve_inner(logical_plan, resolved_children)
@@ -374,13 +386,20 @@ class Analyzer:
 
         if type(logical_plan) == SnowflakeValues:
             if logical_plan.data:
-                # TODO: SNOW-367105 handle large values with largeLocalRelationPlan
-                return self.plan_builder.query(
-                    self.package.values_statement(
-                        logical_plan.output, logical_plan.data
-                    ),
-                    logical_plan,
-                )
+                if (
+                    len(logical_plan.output) * len(logical_plan.data)
+                    < self._array_bind_threshold
+                ):
+                    return self.plan_builder.query(
+                        self.package.values_statement(
+                            logical_plan.output, logical_plan.data
+                        ),
+                        logical_plan,
+                    )
+                else:
+                    return self.plan_builder.large_local_relation_plan(
+                        logical_plan.output, logical_plan.data, logical_plan
+                    )
             else:
                 return self.plan_builder.query(
                     self.package.empty_values_statement(logical_plan.output),

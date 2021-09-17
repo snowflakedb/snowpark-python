@@ -4,14 +4,16 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import datetime
+import os
 from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
-from test.utils import Utils
+from test.utils import TestFiles, Utils
 
 import pytest
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.internal.sp_expressions import (
@@ -26,6 +28,7 @@ from snowflake.snowpark.types.sf_types import (
     DateType,
     DecimalType,
     DoubleType,
+    IntegerType,
     LongType,
     MapType,
     StringType,
@@ -35,6 +38,44 @@ from snowflake.snowpark.types.sf_types import (
     TimeType,
     VariantType,
 )
+
+
+def test_read_stage_file_show(session, resources_path):
+    tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+    test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
+
+    try:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        Utils.upload_to_stage(
+            session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
+        )
+        user_schema = StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", StringType()),
+                StructField("c", DoubleType()),
+            ]
+        )
+        result_str = (
+            session.read.option("purge", False)
+            .schema(user_schema)
+            .csv(test_file_on_stage)
+            ._DataFrame__show_string()
+        )
+        assert (
+            result_str
+            == """
+-------------------
+|"A"  |"B"  |"C"  |
+-------------------
+|1    |one  |1.2  |
+|2    |two  |2.2  |
+-------------------
+""".lstrip()
+        )
+    finally:
+        Utils.drop_stage(session, tmp_stage_name)
 
 
 def test_distinct(session_cnx):
@@ -863,25 +904,36 @@ def test_create_dataframe_from_none_data(session_cnx):
             Row(None, None),
         ]
 
+        # large None data
+        assert session.createDataFrame([None] * 20000).collect() == [Row(None)] * 20000
+
+
+def test_create_dataframe_large_without_batch_insert(session):
+    original_value = session.analyzer._array_bind_threshold
+    try:
+        session.analyzer._array_bind_threshold = 40000
+        with pytest.raises(ProgrammingError) as ex_info:
+            session.createDataFrame([1] * 20000).collect()
+        assert "SQL compilation error" in str(ex_info)
+        assert "maximum number of expressions in a list exceeded" in str(ex_info)
+    finally:
+        session.analyzer._array_bind_threshold = original_value
+
 
 def test_create_dataframe_with_invalid_data(session_cnx):
     with session_cnx() as session:
         # None input
         with pytest.raises(ValueError) as ex_info:
             session.createDataFrame(None)
-        assert "Data cannot be None" in str(ex_info)
+        assert "data cannot be None" in str(ex_info)
 
         # input other than list, tuple, namedtuple and dict
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame(1)
-        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
-            ex_info
-        )
+        assert "only accepts data in List, Tuple or Dict type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame({1, 2})
-        assert "only accepts data in List, NamedTuple, Tuple or Dict type" in str(
-            ex_info
-        )
+        assert "only accepts data in List, Tuple or Dict type" in str(ex_info)
 
         # inconsistent type
         with pytest.raises(TypeError) as ex_info:

@@ -9,6 +9,8 @@ from typing import List, Tuple, Union
 import snowflake.snowpark.functions as functions
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.internal.analyzer.sp_utils import to_pretty_sql
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
     Alias as SPAlias,
@@ -123,9 +125,7 @@ class RelationalGroupedDataFrame:
             )
         if type(self.group_type) == PivotType:
             if len(agg_exprs) != 1:
-                raise SnowparkClientException(
-                    "Only one aggregate is supported with pivot"
-                )
+                raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             return DataFrame(
                 self.df.session,
                 SPPivot(
@@ -203,10 +203,9 @@ class RelationalGroupedDataFrame:
             type(e) == tuple and type(e[0]) == Column and type(e[1]) == str
             for e in exprs
         ):
-            result = self.__toDF(
+            return self.__toDF(
                 [self.__str_to_expr(expr)(col.expression) for col, expr in exprs]
             )
-            return result
         else:
             raise SnowparkClientException("Invalid input types for agg()")
 
@@ -264,8 +263,8 @@ class RelationalGroupedDataFrame:
         self, func_name: str, *cols: Union[Column, str]
     ) -> "DataFrame":
         if not cols:
-            raise SnowparkClientException(
-                f"the argument of {func_name} function can't be empty"
+            raise ValueError(
+                f"You must pass a list of one or more Columns to function: {func_name}"
             )
         else:
             return self.builtin(func_name)(*cols)

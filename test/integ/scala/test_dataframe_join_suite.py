@@ -44,6 +44,7 @@ def test_join_using_multiple_columns(session):
         Row(3, 4, "3", "4"),
     ]
 
+
 def test_full_outer_join_followed_by_inner_join(session):
 
     a = session.createDataFrame([[1, 2], [2, 3]]).toDF(["a", "b"])
@@ -187,7 +188,6 @@ def test_join_using_multiple_columns_and_specifying_join_type(session, db_parame
         res = df.join(df2, ["int", "str"], "outer").collect()
         res.sort(key=lambda x: x[0])
         assert res == [
-
             Row(1, "1", 2, 3),
             Row(3, "3", 4, None),
             Row(5, "5", None, 6),
@@ -442,11 +442,9 @@ def test_using_joins(session):
             Row(2, -2, "two", -20, "two"),
         ]
 
-        # TODO requires wrapException
-        # with pytest.raises(SnowparkClientException) as ex_info:
-        #     lhs.join(rhs, ['intcol'], join_type).select('negcol').collect()
-        # assert 'NEGCOL' in str(ex_info)
-        # assert 'ambiguous' in str(ex_info)
+        with pytest.raises(SnowparkClientException) as ex_info:
+            lhs.join(rhs, ["intcol"], join_type).select("negcol").collect()
+        assert "reference to the column 'NEGCOL' is ambiguous" in ex_info.value.message
 
         res = lhs.join(rhs, ["intcol"], join_type).select("intcol").collect()
         assert res == [Row(1), Row(2)]
@@ -485,11 +483,9 @@ def test_columns_with_and_without_quotes(session):
     )
     assert res == []
 
-    # TODO requires wrapException
-    # with pytest.raises(SnowparkClientException) as ex_info:
-    #     lhs.join(rhs, col('intcol') == col('"INTCOL"')).collect()
-    # assert 'INTCOL' in str(ex_info)
-    # assert 'ambiguous' in str(ex_info)
+    with pytest.raises(SnowparkClientException) as ex_info:
+        lhs.join(rhs, col("intcol") == col('"INTCOL"')).collect()
+    assert "reference to the column 'INTCOL' is ambiguous." in ex_info.value.message
 
 
 def test_aliases_multiple_levels_deep(session):
@@ -567,7 +563,11 @@ def test_negative_test_for_self_join_with_conditions(session):
         df = session.table(table_name1)
         self_dfs = [df, DataFrame(df.session, df._DataFrame__plan)]
 
-        msg = "Joining a DataFrame to itself can lead to incorrect results due to ambiguity of column references. Instead, join this DataFrame to a clone() of itself."
+        msg = (
+            "You cannot join a DataFrame with itself because the column references cannot be resolved "
+            "correctly. Instead, call clone() to create a copy of the DataFrame, and join the DataFrame with "
+            "this copy."
+        )
 
         for df2 in self_dfs:
             for join_type in ["", "inner", "left", "right", "outer"]:
@@ -576,14 +576,13 @@ def test_negative_test_for_self_join_with_conditions(session):
                         df.join(df2, df["c1"] == df["c2"]).collect()
                     else:
                         df.join(df2, df["c1"] == df["c2"], join_type).collect()
-                assert msg in str(ex_info)
+                assert msg in ex_info.value.message
 
     finally:
         Utils.drop_table(session, table_name1)
 
 
 def test_clone_can_help_these_self_joins(session):
-
     table_name1 = Utils.random_name()
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -680,7 +679,7 @@ def test_clone_with_join_dataframe(session):
         Utils.drop_table(session, table_name1)
 
 
-def test_join_on_join(session):
+def test_join_of_join(session):
     table_name1 = Utils.random_name()
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -705,8 +704,7 @@ def test_join_on_join(session):
         Utils.drop_table(session, table_name1)
 
 
-@pytest.mark.skip(message="We are not generating the right join for this statement")
-def test_negative_test_join_on_join(session_cnx):
+def test_negative_test_join_of_join(session_cnx):
     with session_cnx() as session:
         table_name1 = Utils.random_name()
         try:
@@ -719,10 +717,7 @@ def test_negative_test_join_on_join(session_cnx):
 
             with pytest.raises(SnowparkClientException) as ex_info:
                 df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
-            assert (
-                "Possible ambiguous reference to 'C1' present in both join sides. "
-                in str(ex_info)
-            )
+            assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
 
         finally:
             Utils.drop_table(session, table_name1)

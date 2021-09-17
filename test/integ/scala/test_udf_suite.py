@@ -553,13 +553,6 @@ def test_variant_date_input(session_cnx):
 
 def test_variant_null(session_cnx):
     with session_cnx() as session:
-        with pytest.raises(TypeError) as ex_info:
-
-            @udf(return_type=NullType(), input_types=[VariantType()])
-            def variant_null_output_udf(_):
-                return None
-
-        assert "Unsupported data type" in str(ex_info)
 
         @udf(return_type=StringType(), input_types=[VariantType()])
         def variant_null_output_udf(_):
@@ -567,6 +560,15 @@ def test_variant_null(session_cnx):
 
         assert session.sql("select 1 as a").select(
             variant_null_output_udf("a")
+        ).collect() == [Row(None)]
+
+        # when NullType is specified, StringType is used
+        @udf(return_type=NullType(), input_types=[VariantType()])
+        def variant_null_output_udf1(_):
+            return None
+
+        assert session.sql("select 1 as a").select(
+            variant_null_output_udf1("a")
         ).collect() == [Row(None)]
 
         @udf(return_type=VariantType(), input_types=[VariantType()])

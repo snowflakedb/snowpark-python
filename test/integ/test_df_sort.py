@@ -9,39 +9,6 @@ import pytest
 from snowflake.snowpark.column import Column
 
 
-def test_sort_basic(session_cnx):
-    with session_cnx() as session:
-        df = session.createDataFrame(
-            [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
-        ).toDF(["a", "b"])
-
-        # asc with 1 column
-        sorted_rows = df.sort(Column("a").asc()).collect()
-        for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1][0] <= sorted_rows[idx][0]
-
-        # desc with 1 column
-        sorted_rows = df.sort(Column("a").desc()).collect()
-        for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1][0] >= sorted_rows[idx][0]
-
-        # asc with 2 columns
-        sorted_rows = df.sort(Column("a").asc(), Column("b").asc()).collect()
-        for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1][0] < sorted_rows[idx][0] or (
-                sorted_rows[idx - 1][0] == sorted_rows[idx][0]
-                and sorted_rows[idx - 1][1] <= sorted_rows[idx][1]
-            )
-
-        # desc with 2 columns
-        sorted_rows = df.sort(Column("a").desc(), Column("b").desc()).collect()
-        for idx in range(1, len(sorted_rows)):
-            assert sorted_rows[idx - 1][0] > sorted_rows[idx][0] or (
-                sorted_rows[idx - 1][0] == sorted_rows[idx][0]
-                and sorted_rows[idx - 1][1] >= sorted_rows[idx][1]
-            )
-
-
 def test_sort_different_inputs(session_cnx):
     with session_cnx() as session:
         df = session.createDataFrame(

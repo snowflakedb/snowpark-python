@@ -165,25 +165,45 @@ def test_builtin_functions(session):
 
 
 def test_non_empty_arg_functions(session):
-    with pytest.raises(SnowparkClientException) as ex_info:
+    func_name = "avg"
+    with pytest.raises(ValueError) as ex_info:
         TestData.integer1(session).groupBy("a").avg()
-    assert "the argument of avg function can't be empty" in str(ex_info)
+    assert (
+        f"You must pass a list of one or more Columns to function: {func_name}"
+        in str(ex_info)
+    )
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    func_name = "sum"
+    with pytest.raises(ValueError) as ex_info:
         TestData.integer1(session).groupBy("a").sum()
-    assert "the argument of sum function can't be empty" in str(ex_info)
+    assert (
+        f"You must pass a list of one or more Columns to function: {func_name}"
+        in str(ex_info)
+    )
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    func_name = "median"
+    with pytest.raises(ValueError) as ex_info:
         TestData.integer1(session).groupBy("a").median()
-    assert "the argument of median function can't be empty" in str(ex_info)
+    assert (
+        f"You must pass a list of one or more Columns to function: {func_name}"
+        in str(ex_info)
+    )
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    func_name = "min"
+    with pytest.raises(ValueError) as ex_info:
         TestData.integer1(session).groupBy("a").min()
-    assert "the argument of min function can't be empty" in str(ex_info)
+    assert (
+        f"You must pass a list of one or more Columns to function: {func_name}"
+        in str(ex_info)
+    )
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    func_name = "max"
+    with pytest.raises(ValueError) as ex_info:
         TestData.integer1(session).groupBy("a").max()
-    assert "the argument of max function can't be empty" in str(ex_info)
+    assert (
+        f"You must pass a list of one or more Columns to function: {func_name}"
+        in str(ex_info)
+    )
 
 
 def test_null_count(session):
