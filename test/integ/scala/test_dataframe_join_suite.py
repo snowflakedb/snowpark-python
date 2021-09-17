@@ -12,7 +12,11 @@ import pytest
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import coalesce, col, count, is_null, lit
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.snowpark_client_exception import (
+    SnowparkAmbiguousJoinException,
+    SnowparkInvalidIdException,
+    SnowparkJoinException,
+)
 
 
 def test_join_using(session):
@@ -150,7 +154,7 @@ def test_join_with_ambiguous_column_in_condidtion(session_cnx):
             ["a", "b"]
         )
 
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(SnowparkAmbiguousJoinException) as ex_info:
             df.join(df2, col("a") == col("a")).collect()
         assert "The reference to the column 'A' is ambiguous." in ex_info.value.message
 
@@ -302,14 +306,14 @@ def test_join_ambiguous_columns_without_specified_sources(session_cnx):
         )
 
         for join_type in ["inner", "leftouter", "rightouter", "full_outer"]:
-            with pytest.raises(SnowparkClientException) as ex_info:
+            with pytest.raises(SnowparkAmbiguousJoinException) as ex_info:
                 df.join(df2, col("intcol") == col("intcol")).collect()
             assert (
                 "The reference to the column 'INTCOL' is ambiguous."
                 in ex_info.value.message
             )
 
-            with pytest.raises(SnowparkClientException) as ex_info:
+            with pytest.raises(SnowparkAmbiguousJoinException) as ex_info:
                 df.join(df2, df["intcol"] == df2["intcol"]).select("intcol").collect()
             assert (
                 "The reference to the column 'INTCOL' is ambiguous."
@@ -347,14 +351,14 @@ def test_semi_join_expression_ambiguous_columns(session_cnx):
             ["intcol", "negcol", "rhscol"]
         )
 
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(SnowparkInvalidIdException) as ex_info:
             lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftsemi").select(
                 rhs["intcol"]
             ).collect()
         assert 'Column referenced with df["INTCOL"]' in str(ex_info)
         assert "not present" in str(ex_info)
 
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(SnowparkInvalidIdException) as ex_info:
             lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftanti").select(
                 rhs["intcol"]
             ).collect()
@@ -442,7 +446,7 @@ def test_using_joins(session):
             Row(2, -2, "two", -20, "two"),
         ]
 
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(SnowparkAmbiguousJoinException) as ex_info:
             lhs.join(rhs, ["intcol"], join_type).select("negcol").collect()
         assert "reference to the column 'NEGCOL' is ambiguous" in ex_info.value.message
 
@@ -483,7 +487,7 @@ def test_columns_with_and_without_quotes(session):
     )
     assert res == []
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkAmbiguousJoinException) as ex_info:
         lhs.join(rhs, col("intcol") == col('"INTCOL"')).collect()
     assert "reference to the column 'INTCOL' is ambiguous." in ex_info.value.message
 
@@ -571,7 +575,7 @@ def test_negative_test_for_self_join_with_conditions(session):
 
         for df2 in self_dfs:
             for join_type in ["", "inner", "left", "right", "outer"]:
-                with pytest.raises(SnowparkClientException) as ex_info:
+                with pytest.raises(SnowparkJoinException) as ex_info:
                     if not join_type:
                         df.join(df2, df["c1"] == df["c2"]).collect()
                     else:
@@ -715,7 +719,7 @@ def test_negative_test_join_of_join(session_cnx):
             df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
             df_j_clone = df_j.clone()
 
-            with pytest.raises(SnowparkClientException) as ex_info:
+            with pytest.raises(SnowparkAmbiguousJoinException) as ex_info:
                 df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
             assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
 
@@ -955,7 +959,7 @@ def test_report_error_when_refer_common_col(session_cnx):
         df5 = df3.join(df2, df2["c"] == df3["e"])
         df6 = df4.join(df5, df4["a"] == df5["e"])
 
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(SnowparkAmbiguousJoinException) as ex_info:
             df6.select("*").select(df2["c"]).collect()
         assert "The reference to the column 'C' is ambiguous." in ex_info.value.message
 

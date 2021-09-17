@@ -13,7 +13,7 @@ import pytest
 
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.snowpark_client_exception import SnowparkCreateViewException
 
 
 def test_create_view(session):
@@ -54,7 +54,7 @@ def test_view_name_with_special_character(session):
 
 def test_only_works_on_select(session):
     view_name = Utils.random_name()
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkCreateViewException) as ex_info:
         session.sql("show tables").createOrReplaceView(view_name)
 
 
