@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Union
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.functions import call_udf, col, udf
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.snowpark_client_exception import SnowparkMiscException
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     DateType,
@@ -504,7 +504,7 @@ def test_udf_negative(session_cnx):
             df1.select(call_udf("f", "x")).collect()
         assert "Unknown function" in str(ex_info)
 
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(SnowparkMiscException) as ex_info:
             udf(
                 f,
                 return_type=IntegerType(),

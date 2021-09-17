@@ -3,7 +3,22 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.snowpark_client_exception import (
+    SnowparkAmbiguousJoinException,
+    SnowparkColumnException,
+    SnowparkCreateViewException,
+    SnowparkDataframeException,
+    SnowparkDataframeReaderException,
+    SnowparkInternalException,
+    SnowparkInvalidIdException,
+    SnowparkJoinException,
+    SnowparkMiscException,
+    SnowparkMissingDbOrSchemaException,
+    SnowparkPlanException,
+    SnowparkPlanInternalException,
+    SnowparkQueryCancelledException,
+    SnowparkSessionException,
+)
 
 
 class SnowparkClientExceptionMessages:
@@ -16,263 +31,224 @@ class SnowparkClientExceptionMessages:
     # Internal Error messages 001X
 
     @staticmethod
-    def INTERNAL_TEST_MESSAGE(message: str) -> SnowparkClientException:
-        return SnowparkClientException(f"internal test message: {message}.", "0010")
+    def INTERNAL_TEST_MESSAGE(message: str) -> SnowparkInternalException:
+        return SnowparkInternalException(f"internal test message: {message}.", "1010")
 
     # DataFrame Error Messages 01XX
 
     @staticmethod
-    def DF_CANNOT_DROP_COLUMN_NAME(col_name: str) -> SnowparkClientException:
-        return SnowparkClientException(
+    def DF_CANNOT_DROP_COLUMN_NAME(col_name: str) -> SnowparkColumnException:
+        return SnowparkColumnException(
             f"Unable to drop the column {col_name}. You must specify the column by name "
             f'(e.g. df.drop(col("a"))).',
-            "0100",
+            "1100",
         )
 
     @staticmethod
-    def DF_SORT_NEED_AT_LEAST_ONE_EXPR() -> SnowparkClientException:
-        return SnowparkClientException(
-            "For sort(), you must specify at least one sort expression.", "0101"
-        )
-
-    @staticmethod
-    def DF_CANNOT_DROP_ALL_COLUMNS() -> SnowparkClientException:
-        return SnowparkClientException("Cannot drop all columns", "0102")
+    def DF_CANNOT_DROP_ALL_COLUMNS() -> SnowparkColumnException:
+        return SnowparkColumnException("Cannot drop all columns", "1101")
 
     @staticmethod
     def DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
         col_name: str, all_columns: str
-    ) -> SnowparkClientException:
-        return SnowparkClientException(
+    ) -> SnowparkColumnException:
+        return SnowparkColumnException(
             f'Cannot combine the DataFrames by column names. The column "{col_name}" is '
             f"not a column in the other DataFrame ({all_columns}).",
-            "0103",
+            "1102",
         )
 
     @staticmethod
-    def DF_SELF_JOIN_NOT_SUPPORTED() -> SnowparkClientException:
-        return SnowparkClientException(
+    def DF_SELF_JOIN_NOT_SUPPORTED() -> SnowparkJoinException:
+        return SnowparkJoinException(
             "You cannot join a DataFrame with itself because the column references cannot "
             "be resolved correctly. Instead, call clone() to create a copy of the "
             "DataFrame, and join the DataFrame with this copy.",
-            "0104",
+            "1103",
         )
 
     @staticmethod
-    def DF_RANDOM_SPLIT_WEIGHT_INVALID() -> SnowparkClientException:
-        return SnowparkClientException(
-            "The specified weights for randomSplit() must not be negative numbers.",
-            "0105",
-        )
-
-    @staticmethod
-    def DF_RANDOM_SPLIT_WEIGHT_ARRAY_EMPTY() -> SnowparkClientException:
-        return SnowparkClientException(
-            "You cannot pass an empty array of weights to randomSplit().", "0106"
-        )
-
-    @staticmethod
-    def DF_FLATTEN_UNSUPPORTED_INPUT_MODE(mode: str) -> SnowparkClientException:
-        return SnowparkClientException(
+    def DF_FLATTEN_UNSUPPORTED_INPUT_MODE(mode: str) -> SnowparkDataframeException:
+        return SnowparkDataframeException(
             f"Unsupported input mode {mode}. For the mode parameter in flatten(), you must "
             f"specify OBJECT, ARRAY, or BOTH.",
-            "0107",
+            "1104",
         )
 
     @staticmethod
-    def DF_CANNOT_RESOLVE_COLUMN_NAME(col_name: str) -> SnowparkClientException:
-        return SnowparkClientException(
-            f"The DataFrame does not contain the column named {col_name}.", "0108"
+    def DF_CANNOT_RESOLVE_COLUMN_NAME(col_name: str) -> SnowparkColumnException:
+        return SnowparkColumnException(
+            f"The DataFrame does not contain the column named {col_name}.", "1105"
         )
 
     @staticmethod
-    def DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE() -> SnowparkClientException:
-        return SnowparkClientException(
+    def DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE() -> SnowparkDataframeReaderException:
+        return SnowparkDataframeReaderException(
             "You must call DataFrameReader.schema() and specify the schema for the file.",
-            "0109",
+            "1106",
         )
 
     @staticmethod
     def DF_CROSS_TAB_COUNT_TOO_LARGE(
         count: int, max_count: int
-    ) -> SnowparkClientException:
-        return SnowparkClientException(
+    ) -> SnowparkDataframeException:
+        return SnowparkDataframeException(
             f"The number of distinct values in the second input column ({count}) exceeds "
             f"the maximum number of distinct values allowed ({max_count}).",
-            "0110",
+            "1107",
         )
 
     @staticmethod
     def DF_DATAFRAME_IS_NOT_QUALIFIED_FOR_SCALAR_QUERY(
         count: int, columns: str
-    ) -> SnowparkClientException:
-        return SnowparkClientException(
+    ) -> SnowparkDataframeException:
+        return SnowparkDataframeException(
             f"The DataFrame passed in to this function must have only one output column. "
             f"This DataFrame has {count} output columns: {columns}",
-            "0111",
+            "1108",
         )
 
     @staticmethod
-    def DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR() -> SnowparkClientException:
-        return SnowparkClientException(
+    def DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR() -> SnowparkDataframeException:
+        return SnowparkDataframeException(
             "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
             "returned by the pivot() method.",
-            "0112",
+            "1109",
         )
 
     @staticmethod
-    def DF_WINDOW_BOUNDARY_START_INVALID(start_value: int) -> SnowparkClientException:
-        return SnowparkClientException(
-            f"The starting point for the window frame is not a valid integer: {start_value}.",
-            "0114",
-        )
-
-    @staticmethod
-    def DF_WINDOW_BOUNDARY_END_INVALID(end_value: int) -> SnowparkClientException:
-        return SnowparkClientException(
-            f"The ending point for the window frame is not a valid integer: {end_value}.",
-            "0115",
-        )
-
-    @staticmethod
-    def DF_JOIN_INVALID_JOIN_TYPE(type1: str, types: str) -> SnowparkClientException:
-        return SnowparkClientException(
+    def DF_JOIN_INVALID_JOIN_TYPE(type1: str, types: str) -> SnowparkJoinException:
+        return SnowparkJoinException(
             f"Unsupported join type '{type1}'. Supported join types include: {types}.",
-            "0116",
+            "1110",
         )
 
     @staticmethod
-    def DF_JOIN_INVALID_NATURAL_JOIN_TYPE(tpe: str) -> SnowparkClientException:
-        return SnowparkClientException(
-            f"Unsupported natural join type '{tpe}'.", "0117"
-        )
+    def DF_JOIN_INVALID_NATURAL_JOIN_TYPE(tpe: str) -> SnowparkJoinException:
+        return SnowparkJoinException(f"Unsupported natural join type '{tpe}'.", "1111")
 
     @staticmethod
-    def DF_JOIN_INVALID_USING_JOIN_TYPE(tpe: str) -> SnowparkClientException:
-        return SnowparkClientException(f"Unsupported using join type '{tpe}'.", "0118")
+    def DF_JOIN_INVALID_USING_JOIN_TYPE(tpe: str) -> SnowparkJoinException:
+        return SnowparkJoinException(f"Unsupported using join type '{tpe}'.", "1112")
 
     # UDF error codes 02XX
 
     # Plan analysis and execution error codes 03XX
 
     @staticmethod
-    def PLAN_LAST_QUERY_RETURN_RESULTSET() -> SnowparkClientException:
-        return SnowparkClientException(
+    def PLAN_LAST_QUERY_RETURN_RESULTSET() -> SnowparkPlanInternalException:
+        return SnowparkPlanInternalException(
             "Internal error: The execution for the last query "
             "in the Snowflake plan doesn't return a ResultSet.",
-            "0300",
+            "1300",
         )
 
     @staticmethod
-    def PLAN_ANALYZER_INVALID_IDENTIFIER(name: str) -> SnowparkClientException:
-        return SnowparkClientException(f"Invalid identifier {name}", "0301")
+    def PLAN_ANALYZER_INVALID_IDENTIFIER(name: str) -> SnowparkPlanException:
+        return SnowparkPlanException(f"Invalid identifier {name}", "1301")
 
     @staticmethod
-    def PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(type_name: str) -> SnowparkClientException:
-        return SnowparkClientException(
+    def PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
+        type_name: str,
+    ) -> SnowparkPlanInternalException:
+        return SnowparkPlanInternalException(
             f"Internal Error: Only PersistedView and LocalTempView are supported. "
             f"view type: {type_name}",
-            "0302",
+            "1302",
         )
 
     @staticmethod
-    def PLAN_SAMPLING_NEED_ONE_PARAMETER() -> SnowparkClientException:
-        return SnowparkClientException(
+    def PLAN_SAMPLING_NEED_ONE_PARAMETER() -> SnowparkPlanException:
+        return SnowparkPlanException(
             "You must specify either the fraction of rows or the number of rows to sample.",
-            "0303",
+            "1303",
         )
 
     @staticmethod
-    def PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() -> SnowparkClientException:
-        return SnowparkClientException(
+    def PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() -> SnowparkAmbiguousJoinException:
+        return SnowparkAmbiguousJoinException(
             "You can only define aliases for the root Columns in a DataFrame returned by "
             "select() and agg(). You cannot use aliases for Columns in expressions.",
-            "0308",
+            "1304",
         )
 
     @staticmethod
-    def PLAN_PYTHON_REPORT_INVALID_ID(name: str) -> SnowparkClientException:
-        return SnowparkClientException(
+    def PLAN_PYTHON_REPORT_INVALID_ID(name: str) -> SnowparkInvalidIdException:
+        return SnowparkInvalidIdException(
             f'The column specified in df("{name}") '
             f"is not present in the output of the DataFrame.",
-            "0309",
+            "1305",
         )
 
     @staticmethod
-    def PLAN_PYTHON_REPORT_JOIN_AMBIGUOUS(c1: str, c2: str) -> SnowparkClientException:
-        return SnowparkClientException(
+    def PLAN_PYTHON_REPORT_JOIN_AMBIGUOUS(
+        c1: str, c2: str
+    ) -> SnowparkAmbiguousJoinException:
+        return SnowparkAmbiguousJoinException(
             f"The reference to the column '{c1}' is ambiguous. The column is "
             f"present in both DataFrames used in the join. To identify the "
             f"DataFrame that you want to use in the reference, use the syntax "
             f'<df>("{c2}") in join conditions and in select() calls on the '
             f"result of the join.",
-            "0310",
+            "1306",
         )
 
     @staticmethod
-    def PLAN_COPY_DONT_SUPPORT_SKIP_LOADED_FILES(value: str) -> SnowparkClientException:
-        return SnowparkClientException(
+    def PLAN_COPY_DONT_SUPPORT_SKIP_LOADED_FILES(value: str) -> SnowparkPlanException:
+        return SnowparkPlanException(
             f"The COPY option 'FORCE = {value}' is not supported by the Snowpark library. "
             f"The Snowflake library loads all files, even if the files have been loaded "
             f"previously and have not changed since they were loaded.",
-            "0311",
+            "1307",
         )
 
     @staticmethod
-    def PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS() -> SnowparkClientException:
-        return SnowparkClientException(
+    def PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS() -> SnowparkCreateViewException:
+        return SnowparkCreateViewException(
             "Your dataframe may include DDL or DML operations. Creating a view from "
             "this DataFrame is currently not supported.",
-            "0314",
+            "1308",
         )
 
     @staticmethod
-    def PLAN_CREATE_VIEWS_FROM_SELECT_ONLY() -> SnowparkClientException:
-        return SnowparkClientException(
-            "Creating views from SELECT queries supported only.", "0315"
+    def PLAN_CREATE_VIEWS_FROM_SELECT_ONLY() -> SnowparkCreateViewException:
+        return SnowparkCreateViewException(
+            "Creating views from SELECT queries supported only.", "1309"
         )
 
     # Miscellaneous Messages 04XX
 
     @staticmethod
-    def MISC_CANNOT_CAST_VALUE(
-        source_type: str, value: str, target_type: str
-    ) -> SnowparkClientException:
-        return SnowparkClientException(
-            f"Cannot cast {source_type}({value}) to {target_type}.", "0400"
-        )
-
-    @staticmethod
     def MISC_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
         v1: str, v2: str, v3: str
-    ) -> SnowparkClientException:
-        return SnowparkClientException(
+    ) -> SnowparkMissingDbOrSchemaException:
+        return SnowparkMissingDbOrSchemaException(
             f"The {v1} is not set for the current session. To set this, either run "
             f'session.sql("USE {v2}").collect() or set the {v3} connection property in '
             f"the dict or properties file that you specify when creating a session.",
-            "0401",
+            "1400",
         )
 
     @staticmethod
-    def MISC_QUERY_IS_CANCELLED() -> SnowparkClientException:
-        return SnowparkClientException(
-            "The query has been cancelled by the user.", "0402"
+    def MISC_QUERY_IS_CANCELLED() -> SnowparkQueryCancelledException:
+        return SnowparkQueryCancelledException(
+            "The query has been cancelled by the user.", "1401"
         )
 
     @staticmethod
-    def MISC_SESSION_EXPIRED(error_message: str) -> SnowparkClientException:
-        return SnowparkClientException(
+    def MISC_SESSION_EXPIRED(error_message: str) -> SnowparkSessionException:
+        return SnowparkSessionException(
             f"Your Snowpark session has expired. You must recreate your "
             f"session.\n{error_message}",
-            "0408",
+            "1402",
         )
 
     @staticmethod
-    def MISC_INVALID_OBJECT_NAME(type_name: str) -> SnowparkClientException:
-        return SnowparkClientException(
-            f"The object name '{type_name}' is invalid.", "0412"
+    def MISC_INVALID_OBJECT_NAME(type_name: str) -> SnowparkMiscException:
+        return SnowparkMiscException(
+            f"The object name '{type_name}' is invalid.", "1403"
         )
 
     @staticmethod
-    def MISC_NO_DEFAULT_SESSION() -> SnowparkClientException:
-        return SnowparkClientException("No default SnowflakeSession found", "0418")
+    def MISC_NO_DEFAULT_SESSION() -> SnowparkSessionException:
+        return SnowparkSessionException("No default SnowflakeSession found", "1404")
