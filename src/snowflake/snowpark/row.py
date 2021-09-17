@@ -9,9 +9,11 @@ from functools import total_ordering
 from typing import Any, AnyStr, Dict, Iterable, List, Union
 
 
-def _restore_row_from_pickle(values, named_values):
+def _restore_row_from_pickle(values, named_values, fields):
     if named_values:
-        return Row(**named_values)
+        row = Row(**named_values)
+    row = Row(*values)
+    row.__fields__ = fields
     return Row(*values)
 
 
@@ -64,9 +66,11 @@ class Row(tuple):
             row.__dict__["_named_values"] = None
 
         # __fields__ is for internal use only. Users shouldn't set this attribute.
+        # It's None unless the internal code sets it to a list of str values with duplicates.
         # snowflake DB can return duplicate column names, for instance, "select a, a from a_table."
         # When return a DataFrame from a sql, duplicate column names can happen.
         # But using duplicate column names is obviously a bad practice even though we allow it.
+        # It's value is assigned in __setattr__ if internal code assign value explcitly.
         row.__dict__["__fields__"] = None
         return row
 
@@ -91,7 +95,7 @@ class Row(tuple):
         raise TypeError("Row object does not support item assignment")
 
     def __getattr__(self, item):
-        if self.__fields__:
+        if self.__fields__:  # So there are duplicates. Usually this doesn't happen.
             try:
                 index = self.__fields__.index(item)  # may throw ValueError
                 return self[index]  # may throw IndexError
@@ -105,10 +109,11 @@ class Row(tuple):
     def __setattr__(self, key, value):
         if key != "__fields__":
             raise AttributeError("Can't set attribute to Row object")
-        if len(set(value)) != len(value):  # duplicate fields found
-            self.__dict__["__fields__"] = value
-        else:
-            self.__dict__["_named_values"] = {k: v for k, v in zip(value, self)}
+        if value is not None:
+            if len(set(value)) != len(value):  # duplicate fields found
+                self.__dict__["__fields__"] = value
+            else:  # no duplidate fields, keep __field__ None
+                self.__dict__["_named_values"] = {k: v for k, v in zip(value, self)}
 
     def __contains__(self, item):
         return self._named_values and item in self._named_values
@@ -163,7 +168,10 @@ class Row(tuple):
             return "Row({})".format(", ".join("{!r}".format(v) for v in self))
 
     def __reduce__(self):
-        return (_restore_row_from_pickle, (tuple(self), self._named_values))
+        return (
+            _restore_row_from_pickle,
+            (tuple(self), self._named_values, self.__fields__),
+        )
 
     def asDict(self, recursive=False):
         """Convert to a dict if this row object has both keys and values.
