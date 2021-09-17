@@ -9,7 +9,6 @@ from typing import List, Tuple, Union
 import snowflake.snowpark.functions as functions
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.internal.analyzer.sp_utils import to_pretty_sql
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
@@ -32,7 +31,6 @@ from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Pivot as SPPivot,
 )
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.spark_utils import SparkUtils
 from snowflake.snowpark.types.sp_data_types import IntegerType as SPInteger
 
 
@@ -143,19 +141,10 @@ class RelationalGroupedDataFrame:
             return SPUnresolvedAlias(expr, None)
         elif isinstance(expr, SPNamedExpression):
             return expr
-        elif isinstance(expr, SPAggregateExpression) and isinstance(
-            expr.aggregate_function, SPTypedAggregateExpression
-        ):
-            return SPUnresolvedAlias(
-                expr,
-                lambda s: self.__strip_invalid_sf_identifier_chars(
-                    SparkUtils.column_generate_alias(s)
-                ),
-            )
         else:
             return SPAlias(
                 expr,
-                self.__strip_invalid_sf_identifier_chars(to_pretty_sql(expr).upper()),
+                self.__strip_invalid_sf_identifier_chars(expr.sql().upper()),
             )
 
     @staticmethod

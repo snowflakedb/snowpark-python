@@ -10,7 +10,7 @@ from snowflake.snowpark.plans.logical.logical_plan import LogicalPlan
 
 
 class ViewType:
-    def to_string(self):
+    def __str__(self):
         return self.__class__.__name__[:-4]
 
 

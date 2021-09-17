@@ -22,27 +22,50 @@ from snowflake.snowpark.types.types_package import _infer_type
 
 
 class Expression:
+    """Consider removing attributes, and adding properties and methods.
+    A subclass of Expression may have no child, one child, or multiple children.
+    But the constructor accepts a single child. This might be refactored in the future.
+    """
+
     # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/Expression.scala#L86
-    nullable: bool = None
-    datatype: DataType = None
+    def __init__(self, child: Optional["Expression"] = None):
+        """
+        Subclasses will override these attributes
+        """
+        self.child = child
+        self.nullable = None
+        self.children = [child] if child else None
+        self.datatype: DataType = None
 
     def pretty_name(self) -> str:
         """Returns a user-facing string representation of this expression's name.
         This should usually match the name of the function in SQL."""
         return self.__class__.__name__.upper()
 
-    # TODO: SNOW-369125 set expression-related string/names
+    def sql(self) -> str:
+        children_sql = (
+            ", ".join([x.sql() for x in self.children]) if self.children else ""
+        )
+        return f"{self.pretty_name()}({children_sql})"
+
     def __repr__(self) -> str:
         return self.pretty_name()
 
 
-class NamedExpression(Expression):
-    name: str
-    expr_id: uuid.UUID
+class NamedExpression:
+    """In scala, `NamedExpression` is a trait that extends `Expression`. Python doesn't have trait.
+    A Mixin is used to simulate it. They're still different though.
+    """
 
-    def __init__(self, name):
-        self.name = name
-        self.expr_id = uuid.uuid4()
+    @property
+    def name(self):
+        return getattr(self, "_name", None)
+
+    @property
+    def expr_id(self):
+        if not hasattr(self, "_expr_id"):
+            self._expr_id = uuid.uuid4()
+        return self._expr_id
 
 
 class LeafExpression(Expression):
@@ -51,25 +74,28 @@ class LeafExpression(Expression):
 
 class Star(LeafExpression, NamedExpression):
     def __init__(self, expressions: List[NamedExpression]):
-        super().__init__(name="Star")
+        super().__init__()
+        self._name = "Star"
         self.expressions = expressions
 
 
 class UnaryExpression(Expression):
-    child: Expression
-    children: List["Expression"]
-
     def __init__(self, child: Expression):
-        self.child = child
+        super().__init__(child)
         self.children = [child]
+        self.datatype = (
+            self.child.datatype if self.child and hasattr(self.child, "child") else None
+        )
+
+    def children(self) -> List[Expression]:
+        return self.children
 
 
 class BinaryExpression(Expression):
-    left: Expression
-    right: Expression
     sql_operator: str
 
     def __init__(self, left: Expression, right: Expression):
+        super().__init__()
         self.left = left
         self.right = right
         self.children = [self.left, self.right]
@@ -89,11 +115,12 @@ class UnresolvedFunction(Expression):
     def pretty_name(self) -> str:
         return self.name.strip('"')
 
-    def to_string(self) -> str:
-        return f"{self.name}({', '.join((c.to_string() for c in self.children))})"
+    def sql(self) -> str:
+        distinct = "DISTINCT " if self.is_distinct else ""
+        return f"{self.pretty_name()}({distinct}{', '.join(c.sql() for c in self.children)})"
 
     def __repr__(self):
-        return self.to_string()
+        return f"{self.name}({', '.join((str(c) for c in self.children))})"
 
 
 # ##### AggregateModes
@@ -119,7 +146,7 @@ class AggregateExpression(Expression):
         filter: Expression,
         result_id: uuid.UUID = None,
     ):
-        super().__init__()
+        super().__init__(aggregate_function)
         self.aggregate_function = aggregate_function
         self.mode = mode
         self.is_distinct = is_distinct
@@ -134,14 +161,17 @@ class AggregateExpression(Expression):
 
         self.datatype = aggregate_function.datatype
         # TODO nullable needed?
-        # self.nullable = aggregate_function.nullable
+        self.nullable = aggregate_function.nullable
 
     @property
     def name(self):
         return self.aggregate_function.name
 
-    def to_string(self):
-        return f"{self.aggregate_function.name}({', '.join((c.to_string() for c in self.aggregate_function.children))})"
+    def __str__(self):
+        return f"{self.aggregate_function.name}({', '.join((str(c) for c in self.aggregate_function.children))})"
+
+    def sql(self) -> str:
+        return self.children[0].sql() if self.children else ""
 
 
 class TypedAggregateExpression(AggregateExpression):
@@ -160,7 +190,8 @@ class AggregateFunction(Expression):
 
 class DeclarativeAggregate(AggregateFunction):
     # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/aggregate/interfaces.scala#L394
-    pass
+    def __init__(self, child: Expression):
+        super(DeclarativeAggregate, self).__init__(child)
 
 
 class Count(DeclarativeAggregate):
@@ -168,9 +199,7 @@ class Count(DeclarativeAggregate):
     name = "COUNT"
 
     def __init__(self, child: Expression):
-        super().__init__()
-        self.child = child
-        self.children = [child]
+        super().__init__(child)
         self.datatype = LongType()
 
 
@@ -179,9 +208,7 @@ class Max(DeclarativeAggregate):
     name = "MAX"
 
     def __init__(self, child: Expression):
-        super().__init__()
-        self.child = child
-        self.children = [child]
+        super().__init__(child)
         self.datatype = child.datatype
 
 
@@ -190,9 +217,7 @@ class Min(DeclarativeAggregate):
     name = "MIN"
 
     def __init__(self, child: Expression):
-        super().__init__()
-        self.child = child
-        self.children = [child]
+        super().__init__(child)
         self.datatype = child.datatype
 
 
@@ -201,9 +226,7 @@ class Avg(DeclarativeAggregate):
     name = "AVG"
 
     def __init__(self, child: Expression):
-        super().__init__()
-        self.child = child
-        self.children = [child]
+        super().__init__(child)
         self.datatype = self.__get_type(child)
 
     @staticmethod
@@ -218,9 +241,7 @@ class Sum(DeclarativeAggregate):
     name = "SUM"
 
     def __init__(self, child: Expression):
-        super().__init__()
-        self.child = child
-        self.children = [child]
+        super().__init__(child)
         self.datatype = self.__get_type(child)
 
     @staticmethod
@@ -256,14 +277,15 @@ class Rollup(BaseGroupingSets):
 # Named Expressions
 class Alias(UnaryExpression, NamedExpression):
     def __init__(self, child, name, expr_id=None):
-        UnaryExpression.__init__(self, child)
-        NamedExpression.__init__(self, name)
-        self.expr_id = expr_id if expr_id else uuid.uuid4()
+        super().__init__(child)
+        self._name = name
+        self._expr_id = expr_id if expr_id else uuid.uuid4()
 
 
 class Attribute(LeafExpression, NamedExpression):
     def __init__(self, name):
-        super().__init__(name=name)
+        super().__init__()
+        self._name = name
 
     @classmethod
     def with_name(cls, name):
@@ -274,6 +296,7 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
     def __init__(self, child, alias_func):
         super().__init__(child=child)
         self.alias_func = alias_func
+        self._name = alias_func
 
 
 # Leaf Expressions
@@ -287,14 +310,14 @@ class Literal(LeafExpression):
     def create(cls, value):
         return cls(value, _infer_type(value))
 
-    def to_string(self):
+    def __str__(self):
         return DataTypeMapper.to_sql_without_cast(self.value, self.datatype)
 
     def sql(self):
-        return self.to_string()
+        return self.__str__()
 
     def __repr__(self):
-        return self.to_string()
+        return self.__str__()
 
 
 class BinaryArithmeticExpression(BinaryExpression):
@@ -429,11 +452,11 @@ class AttributeReference(Attribute):
         else:
             return AttributeReference(self.name, self.datatype, self.nullable)
 
-    def to_string(self):
+    def __str__(self):
         return self.name
 
     def __repr__(self):
-        return self.to_string()
+        return self.__str__()
 
 
 class UnresolvedAttribute(Attribute):
@@ -460,68 +483,51 @@ class UnresolvedAttribute(Attribute):
         # TODO
         return name
 
-    def to_string(self):
+    def __str__(self):
         return ".".join(self.name_parts)
 
     def sql(self):
-        return self.to_string()
-
-
-class PrettyAttribute(Attribute):
-    def __init__(self, name: str, datatype: Optional[DataType]):
-        super().__init__(name=name)
-        self.datatype = datatype
-
-    @classmethod
-    def this(cls, attribute: Attribute):
-        if type(attribute) == AttributeReference:
-            tpe = attribute.datatype
-        elif type(attribute) == PrettyAttribute:
-            tpe = attribute.datatype
-        else:
-            tpe = NullType()
-
-        return cls(attribute.name, tpe)
-
-    def to_string(self) -> str:
-        return self.name
-
-    def sql(self) -> str:
-        return self.name
+        return self.__str__()
 
 
 class Like(Expression):
     def __init__(self, expr: Expression, pattern: Expression):
+        super().__init__(expr)
         self.expr = expr
         self.pattern = pattern
 
 
 class RegExp(Expression):
     def __init__(self, expr: Expression, pattern: Expression):
+        super().__init__(expr)
         self.expr = expr
         self.pattern = pattern
 
 
 class Collate(Expression):
     def __init__(self, expr: Expression, collation_spec: str):
+        super().__init__(expr)
         self.expr = expr
         self.collation_spec = collation_spec
 
 
 class SubfieldString(Expression):
     def __init__(self, expr: Expression, field: str):
+        super().__init__(expr)
         self.expr = expr
         self.field = field
 
 
 class SubfieldInt(Expression):
     def __init__(self, expr: Expression, field: int):
+        super().__init__(expr)
         self.expr = expr
         self.field = field
 
 
 class TableFunctionExpression(Expression):
     def __init__(self):
+        super().__init__()
         self.datatype = None
 
 
@@ -553,12 +559,14 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
 
 class GroupingSets(Expression):
     def __init__(self, args: List[Expression]):
+        super(self).__init__()
         self.args = args
         self.datatype = None
 
 
 class WithinGroup(Expression):
     def __init__(self, expr: Expression, order_by_cols: List[Expression]):
+        super().__init__(expr)
         self.expr = expr
         self.order_by_cols = order_by_cols
 
@@ -614,6 +622,7 @@ class CaseWhen(Expression):
         branches: List[Tuple[Expression, Expression]],
         else_value: Optional[Expression] = None,
     ):
+        super().__init__()
         self.branches = branches
         self.else_value = else_value
         # nullable if any value is nullable
@@ -630,6 +639,7 @@ class SnowflakeUDF(Expression):
         datatype: DataType,
         nullable: bool = True,
     ):
+        super().__init__()
         self.udf_name = udf_name
         self.children = children
         self.datatype = datatype
