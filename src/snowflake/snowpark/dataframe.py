@@ -655,27 +655,33 @@ class DataFrame:
         )
 
     def unionByName(self, other: "DataFrame") -> "DataFrame":
-        return self.internalUnionByName(other, is_all=False)
+        return self._internalUnionByName(other, is_all=False)
 
     def unionAllByName(self, other: "DataFrame") -> "DataFrame":
-        return self.internalUnionByName(other, is_all=True)
+        return self._internalUnionByName(other, is_all=True)
 
-    def internalUnionByName(
+    def _internalUnionByName(
         self, other: "DataFrame", is_all: bool = False
     ) -> "DataFrame":
         left_output_attrs = self.__output()
         right_output_attrs = other.__output()
-        right_output_attr_names = [rattr.name for rattr in right_output_attrs]
+        right_output_attr_by_name = {rattr.name: rattr for rattr in right_output_attrs}
 
-        def match_attrs(lattr: SPAttribute):
-            try:
-                return right_output_attrs[right_output_attr_names.index(lattr.name)]
-            except ValueError:
-                raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
-                    lattr.name, ", ".join(right_output_attr_names)
-                )
+        try:
+            right_project_list = [
+                right_output_attr_by_name[lattr.name] for lattr in left_output_attrs
+            ]
+        except KeyError:
+            missing_lattrs = [
+                lattr.name
+                for lattr in left_output_attrs
+                if lattr.name not in right_output_attr_by_name
+            ]
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
+                ", ".join(missing_lattrs),
+                ", ".join(list(right_output_attr_by_name.keys())),
+            )
 
-        right_project_list = [match_attrs(lattr) for lattr in left_output_attrs]
         not_found_attrs = [
             rattr for rattr in right_output_attrs if rattr not in right_project_list
         ]
