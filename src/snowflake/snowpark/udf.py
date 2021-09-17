@@ -4,8 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import io
+import os
 import pickle
-import zipfile
 from typing import Callable, List, NamedTuple, Optional, Tuple, Union, get_type_hints
 
 import cloudpickle
@@ -78,6 +78,9 @@ class _UDFColumn(NamedTuple):
 
 
 class UDFRegistration:
+
+    _handler_name = "compute"
+
     def __init__(self, session):
         self.session = session
 
@@ -87,7 +90,6 @@ class UDFRegistration:
         return_type: Optional[DataType] = None,
         input_types: Optional[List[DataType]] = None,
         name: Optional[str] = None,
-        stage_location: Optional[str] = None,
     ) -> UserDefinedFunction:
         if not callable(func):
             raise TypeError(
@@ -115,9 +117,7 @@ class UDFRegistration:
             ) = self.__get_types_from_type_hints(func)
 
         # register udf
-        self.__do_register_udf(
-            func, new_return_type, new_input_types, udf_name, stage_location
-        )
+        self.__do_register_udf(func, new_return_type, new_input_types, udf_name)
         return UserDefinedFunction(
             func, return_type, new_input_types, udf_name, is_return_nullable
         )
@@ -167,24 +167,17 @@ class UDFRegistration:
             else self.session.getSessionStage()
         )
         dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-        # TODO: SNOW-406036 don't zip .py file
-        dest_filename = f"udf_py_{Utils.random_number()}.zip"
-        upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{dest_filename}"
-        # TODO: SNOW-406036 upload python file instead of zip containing udf
-        #  after the server side issue is fixed
-        input_stream = io.BytesIO()
-        with zipfile.ZipFile(
-            input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
-        ) as zf:
-            zf.writestr(f"{dest_filename.split('.')[0]}.py", code)
-        self.session.conn.upload_stream(
-            input_stream=input_stream,
-            stage_location=upload_stage,
-            dest_filename=dest_filename,
-            dest_prefix=dest_prefix,
-            compress_data=False,
-            overwrite=True,
-        )
+        dest_file_name = f"udf_py_{Utils.random_number()}.py"
+        upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{dest_file_name}"
+        with io.BytesIO(bytes(code, "utf8")) as input_stream:
+            self.session.conn.upload_stream(
+                input_stream=input_stream,
+                stage_location=upload_stage,
+                dest_filename=dest_file_name,
+                dest_prefix=dest_prefix,
+                compress_data=False,
+                overwrite=True,
+            )
 
         # build imports string
         all_urls = [
@@ -195,7 +188,7 @@ class UDFRegistration:
         self.__create_python_udf(
             return_type=return_type,
             input_args=input_args,
-            py_file_name=dest_filename,
+            handler=f"{os.path.splitext(dest_file_name)[0]}.{self._handler_name}",
             udf_name=udf_name,
             all_imports=all_imports,
             is_temporary=stage_location is None,
@@ -209,7 +202,7 @@ import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
 
-def compute({args}):
+def {self._handler_name}({args}):
     return func({args})
 """
         return code
@@ -218,7 +211,7 @@ def compute({args}):
         self,
         return_type: DataType,
         input_args: List[_UDFColumn],
-        py_file_name: str,
+        handler: str,
         udf_name: str,
         all_imports: str,
         is_temporary: bool,
@@ -234,6 +227,6 @@ RETURNS {return_sql_type}
 LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
 IMPORTS=({all_imports})
-HANDLER='{py_file_name.split(".")[0]}.compute'
+HANDLER='{handler}'
 """
         self.session._run_query(create_udf_query)
