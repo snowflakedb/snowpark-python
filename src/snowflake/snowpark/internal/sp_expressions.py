@@ -44,7 +44,7 @@ class Expression:
 
     def sql(self) -> str:
         children_sql = (
-            ", ".join(map(lambda x: x.sql(), self.children)) if self.children else ""
+            ", ".join([x.sql() for x in self.children]) if self.children else ""
         )
         return f"{self.pretty_name()}({children_sql})"
 
