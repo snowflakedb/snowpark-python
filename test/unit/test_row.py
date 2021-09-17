@@ -162,6 +162,8 @@ def test_row_pickle(row):
     pickled = pickle.dumps(row)
     restored = pickle.loads(pickled)
     assert row == restored
+    assert row._named_values == restored._named_values
+    assert row.__fields__ == restored.__fields__
 
 
 def test_dunder_call():

@@ -15,7 +15,7 @@ def _restore_row_from_pickle(values, named_values, fields):
     else:
         row = Row(*values)
     row.__fields__ = fields
-    return Row(*values)
+    return row
 
 
 class Row(tuple):
