@@ -12,7 +12,8 @@ from typing import Any, AnyStr, Dict, Iterable, List, Union
 def _restore_row_from_pickle(values, named_values, fields):
     if named_values:
         row = Row(**named_values)
-    row = Row(*values)
+    else:
+        row = Row(*values)
     row.__fields__ = fields
     return Row(*values)
 
