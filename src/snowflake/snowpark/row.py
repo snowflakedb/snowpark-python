@@ -62,6 +62,12 @@ class Row(tuple):
         else:
             row = tuple.__new__(cls, values)
             row.__dict__["_named_values"] = None
+
+        # __fields__ is for internal use only. Users shouldn't set this attribute.
+        # snowflake DB can return duplicate column names, for instance, "select a, a from a_table."
+        # When return a DataFrame from a sql, duplicate column names can happen.
+        # But using duplicate column names is obviously a bad practice even though we allow it.
+        row.__dict__["__fields__"] = None
         return row
 
     def __getitem__(self, item: Union[int, str]):
@@ -69,23 +75,40 @@ class Row(tuple):
             return super().__getitem__(item)
         elif isinstance(item, slice):
             return Row(*super().__getitem__(item))
+        elif self.__fields__:
+            try:
+                index = self.__fields__.index(item)
+                return super(Row, self).__getitem__(index)
+            except (IndexError, ValueError):
+                raise KeyError(item)
         else:
-            return self._named_values[item]
+            try:
+                return self._named_values[item]
+            except TypeError:  # _named_values is None
+                raise KeyError(item)
 
     def __setitem__(self, key, value):
         raise TypeError("Row object does not support item assignment")
 
     def __getattr__(self, item):
-        if not self._named_values:
-            raise AttributeError(f"Row object has no attribute {item}")
+        if self.__fields__:
+            try:
+                index = self.__fields__.index(item)  # may throw ValueError
+                return self[index]  # may throw IndexError
+            except (IndexError, ValueError):
+                raise AttributeError(f"Row object has no attribute {item}")
         try:
             return self._named_values[item]
-        except KeyError:
+        except (KeyError, TypeError):
             raise AttributeError(f"Row object has no attribute {item}")
 
     def __setattr__(self, key, value):
-        if key != "_named_values":
+        if key != "__fields__":
             raise AttributeError("Can't set attribute to Row object")
+        if len(set(value)) != len(value):  # duplicate fields found
+            self.__dict__["__fields__"] = value
+        else:
+            self.__dict__["_named_values"] = {k: v for k, v in zip(value, self)}
 
     def __contains__(self, item):
         return self._named_values and item in self._named_values
