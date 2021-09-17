@@ -28,12 +28,12 @@ class Expression:
     """
 
     # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/Expression.scala#L86
-    def __init__(self, child=None):
+    def __init__(self, child: Optional["Expression"] = None):
         """
         Subclasses will override these attributes
         """
         self.child = child
-        self.nullable = True
+        self.nullable = None
         self.children = [child] if child else None
         self.datatype: DataType = None
 
@@ -48,7 +48,6 @@ class Expression:
         )
         return f"{self.pretty_name()}({children_sql})"
 
-    # TODO: SNOW-369125 set expression-related string/names
     def __repr__(self) -> str:
         return self.pretty_name()
 
@@ -106,9 +105,7 @@ class BinaryExpression(Expression):
         return "{} {} {}".format(self.left, self.sql_operator, self.right)
 
 
-class UnresolvedFunction(
-    Expression
-):
+class UnresolvedFunction(Expression):
     def __init__(self, name, arguments, is_distinct=False):
         super().__init__()
         self.name = name
@@ -122,11 +119,8 @@ class UnresolvedFunction(
         distinct = "DISTINCT " if self.is_distinct else ""
         return f"{self.pretty_name()}({distinct}{', '.join(c.sql() for c in self.children)})"
 
-    def __str__(self) -> str:
-        return f"{self.name}({', '.join((str(c) for c in self.children))})"
-
     def __repr__(self):
-        return self.__str__()
+        return f"{self.name}({', '.join((str(c) for c in self.children))})"
 
 
 # ##### AggregateModes
