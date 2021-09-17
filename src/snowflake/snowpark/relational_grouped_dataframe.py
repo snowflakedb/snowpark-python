@@ -9,7 +9,6 @@ from typing import List, Tuple, Union
 import snowflake.snowpark.functions as functions
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.internal.analyzer.sp_utils import to_pretty_sql
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
