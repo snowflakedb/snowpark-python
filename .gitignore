@@ -135,3 +135,9 @@ dmypy.json
 wss*.config
 wss-unified-agent.jar
 whitesource/
+
+# Ignore macOS folder attributes files
+**/.DS_Store
+
+# Ignore generated autosummary files created by Sphinx docs when you run make html in the docs directory.
+/docs/source/_autosummary/
