@@ -778,7 +778,10 @@ def test_create_dataframe_with_basic_data_types(session_cnx):
             BinaryType,
             DecimalType,
         ]
-        assert df.collect() == expected_rows
+        result = df.collect()
+        assert result == expected_rows
+        assert result[0].asDict(True) == {k: v for k, v in zip(expected_names, data1)}
+        assert result[1].asDict(True) == {k: v for k, v in zip(expected_names, data2)}
         assert df.select(expected_names).collect() == expected_rows
 
 
@@ -813,12 +816,16 @@ def test_create_dataframe_with_semi_structured_data_types(session_cnx):
 def test_create_dataframe_with_dict(session_cnx):
     with session_cnx() as session:
         data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
-        expected_names = list(data.keys())
+        expected_names = [name.upper() for name in data.keys()]
         expected_rows = [Row(*data.values())]
         df = session.createDataFrame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
             assert Utils.equals_ignore_case(field.name, expected_name)
-        assert df.collect() == expected_rows
+        result = df.collect()
+        assert result == expected_rows
+        assert result[0].asDict(True) == {
+            k: v for k, v in zip(expected_names, data.values())
+        }
         assert df.select(expected_names).collect() == expected_rows
 
 
@@ -826,13 +833,35 @@ def test_create_dataframe_with_namedtuple(session_cnx):
     Data = namedtuple("Data", ["snow_{}".format(idx + 1) for idx in range(5)])
     with session_cnx() as session:
         data = Data(*[idx ** 3 for idx in range(5)])
-        expected_names = list(data._fields)
+        expected_names = [name.upper() for name in data._fields]
         expected_rows = [Row(*data)]
         df = session.createDataFrame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
             assert Utils.equals_ignore_case(field.name, expected_name)
-        assert df.collect() == expected_rows
+        result = df.collect()
+        assert result == expected_rows
+        assert result[0].asDict(True) == {k: v for k, v in zip(expected_names, data)}
         assert df.select(expected_names).collect() == expected_rows
+
+
+def test_create_dataframe_with_schema_col_names(session):
+    col_names = ["a", "b", "c", "d"]
+    df = session.createDataFrame([[1, 2, 3, 4]], schema=col_names)
+    for field, expected_name in zip(df.schema.fields, col_names):
+        assert Utils.equals_ignore_case(field.name, expected_name)
+
+    # only give first two column names,
+    # and the rest will be populated as "_#num"
+    df = session.createDataFrame([[1, 2, 3, 4]], schema=col_names[:2])
+    for field, expected_name in zip(df.schema.fields, col_names[:2] + ["_3", "_4"]):
+        assert Utils.equals_ignore_case(field.name, expected_name)
+
+    # the column names provided via schema keyword will overwrite other column names
+    df = session.createDataFrame(
+        [{"aa": 1, "bb": 2, "cc": 3, "dd": 4}], schema=col_names
+    )
+    for field, expected_name in zip(df.schema.fields, col_names):
+        assert Utils.equals_ignore_case(field.name, expected_name)
 
 
 def test_create_dataframe_with_variant(session_cnx):
@@ -931,13 +960,16 @@ def test_create_dataframe_with_invalid_data(session_cnx):
             session.createDataFrame(None)
         assert "data cannot be None" in str(ex_info)
 
-        # input other than list, tuple, namedtuple and dict
+        # input other than list and tuple
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame(1)
-        assert "only accepts data in List, Tuple or Dict type" in str(ex_info)
+        assert "only accepts data in List and Tuple type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame({1, 2})
-        assert "only accepts data in List, Tuple or Dict type" in str(ex_info)
+        assert "only accepts data in List and Tuple type" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            session.createDataFrame({"a": 1, "b": 2})
+        assert "only accepts data in List and Tuple type" in str(ex_info)
 
         # inconsistent type
         with pytest.raises(TypeError) as ex_info:
@@ -1007,3 +1039,18 @@ def test_attribute_reference_to_sql(session):
     )
 
     Utils.check_answer([Row(1, 1)], agg_results)
+
+
+def test_dataframe_duplicated_column_names(session):
+    df = session.sql("select 1 as a, 2 as a")
+    # collect() works and return a row with duplicated keys,
+    # which aligns with Pyspark
+    res = df.collect()
+    assert len(res[0]) == 2
+    assert res[0].A == 1
+
+    # however, create a table/view doesn't work because
+    # Snowflake doesn't allow duplicated column names
+    with pytest.raises(ProgrammingError) as ex_info:
+        df.createOrReplaceView(Utils.random_name())
+    assert "duplicate column name 'A'" in str(ex_info)

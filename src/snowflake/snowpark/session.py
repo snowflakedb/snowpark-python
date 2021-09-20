@@ -435,17 +435,18 @@ class Session(metaclass=_SessionMeta):
 
     def createDataFrame(
         self,
-        data: Union[List, Tuple, Dict],
-        schema: Optional[StructType] = None,
+        data: Union[List, Tuple],
+        schema: Optional[Union[StructType, List[str]]] = None,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
-                be an instance of :class:`list`, :class:`tuple` or :class:`dict`.
-                Every element in ``data`` will constitute a row in the dataframe.
-            schema: A :class:`StructType` containing names and data types of columns.
-                When ``schema`` is ``None``, the schema will be inferred from the data
+                be an instance of :class:`list`, :class:`tuple`. Every element in
+                ``data`` will constitute a row in the dataframe.
+           schema: A :class:`StructType` containing names and data types of columns,
+                or a list of column names, or ``None``. When ``schema`` is a a list of
+                column names or ``None``, the schema will be inferred from the data
                 across all rows.
 
         Returns:
@@ -457,6 +458,7 @@ class Session(metaclass=_SessionMeta):
             session.createDataFrame([1, 2, 3, 4]).toDF("a")  # one single column
             session.createDataFrame([[1, 2, 3, 4]]).toDF("a", "b", "c", "d")
             session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+            session.createDataFrame([Row(a=1, b=2, c=3, d=4)])
             session.createDataFrame([{"a": "snow", "b": "flake"}])
 
             # given a schema
@@ -468,9 +470,9 @@ class Session(metaclass=_SessionMeta):
             raise ValueError("data cannot be None.")
 
         # check the type of data
-        if not isinstance(data, (list, tuple, dict)):
+        if not isinstance(data, (list, tuple)):
             raise TypeError(
-                "createDataFrame() function only accepts data in List, Tuple or Dict type."
+                "createDataFrame() function only accepts data in List and Tuple type."
             )
 
         # check whether data is empty
@@ -485,6 +487,7 @@ class Session(metaclass=_SessionMeta):
             if not row:
                 rows.append(Row(None))
             elif isinstance(row, Row):
+                names = row._named_values
                 rows.append(row)
             elif isinstance(row, dict):
                 if not names:
@@ -502,15 +505,19 @@ class Session(metaclass=_SessionMeta):
             raise ValueError("Data consists of rows with different lengths.")
 
         # infer the schema based on the data
-        if not schema:
-            schema = reduce(
+        if isinstance(schema, StructType):
+            new_schema = schema
+        else:
+            if isinstance(schema, list):
+                names = schema
+            new_schema = reduce(
                 _merge_type,
                 (_infer_schema_from_list(list(row), names) for row in rows),
             )
 
         # get spark attributes and data types
         sp_attrs, data_types = [], []
-        for field in schema.fields:
+        for field in new_schema.fields:
             sp_type = (
                 SPStringType()
                 if type(field.datatype)
@@ -567,7 +574,7 @@ class Session(metaclass=_SessionMeta):
 
         # construct a project statement to convert string value back to variant
         project_columns = []
-        for field in schema.fields:
+        for field in new_schema.fields:
             if type(field.datatype) == DecimalType:
                 project_columns.append(
                     to_decimal(

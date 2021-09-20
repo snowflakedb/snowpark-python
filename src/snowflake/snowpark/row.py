@@ -200,7 +200,7 @@ class Row(tuple):
             for k, v in obj.items():
                 child_dict[k] = self._convert_dict(v)
             return child_dict
-        elif isinstance(obj, Iterable) and not isinstance(obj, (str, bytes)):
+        elif isinstance(obj, Iterable) and not isinstance(obj, (str, bytes, bytearray)):
             return [self._convert_dict(x) for x in obj]
 
         return obj
