@@ -39,6 +39,7 @@ from snowflake.snowpark.types.sf_types import (
     VariantType,
 )
 
+from snowflake.snowpark.types.sp_data_types import DecimalType as SPDecimalType
 
 def test_read_stage_file_show(session, resources_path):
     tmp_stage_name = Utils.random_stage_name()
@@ -970,7 +971,7 @@ def test_create_dataframe_with_invalid_data(session_cnx):
 # This test was originall party of scala-integ tests, but was removed.
 def test_special_decimal_literals(session):
     normal_scale = lit(Decimal("0.1"))
-    small_scale = Column(Literal(Decimal("0.00001"), DecimalType(5, 5)))
+    small_scale = Column(Literal(Decimal("0.00001"), SPDecimalType(5, 5)))
 
     df = session.range(2).select(normal_scale, small_scale)
 
