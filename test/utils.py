@@ -212,8 +212,24 @@ class TestData:
         )
 
     @classmethod
+    def nan_data1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values(1.2),('NaN'::Double),(null),(2.3) as T(a)"
+        )
+
+    @classmethod
     def duplicated_numbers(cls, session: "Session") -> DataFrame:
         return session.sql("select * from values(3),(2),(1),(3),(2) as T(a)")
+
+    @classmethod
+    def string1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values('test1', 'a'),('test2', 'b'),('test3', 'c') as T(a, b)"
+        )
+
+    @classmethod
+    def string2(cls, session: "Session") -> DataFrame:
+        return session.sql("select * from values('asdFg'),('qqq'),('Qw') as T(a)")
 
     @classmethod
     def string3(cls, session: "Session") -> DataFrame:
@@ -300,6 +316,12 @@ class TestData:
                 cls.Number2(2, 2, 1),
                 cls.Number2(2, 2, 3),
             ]
+        )
+
+    @classmethod
+    def long1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values(1561479557),(1565479557),(1161479557) as T(a)"
         )
 
     @classmethod
