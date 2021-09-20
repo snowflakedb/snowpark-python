@@ -59,7 +59,7 @@ def test_decimal_type():
     assert isinstance(tpe, AtomicType)
     assert isinstance(tpe, DataType)
     assert tpe.type_name == str(tpe)
-    assert tpe.type_name == "Decimal(38,19)"
+    assert tpe.type_name == "Decimal(38, 19)"
 
 
 def test_string_type():

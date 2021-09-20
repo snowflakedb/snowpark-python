@@ -35,7 +35,7 @@ def test_literal_basic_types(session):
         "StructField(BYTES, Binary, Nullable=False), "
         "StructField(INT, Long, Nullable=False), "
         "StructField(FLOAT, Double, Nullable=False), "
-        "StructField(DECIMAL, Decimal(38,18), Nullable=False)]"
+        "StructField(DECIMAL, Decimal(38, 18), Nullable=False)]"
     )
 
     show_str = df._DataFrame__show_string(10)
