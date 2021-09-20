@@ -442,12 +442,12 @@ class Session(metaclass=_SessionMeta):
 
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
-                be an instance of :class:`list`, :class:`tuple`. Every element in
+                be an instance of :class:`list` or :class:`tuple`. Every element in
                 ``data`` will constitute a row in the dataframe.
            schema: A :class:`StructType` containing names and data types of columns,
-                or a list of column names, or ``None``. When ``schema`` is a a list of
-                column names or ``None``, the schema will be inferred from the data
-                across all rows.
+                or a list of column names, or ``None``. When ``schema`` is a list of
+                column names or ``None``, the schema of the dataframe will be inferred
+                from the data across all rows.
 
         Returns:
             A :class:`DataFrame`.
