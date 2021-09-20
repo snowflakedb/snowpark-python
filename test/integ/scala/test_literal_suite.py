@@ -113,26 +113,6 @@ def test_date(session):
     )
 
 
-# This was removed from scala.
-def test_special_bigdecimal_literals(session):
-    normal_scale = lit(Decimal("0.1"))
-    small_scale = Column(Literal(Decimal("0.00001"), DecimalType(5, 5)))
-
-    df = session.range(2).select(normal_scale, small_scale)
-
-    show_str = df._DataFrame__show_string(10)
-    assert (
-        show_str
-        == """-----------------------------------------------------------
-|"0.1 ::  NUMBER (38, 18)"  |"0.00001 ::  NUMBER (5, 5)"  |
------------------------------------------------------------
-|0.100000000000000000       |0.00001                      |
-|0.100000000000000000       |0.00001                      |
------------------------------------------------------------
-"""
-    )
-
-
 def test_special_literals(session):
     source_literal = lit(123)
     df = (

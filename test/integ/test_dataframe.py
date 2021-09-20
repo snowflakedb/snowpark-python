@@ -15,10 +15,10 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
-    Star as SPStar,
+    Star as SPStar, Literal,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types.sf_types import (
@@ -965,3 +965,23 @@ def test_create_dataframe_with_invalid_data(session_cnx):
         with pytest.raises(ValueError) as ex_info:
             session.createDataFrame([[1], [1, 2]])
         assert "Data consists of rows with different lengths" in str(ex_info)
+
+
+# This test was originall party of scala-integ tests, but was removed.
+def test_special_decimal_literals(session):
+    normal_scale = lit(Decimal("0.1"))
+    small_scale = Column(Literal(Decimal("0.00001"), DecimalType(5, 5)))
+
+    df = session.range(2).select(normal_scale, small_scale)
+
+    show_str = df._DataFrame__show_string(10)
+    assert (
+            show_str
+            == """-----------------------------------------------------------
+|"0.1 ::  NUMBER (38, 18)"  |"0.00001 ::  NUMBER (5, 5)"  |
+-----------------------------------------------------------
+|0.100000000000000000       |0.00001                      |
+|0.100000000000000000       |0.00001                      |
+-----------------------------------------------------------
+"""
+    )
