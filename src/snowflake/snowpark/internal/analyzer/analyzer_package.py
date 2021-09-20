@@ -633,7 +633,7 @@ class AnalyzerPackage:
             + self._View
             + name
             + self._As
-            + child
+            + self.project_statement([], child)
         )
 
     def copy_into_table(
