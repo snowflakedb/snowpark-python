@@ -7,9 +7,13 @@ from decimal import Decimal
 from test.utils import TestData, Utils
 from typing import List
 
+import pytest
+
+from snowflake.connector import ProgrammingError
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import col, lit, min, sum
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import IntegerType
 
 
@@ -21,6 +25,37 @@ def test_union_with_filters(session):
             session.createDataFrame([[1, 1]]).toDF(["a", "b"]).withColumn("c", new_col)
         )
         df2 = df1.union(df1).withColumn("d", lit(100)).filter(cfilter)
+
+        Utils.check_answer(df2, result)
+
+    check(
+        lit(None).cast(IntegerType()),
+        col("c").is_null(),
+        [Row(1, 1, None, 100)],
+    )
+    check(lit(None).cast(IntegerType()), col("c").is_not_null(), list())
+    check(lit(2).cast(IntegerType()), col("c").is_null(), list())
+    check(
+        lit(2).cast(IntegerType()),
+        col("c").is_not_null(),
+        [Row(1, 1, 2, 100)],
+    )
+    check(
+        lit(2).cast(IntegerType()),
+        col("c") == 2,
+        [Row(1, 1, 2, 100)],
+    )
+    check(lit(2).cast(IntegerType()), col("c") != 2, list())
+
+
+def test_union_all_with_filters(session):
+    """Tests union queries with a filter added"""
+
+    def check(new_col: Column, cfilter: Column, result: List[Row]):
+        df1 = (
+            session.createDataFrame([[1, 1]]).toDF(["a", "b"]).withColumn("c", new_col)
+        )
+        df2 = df1.unionAll(df1).withColumn("d", lit(100)).filter(cfilter)
 
         Utils.check_answer(df2, result)
 
@@ -94,6 +129,22 @@ def test_except_between_two_projects_without_references_used_in_filter(session):
     Utils.check_answer(df1.select("b").except_(df2.select("c")), Row(2))
 
 
+def test_union_unionall_unionbyname_unionallbyname_in_one_case(session):
+    df1 = session.createDataFrame([(1, 2, 3)]).toDF("a", "b", "c")
+    df2 = session.createDataFrame([(3, 1, 2)]).toDF("c", "a", "b")
+    df3 = session.createDataFrame([(1, 2, 3)]).toDF("b", "c", "a")
+
+    Utils.check_answer(df1.union(df2), [Row(1, 2, 3), Row(3, 1, 2)])
+    Utils.check_answer(df1.unionAll(df2), [Row(1, 2, 3), Row(3, 1, 2)])
+    Utils.check_answer(df1.unionByName(df2), Row(1, 2, 3))
+    Utils.check_answer(df1.unionAllByName(df2), [Row(1, 2, 3), Row(1, 2, 3)])
+
+    Utils.check_answer(df1.union(df3), Row(1, 2, 3))
+    Utils.check_answer(df1.unionAll(df3), [Row(1, 2, 3), Row(1, 2, 3)])
+    Utils.check_answer(df1.unionByName(df3), [Row(1, 2, 3), Row(3, 1, 2)])
+    Utils.check_answer(df1.unionAllByName(df3), [Row(1, 2, 3), Row(3, 1, 2)])
+
+
 def test_nondeterministic_expressions_should_not_be_pushed_down(session):
     df1 = session.createDataFrame([(i,) for i in range(1, 21)]).toDF("i")
     df2 = session.createDataFrame([(i,) for i in range(1, 11)]).toDF("i")
@@ -116,14 +167,81 @@ def test_union_all(session):
     union_df = td4.union(td4).union(td4).union(td4).union(td4)
 
     res = union_df.agg([min(col("key")), sum(col("key"))]).collect()
+    assert res == [Row(1, 5050)]
+
+    union_all_df = td4.unionAll(td4).unionAll(td4).unionAll(td4).unionAll(td4)
+    res = union_all_df.agg([min(col("key")), sum(col("key"))]).collect()
     assert res == [Row(1, 25250)]
 
-    # unionAll is an alias of union
-    union_all_df = td4.unionAll(td4).unionAll(td4).unionAll(td4).unionAll(td4)
-    res1 = union_df.collect()
-    res2 = union_all_df.collect()
-    # don't sort
-    assert res1 == res2
+
+def test_union_by_name(session):
+    df1 = session.createDataFrame([(1, 2, 3)]).toDF("a", "b", "c")
+    df2 = session.createDataFrame([(3, 1, 2)]).toDF("c", "a", "b")
+    df3 = session.createDataFrame([(2, 3, 1)]).toDF("b", "c", "a")
+
+    union_df = df1.unionByName(df2.unionByName(df3))
+    Utils.check_answer(union_df, Row(1, 2, 3))
+
+    # Check failure cases
+    df1 = session.createDataFrame([(1, 2)]).toDF("a", "c")
+    df2 = session.createDataFrame([(3, 4, 5)]).toDF("a", "b", "c")
+    with pytest.raises(ProgrammingError):
+        df1.unionByName(df2).collect()
+
+    df1 = session.createDataFrame([(1, 2, 3)]).toDF("a", "b", "c")
+    df2 = session.createDataFrame([(4, 5, 6)]).toDF("a", "c", "d")
+    with pytest.raises(SnowparkClientException):
+        df1.unionByName(df2)
+
+
+def test_unionall_by_name(session):
+    df1 = session.createDataFrame([(1, 2, 3)]).toDF("a", "b", "c")
+    df2 = session.createDataFrame([(3, 1, 2)]).toDF("c", "a", "b")
+    df3 = session.createDataFrame([(2, 3, 1)]).toDF("b", "c", "a")
+
+    union_df = df1.unionAllByName(df2.unionAllByName(df3))
+    Utils.check_answer(union_df, [Row(1, 2, 3), Row(1, 2, 3), Row(1, 2, 3)])
+
+    # Check failure cases
+    df1 = session.createDataFrame([(1, 2)]).toDF("a", "c")
+    df2 = session.createDataFrame([(3, 4, 5)]).toDF("a", "b", "c")
+    with pytest.raises(ProgrammingError):
+        df1.unionAllByName(df2).collect()
+
+    df1 = session.createDataFrame([(1, 2, 3)]).toDF("a", "b", "c")
+    df2 = session.createDataFrame([(4, 5, 6)]).toDF("a", "c", "d")
+    with pytest.raises(SnowparkClientException):
+        df1.unionAllByName(df2)
+
+
+def test_union_by_quoted_name(session):
+    df1 = session.createDataFrame([(1, 2, 3)]).toDF('"a"', "a", "c")
+    df2 = session.createDataFrame([(3, 1, 2)]).toDF("c", '"a"', "a")
+    df3 = session.createDataFrame([(2, 3, 1)]).toDF("a", "c", '"a"')
+
+    union_df = df1.unionByName(df2.unionByName(df3))
+    Utils.check_answer(union_df, Row(1, 2, 3))
+
+    # Check failure case
+    df1 = session.createDataFrame([(1, 2, 3)]).toDF('"a"', "b", "c")
+    df2 = session.createDataFrame([(4, 5, 6)]).toDF("a", "c", "b")
+    with pytest.raises(SnowparkClientException):
+        df1.unionByName(df2)
+
+
+def test_unionall_by_quoted_name(session):
+    df1 = session.createDataFrame([(1, 2, 3)]).toDF('"a"', "a", "c")
+    df2 = session.createDataFrame([(3, 1, 2)]).toDF("c", '"a"', "a")
+    df3 = session.createDataFrame([(2, 3, 1)]).toDF("a", "c", '"a"')
+
+    union_df = df1.unionAllByName(df2.unionAllByName(df3))
+    Utils.check_answer(union_df, [Row(1, 2, 3), Row(1, 2, 3), Row(1, 2, 3)])
+
+    # Check failure case
+    df1 = session.createDataFrame([(1, 2, 3)]).toDF('"a"', "b", "c")
+    df2 = session.createDataFrame([(4, 5, 6)]).toDF("a", "c", "b")
+    with pytest.raises(SnowparkClientException):
+        df1.unionByName(df2)
 
 
 def test_intersect_nullability(session):
@@ -180,6 +298,38 @@ def test_spark_17123_performing_set_ops_on_non_native_types(session):
     dates.union(widen_typed_rows).collect()
     dates.intersect(widen_typed_rows).collect()
     dates.except_(widen_typed_rows).collect()
+
+
+def test_union_by_name_check_name_duplication(session):
+    c0 = "ab"
+    c1 = "AB"
+    df1 = session.createDataFrame([(1, 1)]).toDF(c0, c1)
+    df2 = session.createDataFrame([(1, 1)]).toDF("c0", "c1")
+
+    with pytest.raises(SnowparkClientException):
+        df1.unionByName(df2)
+
+    df1 = session.createDataFrame([(1, 1)]).toDF("c0", "c1")
+    df2 = session.createDataFrame([(1, 1)]).toDF(c0, c1)
+
+    with pytest.raises(SnowparkClientException):
+        df1.unionByName(df2)
+
+
+def test_unionall_by_name_check_name_duplication(session):
+    c0 = "ab"
+    c1 = "AB"
+    df1 = session.createDataFrame([(1, 1)]).toDF(c0, c1)
+    df2 = session.createDataFrame([(1, 1)]).toDF("c0", "c1")
+
+    with pytest.raises(SnowparkClientException):
+        df1.unionAllByName(df2)
+
+    df1 = session.createDataFrame([(1, 1)]).toDF("c0", "c1")
+    df2 = session.createDataFrame([(1, 1)]).toDF(c0, c1)
+
+    with pytest.raises(SnowparkClientException):
+        df1.unionAllByName(df2)
 
 
 def test_intersect(session):
