@@ -660,7 +660,7 @@ class DataFrame:
 
         Example::
 
-             df1_and_2 = df1.union(df2)
+             df1_and_2 = df1.unionByName(df2)
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
@@ -680,7 +680,7 @@ class DataFrame:
 
         Example::
 
-             df1_and_2 = df1.unionAll(df2)
+             df1_and_2 = df1.unionAllByName(df2)
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
