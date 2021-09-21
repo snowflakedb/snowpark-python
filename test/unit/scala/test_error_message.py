@@ -285,11 +285,11 @@ def test_plan_create_views_from_select_only():
 
 
 def test_plan_invalid_type():
-    type = "str"
-    ex = SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(type)
+    t = "str"
+    ex = SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(t)
     assert type(ex) == SnowparkPlanException
     assert ex.error_code == "1310"
-    assert ex.message == f"Invalid type, analyze. {type}"
+    assert ex.message == f"Invalid type, analyze. {t}"
 
 
 def test_misc_cannot_find_current_db_or_schema():
