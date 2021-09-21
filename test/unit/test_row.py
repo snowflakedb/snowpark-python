@@ -26,6 +26,8 @@ def test_row_with_only_values():
         temp = row.a
     with pytest.raises(AttributeError):
         row.a = "a"
+    with pytest.raises(KeyError):
+        temp = row["a"]
 
 
 def test_row_with_field_values():
@@ -49,13 +51,43 @@ def test_row_with_wrong_values():
         row = Row("name", salary=10000)
 
 
+def test_row_setting_fields():
+    row = Row(1, 2, 3)
+    row.__fields__ = ["a", "b", "c"]
+    assert row[0] == 1
+    assert row["a"] == 1
+    assert row.a == 1
+
+
+def test_row_setting_duplicate_fields():
+    row = Row(1, 2, 3)
+    row.__fields__ = ["a", "b", "b"]
+    assert row[0] == 1
+    assert row["a"] == 1
+    assert row.a == 1
+    assert row["b"] == 2  # return the 1st one with name b
+    assert row.b == 2  # return the 1st one with name b
+
+
+def test_row_setting_too_many_fields():
+    row = Row(1, 2, 3)
+    row.__fields__ = ["a", "b", "c", "d"]
+    assert row[0] == 1
+    assert row["a"] == 1
+    assert row.a == 1
+    with pytest.raises(KeyError):
+        something = row["d"]
+    with pytest.raises(AttributeError):
+        something = row.e
+
+
 def test_contains():
     row1 = Row(a=1, b=2, c=3)
     assert "a" in row1
-    assert not "d" in row1
+    assert "d" not in row1
 
     row2 = Row(1, 2, 3)
-    assert not "a" in row2
+    assert "a" not in row2
 
 
 @pytest.mark.parametrize("row", [Row(1, 2, 3), Row(a=1, b=2, c=3)])
@@ -130,6 +162,8 @@ def test_row_pickle(row):
     pickled = pickle.dumps(row)
     restored = pickle.loads(pickled)
     assert row == restored
+    assert row._named_values == restored._named_values
+    assert row.__fields__ == restored.__fields__
 
 
 def test_dunder_call():

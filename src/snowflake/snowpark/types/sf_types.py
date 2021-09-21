@@ -44,7 +44,7 @@ class MapType(DataType):
         self.value_type = value_type
 
     def __repr__(self):
-        return f"MapType[{str(self.key_type)},{str(self.value_type)}]"
+        return f"MapType[{str(self.key_type)}, {str(self.value_type)}]"
 
     @property
     def type_name(self):
@@ -146,7 +146,7 @@ class DecimalType(FractionalType):
         self.scale = scale
 
     def __repr__(self):
-        return f"Decimal({self.precision},{self.scale})"
+        return f"Decimal({self.precision}, {self.scale})"
 
     @property
     def type_name(self):

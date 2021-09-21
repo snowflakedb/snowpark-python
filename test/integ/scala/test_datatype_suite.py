@@ -94,9 +94,9 @@ def test_verify_datatypes_reference(session):
         "StructField(LONG, Long, Nullable=False), "
         "StructField(FLOAT, Double, Nullable=False), "
         "StructField(DOUBLE, Double, Nullable=False), "
-        "StructField(DECIMAL, Decimal(10,2), Nullable=False), "
+        "StructField(DECIMAL, Decimal(10, 2), Nullable=False), "
         "StructField(ARRAY, ArrayType[String], Nullable=True), "
-        "StructField(MAP, MapType[String,String], Nullable=True)]"
+        "StructField(MAP, MapType[String, String], Nullable=True)]"
     )
 
 
@@ -113,5 +113,6 @@ def test_verify_datatypes_reference2(session):
     assert df.collect() == [Row(Decimal("0.05"), Decimal("0.07"))]
     assert (
         str(df.schema.fields)
-        == "[StructField(A, Decimal(5,2), Nullable=False), StructField(B, Decimal(7,2), Nullable=False)]"
+        == "[StructField(A, Decimal(5, 2), Nullable=False), "
+           "StructField(B, Decimal(7, 2), Nullable=False)]"
     )

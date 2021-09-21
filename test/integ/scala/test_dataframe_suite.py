@@ -733,7 +733,7 @@ def test_createDataFrame_with_given_schema(session):
         "StructField(LONG, Long, Nullable=True), "
         "StructField(FLOAT, Double, Nullable=True), "
         "StructField(DOUBLE, Double, Nullable=True), "
-        "StructField(NUMBER, Decimal(10,3), Nullable=True), "
+        "StructField(NUMBER, Decimal(10, 3), Nullable=True), "
         "StructField(BOOLEAN, Boolean, Nullable=True), "
         "StructField(BINARY, Binary, Nullable=True), "
         "StructField(TIMESTAMP, Timestamp, Nullable=True), "
@@ -811,7 +811,7 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
     assert (
         str(df.schema)
         == "StructType[StructField(ARRAY, ArrayType[String], Nullable=True), "
-        "StructField(MAP, MapType[String,String], Nullable=True), "
+        "StructField(MAP, MapType[String, String], Nullable=True), "
         "StructField(VARIANT, Variant, Nullable=True)]"
     )
     df.show()
