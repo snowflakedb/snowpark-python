@@ -519,15 +519,42 @@ def test_distinct_and_unions(session):
     lhsD = lhs.select(col("s")).distinct()
     rhs = rhs.select(col("s"))
     res = lhsD.union(rhs).collect()
-    assert res == [Row("one"), Row("one"), Row("one")]
+    assert res == [Row("one")]
 
     lhs = lhs.select(col("s"))
     rhsD = rhs.select("s").distinct()
 
     res = lhs.union(rhsD).collect()
-    assert res == [Row("one"), Row("one"), Row("one")]
+    assert res == [Row("one")]
 
     res = lhsD.union(rhsD).collect()
+    assert res == [Row("one")]
+
+
+def test_distinct_and_unionall(session):
+    lhs = session.createDataFrame([(1, "one", 1.0), (2, "one", 2.0)]).toDF(
+        "i", "s", '"i"'
+    )
+    rhs = session.createDataFrame([(1, "one", 1.0), (2, "one", 2.0)]).toDF(
+        "i", "s", '"i"'
+    )
+
+    res = lhs.unionAll(rhs).distinct().collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [Row(1, "one", 1.0), Row(2, "one", 2.0)]
+
+    lhsD = lhs.select(col("s")).distinct()
+    rhs = rhs.select(col("s"))
+    res = lhsD.unionAll(rhs).collect()
+    assert res == [Row("one"), Row("one"), Row("one")]
+
+    lhs = lhs.select(col("s"))
+    rhsD = rhs.select("s").distinct()
+
+    res = lhs.unionAll(rhsD).collect()
+    assert res == [Row("one"), Row("one"), Row("one")]
+
+    res = lhsD.unionAll(rhsD).collect()
     assert res == [Row("one"), Row("one")]
 
 
