@@ -6,6 +6,7 @@
 import enum
 import re
 import string
+import traceback
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -212,7 +213,12 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
-        return self.session.conn.execute(self.__plan)
+        return self.session.conn.execute(
+            self.__plan,
+            _statement_params={"QUERY_TAG": str(traceback.extract_stack())}
+            if not self.session.query_tag
+            else None,
+        )
 
     def clone(self) -> "DataFrame":
         """Returns a clone of this :class:`DataFrame`.
@@ -230,6 +236,8 @@ class DataFrame:
         Returns:
             :class:`pandas.DataFrame`
         """
+        if not self.session.query_tag:
+            kwargs["_statement_params"] = {"QUERY_TAG": str(traceback.extract_stack())}
         return self.session.conn.execute(self.__plan, to_pandas=True, **kwargs)
 
     def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
@@ -1027,17 +1035,25 @@ class DataFrame:
                 If the number of characters exceeds the maximum, the method prints out
                 an ellipsis (...) at the end of the column.
         """
-        print(self.__show_string(n, max_width))
+        print(
+            self.__show_string(
+                n,
+                max_width,
+                _statement_params={"QUERY_TAG": str(traceback.extract_stack())}
+                if not self.session.query_tag
+                else None,
+            )
+        )
 
-    def __show_string(self, n: int = 10, max_width: int = 50) -> str:
+    def __show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self.__plan.queries[-1].sql.strip().lower()
 
         if query.startswith("select"):
             result, meta = self.session.conn.get_result_and_metadata(
-                self.limit(n)._DataFrame__plan
+                self.limit(n)._DataFrame__plan, **kwargs
             )
         else:
-            res, meta = self.session.conn.get_result_and_metadata(self.__plan)
+            res, meta = self.session.conn.get_result_and_metadata(self.__plan, **kwargs)
             result = res[:n]
 
         # The query has been executed
@@ -1157,9 +1173,17 @@ class DataFrame:
                 f"createOrReplaceTempView() takes as input a string or list of strings."
             )
 
-        return self.__do_create_or_replace_view(formatted_name, SPLocalTempView())
+        return self.__do_create_or_replace_view(
+            formatted_name,
+            SPLocalTempView(),
+            _statement_params={"QUERY_TAG": str(traceback.extract_stack())}
+            if not self.session.query_tag
+            else None,
+        )
 
-    def __do_create_or_replace_view(self, view_name: str, view_type: SPViewType):
+    def __do_create_or_replace_view(
+        self, view_name: str, view_type: SPViewType, **kwargs
+    ):
         Utils.validate_object_name(view_name)
         name = TableIdentifier(view_name)
         cmd = SPCreateViewCommand(
@@ -1174,7 +1198,7 @@ class DataFrame:
             view_type=view_type,
         )
 
-        return self.session.conn.execute(self.session.analyzer.resolve(cmd))
+        return self.session.conn.execute(self.session.analyzer.resolve(cmd), **kwargs)
 
     def first(self, n: Optional[int] = None):
         """Executes the query representing this DataFrame and returns the first ``n``

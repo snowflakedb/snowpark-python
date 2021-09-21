@@ -345,7 +345,7 @@ class ServerConnection:
             placeholders = {}
             for query in plan.queries:
                 if isinstance(query, BatchInsertQuery):
-                    self.run_batch_insert(query.sql, query.rows)
+                    self.run_batch_insert(query.sql, query.rows, **kwargs)
                 else:
                     final_query = query.sql
                     for holder, id_ in placeholders.items():
@@ -358,7 +358,7 @@ class ServerConnection:
         finally:
             # delete created tmp object
             for action in plan.post_actions:
-                self.run_query(action)
+                self.run_query(action, **kwargs)
 
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
@@ -366,17 +366,22 @@ class ServerConnection:
         return result["data"], result_meta
 
     def get_result_and_metadata(
-        self, plan: SnowflakePlan
+        self, plan: SnowflakePlan, **kwargs
     ) -> (List[Row], List[Attribute]):
-        result_set, result_meta = self.get_result_set(plan)
+        result_set, result_meta = self.get_result_set(plan, **kwargs)
         result = self.result_set_to_rows(result_set)
         meta = ServerConnection.convert_result_meta_to_attribute(result_meta)
         return result, meta
 
     @_Decorator.wrap_exception
-    def run_batch_insert(self, query: str, rows: List[Row]) -> None:
+    def run_batch_insert(self, query: str, rows: List[Row], **kwargs) -> None:
         # with qmark, Python data type will be dynamically mapped to Snowflake data type
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings
         params = [list(row) for row in rows]
+        # TODO: run_batch_insert uses `SnowflakeCursor.executemany` which doesn't accept query tag.
+        # A separate JIRA is created in python-connector to follow up.
+        # https://snowflakecomputing.atlassian.net/browse/SNOW-466503
+        # After python-connector is released with this change, the code here needs to pass kwargs to executemany like:
+        # self._cursor.executemany(query, params, **kwargs)
         self._cursor.executemany(query, params)
         logger.info(f"Execute batch insertion query %s", query)
