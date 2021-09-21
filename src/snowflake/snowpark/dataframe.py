@@ -614,10 +614,8 @@ class DataFrame:
 
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
-        and another DataFrame (``other``). Both input DataFrames must contain the same
-        number of columns.
-
-        This is same as the :func:`unionAll` method.
+        and another DataFrame (``other``), excluding any duplicate rows. Both input
+        DataFrames must contain the same number of columns.
 
         Example::
 
@@ -635,10 +633,8 @@ class DataFrame:
 
     def unionAll(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
-        and another DataFrame (``other``). Both input DataFrames must contain the same
-        number of columns.
-
-        This is same as the :func:`union` method.
+        and another DataFrame (``other``), including any duplicate rows. Both input
+        DataFrames must contain the same number of columns.
 
         Example::
 
@@ -655,12 +651,46 @@ class DataFrame:
         )
 
     def unionByName(self, other: "DataFrame") -> "DataFrame":
-        return self._internalUnionByName(other, is_all=False)
+        """Returns a new DataFrame that contains all the rows in the current DataFrame
+        and another DataFrame (``other``), excluding any duplicate rows.
+
+        This method matches the columns in the two DataFrames by their names, not by
+        their positions. The columns in the other DataFrame are rearranged to match
+        the order of columns in the current DataFrame.
+
+        Example::
+
+             df1_and_2 = df1.union(df2)
+
+        Args:
+            other: the other :class:`DataFrame` that contains the rows to include.
+
+        Returns:
+            :class:`DataFrame`
+        """
+        return self.__union_by_name_internal(other, is_all=False)
 
     def unionAllByName(self, other: "DataFrame") -> "DataFrame":
-        return self._internalUnionByName(other, is_all=True)
+        """Returns a new DataFrame that contains all the rows in the current DataFrame
+        and another DataFrame (``other``), including any duplicate rows.
 
-    def _internalUnionByName(
+        This method matches the columns in the two DataFrames by their names, not by
+        their positions. The columns in the other DataFrame are rearranged to match
+        the order of columns in the current DataFrame.
+
+        Example::
+
+             df1_and_2 = df1.unionAll(df2)
+
+        Args:
+            other: the other :class:`DataFrame` that contains the rows to include.
+
+        Returns:
+            :class:`DataFrame`
+        """
+        return self.__union_by_name_internal(other, is_all=True)
+
+    def __union_by_name_internal(
         self, other: "DataFrame", is_all: bool = False
     ) -> "DataFrame":
         left_output_attrs = self.__output()
