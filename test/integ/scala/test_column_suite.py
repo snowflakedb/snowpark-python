@@ -12,9 +12,9 @@ from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.functions import avg, col, lit, parse_json, sql_expr, when
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import (
+    SnowparkAmbiguousJoinException,
     SnowparkColumnException,
     SnowparkPlanException,
-    SnowparkPlanReportException,
 )
 from snowflake.snowpark.types.sf_types import StringType
 
@@ -482,10 +482,10 @@ def test_sql_expr_column(session):
 
 def test_errors_for_aliased_columns(session):
     df = session.createDataFrame([[1]]).toDF("c")
-    with pytest.raises(SnowparkPlanReportException) as ex_info:
+    with pytest.raises(SnowparkAmbiguousJoinException) as ex_info:
         df.select(col("a").as_("b") + 10).collect()
     assert "You can only define aliases for the root" in str(ex_info)
-    with pytest.raises(SnowparkPlanReportException) as ex_info:
+    with pytest.raises(SnowparkAmbiguousJoinException) as ex_info:
         df.groupBy(col("a")).agg(avg(col("a").as_("b"))).collect()
     assert "You can only define aliases for the root" in str(ex_info)
 
