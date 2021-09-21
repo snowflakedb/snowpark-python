@@ -18,6 +18,7 @@ from snowflake.snowpark.snowpark_client_exception import (
     SnowparkPlanInternalException,
     SnowparkQueryCancelledException,
     SnowparkSessionException,
+    SnowparkUnexpectedAliasException,
 )
 
 
@@ -165,8 +166,8 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() -> SnowparkAmbiguousJoinException:
-        return SnowparkAmbiguousJoinException(
+    def PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() -> SnowparkUnexpectedAliasException:
+        return SnowparkUnexpectedAliasException(
             "You can only define aliases for the root Columns in a DataFrame returned by "
             "select() and agg(). You cannot use aliases for Columns in expressions.",
             "1304",
@@ -215,6 +216,10 @@ class SnowparkClientExceptionMessages:
         return SnowparkCreateViewException(
             "Creating views from SELECT queries supported only.", "1309"
         )
+
+    @staticmethod
+    def PLAN_INVALID_TYPE(type: str) -> SnowparkPlanException:
+        return SnowparkPlanException(f"Invalid type, analyze. {type}", "1310")
 
     # Miscellaneous Messages 04XX
 

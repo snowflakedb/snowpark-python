@@ -168,7 +168,7 @@ class Analyzer:
         if isinstance(expr, SPBinaryExpression):
             return self.binary_operator_extractor(expr)
 
-        raise TypeError(f"Invalid type, analyze. {str(expr)}")
+        raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))
 
     # TODO
     def table_function_expression_extractor(self, expr):
