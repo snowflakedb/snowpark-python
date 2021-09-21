@@ -212,4 +212,4 @@ class DecimalType(FractionalType):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Decimal({self.precision},{self.scale})"
+        return f"Decimal({self.precision}, {self.scale})"

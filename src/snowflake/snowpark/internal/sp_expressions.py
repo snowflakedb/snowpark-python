@@ -310,15 +310,6 @@ class Literal(LeafExpression):
     def create(cls, value):
         return cls(value, _infer_type(value))
 
-    def __str__(self):
-        return DataTypeMapper.to_sql_without_cast(self.value, self.datatype)
-
-    def sql(self):
-        return self.__str__()
-
-    def __repr__(self):
-        return self.__str__()
-
 
 class BinaryArithmeticExpression(BinaryExpression):
     pass

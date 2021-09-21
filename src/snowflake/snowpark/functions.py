@@ -43,6 +43,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     CaseWhen as SPCaseWhen,
     Count as SPCount,
     Expression as SPExpression,
+    IsNaN as SPIsNan,
     IsNull as SPIsNull,
     Literal as SPLiteral,
     Max as SPMax,
@@ -234,6 +235,12 @@ def coalesce(*e: Union[Column, str]) -> Column:
     arguments are NULL."""
     c = [__to_col_if_str(ex, "coalesce") for ex in e]
     return builtin("coalesce")(*c)
+
+
+def equal_nan(e: Union[Column, str]) -> Column:
+    """Return true if the value in the column is not a number (NaN)."""
+    c = __to_col_if_str(e, "equal_nan")
+    return Column(SPIsNan(c.expression))
 
 
 def is_null(e: Union[Column, str]) -> Column:
