@@ -54,9 +54,11 @@ from snowflake.snowpark.internal.sp_expressions import (
 )
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import DataType, StringType
-from snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType, \
-    LongType
+from snowflake.snowpark.types.sf_types import DataType
+from snowflake.snowpark.types.sp_data_types import (
+    IntegerType as SPIntegerType,
+    LongType as SPLongType,
+)
 
 
 def col(col_name: str) -> Column:
@@ -218,18 +220,6 @@ def var_pop(e: Union[Column, str]) -> Column:
     return builtin("var_pop")(c)
 
 
-def rank() -> Column:
-    """Returns the rank of a value within an ordered group of values. The rank value
-    starts at 1 and continues up."""
-    return builtin("rank")()
-
-
-def row_number() -> Column:
-    """Returns a unique row number for each row within a window partition. The row
-    number starts at 1 and continues up sequentially."""
-    return builtin("row_number")()
-
-
 def coalesce(*e: Union[Column, str]) -> Column:
     """Returns the first non-NULL expression among its arguments, or NULL if all its
     arguments are NULL."""
@@ -261,10 +251,10 @@ def not_(e: Union[Column, str]) -> Column:
     return ~c
 
 
-def random(seed: Optional[int]) -> Column:
+def random(seed: Optional[int] = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
     s = seed if seed else randint(-2 ^ 63, 2 ^ 63 - 1)
-    return builtin("random")(SPLiteral(s, LongType()))
+    return builtin("random")(SPLiteral(s, SPLongType()))
 
 
 def to_decimal(e: Union[Column, str], precision: int, scale: int) -> Column:
@@ -305,39 +295,51 @@ def exp(e: Union[Column, str]) -> Column:
     return builtin("exp")(c)
 
 
-def log(base: Union[Column, str, int, float], x: Union[Column, str, int, float]) -> Column:
+def log(
+    base: Union[Column, str, int, float], x: Union[Column, str, int, float]
+) -> Column:
     """Returns the logarithm of a numeric expression."""
-    b = __to_col_if_str(base, "log") if type(base) in [str, Column] else lit(base)
-    arg = __to_col_if_str(x, "log") if type(x) in [str, Column] else lit(x)
+    b = lit(base) if type(base) in [int, float] else __to_col_if_str(base, "log")
+    arg = lit(x) if type(base) in [int, float] else __to_col_if_str(x, "log")
     return builtin("log")(b, arg)
 
 
 def pow(l: Union[Column, str, int, float], r: Union[Column, str, int, float]) -> Column:
     """Returns a number (l) raised to the specified power (r)."""
-    number = __to_col_if_str(l, "pow") if type(l) in [str, Column] else lit(l)
-    power = __to_col_if_str(r, "pow") if type(r) in [str, Column] else lit(r)
+    number = lit(l) if type(l) in [int, float] else __to_col_if_str(l, "pow")
+    power = lit(r) if type(r) in [int, float] else __to_col_if_str(r, "pow")
     return builtin("pow")(number, power)
 
 
-def split(str: Union[Column, str], pattern: Union[Column, str],) -> Column:
+def split(
+    str: Union[Column, str],
+    pattern: Union[Column, str],
+) -> Column:
     """Splits a given string with a given separator and returns the result in an array
-    of strings."""
+    of strings. To specify a string separator, use the :func:`lit()` function."""
     s = __to_col_if_str(str, "split")
     p = __to_col_if_str(pattern, "split")
     return builtin("split")(s, p)
 
 
-def substring(str: Union[Column, str], pos: Union[Column, int],
-              len: Union[Column, int]) -> Column:
+def substring(
+    str: Union[Column, str], pos: Union[Column, int], len: Union[Column, int]
+) -> Column:
     """Returns the portion of the string or binary value str, starting from the
-    character/byte specified by pos, with limited length."""
+    character/byte specified by pos, with limited length. The length should be greater
+    than or equal to zero. If the length is a negative number, the function returns an
+    empty string."""
     s = __to_col_if_str(str, "substring")
     p = pos if type(pos) == Column else lit(pos)
     l = len if type(len) == Column else lit(len)
     return builtin("substring")(s, p, l)
 
 
-def translate(src: Union[Column, str], matching_string: Union[Column, str], replace_string: Union[Column, str]) -> Column:
+def translate(
+    src: Union[Column, str],
+    matching_string: Union[Column, str],
+    replace_string: Union[Column, str],
+) -> Column:
     """Translates src from the characters in matchingString to the characters in
     replaceString."""
     source = __to_col_if_str(src, "translate")

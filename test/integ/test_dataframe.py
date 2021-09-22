@@ -18,7 +18,8 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
-    Star as SPStar, Literal,
+    Literal,
+    Star as SPStar,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types.sf_types import (
@@ -38,8 +39,8 @@ from snowflake.snowpark.types.sf_types import (
     TimeType,
     VariantType,
 )
-
 from snowflake.snowpark.types.sp_data_types import DecimalType as SPDecimalType
+
 
 def test_read_stage_file_show(session, resources_path):
     tmp_stage_name = Utils.random_stage_name()
@@ -977,8 +978,8 @@ def test_special_decimal_literals(session):
 
     show_str = df._DataFrame__show_string(10)
     assert (
-            show_str
-            == """-----------------------------------------------------------
+        show_str
+        == """-----------------------------------------------------------
 |"0.1 ::  NUMBER (38, 18)"  |"0.00001 ::  NUMBER (5, 5)"  |
 -----------------------------------------------------------
 |0.100000000000000000       |0.00001                      |
