@@ -386,16 +386,25 @@ class Session(metaclass=_SessionMeta):
         You can use the query tag to find all queries run for this session in the sql history of Snowflake web
         interface.
 
-        If not set, the default query tag is the returned value of `traceback.extract_stack` called in
-        :meth:`DataFrame.collect`, :meth:`DataFrame.show`, and :meth:`DataFrame.createOrReplaceView`.
+        If not set, the default query tag is the call stack when a :class:`DataFrame` method that pushes down sql to
+        Snowflake Database is called.
+
+        These methods in :class:`DataFrame` push down sql.
+        :meth:`DataFrame.collect`, :meth:`DataFrame.show`, :meth:`DataFrame.createOrReplaceView`,
+        :meth:`DataFrame.createOrReplaceTempView`, etc.
         """
         return self.__query_tag
 
     @query_tag.setter
-    def query_tag(self, query_tag: str) -> None:
-        """Sets a query tag for this session."""
-        self.conn.run_query(f"alter session set query_tag = '{query_tag}'")
-        self.__query_tag = query_tag
+    def query_tag(self, tag: str) -> None:
+        """Sets a query tag for this session.
+        If the ``tag`` is None or an empty str, the session's query_tag is unset.
+        """
+        if tag:
+            self.conn.run_query(f"alter session set query_tag = '{tag}'")
+        else:
+            self.conn.run_query("alter session unset query_tag")
+        self.__query_tag = tag
 
     def table(self, name) -> DataFrame:
         """Returns a DataFrame representing the contents of the specified table. 'name' can be a

@@ -58,6 +58,9 @@ from snowflake.snowpark.types.sp_join_types import (
     UsingJoin as SPUsingJoin,
 )
 
+# Scala uses 3 but this can be larger. Consider allowing users to configure it.
+_QUERY_TAG_TRACEBACK_LIMIT = 3
+
 
 class DataFrame:
     """Represents a lazily-evaluated relational dataset that contains a collection
@@ -213,9 +216,17 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
+
+        # The code to compose the QUERY_TAG string is called in multiple methods in this DataFrame class but it's not
+        # put to a function because it's better that `extract_stack` is called right in `collect` and other similar
+        # methods to have the best call stack.
         return self.session.conn.execute(
             self.__plan,
-            _statement_params={"QUERY_TAG": str(traceback.extract_stack())}
+            _statement_params={
+                "QUERY_TAG": str(
+                    traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
+                )
+            }
             if not self.session.query_tag
             else None,
         )
@@ -237,7 +248,11 @@ class DataFrame:
             :class:`pandas.DataFrame`
         """
         if not self.session.query_tag:
-            kwargs["_statement_params"] = {"QUERY_TAG": str(traceback.extract_stack())}
+            kwargs["_statement_params"] = {
+                "QUERY_TAG": str(
+                    traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
+                )
+            }
         return self.session.conn.execute(self.__plan, to_pandas=True, **kwargs)
 
     def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
@@ -1039,7 +1054,11 @@ class DataFrame:
             self.__show_string(
                 n,
                 max_width,
-                _statement_params={"QUERY_TAG": str(traceback.extract_stack())}
+                _statement_params={
+                    "QUERY_TAG": str(
+                        traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
+                    )
+                }
                 if not self.session.query_tag
                 else None,
             )
@@ -1141,7 +1160,17 @@ class DataFrame:
                 f"createOrReplaceView takes as input a string or list of strings."
             )
 
-        return self.__do_create_or_replace_view(formatted_name, SPPersistedView())
+        return self.__do_create_or_replace_view(
+            formatted_name,
+            SPPersistedView(),
+            _statement_params={
+                "QUERY_TAG": str(
+                    traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
+                )
+            }
+            if not self.session.query_tag
+            else None,
+        )
 
     def createOrReplaceTempView(self, name: Union[str, List[str]]):
         """Creates a temporary view that returns the same results as this DataFrame.
@@ -1176,7 +1205,11 @@ class DataFrame:
         return self.__do_create_or_replace_view(
             formatted_name,
             SPLocalTempView(),
-            _statement_params={"QUERY_TAG": str(traceback.extract_stack())}
+            _statement_params={
+                "QUERY_TAG": str(
+                    traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
+                )
+            }
             if not self.session.query_tag
             else None,
         )

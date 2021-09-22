@@ -61,6 +61,10 @@ class Utils:
         session._run_query(f"drop view if exists {AnalyzerPackage.quote_name(name)}")
 
     @staticmethod
+    def unset_query_tag(session: "Session"):
+        session.query_tag = None
+
+    @staticmethod
     def upload_to_stage(
         session: "Session", stage_name: str, filename: str, compress: bool
     ):
