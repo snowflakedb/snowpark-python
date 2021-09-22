@@ -291,8 +291,20 @@ def to_object(e: Union[Column, str]) -> Column:
     return builtin("to_object")(c)
 
 
-def array_agg(s: Column) -> Column:
-    return builtin("array_agg")(s)
+def array_agg(e: Union[Column, str]) -> Column:
+    c = __to_col_if_str(e, "array_agg")
+    return builtin("array_agg")(c)
+
+
+def iff(condition: Column, e1: Union[Column, str], e2: Union[Column, str]) -> Column:
+    c1 = __to_col_if_str(e1, "iff")
+    c2 = __to_col_if_str(e2, "iff")
+    return builtin("iff")(condition, c1, c2)
+
+
+def mode(e: Union[Column, str]) -> Column:
+    c = __to_col_if_str(e, "mode")
+    return builtin("mode")(c)
 
 
 def when(condition: Column, value: Column) -> CaseExpr:
