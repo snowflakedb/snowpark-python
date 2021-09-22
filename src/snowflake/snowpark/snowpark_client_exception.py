@@ -7,6 +7,8 @@ from typing import Optional
 
 
 class SnowparkClientException(Exception):
+    """Base Snowpark exception class"""
+
     def __init__(self, message: str, error_code: Optional[str] = None):
         self.message = message
         self.error_code = error_code
@@ -16,60 +18,142 @@ class SnowparkClientException(Exception):
 
 
 class SnowparkInternalException(SnowparkClientException):
+    """Exception for internal errors
+
+    Includes all error codes in 10XX (where XX is 0-9)
+    """
+
     pass
 
 
 class SnowparkDataframeException(SnowparkClientException):
+    """Exception for dataframe related errors
+
+    Includes all error codes in range 11XX (where XX is 0-9)
+
+    This exception is specifically raised for error codes: 1104, 1107, 1108, 1109
+    """
+
     pass
 
 
 class SnowparkPlanException(SnowparkClientException):
+    """Exception for plan related errors
+
+    Includes all error codes in range 13XX (where XX is 0-9)
+
+    This exception is specifically raised for error codes: 1301, 1303, 1307
+    """
+
     pass
 
 
 class SnowparkMiscException(SnowparkClientException):
+    """Exception for miscellaneous related errors
+
+    Includes all error codes in range 14XX (where XX is 0-9)
+
+    This exception is specifically raised for error codes: 1403
+    """
+
     pass
 
 
 class SnowparkColumnException(SnowparkDataframeException):
+    """Exception for column related errors during dataframe operations
+
+    Includes error codes: 1100, 1101, 1102, 1105
+    """
+
     pass
 
 
 class SnowparkJoinException(SnowparkDataframeException):
+    """Exception for join related errors during dataframe operations
+
+    Includes error codes: 1103, 1110, 1111, 1112
+    """
+
     pass
 
 
 class SnowparkDataframeReaderException(SnowparkDataframeException):
+    """Exception for dataframe reader errors
+
+    Includes error codes: 1106
+    """
+
     pass
 
 
 class SnowparkCreateViewException(SnowparkPlanException):
+    """Exception for errors while trying to create a view
+
+    Includes error codes: 1308, 1309
+    """
+
     pass
 
 
 class SnowparkPlanInternalException(SnowparkPlanException):
+    """Exception for internal errors that occur when translating the plan into SQL
+
+    Includes error codes: 1300, 1302
+    """
+
     pass
 
 
 class SnowparkAmbiguousJoinException(SnowparkPlanException):
+    """Exception for ambiguous joins that are created when translating the plan into SQL
+
+    Includes error codes: 1306
+    """
+
     pass
 
 
 class SnowparkInvalidIdException(SnowparkPlanException):
+    """Exception for having an invalid ID (usually a missing ID) when translating the plan into SQL
+
+    Includes error codes: 1305
+    """
+
     pass
 
 
 class SnowparkUnexpectedAliasException(SnowparkPlanException):
+    """Exception for having an unexpected alias when translating the plan into SQL
+
+    Includes error codes: 1304
+    """
+
     pass
 
 
 class SnowparkSessionException(SnowparkMiscException):
+    """Exception for any session related errors
+
+    Includes error codes: 1402, 1404
+    """
+
     pass
 
 
 class SnowparkMissingDbOrSchemaException(SnowparkMiscException):
+    """Exception for when a schema or database is missing in the session connection.
+    These are needed to run queries
+
+    Includes error codes: 1400
+    """
+
     pass
 
 
 class SnowparkQueryCancelledException(SnowparkMiscException):
+    """Exception for when we are trying to interact with a cancelled query
+
+    Includes error codes: 1401
+    """
+
     pass
