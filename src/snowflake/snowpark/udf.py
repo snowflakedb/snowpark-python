@@ -23,6 +23,9 @@ from snowflake.snowpark.types.types_package import (
     snow_type_to_sp_type,
 )
 
+# the default handler name for generated udf python file
+_DEFAULT_HANDLER_NAME = "compute"
+
 
 class UserDefinedFunction:
     def __init__(
@@ -78,9 +81,6 @@ class _UDFColumn(NamedTuple):
 
 
 class UDFRegistration:
-
-    _handler_name = "compute"
-
     def __init__(self, session):
         self.session = session
 
@@ -188,7 +188,7 @@ class UDFRegistration:
         self.__create_python_udf(
             return_type=return_type,
             input_args=input_args,
-            handler=f"{os.path.splitext(dest_file_name)[0]}.{self._handler_name}",
+            handler=f"{os.path.splitext(dest_file_name)[0]}.{_DEFAULT_HANDLER_NAME}",
             udf_name=udf_name,
             all_imports=all_imports,
             is_temporary=stage_location is None,
@@ -202,7 +202,7 @@ import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
 
-def {self._handler_name}({args}):
+def {_DEFAULT_HANDLER_NAME}({args}):
     return func({args})
 """
         return code
