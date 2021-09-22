@@ -31,32 +31,25 @@ from snowflake.snowpark.types.sf_types import (
 )
 
 
-def test_limit_on_order_by(session):
+def test_limit_on_order_by(session, is_sample_data_available):
     # Tests using SNOWFLAKE_SAMPLE_DATA, it may be not available on some test deployments
-    try:
-        a = (
-            session.table("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.LINEITEM")
-            .select("L_RETURNFLAG", "L_SHIPMODE")
-            .filter(col("L_RETURNFLAG") == "A")
-            .groupBy("L_RETURNFLAG", "L_SHIPMODE")
-            .count()
-        )
-        n = (
-            session.table("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.LINEITEM")
-            .select("L_RETURNFLAG", "L_SHIPMODE")
-            .filter(col("L_RETURNFLAG") == "N")
-            .groupBy("L_RETURNFLAG", "L_SHIPMODE")
-            .count()
-        )
-    except ProgrammingError as ex:
-        if (
-            "Database 'SNOWFLAKE_SAMPLE_DATA' does not exist or not authorized"
-            in ex.msg
-        ):
-            pytest.skip(ex.msg)
-        raise ex
-    except Exception as ex:
-        raise ex
+    if not is_sample_data_available:
+        pytest.skip("SNOWFLAKE_SAMPLE_DATA is not available in this deployment")
+
+    a = (
+        session.table("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.LINEITEM")
+        .select("L_RETURNFLAG", "L_SHIPMODE")
+        .filter(col("L_RETURNFLAG") == "A")
+        .groupBy("L_RETURNFLAG", "L_SHIPMODE")
+        .count()
+    )
+    n = (
+        session.table("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.LINEITEM")
+        .select("L_RETURNFLAG", "L_SHIPMODE")
+        .filter(col("L_RETURNFLAG") == "N")
+        .groupBy("L_RETURNFLAG", "L_SHIPMODE")
+        .count()
+    )
 
     union = a.unionAll(n)
     result = union.select(col("COUNT")).sort(col("COUNT")).limit(10).collect()
