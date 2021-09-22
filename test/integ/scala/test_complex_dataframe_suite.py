@@ -33,7 +33,7 @@ def test_combination_of_multiple_operators(session):
 
     res = (
         df1.join(df2, "a")
-        .union(df2.filter(col("a") < 2).union(df2.filter(col("a") >= 2)))
+        .unionAll(df2.filter(col("a") < 2).unionAll(df2.filter(col("a") >= 2)))
         .collect()
     )
     res.sort(key=lambda x: x[0])

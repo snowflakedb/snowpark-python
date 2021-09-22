@@ -183,6 +183,13 @@ def test_read_csv_with_more_operations(session):
     res.sort(key=lambda x: x[0])
     assert res == [
         Row(1, "one", 1.2),
+        Row(2, "two", 2.2),
+    ]
+    df22 = df.unionAll(df)
+    res = df22.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row(1, "one", 1.2),
         Row(1, "one", 1.2),
         Row(2, "two", 2.2),
         Row(2, "two", 2.2),
@@ -193,6 +200,13 @@ def test_read_csv_with_more_operations(session):
     df3 = session.read.schema(user_schema).csv(test_file_on_stage2)
     df4 = df.union(df3)
     res = df4.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row(1, "one", 1.2),
+        Row(2, "two", 2.2),
+    ]
+    df44 = df.unionAll(df3)
+    res = df44.collect()
     res.sort(key=lambda x: x[0])
     assert res == [
         Row(1, "one", 1.2),
@@ -244,13 +258,20 @@ def test_read_csv_with_format_type_options(session, mode):
     # test for union between files with different schema and different stage
     test_file_on_stage2 = f"@{tmp_stage_name2}/{test_file_csv}"
     df4 = get_reader(session, mode).schema(user_schema).csv(test_file_on_stage2)
-    df5 = df1.union(df4)
+    df5 = df1.unionAll(df4)
     res = df5.collect()
     res.sort(key=lambda x: x[0])
     assert res == [
         Row(1, "one", 1.2),
         Row(1, "one", 1.2),
         Row(2, "two", 2.2),
+        Row(2, "two", 2.2),
+    ]
+    df6 = df1.union(df4)
+    res = df6.collect()
+    res.sort(key=lambda x: x[0])
+    assert res == [
+        Row(1, "one", 1.2),
         Row(2, "two", 2.2),
     ]
 

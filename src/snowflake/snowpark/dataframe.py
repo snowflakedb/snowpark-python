@@ -614,10 +614,8 @@ class DataFrame:
 
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
-        and another DataFrame (``other``). Both input DataFrames must contain the same
-        number of columns.
-
-        This is same as the :func:`unionAll` method.
+        and another DataFrame (``other``), excluding any duplicate rows. Both input
+        DataFrames must contain the same number of columns.
 
         Example::
 
@@ -630,15 +628,13 @@ class DataFrame:
             :class:`DataFrame`
         """
         return self.__with_plan(
-            SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
+            SPUnion(self.__plan, other._DataFrame__plan, is_all=False)
         )
 
     def unionAll(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
-        and another DataFrame (``other``). Both input DataFrames must contain the same
-        number of columns.
-
-        This is same as the :func:`union` method.
+        and another DataFrame (``other``), including any duplicate rows. Both input
+        DataFrames must contain the same number of columns.
 
         Example::
 
@@ -650,7 +646,81 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
-        return self.union(other)
+        return self.__with_plan(
+            SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
+        )
+
+    def unionByName(self, other: "DataFrame") -> "DataFrame":
+        """Returns a new DataFrame that contains all the rows in the current DataFrame
+        and another DataFrame (``other``), excluding any duplicate rows.
+
+        This method matches the columns in the two DataFrames by their names, not by
+        their positions. The columns in the other DataFrame are rearranged to match
+        the order of columns in the current DataFrame.
+
+        Example::
+
+             df1_and_2 = df1.unionByName(df2)
+
+        Args:
+            other: the other :class:`DataFrame` that contains the rows to include.
+
+        Returns:
+            :class:`DataFrame`
+        """
+        return self.__union_by_name_internal(other, is_all=False)
+
+    def unionAllByName(self, other: "DataFrame") -> "DataFrame":
+        """Returns a new DataFrame that contains all the rows in the current DataFrame
+        and another DataFrame (``other``), including any duplicate rows.
+
+        This method matches the columns in the two DataFrames by their names, not by
+        their positions. The columns in the other DataFrame are rearranged to match
+        the order of columns in the current DataFrame.
+
+        Example::
+
+             df1_and_2 = df1.unionAllByName(df2)
+
+        Args:
+            other: the other :class:`DataFrame` that contains the rows to include.
+
+        Returns:
+            :class:`DataFrame`
+        """
+        return self.__union_by_name_internal(other, is_all=True)
+
+    def __union_by_name_internal(
+        self, other: "DataFrame", is_all: bool = False
+    ) -> "DataFrame":
+        left_output_attrs = self.__output()
+        right_output_attrs = other.__output()
+        right_output_attr_by_name = {rattr.name: rattr for rattr in right_output_attrs}
+
+        try:
+            right_project_list = [
+                right_output_attr_by_name[lattr.name] for lattr in left_output_attrs
+            ]
+        except KeyError:
+            missing_lattrs = [
+                lattr.name
+                for lattr in left_output_attrs
+                if lattr.name not in right_output_attr_by_name
+            ]
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
+                ", ".join(missing_lattrs),
+                ", ".join(list(right_output_attr_by_name.keys())),
+            )
+
+        not_found_attrs = [
+            rattr for rattr in right_output_attrs if rattr not in right_project_list
+        ]
+
+        right_child = self.__with_plan(
+            SPProject(right_project_list + not_found_attrs, other.__plan)
+        )
+
+        return self.__with_plan(SPUnion(self.__plan, right_child.__plan, is_all))
 
     def intersect(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the
