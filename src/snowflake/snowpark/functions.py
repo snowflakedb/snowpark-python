@@ -253,7 +253,7 @@ def not_(e: Union[Column, str]) -> Column:
 
 def random(seed: Optional[int] = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
-    s = seed if seed else randint(-2 ^ 63, 2 ^ 63 - 1)
+    s = seed if seed is not None else randint(-2 ** 63, 2 ** 63 - 1)
     return builtin("random")(SPLiteral(s, SPLongType()))
 
 
