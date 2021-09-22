@@ -300,7 +300,7 @@ def log(
 ) -> Column:
     """Returns the logarithm of a numeric expression."""
     b = lit(base) if type(base) in [int, float] else __to_col_if_str(base, "log")
-    arg = lit(x) if type(base) in [int, float] else __to_col_if_str(x, "log")
+    arg = lit(x) if type(x) in [int, float] else __to_col_if_str(x, "log")
     return builtin("log")(b, arg)
 
 
