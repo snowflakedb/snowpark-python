@@ -146,18 +146,14 @@ class Session(metaclass=_SessionMeta):
     def getPythonConnectorConnection(self) -> SnowflakeConnection:
         return self.conn.connection
 
-    def addImports(
-        self,
-        *paths: Union[str, List[str]],
-        import_as: Optional[Union[str, List[str]]] = None,
-    ):
+    def addImport(self, path: str, import_path: Optional[str] = None) -> None:
         """
-        Registers file(s) in stage or local file(s) as imports of a user-defined function
+        Registers a remote file in stage or a local file as an import of a user-defined function
         (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
         a directory, or any other file resource.
 
         Args:
-            paths: The paths of local files or remote files in the stage. In each case,
+            path: The path of a local file or a remote file in the stage. In each case,
 
                 1. if the path points to a local file, this file will be uploaded to the
                 stage where the UDF is registered and Snowflake will import the file when
@@ -169,29 +165,29 @@ class Session(metaclass=_SessionMeta):
 
                 3. if the path points to a file in a stage, the file will be included in the
                 imports when executing a UDF.
-            import_as: The relative Python import paths in a UDF, as a :class:`str` or a list
-                of :class:`str`. If it is not provided or it is None, the UDF will import it
-                directly without any leading package/module. This argument will become a no-op
-                if the path points to a stage file or a non-Python (.py) local file.
+            import_path: The relative Python import path in a UDF, as a :class:`str`.
+                If it is not provided or it is None, the UDF will import it directly without
+                any leading package/module. This argument will become a no-op if the path
+                points to a stage file or a non-Python (.py) local file.
 
         Examples::
 
             # import a local file
-            session.addImports(“/tmp/my_dir/my_module.py”)
+            session.addImport(“/tmp/my_dir/my_module.py”)
             @udf
             def f():
                 from my_module import g
                 return g()
 
-            # import a local file with `import_as`
-            session.addImports(“/tmp/my_dir/my_module.py”, import_as="my_dir.my_module")
+            # import a local file with `import_path`
+            session.addImport(“/tmp/my_dir/my_module.py”, import_path="my_dir.my_module")
             @udf
             def f():
                 from my_dir.my_module import g
                 return g()
 
             # import a stage file
-            session.addImports(“@stage/test.py”)
+            session.addImport(“@stage/test.py”)
 
         Note:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
@@ -205,100 +201,81 @@ class Session(metaclass=_SessionMeta):
             function with the file path again, the existing file in the stage will be
             overwritten.
 
-            3. Adding two different files with the same file name is not allowed, because
-            UDFs can't be created with two imports with the same name.
+            3. Adding two files with the same file name is not allowed, because UDFs
+            can't be created with two imports with the same name.
         """
-        # parse arguments to the lists and do some simple sanity checks
-        trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
-        if import_as:
-            if type(import_as) == str:
-                import_as_list = [import_as.strip()]
-            elif type(import_as) in (list, tuple):
-                import_as_list = [i.strip() for i in import_as]
-            else:
-                raise TypeError(
-                    f"import_as can only be str or list, but got {type(import_as)}"
-                )
-            if len(trimmed_paths) != len(import_as_list):
+        trimmed_path = path.strip()
+        trimmed_import_path = import_path.strip() if import_path else None
+
+        if not trimmed_path.startswith(self.__STAGE_PREFIX):
+            if not os.path.exists(trimmed_path):
+                raise FileNotFoundError(f"{trimmed_path} is not found")
+            if not os.path.isfile(trimmed_path) and not os.path.isdir(trimmed_path):
                 raise ValueError(
-                    f"The length of paths ({len(trimmed_paths)}) should be same with "
-                    f"the length of import_as ({len(import_as_list)})."
+                    f"addImport() only accepts a local file or directory, "
+                    f"or a file in a stage, but got {trimmed_path}"
                 )
-        else:
-            import_as_list = [None] * len(trimmed_paths)
+            abs_path = os.path.abspath(trimmed_path)
 
-        for i in range(len(trimmed_paths)):
-            path = trimmed_paths[i]
-            if not path.startswith(self.__STAGE_PREFIX):
-                if not os.path.exists(path):
-                    raise FileNotFoundError(f"{path} is not found")
-                if not os.path.isfile(path) and not os.path.isdir(path):
-                    raise ValueError(
-                        f"addImports() only accepts a local file or directory,"
-                        f" or a file in a stage, but got {path}"
+            # convert the Python import path to the file path
+            # and extract the leading path, where
+            # absolute path = [leading path]/[parsed file path of Python import path]
+            if trimmed_import_path is not None:
+                # the import path only works for the directory and the Python file
+                if os.path.isdir(abs_path):
+                    import_file_path = trimmed_import_path.replace(".", os.path.sep)
+                elif os.path.isfile(abs_path) and abs_path.endswith(".py"):
+                    import_file_path = (
+                        f"{trimmed_import_path.replace('.', os.path.sep)}.py"
                     )
-                abs_path = os.path.abspath(path)
-
-                # convert the Python import path to the file path
-                # and extract the leading path, where
-                # absolute path = [leading path]/[parsed file path of Python import path]
-                if import_as_list[i] is not None:
-                    # the import path only works for the directory and the Python file
-                    if os.path.isdir(abs_path):
-                        import_as_path = import_as_list[i].replace(".", os.path.sep)
-                    elif os.path.isfile(abs_path) and abs_path.endswith(".py"):
-                        import_as_path = (
-                            f"{import_as_list[i].replace('.', os.path.sep)}.py"
+                else:
+                    import_file_path = None
+                if import_file_path:
+                    if abs_path.endswith(import_file_path):
+                        leading_path = abs_path[: -len(import_file_path)]
+                    else:
+                        raise ValueError(
+                            f"import_path {trimmed_import_path} is invalid "
+                            f"because it's not a part of path {abs_path}"
                         )
-                    else:
-                        import_as_path = None
-                    if import_as_path:
-                        if abs_path.endswith(import_as_path):
-                            leading_path = abs_path[: -len(import_as_path)]
-                        else:
-                            raise ValueError(
-                                f"import_as {import_as_list[i]} is invalid "
-                                f"because it's not a part of path {abs_path}"
-                            )
-                    else:
-                        leading_path = None
                 else:
                     leading_path = None
-
-                self.__import_paths[abs_path] = (
-                    # Include the information about import path to the checksum
-                    # calculation, so if the import path changes, the checksum
-                    # will change and the file in the stage will be overwritten.
-                    Utils.calculate_md5(abs_path, additional_info=leading_path),
-                    leading_path,
-                )
             else:
-                self.__import_paths[path] = (None, None)
+                leading_path = None
 
-    def removeImports(self, *paths: Union[str, List[str]]):
+            self.__import_paths[abs_path] = (
+                # Include the information about import path to the checksum
+                # calculation, so if the import path changes, the checksum
+                # will change and the file in the stage will be overwritten.
+                Utils.calculate_md5(abs_path, additional_info=leading_path),
+                leading_path,
+            )
+        else:
+            self.__import_paths[trimmed_path] = (None, None)
+
+    def removeImport(self, path: str):
         """
-        Removes file(s) in stage or local file(s) from imports of a user-defined function (UDF).
+        Removes a file in stage or local file from imports of a user-defined function (UDF).
 
         Args:
-            paths: a list paths pointing to local files or remote files in the stage
+            path: a path pointing to a local file or a remote file in the stage
 
         Examples::
 
-            session.removeImports(“/tmp/dir1/test.py”)
-            session.removeImports(“/tmp/dir1”)
-            session.removeImports(“@stage/test.py”)
+            session.removeImport(“/tmp/dir1/test.py”)
+            session.removeImport(“/tmp/dir1”)
+            session.removeImport(“@stage/test.py”)
         """
-        trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
-        for path in trimmed_paths:
-            abs_path = (
-                os.path.abspath(path)
-                if not path.startswith(self.__STAGE_PREFIX)
-                else path
-            )
-            if abs_path not in self.__import_paths:
-                raise KeyError(f"{abs_path} is not found in the existing imports")
-            else:
-                self.__import_paths.pop(abs_path)
+        trimmed_path = path.strip()
+        abs_path = (
+            os.path.abspath(trimmed_path)
+            if not trimmed_path.startswith(self.__STAGE_PREFIX)
+            else trimmed_path
+        )
+        if abs_path not in self.__import_paths:
+            raise KeyError(f"{abs_path} is not found in the existing imports")
+        else:
+            self.__import_paths.pop(abs_path)
 
     def clearImports(self):
         """
@@ -420,7 +397,7 @@ class Session(metaclass=_SessionMeta):
         """
         Returns the name of the temporary stage created by Snowpark library for uploading and
         store temporary artifacts for this session. These artifacts include libraries and packages
-        for UDFs that you define in this session via [[addImports]] or [[addRequirements]].
+        for UDFs that you define in this session via func:`addImport`.
         """
         qualified_stage_name = (
             f"{self.getFullyQualifiedCurrentSchema()}.{self.__session_stage}"
