@@ -137,6 +137,9 @@ class TestData:
     UpperCaseData = NamedTuple("UpperCaseData", [("N", int), ("L", str)])
     NullInt = NamedTuple("NullInts", [("a", Optional[int])])
     Number2 = NamedTuple("Number2", [("x", int), ("y", int), ("z", int)])
+    MonthlySales = NamedTuple(
+        "MonthlySales", [("empid", int), ("amount", int), ("month", str)]
+    )
 
     @classmethod
     def test_data1(cls, session: "Session") -> DataFrame:
@@ -240,6 +243,10 @@ class TestData:
         return session.sql("select * from values('apple'),('banana'),('peach') as T(a)")
 
     @classmethod
+    def string5(cls, session: "Session") -> DataFrame:
+        return session.sql("select * from values('1,2,3,4,5') as T(a)")
+
+    @classmethod
     def array2(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select array_construct(a,b,c) as arr1, d, e, f from"
@@ -294,6 +301,13 @@ class TestData:
         )
 
     @classmethod
+    def null_xml1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select (column1) as v from values ('<t1>foo<t2>bar</t2><t3></t3></t1>'), "
+            "('<t1></t1>'), (null), ('')"
+        )
+
+    @classmethod
     def decimal_data(cls, session: "Session") -> DataFrame:
         return session.createDataFrame(
             [
@@ -305,6 +319,12 @@ class TestData:
                 [Decimal(3), Decimal(2)],
             ]
         ).toDF(["a", "b"])
+
+    @classmethod
+    def number2(cls, session):
+        return session.createDataFrame(
+            [cls.Number2(1, 2, 3), cls.Number2(0, -1, 4), cls.Number2(-5, 0, -9)]
+        )
 
     @classmethod
     def xyz(cls, session: "Session") -> DataFrame:
@@ -322,6 +342,29 @@ class TestData:
     def long1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select * from values(1561479557),(1565479557),(1161479557) as T(a)"
+        )
+
+    @classmethod
+    def monthly_sales(cls, session: "Session") -> DataFrame:
+        return session.createDataFrame(
+            [
+                cls.MonthlySales(1, 10000, "JAN"),
+                cls.MonthlySales(1, 400, "JAN"),
+                cls.MonthlySales(2, 4500, "JAN"),
+                cls.MonthlySales(2, 35000, "JAN"),
+                cls.MonthlySales(1, 5000, "FEB"),
+                cls.MonthlySales(1, 3000, "FEB"),
+                cls.MonthlySales(2, 200, "FEB"),
+                cls.MonthlySales(2, 90500, "FEB"),
+                cls.MonthlySales(1, 6000, "MAR"),
+                cls.MonthlySales(1, 5000, "MAR"),
+                cls.MonthlySales(2, 2500, "MAR"),
+                cls.MonthlySales(2, 9500, "MAR"),
+                cls.MonthlySales(1, 8000, "APR"),
+                cls.MonthlySales(1, 10000, "APR"),
+                cls.MonthlySales(2, 800, "APR"),
+                cls.MonthlySales(2, 4500, "APR"),
+            ]
         )
 
     @classmethod
