@@ -16,8 +16,8 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.snowpark_client_exception import (
     SnowparkColumnException,
-    SnowparkMiscException,
-    SnowparkPlanException,
+    SnowparkServerException,
+    SnowparkSQLException,
 )
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
@@ -1106,7 +1106,7 @@ def test_column_names_without_surrounding_quote(session):
 
 def test_negative_test_for_user_input_invalid_quoted_name(session):
     df = session.createDataFrame([1, 2, 3]).toDF("a")
-    with pytest.raises(SnowparkPlanException) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.where(col('"A" = "A" --"') == 2).collect()
     assert "Invalid identifier" in str(ex_info)
 
@@ -1202,14 +1202,14 @@ def test_dataframe_show_with_new_line(session):
 
 def test_negative_test_to_input_invalid_table_name_for_saveAsTable(session):
     df = session.createDataFrame([(1, None), (2, "NotNull"), (3, None)]).toDF("a", "b")
-    with pytest.raises(SnowparkMiscException) as ex_info:
+    with pytest.raises(SnowparkServerException) as ex_info:
         df.write.saveAsTable("negative test invalid table name")
     assert re.compile("The object name .* is invalid.").match(ex_info.value.message)
 
 
 def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(session):
     df = session.createDataFrame([[2, "NotNull"]]).toDF(["a", "b"])
-    with pytest.raises(SnowparkMiscException) as ex_info:
+    with pytest.raises(SnowparkServerException) as ex_info:
         df.createOrReplaceView("negative test invalid table name")
     assert re.compile("The object name .* is invalid.").match(ex_info.value.message)
 

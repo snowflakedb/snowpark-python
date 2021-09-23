@@ -37,7 +37,7 @@ class Utils:
             f"^(({id_pattern}\\.){{0,2}}|({id_pattern}\\.\\.)){id_pattern}$$"
         )
         if not pattern.match(name):
-            raise SnowparkClientExceptionMessages.MISC_INVALID_OBJECT_NAME(name)
+            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
     @staticmethod
     def get_version() -> str:

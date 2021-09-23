@@ -17,8 +17,8 @@ class SnowparkClientException(Exception):
     # TODO: SNOW-363951 handle telemetry
 
 
-class SnowparkInternalException(SnowparkClientException):
-    """Exception for internal errors
+class _SnowparkInternalException(SnowparkClientException):
+    """Exception for internal errors. For internal use only.
 
     Includes all error codes in 10XX (where XX is 0-9)
     """
@@ -38,22 +38,40 @@ class SnowparkDataframeException(SnowparkClientException):
 
 
 class SnowparkPlanException(SnowparkClientException):
-    """Exception for plan related errors
+    """Exception for plan analysis errors
 
-    Includes all error codes in range 13XX (where XX is 0-9)
+    Includes all error codes in range 12XX (where XX is 0-9)
 
-    This exception is specifically raised for error codes: 1301, 1303, 1307
+    This exception is specifically raised for error codes: 1200, 1201, 1202, 1205
     """
 
     pass
 
 
-class SnowparkMiscException(SnowparkClientException):
+class SnowparkSQLException(SnowparkClientException):
+    """Exception for plan related errors
+
+    Includes all error codes in range 13XX (where XX is 0-9)
+
+    This exception is specifically raised for error codes: 1300
+    """
+
+    pass
+
+
+class SnowparkServerException(SnowparkClientException):
     """Exception for miscellaneous related errors
 
     Includes all error codes in range 14XX (where XX is 0-9)
+    """
 
-    This exception is specifically raised for error codes: 1403
+    pass
+
+
+class SnowparkGeneralException(SnowparkClientException):
+    """Exception for general exceptions
+
+    Includes all error codes in range 15XX (where XX is 0-9)
     """
 
     pass
@@ -89,49 +107,40 @@ class SnowparkDataframeReaderException(SnowparkDataframeException):
 class SnowparkCreateViewException(SnowparkPlanException):
     """Exception for errors while trying to create a view
 
-    Includes error codes: 1308, 1309
+    Includes error codes: 1203, 1204
     """
 
     pass
 
 
-class SnowparkPlanInternalException(SnowparkPlanException):
-    """Exception for internal errors that occur when translating the plan into SQL
-
-    Includes error codes: 1300, 1302
-    """
-
-    pass
-
-
-class SnowparkAmbiguousJoinException(SnowparkPlanException):
+class SnowparkSQLAmbiguousJoinException(SnowparkSQLException):
     """Exception for ambiguous joins that are created when translating the plan into SQL
 
-    Includes error codes: 1306
+    Includes error codes: 1303
     """
 
     pass
 
 
-class SnowparkInvalidIdException(SnowparkPlanException):
+class SnowparkSQLInvalidIdException(SnowparkSQLException):
     """Exception for having an invalid ID (usually a missing ID) when translating the plan into SQL
 
-    Includes error codes: 1305
+    Includes error codes: 1302
     """
 
     pass
 
 
-class SnowparkUnexpectedAliasException(SnowparkPlanException):
+class SnowparkSQLUnexpectedAliasException(SnowparkSQLException):
     """Exception for having an unexpected alias when translating the plan into SQL
 
-    Includes error codes: 1304
+    Includes error codes: 1301
     """
 
     pass
 
 
-class SnowparkSessionException(SnowparkMiscException):
+class SnowparkSessionException(SnowparkServerException):
     """Exception for any session related errors
 
     Includes error codes: 1402, 1404
@@ -140,7 +149,7 @@ class SnowparkSessionException(SnowparkMiscException):
     pass
 
 
-class SnowparkMissingDbOrSchemaException(SnowparkMiscException):
+class SnowparkMissingDbOrSchemaException(SnowparkServerException):
     """Exception for when a schema or database is missing in the session connection.
     These are needed to run queries
 
@@ -150,10 +159,19 @@ class SnowparkMissingDbOrSchemaException(SnowparkMiscException):
     pass
 
 
-class SnowparkQueryCancelledException(SnowparkMiscException):
+class SnowparkQueryCancelledException(SnowparkServerException):
     """Exception for when we are trying to interact with a cancelled query
 
     Includes error codes: 1401
+    """
+
+    pass
+
+
+class SnowparkInvalidObjectNameException(SnowparkGeneralException):
+    """Exception for inputting an invalid object name. Checked locally
+
+    This exception is specifically raised for error codes: 1500
     """
 
     pass

@@ -41,7 +41,7 @@ class SnowflakePlan(LogicalPlan):
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
                     if "unexpected 'as'" in e.msg.lower():
-                        raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() from e
+                        raise SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS() from e
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
                         match = (
                             SnowflakePlan.Decorator.__wrap_exception_regex_match.match(
@@ -68,7 +68,7 @@ class SnowflakePlan(LogicalPlan):
                             orig_col_name = (
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
                             )
-                            raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_INVALID_ID(
+                            raise SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
                                 orig_col_name
                             ) from e
                         elif (
@@ -84,7 +84,7 @@ class SnowflakePlan(LogicalPlan):
                             )
                             > 1
                         ):
-                            raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_JOIN_AMBIGUOUS(
+                            raise SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
                                 col, col
                             ) from e
                         else:

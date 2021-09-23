@@ -345,7 +345,7 @@ def udf(
 
     session = Session._get_active_session()
     if not session:
-        raise SnowparkClientExceptionMessages.MISC_NO_DEFAULT_SESSION()
+        raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
 
     if func is None:
         return functools.partial(

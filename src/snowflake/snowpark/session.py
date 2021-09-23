@@ -636,7 +636,7 @@ class Session(metaclass=_SessionMeta):
         if database is None or schema is None:
             missing_item = "DATABASE" if not database else "SCHEMA"
             # TODO: SNOW-372569 Use ErrorMessage
-            raise SnowparkClientExceptionMessages.MISC_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
+            raise SnowparkClientExceptionMessages.SERVER_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
                 missing_item, missing_item, missing_item
             )
         return database + "." + schema

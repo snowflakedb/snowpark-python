@@ -4,21 +4,21 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 from snowflake.snowpark.snowpark_client_exception import (
-    SnowparkAmbiguousJoinException,
     SnowparkColumnException,
     SnowparkCreateViewException,
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
-    SnowparkInternalException,
-    SnowparkInvalidIdException,
+    SnowparkInvalidObjectNameException,
     SnowparkJoinException,
-    SnowparkMiscException,
     SnowparkMissingDbOrSchemaException,
     SnowparkPlanException,
-    SnowparkPlanInternalException,
     SnowparkQueryCancelledException,
     SnowparkSessionException,
-    SnowparkUnexpectedAliasException,
+    SnowparkSQLAmbiguousJoinException,
+    SnowparkSQLException,
+    SnowparkSQLInvalidIdException,
+    SnowparkSQLUnexpectedAliasException,
+    _SnowparkInternalException,
 )
 
 
@@ -32,8 +32,8 @@ class SnowparkClientExceptionMessages:
     # Internal Error messages 001X
 
     @staticmethod
-    def INTERNAL_TEST_MESSAGE(message: str) -> SnowparkInternalException:
-        return SnowparkInternalException(f"internal test message: {message}.", "1010")
+    def INTERNAL_TEST_MESSAGE(message: str) -> _SnowparkInternalException:
+        return _SnowparkInternalException(f"internal test message: {message}.", "1010")
 
     # DataFrame Error Messages 01XX
 
@@ -132,66 +132,20 @@ class SnowparkClientExceptionMessages:
     def DF_JOIN_INVALID_USING_JOIN_TYPE(tpe: str) -> SnowparkJoinException:
         return SnowparkJoinException(f"Unsupported using join type '{tpe}'.", "1112")
 
-    # UDF error codes 02XX
-
-    # Plan analysis and execution error codes 03XX
-
-    @staticmethod
-    def PLAN_LAST_QUERY_RETURN_RESULTSET() -> SnowparkPlanInternalException:
-        return SnowparkPlanInternalException(
-            "Internal error: The execution for the last query "
-            "in the Snowflake plan doesn't return a ResultSet.",
-            "1300",
-        )
+    # Plan Analysis error codes 02XX
 
     @staticmethod
     def PLAN_ANALYZER_INVALID_IDENTIFIER(name: str) -> SnowparkPlanException:
-        return SnowparkPlanException(f"Invalid identifier {name}", "1301")
+        return SnowparkPlanException(f"Invalid identifier {name}", "1200")
 
     @staticmethod
     def PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
         type_name: str,
-    ) -> SnowparkPlanInternalException:
-        return SnowparkPlanInternalException(
+    ) -> SnowparkPlanException:
+        return SnowparkPlanException(
             f"Internal Error: Only PersistedView and LocalTempView are supported. "
             f"view type: {type_name}",
-            "1302",
-        )
-
-    @staticmethod
-    def PLAN_SAMPLING_NEED_ONE_PARAMETER() -> SnowparkPlanException:
-        return SnowparkPlanException(
-            "You must specify either the fraction of rows or the number of rows to sample.",
-            "1303",
-        )
-
-    @staticmethod
-    def PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() -> SnowparkUnexpectedAliasException:
-        return SnowparkUnexpectedAliasException(
-            "You can only define aliases for the root Columns in a DataFrame returned by "
-            "select() and agg(). You cannot use aliases for Columns in expressions.",
-            "1304",
-        )
-
-    @staticmethod
-    def PLAN_PYTHON_REPORT_INVALID_ID(name: str) -> SnowparkInvalidIdException:
-        return SnowparkInvalidIdException(
-            f'The column specified in df("{name}") '
-            f"is not present in the output of the DataFrame.",
-            "1305",
-        )
-
-    @staticmethod
-    def PLAN_PYTHON_REPORT_JOIN_AMBIGUOUS(
-        c1: str, c2: str
-    ) -> SnowparkAmbiguousJoinException:
-        return SnowparkAmbiguousJoinException(
-            f"The reference to the column '{c1}' is ambiguous. The column is "
-            f"present in both DataFrames used in the join. To identify the "
-            f"DataFrame that you want to use in the reference, use the syntax "
-            f'<df>("{c2}") in join conditions and in select() calls on the '
-            f"result of the join.",
-            "1306",
+            "1201",
         )
 
     @staticmethod
@@ -200,7 +154,7 @@ class SnowparkClientExceptionMessages:
             f"The COPY option 'FORCE = {value}' is not supported by the Snowpark library. "
             f"The Snowflake library loads all files, even if the files have been loaded "
             f"previously and have not changed since they were loaded.",
-            "1307",
+            "1202",
         )
 
     @staticmethod
@@ -208,23 +162,62 @@ class SnowparkClientExceptionMessages:
         return SnowparkCreateViewException(
             "Your dataframe may include DDL or DML operations. Creating a view from "
             "this DataFrame is currently not supported.",
-            "1308",
+            "1203",
         )
 
     @staticmethod
     def PLAN_CREATE_VIEWS_FROM_SELECT_ONLY() -> SnowparkCreateViewException:
         return SnowparkCreateViewException(
-            "Creating views from SELECT queries supported only.", "1309"
+            "Creating views from SELECT queries supported only.", "1204"
         )
 
     @staticmethod
     def PLAN_INVALID_TYPE(type: str) -> SnowparkPlanException:
-        return SnowparkPlanException(f"Invalid type, analyze. {type}", "1310")
+        return SnowparkPlanException(f"Invalid type, analyze. {type}", "1205")
 
-    # Miscellaneous Messages 04XX
+    # SQL Execution error codes 03XX
 
     @staticmethod
-    def MISC_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
+    def SQL_LAST_QUERY_RETURN_RESULTSET() -> SnowparkSQLException:
+        return SnowparkSQLException(
+            "Internal error: The execution for the last query "
+            "in the Snowflake plan doesn't return a ResultSet.",
+            "1300",
+        )
+
+    @staticmethod
+    def SQL_PYTHON_REPORT_UNEXPECTED_ALIAS() -> SnowparkSQLUnexpectedAliasException:
+        return SnowparkSQLUnexpectedAliasException(
+            "You can only define aliases for the root Columns in a DataFrame returned by "
+            "select() and agg(). You cannot use aliases for Columns in expressions.",
+            "1301",
+        )
+
+    @staticmethod
+    def SQL_PYTHON_REPORT_INVALID_ID(name: str) -> SnowparkSQLInvalidIdException:
+        return SnowparkSQLInvalidIdException(
+            f'The column specified in df("{name}") '
+            f"is not present in the output of the DataFrame.",
+            "1302",
+        )
+
+    @staticmethod
+    def SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
+        c1: str, c2: str
+    ) -> SnowparkSQLAmbiguousJoinException:
+        return SnowparkSQLAmbiguousJoinException(
+            f"The reference to the column '{c1}' is ambiguous. The column is "
+            f"present in both DataFrames used in the join. To identify the "
+            f"DataFrame that you want to use in the reference, use the syntax "
+            f'<df>("{c2}") in join conditions and in select() calls on the '
+            f"result of the join.",
+            "1303",
+        )
+
+    # Server Error Messages 04XX
+
+    @staticmethod
+    def SERVER_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
         v1: str, v2: str, v3: str
     ) -> SnowparkMissingDbOrSchemaException:
         return SnowparkMissingDbOrSchemaException(
@@ -235,13 +228,13 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def MISC_QUERY_IS_CANCELLED() -> SnowparkQueryCancelledException:
+    def SERVER_QUERY_IS_CANCELLED() -> SnowparkQueryCancelledException:
         return SnowparkQueryCancelledException(
             "The query has been cancelled by the user.", "1401"
         )
 
     @staticmethod
-    def MISC_SESSION_EXPIRED(error_message: str) -> SnowparkSessionException:
+    def SERVER_SESSION_EXPIRED(error_message: str) -> SnowparkSessionException:
         return SnowparkSessionException(
             f"Your Snowpark session has expired. You must recreate your "
             f"session.\n{error_message}",
@@ -249,11 +242,15 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def MISC_INVALID_OBJECT_NAME(type_name: str) -> SnowparkMiscException:
-        return SnowparkMiscException(
-            f"The object name '{type_name}' is invalid.", "1403"
-        )
+    def SERVER_NO_DEFAULT_SESSION() -> SnowparkSessionException:
+        return SnowparkSessionException("No default SnowflakeSession found", "1403")
+
+    # General Error codes 15XX
 
     @staticmethod
-    def MISC_NO_DEFAULT_SESSION() -> SnowparkSessionException:
-        return SnowparkSessionException("No default SnowflakeSession found", "1404")
+    def GENERAL_INVALID_OBJECT_NAME(
+        type_name: str,
+    ) -> SnowparkInvalidObjectNameException:
+        return SnowparkInvalidObjectNameException(
+            f"The object name '{type_name}' is invalid.", "1500"
+        )
