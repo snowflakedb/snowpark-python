@@ -80,7 +80,7 @@ jobs:
           - image_name: windows-latest
             download_name: windows
         python-version: [3.6]
-        cloud-provider: [aws]
+        cloud-provider: [aws, azure]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
@@ -95,6 +95,7 @@ jobs:
         run: .github/scripts/decrypt_parameters.sh
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
         uses: actions/download-artifact@v2
         with:
