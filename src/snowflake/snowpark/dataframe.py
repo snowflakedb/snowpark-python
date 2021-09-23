@@ -212,9 +212,9 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
-        return self._collect()
+        return self._collect_with_tag()
 
-    def _collect(self) -> List["Row"]:
+    def _collect_with_tag(self) -> List["Row"]:
         return self.session.conn.execute(
             self.__plan,
             _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
@@ -1012,7 +1012,7 @@ class DataFrame:
         Returns:
             the number of rows.
         """
-        return self.agg(("*", "count"))._collect()[0][0]
+        return self.agg(("*", "count"))._collect_with_tag()[0][0]
 
     @property
     def write(self) -> DataFrameWriter:
@@ -1221,14 +1221,14 @@ class DataFrame:
              results, or ``None`` if it does not exist.
         """
         if n is None:
-            result = self.limit(1)._collect()
+            result = self.limit(1)._collect_with_tag()
             return result[0] if result else None
         elif not type(n) == int:
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
-            return self._collect()
+            return self._collect_with_tag()
         else:
-            return self.limit(n)._collect()
+            return self.limit(n)._collect_with_tag()
 
     def sample(self, frac: Optional[float] = None, n: Optional[int] = None):
         """Samples rows based on either the number of rows to be returned or a

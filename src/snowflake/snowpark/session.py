@@ -399,6 +399,9 @@ class Session(metaclass=_SessionMeta):
     def query_tag(self, tag: str) -> None:
         """Sets a query tag for this session.
         If the ``tag`` is None or an empty str, the session's query_tag is unset.
+
+        Use this property to set this session's query tag instead of using sql "alter session set query_tag..." to avoid
+        this session object being in a corrupted state.
         """
         if tag:
             self.conn.run_query(f"alter session set query_tag = '{tag}'")
