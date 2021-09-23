@@ -11,6 +11,8 @@ from test.utils import Utils
 
 import pytest
 
+from snowflake.snowpark.internal.analyzer_obj import ARRAY_BIND_THRESHOLD
+
 
 def test_set_query_tag(session):
     """Test set query_tag properties on session"""
@@ -82,8 +84,19 @@ def test_query_tags_from_trackback(session, code):
     assert len(query_history) == 1
 
 
+def test_large_local_relation_query_tag_from_traceback(session):
+    session.createDataFrame(
+        [["a"] * (ARRAY_BIND_THRESHOLD + 1)]
+    ).count()  # trigger large local relation query
+    query_history = get_query_history_for_tags(
+        session, "test_large_local_relation_query_tag_from_traceback"
+    )
+    assert len(query_history) > 0  # some hidden SQLs are run so it's not exactly 1.
+
+
 def get_query_history_for_tags(session, query_tag):
     query_result = session.conn.run_query(
-        f"select query_text from table(information_schema.query_history()) where contains(query_tag, '{query_tag}')"
+        f"select query_text from table(information_schema.query_history()) "
+        f"where contains(query_tag, '{query_tag}') and session_id = '{session.conn.get_session_id()}'"
     )
     return query_result["data"]

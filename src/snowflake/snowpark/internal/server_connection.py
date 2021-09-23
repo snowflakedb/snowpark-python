@@ -378,10 +378,15 @@ class ServerConnection:
         # with qmark, Python data type will be dynamically mapped to Snowflake data type
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings
         params = [list(row) for row in rows]
-        # TODO: run_batch_insert uses `SnowflakeCursor.executemany` which doesn't accept query tag.
-        # A separate JIRA is created in python-connector to follow up.
-        # https://snowflakecomputing.atlassian.net/browse/SNOW-466503
-        # After python-connector is released with this change, the code here needs to pass kwargs to executemany like:
-        # self._cursor.executemany(query, params, **kwargs)
+        query_tag = (
+            kwargs["_statement_params"]["QUERY_TAG"]
+            if "_statement_params" in kwargs
+            and "QUERY_TAG" in kwargs["_statement_params"]
+            else None
+        )
+        if query_tag:
+            self._cursor.execute(f"alter session set query_tag='{query_tag}'")
         self._cursor.executemany(query, params)
+        if query_tag:
+            self._cursor.execute("alter session unset query_tag")
         logger.info(f"Execute batch insertion query %s", query)
