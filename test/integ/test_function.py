@@ -386,7 +386,6 @@ def test_random_negative(session):
     assert "invalid identifier 'ABC'" in str(ex_info)
 
 
-
 def test_parse_functions_negative(session):
     df = session.sql("select 1").toDF("a")
 

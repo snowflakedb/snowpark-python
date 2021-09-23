@@ -62,7 +62,6 @@ from snowflake.snowpark.types.sp_data_types import (
 )
 
 
-
 def col(col_name: str) -> Column:
     """Returns the :class:`Column` with the specified name."""
     return Column(col_name)
@@ -255,7 +254,7 @@ def not_(e: Union[Column, str]) -> Column:
 
 def random(seed: Optional[int] = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
-    s = seed if seed is not None else randint(-2 ** 63, 2 ** 63 - 1)
+    s = seed if seed is not None else randint(-(2 ** 63), 2 ** 63 - 1)
     return builtin("random")(SPLiteral(s, SPLongType()))
 
 

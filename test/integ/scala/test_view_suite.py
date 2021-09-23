@@ -11,8 +11,8 @@ import pytest
 from snowflake.snowpark.functions import col, sql_expr, sum
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import LongType
 from snowflake.snowpark.snowpark_client_exception import SnowparkCreateViewException
+from snowflake.snowpark.types.sf_types import LongType
 
 
 def test_create_view(session):
