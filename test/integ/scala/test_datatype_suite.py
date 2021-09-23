@@ -112,7 +112,6 @@ def test_verify_datatypes_reference2(session):
 
     assert df.collect() == [Row(Decimal("0.05"), Decimal("0.07"))]
     assert (
-        str(df.schema.fields)
-        == "[StructField(A, Decimal(5, 2), Nullable=False), "
-           "StructField(B, Decimal(7, 2), Nullable=False)]"
+        str(df.schema.fields) == "[StructField(A, Decimal(5, 2), Nullable=False), "
+        "StructField(B, Decimal(7, 2), Nullable=False)]"
     )
