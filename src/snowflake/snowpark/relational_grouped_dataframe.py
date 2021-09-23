@@ -30,7 +30,6 @@ from snowflake.snowpark.plans.logical.basic_logical_operators import (
     Aggregate as SPAggregate,
     Pivot as SPPivot,
 )
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sp_data_types import IntegerType as SPInteger
 
 
@@ -206,7 +205,7 @@ class RelationalGroupedDataFrame:
                 [self.__str_to_expr(expr)(col.expression) for col, expr in exprs]
             )
         else:
-            raise SnowparkClientException("Invalid input types for agg()")
+            raise TypeError("Invalid input types for agg()")
 
     def avg(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the average for the specified numeric columns."""

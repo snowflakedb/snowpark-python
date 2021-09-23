@@ -18,7 +18,7 @@ from json import JSONEncoder
 from typing import IO, List, Optional, Tuple, Type
 
 from snowflake.connector.version import VERSION as connector_version
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 
@@ -37,7 +37,7 @@ class Utils:
             f"^(({id_pattern}\\.){{0,2}}|({id_pattern}\\.\\.)){id_pattern}$$"
         )
         if not pattern.match(name):
-            raise SnowparkClientException(f"The object name '{name}' is invalid.")
+            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
     @staticmethod
     def get_version() -> str:
