@@ -153,7 +153,7 @@ class Session(metaclass=_SessionMeta):
         a directory, or any other file resource.
 
         Args:
-            path: The path of a local file or a remote file in the stage. In each case,
+            path (str): The path of a local file or a remote file in the stage. In each case,
 
                 1. if the path points to a local file, this file will be uploaded to the
                 stage where the UDF is registered and Snowflake will import the file when
@@ -165,7 +165,7 @@ class Session(metaclass=_SessionMeta):
 
                 3. if the path points to a file in a stage, the file will be included in the
                 imports when executing a UDF.
-            import_path: The relative Python import path in a UDF, as a :class:`str`.
+            import_path (str): The relative Python import path in a UDF.
                 If it is not provided or it is None, the UDF will import it directly without
                 any leading package/module. This argument will become a no-op if the path
                 points to a stage file or a non-Python (.py) local file.
@@ -258,7 +258,7 @@ class Session(metaclass=_SessionMeta):
         Removes a file in stage or local file from imports of a user-defined function (UDF).
 
         Args:
-            path: a path pointing to a local file or a remote file in the stage
+            path (str): a path pointing to a local file or a remote file in the stage
 
         Examples::
 
