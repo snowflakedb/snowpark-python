@@ -34,7 +34,7 @@ repos:
             (?x)^(
                 license_header.txt|
                 test/resources/.*|
-                docs/*|
+                docs/.*|
             )$
     -   id: check-yaml
     -   id: debug-statements

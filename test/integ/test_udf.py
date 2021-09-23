@@ -28,7 +28,9 @@ from typing import Any, Dict, List, Optional, Union
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.functions import call_udf, col, udf
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkInvalidObjectNameException
+from snowflake.snowpark.snowpark_client_exception import (
+    SnowparkInvalidObjectNameException,
+)
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     DateType,

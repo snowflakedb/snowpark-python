@@ -33,6 +33,7 @@ The following examples demonstrate the use of some of these functions::
     df.select(sqlExpr("c + 1"))
 """
 import functools
+from random import randint
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 from snowflake.snowpark.column import CaseExpr, Column
@@ -53,8 +54,12 @@ from snowflake.snowpark.internal.sp_expressions import (
     UnresolvedFunction as SPUnresolvedFunction,
 )
 from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import DataType, StringType
-from snowflake.snowpark.types.sp_data_types import IntegerType as SPIntegerType
+from snowflake.snowpark.types.sp_data_types import (
+    IntegerType as SPIntegerType,
+    LongType as SPLongType,
+)
 
 
 def col(col_name: str) -> Column:
@@ -235,17 +240,147 @@ def is_null(e: Union[Column, str]) -> Column:
     return Column(SPIsNull(c.expression))
 
 
-def parse_json(e: Union[Column, str]) -> Column:
-    """Parse the value of the specified column as a JSON string and returns the
-    resulting JSON document."""
-    c = __to_col_if_str(e, "parse_json")
-    return builtin("parse_json")(c)
+def negate(e: Union[Column, str]) -> Column:
+    """Returns the negation of the value in the column (equivalent to a unary minus)."""
+    c = __to_col_if_str(e, "negate")
+    return -c
+
+
+def not_(e: Union[Column, str]) -> Column:
+    """Returns the inverse of a boolean expression."""
+    c = __to_col_if_str(e, "not_")
+    return ~c
+
+
+def random(seed: Optional[int] = None) -> Column:
+    """Each call returns a pseudo-random 64-bit integer."""
+    s = seed if seed is not None else randint(-(2 ** 63), 2 ** 63 - 1)
+    return builtin("random")(SPLiteral(s, SPLongType()))
 
 
 def to_decimal(e: Union[Column, str], precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal."""
     c = __to_col_if_str(e, "to_decimal")
     return builtin("to_decimal")(c, sql_expr(str(precision)), sql_expr(str(scale)))
+
+
+def sqrt(e: Union[Column, str]) -> Column:
+    """Returns the square-root of a non-negative numeric expression."""
+    c = __to_col_if_str(e, "sqrt")
+    return builtin("sqrt")(c)
+
+
+def abs(e: Union[Column, str]) -> Column:
+    """Returns the absolute value of a numeric expression."""
+    c = __to_col_if_str(e, "abs")
+    return builtin("abs")(c)
+
+
+def ceil(e: Union[Column, str]) -> Column:
+    """Returns values from the specified column rounded to the nearest equal or larger
+    integer."""
+    c = __to_col_if_str(e, "ceil")
+    return builtin("ceil")(c)
+
+
+def floor(e: Union[Column, str]) -> Column:
+    """Returns values from the specified column rounded to the nearest equal or
+    smaller integer."""
+    c = __to_col_if_str(e, "floor")
+    return builtin("floor")(c)
+
+
+def exp(e: Union[Column, str]) -> Column:
+    """Computes Euler's number e raised to a floating-point value."""
+    c = __to_col_if_str(e, "exp")
+    return builtin("exp")(c)
+
+
+def log(
+    base: Union[Column, str, int, float], x: Union[Column, str, int, float]
+) -> Column:
+    """Returns the logarithm of a numeric expression."""
+    b = lit(base) if type(base) in [int, float] else __to_col_if_str(base, "log")
+    arg = lit(x) if type(x) in [int, float] else __to_col_if_str(x, "log")
+    return builtin("log")(b, arg)
+
+
+def pow(l: Union[Column, str, int, float], r: Union[Column, str, int, float]) -> Column:
+    """Returns a number (l) raised to the specified power (r)."""
+    number = lit(l) if type(l) in [int, float] else __to_col_if_str(l, "pow")
+    power = lit(r) if type(r) in [int, float] else __to_col_if_str(r, "pow")
+    return builtin("pow")(number, power)
+
+
+def split(
+    str: Union[Column, str],
+    pattern: Union[Column, str],
+) -> Column:
+    """Splits a given string with a given separator and returns the result in an array
+    of strings. To specify a string separator, use the :func:`lit()` function."""
+    s = __to_col_if_str(str, "split")
+    p = __to_col_if_str(pattern, "split")
+    return builtin("split")(s, p)
+
+
+def substring(
+    str: Union[Column, str], pos: Union[Column, int], len: Union[Column, int]
+) -> Column:
+    """Returns the portion of the string or binary value str, starting from the
+    character/byte specified by pos, with limited length. The length should be greater
+    than or equal to zero. If the length is a negative number, the function returns an
+    empty string."""
+    s = __to_col_if_str(str, "substring")
+    p = pos if type(pos) == Column else lit(pos)
+    l = len if type(len) == Column else lit(len)
+    return builtin("substring")(s, p, l)
+
+
+def translate(
+    src: Union[Column, str],
+    matching_string: Union[Column, str],
+    replace_string: Union[Column, str],
+) -> Column:
+    """Translates src from the characters in matchingString to the characters in
+    replaceString."""
+    source = __to_col_if_str(src, "translate")
+    match = __to_col_if_str(matching_string, "translate")
+    replace = __to_col_if_str(replace_string, "translate")
+    return builtin("translate")(source, match, replace)
+
+
+def trim(e: Union[Column, str], trim_string: Union[Column, str]) -> Column:
+    """Removes leading and trailing characters from a string."""
+    c = __to_col_if_str(e, "trim")
+    t = __to_col_if_str(trim_string, "trim")
+    return builtin("trim")(c, t)
+
+
+def upper(e: Union[Column, str]) -> Column:
+    """Returns the input string with all characters converted to uppercase."""
+    c = __to_col_if_str(e, "upper")
+    return builtin("upper")(c)
+
+
+def contains(col: Union[Column, str], str: Union[Column, str]) -> Column:
+    """Returns true if col contains str."""
+    c = __to_col_if_str(col, "contains")
+    s = __to_col_if_str(str, "contains")
+    return builtin("contains")(c, s)
+
+
+def startswith(col: Union[Column, str], str: Union[Column, str]) -> Column:
+    """Returns true if col starts with str."""
+    c = __to_col_if_str(col, "startswith")
+    s = __to_col_if_str(str, "startswith")
+    return builtin("startswith")(c, s)
+
+
+def char(col: Union[Column, str]) -> Column:
+    """Converts a Unicode code point (including 7-bit ASCII) into the character that
+    matches the input Unicode."""
+    c = __to_col_if_str(col, "char")
+    return builtin("char")(c)
 
 
 def to_time(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
@@ -260,17 +395,38 @@ def to_timestamp(e: Union[Column, str], fmt: Optional["Column"] = None) -> Colum
     return builtin("to_timestamp")(c, fmt) if fmt else builtin("to_timestamp")(c)
 
 
+def to_date(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
+    """Converts an input expression into a date."""
+    c = __to_col_if_str(e, "to_date")
+    return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
+
+
+def parse_json(e: Union[Column, str]) -> Column:
+    """Parse the value of the specified column as a JSON string and returns the
+    resulting JSON document."""
+    c = __to_col_if_str(e, "parse_json")
+    return builtin("parse_json")(c)
+
+
+def parse_xml(e: Union[Column, str]) -> Column:
+    """Parse the value of the specified column as a JSON string and returns the
+    resulting XML document."""
+    c = __to_col_if_str(e, "parse_xml")
+    return builtin("parse_xml")(c)
+
+
+def array_agg(e: Union[Column, str]) -> Column:
+    """Returns the input values, pivoted into an ARRAY. If the input is empty, an empty
+    ARRAY is returned."""
+    c = __to_col_if_str(e, "array_agg")
+    return builtin("array_agg")(c)
+
+
 def to_binary(e: Union[Column, str], fmt: Optional[str] = None) -> Column:
     """Converts the input expression to a binary value. For NULL input, the output is
     NULL."""
     c = __to_col_if_str(e, "to_binary")
     return builtin("to_binary")(c, fmt) if fmt else builtin("to_binary")(c)
-
-
-def to_date(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
-    """Converts an input expression into a date."""
-    c = __to_col_if_str(e, "to_date")
-    return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
 
 
 def to_array(e: Union[Column, str]) -> Column:
@@ -279,16 +435,30 @@ def to_array(e: Union[Column, str]) -> Column:
     return builtin("to_array")(c)
 
 
-def to_variant(e: Union[Column, str]) -> Column:
-    """Converts any value to a VARIANT value or NULL (if input is NULL)."""
-    c = __to_col_if_str(e, "to_variant")
-    return builtin("to_variant")(c)
+def to_json(e: Union[Column, str]) -> Column:
+    """Converts any VARIANT value to a string containing the JSON representation of the
+    value. If the input is NULL, the result is also NULL."""
+    c = __to_col_if_str(e, "to_json")
+    return builtin("to_json")(c)
 
 
 def to_object(e: Union[Column, str]) -> Column:
     """Converts any value to a OBJECT value or NULL (if input is NULL)."""
     c = __to_col_if_str(e, "to_object")
     return builtin("to_object")(c)
+
+
+def to_variant(e: Union[Column, str]) -> Column:
+    """Converts any value to a VARIANT value or NULL (if input is NULL)."""
+    c = __to_col_if_str(e, "to_variant")
+    return builtin("to_variant")(c)
+
+
+def to_xml(e: Union[Column, str]) -> Column:
+    """Converts any VARIANT value to a string containing the XML representation of the
+    value. If the input is NULL, the result is also NULL."""
+    c = __to_col_if_str(e, "to_xml")
+    return builtin("to_xml")(c)
 
 
 def when(condition: Column, value: Column) -> CaseExpr:
