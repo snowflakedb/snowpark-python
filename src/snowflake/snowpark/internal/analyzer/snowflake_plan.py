@@ -21,7 +21,6 @@ from snowflake.snowpark.internal.utils import _SaveMode
 from snowflake.snowpark.plans.logical.basic_logical_operators import SetOperation
 from snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.types_package import (
     snow_type_to_sp_type,
     sp_type_to_snow_type,
@@ -42,7 +41,7 @@ class SnowflakePlan(LogicalPlan):
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
                     if "unexpected 'as'" in e.msg.lower():
-                        raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_UNEXPECTED_ALIAS() from e
+                        raise SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS() from e
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
                         match = (
                             SnowflakePlan.Decorator.__wrap_exception_regex_match.match(
@@ -69,7 +68,7 @@ class SnowflakePlan(LogicalPlan):
                             orig_col_name = (
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
                             )
-                            raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_INVALID_ID(
+                            raise SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
                                 orig_col_name
                             ) from e
                         elif (
@@ -85,7 +84,7 @@ class SnowflakePlan(LogicalPlan):
                             )
                             > 1
                         ):
-                            raise SnowparkClientExceptionMessages.PLAN_PYTHON_REPORT_JOIN_AMBIGUOUS(
+                            raise SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
                                 col, col
                             ) from e
                         else:
@@ -441,15 +440,10 @@ class SnowflakePlanBuilder:
         self, name: str, child: SnowflakePlan, is_temp: bool
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
-            raise SnowparkClientException(
-                "Your dataframe may include DDL or DML operations. "
-                + "Creating a view from this DataFrame is currently not supported."
-            )
+            raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
 
         if not child.queries[0].sql.lower().strip().startswith("select"):
-            raise SnowparkClientException(
-                "Creating views from SELECT queries supported only."
-            )
+            raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         return self.build(
             lambda x: self.pkg.create_or_replace_view_statement(name, x, is_temp),
@@ -513,8 +507,8 @@ class SnowflakePlanBuilder:
             )
         else:  # otherwise use COPY
             if "FORCE" in copy_options and copy_options["FORCE"].lower() != "true":
-                raise SnowparkClientException(
-                    f"Copy option 'FORCE = {copy_options['FORCE']}' is not supported. Snowpark doesn't skip any loaded files in COPY."
+                raise SnowparkClientExceptionMessages.PLAN_COPY_DONT_SUPPORT_SKIP_LOADED_FILES(
+                    copy_options["FORCE"]
                 )
 
             # set force to true.

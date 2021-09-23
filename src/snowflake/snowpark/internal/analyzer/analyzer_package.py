@@ -3,7 +3,6 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-import random
 import re
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -13,7 +12,6 @@ from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMes
 from snowflake.snowpark.internal.sp_expressions import Attribute as SPAttribute
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import DataType
 from snowflake.snowpark.types.sp_join_types import (
     JoinType as SPJoinType,
@@ -754,7 +752,7 @@ class AnalyzerPackage:
     @classmethod
     def validate_quoted_name(cls, name: str) -> str:
         if '"' in name[1:-1].replace('""', ""):
-            raise SnowparkClientException(f"invalid identifier '{name}'")
+            raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
         else:
             return name
 

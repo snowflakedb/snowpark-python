@@ -54,7 +54,9 @@ class ServerConnection:
                 try:
                     return func(*args, **kwargs)
                 except ReauthenticationRequest as ex:
-                    raise SnowparkClientExceptionMessages.MISC_SESSION_EXPIRED(ex.cause)
+                    raise SnowparkClientExceptionMessages.SERVER_SESSION_EXPIRED(
+                        ex.cause
+                    )
                 except Exception as ex:
                     # TODO: SNOW-363951 handle telemetry
                     raise ex
@@ -352,14 +354,14 @@ class ServerConnection:
                     placeholders[query.query_id_place_holder] = result["sfqid"]
                     result_meta = self._cursor.description
                 if action_id < plan.session.get_last_canceled_id():
-                    raise SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
+                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
             for action in plan.post_actions:
                 self.run_query(action)
 
         if result is None:
-            raise SnowparkClientExceptionMessages.PLAN_LAST_QUERY_RETURN_RESULTSET()
+            raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
 
         return result["data"], result_meta
 

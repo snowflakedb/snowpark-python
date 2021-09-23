@@ -36,6 +36,7 @@ from snowflake.snowpark.internal.analyzer.snowflake_plan import (
     SnowflakeValues,
 )
 from snowflake.snowpark.internal.analyzer_obj import Analyzer
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.server_connection import ServerConnection
 from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
@@ -44,7 +45,6 @@ from snowflake.snowpark.internal.utils import PythonObjJSONEncoder, Utils
 from snowflake.snowpark.plans.logical.basic_logical_operators import Range
 from snowflake.snowpark.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     AtomicType,
@@ -559,10 +559,8 @@ class Session(metaclass=_SessionMeta):
                 elif type(data_type) == VariantType:
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
-                    raise SnowparkClientException(
-                        "{} {} can't be converted to {}".format(
-                            type(value), value, str(data_type)
-                        )
+                    raise TypeError(
+                        f"Cannot cast {type(value)}({value}) to {str(data_type)}."
                     )
             converted.append(Row(*converted_row))
 
@@ -638,8 +636,8 @@ class Session(metaclass=_SessionMeta):
         if database is None or schema is None:
             missing_item = "DATABASE" if not database else "SCHEMA"
             # TODO: SNOW-372569 Use ErrorMessage
-            raise SnowparkClientException(
-                "The {} is not set for the current session.".format(missing_item)
+            raise SnowparkClientExceptionMessages.SERVER_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
+                missing_item, missing_item, missing_item
             )
         return database + "." + schema
 

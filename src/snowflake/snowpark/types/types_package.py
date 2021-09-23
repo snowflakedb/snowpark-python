@@ -16,7 +16,6 @@ from array import array
 from collections import OrderedDict, defaultdict
 from typing import List, Optional, Tuple, Type
 
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 from snowflake.snowpark.types.sf_types import (
     ArrayType,
     BinaryType,
@@ -162,9 +161,7 @@ def snow_type_to_sp_type(datatype: DataType) -> Optional[SPDataType]:
     # if type(datatype) == GeographyType:
     #    return GeographyType(snow_type_to_sp_type(valueType))
     # raise internal error
-    raise SnowparkClientException(
-        "Could not convert snowflake type {}".format(datatype)
-    )
+    raise TypeError(f"Could not convert snowflake type {datatype}")
 
 
 def to_sp_struct_type(struct_type: StructType) -> SPStructType:
