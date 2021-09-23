@@ -37,6 +37,7 @@ from random import randint
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 from snowflake.snowpark.column import CaseExpr, Column
+from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     Avg as SPAverage,
@@ -54,11 +55,12 @@ from snowflake.snowpark.internal.sp_expressions import (
 )
 from snowflake.snowpark.internal.utils import Utils
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import DataType
+from snowflake.snowpark.types.sf_types import DataType, StringType
 from snowflake.snowpark.types.sp_data_types import (
     IntegerType as SPIntegerType,
     LongType as SPLongType,
 )
+
 
 
 def col(col_name: str) -> Column:
@@ -514,7 +516,7 @@ def udf(
 
     session = Session._get_active_session()
     if not session:
-        raise SnowparkClientException("No default SnowflakeSession found")
+        raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
 
     if func is None:
         return functools.partial(

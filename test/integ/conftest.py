@@ -67,6 +67,18 @@ def connection(db_parameters):
         yield con
 
 
+@pytest.fixture(scope="session")
+def is_sample_data_available(connection) -> bool:
+    return (
+        len(
+            connection.cursor()
+            .execute("show databases like 'SNOWFLAKE_SAMPLE_DATA'")
+            .fetchall()
+        )
+        > 0
+    )
+
+
 @pytest.fixture(scope="session", autouse=True)
 def test_schema(connection) -> None:
     """Set up and tear down the test schema. This is automatically called per test session."""

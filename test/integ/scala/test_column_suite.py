@@ -11,7 +11,11 @@ import pytest
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.functions import avg, col, lit, parse_json, sql_expr, when
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark.snowpark_client_exception import (
+    SnowparkColumnException,
+    SnowparkPlanException,
+    SnowparkSQLUnexpectedAliasException,
+)
 from snowflake.snowpark.types.sf_types import StringType
 
 
@@ -311,22 +315,22 @@ def test_column_resolution_with_different_kins_of_names(session):
     assert df.select(df["one"]).collect() == [Row(1)]
     assert df.select(df["oNe"]).collect() == [Row(1)]
     assert df.select(df['"ONE"']).collect() == [Row(1)]
-    with pytest.raises(SnowparkClientException):
+    with pytest.raises(SnowparkColumnException):
         df.col('"One"')
 
     df = session.createDataFrame([[1]]).toDF(["One One"])
     assert df.select(df["One One"]).collect() == [Row(1)]
     assert df.select(df['"One One"']).collect() == [Row(1)]
-    with pytest.raises(SnowparkClientException):
+    with pytest.raises(SnowparkColumnException):
         df.col('"one one"')
-    with pytest.raises(SnowparkClientException):
+    with pytest.raises(SnowparkColumnException):
         df.col("one one")
-    with pytest.raises(SnowparkClientException):
+    with pytest.raises(SnowparkColumnException):
         df.col('"ONE ONE"')
 
     df = session.createDataFrame([[1]]).toDF(['"One One"'])
     assert df.select(df['"One One"']).collect() == [Row(1)]
-    with pytest.raises(SnowparkClientException):
+    with pytest.raises(SnowparkColumnException):
         df.col('"ONE ONE"')
 
 
@@ -340,7 +344,7 @@ def test_drop_columns_by_string(session):
         '"One"',
     ]
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkColumnException) as ex_info:
         df.drop("ONE", '"One"')
     assert "Cannot drop all columns" in str(ex_info)
 
@@ -354,11 +358,11 @@ def test_drop_columns_by_column(session):
         '"One"',
     ]
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkColumnException) as ex_info:
         df.drop(df["ONE"], col('"One"'))
     assert "Cannot drop all columns" in str(ex_info)
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkColumnException) as ex_info:
         df.drop(df["ONE"] + col('"One"'))
     assert "You must specify the column by name" in str(ex_info)
 
@@ -402,15 +406,15 @@ def test_column_names_with_quotes(session):
     assert df.select(col('"col"')).collect() == [Row(2)]
     assert df.select(col('"""col"')).collect() == [Row(3)]
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         df.select(col('"col""')).collect()
-    assert "invalid identifier" in str(ex_info)
-    with pytest.raises(SnowparkClientException) as ex_info:
+    assert "Invalid identifier" in str(ex_info)
+    with pytest.raises(SnowparkPlanException) as ex_info:
         df.select(col('""col"')).collect()
-    assert "invalid identifier" in str(ex_info)
-    with pytest.raises(SnowparkClientException) as ex_info:
+    assert "Invalid identifier" in str(ex_info)
+    with pytest.raises(SnowparkPlanException) as ex_info:
         df.select(col('"col""""')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "Invalid identifier" in str(ex_info)
 
 
 def test_column_constructors_col(session):
@@ -478,10 +482,10 @@ def test_sql_expr_column(session):
 
 def test_errors_for_aliased_columns(session):
     df = session.createDataFrame([[1]]).toDF("c")
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkSQLUnexpectedAliasException) as ex_info:
         df.select(col("a").as_("b") + 10).collect()
     assert "You can only define aliases for the root" in str(ex_info)
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkSQLUnexpectedAliasException) as ex_info:
         df.groupBy(col("a")).agg(avg(col("a").as_("b"))).collect()
     assert "You can only define aliases for the root" in str(ex_info)
 
