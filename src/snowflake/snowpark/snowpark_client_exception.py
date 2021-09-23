@@ -49,7 +49,8 @@ class SnowparkPlanException(SnowparkClientException):
 
 
 class SnowparkSQLException(SnowparkClientException):
-    """Exception for plan related errors
+    """Exception for errors related to the executed SQL statement that was generated
+    from the Snowflake plan
 
     Includes all error codes in range 13XX (where XX is 0-9)
 
@@ -114,7 +115,8 @@ class SnowparkCreateViewException(SnowparkPlanException):
 
 
 class SnowparkSQLAmbiguousJoinException(SnowparkSQLException):
-    """Exception for ambiguous joins that are created when translating the plan into SQL
+    """Exception for ambiguous joins that are created from the
+    translated SQL statement
 
     Includes error codes: 1303
     """
@@ -123,7 +125,8 @@ class SnowparkSQLAmbiguousJoinException(SnowparkSQLException):
 
 
 class SnowparkSQLInvalidIdException(SnowparkSQLException):
-    """Exception for having an invalid ID (usually a missing ID) when translating the plan into SQL
+    """Exception for having an invalid ID (usually a missing ID)
+    that are created from the translated SQL statement
 
     Includes error codes: 1302
     """
@@ -132,7 +135,8 @@ class SnowparkSQLInvalidIdException(SnowparkSQLException):
 
 
 class SnowparkSQLUnexpectedAliasException(SnowparkSQLException):
-    """Exception for having an unexpected alias when translating the plan into SQL
+    """Exception for having an unexpected alias that are created
+    from the translated SQL statement
 
     Includes error codes: 1301
     """
