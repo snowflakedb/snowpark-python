@@ -104,14 +104,14 @@ class ServerConnection:
     def __add_application_name(self):
         if PARAM_APPLICATION not in self._lower_case_parameters:
             self._lower_case_parameters[PARAM_APPLICATION] = APPLICATION_NAME
-        if PARAM_INTERNAL_APPLICATION_NAME not in self._lower_case_parameters:
-            self._lower_case_parameters[
-                PARAM_INTERNAL_APPLICATION_NAME
-            ] = APPLICATION_NAME
-        if PARAM_INTERNAL_APPLICATION_VERSION not in self._lower_case_parameters:
-            self._lower_case_parameters[
-                PARAM_INTERNAL_APPLICATION_VERSION
-            ] = VERSION_STR
+        # if PARAM_INTERNAL_APPLICATION_NAME not in self._lower_case_parameters:
+        #     self._lower_case_parameters[
+        #         PARAM_INTERNAL_APPLICATION_NAME
+        #     ] = APPLICATION_NAME
+        # if PARAM_INTERNAL_APPLICATION_VERSION not in self._lower_case_parameters:
+        #     self._lower_case_parameters[
+        #         PARAM_INTERNAL_APPLICATION_VERSION
+        #     ] = VERSION_STR
 
     def close(self):
         self._conn.close()
