@@ -31,6 +31,8 @@ def test_query_tags_in_session(session):
         session.createDataFrame(["a", "b", "c"]).collect()
         session.createDataFrame(["a", "b", "c"]).count()
         session.createDataFrame(["a", "b", "c"]).show()
+        session.createDataFrame(["a", "b", "c"]).first()
+        session.createDataFrame(["a", "b", "c"]).toPandas()
         session.createDataFrame(["a", "b", "c"]).createOrReplaceTempView(view_name)
         session.createDataFrame(["a", "b", "c"]).createOrReplaceView(temp_view_name)
         query_history = get_query_history_for_tags(session, query_tag)
@@ -38,8 +40,8 @@ def test_query_tags_in_session(session):
         Utils.drop_view(session, temp_view_name)
 
         assert (
-            len(query_history) == 6
-        )  # 5 DataFrame queries + 1 query that get sql history
+            len(query_history) == 8
+        )  # 7 DataFrame queries + 1 query that get sql history
     finally:
         Utils.unset_query_tag(session)
 
@@ -50,6 +52,8 @@ def test_query_tags_in_session(session):
         'session.createDataFrame(["a", "b", "c"]).collect()',
         'session.createDataFrame(["a", "b", "c"]).count()',
         'session.createDataFrame(["a", "b", "c"]).show()',
+        'session.createDataFrame(["a", "b", "c"]).first()',
+        'session.createDataFrame(["a", "b", "c"]).toPandas()',
         """
     view_name = Utils.random_name()
     session.createDataFrame(["a", "b", "c"]).createOrReplaceView(view_name)

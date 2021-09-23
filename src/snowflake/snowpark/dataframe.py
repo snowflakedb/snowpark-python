@@ -6,7 +6,6 @@
 import enum
 import re
 import string
-import traceback
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -57,9 +56,6 @@ from snowflake.snowpark.types.sp_join_types import (
     NaturalJoin as SPNaturalJoin,
     UsingJoin as SPUsingJoin,
 )
-
-# Scala uses 3 but this can be larger. Consider allowing users to configure it.
-_QUERY_TAG_TRACEBACK_LIMIT = 3
 
 
 class DataFrame:
@@ -216,17 +212,12 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
+        return self._collect()
 
-        # The code to compose the QUERY_TAG string is called in multiple methods in this DataFrame class but it's not
-        # put to a function because it's better that `extract_stack` is called right in `collect` and other similar
-        # methods to have the best call stack.
+    def _collect(self) -> List["Row"]:
         return self.session.conn.execute(
             self.__plan,
-            _statement_params={
-                "QUERY_TAG": str(
-                    traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
-                )
-            }
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
             if not self.session.query_tag
             else None,
         )
@@ -249,9 +240,7 @@ class DataFrame:
         """
         if not self.session.query_tag:
             kwargs["_statement_params"] = {
-                "QUERY_TAG": str(
-                    traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
-                )
+                "QUERY_TAG": Utils.create_statement_query_tag(2)
             }
         return self.session.conn.execute(self.__plan, to_pandas=True, **kwargs)
 
@@ -1023,7 +1012,7 @@ class DataFrame:
         Returns:
             the number of rows.
         """
-        return self.agg(("*", "count")).collect()[0][0]
+        return self.agg(("*", "count"))._collect()[0][0]
 
     @property
     def write(self) -> DataFrameWriter:
@@ -1054,11 +1043,7 @@ class DataFrame:
             self.__show_string(
                 n,
                 max_width,
-                _statement_params={
-                    "QUERY_TAG": str(
-                        traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
-                    )
-                }
+                _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
                 if not self.session.query_tag
                 else None,
             )
@@ -1163,11 +1148,7 @@ class DataFrame:
         return self.__do_create_or_replace_view(
             formatted_name,
             SPPersistedView(),
-            _statement_params={
-                "QUERY_TAG": str(
-                    traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
-                )
-            }
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
             if not self.session.query_tag
             else None,
         )
@@ -1205,11 +1186,7 @@ class DataFrame:
         return self.__do_create_or_replace_view(
             formatted_name,
             SPLocalTempView(),
-            _statement_params={
-                "QUERY_TAG": str(
-                    traceback.extract_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT)
-                )
-            }
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
             if not self.session.query_tag
             else None,
         )
@@ -1244,14 +1221,14 @@ class DataFrame:
              results, or ``None`` if it does not exist.
         """
         if n is None:
-            result = self.limit(1).collect()
+            result = self.limit(1)._collect()
             return result[0] if result else None
         elif not type(n) == int:
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
-            return self.collect()
+            return self._collect()
         else:
-            return self.limit(n).collect()
+            return self.limit(n)._collect()
 
     def sample(self, frac: Optional[float] = None, n: Optional[int] = None):
         """Samples rows based on either the number of rows to be returned or a
