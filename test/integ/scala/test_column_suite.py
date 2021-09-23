@@ -13,8 +13,7 @@ from snowflake.snowpark.functions import avg, col, lit, parse_json, sql_expr, wh
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import (
     SnowparkColumnException,
-    SnowparkSQLAmbiguousJoinException,
-    SnowparkSQLException,
+    SnowparkPlanException,
     SnowparkSQLUnexpectedAliasException,
 )
 from snowflake.snowpark.types.sf_types import StringType
@@ -407,13 +406,13 @@ def test_column_names_with_quotes(session):
     assert df.select(col('"col"')).collect() == [Row(2)]
     assert df.select(col('"""col"')).collect() == [Row(3)]
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         df.select(col('"col""')).collect()
     assert "Invalid identifier" in str(ex_info)
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         df.select(col('""col"')).collect()
     assert "Invalid identifier" in str(ex_info)
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         df.select(col('"col""""')).collect()
     assert "Invalid identifier" in str(ex_info)
 

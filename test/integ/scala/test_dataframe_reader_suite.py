@@ -12,6 +12,7 @@ from snowflake.snowpark.functions import col, sql_expr
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import (
     SnowparkDataframeReaderException,
+    SnowparkPlanException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.types.sf_types import (
@@ -591,7 +592,7 @@ def test_copy(session):
 def test_copy_option_force(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         session.read.schema(user_schema).option("force", "false").csv(
             test_file_on_stage
         ).collect()
@@ -601,7 +602,7 @@ def test_copy_option_force(session):
         in ex_info.value.message
     )
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         session.read.schema(user_schema).option("FORCE", "FALSE").csv(
             test_file_on_stage
         ).collect()
@@ -611,7 +612,7 @@ def test_copy_option_force(session):
         in ex_info.value.message
     )
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         session.read.schema(user_schema).option("fORce", "faLsE").csv(
             test_file_on_stage
         ).collect()

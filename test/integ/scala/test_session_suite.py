@@ -10,8 +10,8 @@ import pytest
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.snowpark_client_exception import (
+    SnowparkInvalidObjectNameException,
     SnowparkMissingDbOrSchemaException,
-    SnowparkServerException,
 )
 
 
@@ -62,7 +62,7 @@ def test_negative_test_for_missing_required_parameter_schema(db_parameters):
 
 def test_negative_test_to_invalid_table_name(session_cnx):
     with session_cnx() as session:
-        with pytest.raises(SnowparkServerException) as ex_info:
+        with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
             session.table("negative.test.invalid.table.name")
         assert "The object name 'negative.test.invalid.table.name' is invalid." in str(
             ex_info
