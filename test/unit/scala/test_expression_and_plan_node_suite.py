@@ -5,7 +5,11 @@
 import pytest
 
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Join
-from snowflake.snowpark._internal.sp_types import JoinType, NaturalJoin, UsingJoin
+from snowflake.snowpark._internal.sp_types.sp_join_types import (
+    JoinType,
+    NaturalJoin,
+    UsingJoin,
+)
 from snowflake.snowpark.exceptions import SnowparkJoinException
 
 

@@ -10,7 +10,15 @@ from test.utils import TestData, TestFiles, Utils
 import pytest
 
 from snowflake import connector
-from snowflake.snowpark._internal.sp_types import (
+from snowflake.snowpark.exceptions import (
+    SnowparkColumnException,
+    SnowparkInvalidObjectNameException,
+    SnowparkPlanException,
+)
+from snowflake.snowpark.functions import col, lit, max, mean, min, sum
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.session import Session
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -30,14 +38,6 @@ from snowflake.snowpark._internal.sp_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.exceptions import (
-    SnowparkColumnException,
-    SnowparkInvalidObjectNameException,
-    SnowparkPlanException,
-)
-from snowflake.snowpark.functions import col, lit, max, mean, min, sum
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
 
 SAMPLING_DEVIATION = 0.4
 

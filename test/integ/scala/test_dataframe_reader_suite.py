@@ -8,19 +8,19 @@ from test.utils import TestFiles, Utils
 import pytest
 
 from snowflake.connector import ProgrammingError
-from snowflake.snowpark._internal.sp_types import (
-    DoubleType,
-    IntegerType,
-    StringType,
-    StructField,
-    StructType,
-)
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
 )
 from snowflake.snowpark.functions import col, sql_expr
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import (
+    DoubleType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"

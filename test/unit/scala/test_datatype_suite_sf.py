@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from snowflake.snowpark._internal.sp_types import (
+from snowflake.snowpark.types import (
     AtomicType,
     BinaryType,
     BooleanType,

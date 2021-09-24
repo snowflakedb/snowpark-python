@@ -10,7 +10,10 @@ from test.utils import TestData, TestFiles, Utils
 
 import pytest
 
-from snowflake.snowpark._internal.sp_types import (
+from snowflake.snowpark.exceptions import SnowparkClientException
+from snowflake.snowpark.functions import call_udf, col, lit, max, min, udf
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -28,9 +31,6 @@ from snowflake.snowpark._internal.sp_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.exceptions import SnowparkClientException
-from snowflake.snowpark.functions import call_udf, col, lit, max, min, udf
-from snowflake.snowpark.row import Row
 
 pytestmark = pytest.mark.udf
 

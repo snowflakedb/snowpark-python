@@ -18,7 +18,13 @@ from snowflake.snowpark._internal.sp_expressions import (
     Literal,
     Star as SPStar,
 )
-from snowflake.snowpark._internal.sp_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
+    DecimalType as SPDecimalType,
+)
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -35,12 +41,6 @@ from snowflake.snowpark._internal.sp_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    DecimalType as SPDecimalType,
-)
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.functions import col, lit
-from snowflake.snowpark.row import Row
 
 
 def test_read_stage_file_show(session, resources_path):

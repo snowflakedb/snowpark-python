@@ -34,7 +34,7 @@ from snowflake.snowpark.dataframe import DataFrame
 class _GroupType:
     def to_string(self):
         # TODO revisit
-        return self.__class__.__name__[:-4]
+        return self.__class__.__name__[1:-4]
 
 
 class _GroupByType(_GroupType):

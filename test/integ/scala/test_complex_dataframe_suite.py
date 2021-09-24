@@ -4,15 +4,15 @@
 
 from test.utils import TestFiles, Utils
 
-from snowflake.snowpark._internal.sp_types import (
+from snowflake.snowpark.functions import col
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
     StringType,
     StructField,
     StructType,
 )
-from snowflake.snowpark.functions import col
-from snowflake.snowpark.row import Row
 
 
 def test_combination_of_multiple_operators(session):

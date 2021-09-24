@@ -7,9 +7,9 @@ from test.utils import Utils
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
-from snowflake.snowpark._internal.sp_types import IntegerType, LongType
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import IntegerType, LongType
 
 
 def test_single_query(session_cnx):

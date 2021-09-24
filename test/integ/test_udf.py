@@ -26,7 +26,10 @@ from test.utils import TestData, TestFiles, Utils
 from typing import Any, Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark._internal.sp_types import (
+from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
+from snowflake.snowpark.functions import call_udf, col, udf
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import (
     ArrayType,
     DateType,
     DoubleType,
@@ -34,9 +37,6 @@ from snowflake.snowpark._internal.sp_types import (
     StringType,
     VariantType,
 )
-from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
-from snowflake.snowpark.functions import call_udf, col, udf
-from snowflake.snowpark.row import Row
 
 pytestmark = pytest.mark.udf
 

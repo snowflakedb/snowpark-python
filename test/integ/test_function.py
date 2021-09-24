@@ -8,13 +8,6 @@ from test.utils import TestData, Utils
 import pytest
 
 from snowflake.connector import ProgrammingError
-from snowflake.snowpark._internal.sp_types import (
-    ArrayType,
-    DateType,
-    MapType,
-    StringType,
-    VariantType,
-)
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
@@ -52,6 +45,13 @@ from snowflake.snowpark.functions import (
     upper,
 )
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import (
+    ArrayType,
+    DateType,
+    MapType,
+    StringType,
+    VariantType,
+)
 
 
 def test_basic_numerical_operations_negative(session):
