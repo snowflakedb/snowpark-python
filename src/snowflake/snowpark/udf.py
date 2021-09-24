@@ -102,7 +102,7 @@ class UDFRegistration:
         )
         Utils.validate_object_name(udf_name)
 
-        # get return and input sp_types
+        # get return and input types
         if return_type or input_types:
             new_return_type = return_type if return_type else StringType()
             is_return_nullable = False

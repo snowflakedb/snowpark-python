@@ -203,7 +203,7 @@ class RelationalGroupedDataFrame:
                 [self.__str_to_expr(expr)(col.expression) for col, expr in exprs]
             )
         else:
-            raise TypeError("Invalid input sp_types for agg()")
+            raise TypeError("Invalid input types for agg()")
 
     def avg(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the average for the specified numeric columns."""

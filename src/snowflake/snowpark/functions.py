@@ -574,7 +574,7 @@ def call_builtin(function_name: str, *args: Any) -> Column:
         function_name: The name of built-in function in Snowflake
         args: Arguments can be in two types:
             a. :class:`Column`, or
-            b. Basic Python sp_types such as int, float, str, which are converted to Snowpark literals.
+            b. Basic Python types such as int, float, str, which are converted to Snowpark literals.
 
     Returns:
         :class:`Column`.
