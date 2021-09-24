@@ -73,6 +73,8 @@ from snowflake.snowpark.types.sp_data_types import (
     ShortType as SPShortType,
 )
 
+ARRAY_BIND_THRESHOLD = 512
+
 
 class Analyzer:
     def __init__(self, session):
@@ -83,8 +85,6 @@ class Analyzer:
         self.generated_alias_maps = {}
         self.subquery_plans = {}
         self.alias_maps_to_use = None
-
-        self._array_bind_threshold = 512
 
     def analyze(self, expr) -> str:
         if type(expr) == SPLike:
@@ -388,7 +388,7 @@ class Analyzer:
             if logical_plan.data:
                 if (
                     len(logical_plan.output) * len(logical_plan.data)
-                    < self._array_bind_threshold
+                    < ARRAY_BIND_THRESHOLD
                 ):
                     return self.plan_builder.query(
                         self.package.values_statement(

@@ -212,7 +212,15 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
-        return self.session.conn.execute(self.__plan)
+        return self._collect_with_tag()
+
+    def _collect_with_tag(self) -> List["Row"]:
+        return self.session.conn.execute(
+            self.__plan,
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
+            if not self.session.query_tag
+            else None,
+        )
 
     def clone(self) -> "DataFrame":
         """Returns a clone of this :class:`DataFrame`.
@@ -230,6 +238,10 @@ class DataFrame:
         Returns:
             :class:`pandas.DataFrame`
         """
+        if not self.session.query_tag:
+            kwargs["_statement_params"] = {
+                "QUERY_TAG": Utils.create_statement_query_tag(2)
+            }
         return self.session.conn.execute(self.__plan, to_pandas=True, **kwargs)
 
     def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
@@ -1000,7 +1012,7 @@ class DataFrame:
         Returns:
             the number of rows.
         """
-        return self.agg(("*", "count")).collect()[0][0]
+        return self.agg(("*", "count"))._collect_with_tag()[0][0]
 
     @property
     def write(self) -> DataFrameWriter:
@@ -1027,17 +1039,25 @@ class DataFrame:
                 If the number of characters exceeds the maximum, the method prints out
                 an ellipsis (...) at the end of the column.
         """
-        print(self.__show_string(n, max_width))
+        print(
+            self.__show_string(
+                n,
+                max_width,
+                _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
+                if not self.session.query_tag
+                else None,
+            )
+        )
 
-    def __show_string(self, n: int = 10, max_width: int = 50) -> str:
+    def __show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self.__plan.queries[-1].sql.strip().lower()
 
         if query.startswith("select"):
             result, meta = self.session.conn.get_result_and_metadata(
-                self.limit(n)._DataFrame__plan
+                self.limit(n)._DataFrame__plan, **kwargs
             )
         else:
-            res, meta = self.session.conn.get_result_and_metadata(self.__plan)
+            res, meta = self.session.conn.get_result_and_metadata(self.__plan, **kwargs)
             result = res[:n]
 
         # The query has been executed
@@ -1125,7 +1145,13 @@ class DataFrame:
                 f"createOrReplaceView takes as input a string or list of strings."
             )
 
-        return self.__do_create_or_replace_view(formatted_name, SPPersistedView())
+        return self.__do_create_or_replace_view(
+            formatted_name,
+            SPPersistedView(),
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
+            if not self.session.query_tag
+            else None,
+        )
 
     def createOrReplaceTempView(self, name: Union[str, List[str]]):
         """Creates a temporary view that returns the same results as this DataFrame.
@@ -1157,9 +1183,17 @@ class DataFrame:
                 f"createOrReplaceTempView() takes as input a string or list of strings."
             )
 
-        return self.__do_create_or_replace_view(formatted_name, SPLocalTempView())
+        return self.__do_create_or_replace_view(
+            formatted_name,
+            SPLocalTempView(),
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
+            if not self.session.query_tag
+            else None,
+        )
 
-    def __do_create_or_replace_view(self, view_name: str, view_type: SPViewType):
+    def __do_create_or_replace_view(
+        self, view_name: str, view_type: SPViewType, **kwargs
+    ):
         Utils.validate_object_name(view_name)
         name = TableIdentifier(view_name)
         cmd = SPCreateViewCommand(
@@ -1174,7 +1208,7 @@ class DataFrame:
             view_type=view_type,
         )
 
-        return self.session.conn.execute(self.session.analyzer.resolve(cmd))
+        return self.session.conn.execute(self.session.analyzer.resolve(cmd), **kwargs)
 
     def first(self, n: Optional[int] = None):
         """Executes the query representing this DataFrame and returns the first ``n``
@@ -1187,14 +1221,14 @@ class DataFrame:
              results, or ``None`` if it does not exist.
         """
         if n is None:
-            result = self.limit(1).collect()
+            result = self.limit(1)._collect_with_tag()
             return result[0] if result else None
         elif not type(n) == int:
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
-            return self.collect()
+            return self._collect_with_tag()
         else:
-            return self.limit(n).collect()
+            return self.limit(n)._collect_with_tag()
 
     def sample(self, frac: Optional[float] = None, n: Optional[int] = None):
         """Samples rows based on either the number of rows to be returned or a
