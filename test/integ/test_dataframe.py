@@ -911,15 +911,17 @@ def test_create_dataframe_from_none_data(session_cnx):
 
 
 def test_create_dataframe_large_without_batch_insert(session):
-    original_value = session.analyzer._array_bind_threshold
+    from snowflake.snowpark.internal import analyzer_obj
+
+    original_value = analyzer_obj.ARRAY_BIND_THRESHOLD
     try:
-        session.analyzer._array_bind_threshold = 40000
+        analyzer_obj.ARRAY_BIND_THRESHOLD = 40000
         with pytest.raises(ProgrammingError) as ex_info:
             session.createDataFrame([1] * 20000).collect()
         assert "SQL compilation error" in str(ex_info)
         assert "maximum number of expressions in a list exceeded" in str(ex_info)
     finally:
-        session.analyzer._array_bind_threshold = original_value
+        analyzer_obj.ARRAY_BIND_THRESHOLD = original_value
 
 
 def test_create_dataframe_with_invalid_data(session_cnx):
