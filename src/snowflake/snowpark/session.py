@@ -30,22 +30,13 @@ from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
 )
-from snowflake.snowpark._internal.sp_types import (
-    ArrayType,
-    AtomicType,
-    DateType,
-    DecimalType,
-    MapType,
-    StructType,
-    TimestampType,
-    TimeType,
-    VariantType,
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
+    StringType as SPStringType,
+)
+from snowflake.snowpark._internal.sp_types.types_package import (
     _infer_schema_from_list,
     _merge_type,
     snow_type_to_sp_type,
-)
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    StringType as SPStringType,
 )
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder, Utils
 from snowflake.snowpark.dataframe import DataFrame
@@ -62,6 +53,17 @@ from snowflake.snowpark.functions import (
     to_variant,
 )
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import (
+    ArrayType,
+    AtomicType,
+    DateType,
+    DecimalType,
+    MapType,
+    StructType,
+    TimestampType,
+    TimeType,
+    VariantType,
+)
 from snowflake.snowpark.udf import UDFRegistration
 
 logger = getLogger(__name__)

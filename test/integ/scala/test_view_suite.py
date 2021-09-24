@@ -10,9 +10,9 @@ import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.sp_types import LongType
+from snowflake.snowpark.exceptions import SnowparkCreateViewException
 from snowflake.snowpark.functions import col, sql_expr, sum
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkCreateViewException
 
 
 def test_create_view(session):

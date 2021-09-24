@@ -10,13 +10,13 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.sp_types import StringType
-from snowflake.snowpark.functions import avg, col, lit, parse_json, sql_expr, when
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import (
+from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkPlanException,
     SnowparkSQLUnexpectedAliasException,
 )
+from snowflake.snowpark.functions import avg, col, lit, parse_json, sql_expr, when
+from snowflake.snowpark.row import Row
 
 
 def test_column_names_with_space(session):

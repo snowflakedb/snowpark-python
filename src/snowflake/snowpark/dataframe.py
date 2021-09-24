@@ -41,20 +41,20 @@ from snowflake.snowpark._internal.sp_expressions import (
     SortOrder as SPSortOrder,
     Star as SPStar,
 )
-from snowflake.snowpark._internal.sp_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import LongType as SPLongType
+from snowflake.snowpark._internal.sp_types.sp_join_types import (
     Cross as SPCrossJoin,
     JoinType as SPJoinType,
     LeftAnti as SPLeftAnti,
     LeftSemi as SPLeftSemi,
     NaturalJoin as SPNaturalJoin,
-    StructType,
     UsingJoin as SPUsingJoin,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import LongType as SPLongType
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import StructType
 
 
 class DataFrame:
@@ -588,12 +588,12 @@ class DataFrame:
         """
         # TODO fix dependency cycle
         from snowflake.snowpark.relational_grouped_dataframe import (
-            GroupByType,
             RelationalGroupedDataFrame,
+            _GroupByType,
         )
 
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
-        return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
+        return RelationalGroupedDataFrame(self, grouping_exprs, _GroupByType())
 
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values

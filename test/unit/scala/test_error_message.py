@@ -5,7 +5,7 @@
 import pytest
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.snowpark_client_exception import (
+from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateViewException,
     SnowparkDataframeException,

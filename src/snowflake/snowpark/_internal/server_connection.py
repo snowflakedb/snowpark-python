@@ -21,7 +21,9 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.sp_types import (
+from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -37,8 +39,6 @@ from snowflake.snowpark._internal.sp_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.row import Row
 
 logger = getLogger(__name__)
 

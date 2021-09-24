@@ -34,11 +34,9 @@ from snowflake.snowpark._internal.sp_types import (
     StringType,
     VariantType,
 )
+from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.functions import call_udf, col, udf
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import (
-    SnowparkInvalidObjectNameException,
-)
 
 pytestmark = pytest.mark.udf
 

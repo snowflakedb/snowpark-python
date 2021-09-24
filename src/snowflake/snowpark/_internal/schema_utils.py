@@ -9,7 +9,7 @@ import re
 import string
 
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark._internal.sp_types import DecimalType, LongType, StringType
+from snowflake.snowpark.types import DecimalType, LongType, StringType
 
 
 class SchemaUtils:

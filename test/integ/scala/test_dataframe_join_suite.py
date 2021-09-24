@@ -10,13 +10,13 @@ from test.utils import Utils
 import pytest
 
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.functions import coalesce, col, count, is_null, lit
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import (
+from snowflake.snowpark.exceptions import (
     SnowparkJoinException,
     SnowparkSQLAmbiguousJoinException,
     SnowparkSQLInvalidIdException,
 )
+from snowflake.snowpark.functions import coalesce, col, count, is_null, lit
+from snowflake.snowpark.row import Row
 
 
 def test_join_using(session):

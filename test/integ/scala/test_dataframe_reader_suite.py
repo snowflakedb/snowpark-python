@@ -15,12 +15,12 @@ from snowflake.snowpark._internal.sp_types import (
     StructField,
     StructType,
 )
-from snowflake.snowpark.functions import col, sql_expr
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import (
+from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
 )
+from snowflake.snowpark.functions import col, sql_expr
+from snowflake.snowpark.row import Row
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"

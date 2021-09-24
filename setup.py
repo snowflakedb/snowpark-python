@@ -45,9 +45,9 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
-        "snowflake.snowpark.plans",
-        "snowflake.snowpark.plans.logical",
-        "snowflake.snowpark.sp_types",
+        "snowflake.snowpark._internal.plans",
+        "snowflake.snowpark._internal.plans.logical",
+        "snowflake.snowpark._internal.sp_types",
     ],
     package_dir={
         "": "src",

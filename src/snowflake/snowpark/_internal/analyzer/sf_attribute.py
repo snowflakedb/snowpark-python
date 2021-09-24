@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from snowflake.snowpark._internal.sp_types import DataType
+from snowflake.snowpark._internal.sp_types.sp_data_types import DataType
 
 
 class Attribute:

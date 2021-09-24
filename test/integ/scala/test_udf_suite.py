@@ -28,9 +28,9 @@ from snowflake.snowpark._internal.sp_types import (
     TimeType,
     VariantType,
 )
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import call_udf, col, lit, max, min, udf
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 
 pytestmark = pytest.mark.udf
 

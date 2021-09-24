@@ -30,14 +30,14 @@ from snowflake.snowpark._internal.sp_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.functions import col, lit, max, mean, min, sum
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
-from snowflake.snowpark.snowpark_client_exception import (
+from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkInvalidObjectNameException,
     SnowparkPlanException,
 )
+from snowflake.snowpark.functions import col, lit, max, mean, min, sum
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.session import Session
 
 SAMPLING_DEVIATION = 0.4
 

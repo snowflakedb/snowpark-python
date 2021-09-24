@@ -52,13 +52,13 @@ from snowflake.snowpark._internal.sp_expressions import (
     Sum as SPSum,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark._internal.sp_types import DataType
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     IntegerType as SPIntegerType,
     LongType as SPLongType,
 )
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import CaseExpr, Column
+from snowflake.snowpark.types import DataType
 
 
 def col(col_name: str) -> Column:

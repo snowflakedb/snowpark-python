@@ -14,21 +14,20 @@ from snowflake.snowpark._internal.sp_expressions import (
     Expression as SPExpression,
     SnowflakeUDF,
 )
-from snowflake.snowpark._internal.sp_types import (
-    DataType,
-    StringType,
+from snowflake.snowpark._internal.sp_types.types_package import (
     _python_type_to_snow_type,
     convert_to_sf_type,
     snow_type_to_sp_type,
 )
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.types import DataType, StringType
 
 # the default handler name for generated udf python file
 _DEFAULT_HANDLER_NAME = "compute"
 
 
-class UserDefinedFunction:
+class _UserDefinedFunction:
     def __init__(
         self,
         func: Callable,
@@ -89,7 +88,7 @@ class UDFRegistration:
         return_type: Optional[DataType] = None,
         input_types: Optional[List[DataType]] = None,
         name: Optional[str] = None,
-    ) -> UserDefinedFunction:
+    ) -> _UserDefinedFunction:
         if not callable(func):
             raise TypeError(
                 "Invalid function: not a function or callable "
@@ -117,7 +116,7 @@ class UDFRegistration:
 
         # register udf
         self.__do_register_udf(func, new_return_type, new_input_types, udf_name)
-        return UserDefinedFunction(
+        return _UserDefinedFunction(
             func, return_type, new_input_types, udf_name, is_return_nullable
         )
 

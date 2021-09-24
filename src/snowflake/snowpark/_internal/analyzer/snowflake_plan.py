@@ -24,7 +24,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Attribute as SPAttribute,
     AttributeReference as SPAttributeReference,
 )
-from snowflake.snowpark._internal.sp_types import (
+from snowflake.snowpark._internal.sp_types.types_package import (
     snow_type_to_sp_type,
     sp_type_to_snow_type,
 )

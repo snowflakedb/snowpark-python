@@ -50,7 +50,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
-from snowflake.snowpark._internal.sp_types import DataType
+from snowflake.snowpark.types import DataType
 
 
 class Column:
