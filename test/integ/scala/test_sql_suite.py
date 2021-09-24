@@ -7,8 +7,8 @@ from test.utils import Utils
 import pytest
 
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.sp_types import LongType, StructField, StructType
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.internal.sp_types import LongType, StructField, StructType
 from snowflake.snowpark.row import Row
 
 

@@ -4,14 +4,14 @@
 
 from test.utils import TestFiles, Utils
 
-from snowflake.snowpark.functions import col
-from snowflake.snowpark.internal.sp_types import (
+from snowflake.snowpark._internal.sp_types import (
     DoubleType,
     IntegerType,
     StringType,
     StructField,
     StructType,
 )
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 
 

@@ -10,19 +10,19 @@ from typing import Callable, List, NamedTuple, Optional, Tuple, Union, get_type_
 
 import cloudpickle
 
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.sp_expressions import (
     Expression as SPExpression,
     SnowflakeUDF,
 )
-from snowflake.snowpark.internal.sp_types import (
+from snowflake.snowpark._internal.sp_types import (
     DataType,
     StringType,
     _python_type_to_snow_type,
     convert_to_sf_type,
     snow_type_to_sp_type,
 )
-from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark.column import Column
 
 # the default handler name for generated udf python file
 _DEFAULT_HANDLER_NAME = "compute"

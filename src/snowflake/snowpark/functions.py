@@ -36,9 +36,8 @@ import functools
 from random import randint
 from typing import Any, Callable, List, Optional, Tuple, Union
 
-from snowflake.snowpark.column import CaseExpr, Column
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     Avg as SPAverage,
     CaseWhen as SPCaseWhen,
@@ -53,12 +52,13 @@ from snowflake.snowpark.internal.sp_expressions import (
     Sum as SPSum,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark.internal.sp_types import DataType
-from snowflake.snowpark.internal.sp_types.sp_data_types import (
+from snowflake.snowpark._internal.sp_types import DataType
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
     IntegerType as SPIntegerType,
     LongType as SPLongType,
 )
-from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark.column import CaseExpr, Column
 
 
 def col(col_name: str) -> Column:

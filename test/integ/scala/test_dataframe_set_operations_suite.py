@@ -10,9 +10,9 @@ from typing import List
 import pytest
 
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.sp_types import IntegerType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import col, lit, min, sum
-from snowflake.snowpark.internal.sp_types import IntegerType
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
 

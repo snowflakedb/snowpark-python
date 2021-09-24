@@ -11,13 +11,13 @@ https://github.com/apache/spark/blob/master/sql/catalyst/src/main/scala/org/apac
 
 from typing import List, Optional
 
-from snowflake.snowpark.internal.plans.logical.logical_plan import (
+from snowflake.snowpark._internal.plans.logical.logical_plan import (
     BinaryNode,
     LeafNode,
     LogicalPlan,
     UnaryNode,
 )
-from snowflake.snowpark.internal.sp_expressions import SortOrder
+from snowflake.snowpark._internal.sp_expressions import SortOrder
 
 
 class Join(BinaryNode):

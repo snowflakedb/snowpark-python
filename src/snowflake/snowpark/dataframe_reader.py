@@ -4,11 +4,11 @@
 
 from typing import Dict
 
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.sp_types import StructType, VariantType
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.sp_types import StructType, VariantType
 
 
 class DataFrameReader:

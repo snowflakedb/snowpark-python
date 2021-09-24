@@ -16,7 +16,7 @@ from array import array
 from collections import OrderedDict, defaultdict
 from typing import List, Optional, Tuple, Type
 
-from snowflake.snowpark.internal.sp_types.sp_data_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,
@@ -160,7 +160,7 @@ def snow_type_to_sp_type(datatype: DataType) -> Optional[SPDataType]:
         return SPDecimalType(datatype.precision, datatype.scale)
     # if type(datatype) == GeographyType:
     #    return GeographyType(snow_type_to_sp_type(valueType))
-    # raise internal error
+    # raise _internal error
     raise TypeError(f"Could not convert snowflake type {datatype}")
 
 
@@ -218,7 +218,7 @@ def sp_type_to_snow_type(datatype: SPDataType) -> DataType:
         return DecimalType(datatype.precision, datatype.scale)
     # if type(datatype) == GeographyType:
     #    return GeographyType(sp_type_to_snow_type(valueType))
-    # raise internal error
+    # raise _internal error
     raise Exception("Could not convert spark type {}".format(datatype))
 
 

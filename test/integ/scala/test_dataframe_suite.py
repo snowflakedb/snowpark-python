@@ -10,8 +10,7 @@ from test.utils import TestData, TestFiles, Utils
 import pytest
 
 from snowflake import connector
-from snowflake.snowpark.functions import col, lit, max, mean, min, sum
-from snowflake.snowpark.internal.sp_types import (
+from snowflake.snowpark._internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -31,6 +30,7 @@ from snowflake.snowpark.internal.sp_types import (
     TimeType,
     VariantType,
 )
+from snowflake.snowpark.functions import col, lit, max, mean, min, sum
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.snowpark_client_exception import (

@@ -66,12 +66,12 @@ class Row(tuple):
             row = tuple.__new__(cls, values)
             row.__dict__["_named_values"] = None
 
-        # __fields__ is for internal use only. Users shouldn't set this attribute.
-        # It's None unless the internal code sets it to a list of str values with duplicates.
+        # __fields__ is for _internal use only. Users shouldn't set this attribute.
+        # It's None unless the _internal code sets it to a list of str values with duplicates.
         # snowflake DB can return duplicate column names, for instance, "select a, a from a_table."
         # When return a DataFrame from a sql, duplicate column names can happen.
         # But using duplicate column names is obviously a bad practice even though we allow it.
-        # It's value is assigned in __setattr__ if internal code assign value explcitly.
+        # It's value is assigned in __setattr__ if _internal code assign value explcitly.
         row.__dict__["__fields__"] = None
         return row
 

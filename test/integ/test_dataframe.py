@@ -13,14 +13,12 @@ from test.utils import TestFiles, Utils
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.functions import col, lit
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     Literal,
     Star as SPStar,
 )
-from snowflake.snowpark.internal.sp_types import (
+from snowflake.snowpark._internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -37,9 +35,11 @@ from snowflake.snowpark.internal.sp_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.internal.sp_types.sp_data_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
     DecimalType as SPDecimalType,
 )
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.row import Row
 
 
@@ -912,7 +912,7 @@ def test_create_dataframe_from_none_data(session_cnx):
 
 
 def test_create_dataframe_large_without_batch_insert(session):
-    from snowflake.snowpark.internal import analyzer_obj
+    from snowflake.snowpark._internal import analyzer_obj
 
     original_value = analyzer_obj.ARRAY_BIND_THRESHOLD
     try:

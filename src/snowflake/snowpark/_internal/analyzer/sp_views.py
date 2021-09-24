@@ -5,8 +5,8 @@
 #
 from typing import Dict, List, Optional
 
-from snowflake.snowpark.internal.analyzer.sp_identifiers import TableIdentifier
-from snowflake.snowpark.internal.plans.logical.logical_plan import LogicalPlan
+from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
+from snowflake.snowpark._internal.plans.logical.logical_plan import LogicalPlan
 
 
 class ViewType:

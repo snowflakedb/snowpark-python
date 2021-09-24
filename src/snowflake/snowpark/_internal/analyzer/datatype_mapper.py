@@ -8,7 +8,7 @@ import math
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
-from snowflake.snowpark.internal.sp_types import (
+from snowflake.snowpark._internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -21,7 +21,7 @@ from snowflake.snowpark.internal.sp_types import (
     VariantType,
     convert_to_sf_type,
 )
-from snowflake.snowpark.internal.sp_types.sp_data_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,

@@ -7,14 +7,12 @@ import re
 from typing import List, Tuple, Union
 
 import snowflake.snowpark.functions as functions
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.plans.logical.basic_logical_operators import (
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Aggregate as SPAggregate,
     Pivot as SPPivot,
 )
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.sp_expressions import (
     Alias as SPAlias,
     Count as SPCount,
     Cube as SPCube,
@@ -28,7 +26,9 @@ from snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark.internal.sp_types.sp_data_types import IntegerType as SPInteger
+from snowflake.snowpark._internal.sp_types.sp_data_types import IntegerType as SPInteger
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe import DataFrame
 
 
 class GroupType:

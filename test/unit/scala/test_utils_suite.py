@@ -9,7 +9,7 @@ from test.utils import IS_WINDOWS, TestFiles
 
 import pytest
 
-from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark._internal.utils import Utils
 
 resources_path = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "../../resources")

@@ -8,6 +8,13 @@ from test.utils import TestData, Utils
 import pytest
 
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.sp_types import (
+    ArrayType,
+    DateType,
+    MapType,
+    StringType,
+    VariantType,
+)
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
@@ -43,13 +50,6 @@ from snowflake.snowpark.functions import (
     translate,
     trim,
     upper,
-)
-from snowflake.snowpark.internal.sp_types import (
-    ArrayType,
-    DateType,
-    MapType,
-    StringType,
-    VariantType,
 )
 from snowflake.snowpark.row import Row
 

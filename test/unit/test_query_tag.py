@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from snowflake.snowpark.internal.utils import Utils as InternalUtils
+from snowflake.snowpark._internal.utils import Utils as InternalUtils
 
 
 def test_generate_query_tag():

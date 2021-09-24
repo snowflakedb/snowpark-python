@@ -10,7 +10,7 @@ from test.utils import TestFiles, Utils
 import pytest
 
 from snowflake.connector.errors import DatabaseError
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 

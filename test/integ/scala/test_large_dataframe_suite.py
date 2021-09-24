@@ -6,8 +6,7 @@ import decimal
 
 import pytest
 
-from snowflake.snowpark.functions import col
-from snowflake.snowpark.internal.sp_types import (
+from snowflake.snowpark._internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -27,6 +26,7 @@ from snowflake.snowpark.internal.sp_types import (
     TimeType,
     VariantType,
 )
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 
 

@@ -235,7 +235,7 @@ class StructType(DataType):
         return cls([StructField(a.name, a.datatype, a.nullable) for a in attributes])
 
     def to_attributes(self):
-        from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
+        from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 
         return [
             Attribute(f.column_identifier.quoted_name, f.datatype, f.nullable)

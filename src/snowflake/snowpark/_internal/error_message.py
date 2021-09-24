@@ -33,7 +33,7 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def INTERNAL_TEST_MESSAGE(message: str) -> _SnowparkInternalException:
-        return _SnowparkInternalException(f"internal test message: {message}.", "1010")
+        return _SnowparkInternalException(f"_internal test message: {message}.", "1010")
 
     # DataFrame Error Messages 01XX
 

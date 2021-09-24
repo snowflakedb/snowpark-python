@@ -11,8 +11,8 @@ import uuid
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 

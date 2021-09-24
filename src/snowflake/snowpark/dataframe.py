@@ -8,32 +8,30 @@ import string
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.dataframe_writer import DataFrameWriter
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
-from snowflake.snowpark.internal.analyzer.sp_identifiers import TableIdentifier
-from snowflake.snowpark.internal.analyzer.sp_views import (
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
+from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
+from snowflake.snowpark._internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
     LocalTempView as SPLocalTempView,
     PersistedView as SPPersistedView,
     ViewType as SPViewType,
 )
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.plans.logical.basic_logical_operators import (
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Except as SPExcept,
     Intersect as SPIntersect,
     Join as SPJoin,
     Sort as SPSort,
     Union as SPUnion,
 )
-from snowflake.snowpark.internal.plans.logical.hints import JoinHint as SPJoinHint
-from snowflake.snowpark.internal.plans.logical.logical_plan import (
+from snowflake.snowpark._internal.plans.logical.hints import JoinHint as SPJoinHint
+from snowflake.snowpark._internal.plans.logical.logical_plan import (
     Filter as SPFilter,
     Project as SPProject,
     Sample as SPSample,
 )
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.sp_expressions import (
     Ascending as SPAscending,
     Attribute as SPAttribute,
     Descending as SPDescending,
@@ -43,7 +41,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     SortOrder as SPSortOrder,
     Star as SPStar,
 )
-from snowflake.snowpark.internal.sp_types import (
+from snowflake.snowpark._internal.sp_types import (
     Cross as SPCrossJoin,
     JoinType as SPJoinType,
     LeftAnti as SPLeftAnti,
@@ -52,8 +50,10 @@ from snowflake.snowpark.internal.sp_types import (
     StructType,
     UsingJoin as SPUsingJoin,
 )
-from snowflake.snowpark.internal.sp_types.sp_data_types import LongType as SPLongType
-from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark._internal.sp_types.sp_data_types import LongType as SPLongType
+from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.row import Row
 
 

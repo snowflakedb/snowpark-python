@@ -18,7 +18,7 @@ class SnowparkClientException(Exception):
 
 
 class _SnowparkInternalException(SnowparkClientException):
-    """Exception for internal errors. For internal use only.
+    """Exception for _internal errors. For _internal use only.
 
     Includes all error codes in 10XX (where XX is 0-9)
     """
