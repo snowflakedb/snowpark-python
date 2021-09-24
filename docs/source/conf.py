@@ -12,17 +12,18 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../src/snowflake'))
+
+sys.path.insert(0, os.path.abspath("../../src"))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'Snowpark API Reference (Python)'
-copyright = '2021, Snowflake Inc'
-author = 'Snowflake Inc.'
+project = "Snowpark API Reference (Python)"
+copyright = "2021, Snowflake Inc"
+author = "Snowflake Inc."
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.0'
+release = "0.1.0"
 
 
 # -- General configuration ---------------------------------------------------
@@ -31,27 +32,27 @@ release = '0.1.0'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-   'sphinx.ext.autodoc',
-   'sphinx.ext.autosummary',
-   'sphinx.ext.napoleon',
-   'sphinx.ext.coverage'
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.coverage",
 ]
 
 autodoc_default_options = {
-    'members': True,        # Include all methods.
-    'member-order': 'alphabetical', # 'alphabetical', by member type ('groupwise') or source order (value 'bysource')
-    'undoc-members': True,  # If set, autodoc will also generate document for the members not having docstrings
-    'private-members': False, #don't generate document for the private members (like _private or __private)
+    "members": True,  # Include all methods.
+    "member-order": "alphabetical",  # 'alphabetical', by member type ('groupwise') or source order (value 'bysource')
+    "undoc-members": True,  # If set, autodoc will also generate document for the members not having docstrings
+    "private-members": False,  # don't generate document for the private members (like _private or __private)
     # 'special-members': '',  # for example, '__init__'
-    'inherited-members': True,
-    'show-inheritance': True,
-    # 'exclude-members': ''   # for example, 
+    "inherited-members": True,
+    "show-inheritance": True,
+    # 'exclude-members': ''   # for example,
 }
 
-autosummary_generate = True  #turn on sphinx.ext.autosummary
+autosummary_generate = True  # turn on sphinx.ext.autosummary
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -66,21 +67,23 @@ exclude_patterns = []
 #
 # html_theme = 'alabaster'
 # html_theme = 'sphinx_rtd_theme'
-html_theme = 'snowflake_rtd_theme'
+html_theme = "snowflake_rtd_theme"
 
-html_theme_path = ['_themes', ]
+html_theme_path = [
+    "_themes",
+]
 
 # Override default RTD css to get a larger width
 # def setup(app):
 #   app.add_stylesheet('theme_overrides.css')
 
 html_theme_options = {
-    # 'analytics_id': 'UA-XXXXXXX-1', 
+    # 'analytics_id': 'UA-XXXXXXX-1',
 }
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 html_show_sourcelink = False  # Hide "view page source" link
 
