@@ -195,7 +195,9 @@ jobs:
       - name: Build document
         working-directory: docs
         # treat warning as failure but complete the entire process
-        run: make html SPHINXOPTS="-W --keep-going"
+        run: |
+          make clean
+          make html SPHINXOPTS="-W --keep-going"
       - name: Upload html files
         uses: actions/upload-artifact@v2
         with:
