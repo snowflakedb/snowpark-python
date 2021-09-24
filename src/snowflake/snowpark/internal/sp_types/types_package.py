@@ -38,7 +38,7 @@ from snowflake.snowpark.internal.sp_types.sp_data_types import (
     TimeType as SPTimeType,
     VariantType as SPVariantType,
 )
-from snowflake.snowpark.sf_types import (
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
