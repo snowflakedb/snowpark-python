@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
-from snowflake.snowpark.internal.types.sp_data_types import (
+from snowflake.snowpark.internal.sp_types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,
@@ -49,7 +49,7 @@ def test_to_sql():
     assert to_sql(None, SPDoubleType()) == "NULL :: double"
     assert to_sql(None, SPBooleanType()) == "NULL :: boolean"
 
-    assert to_sql(None, "Not any of the previous SP types") == "NULL"
+    assert to_sql(None, "Not any of the previous SP sp_types") == "NULL"
 
     # Test non-nulls
     assert to_sql("\\ '  ' abc \n \\", SPStringType()) == "'\\\\ ''  '' abc \\n \\\\'"

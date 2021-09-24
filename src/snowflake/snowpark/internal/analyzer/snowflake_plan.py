@@ -21,7 +21,10 @@ from snowflake.snowpark.internal.sp_expressions import (
     Attribute as SPAttribute,
     AttributeReference as SPAttributeReference,
 )
-from snowflake.snowpark.internal.types import snow_type_to_sp_type, sp_type_to_snow_type
+from snowflake.snowpark.internal.sp_types import (
+    snow_type_to_sp_type,
+    sp_type_to_snow_type,
+)
 from snowflake.snowpark.internal.utils import _SaveMode
 from snowflake.snowpark.row import Row
 

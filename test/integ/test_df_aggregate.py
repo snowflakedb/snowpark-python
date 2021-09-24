@@ -201,21 +201,21 @@ def test_df_agg_dict_arg(session_cnx):
         with pytest.raises(TypeError) as ex_info:
             df.agg({"second": 1, "first": "sum"})
         assert (
-            "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'str'>, <class 'int'>)"
+            "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with sp_types (<class 'str'>, <class 'int'>)"
             in str(ex_info)
         )
 
         with pytest.raises(TypeError) as ex_info:
             df.agg({"second": "sum", 1: "sum"})
         assert (
-            "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'str'>)"
+            "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with sp_types (<class 'int'>, <class 'str'>)"
             in str(ex_info)
         )
 
         with pytest.raises(TypeError) as ex_info:
             df.agg({"second": "sum", 1: 1})
         assert (
-            "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'int'>)"
+            "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with sp_types (<class 'int'>, <class 'int'>)"
             in str(ex_info)
         )
 

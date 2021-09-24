@@ -21,7 +21,7 @@ from snowflake.snowpark.internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,

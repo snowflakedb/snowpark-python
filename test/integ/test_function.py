@@ -44,7 +44,7 @@ from snowflake.snowpark.functions import (
     trim,
     upper,
 )
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     DateType,
     MapType,

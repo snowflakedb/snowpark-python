@@ -53,8 +53,8 @@ from snowflake.snowpark.internal.sp_expressions import (
     Sum as SPSum,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark.internal.types import DataType
-from snowflake.snowpark.internal.types.sp_data_types import (
+from snowflake.snowpark.internal.sp_types import DataType
+from snowflake.snowpark.internal.sp_types.sp_data_types import (
     IntegerType as SPIntegerType,
     LongType as SPLongType,
 )
@@ -485,7 +485,7 @@ def udf(
         return_type: A :class:`sf_types.DataType` representing the return data
             type of the UDF. Optional if type hints are provided.
         input_types: A list of :class:`sf_types.DataType` representing the input
-            data types of the UDF. Optional if type hints are provided.
+            data sp_types of the UDF. Optional if type hints are provided.
         name: The name to use for the UDF in Snowflake, which allows to call this UDF
             in a SQL command or via :func:`call_udf()`. If it is not provided,
             a random name will be generated automatically for the UDF.
@@ -495,7 +495,7 @@ def udf(
 
     Examples::
 
-        from snowflake.snowpark.types.sf_types import IntegerType
+        from snowflake.snowpark.sp_types.sf_types import IntegerType
         add_one = udf(lambda x: x+1, return_types=IntegerType(), input_types=[IntegerType()])
 
         @udf(name="minus_one")
@@ -572,9 +572,9 @@ def call_builtin(function_name: str, *args: Any) -> Column:
 
     Args:
         function_name: The name of built-in function in Snowflake
-        args: Arguments can be two types:
+        args: Arguments can be two sp_types:
             a. :class:`Column`, or
-            b. Basic Python types such as int, float, str, which are converted to Snowpark literals.
+            b. Basic Python sp_types such as int, float, str, which are converted to Snowpark literals.
 
     Returns:
         :class:`Column`.

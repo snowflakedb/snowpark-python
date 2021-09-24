@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark.functions import call_udf, col, udf
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     DateType,
     DoubleType,
@@ -599,7 +599,7 @@ def test_udf_variant_type(session):
         variant_get_data_type, return_type=StringType(), input_types=[VariantType()]
     )
 
-    # TODO: SNOW-447601 change to the correct types after the server side has
+    # TODO: SNOW-447601 change to the correct sp_types after the server side has
     #  the complete mapping, for binary and time-related data
     assert TestData.variant1(session).select(variant_udf("bin1")).collect() == [
         Row("<class 'str'>")

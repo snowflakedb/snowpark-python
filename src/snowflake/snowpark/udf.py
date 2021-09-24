@@ -15,7 +15,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     Expression as SPExpression,
     SnowflakeUDF,
 )
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     DataType,
     StringType,
     _python_type_to_snow_type,
@@ -103,7 +103,7 @@ class UDFRegistration:
         )
         Utils.validate_object_name(udf_name)
 
-        # get return and input types
+        # get return and input sp_types
         if return_type or input_types:
             new_return_type = return_type if return_type else StringType()
             is_return_nullable = False
@@ -139,7 +139,7 @@ class UDFRegistration:
             python_types_dict["return"]
         )
         input_types = []
-        # types are in order
+        # sp_types are in order
         for key, python_type in python_types_dict.items():
             if key != "return":
                 input_types.append(_python_type_to_snow_type(python_type)[0])

@@ -8,7 +8,7 @@ import math
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -21,7 +21,7 @@ from snowflake.snowpark.internal.types import (
     VariantType,
     convert_to_sf_type,
 )
-from snowflake.snowpark.internal.types.sp_data_types import (
+from snowflake.snowpark.internal.sp_types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,
@@ -116,7 +116,7 @@ class DataTypeMapper:
         if type(spark_data_type) is SPBooleanType:
             return str(value) + f":: boolean"
 
-        # TODO revisit after SNOW-165195 : Add support for all valid SparkSQL and SnowflakeSQL types
+        # TODO revisit after SNOW-165195 : Add support for all valid SparkSQL and SnowflakeSQL sp_types
         if type(value) is float and type(spark_data_type) is SPFloatType:
             if math.isnan(float(value)):
                 cast_value = "'Nan'"

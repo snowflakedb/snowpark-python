@@ -11,7 +11,7 @@ import pytest
 
 from snowflake import connector
 from snowflake.snowpark.functions import col, lit, max, mean, min, sum
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,

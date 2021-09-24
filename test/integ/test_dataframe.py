@@ -20,7 +20,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     Literal,
     Star as SPStar,
 )
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -37,7 +37,9 @@ from snowflake.snowpark.internal.types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.internal.types.sp_data_types import DecimalType as SPDecimalType
+from snowflake.snowpark.internal.sp_types.sp_data_types import (
+    DecimalType as SPDecimalType,
+)
 from snowflake.snowpark.row import Row
 
 

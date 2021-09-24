@@ -76,7 +76,7 @@ def test_sort_invalid_inputs(session_cnx):
             in str(ex_info)
         )
 
-        # invalid input types
+        # invalid input sp_types
         with pytest.raises(TypeError) as ex_info:
             df.sort(["a"], ["b"])
         assert (

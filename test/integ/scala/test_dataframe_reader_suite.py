@@ -9,7 +9,7 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark.functions import col, sql_expr
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     DoubleType,
     IntegerType,
     StringType,

@@ -16,7 +16,7 @@ from array import array
 from collections import OrderedDict, defaultdict
 from typing import List, Optional, Tuple, Type
 
-from snowflake.snowpark.internal.types.sf_types import (
+from snowflake.snowpark.internal.sp_types.sf_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -38,7 +38,7 @@ from snowflake.snowpark.internal.types.sf_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.internal.types.sp_data_types import (
+from snowflake.snowpark.internal.sp_types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,
@@ -104,7 +104,7 @@ def convert_to_sf_type(datatype: DataType) -> str:
 
 
 def snow_type_to_sp_type(datatype: DataType) -> Optional[SPDataType]:
-    """Mapping from snowflake data-types to SP data-types."""
+    """Mapping from snowflake data-sp_types to SP data-sp_types."""
 
     # handling the corner case that a UDF doesn't accept any input.
     if datatype is None:
@@ -169,7 +169,7 @@ def to_sp_struct_type(struct_type: StructType) -> SPStructType:
 
 
 def sp_type_to_snow_type(datatype: SPDataType) -> DataType:
-    """Mapping from SP data-types, to snowflake data-types"""
+    """Mapping from SP data-sp_types, to snowflake data-sp_types"""
     if type(datatype) == SPNullType:
         return NullType()
     if type(datatype) == SPBooleanType:
@@ -227,11 +227,11 @@ def to_snow_struct_type(struct_type: SPStructType) -> StructType:
 
 
 # #####################################################################################
-# Converting python types to SP-types
+# Converting python sp_types to SP-sp_types
 # Taken as is or modified from:
 # https://spark.apache.org/docs/3.1.1/api/python/_modules/pyspark/sql/types.html
 
-# Mapping Python types to Spark SQL DataType
+# Mapping Python sp_types to Spark SQL DataType
 _type_mappings = {
     type(None): SPNullType,
     bool: SPBooleanType,
@@ -246,18 +246,18 @@ _type_mappings = {
     bytes: SPBinaryType,
 }
 
-# Mapping Python array types to Spark SQL DataType
-# We should be careful here. The size of these types in python depends on C
+# Mapping Python array sp_types to Spark SQL DataType
+# We should be careful here. The size of these sp_types in python depends on C
 # implementation. We need to make sure that this conversion does not lose any
-# precision. Also, JVM only support signed types, when converting unsigned types,
-# keep in mind that it require 1 more bit when stored as signed types.
+# precision. Also, JVM only support signed sp_types, when converting unsigned sp_types,
+# keep in mind that it require 1 more bit when stored as signed sp_types.
 #
 # Reference for C integer size, see:
-# ISO/IEC 9899:201x specification, chapter 5.2.4.2.1 Sizes of integer types <limits.h>.
+# ISO/IEC 9899:201x specification, chapter 5.2.4.2.1 Sizes of integer sp_types <limits.h>.
 # Reference for python array typecode, see:
 # https://docs.python.org/2/library/array.html
 # https://docs.python.org/3.6/library/array.html
-# Reference for JVM's supported integral types:
+# Reference for JVM's supported integral sp_types:
 # http://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.3.1
 
 _array_signed_int_typecode_ctype_mappings = {
@@ -301,16 +301,16 @@ _array_type_mappings = {
     "d": SPDoubleType,
 }
 
-# compute array typecode mappings for signed integer types
+# compute array typecode mappings for signed integer sp_types
 for _typecode in _array_signed_int_typecode_ctype_mappings.keys():
     size = ctypes.sizeof(_array_signed_int_typecode_ctype_mappings[_typecode]) * 8
     dt = _int_size_to_type(size)
     if dt is not None:
         _array_type_mappings[_typecode] = dt
 
-# compute array typecode mappings for unsigned integer types
+# compute array typecode mappings for unsigned integer sp_types
 for _typecode in _array_unsigned_int_typecode_ctype_mappings.keys():
-    # JVM does not have unsigned types, so use signed types that is at least 1
+    # JVM does not have unsigned sp_types, so use signed sp_types that is at least 1
     # bit larger to store
     size = ctypes.sizeof(_array_unsigned_int_typecode_ctype_mappings[_typecode]) * 8 + 1
     dt = _int_size_to_type(size)
@@ -328,7 +328,7 @@ def _infer_type(obj):
     if obj is None:
         return SPNullType()
 
-    # user-defined types
+    # user-defined sp_types
     if hasattr(obj, "__UDT__"):
         return obj.__UDT__
 

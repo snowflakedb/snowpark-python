@@ -28,7 +28,7 @@ class DataType(AbstractDataType):
         return self.simple_string.upper()
 
 
-# Data types
+# Data sp_types
 class AtomicType(DataType):
     pass
 
@@ -172,7 +172,7 @@ class FractionalType(NumericType):
     pass
 
 
-# Integral types
+# Integral sp_types
 class ShortType(IntegralType):
     pass
 
@@ -189,7 +189,7 @@ class LongType(IntegralType):
     pass
 
 
-# Fractional types
+# Fractional sp_types
 class FloatType(FractionalType):
     pass
 

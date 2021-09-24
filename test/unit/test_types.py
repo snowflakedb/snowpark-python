@@ -12,7 +12,7 @@ from test.utils import IS_WINDOWS
 
 import pytest
 
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -38,7 +38,7 @@ from snowflake.snowpark.internal.types import (
     _infer_type,
     _python_type_to_snow_type,
 )
-from snowflake.snowpark.internal.types.sp_data_types import (
+from snowflake.snowpark.internal.sp_types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     ByteType as SPByteType,
@@ -276,7 +276,7 @@ def test_strip_unnecessary_quotes():
 
 
 def test_python_type_to_snow_type():
-    # basic types
+    # basic sp_types
     assert _python_type_to_snow_type(int) == (LongType(), False)
     assert _python_type_to_snow_type(float) == (DoubleType(), False)
     assert _python_type_to_snow_type(str) == (StringType(), False)
@@ -350,7 +350,7 @@ def test_python_type_to_snow_type():
     )
     assert _python_type_to_snow_type(typing.Any) == (VariantType(), False)
 
-    # complicated (nested) types
+    # complicated (nested) sp_types
     assert _python_type_to_snow_type(typing.Optional[typing.Optional[str]]) == (
         StringType(),
         True,
@@ -371,7 +371,7 @@ def test_python_type_to_snow_type():
         False,
     )
 
-    # unsupported types
+    # unsupported sp_types
     with pytest.raises(TypeError):
         _python_type_to_snow_type(typing.AnyStr)
     with pytest.raises(TypeError):

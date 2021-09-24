@@ -28,7 +28,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark.internal.types.sp_data_types import IntegerType as SPInteger
+from snowflake.snowpark.internal.sp_types.sp_data_types import IntegerType as SPInteger
 
 
 class GroupType:
@@ -203,7 +203,7 @@ class RelationalGroupedDataFrame:
                 [self.__str_to_expr(expr)(col.expression) for col, expr in exprs]
             )
         else:
-            raise TypeError("Invalid input types for agg()")
+            raise TypeError("Invalid input sp_types for agg()")
 
     def avg(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the average for the specified numeric columns."""

@@ -8,7 +8,7 @@ from snowflake.snowpark.functions import col
 from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.analyzer.snowflake_plan import Query, SnowflakePlan
-from snowflake.snowpark.internal.types import IntegerType, LongType
+from snowflake.snowpark.internal.sp_types import IntegerType, LongType
 from snowflake.snowpark.row import Row
 
 

@@ -10,7 +10,7 @@ from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.internal.sp_expressions import Attribute as SPAttribute
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     DataType,
     JoinType as SPJoinType,
     LeftAnti as SPLeftAnti,
@@ -764,9 +764,9 @@ class AnalyzerPackage:
     def _escape_quotes(unescaped: str) -> str:
         return unescaped.replace('"', '""')
 
-    # Most integer types map to number(38,0)
+    # Most integer sp_types map to number(38,0)
     # https://docs.snowflake.com/en/sql-reference/
-    # data-types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
+    # data-sp_types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
     # TODO static
     def number(self, precision: int = 38, scale: int = 0) -> str:
         return (

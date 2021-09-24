@@ -6,7 +6,7 @@
 from decimal import Decimal
 
 from snowflake.snowpark.functions import lit
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,

@@ -66,7 +66,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark.internal.types.sp_data_types import (
+from snowflake.snowpark.internal.sp_types.sp_data_types import (
     ByteType as SPByteType,
     IntegerType as SPIntegerType,
     LongType as SPLongType,

@@ -9,7 +9,7 @@ from typing import List
 import pytest
 
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     BinaryType,
     BooleanType,

@@ -27,7 +27,7 @@ class DataType:
         return not self.__eq__(other)
 
 
-# Data types
+# Data sp_types
 
 
 class NullType(DataType):
@@ -57,7 +57,7 @@ class VariantType(DataType):
 
 # See also StructType in the end of this file.
 
-# Atomic types
+# Atomic sp_types
 
 
 class BinaryType(AtomicType):
@@ -90,7 +90,7 @@ class TimeType(AtomicType):
     pass
 
 
-# Numeric types
+# Numeric sp_types
 class IntegralType(NumericType):
     pass
 

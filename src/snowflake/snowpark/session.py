@@ -43,7 +43,7 @@ from snowflake.snowpark.internal.server_connection import ServerConnection
 from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
 )
-from snowflake.snowpark.internal.types import (
+from snowflake.snowpark.internal.sp_types import (
     ArrayType,
     AtomicType,
     DateType,
@@ -57,7 +57,9 @@ from snowflake.snowpark.internal.types import (
     _merge_type,
     snow_type_to_sp_type,
 )
-from snowflake.snowpark.internal.types.sp_data_types import StringType as SPStringType
+from snowflake.snowpark.internal.sp_types.sp_data_types import (
+    StringType as SPStringType,
+)
 from snowflake.snowpark.internal.utils import PythonObjJSONEncoder, Utils
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.udf import UDFRegistration
@@ -463,7 +465,7 @@ class Session(metaclass=_SessionMeta):
             data: The local data for building a :class:`DataFrame`. ``data`` can only
                 be an instance of :class:`list`, :class:`tuple` or :class:`dict`.
                 Every element in ``data`` will constitute a row in the dataframe.
-            schema: A :class:`StructType` containing names and data types of columns.
+            schema: A :class:`StructType` containing names and data sp_types of columns.
                 When ``schema`` is ``None``, the schema will be inferred from the data
                 across all rows.
 
@@ -479,7 +481,7 @@ class Session(metaclass=_SessionMeta):
             session.createDataFrame([{"a": "snow", "b": "flake"}])
 
             # given a schema
-            from snowflake.snowpark.types.sf_types import IntegerType, StringType()
+            from snowflake.snowpark.sp_types.sf_types import IntegerType, StringType()
             schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
             session.createDataFrame([[1, "snow"], [3, "flake"]], schema)
         """
@@ -527,7 +529,7 @@ class Session(metaclass=_SessionMeta):
                 (_infer_schema_from_list(list(row), names) for row in rows),
             )
 
-        # get spark attributes and data types
+        # get spark attributes and data sp_types
         sp_attrs, data_types = [], []
         for field in schema.fields:
             sp_type = (
