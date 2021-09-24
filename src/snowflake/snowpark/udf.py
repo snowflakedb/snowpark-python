@@ -15,13 +15,14 @@ from snowflake.snowpark.internal.sp_expressions import (
     Expression as SPExpression,
     SnowflakeUDF,
 )
-from snowflake.snowpark.internal.utils import Utils
-from snowflake.snowpark.types.sf_types import DataType, StringType
-from snowflake.snowpark.types.types_package import (
+from snowflake.snowpark.internal.types import (
+    DataType,
+    StringType,
     _python_type_to_snow_type,
     convert_to_sf_type,
     snow_type_to_sp_type,
 )
+from snowflake.snowpark.internal.utils import Utils
 
 # the default handler name for generated udf python file
 _DEFAULT_HANDLER_NAME = "compute"

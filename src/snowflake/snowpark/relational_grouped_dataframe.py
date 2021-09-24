@@ -10,8 +10,11 @@ import snowflake.snowpark.functions as functions
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.internal.plans.logical.basic_logical_operators import (
+    Aggregate as SPAggregate,
+    Pivot as SPPivot,
+)
 from snowflake.snowpark.internal.sp_expressions import (
-    AggregateExpression as SPAggregateExpression,
     Alias as SPAlias,
     Count as SPCount,
     Cube as SPCube,
@@ -21,16 +24,11 @@ from snowflake.snowpark.internal.sp_expressions import (
     NamedExpression as SPNamedExpression,
     Rollup as SPRollup,
     Star as SPStar,
-    TypedAggregateExpression as SPTypedAggregateExpression,
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark.plans.logical.basic_logical_operators import (
-    Aggregate as SPAggregate,
-    Pivot as SPPivot,
-)
-from snowflake.snowpark.types.sp_data_types import IntegerType as SPInteger
+from snowflake.snowpark.internal.types.sp_data_types import IntegerType as SPInteger
 
 
 class GroupType:

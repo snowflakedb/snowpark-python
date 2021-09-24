@@ -44,14 +44,14 @@ from snowflake.snowpark.functions import (
     trim,
     upper,
 )
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.internal.types import (
     ArrayType,
     DateType,
     MapType,
     StringType,
     VariantType,
 )
+from snowflake.snowpark.row import Row
 
 
 def test_basic_numerical_operations_negative(session):

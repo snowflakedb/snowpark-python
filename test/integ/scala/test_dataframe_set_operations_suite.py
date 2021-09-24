@@ -12,9 +12,9 @@ import pytest
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import col, lit, min, sum
+from snowflake.snowpark.internal.types import IntegerType
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import IntegerType
 
 
 def test_union_with_filters(session):

@@ -6,18 +6,15 @@
 from decimal import Decimal
 
 from snowflake.snowpark.functions import lit
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.internal.types import (
     ArrayType,
     BinaryType,
     BooleanType,
     ByteType,
-    DataType,
     DateType,
     DecimalType,
     DoubleType,
     FloatType,
-    GeographyType,
     IntegerType,
     LongType,
     MapType,
@@ -29,6 +26,7 @@ from snowflake.snowpark.types.sf_types import (
     TimeType,
     VariantType,
 )
+from snowflake.snowpark.row import Row
 
 
 def test_verify_datatypes_reference(session):

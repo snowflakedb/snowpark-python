@@ -12,7 +12,7 @@ from test.utils import IS_WINDOWS
 
 import pytest
 
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.internal.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -35,8 +35,10 @@ from snowflake.snowpark.types.sf_types import (
     TimestampType,
     TimeType,
     VariantType,
+    _infer_type,
+    _python_type_to_snow_type,
 )
-from snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark.internal.types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     ByteType as SPByteType,
@@ -52,10 +54,6 @@ from snowflake.snowpark.types.sp_data_types import (
     StringType as SPStringType,
     TimestampType as SPTimestampType,
     TimeType as SPTimeType,
-)
-from snowflake.snowpark.types.types_package import (
-    _infer_type,
-    _python_type_to_snow_type,
 )
 
 

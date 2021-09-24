@@ -9,8 +9,7 @@ from typing import List
 import pytest
 
 from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.session import Session
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.internal.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -23,6 +22,7 @@ from snowflake.snowpark.types.sf_types import (
     TimeType,
     VariantType,
 )
+from snowflake.snowpark.session import Session
 
 
 def get_table_attributes(session: "Session", name: str) -> List["Attribute"]:

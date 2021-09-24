@@ -37,15 +37,13 @@ from snowflake.snowpark.internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark.internal.analyzer_obj import Analyzer
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.internal.plans.logical.basic_logical_operators import Range
+from snowflake.snowpark.internal.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark.internal.server_connection import ServerConnection
 from snowflake.snowpark.internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
 )
-from snowflake.snowpark.internal.utils import PythonObjJSONEncoder, Utils
-from snowflake.snowpark.plans.logical.basic_logical_operators import Range
-from snowflake.snowpark.plans.logical.logical_plan import UnresolvedRelation
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.internal.types import (
     ArrayType,
     AtomicType,
     DateType,
@@ -55,13 +53,13 @@ from snowflake.snowpark.types.sf_types import (
     TimestampType,
     TimeType,
     VariantType,
-)
-from snowflake.snowpark.types.sp_data_types import StringType as SPStringType
-from snowflake.snowpark.types.types_package import (
     _infer_schema_from_list,
     _merge_type,
     snow_type_to_sp_type,
 )
+from snowflake.snowpark.internal.types.sp_data_types import StringType as SPStringType
+from snowflake.snowpark.internal.utils import PythonObjJSONEncoder, Utils
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.udf import UDFRegistration
 
 logger = getLogger(__name__)

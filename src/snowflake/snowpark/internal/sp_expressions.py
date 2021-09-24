@@ -9,16 +9,14 @@
 import uuid
 from typing import List, Optional, Tuple
 
-from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
-from snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark.internal.types import _infer_type
+from snowflake.snowpark.internal.types.sp_data_types import (
     DataType,
     DecimalType,
     DoubleType,
     IntegralType,
     LongType,
-    NullType,
 )
-from snowflake.snowpark.types.types_package import _infer_type
 
 
 class Expression:

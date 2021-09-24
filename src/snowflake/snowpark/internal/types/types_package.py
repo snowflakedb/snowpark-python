@@ -16,7 +16,7 @@ from array import array
 from collections import OrderedDict, defaultdict
 from typing import List, Optional, Tuple, Type
 
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.internal.types.sf_types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -38,7 +38,7 @@ from snowflake.snowpark.types.sf_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark.internal.types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,

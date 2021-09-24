@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
-from snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark.internal.types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,

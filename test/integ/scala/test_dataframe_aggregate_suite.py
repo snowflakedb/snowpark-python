@@ -33,7 +33,6 @@ from snowflake.snowpark.functions import (
     variance,
 )
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import IntegerType, StructField, StructType
 
 
 def test_limit_plus_aggregates(session):

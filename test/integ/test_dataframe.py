@@ -4,7 +4,6 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import datetime
-import os
 from array import array
 from collections import namedtuple
 from decimal import Decimal
@@ -21,8 +20,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     Literal,
     Star as SPStar,
 )
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.internal.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -39,7 +37,8 @@ from snowflake.snowpark.types.sf_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.types.sp_data_types import DecimalType as SPDecimalType
+from snowflake.snowpark.internal.types.sp_data_types import DecimalType as SPDecimalType
+from snowflake.snowpark.row import Row
 
 
 def test_read_stage_file_show(session, resources_path):

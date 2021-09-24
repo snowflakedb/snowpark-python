@@ -3,7 +3,6 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-import enum
 import re
 import string
 from random import choice
@@ -21,6 +20,19 @@ from snowflake.snowpark.internal.analyzer.sp_views import (
     ViewType as SPViewType,
 )
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.internal.plans.logical.basic_logical_operators import (
+    Except as SPExcept,
+    Intersect as SPIntersect,
+    Join as SPJoin,
+    Sort as SPSort,
+    Union as SPUnion,
+)
+from snowflake.snowpark.internal.plans.logical.hints import JoinHint as SPJoinHint
+from snowflake.snowpark.internal.plans.logical.logical_plan import (
+    Filter as SPFilter,
+    Project as SPProject,
+    Sample as SPSample,
+)
 from snowflake.snowpark.internal.sp_expressions import (
     Ascending as SPAscending,
     Attribute as SPAttribute,
@@ -31,31 +43,18 @@ from snowflake.snowpark.internal.sp_expressions import (
     SortOrder as SPSortOrder,
     Star as SPStar,
 )
-from snowflake.snowpark.internal.utils import Utils
-from snowflake.snowpark.plans.logical.basic_logical_operators import (
-    Except as SPExcept,
-    Intersect as SPIntersect,
-    Join as SPJoin,
-    Sort as SPSort,
-    Union as SPUnion,
-)
-from snowflake.snowpark.plans.logical.hints import JoinHint as SPJoinHint
-from snowflake.snowpark.plans.logical.logical_plan import (
-    Filter as SPFilter,
-    Project as SPProject,
-    Sample as SPSample,
-)
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import StructType
-from snowflake.snowpark.types.sp_data_types import LongType as SPLongType
-from snowflake.snowpark.types.sp_join_types import (
+from snowflake.snowpark.internal.types import (
     Cross as SPCrossJoin,
     JoinType as SPJoinType,
     LeftAnti as SPLeftAnti,
     LeftSemi as SPLeftSemi,
     NaturalJoin as SPNaturalJoin,
+    StructType,
     UsingJoin as SPUsingJoin,
 )
+from snowflake.snowpark.internal.types.sp_data_types import LongType as SPLongType
+from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark.row import Row
 
 
 class DataFrame:

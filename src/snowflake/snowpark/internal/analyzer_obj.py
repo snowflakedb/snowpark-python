@@ -21,6 +21,21 @@ from snowflake.snowpark.internal.analyzer.sp_views import (
     PersistedView as SPPersistedView,
 )
 from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.internal.plans.logical.basic_logical_operators import (
+    Aggregate as SPAggregate,
+    Except as SPExcept,
+    Intersect as SPIntersect,
+    Join as SPJoin,
+    Range as SPRange,
+    Sort as SPSort,
+    Union as SPUnion,
+)
+from snowflake.snowpark.internal.plans.logical.logical_plan import (
+    Filter as SPFilter,
+    Project as SPProject,
+    Sample as SPSample,
+    UnresolvedRelation as SPUnresolvedRelation,
+)
 from snowflake.snowpark.internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
     AggregateFunction as SPAggregateFunction,
@@ -51,22 +66,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark.plans.logical.basic_logical_operators import (
-    Aggregate as SPAggregate,
-    Except as SPExcept,
-    Intersect as SPIntersect,
-    Join as SPJoin,
-    Range as SPRange,
-    Sort as SPSort,
-    Union as SPUnion,
-)
-from snowflake.snowpark.plans.logical.logical_plan import (
-    Filter as SPFilter,
-    Project as SPProject,
-    Sample as SPSample,
-    UnresolvedRelation as SPUnresolvedRelation,
-)
-from snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark.internal.types.sp_data_types import (
     ByteType as SPByteType,
     IntegerType as SPIntegerType,
     LongType as SPLongType,

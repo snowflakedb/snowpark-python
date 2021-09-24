@@ -9,18 +9,17 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark.functions import col, sql_expr
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import (
-    SnowparkDataframeReaderException,
-    SnowparkPlanException,
-    SnowparkSQLException,
-)
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.internal.types import (
     DoubleType,
     IntegerType,
     StringType,
     StructField,
     StructType,
+)
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.snowpark_client_exception import (
+    SnowparkDataframeReaderException,
+    SnowparkPlanException,
 )
 
 test_file_csv = "testCSV.csv"
