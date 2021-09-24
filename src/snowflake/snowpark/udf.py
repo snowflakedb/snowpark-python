@@ -27,7 +27,7 @@ from snowflake.snowpark.types import DataType, StringType
 _DEFAULT_HANDLER_NAME = "compute"
 
 
-class _UserDefinedFunction:
+class UserDefinedFunction:
     def __init__(
         self,
         func: Callable,
@@ -88,7 +88,7 @@ class UDFRegistration:
         return_type: Optional[DataType] = None,
         input_types: Optional[List[DataType]] = None,
         name: Optional[str] = None,
-    ) -> _UserDefinedFunction:
+    ) -> UserDefinedFunction:
         if not callable(func):
             raise TypeError(
                 "Invalid function: not a function or callable "
@@ -116,7 +116,7 @@ class UDFRegistration:
 
         # register udf
         self.__do_register_udf(func, new_return_type, new_input_types, udf_name)
-        return _UserDefinedFunction(
+        return UserDefinedFunction(
             func, return_type, new_input_types, udf_name, is_return_nullable
         )
 
