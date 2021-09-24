@@ -96,7 +96,7 @@ class DataFrame:
 
     .. rubric:: Performing operations on a DataFrame
 
-    Broadly, the operations on DataFrame can be divided into two sp_types:
+    Broadly, the operations on DataFrame can be divided into two types:
 
     - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that tranformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
     - **Actions** cause the DataFrame to be evaluated. When you call a method that performs an action, Snowpark sends the SQL query for the DataFrame to the server for evaluation.
@@ -558,7 +558,7 @@ class DataFrame:
             for k, v in exprs.items():
                 if not type(k) == type(v) == str:
                     raise TypeError(
-                        f"Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with sp_types {type(k), type(v)}"
+                        f"Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types {type(k), type(v)}"
                     )
                 grouping_exprs.append((self.col(k), v))
 

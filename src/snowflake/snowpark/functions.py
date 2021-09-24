@@ -482,10 +482,10 @@ def udf(
 
     Args:
         func: A Python function used for creating the UDF.
-        return_type: A :class:`sf_types.DataType` representing the return data
+        return_type: A :class:`types.DataType` representing the return data
             type of the UDF. Optional if type hints are provided.
-        input_types: A list of :class:`sf_types.DataType` representing the input
-            data sp_types of the UDF. Optional if type hints are provided.
+        input_types: A list of :class:`types.DataType` representing the input
+            data types of the UDF. Optional if type hints are provided.
         name: The name to use for the UDF in Snowflake, which allows to call this UDF
             in a SQL command or via :func:`call_udf()`. If it is not provided,
             a random name will be generated automatically for the UDF.
@@ -495,7 +495,7 @@ def udf(
 
     Examples::
 
-        from snowflake.snowpark.sp_types.sf_types import IntegerType
+        from snowflake.snowpark.types import IntegerType
         add_one = udf(lambda x: x+1, return_types=IntegerType(), input_types=[IntegerType()])
 
         @udf(name="minus_one")
@@ -572,7 +572,7 @@ def call_builtin(function_name: str, *args: Any) -> Column:
 
     Args:
         function_name: The name of built-in function in Snowflake
-        args: Arguments can be two sp_types:
+        args: Arguments can be in two types:
             a. :class:`Column`, or
             b. Basic Python sp_types such as int, float, str, which are converted to Snowpark literals.
 

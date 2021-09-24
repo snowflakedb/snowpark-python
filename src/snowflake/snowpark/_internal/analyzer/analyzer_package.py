@@ -764,9 +764,9 @@ class AnalyzerPackage:
     def _escape_quotes(unescaped: str) -> str:
         return unescaped.replace('"', '""')
 
-    # Most integer sp_types map to number(38,0)
+    # Most integer types map to number(38,0)
     # https://docs.snowflake.com/en/sql-reference/
-    # data-sp_types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
+    # data-types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
     # TODO static
     def number(self, precision: int = 38, scale: int = 0) -> str:
         return (

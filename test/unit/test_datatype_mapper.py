@@ -49,7 +49,7 @@ def test_to_sql():
     assert to_sql(None, SPDoubleType()) == "NULL :: double"
     assert to_sql(None, SPBooleanType()) == "NULL :: boolean"
 
-    assert to_sql(None, "Not any of the previous SP sp_types") == "NULL"
+    assert to_sql(None, "Not any of the previous SP types") == "NULL"
 
     # Test non-nulls
     assert to_sql("\\ '  ' abc \n \\", SPStringType()) == "'\\\\ ''  '' abc \\n \\\\'"

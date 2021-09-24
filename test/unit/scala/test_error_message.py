@@ -30,7 +30,7 @@ def test_internal_test_message():
     ex = SnowparkClientExceptionMessages.INTERNAL_TEST_MESSAGE(message)
     assert type(ex) == _SnowparkInternalException
     assert ex.error_code == "1010"
-    assert ex.message == f"_internal test message: {message}."
+    assert ex.message == f"internal test message: {message}."
 
 
 def test_df_cannot_drop_column_name():

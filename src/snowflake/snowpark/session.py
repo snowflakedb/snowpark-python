@@ -467,7 +467,7 @@ class Session(metaclass=_SessionMeta):
             data: The local data for building a :class:`DataFrame`. ``data`` can only
                 be an instance of :class:`list`, :class:`tuple` or :class:`dict`.
                 Every element in ``data`` will constitute a row in the dataframe.
-            schema: A :class:`StructType` containing names and data sp_types of columns.
+            schema: A :class:`StructType` containing names and data types of columns.
                 When ``schema`` is ``None``, the schema will be inferred from the data
                 across all rows.
 
@@ -483,7 +483,7 @@ class Session(metaclass=_SessionMeta):
             session.createDataFrame([{"a": "snow", "b": "flake"}])
 
             # given a schema
-            from snowflake.snowpark.sp_types.sf_types import IntegerType, StringType()
+            from snowflake.snowpark.types import IntegerType, StringType
             schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
             session.createDataFrame([[1, "snow"], [3, "flake"]], schema)
         """
@@ -531,7 +531,7 @@ class Session(metaclass=_SessionMeta):
                 (_infer_schema_from_list(list(row), names) for row in rows),
             )
 
-        # get spark attributes and data sp_types
+        # get spark attributes and data types
         sp_attrs, data_types = [], []
         for field in schema.fields:
             sp_type = (

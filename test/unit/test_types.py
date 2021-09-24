@@ -278,7 +278,7 @@ def test_strip_unnecessary_quotes():
 
 
 def test_python_type_to_snow_type():
-    # basic sp_types
+    # basic types
     assert _python_type_to_snow_type(int) == (LongType(), False)
     assert _python_type_to_snow_type(float) == (DoubleType(), False)
     assert _python_type_to_snow_type(str) == (StringType(), False)
@@ -352,7 +352,7 @@ def test_python_type_to_snow_type():
     )
     assert _python_type_to_snow_type(typing.Any) == (VariantType(), False)
 
-    # complicated (nested) sp_types
+    # complicated (nested) types
     assert _python_type_to_snow_type(typing.Optional[typing.Optional[str]]) == (
         StringType(),
         True,
@@ -373,7 +373,7 @@ def test_python_type_to_snow_type():
         False,
     )
 
-    # unsupported sp_types
+    # unsupported types
     with pytest.raises(TypeError):
         _python_type_to_snow_type(typing.AnyStr)
     with pytest.raises(TypeError):

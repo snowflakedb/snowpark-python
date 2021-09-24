@@ -138,7 +138,7 @@ class UDFRegistration:
             python_types_dict["return"]
         )
         input_types = []
-        # sp_types are in order
+        # types are in order
         for key, python_type in python_types_dict.items():
             if key != "return":
                 input_types.append(_python_type_to_snow_type(python_type)[0])
