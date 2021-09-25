@@ -116,7 +116,7 @@ class DataTypeMapper:
         if type(spark_data_type) is SPBooleanType:
             return str(value) + f":: boolean"
 
-        # TODO revisit after SNOW-165195 : Add support for all valid SparkSQL and SnowflakeSQL sp_types
+        # TODO revisit after SNOW-165195 : Add support for all valid SparkSQL and SnowflakeSQL types
         if type(value) is float and type(spark_data_type) is SPFloatType:
             if math.isnan(float(value)):
                 cast_value = "'Nan'"

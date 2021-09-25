@@ -110,7 +110,7 @@ class DataFrameReader:
         configuration for the data to be read.
 
         To define the schema for the data that you want to read, use a
-        :class:`sf_types.StructType` object.
+        :class:`types.StructType` object.
 
         Args:
             schema: Schema configuration for the data to be read.
