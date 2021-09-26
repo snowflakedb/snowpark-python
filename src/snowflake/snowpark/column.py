@@ -5,8 +5,8 @@
 #
 from typing import Optional, Union
 
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.sp_expressions import (
     Add as SPAdd,
     Alias as SPAlias,
     And as SPAnd,
@@ -50,7 +50,7 @@ from snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
-from snowflake.snowpark.types.sf_types import DataType
+from snowflake.snowpark.types import DataType
 
 
 class Column:

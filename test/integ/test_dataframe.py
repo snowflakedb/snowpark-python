@@ -4,7 +4,6 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import datetime
-import os
 from array import array
 from collections import namedtuple
 from decimal import Decimal
@@ -14,15 +13,17 @@ from test.utils import TestFiles, Utils
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.functions import col, lit
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark import Column, Row
+from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     Literal,
     Star as SPStar,
 )
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
+    DecimalType as SPDecimalType,
+)
+from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -39,7 +40,6 @@ from snowflake.snowpark.types.sf_types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.types.sp_data_types import DecimalType as SPDecimalType
 
 
 def test_read_stage_file_show(session, resources_path):
@@ -911,7 +911,7 @@ def test_create_dataframe_from_none_data(session_cnx):
 
 
 def test_create_dataframe_large_without_batch_insert(session):
-    from snowflake.snowpark.internal import analyzer_obj
+    from snowflake.snowpark._internal import analyzer_obj
 
     original_value = analyzer_obj.ARRAY_BIND_THRESHOLD
     try:

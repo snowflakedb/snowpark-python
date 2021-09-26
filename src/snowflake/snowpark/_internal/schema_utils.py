@@ -8,8 +8,8 @@ import random
 import re
 import string
 
-from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.types.sf_types import DecimalType, LongType, StringType
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark.types import DecimalType, LongType, StringType
 
 
 class SchemaUtils:

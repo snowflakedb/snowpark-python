@@ -19,7 +19,7 @@ from json import JSONEncoder
 from typing import IO, List, Optional, Tuple, Type
 
 from snowflake.connector.version import VERSION as connector_version
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.

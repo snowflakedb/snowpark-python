@@ -10,15 +10,14 @@ from test.utils import TestData, TestFiles, Utils
 import pytest
 
 from snowflake import connector
-from snowflake.snowpark.functions import col, lit, max, mean, min, sum
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
-from snowflake.snowpark.snowpark_client_exception import (
+from snowflake.snowpark import Row, Session
+from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkInvalidObjectNameException,
     SnowparkPlanException,
 )
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.functions import col, lit, max, mean, min, sum
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,

@@ -5,15 +5,15 @@
 #
 
 from snowflake.snowpark.relational_grouped_dataframe import (
-    CubeType,
-    GroupByType,
-    PivotType,
-    RollupType,
+    _CubeType,
+    _GroupByType,
+    _PivotType,
+    _RollupType,
 )
 
 
 def test_to_string_of_relational_grouped_dataframe():
-    assert GroupByType().to_string() == "GroupBy"
-    assert CubeType().to_string() == "Cube"
-    assert RollupType().to_string() == "Rollup"
-    assert PivotType(None, []).to_string() == "Pivot"
+    assert _GroupByType().to_string() == "GroupBy"
+    assert _CubeType().to_string() == "Cube"
+    assert _RollupType().to_string() == "Rollup"
+    assert _PivotType(None, []).to_string() == "Pivot"

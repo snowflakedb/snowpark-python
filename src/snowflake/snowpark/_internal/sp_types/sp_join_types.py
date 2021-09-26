@@ -11,7 +11,7 @@
 # See https://github.com/apache/spark/blob/master/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/plans/joinTypes.scala
 from typing import List
 
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 
 class JoinType:

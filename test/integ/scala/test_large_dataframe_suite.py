@@ -6,10 +6,9 @@ import decimal
 
 import pytest
 
-from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,

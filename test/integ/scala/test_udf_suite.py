@@ -10,10 +10,10 @@ from test.utils import TestData, TestFiles, Utils
 
 import pytest
 
+from snowflake.snowpark import Row
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import call_udf, col, lit, max, min, udf
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,

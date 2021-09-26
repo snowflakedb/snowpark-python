@@ -8,7 +8,7 @@ from copy import copy
 
 import pytest
 
-from snowflake.snowpark.row import Row
+from snowflake.snowpark import Row
 
 
 def test_row_with_only_values():

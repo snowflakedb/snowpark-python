@@ -13,7 +13,7 @@ from typing import Callable, Dict
 import pytest
 
 import snowflake.connector
-from snowflake.snowpark.session import Session
+from snowflake.snowpark import Session
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
