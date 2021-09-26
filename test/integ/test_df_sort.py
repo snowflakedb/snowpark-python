@@ -6,7 +6,7 @@
 
 import pytest
 
-from snowflake.snowpark.column import Column
+from snowflake.snowpark import Column
 
 
 def test_sort_different_inputs(session_cnx):

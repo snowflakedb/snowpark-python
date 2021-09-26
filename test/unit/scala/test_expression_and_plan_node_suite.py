@@ -4,9 +4,13 @@
 
 import pytest
 
-from snowflake.snowpark.plans.logical.basic_logical_operators import Join
-from snowflake.snowpark.snowpark_client_exception import SnowparkJoinException
-from snowflake.snowpark.types.sp_join_types import JoinType, NaturalJoin, UsingJoin
+from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Join
+from snowflake.snowpark._internal.sp_types.sp_join_types import (
+    JoinType,
+    NaturalJoin,
+    UsingJoin,
+)
+from snowflake.snowpark.exceptions import SnowparkJoinException
 
 
 def test_mix_set_operator():

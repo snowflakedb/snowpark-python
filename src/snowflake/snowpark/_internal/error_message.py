@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-from snowflake.snowpark.snowpark_client_exception import (
+from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateViewException,
     SnowparkDataframeException,

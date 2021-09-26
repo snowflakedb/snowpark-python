@@ -11,7 +11,7 @@ from test.utils import Utils
 
 import pytest
 
-from snowflake.snowpark.internal.analyzer_obj import ARRAY_BIND_THRESHOLD
+from snowflake.snowpark._internal.analyzer_obj import ARRAY_BIND_THRESHOLD
 
 
 def test_set_query_tag(session):

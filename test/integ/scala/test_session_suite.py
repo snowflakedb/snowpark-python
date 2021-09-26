@@ -7,9 +7,8 @@ from typing import NamedTuple
 
 import pytest
 
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
-from snowflake.snowpark.snowpark_client_exception import (
+from snowflake.snowpark import Row, Session
+from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkMissingDbOrSchemaException,
 )

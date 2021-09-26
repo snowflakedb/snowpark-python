@@ -4,13 +4,12 @@
 
 from test.utils import Utils
 
+from snowflake.snowpark import Row
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.internal.analyzer.snowflake_plan import Query, SnowflakePlan
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
-from snowflake.snowpark.types.sf_types import IntegerType, LongType
+from snowflake.snowpark.types import IntegerType, LongType
 
 
 def test_single_query(session_cnx):

@@ -43,11 +43,11 @@ setup(
     # When a new package (directory) is added, we should also add it here
     packages=[
         "snowflake.snowpark",
-        "snowflake.snowpark.internal",
-        "snowflake.snowpark.internal.analyzer",
-        "snowflake.snowpark.plans",
-        "snowflake.snowpark.plans.logical",
-        "snowflake.snowpark.types",
+        "snowflake.snowpark._internal",
+        "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark._internal.plans",
+        "snowflake.snowpark._internal.plans.logical",
+        "snowflake.snowpark._internal.sp_types",
     ],
     package_dir={
         "": "src",
