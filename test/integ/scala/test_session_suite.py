@@ -7,12 +7,11 @@ from typing import NamedTuple
 
 import pytest
 
+from snowflake.snowpark import Row, Session
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkMissingDbOrSchemaException,
 )
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
 
 
 def test_createDataFrame_sequence(session_cnx):

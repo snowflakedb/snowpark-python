@@ -8,10 +8,10 @@ from test.utils import TestData, Utils
 
 import pytest
 
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark.exceptions import SnowparkCreateViewException
 from snowflake.snowpark.functions import col, sql_expr, sum
-from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import LongType
 
 

@@ -9,14 +9,13 @@ from test.utils import Utils
 
 import pytest
 
-from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.exceptions import (
     SnowparkJoinException,
     SnowparkSQLAmbiguousJoinException,
     SnowparkSQLInvalidIdException,
 )
 from snowflake.snowpark.functions import coalesce, col, count, is_null, lit
-from snowflake.snowpark.row import Row
 
 
 def test_join_using(session):

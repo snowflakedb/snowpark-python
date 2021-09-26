@@ -6,8 +6,8 @@
 
 import pytest
 
+from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException
-from snowflake.snowpark.row import Row
 
 
 def test_column_constructors_subscriptable(session):

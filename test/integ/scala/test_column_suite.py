@@ -9,13 +9,13 @@ from test.utils import TestData, Utils
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkPlanException,
     SnowparkSQLUnexpectedAliasException,
 )
 from snowflake.snowpark.functions import avg, col, lit, parse_json, sql_expr, when
-from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StringType
 
 

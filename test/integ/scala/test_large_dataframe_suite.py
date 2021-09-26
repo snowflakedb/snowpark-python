@@ -6,8 +6,8 @@ import decimal
 
 import pytest
 
+from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,

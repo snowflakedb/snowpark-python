@@ -11,10 +11,8 @@ import uuid
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
+from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
 
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"

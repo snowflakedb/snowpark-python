@@ -8,12 +8,12 @@ from test.utils import TestFiles, Utils
 import pytest
 
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
 )
 from snowflake.snowpark.functions import col, sql_expr
-from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,

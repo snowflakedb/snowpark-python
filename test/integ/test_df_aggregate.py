@@ -6,8 +6,8 @@
 
 import pytest
 
+from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.row import Row
 
 
 def test_df_agg_tuples_basic(session_cnx):

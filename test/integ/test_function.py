@@ -8,6 +8,7 @@ from test.utils import TestData, Utils
 import pytest
 
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
@@ -44,7 +45,6 @@ from snowflake.snowpark.functions import (
     trim,
     upper,
 )
-from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,

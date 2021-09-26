@@ -13,6 +13,7 @@ from test.utils import TestFiles, Utils
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     Literal,
@@ -21,9 +22,7 @@ from snowflake.snowpark._internal.sp_expressions import (
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     DecimalType as SPDecimalType,
 )
-from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import col, lit
-from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,

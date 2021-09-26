@@ -10,9 +10,8 @@ from test.utils import TestFiles, Utils
 import pytest
 
 from snowflake.connector.errors import DatabaseError
+from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
 
 
 def test_select_1(session_cnx):

@@ -5,8 +5,8 @@
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 
+from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
-from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
