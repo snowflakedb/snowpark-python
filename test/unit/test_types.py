@@ -12,7 +12,28 @@ from test.utils import IS_WINDOWS
 
 import pytest
 
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
+    ArrayType as SPArrayType,
+    BinaryType as SPBinaryType,
+    ByteType as SPByteType,
+    DateType as SPDateType,
+    DecimalType as SPDecimalType,
+    DoubleType as SPDoubleType,
+    FloatType as SPFloatType,
+    IntegerType as SPIntegerType,
+    LongType as SPLongType,
+    MapType as SPMapType,
+    NullType as SPNullType,
+    ShortType as SPShortType,
+    StringType as SPStringType,
+    TimestampType as SPTimestampType,
+    TimeType as SPTimeType,
+)
+from snowflake.snowpark._internal.sp_types.types_package import (
+    _infer_type,
+    _python_type_to_snow_type,
+)
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -35,27 +56,6 @@ from snowflake.snowpark.types.sf_types import (
     TimestampType,
     TimeType,
     VariantType,
-)
-from snowflake.snowpark.types.sp_data_types import (
-    ArrayType as SPArrayType,
-    BinaryType as SPBinaryType,
-    ByteType as SPByteType,
-    DateType as SPDateType,
-    DecimalType as SPDecimalType,
-    DoubleType as SPDoubleType,
-    FloatType as SPFloatType,
-    IntegerType as SPIntegerType,
-    LongType as SPLongType,
-    MapType as SPMapType,
-    NullType as SPNullType,
-    ShortType as SPShortType,
-    StringType as SPStringType,
-    TimestampType as SPTimestampType,
-    TimeType as SPTimeType,
-)
-from snowflake.snowpark.types.types_package import (
-    _infer_type,
-    _python_type_to_snow_type,
 )
 
 

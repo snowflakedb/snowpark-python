@@ -7,6 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from test.utils import TestData, Utils
 
+from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
@@ -57,7 +58,6 @@ from snowflake.snowpark.functions import (
     var_samp,
     variance,
 )
-from snowflake.snowpark.row import Row
 
 
 def test_col(session):

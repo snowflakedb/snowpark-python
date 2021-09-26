@@ -9,8 +9,8 @@ import time
 
 import pytest
 
+from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col, count, sum as sum_
-from snowflake.snowpark.row import Row
 
 
 def test_range(session):

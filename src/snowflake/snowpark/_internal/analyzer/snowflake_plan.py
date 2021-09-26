@@ -9,22 +9,27 @@ from typing import Callable, Dict, List, Optional
 
 import snowflake.connector
 import snowflake.snowpark.dataframe
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.schema_utils import SchemaUtils
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
+    SetOperation,
+)
+from snowflake.snowpark._internal.plans.logical.logical_plan import (
+    LeafNode,
+    LogicalPlan,
+)
+from snowflake.snowpark._internal.schema_utils import SchemaUtils
+from snowflake.snowpark._internal.sp_expressions import (
     Attribute as SPAttribute,
     AttributeReference as SPAttributeReference,
 )
-from snowflake.snowpark.internal.utils import _SaveMode
-from snowflake.snowpark.plans.logical.basic_logical_operators import SetOperation
-from snowflake.snowpark.plans.logical.logical_plan import LeafNode, LogicalPlan
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.types_package import (
+from snowflake.snowpark._internal.sp_types.types_package import (
     snow_type_to_sp_type,
     sp_type_to_snow_type,
 )
+from snowflake.snowpark._internal.utils import _SaveMode
+from snowflake.snowpark.row import Row
 
 
 class SnowflakePlan(LogicalPlan):

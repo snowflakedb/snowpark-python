@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark import DataFrame
 
 
 def test_get_unaliased():

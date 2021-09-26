@@ -5,8 +5,8 @@
 from enum import Enum
 from typing import Dict, Iterable, Optional, Union
 
-from snowflake.snowpark.internal.analyzer.snowflake_plan import SnowflakeCreateTable
-from snowflake.snowpark.internal.utils import Utils, _SaveMode
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakeCreateTable
+from snowflake.snowpark._internal.utils import Utils, _SaveMode
 
 
 class DataFrameWriter:

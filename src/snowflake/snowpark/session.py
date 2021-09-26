@@ -16,6 +16,29 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import cloudpickle
 
 from snowflake.connector import SnowflakeConnection
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    SnowflakePlanBuilder,
+    SnowflakeValues,
+)
+from snowflake.snowpark._internal.analyzer_obj import Analyzer
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
+from snowflake.snowpark._internal.plans.logical.logical_plan import UnresolvedRelation
+from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.sp_expressions import (
+    AttributeReference as SPAttributeReference,
+)
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
+    StringType as SPStringType,
+)
+from snowflake.snowpark._internal.sp_types.types_package import (
+    _infer_schema_from_list,
+    _merge_type,
+    snow_type_to_sp_type,
+)
+from snowflake.snowpark._internal.utils import PythonObjJSONEncoder, Utils
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.functions import (
@@ -29,23 +52,8 @@ from snowflake.snowpark.functions import (
     to_timestamp,
     to_variant,
 )
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.internal.analyzer.snowflake_plan import (
-    SnowflakePlanBuilder,
-    SnowflakeValues,
-)
-from snowflake.snowpark.internal.analyzer_obj import Analyzer
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.server_connection import ServerConnection
-from snowflake.snowpark.internal.sp_expressions import (
-    AttributeReference as SPAttributeReference,
-)
-from snowflake.snowpark.internal.utils import PythonObjJSONEncoder, Utils
-from snowflake.snowpark.plans.logical.basic_logical_operators import Range
-from snowflake.snowpark.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.types import (
     ArrayType,
     AtomicType,
     DateType,
@@ -55,12 +63,6 @@ from snowflake.snowpark.types.sf_types import (
     TimestampType,
     TimeType,
     VariantType,
-)
-from snowflake.snowpark.types.sp_data_types import StringType as SPStringType
-from snowflake.snowpark.types.types_package import (
-    _infer_schema_from_list,
-    _merge_type,
-    snow_type_to_sp_type,
 )
 from snowflake.snowpark.udf import UDFRegistration
 
@@ -458,7 +460,7 @@ class Session(metaclass=_SessionMeta):
             session.createDataFrame([{"a": "snow", "b": "flake"}])
 
             # given a schema
-            from snowflake.snowpark.types.sf_types import IntegerType, StringType()
+            from snowflake.snowpark.types import IntegerType, StringType
             schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
             session.createDataFrame([[1, "snow"], [3, "flake"]], schema)
         """

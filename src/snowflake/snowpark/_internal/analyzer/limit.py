@@ -4,8 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
-from snowflake.snowpark.internal.sp_expressions import Expression as SPExpression
-from snowflake.snowpark.plans.logical.logical_plan import LogicalPlan
+from snowflake.snowpark._internal.plans.logical.logical_plan import LogicalPlan
+from snowflake.snowpark._internal.sp_expressions import Expression as SPExpression
 
 
 class Limit(LogicalPlan):
