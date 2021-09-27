@@ -447,6 +447,9 @@ class AttributeReference(Attribute):
     def __repr__(self):
         return self.__str__()
 
+    def sql(self) -> str:
+        return self.name
+
 
 class UnresolvedAttribute(Attribute):
     def __init__(self, name_parts):
