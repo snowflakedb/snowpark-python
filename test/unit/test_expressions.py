@@ -8,8 +8,11 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import DecimalType, Int
 
 
 def test_expression_sql():
+    attribute = Attribute("A")
+    assert "A" == attribute.sql()
+
     ar = AttributeReference("A", DecimalType, True)
-    assert ar.sql() == "A"
+    assert "A" == ar.sql()
 
     unresolved_attribute = UnresolvedAttribute(["namepart1", "namepart2"])
     assert "namepart1.namepart2" == unresolved_attribute.sql()

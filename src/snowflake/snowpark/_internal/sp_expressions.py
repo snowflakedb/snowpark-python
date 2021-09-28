@@ -294,6 +294,9 @@ class Attribute(LeafExpression, NamedExpression):
     def with_name(cls, name):
         return Attribute(name)
 
+    def sql(self) -> str:
+        return self.name
+
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     def __init__(self, child, alias_func):
@@ -451,9 +454,6 @@ class AttributeReference(Attribute):
 
     def __repr__(self):
         return self.__str__()
-
-    def sql(self) -> str:
-        return self.name
 
 
 class UnresolvedAttribute(Attribute):
