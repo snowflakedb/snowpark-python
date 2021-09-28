@@ -10,18 +10,18 @@ from typing import Callable, List, NamedTuple, Optional, Tuple, Union, get_type_
 
 import cloudpickle
 
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.sp_expressions import (
     Expression as SPExpression,
     SnowflakeUDF,
 )
-from snowflake.snowpark.internal.utils import Utils
-from snowflake.snowpark.types.sf_types import DataType, StringType
-from snowflake.snowpark.types.types_package import (
+from snowflake.snowpark._internal.sp_types.types_package import (
     _python_type_to_snow_type,
     convert_to_sf_type,
     snow_type_to_sp_type,
 )
+from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.types import DataType, StringType
 
 # the default handler name for generated udf python file
 _DEFAULT_HANDLER_NAME = "compute"
@@ -48,9 +48,7 @@ class UserDefinedFunction:
     ) -> Column:
         exprs = Utils.parse_positional_args_to_list(*cols)
         if not all(type(e) in [Column, str] for e in exprs):
-            raise TypeError(
-                "UDF {} input must be Column, str, or list".format(self.name)
-            )
+            raise TypeError(f"UDF {self.name} input must be Column, str, or list")
 
         return Column(
             self.__create_udf_expression(
@@ -64,8 +62,8 @@ class UserDefinedFunction:
     def __create_udf_expression(self, exprs: List[SPExpression]) -> SnowflakeUDF:
         if len(exprs) != len(self.input_types):
             raise ValueError(
-                "Incorrect number of arguments passed to the UDF:"
-                " Expected: {}, Found: {}".format(len(exprs), len(self.input_types))
+                f"Incorrect number of arguments passed to the UDF:"
+                f" Expected: {len(exprs)}, Found: {len(self.input_types)}"
             )
         return SnowflakeUDF(
             self.name,

@@ -26,10 +26,10 @@ from test.utils import TestData, TestFiles, Utils
 from typing import Any, Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark import Row
+from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.functions import call_udf, col, udf
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.types import (
     ArrayType,
     DateType,
     DoubleType,
@@ -37,6 +37,8 @@ from snowflake.snowpark.types.sf_types import (
     StringType,
     VariantType,
 )
+
+pytestmark = pytest.mark.udf
 
 tmp_stage_name = Utils.random_stage_name()
 
@@ -266,8 +268,8 @@ def test_add_imports_local_file(session, resources_path):
 
         df = session.range(-5, 5).toDF("a")
 
-        session.addImports(
-            test_files.test_udf_py_file, import_as="test_udf_dir.test_udf_file"
+        session.addImport(
+            test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
         )
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
@@ -278,7 +280,7 @@ def test_add_imports_local_file(session, resources_path):
 
         # if import_as argument changes, the checksum of the file will also change
         # and we will overwrite the file in the stage
-        session.addImports(test_files.test_udf_py_file)
+        session.addImport(test_files.test_udf_py_file)
         plus4_then_mod5_direct_import_udf = udf(
             plus4_then_mod5_direct_import,
             return_type=IntegerType(),
@@ -310,8 +312,8 @@ def test_add_imports_local_directory(session, resources_path):
 
         df = session.range(-5, 5).toDF("a")
 
-        session.addImports(
-            test_files.test_udf_directory, import_as="resources.test_udf_dir"
+        session.addImport(
+            test_files.test_udf_directory, import_path="resources.test_udf_dir"
         )
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
@@ -320,7 +322,7 @@ def test_add_imports_local_directory(session, resources_path):
             Row(plus4_then_mod5(i)) for i in range(-5, 5)
         ]
 
-        session.addImports(test_files.test_udf_directory)
+        session.addImport(test_files.test_udf_directory)
         plus4_then_mod5_direct_import_udf = udf(
             plus4_then_mod5_direct_import,
             return_type=IntegerType(),
@@ -349,7 +351,7 @@ def test_add_imports_stage_file(session, resources_path):
         Utils.upload_to_stage(
             session, tmp_stage_name, test_files.test_udf_py_file, compress=False
         )
-        session.addImports(stage_file)
+        session.addImport(stage_file)
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
@@ -369,8 +371,8 @@ def test_add_imports_package(session):
         return x + relativedelta(month=1)
 
     d = datetime.date.today()
-    libs = [os.path.dirname(dateutil.__file__), six.__file__]
-    session.addImports(libs)
+    session.addImport(os.path.dirname(dateutil.__file__))
+    session.addImport(six.__file__)
     df = session.createDataFrame([d]).toDF("a")
     plus_one_month_udf = udf(
         plus_one_month, return_type=DateType(), input_types=[DateType()]
@@ -386,22 +388,22 @@ def test_add_imports_duplicate(session, resources_path, caplog):
     abs_path = test_files.test_udf_directory
     rel_path = os.path.relpath(abs_path)
 
-    session.addImports(abs_path)
-    session.addImports(f"{abs_path}/")
-    session.addImports(rel_path)
+    session.addImport(abs_path)
+    session.addImport(f"{abs_path}/")
+    session.addImport(rel_path)
     assert session.getImports() == [test_files.test_udf_directory]
 
     # skip upload the file because the calculated checksum is same
     session_stage = session.getSessionStage()
     session._resolve_imports(session_stage)
-    session.addImports(abs_path)
+    session.addImport(abs_path)
     session._resolve_imports(session_stage)
     assert (
         f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
         in caplog.text
     )
 
-    session.removeImports(rel_path)
+    session.removeImport(rel_path)
     assert len(session.getImports()) == 0
 
 
@@ -479,7 +481,7 @@ def test_udf_negative(session):
         df1.select(call_udf("f", "x")).collect()
     assert "Unknown function" in str(ex_info)
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         udf(
             f,
             return_type=IntegerType(),
@@ -538,33 +540,18 @@ def test_add_imports_negative(session, resources_path):
     test_files = TestFiles(resources_path)
 
     with pytest.raises(FileNotFoundError) as ex_info:
-        session.addImports("file_not_found.py")
+        session.addImport("file_not_found.py")
     assert "is not found" in str(ex_info)
 
     with pytest.raises(KeyError) as ex_info:
-        session.removeImports("file_not_found.py")
+        session.removeImport("file_not_found.py")
     assert "is not found in the existing imports" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
-        session.addImports(
-            test_files.test_udf_py_file, import_as="test_udf_dir.test_udf_file.py"
+        session.addImport(
+            test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file.py"
         )
-    assert "import_as test_udf_dir.test_udf_file.py is invalid" in str(ex_info)
-
-    with pytest.raises(TypeError) as ex_info:
-        session.addImports(test_files.test_udf_py_file, import_as=1)
-    assert "import_as can only be str or list" in str(ex_info)
-
-    with pytest.raises(ValueError) as ex_info:
-        session.addImports(
-            test_files.test_udf_directory,
-            test_files.test_udf_py_file,
-            import_as="test_udf.test_udf_file",
-        )
-    assert (
-        "The length of paths (2) should be same with the length of import_as (1)"
-        in str(ex_info)
-    )
+    assert "import_path test_udf_dir.test_udf_file.py is invalid" in str(ex_info)
 
     def plus4_then_mod5(x):
         from test.resources.test_udf_dir.test_udf_file import mod5
@@ -572,13 +559,13 @@ def test_add_imports_negative(session, resources_path):
         return mod5(x + 4)
 
     df = session.range(-5, 5).toDF("a")
-    for import_as in [
+    for import_path in [
         None,
         "resources.test_udf_dir.test_udf_file",
         "test_udf_dir.test_udf_file",
         "test_udf_file",
     ]:
-        session.addImports(test_files.test_udf_py_file, import_as=import_as)
+        session.addImport(test_files.test_udf_py_file, import_path)
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )

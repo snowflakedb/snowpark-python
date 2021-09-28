@@ -8,10 +8,13 @@ from test.utils import TestFiles, Utils
 import pytest
 
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark import Row
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkPlanException,
+)
 from snowflake.snowpark.functions import col, sql_expr
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
     StringType,
@@ -133,7 +136,7 @@ def test_read_csv(session, mode):
     assert len(res[0]) == 3
     assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
-    with pytest.raises(SnowparkClientException):
+    with pytest.raises(SnowparkDataframeReaderException):
         session.read.csv(test_file_on_stage)
 
     # if users give an incorrect schema with type error
@@ -588,26 +591,35 @@ def test_copy(session):
 def test_copy_option_force(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         session.read.schema(user_schema).option("force", "false").csv(
             test_file_on_stage
         ).collect()
 
-    assert "Copy option 'FORCE = false' is not supported." in str(ex_info)
+    assert (
+        "The COPY option 'FORCE = false' is not supported by the Snowpark library"
+        in ex_info.value.message
+    )
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         session.read.schema(user_schema).option("FORCE", "FALSE").csv(
             test_file_on_stage
         ).collect()
 
-    assert "Copy option 'FORCE = FALSE' is not supported." in str(ex_info)
+    assert (
+        "The COPY option 'FORCE = FALSE' is not supported by the Snowpark library"
+        in ex_info.value.message
+    )
 
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkPlanException) as ex_info:
         session.read.schema(user_schema).option("fORce", "faLsE").csv(
             test_file_on_stage
         ).collect()
 
-        assert "Copy option 'FORCE = faLsE' is not supported." in str(ex_info)
+    assert (
+        "The COPY option 'FORCE = faLsE' is not supported by the Snowpark library"
+        in ex_info.value.message
+    )
 
     # no error
     session.read.schema(user_schema).option("fORce", "true").csv(

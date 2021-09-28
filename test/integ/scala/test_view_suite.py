@@ -4,16 +4,15 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 from decimal import Decimal
-
-from snowflake.snowpark.functions import col, sql_expr, sum
-from snowflake.snowpark.types.sf_types import LongType
 from test.utils import TestData, Utils
 
 import pytest
 
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark import Row
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark.exceptions import SnowparkCreateViewException
+from snowflake.snowpark.functions import col, sql_expr, sum
+from snowflake.snowpark.types import LongType
 
 
 def test_create_view(session):
@@ -54,7 +53,7 @@ def test_view_name_with_special_character(session):
 
 def test_only_works_on_select(session):
     view_name = Utils.random_name()
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkCreateViewException) as ex_info:
         session.sql("show tables").createOrReplaceView(view_name)
 
 
@@ -147,7 +146,7 @@ def test_create_temp_view_on_functions(session):
         assert schema.fields[0].datatype == LongType()
         assert schema.fields[0].name == "ID"
         assert schema.fields[1].datatype == LongType()
-        assert schema.fields[1].name == "\"MAX(VAL)\""
+        assert schema.fields[1].name == '"MAX(VAL)"'
 
         a2 = t.groupBy(col("id")).agg(sum(col("val")))
         a2.createOrReplaceTempView(view_name)
@@ -156,7 +155,7 @@ def test_create_temp_view_on_functions(session):
         assert schema1.fields[0].datatype == LongType()
         assert schema1.fields[0].name == "ID"
         assert schema1.fields[1].datatype == LongType()
-        assert schema1.fields[1].name == "\"SUM(VAL)\""
+        assert schema1.fields[1].name == '"SUM(VAL)"'
 
         a3 = t.groupBy(col("id")).agg(sum(col("val")) + 1)
         a3.createOrReplaceTempView(view_name)
@@ -165,7 +164,7 @@ def test_create_temp_view_on_functions(session):
         assert schema2.fields[0].datatype == LongType()
         assert schema2.fields[0].name == "ID"
         assert schema2.fields[1].datatype == LongType()
-        assert schema2.fields[1].name == "\"ADD(SUM(VAL), LITERAL())\""
+        assert schema2.fields[1].name == '"ADD(SUM(VAL), LITERAL())"'
 
     finally:
         Utils.drop_table(session, table_name)

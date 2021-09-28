@@ -8,19 +8,7 @@ import math
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
-from snowflake.snowpark.types.sf_types import (
-    ArrayType,
-    BinaryType,
-    BooleanType,
-    DateType,
-    MapType,
-    NumericType,
-    StringType,
-    TimestampType,
-    TimeType,
-    VariantType,
-)
-from snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
     BooleanType as SPBooleanType,
@@ -41,7 +29,19 @@ from snowflake.snowpark.types.sp_data_types import (
     TimestampType as SPTimestampType,
     TimeType as SPTimeType,
 )
-from snowflake.snowpark.types.types_package import convert_to_sf_type
+from snowflake.snowpark._internal.sp_types.types_package import convert_to_sf_type
+from snowflake.snowpark.types import (
+    ArrayType,
+    BinaryType,
+    BooleanType,
+    DateType,
+    MapType,
+    NumericType,
+    StringType,
+    TimestampType,
+    TimeType,
+    VariantType,
+)
 
 
 class DataTypeMapper:

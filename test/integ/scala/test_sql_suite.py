@@ -8,9 +8,9 @@ from test.utils import Utils, TestFiles
 import pytest
 
 from snowflake.connector import ProgrammingError
+from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import LongType, StructField, StructType
+from snowflake.snowpark.types import LongType, StructField, StructType
 
 
 def test_non_select_queries(session):

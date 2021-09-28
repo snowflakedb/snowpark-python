@@ -12,14 +12,18 @@ import os
 import platform
 import random
 import re
+import traceback
 import zipfile
 from enum import Enum
 from json import JSONEncoder
 from typing import IO, List, Optional, Tuple, Type
 
 from snowflake.connector.version import VERSION as connector_version
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.version import VERSION as snowpark_version
+
+# Scala uses 3 but this can be larger. Consider allowing users to configure it.
+_QUERY_TAG_TRACEBACK_LIMIT = 3
 
 
 class Utils:
@@ -37,7 +41,7 @@ class Utils:
             f"^(({id_pattern}\\.){{0,2}}|({id_pattern}\\.\\.)){id_pattern}$$"
         )
         if not pattern.match(name):
-            raise SnowparkClientException(f"The object name '{name}' is invalid.")
+            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
     @staticmethod
     def get_version() -> str:
@@ -225,6 +229,11 @@ class Utils:
             raise ValueError(
                 f"{except_str} must be one of {', '.join([e.value for e in enum_class])}"
             )
+
+    @staticmethod
+    def create_statement_query_tag(skip_levels=0) -> str:
+        stack = traceback.format_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT + skip_levels)
+        return "".join(stack[:-skip_levels] if skip_levels else stack)
 
 
 class PythonObjJSONEncoder(JSONEncoder):

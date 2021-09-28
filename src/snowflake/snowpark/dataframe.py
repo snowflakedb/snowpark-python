@@ -3,25 +3,35 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-import enum
 import re
 import string
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.dataframe_writer import DataFrameWriter
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
-from snowflake.snowpark.internal.analyzer.sp_identifiers import TableIdentifier
-from snowflake.snowpark.internal.analyzer.sp_views import (
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
+from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
+from snowflake.snowpark._internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
     LocalTempView as SPLocalTempView,
     PersistedView as SPPersistedView,
     ViewType as SPViewType,
 )
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
+    Except as SPExcept,
+    Intersect as SPIntersect,
+    Join as SPJoin,
+    Sort as SPSort,
+    Union as SPUnion,
+)
+from snowflake.snowpark._internal.plans.logical.hints import JoinHint as SPJoinHint
+from snowflake.snowpark._internal.plans.logical.logical_plan import (
+    Filter as SPFilter,
+    Project as SPProject,
+    Sample as SPSample,
+)
+from snowflake.snowpark._internal.sp_expressions import (
     Ascending as SPAscending,
     Attribute as SPAttribute,
     Descending as SPDescending,
@@ -31,25 +41,8 @@ from snowflake.snowpark.internal.sp_expressions import (
     SortOrder as SPSortOrder,
     Star as SPStar,
 )
-from snowflake.snowpark.internal.utils import Utils
-from snowflake.snowpark.plans.logical.basic_logical_operators import (
-    Except as SPExcept,
-    Intersect as SPIntersect,
-    Join as SPJoin,
-    Sort as SPSort,
-    Union as SPUnion,
-)
-from snowflake.snowpark.plans.logical.hints import JoinHint as SPJoinHint
-from snowflake.snowpark.plans.logical.logical_plan import (
-    Filter as SPFilter,
-    Project as SPProject,
-    Sample as SPSample,
-)
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import StructType
-from snowflake.snowpark.types.sp_data_types import LongType as SPLongType
-from snowflake.snowpark.types.sp_join_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import LongType as SPLongType
+from snowflake.snowpark._internal.sp_types.sp_join_types import (
     Cross as SPCrossJoin,
     JoinType as SPJoinType,
     LeftAnti as SPLeftAnti,
@@ -57,6 +50,11 @@ from snowflake.snowpark.types.sp_join_types import (
     NaturalJoin as SPNaturalJoin,
     UsingJoin as SPUsingJoin,
 )
+from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe_writer import DataFrameWriter
+from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import StructType
 
 
 class DataFrame:
@@ -213,7 +211,15 @@ class DataFrame:
         Returns:
             :class:`DataFrame`
         """
-        return self.session.conn.execute(self.__plan)
+        return self._collect_with_tag()
+
+    def _collect_with_tag(self) -> List["Row"]:
+        return self.session.conn.execute(
+            self.__plan,
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
+            if not self.session.query_tag
+            else None,
+        )
 
     def clone(self) -> "DataFrame":
         """Returns a clone of this :class:`DataFrame`.
@@ -231,6 +237,10 @@ class DataFrame:
         Returns:
             :class:`pandas.DataFrame`
         """
+        if not self.session.query_tag:
+            kwargs["_statement_params"] = {
+                "QUERY_TAG": Utils.create_statement_query_tag(2)
+            }
         return self.session.conn.execute(self.__plan, to_pandas=True, **kwargs)
 
     def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
@@ -578,12 +588,12 @@ class DataFrame:
         """
         # TODO fix dependency cycle
         from snowflake.snowpark.relational_grouped_dataframe import (
-            GroupByType,
             RelationalGroupedDataFrame,
+            _GroupByType,
         )
 
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
-        return RelationalGroupedDataFrame(self, grouping_exprs, GroupByType())
+        return RelationalGroupedDataFrame(self, grouping_exprs, _GroupByType())
 
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
@@ -1001,7 +1011,7 @@ class DataFrame:
         Returns:
             the number of rows.
         """
-        return self.agg(("*", "count")).collect()[0][0]
+        return self.agg(("*", "count"))._collect_with_tag()[0][0]
 
     @property
     def write(self) -> DataFrameWriter:
@@ -1028,17 +1038,25 @@ class DataFrame:
                 If the number of characters exceeds the maximum, the method prints out
                 an ellipsis (...) at the end of the column.
         """
-        print(self.__show_string(n, max_width))
+        print(
+            self.__show_string(
+                n,
+                max_width,
+                _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
+                if not self.session.query_tag
+                else None,
+            )
+        )
 
-    def __show_string(self, n: int = 10, max_width: int = 50) -> str:
+    def __show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self.__plan.queries[-1].sql.strip().lower()
 
         if query.startswith("select"):
             result, meta = self.session.conn.get_result_and_metadata(
-                self.limit(n)._DataFrame__plan
+                self.limit(n)._DataFrame__plan, **kwargs
             )
         else:
-            res, meta = self.session.conn.get_result_and_metadata(self.__plan)
+            res, meta = self.session.conn.get_result_and_metadata(self.__plan, **kwargs)
             result = res[:n]
 
         # The query has been executed
@@ -1126,7 +1144,13 @@ class DataFrame:
                 f"createOrReplaceView takes as input a string or list of strings."
             )
 
-        return self.__do_create_or_replace_view(formatted_name, SPPersistedView())
+        return self.__do_create_or_replace_view(
+            formatted_name,
+            SPPersistedView(),
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
+            if not self.session.query_tag
+            else None,
+        )
 
     def createOrReplaceTempView(self, name: Union[str, List[str]]):
         """Creates a temporary view that returns the same results as this DataFrame.
@@ -1158,9 +1182,17 @@ class DataFrame:
                 f"createOrReplaceTempView() takes as input a string or list of strings."
             )
 
-        return self.__do_create_or_replace_view(formatted_name, SPLocalTempView())
+        return self.__do_create_or_replace_view(
+            formatted_name,
+            SPLocalTempView(),
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
+            if not self.session.query_tag
+            else None,
+        )
 
-    def __do_create_or_replace_view(self, view_name: str, view_type: SPViewType):
+    def __do_create_or_replace_view(
+        self, view_name: str, view_type: SPViewType, **kwargs
+    ):
         Utils.validate_object_name(view_name)
         name = TableIdentifier(view_name)
         cmd = SPCreateViewCommand(
@@ -1175,7 +1207,7 @@ class DataFrame:
             view_type=view_type,
         )
 
-        return self.session.conn.execute(self.session.analyzer.resolve(cmd))
+        return self.session.conn.execute(self.session.analyzer.resolve(cmd), **kwargs)
 
     def first(self, n: Optional[int] = None):
         """Executes the query representing this DataFrame and returns the first ``n``
@@ -1188,14 +1220,14 @@ class DataFrame:
              results, or ``None`` if it does not exist.
         """
         if n is None:
-            result = self.limit(1).collect()
+            result = self.limit(1)._collect_with_tag()
             return result[0] if result else None
         elif not type(n) == int:
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
-            return self.collect()
+            return self._collect_with_tag()
         else:
-            return self.limit(n).collect()
+            return self.limit(n)._collect_with_tag()
 
     def sample(self, frac: Optional[float] = None, n: Optional[int] = None):
         """Samples rows based on either the number of rows to be returned or a

@@ -9,16 +9,14 @@
 import uuid
 from typing import List, Optional, Tuple
 
-from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
-from snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
     DataType,
     DecimalType,
     DoubleType,
     IntegralType,
     LongType,
-    NullType,
 )
-from snowflake.snowpark.types.types_package import _infer_type
+from snowflake.snowpark._internal.sp_types.types_package import _infer_type
 
 
 class Expression:
@@ -33,7 +31,7 @@ class Expression:
         Subclasses will override these attributes
         """
         self.child = child
-        self.nullable = None
+        self.nullable = True
         self.children = [child] if child else None
         self.datatype: DataType = None
 
@@ -43,6 +41,11 @@ class Expression:
         return self.__class__.__name__.upper()
 
     def sql(self) -> str:
+        """TODO: analyzer_object.py's analyze() method doesn't use this method to create sql statement.
+        The only place that uses Expression.sql() to generate sql statement
+        is relational_grouped_dataframe.py's __toDF(). Re-consider whether we need to make the sql generation
+        consistent among all different Expressions.
+        """
         children_sql = (
             ", ".join([x.sql() for x in self.children]) if self.children else ""
         )
@@ -290,6 +293,9 @@ class Attribute(LeafExpression, NamedExpression):
     @classmethod
     def with_name(cls, name):
         return Attribute(name)
+
+    def sql(self) -> str:
+        return self.name
 
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):

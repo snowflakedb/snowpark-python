@@ -16,6 +16,29 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import cloudpickle
 
 from snowflake.connector import SnowflakeConnection
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    SnowflakePlanBuilder,
+    SnowflakeValues,
+)
+from snowflake.snowpark._internal.analyzer_obj import Analyzer
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
+from snowflake.snowpark._internal.plans.logical.logical_plan import UnresolvedRelation
+from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.sp_expressions import (
+    AttributeReference as SPAttributeReference,
+)
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
+    StringType as SPStringType,
+)
+from snowflake.snowpark._internal.sp_types.types_package import (
+    _infer_schema_from_list,
+    _merge_type,
+    snow_type_to_sp_type,
+)
+from snowflake.snowpark._internal.utils import PythonObjJSONEncoder, Utils
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.functions import (
@@ -29,23 +52,8 @@ from snowflake.snowpark.functions import (
     to_timestamp,
     to_variant,
 )
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.internal.analyzer.snowflake_plan import (
-    SnowflakePlanBuilder,
-    SnowflakeValues,
-)
-from snowflake.snowpark.internal.analyzer_obj import Analyzer
-from snowflake.snowpark.internal.server_connection import ServerConnection
-from snowflake.snowpark.internal.sp_expressions import (
-    AttributeReference as SPAttributeReference,
-)
-from snowflake.snowpark.internal.utils import PythonObjJSONEncoder, Utils
-from snowflake.snowpark.plans.logical.basic_logical_operators import Range
-from snowflake.snowpark.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.types import (
     ArrayType,
     AtomicType,
     DateType,
@@ -55,12 +63,6 @@ from snowflake.snowpark.types.sf_types import (
     TimestampType,
     TimeType,
     VariantType,
-)
-from snowflake.snowpark.types.sp_data_types import StringType as SPStringType
-from snowflake.snowpark.types.types_package import (
-    _infer_schema_from_list,
-    _merge_type,
-    snow_type_to_sp_type,
 )
 from snowflake.snowpark.udf import UDFRegistration
 
@@ -146,18 +148,14 @@ class Session(metaclass=_SessionMeta):
     def getPythonConnectorConnection(self) -> SnowflakeConnection:
         return self.conn.connection
 
-    def addImports(
-        self,
-        *paths: Union[str, List[str]],
-        import_as: Optional[Union[str, List[str]]] = None,
-    ):
+    def addImport(self, path: str, import_path: Optional[str] = None) -> None:
         """
-        Registers file(s) in stage or local file(s) as imports of a user-defined function
+        Registers a remote file in stage or a local file as an import of a user-defined function
         (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
         a directory, or any other file resource.
 
         Args:
-            paths: The paths of local files or remote files in the stage. In each case,
+            path (str): The path of a local file or a remote file in the stage. In each case,
 
                 1. if the path points to a local file, this file will be uploaded to the
                 stage where the UDF is registered and Snowflake will import the file when
@@ -169,29 +167,29 @@ class Session(metaclass=_SessionMeta):
 
                 3. if the path points to a file in a stage, the file will be included in the
                 imports when executing a UDF.
-            import_as: The relative Python import paths in a UDF, as a :class:`str` or a list
-                of :class:`str`. If it is not provided or it is None, the UDF will import it
-                directly without any leading package/module. This argument will become a no-op
-                if the path points to a stage file or a non-Python (.py) local file.
+            import_path (str): The relative Python import path in a UDF.
+                If it is not provided or it is None, the UDF will import it directly without
+                any leading package/module. This argument will become a no-op if the path
+                points to a stage file or a non-Python (.py) local file.
 
         Examples::
 
             # import a local file
-            session.addImports(“/tmp/my_dir/my_module.py”)
+            session.addImport(“/tmp/my_dir/my_module.py”)
             @udf
             def f():
                 from my_module import g
                 return g()
 
-            # import a local file with `import_as`
-            session.addImports(“/tmp/my_dir/my_module.py”, import_as="my_dir.my_module")
+            # import a local file with `import_path`
+            session.addImport(“/tmp/my_dir/my_module.py”, import_path="my_dir.my_module")
             @udf
             def f():
                 from my_dir.my_module import g
                 return g()
 
             # import a stage file
-            session.addImports(“@stage/test.py”)
+            session.addImport(“@stage/test.py”)
 
         Note:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
@@ -205,100 +203,81 @@ class Session(metaclass=_SessionMeta):
             function with the file path again, the existing file in the stage will be
             overwritten.
 
-            3. Adding two different files with the same file name is not allowed, because
-            UDFs can't be created with two imports with the same name.
+            3. Adding two files with the same file name is not allowed, because UDFs
+            can't be created with two imports with the same name.
         """
-        # parse arguments to the lists and do some simple sanity checks
-        trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
-        if import_as:
-            if type(import_as) == str:
-                import_as_list = [import_as.strip()]
-            elif type(import_as) in (list, tuple):
-                import_as_list = [i.strip() for i in import_as]
-            else:
-                raise TypeError(
-                    f"import_as can only be str or list, but got {type(import_as)}"
-                )
-            if len(trimmed_paths) != len(import_as_list):
+        trimmed_path = path.strip()
+        trimmed_import_path = import_path.strip() if import_path else None
+
+        if not trimmed_path.startswith(self.__STAGE_PREFIX):
+            if not os.path.exists(trimmed_path):
+                raise FileNotFoundError(f"{trimmed_path} is not found")
+            if not os.path.isfile(trimmed_path) and not os.path.isdir(trimmed_path):
                 raise ValueError(
-                    f"The length of paths ({len(trimmed_paths)}) should be same with "
-                    f"the length of import_as ({len(import_as_list)})."
+                    f"addImport() only accepts a local file or directory, "
+                    f"or a file in a stage, but got {trimmed_path}"
                 )
-        else:
-            import_as_list = [None] * len(trimmed_paths)
+            abs_path = os.path.abspath(trimmed_path)
 
-        for i in range(len(trimmed_paths)):
-            path = trimmed_paths[i]
-            if not path.startswith(self.__STAGE_PREFIX):
-                if not os.path.exists(path):
-                    raise FileNotFoundError(f"{path} is not found")
-                if not os.path.isfile(path) and not os.path.isdir(path):
-                    raise ValueError(
-                        f"addImports() only accepts a local file or directory,"
-                        f" or a file in a stage, but got {path}"
+            # convert the Python import path to the file path
+            # and extract the leading path, where
+            # absolute path = [leading path]/[parsed file path of Python import path]
+            if trimmed_import_path is not None:
+                # the import path only works for the directory and the Python file
+                if os.path.isdir(abs_path):
+                    import_file_path = trimmed_import_path.replace(".", os.path.sep)
+                elif os.path.isfile(abs_path) and abs_path.endswith(".py"):
+                    import_file_path = (
+                        f"{trimmed_import_path.replace('.', os.path.sep)}.py"
                     )
-                abs_path = os.path.abspath(path)
-
-                # convert the Python import path to the file path
-                # and extract the leading path, where
-                # absolute path = [leading path]/[parsed file path of Python import path]
-                if import_as_list[i] is not None:
-                    # the import path only works for the directory and the Python file
-                    if os.path.isdir(abs_path):
-                        import_as_path = import_as_list[i].replace(".", os.path.sep)
-                    elif os.path.isfile(abs_path) and abs_path.endswith(".py"):
-                        import_as_path = (
-                            f"{import_as_list[i].replace('.', os.path.sep)}.py"
+                else:
+                    import_file_path = None
+                if import_file_path:
+                    if abs_path.endswith(import_file_path):
+                        leading_path = abs_path[: -len(import_file_path)]
+                    else:
+                        raise ValueError(
+                            f"import_path {trimmed_import_path} is invalid "
+                            f"because it's not a part of path {abs_path}"
                         )
-                    else:
-                        import_as_path = None
-                    if import_as_path:
-                        if abs_path.endswith(import_as_path):
-                            leading_path = abs_path[: -len(import_as_path)]
-                        else:
-                            raise ValueError(
-                                f"import_as {import_as_list[i]} is invalid "
-                                f"because it's not a part of path {abs_path}"
-                            )
-                    else:
-                        leading_path = None
                 else:
                     leading_path = None
-
-                self.__import_paths[abs_path] = (
-                    # Include the information about import path to the checksum
-                    # calculation, so if the import path changes, the checksum
-                    # will change and the file in the stage will be overwritten.
-                    Utils.calculate_md5(abs_path, additional_info=leading_path),
-                    leading_path,
-                )
             else:
-                self.__import_paths[path] = (None, None)
+                leading_path = None
 
-    def removeImports(self, *paths: Union[str, List[str]]):
+            self.__import_paths[abs_path] = (
+                # Include the information about import path to the checksum
+                # calculation, so if the import path changes, the checksum
+                # will change and the file in the stage will be overwritten.
+                Utils.calculate_md5(abs_path, additional_info=leading_path),
+                leading_path,
+            )
+        else:
+            self.__import_paths[trimmed_path] = (None, None)
+
+    def removeImport(self, path: str):
         """
-        Removes file(s) in stage or local file(s) from imports of a user-defined function (UDF).
+        Removes a file in stage or local file from imports of a user-defined function (UDF).
 
         Args:
-            paths: a list paths pointing to local files or remote files in the stage
+            path (str): a path pointing to a local file or a remote file in the stage
 
         Examples::
 
-            session.removeImports(“/tmp/dir1/test.py”)
-            session.removeImports(“/tmp/dir1”)
-            session.removeImports(“@stage/test.py”)
+            session.removeImport(“/tmp/dir1/test.py”)
+            session.removeImport(“/tmp/dir1”)
+            session.removeImport(“@stage/test.py”)
         """
-        trimmed_paths = [p.strip() for p in Utils.parse_positional_args_to_list(*paths)]
-        for path in trimmed_paths:
-            abs_path = (
-                os.path.abspath(path)
-                if not path.startswith(self.__STAGE_PREFIX)
-                else path
-            )
-            if abs_path not in self.__import_paths:
-                raise KeyError(f"{abs_path} is not found in the existing imports")
-            else:
-                self.__import_paths.pop(abs_path)
+        trimmed_path = path.strip()
+        abs_path = (
+            os.path.abspath(trimmed_path)
+            if not trimmed_path.startswith(self.__STAGE_PREFIX)
+            else trimmed_path
+        )
+        if abs_path not in self.__import_paths:
+            raise KeyError(f"{abs_path} is not found in the existing imports")
+        else:
+            self.__import_paths.pop(abs_path)
 
     def clearImports(self):
         """
@@ -380,12 +359,34 @@ class Session(metaclass=_SessionMeta):
             for row in self.sql(f"ls {normalized}").select('"name"').collect()
         }
 
-    def set_query_tag(self, query_tag):
-        self.__query_tag = query_tag
-
     @property
-    def query_tag(self):
+    def query_tag(self) -> str:
+        """The query tag for this session.
+        You can use the query tag to find all queries run for this session in the sql history of Snowflake web
+        interface.
+
+        If not set, the default query tag is the call stack when a :class:`DataFrame` method that pushes down sql to
+        Snowflake Database is called.
+
+        These methods in :class:`DataFrame` push down sql.
+        :meth:`DataFrame.collect`, :meth:`DataFrame.show`, :meth:`DataFrame.createOrReplaceView`,
+        :meth:`DataFrame.createOrReplaceTempView`, etc.
+        """
         return self.__query_tag
+
+    @query_tag.setter
+    def query_tag(self, tag: str) -> None:
+        """Sets a query tag for this session.
+        If the ``tag`` is None or an empty str, the session's query_tag is unset.
+
+        Use this property to set this session's query tag instead of using sql "alter session set query_tag..." to avoid
+        this session object being in a corrupted state.
+        """
+        if tag:
+            self.conn.run_query(f"alter session set query_tag = '{tag}'")
+        else:
+            self.conn.run_query("alter session unset query_tag")
+        self.__query_tag = tag
 
     def table(self, name) -> DataFrame:
         """Returns a DataFrame representing the contents of the specified table. 'name' can be a
@@ -420,7 +421,7 @@ class Session(metaclass=_SessionMeta):
         """
         Returns the name of the temporary stage created by Snowpark library for uploading and
         store temporary artifacts for this session. These artifacts include libraries and packages
-        for UDFs that you define in this session via [[addImports]] or [[addRequirements]].
+        for UDFs that you define in this session via func:`addImport`.
         """
         qualified_stage_name = (
             f"{self.getFullyQualifiedCurrentSchema()}.{self.__session_stage}"
@@ -459,7 +460,7 @@ class Session(metaclass=_SessionMeta):
             session.createDataFrame([{"a": "snow", "b": "flake"}])
 
             # given a schema
-            from snowflake.snowpark.types.sf_types import IntegerType, StringType()
+            from snowflake.snowpark.types import IntegerType, StringType
             schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
             session.createDataFrame([[1, "snow"], [3, "flake"]], schema)
         """
@@ -559,10 +560,8 @@ class Session(metaclass=_SessionMeta):
                 elif type(data_type) == VariantType:
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
-                    raise SnowparkClientException(
-                        "{} {} can't be converted to {}".format(
-                            type(value), value, str(data_type)
-                        )
+                    raise TypeError(
+                        f"Cannot cast {type(value)}({value}) to {str(data_type)}."
                     )
             converted.append(Row(*converted_row))
 
@@ -638,8 +637,8 @@ class Session(metaclass=_SessionMeta):
         if database is None or schema is None:
             missing_item = "DATABASE" if not database else "SCHEMA"
             # TODO: SNOW-372569 Use ErrorMessage
-            raise SnowparkClientException(
-                "The {} is not set for the current session.".format(missing_item)
+            raise SnowparkClientExceptionMessages.SERVER_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
+                missing_item, missing_item, missing_item
             )
         return database + "." + schema
 

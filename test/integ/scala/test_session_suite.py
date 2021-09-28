@@ -7,9 +7,11 @@ from typing import NamedTuple
 
 import pytest
 
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
+from snowflake.snowpark import Row, Session
+from snowflake.snowpark.exceptions import (
+    SnowparkInvalidObjectNameException,
+    SnowparkMissingDbOrSchemaException,
+)
 
 
 def test_createDataFrame_sequence(session_cnx):
@@ -52,14 +54,14 @@ def test_get_schema_database_works_after_use_role(session_cnx):
 
 def test_negative_test_for_missing_required_parameter_schema(db_parameters):
     session = Session.builder.configs(db_parameters)._remove_config("schema").create()
-    with pytest.raises(SnowparkClientException) as ex_info:
+    with pytest.raises(SnowparkMissingDbOrSchemaException) as ex_info:
         session.getFullyQualifiedCurrentSchema()
     assert "The SCHEMA is not set for the current session." in str(ex_info)
 
 
 def test_negative_test_to_invalid_table_name(session_cnx):
     with session_cnx() as session:
-        with pytest.raises(SnowparkClientException) as ex_info:
+        with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
             session.table("negative.test.invalid.table.name")
         assert "The object name 'negative.test.invalid.table.name' is invalid." in str(
             ex_info

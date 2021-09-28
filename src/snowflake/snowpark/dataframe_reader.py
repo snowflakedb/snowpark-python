@@ -4,12 +4,11 @@
 
 from typing import Dict
 
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sf_types import StructType, VariantType
+from snowflake.snowpark.types import StructType, VariantType
 
 
 class DataFrameReader:
@@ -45,7 +44,7 @@ class DataFrameReader:
         Loading the first two columns of a CSV file and skipping the first header line::
 
             # Import the module for StructType.
-            from snowflake.snowpark.types.sf_types import *
+            from snowflake.snowpark.types import *
             file_path = "@mystage1"
             # Define the schema for the data in the CSV file.
             user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
@@ -72,7 +71,7 @@ class DataFrameReader:
     Example 3:
         Loading only the CSV files from a stage location::
 
-            from snowflake.snowpark.types.sf_types import *
+            from snowflake.snowpark.types import *
             # Define the schema for the data in the CSV files.
             user_schema: StructType = StructType(Seq(StructField("a", IntegerType()),StructField("b", StringType())))
             # Create a DataFrame that is configured to load data from the CSV files in the stage.
@@ -111,7 +110,7 @@ class DataFrameReader:
         configuration for the data to be read.
 
         To define the schema for the data that you want to read, use a
-        :class:`sf_types.StructType` object.
+        :class:`types.StructType` object.
 
         Args:
             schema: Schema configuration for the data to be read.
@@ -307,7 +306,7 @@ class DataFrameReader:
             Loading the first two columns of a colon-delimited CSV file in which the
             first line is the header::
 
-              from snowflake.snowpark.types.sf_types import *
+              from snowflake.snowpark.types import *
               # Define the schema for the data in the CSV files.
               user_schema = StructType(Seq(StructField("a", IntegerType()), StructField("b", StringType())))
               # Create a DataFrame that is configured to load data from the CSV file.
@@ -323,7 +322,7 @@ class DataFrameReader:
         Example 4:
             Loading only the CSV files from a stage location::
 
-                from snowflake.snowpark.types.sf_types import *
+                from snowflake.snowpark.types import *
                 # Define the schema for the data in the CSV files.
                 user_schema = StructType(Seq(StructField("a", IntegerType()),StructField("b", StringType())))
                 # Create a DataFrame that is configured to load data from the CSV files in the stage.

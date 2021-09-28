@@ -9,8 +9,7 @@ from test.utils import Utils
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.session import Session
+from snowflake.snowpark import Row, Session
 
 
 @pytest.fixture(scope="function")

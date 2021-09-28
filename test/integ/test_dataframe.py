@@ -4,7 +4,6 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import datetime
-import os
 from array import array
 from collections import namedtuple
 from decimal import Decimal
@@ -14,14 +13,17 @@ from test.utils import TestFiles, Utils
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.functions import col, lit
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark import Column, Row
+from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
-    Star as SPStar, Literal,
+    Literal,
+    Star as SPStar,
 )
-from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
+    DecimalType as SPDecimalType,
+)
+from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -39,7 +41,6 @@ from snowflake.snowpark.types.sf_types import (
     VariantType,
 )
 
-from snowflake.snowpark.types.sp_data_types import DecimalType as SPDecimalType
 
 def test_read_stage_file_show(session, resources_path):
     tmp_stage_name = Utils.random_stage_name()
@@ -910,15 +911,17 @@ def test_create_dataframe_from_none_data(session_cnx):
 
 
 def test_create_dataframe_large_without_batch_insert(session):
-    original_value = session.analyzer._array_bind_threshold
+    from snowflake.snowpark._internal import analyzer_obj
+
+    original_value = analyzer_obj.ARRAY_BIND_THRESHOLD
     try:
-        session.analyzer._array_bind_threshold = 40000
+        analyzer_obj.ARRAY_BIND_THRESHOLD = 40000
         with pytest.raises(ProgrammingError) as ex_info:
             session.createDataFrame([1] * 20000).collect()
         assert "SQL compilation error" in str(ex_info)
         assert "maximum number of expressions in a list exceeded" in str(ex_info)
     finally:
-        session.analyzer._array_bind_threshold = original_value
+        analyzer_obj.ARRAY_BIND_THRESHOLD = original_value
 
 
 def test_create_dataframe_with_invalid_data(session_cnx):
@@ -977,8 +980,8 @@ def test_special_decimal_literals(session):
 
     show_str = df._DataFrame__show_string(10)
     assert (
-            show_str
-            == """-----------------------------------------------------------
+        show_str
+        == """-----------------------------------------------------------
 |"0.1 ::  NUMBER (38, 18)"  |"0.00001 ::  NUMBER (5, 5)"  |
 -----------------------------------------------------------
 |0.100000000000000000       |0.00001                      |
@@ -986,3 +989,21 @@ def test_special_decimal_literals(session):
 -----------------------------------------------------------
 """
     )
+
+
+def test_attribute_reference_to_sql(session):
+    from snowflake.snowpark.functions import sum as sum_
+
+    df = session.createDataFrame([(3, 1), (None, 2), (1, None), (4, 5)]).toDF("a", "b")
+    agg_results = (
+        df.agg(
+            [
+                sum_(df["a"].is_null().cast(IntegerType())),
+                sum_(df["b"].is_null().cast(IntegerType())),
+            ]
+        )
+        .toDF("a", "b")
+        .collect()
+    )
+
+    Utils.check_answer([Row(1, 1)], agg_results)

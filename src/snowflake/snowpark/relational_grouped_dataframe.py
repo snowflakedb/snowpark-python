@@ -6,12 +6,13 @@
 import re
 from typing import List, Tuple, Union
 
-import snowflake.snowpark.functions as functions
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.sp_expressions import (
-    AggregateExpression as SPAggregateExpression,
+from snowflake.snowpark import functions
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
+    Aggregate as SPAggregate,
+    Pivot as SPPivot,
+)
+from snowflake.snowpark._internal.sp_expressions import (
     Alias as SPAlias,
     Count as SPCount,
     Cube as SPCube,
@@ -21,38 +22,34 @@ from snowflake.snowpark.internal.sp_expressions import (
     NamedExpression as SPNamedExpression,
     Rollup as SPRollup,
     Star as SPStar,
-    TypedAggregateExpression as SPTypedAggregateExpression,
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark.plans.logical.basic_logical_operators import (
-    Aggregate as SPAggregate,
-    Pivot as SPPivot,
-)
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sp_data_types import IntegerType as SPInteger
+from snowflake.snowpark._internal.sp_types.sp_data_types import IntegerType as SPInteger
+from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe import DataFrame
 
 
-class GroupType:
+class _GroupType:
     def to_string(self):
         # TODO revisit
-        return self.__class__.__name__[:-4]
+        return self.__class__.__name__[1:-4]
 
 
-class GroupByType(GroupType):
+class _GroupByType(_GroupType):
     pass
 
 
-class CubeType(GroupType):
+class _CubeType(_GroupType):
     pass
 
 
-class RollupType(GroupType):
+class _RollupType(_GroupType):
     pass
 
 
-class PivotType(GroupType):
+class _PivotType(_GroupType):
     def __init__(self, pivot_col: SPExpression, values: List[SPExpression]):
         self.pivot_col = pivot_col
         self.values = values
@@ -71,7 +68,7 @@ class RelationalGroupedDataFrame:
     :py:func:`DataFrame.cube()` and :py:func:`DataFrame.rollup()`
     return an instance of type :obj:`RelationalGroupedDataFrame`"""
 
-    def __init__(self, df, grouping_exprs: List[SPExpression], group_type: GroupType):
+    def __init__(self, df, grouping_exprs: List[SPExpression], group_type: _GroupType):
         self.df = df
         self.grouping_exprs = grouping_exprs
         self.group_type = group_type
@@ -101,12 +98,12 @@ class RelationalGroupedDataFrame:
         unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
         aliased_agg = [self.__alias(a) for a in unique]
 
-        if type(self.group_type) == GroupByType:
+        if type(self.group_type) == _GroupByType:
             return DataFrame(
                 self.df.session,
                 SPAggregate(self.grouping_exprs, aliased_agg, self.df._DataFrame__plan),
             )
-        if type(self.group_type) == RollupType:
+        if type(self.group_type) == _RollupType:
             return DataFrame(
                 self.df.session,
                 SPAggregate(
@@ -115,14 +112,14 @@ class RelationalGroupedDataFrame:
                     self.df._DataFrame__plan,
                 ),
             )
-        if type(self.group_type) == CubeType:
+        if type(self.group_type) == _CubeType:
             return DataFrame(
                 self.df.session,
                 SPAggregate(
                     [SPCube(self.grouping_exprs)], aliased_agg, self.df._DataFrame__plan
                 ),
             )
-        if type(self.group_type) == PivotType:
+        if type(self.group_type) == _PivotType:
             if len(agg_exprs) != 1:
                 raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             return DataFrame(
@@ -206,7 +203,7 @@ class RelationalGroupedDataFrame:
                 [self.__str_to_expr(expr)(col.expression) for col, expr in exprs]
             )
         else:
-            raise SnowparkClientException("Invalid input types for agg()")
+            raise TypeError("Invalid input types for agg()")
 
     def avg(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the average for the specified numeric columns."""

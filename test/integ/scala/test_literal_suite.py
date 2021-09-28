@@ -5,10 +5,7 @@
 import datetime
 from decimal import Decimal
 
-from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import lit
-from snowflake.snowpark.internal.sp_expressions import Literal
-from snowflake.snowpark.types.sp_data_types import DecimalType
 
 
 def test_literal_basic_types(session):

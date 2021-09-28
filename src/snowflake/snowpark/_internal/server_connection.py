@@ -14,16 +14,16 @@ from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.sf_attribute import Attribute
-from snowflake.snowpark.internal.analyzer.snowflake_plan import (
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     SnowflakePlan,
 )
-from snowflake.snowpark.internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.internal.utils import Utils
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types.sf_types import (
+from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
@@ -54,7 +54,9 @@ class ServerConnection:
                 try:
                     return func(*args, **kwargs)
                 except ReauthenticationRequest as ex:
-                    raise SnowparkClientExceptionMessages.MISC_SESSION_EXPIRED(ex.cause)
+                    raise SnowparkClientExceptionMessages.SERVER_SESSION_EXPIRED(
+                        ex.cause
+                    )
                 except Exception as ex:
                     # TODO: SNOW-363951 handle telemetry
                     raise ex
@@ -343,7 +345,7 @@ class ServerConnection:
             placeholders = {}
             for query in plan.queries:
                 if isinstance(query, BatchInsertQuery):
-                    self.run_batch_insert(query.sql, query.rows)
+                    self.run_batch_insert(query.sql, query.rows, **kwargs)
                 else:
                     final_query = query.sql
                     for holder, id_ in placeholders.items():
@@ -352,29 +354,39 @@ class ServerConnection:
                     placeholders[query.query_id_place_holder] = result["sfqid"]
                     result_meta = self._cursor.description
                 if action_id < plan.session.get_last_canceled_id():
-                    raise SnowparkClientExceptionMessages.MISC_QUERY_IS_CANCELLED()
+                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
             for action in plan.post_actions:
-                self.run_query(action)
+                self.run_query(action, **kwargs)
 
         if result is None:
-            raise SnowparkClientExceptionMessages.PLAN_LAST_QUERY_RETURN_RESULTSET()
+            raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
 
         return result["data"], result_meta
 
     def get_result_and_metadata(
-        self, plan: SnowflakePlan
+        self, plan: SnowflakePlan, **kwargs
     ) -> (List[Row], List[Attribute]):
-        result_set, result_meta = self.get_result_set(plan)
+        result_set, result_meta = self.get_result_set(plan, **kwargs)
         result = self.result_set_to_rows(result_set)
         meta = ServerConnection.convert_result_meta_to_attribute(result_meta)
         return result, meta
 
     @_Decorator.wrap_exception
-    def run_batch_insert(self, query: str, rows: List[Row]) -> None:
+    def run_batch_insert(self, query: str, rows: List[Row], **kwargs) -> None:
         # with qmark, Python data type will be dynamically mapped to Snowflake data type
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings
         params = [list(row) for row in rows]
+        query_tag = (
+            kwargs["_statement_params"]["QUERY_TAG"]
+            if "_statement_params" in kwargs
+            and "QUERY_TAG" in kwargs["_statement_params"]
+            else None
+        )
+        if query_tag:
+            self._cursor.execute(f"alter session set query_tag='{query_tag}'")
         self._cursor.executemany(query, params)
+        if query_tag:
+            self._cursor.execute("alter session unset query_tag")
         logger.info(f"Execute batch insertion query %s", query)

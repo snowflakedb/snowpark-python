@@ -6,21 +6,37 @@
 from collections import Counter
 from typing import Optional
 
-from snowflake.snowpark.internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark.internal.analyzer.datatype_mapper import DataTypeMapper
-from snowflake.snowpark.internal.analyzer.limit import Limit as SPLimit
-from snowflake.snowpark.internal.analyzer.snowflake_plan import (
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakeCreateTable,
     SnowflakePlan,
     SnowflakePlanBuilder,
     SnowflakeValues,
 )
-from snowflake.snowpark.internal.analyzer.sp_views import (
+from snowflake.snowpark._internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
     LocalTempView as SPLocalTempView,
     PersistedView as SPPersistedView,
 )
-from snowflake.snowpark.internal.sp_expressions import (
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
+    Aggregate as SPAggregate,
+    Except as SPExcept,
+    Intersect as SPIntersect,
+    Join as SPJoin,
+    Range as SPRange,
+    Sort as SPSort,
+    Union as SPUnion,
+)
+from snowflake.snowpark._internal.plans.logical.logical_plan import (
+    Filter as SPFilter,
+    Project as SPProject,
+    Sample as SPSample,
+    UnresolvedRelation as SPUnresolvedRelation,
+)
+from snowflake.snowpark._internal.sp_expressions import (
     AggregateExpression as SPAggregateExpression,
     AggregateFunction as SPAggregateFunction,
     Alias as SPAlias,
@@ -50,28 +66,14 @@ from snowflake.snowpark.internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark.plans.logical.basic_logical_operators import (
-    Aggregate as SPAggregate,
-    Except as SPExcept,
-    Intersect as SPIntersect,
-    Join as SPJoin,
-    Range as SPRange,
-    Sort as SPSort,
-    Union as SPUnion,
-)
-from snowflake.snowpark.plans.logical.logical_plan import (
-    Filter as SPFilter,
-    Project as SPProject,
-    Sample as SPSample,
-    UnresolvedRelation as SPUnresolvedRelation,
-)
-from snowflake.snowpark.snowpark_client_exception import SnowparkClientException
-from snowflake.snowpark.types.sp_data_types import (
+from snowflake.snowpark._internal.sp_types.sp_data_types import (
     ByteType as SPByteType,
     IntegerType as SPIntegerType,
     LongType as SPLongType,
     ShortType as SPShortType,
 )
+
+ARRAY_BIND_THRESHOLD = 512
 
 
 class Analyzer:
@@ -83,8 +85,6 @@ class Analyzer:
         self.generated_alias_maps = {}
         self.subquery_plans = {}
         self.alias_maps_to_use = None
-
-        self._array_bind_threshold = 512
 
     def analyze(self, expr) -> str:
         if type(expr) == SPLike:
@@ -132,8 +132,8 @@ class Analyzer:
             if len(expr.name_parts) == 1:
                 return expr.name_parts[0]
             else:
-                raise SnowparkClientException(
-                    f"Invalid name {'.'.join(expr.name_parts)}"
+                raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(
+                    ".".join(expr.name_parts)
                 )
         if type(expr) is SPUnresolvedFunction:
             # TODO expr.name should return FunctionIdentifier, and we should pass expr.name.funcName
@@ -168,7 +168,7 @@ class Analyzer:
         if isinstance(expr, SPBinaryExpression):
             return self.binary_operator_extractor(expr)
 
-        raise SnowparkClientException(f"Invalid type, analyze. {str(expr)}")
+        raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))
 
     # TODO
     def table_function_expression_extractor(self, expr):
@@ -388,7 +388,7 @@ class Analyzer:
             if logical_plan.data:
                 if (
                     len(logical_plan.output) * len(logical_plan.data)
-                    < self._array_bind_threshold
+                    < ARRAY_BIND_THRESHOLD
                 ):
                     return self.plan_builder.query(
                         self.package.values_statement(
@@ -440,8 +440,8 @@ class Analyzer:
             elif type(logical_plan.view_type) == SPLocalTempView:
                 is_temp = True
             else:
-                raise SnowparkClientException(
-                    f"Internal Error: Only PersistedView and LocalTempView are supported. View type: {type(logical_plan.view_type)}"
+                raise SnowparkClientExceptionMessages.PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
+                    type(logical_plan.view_type)
                 )
 
             return self.plan_builder.create_or_replace_view(
