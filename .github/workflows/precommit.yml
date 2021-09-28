@@ -62,7 +62,7 @@ jobs:
         run: ls -lh dist
       - uses: actions/upload-artifact@v1
         with:
-          name: any
+          name: wheel
           path: dist/
 
   test:
@@ -99,7 +99,7 @@ jobs:
       - name: Download wheel(s)
         uses: actions/download-artifact@v2
         with:
-          name: any
+          name: wheel
           path: dist
       - name: Show wheels downloaded
         run: ls -lh dist
@@ -174,3 +174,32 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           file: .tox/coverage.xml
+
+  doc:
+    needs: lint
+    name: Build Doc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+      - name: Upgrade setuptools and pip
+        run: python -m pip install -U setuptools pip
+      - name: Install Snowpark
+        run: python -m pip install ".[development, pandas]"
+      - name: Install Sphinx
+        run: python -m pip install sphinx
+      - name: Build document
+        working-directory: docs
+        # treat warning as failure but complete the entire process
+        run: |
+          make clean
+          make html SPHINXOPTS="-W --keep-going"
+      - name: Upload html files
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs
+          path: docs/build/html
