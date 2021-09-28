@@ -61,7 +61,6 @@ from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.types import DataType
 
 
-
 def col(col_name: str) -> Column:
     """Returns the :class:`Column` with the specified name."""
     return Column(col_name)
@@ -221,18 +220,6 @@ def var_pop(e: Union[Column, str]) -> Column:
     return builtin("var_pop")(c)
 
 
-def rank() -> Column:
-    """Returns the rank of a value within an ordered group of values. The rank value
-    starts at 1 and continues up."""
-    return builtin("rank")()
-
-
-def row_number() -> Column:
-    """Returns a unique row number for each row within a window partition. The row
-    number starts at 1 and continues up sequentially."""
-    return builtin("row_number")()
-
-
 def coalesce(*e: Union[Column, str]) -> Column:
     """Returns the first non-NULL expression among its arguments, or NULL if all its
     arguments are NULL."""
@@ -268,74 +255,6 @@ def random(seed: Optional[int] = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
     s = seed if seed is not None else randint(-(2 ** 63), 2 ** 63 - 1)
     return builtin("random")(SPLiteral(s, SPLongType()))
-
-
-def split(str: Union[Column, str], pattern: Union[Column, str],) -> Column:
-    """Splits a given string with a given separator and returns the result in an array
-    of strings."""
-    s = __to_col_if_str(str, "split")
-    p = __to_col_if_str(pattern, "split")
-    return builtin("split")(s, p)
-
-
-def substring(str: Union[Column, str], pos: Union[Column, int],
-              len: Union[Column, int]) -> Column:
-    """Returns the portion of the string or binary value str, starting from the
-    character/byte specified by pos, with limited length."""
-    s = __to_col_if_str(str, "substring")
-    p = pos if type(pos) == Column else lit(pos)
-    l = len if type(len) == Column else lit(len)
-    return builtin("substring")(s, p, l)
-
-
-def translate(src: Union[Column, str], matching_string: Union[Column, str], replace_string: Union[Column, str]) -> Column:
-    """Translates src from the characters in matchingString to the characters in
-    replaceString."""
-    source = __to_col_if_str(src, "substring")
-    match = __to_col_if_str(matching_string, "substring")
-    replace = __to_col_if_str(replace_string, "substring")
-    return builtin("substring")(source, match, replace)
-
-
-def trim(e: Union[Column, str], trim_string: Union[Column, str]) -> Column:
-    """Removes leading and trailing characters from a string."""
-    c = __to_col_if_str(e, "trim")
-    t = __to_col_if_str(trim_string, "trim")
-    return builtin("trim")(c, t)
-
-
-def upper(e: Union[Column, str]) -> Column:
-    """Returns the input string with all characters converted to uppercase."""
-    c = __to_col_if_str(e, "upper")
-    return builtin("upper")(c)
-
-
-def contains(col: Union[Column, str], str: Union[Column, str]) -> Column:
-    """Returns true if col contains str."""
-    c = __to_col_if_str(col, "upper")
-    s = __to_col_if_str(str, "upper")
-    return builtin("contains")(c, s)
-
-
-def startswith(col: Union[Column, str], str: Union[Column, str]) -> Column:
-    """Returns true if col starts with str."""
-    c = __to_col_if_str(col, "startswith")
-    s = __to_col_if_str(str, "startswith")
-    return builtin("startswith")(c, s)
-
-
-def char(col: Union[Column, str]) -> Column:
-    """Converts a Unicode code point (including 7-bit ASCII) into the character that
-    matches the input Unicode."""
-    c = __to_col_if_str(col, "char")
-    return builtin("char")(c)
-
-
-def parse_json(e: Union[Column, str]) -> Column:
-    """Parse the value of the specified column as a JSON string and returns the
-    resulting JSON document."""
-    c = __to_col_if_str(e, "parse_json")
-    return builtin("parse_json")(c)
 
 
 def to_decimal(e: Union[Column, str], precision: int, scale: int) -> Column:
