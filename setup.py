@@ -33,11 +33,10 @@ setup(
     },
     python_requires=">=3.6",
     install_requires=[
-        # same with pyproject.toml
         "setuptools>=40.6.0",
         "wheel",
         "cloudpickle>=1.6.0",
-        "snowflake-connector-python>=2.5.0",
+        "snowflake-connector-python>=2.6.2",
     ],
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here
@@ -56,7 +55,7 @@ setup(
         "snowflake.snowpark": ["*.pem", "*.json", "*.rst", "LICENSE.txt"],
     },
     extras_require={
-        "pandas": "snowflake-connector-python[pandas]>=2.5.0",
+        "pandas": "snowflake-connector-python[pandas]>=2.6.2",
         "development": [
             "pytest",
             "pytest-cov",

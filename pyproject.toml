@@ -4,7 +4,4 @@ requires = [
     # and may be stricter than the version required in `setup.py`
     "setuptools>=40.6.0",
     "wheel",
-    # Must be kept in sync with the `setup_requirements` in `setup.py`
-    'cloudpickle>=1.6.0',
-    'snowflake-connector-python[pandas]>=2.5.0',
 ]
