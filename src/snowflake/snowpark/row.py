@@ -3,10 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
-
-from decimal import Decimal
-from functools import total_ordering
-from typing import Any, AnyStr, Dict, Iterable, List, Union
+from typing import Any, Dict, Iterable, Union
 
 
 def _restore_row_from_pickle(values, named_values, fields):
@@ -67,26 +64,35 @@ class Row(tuple):
             row.__dict__["_named_values"] = None
 
         # __fields__ is for internal use only. Users shouldn't set this attribute.
-        # It's None unless the internal code sets it to a list of str values with duplicates.
+        # It contains a list of str represents column names. It also allows duplicates.
         # snowflake DB can return duplicate column names, for instance, "select a, a from a_table."
         # When return a DataFrame from a sql, duplicate column names can happen.
         # But using duplicate column names is obviously a bad practice even though we allow it.
-        # It's value is assigned in __setattr__ if internal code assign value explcitly.
+        # It's value is assigned in __setattr__ if internal code assign value explicitly.
         row.__dict__["__fields__"] = None
         return row
 
-    def __getitem__(self, item: Union[int, str]):
+    def __getitem__(self, item: Union[int, str, slice]):
         if isinstance(item, int):
             return super().__getitem__(item)
         elif isinstance(item, slice):
             return Row(*super().__getitem__(item))
-        elif self.__fields__:
-            try:
-                index = self.__fields__.index(item)
-                return super(Row, self).__getitem__(index)
-            except (IndexError, ValueError):
-                raise KeyError(item)
         else:
+            if self.__fields__:
+                if len(set(self.__fields__)) != len(
+                    self.__fields__
+                ):  # duplicate fields found
+                    try:
+                        index = self.__fields__.index(item)  # may throw ValueError
+                        return super(Row, self).__getitem__(
+                            index
+                        )  # may throw IndexError
+                    except (IndexError, ValueError):
+                        raise KeyError(item)
+                else:
+                    self.__dict__["_named_values"] = {
+                        k: v for k, v in zip(self.__fields__, self)
+                    }
             try:
                 return self._named_values[item]
             except TypeError:  # _named_values is None
@@ -96,12 +102,20 @@ class Row(tuple):
         raise TypeError("Row object does not support item assignment")
 
     def __getattr__(self, item):
-        if self.__fields__:  # So there are duplicates. Usually this doesn't happen.
-            try:
-                index = self.__fields__.index(item)  # may throw ValueError
-                return self[index]  # may throw IndexError
-            except (IndexError, ValueError):
-                raise AttributeError(f"Row object has no attribute {item}")
+        if self.__fields__:
+            # So there are duplicates. Usually this doesn't happen.
+            if len(set(self.__fields__)) != len(
+                self.__fields__
+            ):  # duplicate fields found
+                try:
+                    index = self.__fields__.index(item)  # may throw ValueError
+                    return self[index]  # may throw IndexError
+                except (IndexError, ValueError):
+                    raise AttributeError(f"Row object has no attribute {item}")
+            else:
+                self.__dict__["_named_values"] = {
+                    k: v for k, v in zip(self.__fields__, self)
+                }
         try:
             return self._named_values[item]
         except (KeyError, TypeError):
@@ -111,12 +125,10 @@ class Row(tuple):
         if key != "__fields__":
             raise AttributeError("Can't set attribute to Row object")
         if value is not None:
-            if len(set(value)) != len(value):  # duplicate fields found
-                self.__dict__["__fields__"] = value
-            else:  # no duplidate fields, keep __field__ None
-                self.__dict__["_named_values"] = {k: v for k, v in zip(value, self)}
+            self.__dict__["__fields__"] = value
 
     def __contains__(self, item):
+        self._populate_named_values_from_fields()
         return self._named_values and item in self._named_values
 
     def __call__(self, *args, **kwargs):
@@ -127,6 +139,7 @@ class Row(tuple):
             )
         elif args and len(args) != len(self):
             raise ValueError(f"{len(self)} values are expected.")
+        self._populate_named_values_from_fields()
         if self._named_values:
             if args:
                 raise ValueError(
@@ -156,11 +169,10 @@ class Row(tuple):
             return Row(**{k: v for k, v in zip(self, args)})
 
     def __copy__(self):
-        if self._named_values:
-            return Row(**self._named_values)
-        return Row(*self)
+        return _restore_row_from_pickle(self, self._named_values, self.__fields__)
 
     def __repr__(self):
+        self._populate_named_values_from_fields()
         if self._named_values:
             return "Row({})".format(
                 ", ".join("{}={!r}".format(k, v) for k, v in self._named_values.items())
@@ -186,6 +198,7 @@ class Row(tuple):
         >>> row.asDict(True)
         {'name1': 1, 'name2': 2, 'name3': {'childname': 3}}
         """
+        self._populate_named_values_from_fields()
         if not self._named_values:
             raise TypeError("Cannot convert a Row without key values to a dict.")
         if not recursive:
@@ -204,3 +217,9 @@ class Row(tuple):
             return [self._convert_dict(x) for x in obj]
 
         return obj
+
+    def _populate_named_values_from_fields(self):
+        if not self._named_values and self.__fields__:
+            self.__dict__["_named_values"] = {
+                k: v for k, v in zip(self.__fields__, self)
+            }
