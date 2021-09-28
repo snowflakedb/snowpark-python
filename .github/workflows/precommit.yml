@@ -62,7 +62,7 @@ jobs:
         run: ls -lh dist
       - uses: actions/upload-artifact@v1
         with:
-          name: any
+          name: wheel
           path: dist/
 
   test:
@@ -99,7 +99,7 @@ jobs:
       - name: Download wheel(s)
         uses: actions/download-artifact@v2
         with:
-          name: any
+          name: wheel
           path: dist
       - name: Show wheels downloaded
         run: ls -lh dist
@@ -201,5 +201,5 @@ jobs:
       - name: Upload html files
         uses: actions/upload-artifact@v2
         with:
-          name: generated_html
+          name: docs
           path: docs/build/html
