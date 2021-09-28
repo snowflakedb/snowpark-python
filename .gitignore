@@ -68,9 +68,6 @@ instance/
 # Scrapy stuff:
 .scrapy
 
-# Sphinx documentation
-docs/_build/
-
 # PyBuilder
 target/
 
@@ -139,5 +136,7 @@ whitesource/
 # Ignore macOS folder attributes files
 **/.DS_Store
 
+# Sphinx documentation
+docs/_build/
 # Ignore generated autosummary files created by Sphinx docs when you run make html in the docs directory.
-/docs/source/_autosummary/
+docs/source/_autosummary/
