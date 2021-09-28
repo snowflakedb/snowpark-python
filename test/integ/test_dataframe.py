@@ -989,3 +989,21 @@ def test_special_decimal_literals(session):
 -----------------------------------------------------------
 """
     )
+
+
+def test_attribute_reference_to_sql(session):
+    from snowflake.snowpark.functions import sum as sum_
+
+    df = session.createDataFrame([(3, 1), (None, 2), (1, None), (4, 5)]).toDF("a", "b")
+    agg_results = (
+        df.agg(
+            [
+                sum_(df["a"].is_null().cast(IntegerType())),
+                sum_(df["b"].is_null().cast(IntegerType())),
+            ]
+        )
+        .toDF("a", "b")
+        .collect()
+    )
+
+    Utils.check_answer([Row(1, 1)], agg_results)
