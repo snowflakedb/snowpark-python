@@ -2,8 +2,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import os
-
-from test.utils import Utils, TestFiles
+from test.utils import TestFiles, Utils
 
 import pytest
 
@@ -39,7 +38,9 @@ def test_non_select_queries(session):
         Utils.drop_table(session, table_name1)
 
 
-def test_put_get_should_not_be_performed_when_preparing(session, resources_path, tmpdir):
+def test_put_get_should_not_be_performed_when_preparing(
+    session, resources_path, tmpdir
+):
     test_files = TestFiles(resources_path)
     path = test_files.test_file_csv
     file_name = "testCSV.csv"
@@ -59,7 +60,7 @@ def test_put_get_should_not_be_performed_when_preparing(session, resources_path,
 
         put.collect()
 
-        #unescaped_path = os.path.join(tmpdir.strpath, Utils.random_name())
+        # unescaped_path = os.path.join(tmpdir.strpath, Utils.random_name())
         output_path = Utils.escape_path(tmpdir.strpath)
 
         # add spaces to the query
@@ -83,9 +84,7 @@ def test_run_sql_query(session):
     )
     assert str(df2.collect()[0][0]) == "0.800000"
 
-    df3 = session.sql("select * from values (1),(2),(3) as T(id)").filter(
-        col("id") < 3
-    )
+    df3 = session.sql("select * from values (1),(2),(3) as T(id)").filter(col("id") < 3)
     assert df3.collect() == [Row(1), Row(2)]
 
     df4 = session.sql("select * from values (1,1),(2,1),(3,1) as T(a,b)")
