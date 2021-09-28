@@ -33,7 +33,6 @@ setup(
     },
     python_requires=">=3.6",
     install_requires=[
-        # same with pyproject.toml
         "setuptools>=40.6.0",
         "wheel",
         "cloudpickle>=1.6.0",
