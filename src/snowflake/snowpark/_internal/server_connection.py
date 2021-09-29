@@ -100,7 +100,7 @@ class ServerConnection:
         return self._conn
 
     @_Decorator.wrap_exception
-    def get_session_id(self) -> str:
+    def get_session_id(self) -> int:
         return self._conn.session_id
 
     def get_default_database(self) -> Optional[str]:

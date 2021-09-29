@@ -7,79 +7,12 @@
 import os
 from test.utils import TestFiles, Utils
 
-import pytest
-
-from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 
 
 def test_select_1(session):
     res = session.sql("select 1").collect()
     assert res == [Row(1)]
-
-
-def test_invalid_configs(session, db_parameters):
-    with pytest.raises(DatabaseError) as ex_info:
-        new_session = (
-            Session.builder.configs(db_parameters)
-            .config("user", "invalid_user")
-            .config("password", "invalid_pwd")
-            .config("login_timeout", 5)
-            .create()
-        )
-        assert "Incorrect username or password was specified" in str(ex_info)
-        new_session.close()
-    # restore active session
-    Session._set_active_session(session)
-
-
-def test_no_default_database_and_schema(session, db_parameters):
-    new_session = (
-        Session.builder.configs(db_parameters)
-        ._remove_config("database")
-        ._remove_config("schema")
-        .create()
-    )
-    assert not new_session.getDefaultDatabase()
-    assert not new_session.getDefaultSchema()
-    new_session.close()
-    # restore active session
-    Session._set_active_session(session)
-
-
-def test_default_and_current_database_and_schema(session):
-    default_database = session.getDefaultDatabase()
-    default_schema = session.getDefaultSchema()
-
-    assert Utils.equals_ignore_case(default_database, session.getCurrentDatabase())
-    assert Utils.equals_ignore_case(default_schema, session.getCurrentSchema())
-
-    try:
-        schema_name = Utils.random_name()
-        session._run_query("create schema {}".format(schema_name))
-
-        assert Utils.equals_ignore_case(default_database, session.getDefaultDatabase())
-        assert Utils.equals_ignore_case(default_schema, session.getDefaultSchema())
-
-        assert Utils.equals_ignore_case(default_database, session.getCurrentDatabase())
-        assert Utils.equals_ignore_case(
-            AnalyzerPackage.quote_name(schema_name), session.getCurrentSchema()
-        )
-    finally:
-        # restore
-        session._run_query("drop schema if exists {}".format(schema_name))
-        session._run_query("use schema {}".format(default_schema))
-
-
-def test_quote_all_database_and_schema_names(session):
-    def is_quoted(name: str) -> bool:
-        return name[0] == '"' and name[-1] == '"'
-
-    assert is_quoted(session.getDefaultDatabase())
-    assert is_quoted(session.getDefaultSchema())
-    assert is_quoted(session.getCurrentDatabase())
-    assert is_quoted(session.getCurrentSchema())
 
 
 def test_active_session(session):

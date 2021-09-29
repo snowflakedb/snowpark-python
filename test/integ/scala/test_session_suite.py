@@ -8,13 +8,79 @@ from typing import NamedTuple
 
 import pytest
 
+from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.utils import Utils as snowpark_utils
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkMissingDbOrSchemaException,
     SnowparkSessionException,
 )
 from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
+
+
+def test_invalid_configs(session, db_parameters):
+    with pytest.raises(DatabaseError) as ex_info:
+        new_session = (
+            Session.builder.configs(db_parameters)
+            .config("user", "invalid_user")
+            .config("password", "invalid_pwd")
+            .config("login_timeout", 5)
+            .create()
+        )
+        assert "Incorrect username or password was specified" in str(ex_info)
+        new_session.close()
+    # restore active session
+    Session._set_active_session(session)
+
+
+def test_no_default_database_and_schema(session, db_parameters):
+    new_session = (
+        Session.builder.configs(db_parameters)
+        ._remove_config("database")
+        ._remove_config("schema")
+        .create()
+    )
+    assert not new_session.getDefaultDatabase()
+    assert not new_session.getDefaultSchema()
+    new_session.close()
+    # restore active session
+    Session._set_active_session(session)
+
+
+def test_default_and_current_database_and_schema(session):
+    default_database = session.getDefaultDatabase()
+    default_schema = session.getDefaultSchema()
+
+    assert Utils.equals_ignore_case(default_database, session.getCurrentDatabase())
+    assert Utils.equals_ignore_case(default_schema, session.getCurrentSchema())
+
+    try:
+        schema_name = Utils.random_name()
+        session._run_query("create schema {}".format(schema_name))
+
+        assert Utils.equals_ignore_case(default_database, session.getDefaultDatabase())
+        assert Utils.equals_ignore_case(default_schema, session.getDefaultSchema())
+
+        assert Utils.equals_ignore_case(default_database, session.getCurrentDatabase())
+        assert Utils.equals_ignore_case(
+            AnalyzerPackage.quote_name(schema_name), session.getCurrentSchema()
+        )
+    finally:
+        # restore
+        session._run_query("drop schema if exists {}".format(schema_name))
+        session._run_query("use schema {}".format(default_schema))
+
+
+def test_quote_all_database_and_schema_names(session):
+    def is_quoted(name: str) -> bool:
+        return name[0] == '"' and name[-1] == '"'
+
+    assert is_quoted(session.getDefaultDatabase())
+    assert is_quoted(session.getDefaultSchema())
+    assert is_quoted(session.getCurrentDatabase())
+    assert is_quoted(session.getCurrentSchema())
 
 
 def test_create_dataframe_sequence(session):
@@ -68,7 +134,14 @@ def test_negative_test_to_invalid_table_name(session):
 
 
 def test_create_dataframe_from_seq_none(session):
-    assert session.createDataFrame([None, 1]).collect() == [Row(None), Row(1)]
+    assert session.createDataFrame([None, 1]).toDF("int").collect() == [
+        Row(None),
+        Row(1),
+    ]
+    assert session.createDataFrame([None, [[1, 2]]]).toDF("arr").collect() == [
+        Row(None),
+        Row("[\n  1,\n  2\n]"),
+    ]
 
 
 def test_create_dataframe_from_array(session):
@@ -87,6 +160,7 @@ def test_create_dataframe_from_array(session):
 
 
 def test_dataframe_created_before_session_close_are_not_usable_after_closing_session(
+    session,
     db_parameters,
 ):
     new_session = Session.builder.configs(db_parameters).create()
@@ -101,6 +175,9 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
         read.json("@mystage/prefix")
     assert ex_info.value.error_code == "1404"
 
+    # restore active session
+    Session._set_active_session(session)
+
 
 def test_load_table_from_array_multipart_identifier(session):
     name = Utils.random_name()
@@ -112,3 +189,32 @@ def test_load_table_from_array_multipart_identifier(session):
         assert len(session.table(multipart).schema.fields) == 1
     finally:
         Utils.drop_table(session, name)
+
+
+def test_session_info(session):
+    session_info = session._session_info
+    assert snowpark_utils.get_version() in session_info
+    assert snowpark_utils.get_python_version() in session_info
+    assert str(session.conn.get_session_id()) in session_info
+    assert "python.connector.version" in session_info
+
+
+def test_dataframe_close_session(
+    session,
+    db_parameters,
+):
+    new_session = Session.builder.configs(db_parameters).create()
+    assert Session._get_active_session() is not None
+    new_session.close()
+
+    # TODO: currently we need to call collect() to trigger error (scala doesn't)
+    #  because Python doesn't have to query parameter value for lazy analysis
+    with pytest.raises(SnowparkSessionException) as ex_info:
+        new_session.sql("select current_timestamp()").collect()
+    assert ex_info.value.error_code == "1404"
+    with pytest.raises(SnowparkSessionException) as ex_info:
+        new_session.range(10).collect()
+    assert ex_info.value.error_code == "1404"
+
+    # restore active session
+    Session._set_active_session(session)
