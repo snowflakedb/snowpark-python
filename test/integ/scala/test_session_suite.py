@@ -21,32 +21,36 @@ from snowflake.snowpark.types import IntegerType, StringType, StructField, Struc
 
 
 def test_invalid_configs(session, db_parameters):
-    with pytest.raises(DatabaseError) as ex_info:
-        new_session = (
-            Session.builder.configs(db_parameters)
-            .config("user", "invalid_user")
-            .config("password", "invalid_pwd")
-            .config("login_timeout", 5)
-            .create()
-        )
+    try:
+        with pytest.raises(DatabaseError) as ex_info:
+            new_session = (
+                Session.builder.configs(db_parameters)
+                .config("user", "invalid_user")
+                .config("password", "invalid_pwd")
+                .config("login_timeout", 5)
+                .create()
+            )
         assert "Incorrect username or password was specified" in str(ex_info)
+    finally:
         new_session.close()
-    # restore active session
-    Session._set_active_session(session)
+        # restore active session
+        Session._set_active_session(session)
 
 
 def test_no_default_database_and_schema(session, db_parameters):
-    new_session = (
-        Session.builder.configs(db_parameters)
-        ._remove_config("database")
-        ._remove_config("schema")
-        .create()
-    )
-    assert not new_session.getDefaultDatabase()
-    assert not new_session.getDefaultSchema()
-    new_session.close()
-    # restore active session
-    Session._set_active_session(session)
+    try:
+        new_session = (
+            Session.builder.configs(db_parameters)
+            ._remove_config("database")
+            ._remove_config("schema")
+            .create()
+        )
+        assert not new_session.getDefaultDatabase()
+        assert not new_session.getDefaultSchema()
+    finally:
+        new_session.close()
+        # restore active session
+        Session._set_active_session(session)
 
 
 def test_default_and_current_database_and_schema(session):
