@@ -489,7 +489,8 @@ class Session(metaclass=_SessionMeta):
             if not row:
                 rows.append(Row(None))
             elif isinstance(row, Row):
-                names = list(row._named_values.keys())
+                if row._named_values and not names:
+                    names = list(row._named_values.keys())
                 rows.append(row)
             elif isinstance(row, dict):
                 if not names:
