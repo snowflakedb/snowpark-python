@@ -54,7 +54,7 @@ def test_put_get_should_not_be_performed_when_preparing(
         Utils.create_stage(session, tmp_stage_name)
 
         put = session.sql(put_query)
-        print(put.schema)
+        assert len(put.schema.fields) > 0
         # should upload nothing
         assert session.sql(f"ls @{tmp_stage_name}").collect() == []
 
@@ -67,7 +67,7 @@ def test_put_get_should_not_be_performed_when_preparing(
         get_query = f"get @{tmp_stage_name}/{file_name}.gz file://{output_path}/"
         get = session.sql(get_query)
         # should download nothing
-        print(get.schema)
+        assert len(get.schema.fields) > 0
 
         get.collect()
         assert os.path.exists(os.path.join(output_path, f"{file_name}.gz"))
