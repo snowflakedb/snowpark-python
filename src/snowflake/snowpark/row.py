@@ -64,7 +64,7 @@ class Row(tuple):
             row.__dict__["_named_values"] = None
 
         # __fields__ is for internal use only. Users shouldn't set this attribute.
-        # It contains a list of str represents column names. It also allows duplicates.
+        # It contains a list of str representing column names. It also allows duplicates.
         # snowflake DB can return duplicate column names, for instance, "select a, a from a_table."
         # When return a DataFrame from a sql, duplicate column names can happen.
         # But using duplicate column names is obviously a bad practice even though we allow it.
@@ -89,7 +89,7 @@ class Row(tuple):
                         )  # may throw IndexError
                     except (IndexError, ValueError):
                         raise KeyError(item)
-                else:
+                elif self._named_values is None:
                     self.__dict__["_named_values"] = {
                         k: v for k, v in zip(self.__fields__, self)
                     }
@@ -112,7 +112,7 @@ class Row(tuple):
                     return self[index]  # may throw IndexError
                 except (IndexError, ValueError):
                     raise AttributeError(f"Row object has no attribute {item}")
-            else:
+            elif self._named_values is None:
                 self.__dict__["_named_values"] = {
                     k: v for k, v in zip(self.__fields__, self)
                 }
@@ -219,7 +219,7 @@ class Row(tuple):
         return obj
 
     def _populate_named_values_from_fields(self):
-        if not self._named_values and self.__fields__:
+        if self._named_values is None and self.__fields__:
             self.__dict__["_named_values"] = {
                 k: v for k, v in zip(self.__fields__, self)
             }
