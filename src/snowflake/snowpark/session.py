@@ -447,7 +447,9 @@ class Session(metaclass=_SessionMeta):
            schema: A :class:`StructType` containing names and data types of columns,
                 or a list of column names, or ``None``. When ``schema`` is a list of
                 column names or ``None``, the schema of the dataframe will be inferred
-                from the data across all rows.
+                from the data across all rows. To boost performance, it would be better
+                to provide a schema to avoid inferring data types when the local data
+                is large.
 
         Returns:
             A :class:`DataFrame`.
@@ -487,7 +489,7 @@ class Session(metaclass=_SessionMeta):
             if not row:
                 rows.append(Row(None))
             elif isinstance(row, Row):
-                names = row._named_values
+                names = list(row._named_values.keys())
                 rows.append(row)
             elif isinstance(row, dict):
                 if not names:

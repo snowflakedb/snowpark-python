@@ -330,7 +330,7 @@ class ServerConnection:
             for data in result_set:
                 row = Row(*data)
                 # row might have duplicated column names
-                row.__fields__ = col_names
+                row._fields = col_names
                 rows.append(row)
         else:
             rows = [Row(*row) for row in result_set]
