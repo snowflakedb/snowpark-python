@@ -1,6 +1,27 @@
 {{ fullname | escape | underline}}
-
 .. automodule:: {{ fullname }}
+
+{% if fullname == 'snowflake.snowpark' %}
+
+    .. rubric:: {{ _('Classes') }}
+
+    .. autosummary::
+        {% for item in ['Session', 'DataFrame', 'DataFrameReader', 'DataFrameWriter',
+            'RelationalGroupedDataFrame', 'Row', 'Column', 'CaseExpr']
+        %}
+            {{ item }}
+        {% endfor %}
+
+    .. rubric:: {{ _('Submodules') }}
+
+    .. autosummary::
+
+        {% for item in ['snowflake.snowpark.types', 'snowflake.snowpark.functions', 'snowflake.snowpark.udf',
+            'snowflake.snowpark.exceptions']
+        %}
+            {{ item }}
+        {% endfor %}
+{% endif %}
 
    {% block attributes %}
    {% if attributes %}
