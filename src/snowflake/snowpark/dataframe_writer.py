@@ -5,6 +5,7 @@
 from enum import Enum
 from typing import Dict, Iterable, Optional, Union
 
+import snowflake  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakeCreateTable
 from snowflake.snowpark._internal.utils import Utils, _SaveMode
 
@@ -27,7 +28,7 @@ class DataFrameWriter:
 
     """
 
-    def __init__(self, dataframe: "DataFrame"):
+    def __init__(self, dataframe: "snowflake.snowpark.DataFrame"):
         self.__dataframe = dataframe
         self.__save_mode = _SaveMode.APPEND  # spark default value is error.
 

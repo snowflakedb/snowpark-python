@@ -36,6 +36,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.coverage",
+    "sphinx_autodoc_typehints",
 ]
 
 autodoc_default_options = {
@@ -47,6 +48,8 @@ autodoc_default_options = {
     "inherited-members": True,
     "show-inheritance": True,
     # 'exclude-members': ''   # for example,
+    "typehints_fully_qualified": False,
+    "always_document_param_types": True
 }
 
 autosummary_generate = True  # turn on sphinx.ext.autosummary
