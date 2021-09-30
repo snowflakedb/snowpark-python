@@ -343,10 +343,7 @@ def test_is_negative(session):
 
     with pytest.raises(ProgrammingError) as ex_info:
         td.select(is_decimal("a")).collect()
-    assert (
-        "invalid type [VARCHAR(5)] for parameter 'IS_DECIMAL(variantValue...)'"
-        in str(ex_info)
-    )
+    assert "Invalid argument types for function 'IS_DECIMAL'" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
         td.select(is_double("a")).collect()
@@ -362,7 +359,7 @@ def test_is_negative(session):
 
     with pytest.raises(ProgrammingError) as ex_info:
         td.select(is_null_value("a")).collect()
-    assert "Invalid argument types for function 'IS_OBJECT'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_NULL_VALUE'" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
         td.select(is_object("a")).collect()
@@ -374,24 +371,15 @@ def test_is_negative(session):
 
     with pytest.raises(ProgrammingError) as ex_info:
         td.select(is_timestamp_ltz("a")).collect()
-    assert (
-        "invalid type [VARCHAR(5)] for parameter 'IS_TIMESTAMP_LTZ(variantValue...)'"
-        in str(ex_info)
-    )
+    assert "Invalid argument types for function 'IS_TIMESTAMP_LTZ'" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
         td.select(is_timestamp_ntz("a")).collect()
-    assert (
-        "invalid type [VARCHAR(5)] for parameter 'IS_TIMESTAMP_NTZ(variantValue...)'"
-        in str(ex_info)
-    )
+    assert "Invalid argument types for function 'IS_TIMESTAMP_NTZ'" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
         td.select(is_timestamp_tz("a")).collect()
-    assert (
-        "invalid type [VARCHAR(5)] for parameter 'IS_TIMESTAMP_TZ(variantValue...)'"
-        in str(ex_info)
-    )
+    assert "Invalid argument types for function 'IS_TIMESTAMP_TZ'" in str(ex_info)
 
 
 def test_parse_json(session):
