@@ -4,6 +4,9 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 
+"""
+Contains core classes of Snowpark.
+"""
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
