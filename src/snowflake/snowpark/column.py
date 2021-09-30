@@ -131,7 +131,7 @@ class Column:
 
     def between(self, lower_bound: "Column", upper_bound: "Column"):
         """Between lower bound and upper bound."""
-        return (lower_bound <= self).__and__(self <= upper_bound)
+        return (lower_bound <= self) & (self <= upper_bound)
 
     def bitand(self, other: "Column") -> "Column":
         return self.with_expr(SPBitwiseAnd(self.__to_expr(other), self.expression))
