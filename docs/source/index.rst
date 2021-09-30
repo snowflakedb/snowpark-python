@@ -17,16 +17,10 @@ information, see the `Snowpark Developer Guide <https://docs.snowflake.com/en/de
    :template: module.rst
 
    snowflake.snowpark
-   snowflake.snowpark.column
-   snowflake.snowpark.dataframe
-   snowflake.snowpark.dataframe_reader
    snowflake.snowpark.functions
-   snowflake.snowpark.relational_grouped_dataframe
-   snowflake.snowpark.row
-   snowflake.snowpark.session
-   snowflake.snowpark.exceptions
    snowflake.snowpark.types
    snowflake.snowpark.udf
+   snowflake.snowpark.exceptions
 
 :ref:`genindex`
 
