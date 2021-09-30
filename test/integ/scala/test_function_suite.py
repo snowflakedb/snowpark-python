@@ -8,6 +8,7 @@ from decimal import Decimal
 from test.utils import TestData, Utils
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.sp_expressions import UnresolvedAttribute
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
@@ -485,6 +486,20 @@ def test_is_array(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(is_array("ARR1")),
+        [Row(True), Row(True)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_array("arr1"), is_array("bool1"), is_array("str1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
 
 def test_is_boolean(session):
     Utils.check_answer(
@@ -495,11 +510,29 @@ def test_is_boolean(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_boolean("arr1"), is_boolean("bool1"), is_boolean("str1")
+        ),
+        [Row(False, True, False)],
+        sort=False,
+    )
+
 
 def test_is_binary(session):
     Utils.check_answer(
         TestData.variant1(session).select(
             is_binary(col("bin1")), is_binary(col("bool1")), is_binary(col("str1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_binary("bin1"), is_binary("bool1"), is_binary("str1")
         ),
         [Row(True, False, False)],
         sort=False,
@@ -517,6 +550,22 @@ def test_is_char_is_varchar(session):
     Utils.check_answer(
         TestData.variant1(session).select(
             is_varchar(col("str1")), is_varchar(col("bin1")), is_varchar(col("bool1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_char("str1"), is_char("bin1"), is_char("bool1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_varchar("str1"), is_varchar("bin1"), is_varchar("bool1")
         ),
         [Row(True, False, False)],
         sort=False,
@@ -541,6 +590,24 @@ def test_is_date_is_date_value(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_date("date1"), is_date("time1"), is_date("bool1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_date_value("date1"),
+            is_date_value("time1"),
+            is_date_value("str1"),
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
 
 def test_is_decimal(session):
     Utils.check_answer(
@@ -548,6 +615,17 @@ def test_is_decimal(session):
             is_decimal(col("decimal1")),
             is_decimal(col("double1")),
             is_decimal(col("num1")),
+        ),
+        [Row(True, False, True)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_decimal("decimal1"),
+            is_decimal("double1"),
+            is_decimal("num1"),
         ),
         [Row(True, False, True)],
         sort=False,
@@ -577,6 +655,29 @@ def test_is_double_is_real(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_double("decimal1"),
+            is_double("double1"),
+            is_double("num1"),
+            is_double("bool1"),
+        ),
+        [Row(True, True, True, False)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_real("decimal1"),
+            is_real("double1"),
+            is_real("num1"),
+            is_real("bool1"),
+        ),
+        [Row(True, True, True, False)],
+        sort=False,
+    )
+
 
 def test_is_integer(session):
     Utils.check_answer(
@@ -590,11 +691,32 @@ def test_is_integer(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_integer("decimal1"),
+            is_integer("double1"),
+            is_integer("num1"),
+            is_integer("bool1"),
+        ),
+        [Row(False, False, True, False)],
+        sort=False,
+    )
+
 
 def test_is_null_value(session):
     Utils.check_answer(
         TestData.null_json1(session).select(is_null_value(sql_expr("v:a"))),
         [Row(True), Row(False), Row(None)],
+        sort=False,
+    )
+
+    # Pass str instead of Column. We can't use the same query as above
+    # since "v:a" is an expression and we represent them as columns
+    # differently
+    Utils.check_answer(
+        TestData.variant1(session).select(is_null_value("str1")),
+        [Row(False)],
         sort=False,
     )
 
@@ -608,11 +730,29 @@ def test_is_object(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_object("obj1"), is_object("arr1"), is_object("str1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
 
 def test_is_time(session):
     Utils.check_answer(
         TestData.variant1(session).select(
             is_time(col("time1")), is_time(col("date1")), is_time(col("timestamp_tz1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_time("time1"), is_time("date1"), is_time("timestamp_tz1")
         ),
         [Row(True, False, False)],
         sort=False,
@@ -645,6 +785,37 @@ def test_is_timestamp_all(session):
             is_timestamp_tz(col("timestamp_ntz1")),
             is_timestamp_tz(col("timestamp_tz1")),
             is_timestamp_tz(col("timestamp_ltz1")),
+        ),
+        [Row(False, True, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_timestamp_ntz("timestamp_ntz1"),
+            is_timestamp_ntz("timestamp_tz1"),
+            is_timestamp_ntz("timestamp_ltz1"),
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_timestamp_ltz("timestamp_ntz1"),
+            is_timestamp_ltz("timestamp_tz1"),
+            is_timestamp_ltz("timestamp_ltz1"),
+        ),
+        [Row(False, False, True)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_timestamp_tz("timestamp_ntz1"),
+            is_timestamp_tz("timestamp_tz1"),
+            is_timestamp_tz("timestamp_ltz1"),
         ),
         [Row(False, True, False)],
         sort=False,
@@ -780,6 +951,8 @@ def test_as_array(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+
 
 def test_as_binary(session):
     Utils.check_answer(
@@ -791,6 +964,8 @@ def test_as_binary(session):
         ],
         sort=False,
     )
+
+    # same as above, but pass str instead of Column
 
 
 def test_as_char_as_varchar(session):
@@ -809,6 +984,8 @@ def test_as_char_as_varchar(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+
 
 def test_as_date(session):
     Utils.check_answer(
@@ -818,6 +995,8 @@ def test_as_date(session):
         [Row(date(2017, 2, 24), None, None)],
         sort=False,
     )
+
+    # same as above, but pass str instead of Column
 
 
 def test_as_decimal_as_number(session):
@@ -875,6 +1054,8 @@ def test_as_decimal_as_number(session):
         == 1.23
     )
 
+    # same as above, but pass str instead of Column
+
 
 def test_as_double_as_real(session):
     Utils.check_answer(
@@ -899,6 +1080,8 @@ def test_as_double_as_real(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+
 
 def test_as_integer(session):
     Utils.check_answer(
@@ -912,6 +1095,8 @@ def test_as_integer(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+
 
 def test_as_object(session):
     Utils.check_answer(
@@ -922,6 +1107,8 @@ def test_as_object(session):
         sort=False,
     )
 
+    # same as above, but pass str instead of Column
+
 
 def test_as_time(session):
     Utils.check_answer(
@@ -931,6 +1118,8 @@ def test_as_time(session):
         [Row(time(20, 57, 1, 123456), None, None)],
         sort=False,
     )
+
+    # same as above, but pass str instead of Column
 
 
 def test_as_timestamp_all(session):
@@ -985,6 +1174,8 @@ def test_as_timestamp_all(session):
         ],
         sort=False,
     )
+
+    # same as above, but pass str instead of Column
 
 
 def test_to_array(session):

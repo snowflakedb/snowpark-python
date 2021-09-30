@@ -12,6 +12,21 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
+    as_array,
+    as_binary,
+    as_char,
+    as_date,
+    as_decimal,
+    as_double,
+    as_integer,
+    as_number,
+    as_object,
+    as_real,
+    as_time,
+    as_timestamp_ltz,
+    as_timestamp_ntz,
+    as_timestamp_tz,
+    as_varchar,
     builtin,
     call_builtin,
     ceil,
@@ -22,6 +37,21 @@ from snowflake.snowpark.functions import (
     count_distinct,
     exp,
     floor,
+    is_array,
+    is_binary,
+    is_char,
+    is_date,
+    is_decimal,
+    is_double,
+    is_integer,
+    is_null_value,
+    is_object,
+    is_real,
+    is_time,
+    is_timestamp_ltz,
+    is_timestamp_ntz,
+    is_timestamp_tz,
+    is_varchar,
     lit,
     log,
     negate,
@@ -289,6 +319,81 @@ def test_call_builtin_avg_from_range(session):
     assert res == expected
 
 
+def test_is_negative(session):
+    td = TestData.string1(session)
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_array("a")).collect()
+    assert "Invalid argument types for function 'IS_ARRAY'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_binary("a")).collect()
+    assert "Invalid argument types for function 'IS_BINARY'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_char("a")).collect()
+    assert "Invalid argument types for function 'IS_CHAR'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_varchar("a")).collect()
+    assert "Invalid argument types for function 'IS_VARCHAR'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_date("a")).collect()
+    assert "Invalid argument types for function 'IS_DATE'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_decimal("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'IS_DECIMAL(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_double("a")).collect()
+    assert "Invalid argument types for function 'IS_DOUBLE'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_real("a")).collect()
+    assert "Invalid argument types for function 'IS_REAL'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_integer("a")).collect()
+    assert "Invalid argument types for function 'IS_INTEGER'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_null_value("a")).collect()
+    assert "Invalid argument types for function 'IS_OBJECT'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_object("a")).collect()
+    assert "Invalid argument types for function 'IS_OBJECT'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_time("a")).collect()
+    assert "Invalid argument types for function 'IS_TIME'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_timestamp_ltz("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'IS_TIMESTAMP_LTZ(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_timestamp_ntz("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'IS_TIMESTAMP_NTZ(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_timestamp_tz("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'IS_TIMESTAMP_TZ(variantValue...)'"
+        in str(ex_info)
+    )
+
+
 def test_parse_json(session):
     assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
         Row('{\n  "a": null\n}'),
@@ -302,6 +407,112 @@ def test_parse_json(session):
         Row('{\n  "a": "foo"\n}'),
         Row(None),
     ]
+
+
+def test_as_negative(session):
+    td = TestData.string1(session)
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_array("a")).collect()
+    assert "Invalid argument types for function 'AS_ARRAY'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_binary("a")).collect()
+    assert "Invalid argument types for function 'AS_BINARY'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_char("a")).collect()
+    assert "Invalid argument types for function 'AS_CHAR'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_varchar("a")).collect()
+    assert "Invalid argument types for function 'AS_VARCHAR'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_date("a")).collect()
+    assert "Invalid argument types for function 'AS_DATE'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_decimal("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_DECIMAL(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ValueError) as ex_info:
+        td.select(as_decimal("a", None, 3)).collect()
+    assert "Cannot define scale without precision" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.variant1(session).select(as_decimal(col("decimal1"), -1)).collect()
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, precision...)'" in str(
+        ex_info
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.variant1(session).select(as_decimal(col("decimal1"), 6, -1)).collect()
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, ?, scale)'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_number("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_NUMBER(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ValueError) as ex_info:
+        td.select(as_number("a", None, 3)).collect()
+    assert "Cannot define scale without precision" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.variant1(session).select(as_number(col("decimal1"), -1)).collect()
+    assert "invalid value [-1] for parameter 'AS_NUMBER(?, precision...)'" in str(
+        ex_info
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.variant1(session).select(as_number(col("decimal1"), 6, -1)).collect()
+    assert "invalid value [-1] for parameter 'AS_NUMBER(?, ?, scale)'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_double("a")).collect()
+    assert "Invalid argument types for function 'AS_DOUBLE'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_real("a")).collect()
+    assert "Invalid argument types for function 'AS_REAL'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_integer("a")).collect()
+    assert "Invalid argument types for function 'AS_INTEGER'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_object("a")).collect()
+    assert "Invalid argument types for function 'AS_OBJECT'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_time("a")).collect()
+    assert "Invalid argument types for function 'AS_TIME'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_timestamp_ltz("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_TIMESTAMP_LTZ(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_timestamp_ntz("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_TIMESTAMP_NTZ(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_timestamp_tz("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_TIMESTAMP_TZ(variantValue...)'"
+        in str(ex_info)
+    )
 
 
 def test_to_date_to_array_to_variant_to_object(session):
