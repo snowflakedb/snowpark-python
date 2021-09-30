@@ -5,9 +5,11 @@
 #
 
 import pytest
+from test.utils import Utils
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException
+from snowflake.snowpark.functions import col, lit
 
 
 def test_column_constructors_subscriptable(session):
@@ -25,3 +27,20 @@ def test_column_constructors_subscriptable(session):
     with pytest.raises(SnowparkColumnException) as ex_info:
         df.select(df["COL ."]).collect()
     assert "The DataFrame does not contain the column" in str(ex_info)
+
+
+def test_between(session):
+    df = session.createDataFrame([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).toDF(
+        ["a", "b"]
+    )
+
+    # between in where
+    Utils.check_answer(
+        df.where(col("a").between(lit(2), lit(6))), [Row(3, 4), Row(5, 6)]
+    )
+
+    # between in select
+    Utils.check_answer(
+        df.select(col("a").between(lit(2), lit(6))),
+        [Row(False), Row(True), Row(True), Row(False), Row(False)],
+    )
