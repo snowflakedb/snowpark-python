@@ -51,6 +51,9 @@ class ServerConnection:
         @classmethod
         def wrap_exception(cls, func):
             def wrap(*args, **kwargs):
+                # self._conn.is_closed()
+                if args[0]._conn.is_closed():
+                    raise SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED()
                 try:
                     return func(*args, **kwargs)
                 except ReauthenticationRequest as ex:
@@ -86,22 +89,19 @@ class ServerConnection:
         conn: Optional[SnowflakeConnection] = None,
     ):
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
-        if conn:
-            self.__conn = conn
-        else:
-            self.__conn = connect(**self._lower_case_parameters)
-        self._cursor = self.__conn.cursor()
+        self._conn = conn if conn else connect(**self._lower_case_parameters)
+        self._cursor = self._conn.cursor()
 
     def close(self):
-        self.__conn.close()
+        self._conn.close()
 
     @property
     def connection(self):
-        return self.__conn
+        return self._conn
 
     @_Decorator.wrap_exception
-    def get_session_id(self) -> str:
-        return self.__conn.session_id
+    def get_session_id(self) -> int:
+        return self._conn.session_id
 
     def get_default_database(self) -> Optional[str]:
         return (
@@ -119,7 +119,7 @@ class ServerConnection:
 
     @_Decorator.wrap_exception
     def get_current_database(self) -> Optional[str]:
-        database_name = self.__conn.database or self._get_string_datum(
+        database_name = self._conn.database or self._get_string_datum(
             "SELECT CURRENT_DATABASE()"
         )
         return (
@@ -130,7 +130,7 @@ class ServerConnection:
 
     @_Decorator.wrap_exception
     def get_current_schema(self) -> Optional[str]:
-        schema_name = self.__conn.schema or self._get_string_datum(
+        schema_name = self._conn.schema or self._get_string_datum(
             "SELECT CURRENT_SCHEMA()"
         )
         return (
@@ -142,7 +142,7 @@ class ServerConnection:
     @_Decorator.wrap_exception
     def get_parameter_value(self, parameter_name: str) -> Optional[str]:
         # TODO: logging and running show command to get the parameter value if it's not present in connector
-        return self.__conn._session_parameters.get(parameter_name.upper(), None)
+        return self._conn._session_parameters.get(parameter_name.upper(), None)
 
     def _get_string_datum(self, query: str) -> Optional[str]:
         rows = self.result_set_to_rows(self.run_query(query)["data"])
