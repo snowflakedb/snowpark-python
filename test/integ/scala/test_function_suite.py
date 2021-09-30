@@ -952,6 +952,20 @@ def test_as_array(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(as_array("ARR1")),
+        [Row("[\n  1,\n  2,\n  3\n]"), Row("[\n  6,\n  7,\n  8\n]")],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_array("arr1"), as_array("bool1"), as_array("str1")
+        ),
+        [
+            Row('[\n  "Example"\n]', None, None),
+        ],
+        sort=False,
+    )
 
 
 def test_as_binary(session):
@@ -966,6 +980,15 @@ def test_as_binary(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_binary("bin1"), as_binary("bool1"), as_binary("str1")
+        ),
+        [
+            Row(bytearray([115, 110, 111, 119]), None, None),
+        ],
+        sort=False,
+    )
 
 
 def test_as_char_as_varchar(session):
@@ -985,6 +1008,20 @@ def test_as_char_as_varchar(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_char("str1"), as_char("bin1"), as_char("bool1")
+        ),
+        [Row("X", None, None)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_varchar("str1"), as_varchar("bin1"), as_varchar("bool1")
+        ),
+        [Row("X", None, None)],
+        sort=False,
+    )
 
 
 def test_as_date(session):
@@ -997,6 +1034,13 @@ def test_as_date(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_date("date1"), as_date("time1"), as_date("bool1")
+        ),
+        [Row(date(2017, 2, 24), None, None)],
+        sort=False,
+    )
 
 
 def test_as_decimal_as_number(session):
@@ -1055,6 +1099,56 @@ def test_as_decimal_as_number(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_decimal("decimal1"),
+            as_decimal("double1"),
+            as_decimal("num1"),
+        ),
+        [
+            Row(1, None, 15),
+        ],
+        sort=False,
+    )
+
+    assert (
+        TestData.variant1(session).select(as_decimal("decimal1", 6)).collect()[0][0]
+        == 1
+    )
+
+    assert (
+        float(
+            TestData.variant1(session)
+            .select(as_decimal("decimal1", 6, 3))
+            .collect()[0][0]
+        )
+        == 1.23
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_number("decimal1"),
+            as_number("double1"),
+            as_number("num1"),
+        ),
+        [
+            Row(1, None, 15),
+        ],
+        sort=False,
+    )
+
+    assert (
+        TestData.variant1(session).select(as_number("decimal1", 6)).collect()[0][0] == 1
+    )
+
+    assert (
+        float(
+            TestData.variant1(session)
+            .select(as_number("decimal1", 6, 3))
+            .collect()[0][0]
+        )
+        == 1.23
+    )
 
 
 def test_as_double_as_real(session):
@@ -1081,6 +1175,27 @@ def test_as_double_as_real(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_double("decimal1"),
+            as_double("double1"),
+            as_double("num1"),
+            as_double("bool1"),
+        ),
+        [Row(1.23, 3.21, 15.0, None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_real("decimal1"),
+            as_real("double1"),
+            as_real("num1"),
+            as_real("bool1"),
+        ),
+        [Row(1.23, 3.21, 15.0, None)],
+        sort=False,
+    )
 
 
 def test_as_integer(session):
@@ -1096,6 +1211,16 @@ def test_as_integer(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_integer("decimal1"),
+            as_integer("double1"),
+            as_integer("num1"),
+            as_integer("bool1"),
+        ),
+        [Row(1, None, 15, None)],
+        sort=False,
+    )
 
 
 def test_as_object(session):
@@ -1108,6 +1233,13 @@ def test_as_object(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_object("obj1"), as_object("arr1"), as_object("str1")
+        ),
+        [Row('{\n  "Tree": "Pine"\n}', None, None)],
+        sort=False,
+    )
 
 
 def test_as_time(session):
@@ -1120,6 +1252,13 @@ def test_as_time(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_time("time1"), as_time("date1"), as_time("timestamp_tz1")
+        ),
+        [Row(time(20, 57, 1, 123456), None, None)],
+        sort=False,
+    )
 
 
 def test_as_timestamp_all(session):
@@ -1176,6 +1315,57 @@ def test_as_timestamp_all(session):
     )
 
     # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_timestamp_ntz("timestamp_ntz1"),
+            as_timestamp_ntz("timestamp_tz1"),
+            as_timestamp_ntz("timestamp_ltz1"),
+        ),
+        [
+            Row(
+                datetime.strptime("2017-02-24 12:00:00.456", "%Y-%m-%d %H:%M:%S.%f"),
+                None,
+                None,
+            ),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_timestamp_ltz("timestamp_ntz1"),
+            as_timestamp_ltz("timestamp_tz1"),
+            as_timestamp_ltz("timestamp_ltz1"),
+        ),
+        [
+            Row(
+                None,
+                None,
+                datetime.strptime(
+                    "2017-02-24 12:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
+                ).astimezone(),
+            ),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_timestamp_tz("timestamp_ntz1"),
+            as_timestamp_tz("timestamp_tz1"),
+            as_timestamp_tz("timestamp_ltz1"),
+        ),
+        [
+            Row(
+                None,
+                datetime.strptime(
+                    "2017-02-24 13:00:00.123 +0100", "%Y-%m-%d %H:%M:%S.%f %z"
+                ),
+                None,
+            ),
+        ],
+        sort=False,
+    )
 
 
 def test_to_array(session):
