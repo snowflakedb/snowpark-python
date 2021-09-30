@@ -80,7 +80,7 @@ class Row(tuple):
             return Row(*super().__getitem__(item))
         else:
             self._populate_named_values_from_fields()
-            if self._named_values and item in self._named_values:
+            if self._named_values:
                 return self._named_values[item]
             elif self._fields and self._check_if_having_duplicates():
                 try:
@@ -114,10 +114,11 @@ class Row(tuple):
             self.__dict__["_fields"] = value
 
     def __contains__(self, item):
-        if self._fields:
-            return item in self._fields
-        elif self._named_values:
+        self._populate_named_values_from_fields()
+        if self._named_values:
             return item in self._named_values
+        elif self._fields:
+            return item in self._fields
         else:
             return super(Row, self).__contains__(item)
 
