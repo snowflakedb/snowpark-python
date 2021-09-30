@@ -245,6 +245,12 @@ class SnowparkClientExceptionMessages:
     def SERVER_NO_DEFAULT_SESSION() -> SnowparkSessionException:
         return SnowparkSessionException("No default SnowflakeSession found", "1403")
 
+    @staticmethod
+    def SERVER_SESSION_HAS_BEEN_CLOSED() -> SnowparkSessionException:
+        return SnowparkSessionException(
+            "Cannot perform this operation because the session has been closed.", "1404"
+        )
+
     # General Error codes 15XX
 
     @staticmethod

@@ -325,6 +325,16 @@ def test_server_no_default_session():
     assert ex.message == "No default SnowflakeSession found"
 
 
+def test_server_session_has_been_closed():
+    ex = SnowparkClientExceptionMessages.SERVER_SESSION_HAS_BEEN_CLOSED()
+    assert type(ex) == SnowparkSessionException
+    assert ex.error_code == "1404"
+    assert (
+        ex.message
+        == "Cannot perform this operation because the session has been closed."
+    )
+
+
 def test_general_invalid_object_name():
     type_name = "Iterable"
     ex = SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(type_name)

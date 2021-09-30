@@ -109,9 +109,6 @@ class Session(metaclass=_SessionMeta):
 
         self.analyzer = Analyzer(self)
 
-        # TODO
-        # self.factory
-
     def _generate_new_action_id(self):
         self.__last_action_id += 1
         return self.__last_action_id
@@ -663,15 +660,6 @@ class Session(metaclass=_SessionMeta):
             logger.info("Overwriting an already active session")
         _active_session = session
         return session
-
-    # TODO complete
-    def __disable_stderr(self):
-        # Look into https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stderr
-        # and take into account that "Note that the global side effect on sys.stdout means that
-        # this context manager is not suitable for use in library code and most threaded
-        # applications. It also has no effect on the output of subprocesses. However, it is still
-        # a useful approach for many utility scripts."
-        pass
 
     class _SessionBuilder:
         """The SessionBuilder holds all the configuration properties
