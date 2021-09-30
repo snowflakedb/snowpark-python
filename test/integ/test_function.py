@@ -471,7 +471,10 @@ def test_as_negative(session):
 
     with pytest.raises(ProgrammingError) as ex_info:
         td.select(as_integer("a")).collect()
-    assert "Invalid argument types for function 'AS_INTEGER'" in str(ex_info)
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_INTEGER(variantValue...)'"
+        in str(ex_info)
+    )
 
     with pytest.raises(ProgrammingError) as ex_info:
         td.select(as_object("a")).collect()
