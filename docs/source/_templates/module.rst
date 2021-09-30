@@ -6,8 +6,8 @@
     .. rubric:: {{ _('Classes') }}
 
     .. autosummary::
-        {% for item in ['Session', 'DataFrame', 'DataFrameReader', 'DataFrameWriter',
-            'RelationalGroupedDataFrame', 'Row', 'Column', 'CaseExpr']
+        {% for item in ['CaseExpr', 'Column', 'DataFrame', 'DataFrameReader', 'DataFrameWriter',
+            'RelationalGroupedDataFrame', 'Row', 'Session']
         %}
             {{ item }}
         {% endfor %}
