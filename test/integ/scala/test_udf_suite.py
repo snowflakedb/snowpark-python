@@ -55,13 +55,7 @@ def setup(session, resources_path):
     session._run_query(f"insert into {table1} values(1),(2),(3)")
     Utils.create_table(session, table2, "a int, b int")
     session._run_query(f"insert into {table2} values(1, 2),(2, 3),(3, 4)")
-    # TODO: remove this snippet (don't need to set this parameter for Python UDF)
-    #  after prpr
-    current_sf_version = float(session._run_query("select current_version()")[0][0][:4])
-    if current_sf_version >= 5.35:
-        session._run_query(
-            "alter session set PYTHON_UDF_X86_PRPR_TOP_LEVEL_PACKAGES_FROZEN_SOLVE_VERSIONS='{}'"
-        )
+    session._run_query("alter session set enable_python_udf=true")
     yield
     Utils.drop_table(session, tmp_table_name)
     Utils.drop_table(session, table1)

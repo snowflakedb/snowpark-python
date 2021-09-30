@@ -46,13 +46,7 @@ tmp_stage_name = Utils.random_stage_name()
 @pytest.fixture(scope="module", autouse=True)
 def setup(session):
     Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    # TODO: remove this snippet (don't need to set this parameter for Python UDF)
-    #  after prpr
-    current_sf_version = float(session._run_query("select current_version()")[0][0][:4])
-    if current_sf_version >= 5.35:
-        session._run_query(
-            "alter session set PYTHON_UDF_X86_PRPR_TOP_LEVEL_PACKAGES_FROZEN_SOLVE_VERSIONS='{}'"
-        )
+    session._run_query("alter session set enable_python_udf=true")
 
 
 def test_basic_udf(session):
