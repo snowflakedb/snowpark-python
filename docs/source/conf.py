@@ -45,7 +45,7 @@ autodoc_default_options = {
     "undoc-members": True,  # If set, autodoc will also generate document for the members not having docstrings
     "private-members": False,  # don't generate document for the private members (like _private or __private)
     # 'special-members': '',  # for example, '__init__'
-    "inherited-members": True,
+    "inherited-members": False,
     "show-inheritance": True,
     # 'exclude-members': ''   # for example,
     "typehints_fully_qualified": False,

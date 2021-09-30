@@ -18,9 +18,9 @@ information, see the `Snowpark Developer Guide <https://docs.snowflake.com/en/de
 
    snowflake.snowpark
    snowflake.snowpark.functions
-   snowflake.snowpark.exceptions
    snowflake.snowpark.types
    snowflake.snowpark.udf
+   snowflake.snowpark.exceptions
 
 :ref:`genindex`
 

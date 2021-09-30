@@ -5,7 +5,7 @@
 from enum import Enum
 from typing import Dict, Iterable, Optional, Union
 
-import snowflake  # for forward references of type hints
+import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakeCreateTable
 from snowflake.snowpark._internal.utils import Utils, _SaveMode
 
