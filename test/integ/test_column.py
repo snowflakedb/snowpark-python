@@ -5,7 +5,7 @@
 #
 
 import pytest
-from utils import Utils
+from test.utils import Utils
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException
