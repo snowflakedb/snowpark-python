@@ -249,6 +249,13 @@ class TestData:
         return session.sql("select * from values('1,2,3,4,5') as T(a)")
 
     @classmethod
+    def array1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select array_construct(a,b,c) as arr1, array_construct(d,e,f) as arr2 "
+            "from values(1,2,3,3,4,5),(6,7,8,9,0,1) as T(a,b,c,d,e,f)"
+        )
+
+    @classmethod
     def array2(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select array_construct(a,b,c) as arr1, d, e, f from"
