@@ -442,8 +442,8 @@ class Session(metaclass=_SessionMeta):
 
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
-                be an instance of :class:`list` or :class:`tuple`. Every element in
-                ``data`` will constitute a row in the dataframe.
+                be a :class:`list` or a :class:`tuple`. Every element in ``data`` will
+                constitute a row in the dataframe.
            schema: A :class:`StructType` containing names and data types of columns,
                 or a list of column names, or ``None``. When ``schema`` is a list of
                 column names or ``None``, the schema of the dataframe will be inferred
@@ -472,9 +472,9 @@ class Session(metaclass=_SessionMeta):
             raise ValueError("data cannot be None.")
 
         # check the type of data
-        if not isinstance(data, (list, tuple)):
+        if type(data) not in (list, tuple):
             raise TypeError(
-                "createDataFrame() function only accepts data in List and Tuple type."
+                "createDataFrame() function only accepts data as a list or a tuple."
             )
 
         # check whether data is empty

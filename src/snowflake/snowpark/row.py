@@ -78,16 +78,20 @@ class Row(tuple):
             return super().__getitem__(item)
         elif isinstance(item, slice):
             return Row(*super().__getitem__(item))
-        else:
+        else:  # str
             self._populate_named_values_from_fields()
+            # get from _named_values first
             if self._named_values:
                 return self._named_values[item]
+            # we have duplicated fields and _named_values is not populated,
+            # so indexing fields
             elif self._fields and self._check_if_having_duplicates():
                 try:
                     index = self._fields.index(item)  # may throw ValueError
                     return super(Row, self).__getitem__(index)  # may throw IndexError
                 except (IndexError, ValueError):
                     raise KeyError(item)
+            # no column names/keys/fields
             else:
                 raise KeyError(item)
 
@@ -184,11 +188,11 @@ class Row(tuple):
             (tuple(self), self._named_values, self._fields),
         )
 
-    def asDict(self, recursive=False):
+    def asDict(self, recursive: bool = False) -> Dict:
         """Convert to a dict if this row object has both keys and values.
 
         Args:
-            recursive: Recursively convert child `Row` objects to dicts. Default is False.
+            recursive: Recursively convert child :class:`Row` objects to dicts. Default is False.
 
         >>> row = Row(name1=1, name2=2, name3=Row(childname=3))
         >>> row.asDict()
@@ -219,6 +223,7 @@ class Row(tuple):
         return obj
 
     def _populate_named_values_from_fields(self):
+        # populate _named_values dict if we have unduplicated fields
         if (
             self._named_values is None
             and self._fields
