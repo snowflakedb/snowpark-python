@@ -73,15 +73,26 @@ class Column:
         df.select(df.name)
 
     This class also defines utility functions for constructing expressions with Columns.
-    By overriding magic methods in Python, Column objects can be built with arithmetic
-    operators (``+``, ``-``, ``*``, ``/``, ``%``, ``**``), comparison operators
-    (``==``, ``!=``, ``>``, ``<``, ``>=``, ``<=``), bitwise operators (but used as
-    logical operators, ``&``, ``|``, ``~``), and index operator ``[]`` to get an item at
-    position ordinal out of a list and get an item by key out of a dict.
+    Column objects can be built with the operators, summarized by operator precedence,
+    in the following table:
+
+    ==============================================  ==============================================
+    Operator                                        Description
+    ==============================================  ==============================================
+    ``x[index]``                                    Index operator to get an item out of a list or dict
+    ``**``                                          Power
+    ``-x``, ``~x``                                  Unary minus, unary not
+    ``*``, ``/``, ``%``                             Multiply, divide, remainder
+    ``+``, ``-``                                    Plus, minus
+    ``&``                                           And
+    ``|``                                           Or
+    ``==``, ``!=``, ``<``, ``<=``, ``>``, ``>=``    Equal to, not equal to, less than, less than or equal to, greater than, greater than or equal to
+    ==============================================  ==============================================
+
     The following examples demonstrate how to use Column objects in expressions::
 
-        df.filter((col("id") == 20) | (col("id") <= 10))
-          .filter((df["a"] + df.b) < 10)
+        df.filter((col("id") == 20) | (col("id") <= 10)) \\
+          .filter((df["a"] + df.b) < 10) \\
           .select((col("b") * 10).as_("c"))
     """
 
@@ -376,8 +387,8 @@ class CaseExpr(Column):
 
         from snowflake.snowpark.functions import when, col, lit
         df.select(
-            when(col("col").is_null(), lit(1))
-                .when(col("col") == 1, lit(2))
+            when(col("col").is_null(), lit(1)) \\
+                .when(col("col") == 1, lit(2)) \\
                 .otherwise(lit(3))
         )
     """
