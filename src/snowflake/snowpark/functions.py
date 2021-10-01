@@ -400,6 +400,109 @@ def to_date(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
     return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
 
 
+def is_array(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains an ARRAY value."""
+    c = __to_col_if_str(col, "is_array")
+    return builtin("is_array")(c)
+
+
+def is_boolean(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a boolean value."""
+    c = __to_col_if_str(col, "is_boolean")
+    return builtin("is_boolean")(c)
+
+
+def is_binary(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a binary value."""
+    c = __to_col_if_str(col, "is_binary")
+    return builtin("is_binary")(c)
+
+
+def is_char(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a string."""
+    c = __to_col_if_str(col, "is_char")
+    return builtin("is_char")(c)
+
+
+def is_varchar(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a string."""
+    c = __to_col_if_str(col, "is_varchar")
+    return builtin("is_varchar")(c)
+
+
+def is_date(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a date value."""
+    c = __to_col_if_str(col, "is_date")
+    return builtin("is_date")(c)
+
+
+def is_date_value(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a date value."""
+    c = __to_col_if_str(col, "is_date_value")
+    return builtin("is_date_value")(c)
+
+
+def is_decimal(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a fixed-point decimal value or integer."""
+    c = __to_col_if_str(col, "is_decimal")
+    return builtin("is_decimal")(c)
+
+
+def is_double(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer."""
+    c = __to_col_if_str(col, "is_double")
+    return builtin("is_double")(c)
+
+
+def is_real(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer."""
+    c = __to_col_if_str(col, "is_real")
+    return builtin("is_real")(c)
+
+
+def is_integer(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a integer value."""
+    c = __to_col_if_str(col, "is_integer")
+    return builtin("is_integer")(c)
+
+
+def is_null_value(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a JSON null value."""
+    c = __to_col_if_str(col, "is_null_value")
+    return builtin("is_null_value")(c)
+
+
+def is_object(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains an OBJECT value."""
+    c = __to_col_if_str(col, "is_object")
+    return builtin("is_object")(c)
+
+
+def is_time(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a TIME value."""
+    c = __to_col_if_str(col, "is_time")
+    return builtin("is_time")(c)
+
+
+def is_timestamp_ltz(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a TIMESTAMP value to be interpreted using the local time
+    zone."""
+    c = __to_col_if_str(col, "is_timestamp_ltz")
+    return builtin("is_timestamp_ltz")(c)
+
+
+def is_timestamp_ntz(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a TIMESTAMP value with no time zone."""
+    c = __to_col_if_str(col, "is_timestamp_ntz")
+    return builtin("is_timestamp_ntz")(c)
+
+
+def is_timestamp_tz(col: Union[Column, str]):
+    """Returns true if the specified VARIANT column contains a TIMESTAMP value with a time zone."""
+    c = __to_col_if_str(col, "is_timestamp_tz")
+    return builtin("is_timestamp_tz")(c)
+
+
 def parse_json(e: Union[Column, str]) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
     resulting JSON document."""
@@ -419,6 +522,120 @@ def array_agg(e: Union[Column, str]) -> Column:
     ARRAY is returned."""
     c = __to_col_if_str(e, "array_agg")
     return builtin("array_agg")(c)
+
+
+def as_array(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to an array."""
+    c = __to_col_if_str(variant, "as_array")
+    return builtin("as_array")(c)
+
+
+def as_binary(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a binary string."""
+    c = __to_col_if_str(variant, "as_binary")
+    return builtin("as_binary")(c)
+
+
+def as_char(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a string."""
+    c = __to_col_if_str(variant, "as_char")
+    return builtin("as_char")(c)
+
+
+def as_varchar(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a string."""
+    c = __to_col_if_str(variant, "as_varchar")
+    return builtin("as_varchar")(c)
+
+
+def as_date(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a date."""
+    c = __to_col_if_str(variant, "as_date")
+    return builtin("as_date")(c)
+
+
+def __as_decimal_or_number(
+    cast_type: str,
+    variant: Union[Column, str],
+    precision: Optional[int] = None,
+    scale: Optional[int] = None,
+) -> Column:
+    """Helper funtion that casts a VARIANT value to a decimal or number."""
+    c = __to_col_if_str(variant, cast_type)
+    if scale and not precision:
+        raise ValueError("Cannot define scale without precision")
+    if precision and scale:
+        return builtin(cast_type)(c, sql_expr(str(precision)), sql_expr(str(scale)))
+    elif precision:
+        return builtin(cast_type)(c, sql_expr(str(precision)))
+    else:
+        return builtin(cast_type)(c)
+
+
+def as_decimal(
+    variant: Union[Column, str],
+    precision: Optional[int] = None,
+    scale: Optional[int] = None,
+) -> Column:
+    """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
+    return __as_decimal_or_number("as_decimal", variant, precision, scale)
+
+
+def as_number(
+    variant: Union[Column, str],
+    precision: Optional[int] = None,
+    scale: Optional[int] = None,
+) -> Column:
+    """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
+    return __as_decimal_or_number("as_number", variant, precision, scale)
+
+
+def as_double(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a floating-point value."""
+    c = __to_col_if_str(variant, "as_double")
+    return builtin("as_double")(c)
+
+
+def as_real(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a floating-point value."""
+    c = __to_col_if_str(variant, "as_real")
+    return builtin("as_real")(c)
+
+
+def as_integer(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to an integer."""
+    c = __to_col_if_str(variant, "as_integer")
+    return builtin("as_integer")(c)
+
+
+def as_object(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to an object."""
+    c = __to_col_if_str(variant, "as_object")
+    return builtin("as_object")(c)
+
+
+def as_time(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a time value."""
+    c = __to_col_if_str(variant, "as_time")
+    return builtin("as_time")(c)
+
+
+def as_timestamp_ltz(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a TIMESTAMP with a local timezone."""
+    c = __to_col_if_str(variant, "as_timestamp_ltz")
+    return builtin("as_timestamp_ltz")(c)
+
+
+def as_timestamp_ntz(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a TIMESTAMP with no timezone."""
+    c = __to_col_if_str(variant, "as_timestamp_ntz")
+    return builtin("as_timestamp_ntz")(c)
+
+
+def as_timestamp_tz(variant: Union[Column, str]) -> Column:
+    """Casts a VARIANT value to a TIMESTAMP with a timezone."""
+    c = __to_col_if_str(variant, "as_timestamp_tz")
+    return builtin("as_timestamp_tz")(c)
 
 
 def to_binary(e: Union[Column, str], fmt: Optional[str] = None) -> Column:
@@ -623,4 +840,4 @@ def __to_col_if_str(e: Union[Column, str], func_name: str):
     elif isinstance(e, str):
         return col(e)
     else:
-        raise TypeError(f"{func_name.upper()} expected Column or str, got: {type(e)}")
+        raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
