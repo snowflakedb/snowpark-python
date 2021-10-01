@@ -350,7 +350,7 @@ class DataFrame:
         if not all(type(e) in [Column, str] for e in exprs):
             raise TypeError("select() input must be Column, str, or list")
 
-        names = [e.named() if type(e) == Column else Column(e).named() for e in exprs]
+        names = [e._named() if type(e) == Column else Column(e)._named() for e in exprs]
         return self.__with_plan(SPProject(names, self.__plan))
 
     def drop(
