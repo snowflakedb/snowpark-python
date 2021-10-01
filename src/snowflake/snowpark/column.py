@@ -307,12 +307,6 @@ class Column:
         """
         return self._with_expr(SPCollate(self.expression, collation_spec))
 
-    def _named(self) -> SPExpression:
-        if isinstance(self.expression, SPNamedExpression):
-            return self.expression
-        else:
-            return SPUnresolvedAlias(self.expression, None)
-
     def getName(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
         return (
@@ -337,6 +331,12 @@ class Column:
         return self._with_expr(
             SPAlias(self.expression, AnalyzerPackage.quote_name(alias))
         )
+
+    def _named(self) -> SPExpression:
+        if isinstance(self.expression, SPNamedExpression):
+            return self.expression
+        else:
+            return SPUnresolvedAlias(self.expression, None)
 
     @staticmethod
     def _to_expr(expr) -> SPExpression:

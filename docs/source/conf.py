@@ -44,6 +44,7 @@ autodoc_default_options = {
     "member-order": "alphabetical",  # 'alphabetical', by member type ('groupwise') or source order (value 'bysource')
     "undoc-members": True,  # If set, autodoc will also generate document for the members not having docstrings
     "private-members": False,  # don't generate document for the private members (like _private or __private)
+    # we need to doc these dunder methods for Column class
     'special-members': "__eq__, __ne__, __gt__, __lt__, __ge__, __le__, "  # for example, '__init__'
                        "__add__, __sub__, __mul__, __truediv__, __mod__, "
                        "__pow__, __neg__, __and__, __or__, __invert__",
