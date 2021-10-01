@@ -194,7 +194,6 @@ def test_sf_datatype_names():
     assert str(StringType()) == "String"
     assert str(NumericType()) == "Numeric"
     assert str(IntegralType()) == "Integral"
-    assert str(NumericType()) == "Numeric"
     assert str(TimeType()) == "Time"
     assert str(ByteType()) == "Byte"
     assert str(ShortType()) == "Short"
@@ -216,7 +215,7 @@ def test_struct_field_name():
 
 def test_strip_unnecessary_quotes():
     # Get a function reference for brevity
-    func = ColumnIdentifier.strip_unnecessary_quotes
+    func = ColumnIdentifier._ColumnIdentifier__strip_unnecessary_quotes
 
     # UPPER CASE
     #

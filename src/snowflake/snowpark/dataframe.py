@@ -56,6 +56,7 @@ from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
+import pandas
 
 class DataFrame:
     """Represents a lazily-evaluated relational dataset that contains a collection
@@ -229,7 +230,7 @@ class DataFrame:
         """
         return DataFrame(self.session, self.__plan.clone())
 
-    def toPandas(self, **kwargs):
+    def toPandas(self, **kwargs) -> pandas.DataFrame:
         """Returns the contents of this DataFrame as Pandas DataFrame.
 
         This method is only available if Pandas is installed and available.
@@ -570,7 +571,7 @@ class DataFrame:
     def groupBy(
         self,
         *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
-    ):
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
 
@@ -793,7 +794,7 @@ class DataFrame:
             )
         )
 
-    def join(self, right, using_columns=None, join_type=None) -> "DataFrame":
+    def join(self, right, using_columns:Optional[Union[str,Column,List[Union[str,Column]]]]=None, join_type: Optional[str]=None) -> "DataFrame":
         """Performs a join of the specified type (``join_type``) with the current
         DataFrame and another DataFrame (``right``) on a list of columns
         (``using_columns``).
@@ -1028,7 +1029,7 @@ class DataFrame:
 
         return DataFrameWriter(self)
 
-    def show(self, n: int = 10, max_width: int = 50):
+    def show(self, n: int = 10, max_width: int = 50) -> None:
         """Evaluates this DataFrame and prints out the first ``n`` rows with the
         specified maximum number of characters per column.
 
@@ -1118,7 +1119,7 @@ class DataFrame:
             + line
         )
 
-    def createOrReplaceView(self, name: Union[str, List[str]]):
+    def createOrReplaceView(self, name: Union[str, List[str]]) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
 
         For ``name``, you can include the database and schema name (i.e. specify a
@@ -1152,7 +1153,7 @@ class DataFrame:
             else None,
         )
 
-    def createOrReplaceTempView(self, name: Union[str, List[str]]):
+    def createOrReplaceTempView(self, name: Union[str, List[str]]) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
 
         You can use the view in subsequent SQL queries and statements during the
@@ -1209,7 +1210,7 @@ class DataFrame:
 
         return self.session.conn.execute(self.session.analyzer.resolve(cmd), **kwargs)
 
-    def first(self, n: Optional[int] = None):
+    def first(self, n: Optional[int] = None) -> List[Row]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
 
@@ -1229,7 +1230,7 @@ class DataFrame:
         else:
             return self.limit(n)._collect_with_tag()
 
-    def sample(self, frac: Optional[float] = None, n: Optional[int] = None):
+    def sample(self, frac: Optional[float] = None, n: Optional[int] = None) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a
         percentage or rows to be returned.
 
@@ -1339,9 +1340,8 @@ class DataFrame:
         the DataFrame).
         """
         if not self.__placeholder_schema:
-            self.__placeholder_schema = StructType.from_attributes(
-                self.__plan.attributes()
-            )
+            self.__placeholder_schema = StructType._from_attributes(
+                self.__plan.attributes())
         return self.__placeholder_schema
 
     def __with_plan(self, plan):

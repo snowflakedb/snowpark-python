@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
 #
 import re
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Callable
 
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -32,7 +32,7 @@ from snowflake.snowpark.dataframe import DataFrame
 
 
 class _GroupType:
-    def to_string(self):
+    def to_string(self) -> str:
         # TODO revisit
         return self.__class__.__name__[1:-4]
 
@@ -62,7 +62,7 @@ class RelationalGroupedDataFrame:
     Example::
 
         grouped_df = df.groupBy("dept")
-        agg_df = grouped_df.agg(groupedDf("salary") -> "mean")
+        agg_df = grouped_df.agg([(grouped_df["salary"], "mean")])
 
     The methods :py:func:`DataFrame.groupBy()`,
     :py:func:`DataFrame.cube()` and :py:func:`DataFrame.rollup()`
@@ -229,7 +229,7 @@ class RelationalGroupedDataFrame:
         """Return the max for the specified numeric columns."""
         return self.__non_empty_argument_function("max", *cols)
 
-    def count(self):
+    def count(self) -> "DataFrame":
         """Return the number of rows for each group."""
         return self.__toDF(
             [
@@ -240,9 +240,14 @@ class RelationalGroupedDataFrame:
             ]
         )
 
-    def builtin(self, agg_name: str):
-        """Computes the builtin aggregate 'aggName' over the specified columns. Use
-        this function to invoke any aggregates not explicitly listed in this class."""
+    def builtin(self, agg_name: str) -> Callable:
+        """Computes the builtin aggregate `agg_name` over the specified columns. Use
+        this function to invoke any aggregates not explicitly listed in this class.
+
+        Example::
+
+                df.groupBy("a").builtin("max")(col("b"))
+        """
         return lambda *cols: self.__builtin_internal(agg_name, *cols)
 
     def __builtin_internal(

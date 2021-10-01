@@ -55,7 +55,7 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
-    AtomicType,
+    _AtomicType,
     DateType,
     DecimalType,
     MapType,
@@ -546,7 +546,7 @@ class Session(metaclass=_SessionMeta):
                     converted_row.append(str(value))
                 elif type(value) == datetime.date and type(data_type) == DateType:
                     converted_row.append(str(value))
-                elif isinstance(data_type, AtomicType):  # consider inheritance
+                elif isinstance(data_type, _AtomicType):  # consider inheritance
                     converted_row.append(value)
                 elif (
                     type(value) in [list, tuple, array] and type(data_type) == ArrayType

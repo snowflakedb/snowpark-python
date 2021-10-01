@@ -368,28 +368,28 @@ def test_project_should_not_be_pushed_down_through_intersect_or_except(session):
 
 def test_except_nullability(session):
     non_nullable_ints = session.createDataFrame(((11,), (3,))).toDF("a")
-    for attribute in non_nullable_ints.schema.to_attributes():
+    for attribute in non_nullable_ints.schema._to_attributes():
         assert not attribute.nullable
 
     null_ints = TestData.null_ints(session)
     df1 = non_nullable_ints.except_(null_ints)
     Utils.check_answer(df1, Row(11))
-    for attribute in df1.schema.to_attributes():
+    for attribute in df1.schema._to_attributes():
         assert not attribute.nullable
 
     df2 = null_ints.except_(non_nullable_ints)
     Utils.check_answer(df2, [Row(1), Row(2), Row(None)])
-    for attribute in df2.schema.to_attributes():
+    for attribute in df2.schema._to_attributes():
         assert attribute.nullable
 
     df3 = null_ints.except_(null_ints)
     Utils.check_answer(df3, [])
-    for attribute in df3.schema.to_attributes():
+    for attribute in df3.schema._to_attributes():
         assert attribute.nullable
 
     df4 = non_nullable_ints.except_(non_nullable_ints)
     Utils.check_answer(df4, [])
-    for attribute in df4.schema.to_attributes():
+    for attribute in df4.schema._to_attributes():
         assert not attribute.nullable
 
 

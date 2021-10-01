@@ -9,6 +9,7 @@ from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.types import StructType, VariantType
+import snowflake.snowpark
 
 
 class DataFrameReader:
@@ -80,7 +81,7 @@ class DataFrameReader:
             results = csv_df.collect()
     """
 
-    def __init__(self, session):
+    def __init__(self, session: "snowflake.snowpark.Session"):
         self.session = session
         self.__user_schema = None
         self.__cur_options = {}
@@ -155,7 +156,7 @@ class DataFrameReader:
                 "csv",
                 self.__cur_options,
                 self.session.getFullyQualifiedCurrentSchema(),
-                self.__user_schema.to_attributes(),
+                self.__user_schema._to_attributes(),
             ),
         )
 
