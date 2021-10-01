@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py

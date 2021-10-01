@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 
-import pytest
 from test.utils import Utils
+
+import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException
