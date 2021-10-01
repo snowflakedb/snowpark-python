@@ -89,7 +89,7 @@ def test_basic_numerical_operations_negative(session):
     df = session.sql("select 4").toDF("a")
     with pytest.raises(TypeError) as ex_info:
         df.select(sqrt([1])).collect()
-    assert "SQRT expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'SQRT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
         df.select(sqrt(lit(-1))).collect()
@@ -98,40 +98,40 @@ def test_basic_numerical_operations_negative(session):
     # abs
     with pytest.raises(TypeError) as ex_info:
         df.select(abs([None])).collect()
-    assert "ABS expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'ABS' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # exp
     with pytest.raises(TypeError) as ex_info:
         df.select(exp([None])).collect()
-    assert "EXP expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'EXP' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # log
     with pytest.raises(TypeError) as ex_info:
         df.select(log([None], "a")).collect()
-    assert "LOG expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'LOG' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(log("a", [123])).collect()
-    assert "LOG expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'LOG' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # pow
     with pytest.raises(TypeError) as ex_info:
         df.select(pow([None], "a")).collect()
-    assert "POW expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'POW' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(pow("a", [123])).collect()
-    assert "POW expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'POW' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # floor
     with pytest.raises(TypeError) as ex_info:
         df.select(floor([None])).collect()
-    assert "FLOOR expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'FLOOR' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # ceil
     with pytest.raises(TypeError) as ex_info:
         df.select(ceil([None])).collect()
-    assert "CEIL expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'CEIL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_basic_string_operations(session):
@@ -157,61 +157,61 @@ def test_basic_string_operations(session):
 
     with pytest.raises(TypeError) as ex_info:
         df.select(split([1, 2, 3], "b")).collect()
-    assert "SPLIT expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(split("a", [1, 2, 3])).collect()
-    assert "SPLIT expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # upper
     with pytest.raises(TypeError) as ex_info:
         df.select(upper([1])).collect()
-    assert "UPPER expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'UPPER' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # contains
     with pytest.raises(TypeError) as ex_info:
         df.select(contains("a", [1])).collect()
-    assert "CONTAINS expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'CONTAINS' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(contains([1], "b")).collect()
-    assert "CONTAINS expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'CONTAINS' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # startswith
     with pytest.raises(TypeError) as ex_info:
         df.select(startswith("a", [1])).collect()
-    assert "STARTSWITH expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'STARTSWITH' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(startswith([1], "b")).collect()
-    assert "STARTSWITH expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'STARTSWITH' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # char
     with pytest.raises(TypeError) as ex_info:
         df.select(char([1])).collect()
-    assert "CHAR expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'CHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # translate
     with pytest.raises(TypeError) as ex_info:
         df.select(translate("a", "b", [1])).collect()
-    assert "TRANSLATE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRANSLATE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(translate("a", [1], "c")).collect()
-    assert "TRANSLATE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRANSLATE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(translate([1], "a", "c")).collect()
-    assert "TRANSLATE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRANSLATE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # trim
     with pytest.raises(TypeError) as ex_info:
         df.select(trim("a", [1])).collect()
-    assert "TRIM expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRIM' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(trim([1], "b")).collect()
-    assert "TRIM expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRIM' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_count_distinct(session):
@@ -232,7 +232,7 @@ def test_count_distinct(session):
     # Pass invalid type - list of numbers
     with pytest.raises(TypeError) as ex_info:
         df.select(count_distinct(123, 456))
-    assert "COUNT_DISTINCT expected Column or str, got: <class 'int'>" in str(ex_info)
+    assert "'COUNT_DISTINCT' expected Column or str, got: <class 'int'>" in str(ex_info)
 
     assert df.select(count_distinct(df["*"])).collect() == [Row(2)]
 
@@ -706,17 +706,17 @@ def test_coalesce(session):
 
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(coalesce(["A", "B", "C"]))
-    assert "COALESCE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'COALESCE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_negate_and_not_negative(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(negate(["A", "B", "C"]))
-    assert "NEGATE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'NEGATE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(not_(["A", "B", "C"]))
-    assert "NOT_ expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'NOT_' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_random_negative(session):
@@ -732,12 +732,12 @@ def test_parse_functions_negative(session):
     # parse_json
     with pytest.raises(TypeError) as ex_info:
         df.select(parse_json([1])).collect()
-    assert "PARSE_JSON expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'PARSE_JSON' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # parse_xml
     with pytest.raises(TypeError) as ex_info:
         df.select(parse_xml([1])).collect()
-    assert "PARSE_XML expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'PARSE_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_to_filetype_negative(session):
@@ -745,16 +745,16 @@ def test_to_filetype_negative(session):
     # to_json
     with pytest.raises(TypeError) as ex_info:
         df.select(to_json([1])).collect()
-    assert "TO_JSON expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TO_JSON' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # to_xml
     with pytest.raises(TypeError) as ex_info:
         df.select(to_xml([1])).collect()
-    assert "TO_XML expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TO_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_array_agg_negative(session):
     df = session.sql("select 1").toDF("a")
     with pytest.raises(TypeError) as ex_info:
         df.select(array_agg([1])).collect()
-    assert "ARRAY_AGG expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'ARRAY_AGG' expected Column or str, got: <class 'list'>" in str(ex_info)
