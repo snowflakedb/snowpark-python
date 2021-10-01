@@ -1,9 +1,5 @@
 exclude: '^(.*egg.info.*|.*/parameters.py).*$'
 repos:
--   repo: git@github.com:snowflakedb/casec_precommit.git
-    rev: v1.5
-    hooks:
-        - id: secret-scanner
 -   repo: https://github.com/asottile/pyupgrade
     rev: v2.15.0
     hooks:
