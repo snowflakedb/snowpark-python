@@ -12,6 +12,21 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
+    as_array,
+    as_binary,
+    as_char,
+    as_date,
+    as_decimal,
+    as_double,
+    as_integer,
+    as_number,
+    as_object,
+    as_real,
+    as_time,
+    as_timestamp_ltz,
+    as_timestamp_ntz,
+    as_timestamp_tz,
+    as_varchar,
     builtin,
     call_builtin,
     ceil,
@@ -22,6 +37,21 @@ from snowflake.snowpark.functions import (
     count_distinct,
     exp,
     floor,
+    is_array,
+    is_binary,
+    is_char,
+    is_date,
+    is_decimal,
+    is_double,
+    is_integer,
+    is_null_value,
+    is_object,
+    is_real,
+    is_time,
+    is_timestamp_ltz,
+    is_timestamp_ntz,
+    is_timestamp_tz,
+    is_varchar,
     lit,
     log,
     negate,
@@ -59,7 +89,7 @@ def test_basic_numerical_operations_negative(session):
     df = session.sql("select 4").toDF("a")
     with pytest.raises(TypeError) as ex_info:
         df.select(sqrt([1])).collect()
-    assert "SQRT expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'SQRT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
         df.select(sqrt(lit(-1))).collect()
@@ -68,40 +98,40 @@ def test_basic_numerical_operations_negative(session):
     # abs
     with pytest.raises(TypeError) as ex_info:
         df.select(abs([None])).collect()
-    assert "ABS expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'ABS' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # exp
     with pytest.raises(TypeError) as ex_info:
         df.select(exp([None])).collect()
-    assert "EXP expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'EXP' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # log
     with pytest.raises(TypeError) as ex_info:
         df.select(log([None], "a")).collect()
-    assert "LOG expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'LOG' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(log("a", [123])).collect()
-    assert "LOG expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'LOG' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # pow
     with pytest.raises(TypeError) as ex_info:
         df.select(pow([None], "a")).collect()
-    assert "POW expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'POW' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(pow("a", [123])).collect()
-    assert "POW expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'POW' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # floor
     with pytest.raises(TypeError) as ex_info:
         df.select(floor([None])).collect()
-    assert "FLOOR expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'FLOOR' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # ceil
     with pytest.raises(TypeError) as ex_info:
         df.select(ceil([None])).collect()
-    assert "CEIL expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'CEIL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_basic_string_operations(session):
@@ -127,61 +157,61 @@ def test_basic_string_operations(session):
 
     with pytest.raises(TypeError) as ex_info:
         df.select(split([1, 2, 3], "b")).collect()
-    assert "SPLIT expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(split("a", [1, 2, 3])).collect()
-    assert "SPLIT expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # upper
     with pytest.raises(TypeError) as ex_info:
         df.select(upper([1])).collect()
-    assert "UPPER expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'UPPER' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # contains
     with pytest.raises(TypeError) as ex_info:
         df.select(contains("a", [1])).collect()
-    assert "CONTAINS expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'CONTAINS' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(contains([1], "b")).collect()
-    assert "CONTAINS expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'CONTAINS' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # startswith
     with pytest.raises(TypeError) as ex_info:
         df.select(startswith("a", [1])).collect()
-    assert "STARTSWITH expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'STARTSWITH' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(startswith([1], "b")).collect()
-    assert "STARTSWITH expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'STARTSWITH' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # char
     with pytest.raises(TypeError) as ex_info:
         df.select(char([1])).collect()
-    assert "CHAR expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'CHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # translate
     with pytest.raises(TypeError) as ex_info:
         df.select(translate("a", "b", [1])).collect()
-    assert "TRANSLATE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRANSLATE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(translate("a", [1], "c")).collect()
-    assert "TRANSLATE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRANSLATE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(translate([1], "a", "c")).collect()
-    assert "TRANSLATE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRANSLATE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # trim
     with pytest.raises(TypeError) as ex_info:
         df.select(trim("a", [1])).collect()
-    assert "TRIM expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRIM' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(trim([1], "b")).collect()
-    assert "TRIM expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TRIM' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_count_distinct(session):
@@ -202,7 +232,7 @@ def test_count_distinct(session):
     # Pass invalid type - list of numbers
     with pytest.raises(TypeError) as ex_info:
         df.select(count_distinct(123, 456))
-    assert "COUNT_DISTINCT expected Column or str, got: <class 'int'>" in str(ex_info)
+    assert "'COUNT_DISTINCT' expected Column or str, got: <class 'int'>" in str(ex_info)
 
     assert df.select(count_distinct(df["*"])).collect() == [Row(2)]
 
@@ -289,6 +319,138 @@ def test_call_builtin_avg_from_range(session):
     assert res == expected
 
 
+def test_is_negative(session):
+    td = TestData.string1(session)
+
+    # Test negative input types for __to_col_if_str
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_array(["a"])).collect()
+    assert "'IS_ARRAY' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_binary(["a"])).collect()
+    assert "'IS_BINARY' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_char(["a"])).collect()
+    assert "'IS_CHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_varchar(["a"])).collect()
+    assert "'IS_VARCHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_date(["a"])).collect()
+    assert "'IS_DATE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_decimal(["a"])).collect()
+    assert "'IS_DECIMAL' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_double(["a"])).collect()
+    assert "'IS_DOUBLE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_real(["a"])).collect()
+    assert "'IS_REAL' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_integer(["a"])).collect()
+    assert "'IS_INTEGER' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_null_value(["a"])).collect()
+    assert "'IS_NULL_VALUE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_object(["a"])).collect()
+    assert "'IS_OBJECT' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_time(["a"])).collect()
+    assert "'IS_TIME' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_timestamp_ltz(["a"])).collect()
+    assert "'IS_TIMESTAMP_LTZ' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_timestamp_ntz(["a"])).collect()
+    assert "'IS_TIMESTAMP_NTZ' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(is_timestamp_tz(["a"])).collect()
+    assert "'IS_TIMESTAMP_TZ' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    # Test that we can only use these with variants
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_array("a")).collect()
+    assert "Invalid argument types for function 'IS_ARRAY'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_binary("a")).collect()
+    assert "Invalid argument types for function 'IS_BINARY'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_char("a")).collect()
+    assert "Invalid argument types for function 'IS_CHAR'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_varchar("a")).collect()
+    assert "Invalid argument types for function 'IS_VARCHAR'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_date("a")).collect()
+    assert "Invalid argument types for function 'IS_DATE'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_decimal("a")).collect()
+    assert "Invalid argument types for function 'IS_DECIMAL'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_double("a")).collect()
+    assert "Invalid argument types for function 'IS_DOUBLE'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_real("a")).collect()
+    assert "Invalid argument types for function 'IS_REAL'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_integer("a")).collect()
+    assert "Invalid argument types for function 'IS_INTEGER'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_null_value("a")).collect()
+    assert "Invalid argument types for function 'IS_NULL_VALUE'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_object("a")).collect()
+    assert "Invalid argument types for function 'IS_OBJECT'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_time("a")).collect()
+    assert "Invalid argument types for function 'IS_TIME'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_timestamp_ltz("a")).collect()
+    assert "Invalid argument types for function 'IS_TIMESTAMP_LTZ'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_timestamp_ntz("a")).collect()
+    assert "Invalid argument types for function 'IS_TIMESTAMP_NTZ'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(is_timestamp_tz("a")).collect()
+    assert "Invalid argument types for function 'IS_TIMESTAMP_TZ'" in str(ex_info)
+
+
 def test_parse_json(session):
     assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
         Row('{\n  "a": null\n}'),
@@ -302,6 +464,184 @@ def test_parse_json(session):
         Row('{\n  "a": "foo"\n}'),
         Row(None),
     ]
+
+
+def test_as_negative(session):
+    td = TestData.string1(session)
+
+    # Test negative input types for __to_col_if_str
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_array(["a"])).collect()
+    assert "'AS_ARRAY' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_binary(["a"])).collect()
+    assert "'AS_BINARY' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_char(["a"])).collect()
+    assert "'AS_CHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_varchar(["a"])).collect()
+    assert "'AS_VARCHAR' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_date(["a"])).collect()
+    assert "'AS_DATE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_decimal(["a"])).collect()
+    assert "'AS_DECIMAL' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_number(["a"])).collect()
+    assert "'AS_NUMBER' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_double(["a"])).collect()
+    assert "'AS_DOUBLE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_real(["a"])).collect()
+    assert "'AS_REAL' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_integer(["a"])).collect()
+    assert "'AS_INTEGER' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_object(["a"])).collect()
+    assert "'AS_OBJECT' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_time(["a"])).collect()
+    assert "'AS_TIME' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_timestamp_ltz(["a"])).collect()
+    assert "'AS_TIMESTAMP_LTZ' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_timestamp_ntz(["a"])).collect()
+    assert "'AS_TIMESTAMP_NTZ' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        td.select(as_timestamp_tz(["a"])).collect()
+    assert "'AS_TIMESTAMP_TZ' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    # Test that we can only use these with variants
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_array("a")).collect()
+    assert "Invalid argument types for function 'AS_ARRAY'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_binary("a")).collect()
+    assert "Invalid argument types for function 'AS_BINARY'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_char("a")).collect()
+    assert "Invalid argument types for function 'AS_CHAR'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_varchar("a")).collect()
+    assert "Invalid argument types for function 'AS_VARCHAR'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_date("a")).collect()
+    assert "Invalid argument types for function 'AS_DATE'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_decimal("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_DECIMAL(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ValueError) as ex_info:
+        td.select(as_decimal("a", None, 3)).collect()
+    assert "Cannot define scale without precision" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.variant1(session).select(as_decimal(col("decimal1"), -1)).collect()
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, precision...)'" in str(
+        ex_info
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.variant1(session).select(as_decimal(col("decimal1"), 6, -1)).collect()
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, ?, scale)'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_number("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_NUMBER(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ValueError) as ex_info:
+        td.select(as_number("a", None, 3)).collect()
+    assert "Cannot define scale without precision" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.variant1(session).select(as_number(col("decimal1"), -1)).collect()
+    assert "invalid value [-1] for parameter 'AS_NUMBER(?, precision...)'" in str(
+        ex_info
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.variant1(session).select(as_number(col("decimal1"), 6, -1)).collect()
+    assert "invalid value [-1] for parameter 'AS_NUMBER(?, ?, scale)'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_double("a")).collect()
+    assert "Invalid argument types for function 'AS_DOUBLE'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_real("a")).collect()
+    assert "Invalid argument types for function 'AS_REAL'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_integer("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_INTEGER(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_object("a")).collect()
+    assert "Invalid argument types for function 'AS_OBJECT'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_time("a")).collect()
+    assert "Invalid argument types for function 'AS_TIME'" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_timestamp_ltz("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_TIMESTAMP_LTZ(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_timestamp_ntz("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_TIMESTAMP_NTZ(variantValue...)'"
+        in str(ex_info)
+    )
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        td.select(as_timestamp_tz("a")).collect()
+    assert (
+        "invalid type [VARCHAR(5)] for parameter 'AS_TIMESTAMP_TZ(variantValue...)'"
+        in str(ex_info)
+    )
 
 
 def test_to_date_to_array_to_variant_to_object(session):
@@ -366,17 +706,17 @@ def test_coalesce(session):
 
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(coalesce(["A", "B", "C"]))
-    assert "COALESCE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'COALESCE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_negate_and_not_negative(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(negate(["A", "B", "C"]))
-    assert "NEGATE expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'NEGATE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(not_(["A", "B", "C"]))
-    assert "NOT_ expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'NOT_' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_random_negative(session):
@@ -392,12 +732,12 @@ def test_parse_functions_negative(session):
     # parse_json
     with pytest.raises(TypeError) as ex_info:
         df.select(parse_json([1])).collect()
-    assert "PARSE_JSON expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'PARSE_JSON' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # parse_xml
     with pytest.raises(TypeError) as ex_info:
         df.select(parse_xml([1])).collect()
-    assert "PARSE_XML expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'PARSE_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_to_filetype_negative(session):
@@ -405,16 +745,16 @@ def test_to_filetype_negative(session):
     # to_json
     with pytest.raises(TypeError) as ex_info:
         df.select(to_json([1])).collect()
-    assert "TO_JSON expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TO_JSON' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # to_xml
     with pytest.raises(TypeError) as ex_info:
         df.select(to_xml([1])).collect()
-    assert "TO_XML expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'TO_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
 def test_array_agg_negative(session):
     df = session.sql("select 1").toDF("a")
     with pytest.raises(TypeError) as ex_info:
         df.select(array_agg([1])).collect()
-    assert "ARRAY_AGG expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'ARRAY_AGG' expected Column or str, got: <class 'list'>" in str(ex_info)
