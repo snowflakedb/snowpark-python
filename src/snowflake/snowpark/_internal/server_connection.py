@@ -321,15 +321,30 @@ class ServerConnection:
             data = results_cursor.fetchall()
         return {"data": data, "sfqid": results_cursor.sfqid}
 
-    def result_set_to_rows(self, result_set: List[Any]) -> List[Row]:
-        rows = [Row(*row) for row in result_set]
+    def result_set_to_rows(
+        self, result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
+    ) -> List[Row]:
+        if result_meta:
+            col_names = [col.name for col in result_meta]
+            rows = []
+            for data in result_set:
+                row = Row(*data)
+                # row might have duplicated column names
+                row._fields = col_names
+                rows.append(row)
+        else:
+            rows = [Row(*row) for row in result_set]
         return rows
 
     def execute(
         self, plan: SnowflakePlan, to_pandas: bool = False, **kwargs
-    ) -> Union[List[Any], "pandas.DataFrame"]:
-        result_set, _ = self.get_result_set(plan, to_pandas, **kwargs)
-        return result_set if to_pandas else self.result_set_to_rows(result_set)
+    ) -> Union[List[Row], "pandas.DataFrame"]:
+        result_set, result_meta = self.get_result_set(plan, to_pandas, **kwargs)
+        return (
+            result_set
+            if to_pandas
+            else self.result_set_to_rows(result_set, result_meta)
+        )
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
