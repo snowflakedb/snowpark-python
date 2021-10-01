@@ -840,4 +840,4 @@ def __to_col_if_str(e: Union[Column, str], func_name: str):
     elif isinstance(e, str):
         return col(e)
     else:
-        raise TypeError(f"{func_name.upper()} expected Column or str, got: {type(e)}")
+        raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
