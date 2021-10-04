@@ -106,12 +106,12 @@ class Session:
         def __init__(self):
             self.__options = {}
 
-        def _remove_config(self, key: str):
+        def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
             self.__options.pop(key, None)
             return self
 
-        def config(self, key: str, value: Union[int, str]):
+        def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
             """
             Adds the specified configuration property and value to
             the SessionBuilder configuration.
@@ -119,7 +119,9 @@ class Session:
             self.__options[key] = value
             return self
 
-        def configs(self, options: Dict[str, Union[int, str]]):
+        def configs(
+            self, options: Dict[str, Union[int, str]]
+        ) -> "Session.SessionBuilder":
             """
             Adds the specified :class:`dict` of configuration property and value to
             the SessionBuilder configuration.
@@ -131,11 +133,13 @@ class Session:
             self.__options = {**self.__options, **options}
             return self
 
-        def create(self):
+        def create(self) -> "Session":
             """Creates a new Session."""
             return self.__create_internal(conn=None)
 
-        def __create_internal(self, conn: Optional[SnowflakeConnection] = None):
+        def __create_internal(
+            self, conn: Optional[SnowflakeConnection] = None
+        ) -> "Session":
             # set the log level of the conncector logger to ERROR to avoid massive logging
             logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
             return Session._set_active_session(
@@ -153,7 +157,7 @@ class Session:
 
     #: Returns a builder you can use to set configuration properties
     #: and create a :class:`Session` object.
-    builder = SessionBuilder()
+    builder: SessionBuilder = SessionBuilder()
 
     def __init__(self, conn: ServerConnection):
         self._conn = conn
