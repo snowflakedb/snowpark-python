@@ -193,7 +193,7 @@ class Session:
             if self._conn.is_closed():
                 logger.warning("This session has been closed.")
             else:
-                logger.info(f"Closing session: {self.__session_info}")
+                logger.info(f"Closing session: {self._session_info}")
                 self.cancel_all()
         except Exception as ex:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
