@@ -66,7 +66,7 @@ class Utils:
     def upload_to_stage(
         session: "Session", stage_name: str, filename: str, compress: bool
     ):
-        session.conn.upload_file(
+        session._conn.upload_file(
             stage_location=stage_name, path=filename, compress_data=compress
         )
 

@@ -19,6 +19,12 @@ def test_active_session(session):
     assert session == Session._get_active_session()
 
 
+def test_session_builder(session):
+    builder1 = session.builder
+    builder2 = session.builder
+    assert builder1 != builder2
+
+
 def test_list_files_in_stage(session, resources_path):
     stage_name = Utils.random_stage_name()
     special_name = f'"{stage_name}/aa"'

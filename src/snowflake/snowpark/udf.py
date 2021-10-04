@@ -168,7 +168,7 @@ class UDFRegistration:
         dest_file_name = f"udf_py_{Utils.random_number()}.py"
         upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{dest_file_name}"
         with io.BytesIO(bytes(code, "utf8")) as input_stream:
-            self.session.conn.upload_stream(
+            self.session._conn.upload_stream(
                 input_stream=input_stream,
                 stage_location=upload_stage,
                 dest_filename=dest_file_name,

@@ -95,8 +95,8 @@ def test_large_local_relation_query_tag_from_traceback(session):
 
 
 def get_query_history_for_tags(session, query_tag):
-    query_result = session.conn.run_query(
+    query_result = session._conn.run_query(
         f"select query_text from table(information_schema.query_history()) "
-        f"where contains(query_tag, '{query_tag}') and session_id = '{session.conn.get_session_id()}'"
+        f"where contains(query_tag, '{query_tag}') and session_id = '{session._conn.get_session_id()}'"
     )
     return query_result["data"]

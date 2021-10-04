@@ -111,7 +111,7 @@ def test_create_dataframe_namedtuple(session):
 # and the public role has the privilege to access the current database and
 # schema of the current role
 def test_get_schema_database_works_after_use_role(session):
-    current_role = session.conn._get_string_datum("select current_role()")
+    current_role = session._conn._get_string_datum("select current_role()")
     try:
         db = session.getCurrentDatabase()
         schema = session.getCurrentSchema()
@@ -205,7 +205,7 @@ def test_session_info(session):
     session_info = session._session_info
     assert snowpark_utils.get_version() in session_info
     assert snowpark_utils.get_python_version() in session_info
-    assert str(session.conn.get_session_id()) in session_info
+    assert str(session._conn.get_session_id()) in session_info
     assert "python.connector.version" in session_info
 
 
