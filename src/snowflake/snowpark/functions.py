@@ -87,7 +87,7 @@ def typedLit(literal) -> Column:
 def sql_expr(sql: str) -> Column:
     """Creates a :class:`Column` expression from raw SQL text.
     Note that the function does not interpret or check the SQL text."""
-    return Column.expr(sql)
+    return Column._expr(sql)
 
 
 def avg(e: Union[Column, str]) -> Column:
