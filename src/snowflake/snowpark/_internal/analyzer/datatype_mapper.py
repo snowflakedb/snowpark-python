@@ -36,11 +36,11 @@ from snowflake.snowpark.types import (
     BooleanType,
     DateType,
     MapType,
-    _NumericType,
     StringType,
     TimestampType,
     TimeType,
     VariantType,
+    _NumericType,
 )
 
 

@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import re
-from typing import List, Tuple, Union, Callable
+from typing import Callable, List, Tuple, Union
 
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages

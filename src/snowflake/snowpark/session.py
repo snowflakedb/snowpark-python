@@ -55,7 +55,6 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
-    _AtomicType,
     DateType,
     DecimalType,
     MapType,
@@ -63,6 +62,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _AtomicType,
 )
 from snowflake.snowpark.udf import UDFRegistration
 

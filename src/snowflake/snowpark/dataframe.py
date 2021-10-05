@@ -8,6 +8,8 @@ import string
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
+import pandas
+
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
@@ -57,7 +59,6 @@ from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
-import pandas
 
 class DataFrame:
     """Represents a lazily-evaluated relational dataset that contains a collection
@@ -221,8 +222,7 @@ class DataFrame:
         )
 
     def clone(self) -> "DataFrame":
-        """Returns a clone of this :class:`DataFrame`.
-        """
+        """Returns a clone of this :class:`DataFrame`."""
         return DataFrame(self.session, self.__plan.clone())
 
     def toPandas(self, **kwargs) -> pandas.DataFrame:
@@ -294,8 +294,7 @@ class DataFrame:
         return [attr.name for attr in self.__output()]
 
     def col(self, col_name: str) -> "Column":
-        """Returns a reference to a column in the DataFrame.
-        """
+        """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
             return Column(SPStar(self.__plan.output()))
         else:
@@ -735,7 +734,12 @@ class DataFrame:
             )
         )
 
-    def join(self, right, using_columns:Optional[Union[str,Column,List[Union[str,Column]]]]=None, join_type: Optional[str]=None) -> "DataFrame":
+    def join(
+        self,
+        right,
+        using_columns: Optional[Union[str, Column, List[Union[str, Column]]]] = None,
+        join_type: Optional[str] = None,
+    ) -> "DataFrame":
         """Performs a join of the specified type (``join_type``) with the current
         DataFrame and another DataFrame (``right``) on a list of columns
         (``using_columns``).
@@ -1153,7 +1157,9 @@ class DataFrame:
         else:
             return self.limit(n)._collect_with_tag()
 
-    def sample(self, frac: Optional[float] = None, n: Optional[int] = None) -> "DataFrame":
+    def sample(
+        self, frac: Optional[float] = None, n: Optional[int] = None
+    ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a
         percentage or rows to be returned.
 
@@ -1264,7 +1270,8 @@ class DataFrame:
         """
         if not self.__placeholder_schema:
             self.__placeholder_schema = StructType._from_attributes(
-                self.__plan.attributes())
+                self.__plan.attributes()
+            )
         return self.__placeholder_schema
 
     def __with_plan(self, plan):

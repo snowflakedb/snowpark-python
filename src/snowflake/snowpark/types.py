@@ -10,6 +10,7 @@ from typing import List, Union
 
 class DataType:
     """The base class of Snowpark data types"""
+
     @property
     def type_name(self) -> str:
         """Returns a data type name."""
@@ -34,6 +35,7 @@ class DataType:
 
 class NullType(DataType):
     """Represents a null type."""
+
     pass
 
 
@@ -43,6 +45,7 @@ class _AtomicType(DataType):
 
 class MapType(DataType):
     """Map data type. This maps to OBJECT data type in Snowflake."""
+
     def __init__(self, key_type, value_type):
         self.key_type = key_type
         self.value_type = value_type
@@ -57,6 +60,7 @@ class MapType(DataType):
 
 class VariantType(DataType):
     """Variant data type. This maps to VARIANT data type in Snowflake."""
+
     pass
 
 
@@ -67,21 +71,25 @@ class VariantType(DataType):
 
 class BinaryType(_AtomicType):
     """Binary data type. Mapped to BINARY Snowflake data type."""
+
     pass
 
 
 class BooleanType(_AtomicType):
     """Boolean data type. Mapped to BOOLEAN Snowflake data type."""
+
     pass
 
 
 class DateType(_AtomicType):
     """Date data type. Mapped to DATE Snowflake data type."""
+
     pass
 
 
 class StringType(_AtomicType):
     """String data type. Mapped to VARCHAR Snowflake data type."""
+
     pass
 
 
@@ -91,11 +99,13 @@ class _NumericType(_AtomicType):
 
 class TimestampType(_AtomicType):
     """Timestamp data type. Mapped to TIMESTAMP Snowflake data type."""
+
     pass
 
 
 class TimeType(_AtomicType):
     """Time data type. Mapped to TIME Snowflake data type."""
+
     pass
 
 
@@ -110,31 +120,37 @@ class _FractionalType(_NumericType):
 
 class ByteType(_IntegralType):
     """Byte data type. Mapped to TINYINT Snowflake date type."""
+
     pass
 
 
 class ShortType(_IntegralType):
     """Short integer data type. Mapped to SMALLINT Snowflake date type."""
+
     pass
 
 
 class IntegerType(_IntegralType):
     """Integer data type. Mapped to INT Snowflake date type."""
+
     pass
 
 
 class LongType(_IntegralType):
     """Long integer data type. Mapped to BIGINT Snowflake date type."""
+
     pass
 
 
 class FloatType(_FractionalType):
     """Float data type. Mapped to FLOAT Snowflake date type."""
+
     pass
 
 
 class DoubleType(_FractionalType):
     """Double data type. Mapped to DOUBLE Snowflake date type."""
+
     pass
 
 
@@ -159,6 +175,7 @@ class DecimalType(_FractionalType):
 
 class ArrayType(DataType):
     """Array data type. Mapped to ARRAY Snowflake date type."""
+
     def __init__(self, element_type: DataType):
         self.element_type = element_type
 
@@ -174,11 +191,12 @@ class ArrayType(DataType):
 # TODO complete
 class ColumnIdentifier:
     """Represents a Column Identifier."""
+
     def __init__(self, normalized_name):
         self.normalized_name = normalized_name
 
     def name(self) -> str:
-        """ Returns the name of column. Name format:
+        """Returns the name of column. Name format:
 
         1. if the name is quoted:
 
@@ -199,7 +217,7 @@ class ColumnIdentifier:
 
     @property
     def quoted_name(self) -> str:
-        """ Returns the quoted name of this column Name Format:
+        """Returns the quoted name of this column Name Format:
 
         1. if quoted, do nothing
         2. if not quoted:
@@ -264,6 +282,7 @@ class StructField:
 
 class StructType(DataType):
     """Represents a table schema. Contains :class:`StructField` for each column."""
+
     def __init__(self, fields: List["StructField"]):
         self.fields = fields
 

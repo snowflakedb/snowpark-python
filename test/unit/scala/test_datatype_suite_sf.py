@@ -3,7 +3,6 @@
 #
 
 from snowflake.snowpark.types import (
-    _AtomicType,
     BinaryType,
     BooleanType,
     ByteType,
@@ -12,17 +11,18 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
-    _FractionalType,
     IntegerType,
-    _IntegralType,
     LongType,
-    _NumericType,
     ShortType,
     StringType,
     StructField,
     StructType,
     TimestampType,
     TimeType,
+    _AtomicType,
+    _FractionalType,
+    _IntegralType,
+    _NumericType,
 )
 
 

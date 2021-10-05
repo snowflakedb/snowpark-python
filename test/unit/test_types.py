@@ -45,17 +45,18 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     IntegerType,
-    _IntegralType,
     LongType,
     MapType,
     NullType,
-    _NumericType,
     ShortType,
     StringType,
     StructField,
     TimestampType,
     TimeType,
-    VariantType, _FractionalType,
+    VariantType,
+    _FractionalType,
+    _IntegralType,
+    _NumericType,
 )
 
 
