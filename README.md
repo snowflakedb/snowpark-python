@@ -10,8 +10,9 @@ Python Snowpark requires Python 3.8 (or higher). Python 3.8 is available in the 
 repository and can be installed from source using the following commands:
 ```bash
 # Install necessary install packages
-sudo yum install gcc openssl-devel bzip2-devel libffi-devel
+sudo yum install gcc openssl-devel bzip2-devel libffi-devel sqlite-devel
 cd /opt
+# Following operations may require sudo
 # Go here (https://www.python.org/downloads/) to find the latest Python 3.8 version
 wget https://www.python.org/ftp/python/3.8.11/Python-3.8.11.tgz
 tar xvf Python-3.8.11.tgz
