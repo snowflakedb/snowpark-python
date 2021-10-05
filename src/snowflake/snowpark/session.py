@@ -75,26 +75,28 @@ class Session:
     Establishes a connection with a Snowflake database and provides methods for creating DataFrames
     and accessing objects for working with files in stages.
 
-    When you create a Session object, you provide configuration settings to establish a
+    When you create a Session object, you provide connection parameters to establish a
     connection with a Snowflake database (e.g. an account, a user name, etc.). You can
-    specify these settings in a dict that associates configuration setting names with values.
-    Connecting to Snowflake with the Snowpark library is similar with
-    `Connecting to Snowflake using Python Connector <https://docs.snowflake.com/en/user-guide/python-connector-example.html#connecting-to-snowflake>`_.
+    specify these settings in a dict that associates connection parameters names with values.
+    The Snowpark library uses `the Snowflake Connector for Python <https://docs.snowflake.com/en/user-guide/python-connector.html>`_
+    to connect to Snowflake. Refer to
+    `Connecting to Snowflake using the Python Connector <https://docs.snowflake.com/en/user-guide/python-connector-example.html#connecting-to-snowflake>`_
+    for the details of connection parameters.
 
-    To create a Session from a dict of configuration properties::
+    To create a Session object from a dict of configuration properties::
 
-        db_parameters = {
+        connection_parameters = {
             "user": "<user_name>",
             "password": "<password>",
-            "account"="myorganization-myaccount",
-            "role": "myrole",
-            "warehouse": "warehouse1",
-            "database": "db1",
-            "schema": "schema1",
+            "account": "<account_name>",
+            "role": "<role_name>",
+            "warehouse": "<warehouse_name>",
+            "database": <database_name>,
+            "schema": <schema1_name>,
         }
-        session = Session.builder.configs(db_parameters).create()
+        session = Session.builder.configs(connection_parameters).create()
 
-    Session contains functions to construct a :class:`DataFrame` like :func:`table`,
+    :class:`Session` contains functions to construct a :class:`DataFrame` like :func:`table`,
     :func:`sql` and :func:`read`.
     """
 
@@ -210,7 +212,7 @@ class Session:
     def cancel_all(self) -> None:
         """
         Cancel all action methods that are running currently.
-        This does not affect on any action methods called in the future.
+        This does not affect any action methods called in the future.
         """
         logger.info("Canceling all running queries")
         self.__last_canceled_id = self.__last_action_id
@@ -219,7 +221,7 @@ class Session:
     def getImports(self) -> List[str]:
         """
         Returns a list of imports added for user defined functions (UDFs).
-        This list includes any python or zip files that were added automatically by the library.
+        This list includes any Python or zip files that were added automatically by the library.
         """
         return list(self.__import_paths.keys())
 
@@ -228,15 +230,6 @@ class Session:
             dep for dep in self.getImports() if not dep.startswith(self.__STAGE_PREFIX)
         ]
 
-    @property
-    def pythonConnectorConnection(self) -> SnowflakeConnection:
-        """
-        Returns the Python connector
-        `connection <https://docs.snowflake.com/en/user-guide/python-connector-api.html#object-connection>`_
-        object used for the connection to the Snowflake database.
-        """
-        return self._conn.connection
-
     def addImport(self, path: str, import_path: Optional[str] = None) -> None:
         """
         Registers a remote file in stage or a local file as an import of a user-defined function
@@ -244,7 +237,7 @@ class Session:
         a directory, or any other file resource.
 
         Args:
-            path: The path of a local file or a remote file in the stage. In each case,
+            path: The path of a local file or a remote file in the stage. In each case:
 
                 * if the path points to a local file, this file will be uploaded to the
                   stage where the UDF is registered and Snowflake will import the file when
@@ -257,10 +250,10 @@ class Session:
                 * if the path points to a file in a stage, the file will be included in the
                   imports when executing a UDF.
 
-            import_path: The relative Python import path in a UDF.
-                If it is not provided or it is None, the UDF will import it directly without
-                any leading package/module. This argument will become a no-op if the path
-                points to a stage file or a non-Python (.py) local file.
+            import_path: The relative Python import path for a UDF.
+                If it is not provided or it is None, the UDF will import the package
+                directly without any leading package/module. This argument will become
+                a no-op if the path  points to a stage file or a non-Python local file.
 
         Examples::
 
@@ -455,12 +448,12 @@ class Session:
         The query tag for this session.
 
         :getter: Returns the query tag. You can use the query tag to find all queries
-            run for this session in the history of Snowflake web interface.
+            run for this session in the History page of the Snowflake web interface.
 
         :setter: Sets the query tag. If the input is ``None`` or an empty :class:`str`,
             the session's query_tag will be unset. If the query tag is not set, the default
             will be the call stack when a :class:`DataFrame` method that pushes down the SQL
-            query to Snowflake Database is called. For example, :meth:`DataFrame.collect`,
+            query to the Snowflake Database is called. For example, :meth:`DataFrame.collect`,
             :meth:`DataFrame.show`, :meth:`DataFrame.createOrReplaceView` and
             :meth:`DataFrame.createOrReplaceTempView` will push down the SQL query.
         """
@@ -479,12 +472,12 @@ class Session:
         Returns a DataFrame that points the specified table.
 
         Args:
-            name: The table name that is a fully qualified name or a name
-                in the current database/schema. A fully qualified identifier
-                must conform to the rules for a Snowflake identifier. Alternatively,
-                it can be a list of :class:`str` that specify the database name,
-                schema name, and table name
-                (e.g. ``["database_name", "schema_name", "table_name"]``).
+            name: A string or list of strings that specify the table name or
+                fully-qualified object identifier (database name, schema name, and table name).
+
+        Example::
+
+            df = session.table("mytable")
         """
         if type(name) == str:
             fqdn = [name]
@@ -499,10 +492,18 @@ class Session:
     def sql(self, query: str) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
-        You can use this method to execute an arbitrary SQL statement.
+        You can use this method to execute a SQL statement. Note that you still
+        need to call :func:`DataFrame.collect` to execute this query in Snowflake.
 
         Args:
             query: The SQL statement to execute.
+
+        Example::
+
+            # create a dataframe from a SQL query
+            df = session.sql("select 1")
+            # execute the query
+            df.collect()
         """
         return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
 
@@ -520,9 +521,10 @@ class Session:
 
     def getSessionStage(self) -> str:
         """
-        Returns the name of the temporary stage created by Snowpark library for uploading and
-        store temporary artifacts for this session. These artifacts include libraries and packages
-        for UDFs that you define in this session via func:`addImport`.
+        Returns the name of the temporary stage created by the Snowpark library
+        for uploading and storing temporary artifacts for this session.
+        These artifacts include libraries and packages for UDFs that you define
+        in this session via func:`addImport`.
         """
         qualified_stage_name = (
             f"{self.getFullyQualifiedCurrentSchema()}.{self.__session_stage}"
@@ -544,13 +546,12 @@ class Session:
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
                 be a :class:`list` or a :class:`tuple`. Every element in ``data`` will
-                constitute a row in the dataframe.
+                constitute a row in the DataFrame.
             schema: A :class:`types.StructType` containing names and data types of columns,
                 or a list of column names, or ``None``. When ``schema`` is a list of
-                column names or ``None``, the schema of the dataframe will be inferred
-                from the data across all rows. To boost performance, it would be better
-                to provide a schema to avoid inferring data types when the local data
-                is large.
+                column names or ``None``, the schema of the DataFrame will be inferred
+                from the data across all rows. To improve performance, provide a schema.
+                This avoids the need to infer data types with large data sets.
 
         Examples::
 
@@ -720,6 +721,12 @@ class Session:
             start (:class:`Optional[int]`): The start of the range.
             end (:class:`int`): The end of the range.
             step (:class:`Optional[int]`): The step of the range
+
+        Examples::
+
+            df1 = session.range(10)
+            df2 = session.range(1, 10)
+            df3 = session.range(1, 10, 2)
         """
         start, step = 0, 1
 
@@ -755,8 +762,9 @@ class Session:
 
         Example::
 
-            # return `newDB`
             session.sql("use database newDB").collect()
+            # return "newDB"
+            session.getCurrentDatabase()
         """
         return self._conn.get_current_database()
 
@@ -767,8 +775,9 @@ class Session:
 
         Example::
 
-            # return `newSchema`
             session.sql("use schema newSchema").collect()
+            # return "newSchema"
+            session.getCurrentSchema()
         """
         return self._conn.get_current_schema()
 
@@ -787,15 +796,8 @@ class Session:
     @property
     def udf(self) -> UDFRegistration:
         """
-        Returns a :class:`UDFRegistration` object that you can use to register UDFs.
-
-        Example::
-
-            def double(x: int) -> int:
-                return 2 * x
-
-            add_udf = session.udf.register(double, name="mydoubleudf")
-            session.sql(s"SELECT mydoubleudf(c) FROM table")
+        Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
+        See details of how to use this object in :class:`udf.UDFRegistration`.
         """
         if not self.__udf_registration:
             self.__udf_registration = UDFRegistration(self)
