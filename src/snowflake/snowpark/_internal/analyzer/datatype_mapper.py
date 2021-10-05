@@ -36,7 +36,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DateType,
     MapType,
-    NumericType,
+    _NumericType,
     StringType,
     TimestampType,
     TimeType,
@@ -188,7 +188,7 @@ class DataTypeMapper:
             #     return "TRY_TO_GEOGRAPHY(NULL)"
             return "NULL :: " + convert_to_sf_type(data_type)
 
-        if isinstance(data_type, NumericType):
+        if isinstance(data_type, _NumericType):
             return "0 :: " + convert_to_sf_type(data_type)
         if isinstance(data_type, StringType):
             return "'a' :: STRING"

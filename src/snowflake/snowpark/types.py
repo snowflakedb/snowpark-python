@@ -9,6 +9,7 @@ from typing import List, Union
 
 
 class DataType:
+    """The base class of Snowpark data types"""
     @property
     def type_name(self) -> str:
         """Returns a data type name."""
@@ -84,7 +85,7 @@ class StringType(_AtomicType):
     pass
 
 
-class NumericType(_AtomicType):
+class _NumericType(_AtomicType):
     pass
 
 
@@ -99,30 +100,30 @@ class TimeType(_AtomicType):
 
 
 # Numeric types
-class IntegralType(NumericType):
+class _IntegralType(_NumericType):
     pass
 
 
-class _FractionalType(NumericType):
+class _FractionalType(_NumericType):
     pass
 
 
-class ByteType(IntegralType):
+class ByteType(_IntegralType):
     """Byte data type. Mapped to TINYINT Snowflake date type."""
     pass
 
 
-class ShortType(IntegralType):
+class ShortType(_IntegralType):
     """Short integer data type. Mapped to SMALLINT Snowflake date type."""
     pass
 
 
-class IntegerType(IntegralType):
+class IntegerType(_IntegralType):
     """Integer data type. Mapped to INT Snowflake date type."""
     pass
 
 
-class LongType(IntegralType):
+class LongType(_IntegralType):
     """Long integer data type. Mapped to BIGINT Snowflake date type."""
     pass
 
@@ -177,29 +178,37 @@ class ColumnIdentifier:
         self.normalized_name = normalized_name
 
     def name(self) -> str:
-        """ Returns the name of column. Name format: 1. if the name quoted. a. starts
-        with _A-Z and follows by _A-Z0-9$: remove quotes b. starts with $ and follows
-        by digits: remove quotes c. otherwise, do nothing 2. if not quoted. a. starts
-        with _a-zA-Z and follows by _a-zA-Z0-9$, upper case all letters. b. starts with
-        $ and follows by digits, do nothing c. otherwise, quote name
+        """ Returns the name of column. Name format:
+
+        1. if the name is quoted:
+
+            a. if it starts with _A-Z and is followed by _A-Z0-9$, remove quotes.
+            b. if it starts with $ and is followed by digits, remove quotes.
+            c. otherwise, do nothing.
+
+        2. if not quoted:
+
+            a. if it starts with _a-zA-Z and is followed by _a-zA-Z0-9$, upper case all letters.
+            b. if it starts with $ and is followed by digits, do nothing.
+            c. otherwise, quote name.
 
         More details can be found from
         https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html
-
-        :return: A str value representing the name.
         """
         return ColumnIdentifier.__strip_unnecessary_quotes(self.normalized_name)
 
     @property
     def quoted_name(self) -> str:
-        """ Returns the quoted name of this column Name Format: 1. if quoted, do
-        nothing 2. if not quoted. a. starts with _a-zA-Z and follows by _a-zA-Z0-9$,
-        upper case all letters and then quote b. otherwise, quote name
+        """ Returns the quoted name of this column Name Format:
 
-        It is same as :func:`name`, but quotes always added. It is always safe to do string
-        comparisons between quoted column names
+        1. if quoted, do nothing
+        2. if not quoted:
 
-        :return: A String value representing the quoted name.
+            a. if it starts with _a-zA-Z and followed by _a-zA-Z0-9$, upper case all letters and then quote.
+            b. otherwise, quote name.
+
+        It is the same as :func:`name`, but quotes are always added. It is always safe
+        to do string comparisons between quoted column names
         """
         return self.normalized_name
 

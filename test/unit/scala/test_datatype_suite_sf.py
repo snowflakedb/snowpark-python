@@ -14,9 +14,9 @@ from snowflake.snowpark.types import (
     FloatType,
     _FractionalType,
     IntegerType,
-    IntegralType,
+    _IntegralType,
     LongType,
-    NumericType,
+    _NumericType,
     ShortType,
     StringType,
     StructField,
@@ -28,8 +28,8 @@ from snowflake.snowpark.types import (
 
 def test_integral_type():
     def verify_integral_type(tpe: DataType):
-        assert isinstance(tpe, IntegralType)
-        assert isinstance(tpe, NumericType)
+        assert isinstance(tpe, _IntegralType)
+        assert isinstance(tpe, _NumericType)
         assert isinstance(tpe, _AtomicType)
         assert isinstance(tpe, DataType)
         assert tpe.type_name == str(tpe)
@@ -42,7 +42,7 @@ def test_integral_type():
 def test_fractional_type():
     def verify_fractional_type(tpe: DataType):
         assert isinstance(tpe, _FractionalType)
-        assert isinstance(tpe, NumericType)
+        assert isinstance(tpe, _NumericType)
         assert isinstance(tpe, _AtomicType)
         assert isinstance(tpe, DataType)
         assert tpe.type_name == str(tpe)
@@ -55,7 +55,7 @@ def test_fractional_type():
 def test_decimal_type():
     tpe = DecimalType(38, 19)
     assert isinstance(tpe, _FractionalType)
-    assert isinstance(tpe, NumericType)
+    assert isinstance(tpe, _NumericType)
     assert isinstance(tpe, _AtomicType)
     assert isinstance(tpe, DataType)
     assert tpe.type_name == str(tpe)

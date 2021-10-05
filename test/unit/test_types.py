@@ -45,17 +45,17 @@ from snowflake.snowpark.types import (
     DoubleType,
     FloatType,
     IntegerType,
-    IntegralType,
+    _IntegralType,
     LongType,
     MapType,
     NullType,
-    NumericType,
+    _NumericType,
     ShortType,
     StringType,
     StructField,
     TimestampType,
     TimeType,
-    VariantType,
+    VariantType, _FractionalType,
 )
 
 
@@ -173,9 +173,9 @@ def test_sf_datatype_names():
     assert BooleanType().type_name == "Boolean"
     assert DateType().type_name == "Date"
     assert StringType().type_name == "String"
-    assert NumericType().type_name == "Numeric"
-    assert IntegralType().type_name == "Integral"
-    assert NumericType().type_name == "Numeric"
+    assert _NumericType().type_name == "_Numeric"
+    assert _IntegralType().type_name == "_Integral"
+    assert _FractionalType().type_name == "_Fractional"
     assert TimeType().type_name == "Time"
     assert ByteType().type_name == "Byte"
     assert ShortType().type_name == "Short"
@@ -192,8 +192,9 @@ def test_sf_datatype_names():
     assert str(BooleanType()) == "Boolean"
     assert str(DateType()) == "Date"
     assert str(StringType()) == "String"
-    assert str(NumericType()) == "Numeric"
-    assert str(IntegralType()) == "Integral"
+    assert str(_NumericType()) == "_Numeric"
+    assert str(_IntegralType()) == "_Integral"
+    assert str(_FractionalType()) == "_Fractional"
     assert str(TimeType()) == "Time"
     assert str(ByteType()) == "Byte"
     assert str(ShortType()) == "Short"

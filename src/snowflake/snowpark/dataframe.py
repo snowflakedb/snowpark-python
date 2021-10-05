@@ -8,6 +8,7 @@ import string
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
+import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
@@ -208,9 +209,6 @@ class DataFrame:
     def collect(self) -> List["Row"]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self._collect_with_tag()
 
@@ -224,9 +222,6 @@ class DataFrame:
 
     def clone(self) -> "DataFrame":
         """Returns a clone of this :class:`DataFrame`.
-
-        Returns:
-            :class:`DataFrame`
         """
         return DataFrame(self.session, self.__plan.clone())
 
@@ -234,9 +229,6 @@ class DataFrame:
         """Returns the contents of this DataFrame as Pandas DataFrame.
 
         This method is only available if Pandas is installed and available.
-
-        Returns:
-            :class:`pandas.DataFrame`
         """
         if not self.session.query_tag:
             kwargs["_statement_params"] = {
@@ -258,9 +250,6 @@ class DataFrame:
 
         Args:
             names: list of new column names
-
-        Returns:
-            :class:`DataFrame`
         """
         col_names = Utils.parse_positional_args_to_list(*names)
         if not all(type(n) == str for n in col_names):
@@ -306,9 +295,6 @@ class DataFrame:
 
     def col(self, col_name: str) -> "Column":
         """Returns a reference to a column in the DataFrame.
-
-        Returns:
-            :class:`Column`
         """
         if col_name == "*":
             return Column(SPStar(self.__plan.output()))
@@ -340,9 +326,6 @@ class DataFrame:
 
         Args:
             *cols: A :class:`Column`, :class:`str`, or a list of those.
-
-        Returns:
-             :class:`DataFrame`
         """
         exprs = Utils.parse_positional_args_to_list(*cols)
         if not exprs:
@@ -410,9 +393,6 @@ class DataFrame:
 
         Args:
             expr: a :class:`Column` expression.
-
-        Returns:
-            a filtered :class:`DataFrame`
         """
         if type(expr) != Column:
             raise TypeError(
@@ -433,9 +413,6 @@ class DataFrame:
 
         Args:
             expr: a :class:`Column` expression.
-
-        Returns:
-            a filtered :class:`DataFrame`
         """
         return self.filter(expr)
 
@@ -457,9 +434,6 @@ class DataFrame:
             ascending: boolean or list of boolean (default True). Sort ascending vs.
                 descending. Specify list for multiple sort orders. If a list is
                 specified, length of the list must equal length of the cols.
-
-        Returns:
-            a sorted :class:`DataFrame`
         """
         if not cols:
             raise ValueError("sort() needs at least one sort expression.")
@@ -528,9 +502,6 @@ class DataFrame:
 
             df.agg([("length", "min"), ("width", "max")])
             df.agg({"customers": "count", "amount": "sum"})
-
-        Returns:
-            :class:`DataFrame`
         """
         grouping_exprs = None
         if type(exprs) == Column:
@@ -583,9 +554,6 @@ class DataFrame:
             - Empty input
             - One or multiple Column object(s) or column name(s) (str)
             - A list of Column objects or column names (str)
-
-        Returns:
-            :class:`RelationalGroupedDataFrame`
         """
         # TODO fix dependency cycle
         from snowflake.snowpark.relational_grouped_dataframe import (
@@ -601,9 +569,6 @@ class DataFrame:
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.groupBy(
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
@@ -617,9 +582,6 @@ class DataFrame:
 
         Args:
             n: Number of rows to return
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__with_plan(SPLimit(SPLiteral(n, SPLongType()), self.__plan))
 
@@ -634,9 +596,6 @@ class DataFrame:
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__with_plan(
             SPUnion(self.__plan, other._DataFrame__plan, is_all=False)
@@ -653,9 +612,6 @@ class DataFrame:
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__with_plan(
             SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
@@ -675,9 +631,6 @@ class DataFrame:
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__union_by_name_internal(other, is_all=False)
 
@@ -695,9 +648,6 @@ class DataFrame:
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__union_by_name_internal(other, is_all=True)
 
@@ -745,9 +695,6 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__with_plan(SPIntersect(self.__plan, other._DataFrame__plan))
 
@@ -761,9 +708,6 @@ class DataFrame:
 
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
 
@@ -779,9 +723,6 @@ class DataFrame:
         Args:
             right: the other :class:`DataFrame` to join
             join_type: The type of join (e.g. "right", "outer", etc.).
-
-        Returns:
-             :class:`DataFrame`
         """
         join_type = join_type if join_type else "inner"
         return self.__with_plan(
@@ -812,9 +753,6 @@ class DataFrame:
             using_columns: A list of names of the columns, or the column objects, to
                 use for the join
             join_type: The type of join (e.g. "right", "outer", etc.).
-
-        Returns:
-            :class:`DataFrame`
         """
         if isinstance(right, DataFrame):
             if self is right or self.__plan is right._DataFrame__plan:
@@ -868,9 +806,6 @@ class DataFrame:
 
         Args:
             right: the right :class:`DataFrame` to join.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__join_dataframes_internal(
             right, SPJoinType.from_string("cross"), None
@@ -941,9 +876,6 @@ class DataFrame:
         Args:
             col_name: The name of the column to add or replace.
             col: The :class:`~snowflake.snowpark.column.Column` to add or replace.
-
-        Returns:
-             :class:`~snowflake.snowpark.dataframe.DataFrame`
         """
         return self.withColumns([col_name], [col])
 
@@ -966,9 +898,6 @@ class DataFrame:
             col_names: A list of the names of the columns to add or replace.
             cols: A list of the :class:`~snowflake.snowpark.column.Column` objects to
                     add or replace.
-
-        Returns:
-            :class:`~snowflake.snowpark.dataframe.DataFrame`
         """
         if len(col_names) != len(cols):
             raise ValueError(
@@ -1008,9 +937,6 @@ class DataFrame:
     def count(self) -> int:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
-
-        Returns:
-            the number of rows.
         """
         return self.agg(("*", "count"))._collect_with_tag()[0][0]
 
@@ -1022,9 +948,6 @@ class DataFrame:
         Example::
 
             df.write.mode("overwrite").saveAsTable("table1")
-
-        Returns:
-            :class:`DataFrameWriter`
         """
 
         return DataFrameWriter(self)

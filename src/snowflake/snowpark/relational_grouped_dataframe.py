@@ -64,9 +64,8 @@ class RelationalGroupedDataFrame:
         grouped_df = df.groupBy("dept")
         agg_df = grouped_df.agg([(grouped_df["salary"], "mean")])
 
-    The methods :py:func:`DataFrame.groupBy()`,
-    :py:func:`DataFrame.cube()` and :py:func:`DataFrame.rollup()`
-    return an instance of type :obj:`RelationalGroupedDataFrame`"""
+    The method :py:func:`DataFrame.groupBy()`
+    returns an instance of type :obj:`RelationalGroupedDataFrame`"""
 
     def __init__(self, df, grouping_exprs: List[SPExpression], group_type: _GroupType):
         self.df = df
@@ -168,7 +167,7 @@ class RelationalGroupedDataFrame:
             return SPUnresolvedFunction(expr, [input_expr], is_distinct=False)
 
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> "DataFrame":
-        """Returns a `class:DataFrame` with computed aggregates. The first element of
+        """Returns a :class:`DataFrame` with computed aggregates. The first element of
         the `expr` pair is the column to aggregate and the second element is the
         aggregate function to compute. The following example computes the mean of the
         price column and the sum of the sales column. The name of the aggregate
@@ -186,9 +185,6 @@ class RelationalGroupedDataFrame:
 
             from snowflake.snowpark.functions import col
             df.groupBy("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
-
-        Returns:
-            a ``DataFrame``
         """
         if not type(exprs) in (list, tuple):
             exprs = [exprs]
