@@ -31,7 +31,7 @@ setup(
         # "Code": "https://github.com/snowflakedb/snowflake-connector-python",
         # "Issue tracker": "https://github.com/snowflakedb/snowflake-connector-python/issues",
     },
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     install_requires=[
         "setuptools>=40.6.0",
         "wheel",
