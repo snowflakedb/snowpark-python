@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import os
 import re
@@ -579,11 +579,11 @@ def test_select_negative_select(session):
     # Select with empty sequences
     with pytest.raises(TypeError) as ex_info:
         df.select()
-    assert "select() input cannot be empty" in str(ex_info)
+    assert "The select() input cannot be empty" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select([])
-    assert "select() input cannot be empty" in str(ex_info)
+    assert "The select() input cannot be empty" in str(ex_info)
 
     # select columns which don't exist
     with pytest.raises(connector.errors.ProgrammingError) as ex_info:

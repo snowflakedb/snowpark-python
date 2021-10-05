@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import pickle
 from copy import copy
@@ -53,7 +53,7 @@ def test_row_with_wrong_values():
 
 def test_row_setting_fields():
     row = Row(1, 2, 3)
-    row.__fields__ = ["a", "b", "c"]
+    row._fields = ["a", "b", "c"]
     assert row[0] == 1
     assert row["a"] == 1
     assert row.a == 1
@@ -61,7 +61,7 @@ def test_row_setting_fields():
 
 def test_row_setting_duplicate_fields():
     row = Row(1, 2, 3)
-    row.__fields__ = ["a", "b", "b"]
+    row._fields = ["a", "b", "b"]
     assert row[0] == 1
     assert row["a"] == 1
     assert row.a == 1
@@ -71,7 +71,7 @@ def test_row_setting_duplicate_fields():
 
 def test_row_setting_too_many_fields():
     row = Row(1, 2, 3)
-    row.__fields__ = ["a", "b", "c", "d"]
+    row._fields = ["a", "b", "c", "d"]
     assert row[0] == 1
     assert row["a"] == 1
     assert row.a == 1
@@ -85,9 +85,11 @@ def test_contains():
     row1 = Row(a=1, b=2, c=3)
     assert "a" in row1
     assert "d" not in row1
+    assert 1 not in row1
 
     row2 = Row(1, 2, 3)
     assert "a" not in row2
+    assert 1 in row2
 
 
 @pytest.mark.parametrize("row", [Row(1, 2, 3), Row(a=1, b=2, c=3)])
@@ -163,7 +165,7 @@ def test_row_pickle(row):
     restored = pickle.loads(pickled)
     assert row == restored
     assert row._named_values == restored._named_values
-    assert row.__fields__ == restored.__fields__
+    assert row._fields == restored._fields
 
 
 def test_dunder_call():

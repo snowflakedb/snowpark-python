@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import re
 import string
@@ -278,7 +278,7 @@ class DataFrame:
         elif type(item) == int:
             return self.__getitem__(self.columns[item])
         else:
-            raise TypeError(f"unexpected item type: {type(item)}")
+            raise TypeError(f"Unexpected item type: {type(item)}")
 
     def __getattr__(self, name):
         if AnalyzerPackage.quote_name(name) not in self.columns:
@@ -329,12 +329,12 @@ class DataFrame:
         """
         exprs = Utils.parse_positional_args_to_list(*cols)
         if not exprs:
-            raise TypeError("select() input cannot be empty")
+            raise TypeError("The select() input cannot be empty")
 
         if not all(type(e) in [Column, str] for e in exprs):
-            raise TypeError("select() input must be Column, str, or list")
+            raise TypeError("The select() input must be Column, str, or list")
 
-        names = [e.named() if type(e) == Column else Column(e).named() for e in exprs]
+        names = [e._named() if type(e) == Column else Column(e)._named() for e in exprs]
         return self.__with_plan(SPProject(names, self.__plan))
 
     def drop(

@@ -1,16 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2012-2021 Snowflake Computing Inc. All right reserved.
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from test.utils import TestData, Utils
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.sp_expressions import UnresolvedAttribute
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
+    as_array,
+    as_binary,
+    as_char,
+    as_date,
+    as_decimal,
+    as_double,
+    as_integer,
+    as_number,
+    as_object,
+    as_real,
+    as_time,
+    as_timestamp_ltz,
+    as_timestamp_ntz,
+    as_timestamp_tz,
+    as_varchar,
     avg,
     builtin,
     ceil,
@@ -23,7 +39,24 @@ from snowflake.snowpark.functions import (
     equal_nan,
     exp,
     floor,
+    is_array,
+    is_binary,
+    is_boolean,
+    is_char,
+    is_date,
+    is_date_value,
+    is_decimal,
+    is_double,
+    is_integer,
     is_null,
+    is_null_value,
+    is_object,
+    is_real,
+    is_time,
+    is_timestamp_ltz,
+    is_timestamp_ntz,
+    is_timestamp_tz,
+    is_varchar,
     kurtosis,
     lit,
     log,
@@ -38,6 +71,7 @@ from snowflake.snowpark.functions import (
     random,
     skew,
     split,
+    sql_expr,
     sqrt,
     startswith,
     stddev,
@@ -438,6 +472,356 @@ def test_to_date(session):
     )
 
 
+def test_is_array(session):
+    Utils.check_answer(
+        TestData.array1(session).select(is_array(col("ARR1"))),
+        [Row(True), Row(True)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_array(col("arr1")), is_array(col("bool1")), is_array(col("str1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(is_array("ARR1")),
+        [Row(True), Row(True)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_array("arr1"), is_array("bool1"), is_array("str1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+
+def test_is_boolean(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_boolean(col("arr1")), is_boolean(col("bool1")), is_boolean(col("str1"))
+        ),
+        [Row(False, True, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_boolean("arr1"), is_boolean("bool1"), is_boolean("str1")
+        ),
+        [Row(False, True, False)],
+        sort=False,
+    )
+
+
+def test_is_binary(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_binary(col("bin1")), is_binary(col("bool1")), is_binary(col("str1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_binary("bin1"), is_binary("bool1"), is_binary("str1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+
+def test_is_char_is_varchar(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_char(col("str1")), is_char(col("bin1")), is_char(col("bool1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_varchar(col("str1")), is_varchar(col("bin1")), is_varchar(col("bool1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_char("str1"), is_char("bin1"), is_char("bool1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_varchar("str1"), is_varchar("bin1"), is_varchar("bool1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+
+def test_is_date_is_date_value(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_date(col("date1")), is_date(col("time1")), is_date(col("bool1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_date_value(col("date1")),
+            is_date_value(col("time1")),
+            is_date_value(col("str1")),
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_date("date1"), is_date("time1"), is_date("bool1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_date_value("date1"),
+            is_date_value("time1"),
+            is_date_value("str1"),
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+
+def test_is_decimal(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_decimal(col("decimal1")),
+            is_decimal(col("double1")),
+            is_decimal(col("num1")),
+        ),
+        [Row(True, False, True)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_decimal("decimal1"),
+            is_decimal("double1"),
+            is_decimal("num1"),
+        ),
+        [Row(True, False, True)],
+        sort=False,
+    )
+
+
+def test_is_double_is_real(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_double(col("decimal1")),
+            is_double(col("double1")),
+            is_double(col("num1")),
+            is_double(col("bool1")),
+        ),
+        [Row(True, True, True, False)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_real(col("decimal1")),
+            is_real(col("double1")),
+            is_real(col("num1")),
+            is_real(col("bool1")),
+        ),
+        [Row(True, True, True, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_double("decimal1"),
+            is_double("double1"),
+            is_double("num1"),
+            is_double("bool1"),
+        ),
+        [Row(True, True, True, False)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_real("decimal1"),
+            is_real("double1"),
+            is_real("num1"),
+            is_real("bool1"),
+        ),
+        [Row(True, True, True, False)],
+        sort=False,
+    )
+
+
+def test_is_integer(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_integer(col("decimal1")),
+            is_integer(col("double1")),
+            is_integer(col("num1")),
+            is_integer(col("bool1")),
+        ),
+        [Row(False, False, True, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_integer("decimal1"),
+            is_integer("double1"),
+            is_integer("num1"),
+            is_integer("bool1"),
+        ),
+        [Row(False, False, True, False)],
+        sort=False,
+    )
+
+
+def test_is_null_value(session):
+    Utils.check_answer(
+        TestData.null_json1(session).select(is_null_value(sql_expr("v:a"))),
+        [Row(True), Row(False), Row(None)],
+        sort=False,
+    )
+
+    # Pass str instead of Column. We can't use the same query as above
+    # since "v:a" is an expression and we represent them as columns
+    # differently
+    Utils.check_answer(
+        TestData.variant1(session).select(is_null_value("str1")),
+        [Row(False)],
+        sort=False,
+    )
+
+
+def test_is_object(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_object(col("obj1")), is_object(col("arr1")), is_object(col("str1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_object("obj1"), is_object("arr1"), is_object("str1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+
+def test_is_time(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_time(col("time1")), is_time(col("date1")), is_time(col("timestamp_tz1"))
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_time("time1"), is_time("date1"), is_time("timestamp_tz1")
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+
+def test_is_timestamp_all(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_timestamp_ntz(col("timestamp_ntz1")),
+            is_timestamp_ntz(col("timestamp_tz1")),
+            is_timestamp_ntz(col("timestamp_ltz1")),
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_timestamp_ltz(col("timestamp_ntz1")),
+            is_timestamp_ltz(col("timestamp_tz1")),
+            is_timestamp_ltz(col("timestamp_ltz1")),
+        ),
+        [Row(False, False, True)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_timestamp_tz(col("timestamp_ntz1")),
+            is_timestamp_tz(col("timestamp_tz1")),
+            is_timestamp_tz(col("timestamp_ltz1")),
+        ),
+        [Row(False, True, False)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_timestamp_ntz("timestamp_ntz1"),
+            is_timestamp_ntz("timestamp_tz1"),
+            is_timestamp_ntz("timestamp_ltz1"),
+        ),
+        [Row(True, False, False)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_timestamp_ltz("timestamp_ntz1"),
+            is_timestamp_ltz("timestamp_tz1"),
+            is_timestamp_ltz("timestamp_ltz1"),
+        ),
+        [Row(False, False, True)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            is_timestamp_tz("timestamp_ntz1"),
+            is_timestamp_tz("timestamp_tz1"),
+            is_timestamp_tz("timestamp_ltz1"),
+        ),
+        [Row(False, True, False)],
+        sort=False,
+    )
+
+
 def test_split(session):
     assert (
         TestData.string5(session)
@@ -548,6 +932,439 @@ def test_array_agg(session):
         str(TestData.monthly_sales(session).select(array_agg("amount")).collect()[0][0])
         == "[\n  10000,\n  400,\n  4500,\n  35000,\n  5000,\n  3000,\n  200,\n  90500,\n  6000,\n  "
         + "5000,\n  2500,\n  9500,\n  8000,\n  10000,\n  800,\n  4500\n]"
+    )
+
+
+def test_as_array(session):
+    Utils.check_answer(
+        TestData.array1(session).select(as_array(col("ARR1"))),
+        [Row("[\n  1,\n  2,\n  3\n]"), Row("[\n  6,\n  7,\n  8\n]")],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_array(col("arr1")), as_array(col("bool1")), as_array(col("str1"))
+        ),
+        [
+            Row('[\n  "Example"\n]', None, None),
+        ],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(as_array("ARR1")),
+        [Row("[\n  1,\n  2,\n  3\n]"), Row("[\n  6,\n  7,\n  8\n]")],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_array("arr1"), as_array("bool1"), as_array("str1")
+        ),
+        [
+            Row('[\n  "Example"\n]', None, None),
+        ],
+        sort=False,
+    )
+
+
+def test_as_binary(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_binary(col("bin1")), as_binary(col("bool1")), as_binary(col("str1"))
+        ),
+        [
+            Row(bytearray([115, 110, 111, 119]), None, None),
+        ],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_binary("bin1"), as_binary("bool1"), as_binary("str1")
+        ),
+        [
+            Row(bytearray([115, 110, 111, 119]), None, None),
+        ],
+        sort=False,
+    )
+
+
+def test_as_char_as_varchar(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_char(col("str1")), as_char(col("bin1")), as_char(col("bool1"))
+        ),
+        [Row("X", None, None)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_varchar(col("str1")), as_varchar(col("bin1")), as_varchar(col("bool1"))
+        ),
+        [Row("X", None, None)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_char("str1"), as_char("bin1"), as_char("bool1")
+        ),
+        [Row("X", None, None)],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_varchar("str1"), as_varchar("bin1"), as_varchar("bool1")
+        ),
+        [Row("X", None, None)],
+        sort=False,
+    )
+
+
+def test_as_date(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_date(col("date1")), as_date(col("time1")), as_date(col("bool1"))
+        ),
+        [Row(date(2017, 2, 24), None, None)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_date("date1"), as_date("time1"), as_date("bool1")
+        ),
+        [Row(date(2017, 2, 24), None, None)],
+        sort=False,
+    )
+
+
+def test_as_decimal_as_number(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_decimal(col("decimal1")),
+            as_decimal(col("double1")),
+            as_decimal(col("num1")),
+        ),
+        [
+            Row(1, None, 15),
+        ],
+        sort=False,
+    )
+
+    assert (
+        TestData.variant1(session)
+        .select(as_decimal(col("decimal1"), 6))
+        .collect()[0][0]
+        == 1
+    )
+
+    assert (
+        float(
+            TestData.variant1(session)
+            .select(as_decimal(col("decimal1"), 6, 3))
+            .collect()[0][0]
+        )
+        == 1.23
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_number(col("decimal1")),
+            as_number(col("double1")),
+            as_number(col("num1")),
+        ),
+        [
+            Row(1, None, 15),
+        ],
+        sort=False,
+    )
+
+    assert (
+        TestData.variant1(session).select(as_number(col("decimal1"), 6)).collect()[0][0]
+        == 1
+    )
+
+    assert (
+        float(
+            TestData.variant1(session)
+            .select(as_number(col("decimal1"), 6, 3))
+            .collect()[0][0]
+        )
+        == 1.23
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_decimal("decimal1"),
+            as_decimal("double1"),
+            as_decimal("num1"),
+        ),
+        [
+            Row(1, None, 15),
+        ],
+        sort=False,
+    )
+
+    assert (
+        TestData.variant1(session).select(as_decimal("decimal1", 6)).collect()[0][0]
+        == 1
+    )
+
+    assert (
+        float(
+            TestData.variant1(session)
+            .select(as_decimal("decimal1", 6, 3))
+            .collect()[0][0]
+        )
+        == 1.23
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_number("decimal1"),
+            as_number("double1"),
+            as_number("num1"),
+        ),
+        [
+            Row(1, None, 15),
+        ],
+        sort=False,
+    )
+
+    assert (
+        TestData.variant1(session).select(as_number("decimal1", 6)).collect()[0][0] == 1
+    )
+
+    assert (
+        float(
+            TestData.variant1(session)
+            .select(as_number("decimal1", 6, 3))
+            .collect()[0][0]
+        )
+        == 1.23
+    )
+
+
+def test_as_double_as_real(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_double(col("decimal1")),
+            as_double(col("double1")),
+            as_double(col("num1")),
+            as_double(col("bool1")),
+        ),
+        [Row(1.23, 3.21, 15.0, None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_real(col("decimal1")),
+            as_real(col("double1")),
+            as_real(col("num1")),
+            as_real(col("bool1")),
+        ),
+        [Row(1.23, 3.21, 15.0, None)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_double("decimal1"),
+            as_double("double1"),
+            as_double("num1"),
+            as_double("bool1"),
+        ),
+        [Row(1.23, 3.21, 15.0, None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_real("decimal1"),
+            as_real("double1"),
+            as_real("num1"),
+            as_real("bool1"),
+        ),
+        [Row(1.23, 3.21, 15.0, None)],
+        sort=False,
+    )
+
+
+def test_as_integer(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_integer(col("decimal1")),
+            as_integer(col("double1")),
+            as_integer(col("num1")),
+            as_integer(col("bool1")),
+        ),
+        [Row(1, None, 15, None)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_integer("decimal1"),
+            as_integer("double1"),
+            as_integer("num1"),
+            as_integer("bool1"),
+        ),
+        [Row(1, None, 15, None)],
+        sort=False,
+    )
+
+
+def test_as_object(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_object(col("obj1")), as_object(col("arr1")), as_object(col("str1"))
+        ),
+        [Row('{\n  "Tree": "Pine"\n}', None, None)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_object("obj1"), as_object("arr1"), as_object("str1")
+        ),
+        [Row('{\n  "Tree": "Pine"\n}', None, None)],
+        sort=False,
+    )
+
+
+def test_as_time(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_time(col("time1")), as_time(col("date1")), as_time(col("timestamp_tz1"))
+        ),
+        [Row(time(20, 57, 1, 123456), None, None)],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_time("time1"), as_time("date1"), as_time("timestamp_tz1")
+        ),
+        [Row(time(20, 57, 1, 123456), None, None)],
+        sort=False,
+    )
+
+
+def test_as_timestamp_all(session):
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_timestamp_ntz(col("timestamp_ntz1")),
+            as_timestamp_ntz(col("timestamp_tz1")),
+            as_timestamp_ntz(col("timestamp_ltz1")),
+        ),
+        [
+            Row(
+                datetime.strptime("2017-02-24 12:00:00.456", "%Y-%m-%d %H:%M:%S.%f"),
+                None,
+                None,
+            ),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_timestamp_ltz(col("timestamp_ntz1")),
+            as_timestamp_ltz(col("timestamp_tz1")),
+            as_timestamp_ltz(col("timestamp_ltz1")),
+        ),
+        [
+            Row(
+                None,
+                None,
+                datetime.strptime(
+                    "2017-02-24 12:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
+                ).astimezone(),
+            ),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_timestamp_tz(col("timestamp_ntz1")),
+            as_timestamp_tz(col("timestamp_tz1")),
+            as_timestamp_tz(col("timestamp_ltz1")),
+        ),
+        [
+            Row(
+                None,
+                datetime.strptime(
+                    "2017-02-24 13:00:00.123 +0100", "%Y-%m-%d %H:%M:%S.%f %z"
+                ),
+                None,
+            ),
+        ],
+        sort=False,
+    )
+
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_timestamp_ntz("timestamp_ntz1"),
+            as_timestamp_ntz("timestamp_tz1"),
+            as_timestamp_ntz("timestamp_ltz1"),
+        ),
+        [
+            Row(
+                datetime.strptime("2017-02-24 12:00:00.456", "%Y-%m-%d %H:%M:%S.%f"),
+                None,
+                None,
+            ),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_timestamp_ltz("timestamp_ntz1"),
+            as_timestamp_ltz("timestamp_tz1"),
+            as_timestamp_ltz("timestamp_ltz1"),
+        ),
+        [
+            Row(
+                None,
+                None,
+                datetime.strptime(
+                    "2017-02-24 12:00:00.123", "%Y-%m-%d %H:%M:%S.%f"
+                ).astimezone(),
+            ),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(
+            as_timestamp_tz("timestamp_ntz1"),
+            as_timestamp_tz("timestamp_tz1"),
+            as_timestamp_tz("timestamp_ltz1"),
+        ),
+        [
+            Row(
+                None,
+                datetime.strptime(
+                    "2017-02-24 13:00:00.123 +0100", "%Y-%m-%d %H:%M:%S.%f %z"
+                ),
+                None,
+            ),
+        ],
+        sort=False,
     )
 
 
