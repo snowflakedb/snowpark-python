@@ -736,7 +736,7 @@ class DataFrame:
 
     def join(
         self,
-        right,
+        right: "DataFrame",
         using_columns: Optional[Union[str, Column, List[Union[str, Column]]]] = None,
         join_type: Optional[str] = None,
     ) -> "DataFrame":

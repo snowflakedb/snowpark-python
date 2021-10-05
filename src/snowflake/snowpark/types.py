@@ -196,15 +196,15 @@ class ColumnIdentifier:
         self.normalized_name = normalized_name
 
     def name(self) -> str:
-        """Returns the name of column. Name format:
+        """Returns the name of this column, with the following format:
 
-        1. if the name is quoted:
+        1. If the name is quoted:
 
             a. if it starts with _A-Z and is followed by _A-Z0-9$, remove quotes.
             b. if it starts with $ and is followed by digits, remove quotes.
             c. otherwise, do nothing.
 
-        2. if not quoted:
+        2. If not quoted:
 
             a. if it starts with _a-zA-Z and is followed by _a-zA-Z0-9$, upper case all letters.
             b. if it starts with $ and is followed by digits, do nothing.
@@ -217,10 +217,10 @@ class ColumnIdentifier:
 
     @property
     def quoted_name(self) -> str:
-        """Returns the quoted name of this column Name Format:
+        """Returns the quoted name of this column, with the following format:
 
-        1. if quoted, do nothing
-        2. if not quoted:
+        1. If quoted, do nothing
+        2. If not quoted:
 
             a. if it starts with _a-zA-Z and followed by _a-zA-Z0-9$, upper case all letters and then quote.
             b. otherwise, quote name.
