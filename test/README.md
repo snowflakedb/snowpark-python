@@ -50,6 +50,6 @@ your web browser. This will be located in `<project_dir>/.tox/htmlcov`
 
 To just run the all Snowpark tests, run the following command:
 ```bash
-# Must have Python 3.6 for the tests to run
-python -m tox -e py36
+# Must have Python 3.8 for the tests to run
+python -m tox -e py38
 ```

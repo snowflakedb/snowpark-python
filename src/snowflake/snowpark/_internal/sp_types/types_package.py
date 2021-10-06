@@ -435,9 +435,8 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
     if tp in _type_mappings:
         return sp_type_to_snow_type(_type_mappings[tp]()), False
 
-    # TODO: use get_origin and get_args after upgrading to Python 3.8
-    tp_origin = getattr(tp, "__origin__", None)
-    tp_args = getattr(tp, "__args__", None)
+    tp_origin = typing.get_origin(tp)
+    tp_args = typing.get_args(tp)
 
     # only typing.Optional[X], i.e., typing.Union[X, None] is accepted
     if (

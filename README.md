@@ -6,10 +6,22 @@
 
 #### Install Python
 
-Python Snowpark requires Python 3.6 (or higher). Python 3.6 is available in the default CentOS 7
-repository and can be installed with:
+Python Snowpark requires Python 3.8 (or higher). Python 3.8 is available in the default CentOS 7
+repository and can be installed from source using the following commands:
 ```bash
-sudo yum install -y python3 python3-devel
+# Install necessary install packages
+sudo yum install gcc openssl-devel bzip2-devel libffi-devel sqlite-devel
+cd /opt
+# Following operations may require sudo
+# Go here (https://www.python.org/downloads/) to find the latest Python 3.8 version
+wget https://www.python.org/ftp/python/3.8.11/Python-3.8.11.tgz
+tar xvf Python-3.8.11.tgz
+cd Python-3.8.11/
+./configure --enable-optimizations
+# Run altinstall to make sure you don't thrash your own system Python install
+sudo make altinstall
+# Check Python version
+python3.8 --version
 ```
 The `devel` package installs the Python headers necessary to compile C-extensions of Snowflake
 Python Connector.
@@ -26,8 +38,8 @@ cd snowpark-python
 A virtualenv should be installed, which can separate your development with the system-wide Python,
 and benefits us an easy package management. Assume you are using Python 3.6, then just run:
 ```bash
-python3.6 -m pip install -U setuptools pip virtualenv
-python3.6 -m virtualenv venv
+python3.8 -m pip install -U setuptools pip virtualenv
+python3.8 -m virtualenv venv
 source venv/bin/activate
 ```
 Note that you should activate your virtualenv after rebooting your machine and before
