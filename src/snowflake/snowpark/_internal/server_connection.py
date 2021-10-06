@@ -47,8 +47,6 @@ logger = getLogger(__name__)
 snowflake.connector.paramstyle = "qmark"
 
 # parameters needed for usage tracking
-VERSION_STR = ".".join([str(v) for v in VERSION if v is not None])
-APPLICATION_NAME = "PythonSnowpark"
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
@@ -103,15 +101,17 @@ class ServerConnection:
 
     def __add_application_name(self):
         if PARAM_APPLICATION not in self._lower_case_parameters:
-            self._lower_case_parameters[PARAM_APPLICATION] = APPLICATION_NAME
+            self._lower_case_parameters[
+                PARAM_APPLICATION
+            ] = Utils.get_application_name()
         if PARAM_INTERNAL_APPLICATION_NAME not in self._lower_case_parameters:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_NAME
-            ] = APPLICATION_NAME
+            ] = Utils.get_application_name()
         if PARAM_INTERNAL_APPLICATION_VERSION not in self._lower_case_parameters:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_VERSION
-            ] = VERSION_STR
+            ] = Utils.get_version()
 
     def close(self):
         self._conn.close()
