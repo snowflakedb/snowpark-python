@@ -39,7 +39,6 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from snowflake.snowpark.version import VERSION
 
 logger = getLogger(__name__)
 
