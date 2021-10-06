@@ -728,22 +728,22 @@ def udf(
 
     Snowflake supports the following data types for the parameters for a UDF:
 
-    =========  =============================================  ==============
+    =========  =============================================  ================================================
     SQL Type   Python Type                                    Snowpark Type
-    =========  =============================================  ==============
-    NUMBER     ``int``                                        LongType
-    DOUBLE     ``float``                                      DoubleType
-    NUMBER     ``decimal.Decimal``                            DecimalType
-    STRING     ``str``                                        StringType
-    BOOL       ``bool``                                       BooleanType
-    TIME       ``datetime.time``                              TimeType
-    DATE       ``datetime.date``                              DateType
-    TIMESTAMP  ``datetime.datetime``                          TimestampType
-    BINARY     ``bytes`` or ``bytearray``                     BinaryType
-    ARRAY      ``list``                                       ArrayType
-    OBJECT     ``dict``                                       MapType
-    VARIANT    Dynamically mapped to the correct Python type  VariantType
-    =========  =============================================  ==============
+    =========  =============================================  ================================================
+    NUMBER     ``int``                                        :class:`~snowflake.snowpark.types.LongType`
+    DOUBLE     ``float``                                      :class:`~snowflake.snowpark.types.DoubleType`
+    NUMBER     ``decimal.Decimal``                            :class:`~snowflake.snowpark.types.DecimalType`
+    STRING     ``str``                                        :class:`~snowflake.snowpark.types.StringType`
+    BOOL       ``bool``                                       :class:`~snowflake.snowpark.types.BooleanType`
+    TIME       ``datetime.time``                              :class:`~snowflake.snowpark.types.TimeType`
+    DATE       ``datetime.date``                              :class:`~snowflake.snowpark.types.DateType`
+    TIMESTAMP  ``datetime.datetime``                          :class:`~snowflake.snowpark.types.TimestampType`
+    BINARY     ``bytes`` or ``bytearray``                     :class:`~snowflake.snowpark.types.BinaryType`
+    ARRAY      ``list``                                       :class:`~snowflake.snowpark.types.ArrayType`
+    OBJECT     ``dict``                                       :class:`~snowflake.snowpark.types.MapType`
+    VARIANT    Dynamically mapped to the correct Python type  :class:`~snowflake.snowpark.types.VariantType`
+    =========  =============================================  ================================================
 
     Note:
         1. Currently only a temporary UDF that is scoped to this session can be
@@ -759,6 +759,11 @@ def udf(
 
         4. :class:`typing.Union` is not a valid type annotation for UDFs,
         but :class:`typing.Optional` can be used to indicate the optional type.
+
+        5. For data with the VARIANT SQL type, if the underlying data type is
+        TIME, DATE, TIMESTAMP and BINARY, currently it will be mapped to
+        :class:`str` in a UDF. The Snowpark library will support a dynamic mapping
+        for those types soon.
     """
     from snowflake.snowpark.session import Session
 
