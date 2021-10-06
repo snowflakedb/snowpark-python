@@ -31,13 +31,13 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     DoubleType,
-    GeographyType,
     LongType,
     MapType,
     StringType,
     TimestampType,
     TimeType,
     VariantType,
+    _GeographyType,
 )
 
 logger = getLogger(__name__)
@@ -158,7 +158,7 @@ class ServerConnection:
         if column_type_name == "OBJECT":
             return MapType(StringType(), StringType())
         if column_type_name == "GEOGRAPHY":  # not supported by python connector
-            return GeographyType()
+            return _GeographyType()
         if column_type_name == "BOOLEAN":
             return BooleanType()
         if column_type_name == "BINARY":
@@ -180,10 +180,10 @@ class ServerConnection:
             column_type_name == "FIXED" and scale != 0
         ):
             if precision != 0 or scale != 0:
-                if precision > DecimalType.MAX_PRECISION:
+                if precision > DecimalType._MAX_PRECISION:
                     return DecimalType(
-                        DecimalType.MAX_PRECISION,
-                        scale + precision - DecimalType.MAX_SCALE,
+                        DecimalType._MAX_PRECISION,
+                        scale + precision - DecimalType._MAX_SCALE,
                     )
                 else:
                     return DecimalType(precision, scale)

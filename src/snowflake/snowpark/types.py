@@ -44,7 +44,7 @@ class _AtomicType(DataType):
 
 
 class MapType(DataType):
-    """Map data type. This maps to OBJECT data type in Snowflake."""
+    """Map data type. This maps to the OBJECT data type in Snowflake."""
 
     def __init__(self, key_type, value_type):
         self.key_type = key_type
@@ -59,7 +59,7 @@ class MapType(DataType):
 
 
 class VariantType(DataType):
-    """Variant data type. This maps to VARIANT data type in Snowflake."""
+    """Variant data type. This maps to the VARIANT data type in Snowflake."""
 
     pass
 
@@ -70,25 +70,25 @@ class VariantType(DataType):
 
 
 class BinaryType(_AtomicType):
-    """Binary data type. Mapped to BINARY Snowflake data type."""
+    """Binary data type. This maps to the BINARY data type in Snowflake."""
 
     pass
 
 
 class BooleanType(_AtomicType):
-    """Boolean data type. Mapped to BOOLEAN Snowflake data type."""
+    """Boolean data type. This maps to the BOOLEAN data type in Snowflake."""
 
     pass
 
 
 class DateType(_AtomicType):
-    """Date data type. Mapped to DATE Snowflake data type."""
+    """Date data type. This maps to the DATE data type in Snowflake."""
 
     pass
 
 
 class StringType(_AtomicType):
-    """String data type. Mapped to VARCHAR Snowflake data type."""
+    """String data type. This maps to the VARCHAR data type in Snowflake."""
 
     pass
 
@@ -98,13 +98,13 @@ class _NumericType(_AtomicType):
 
 
 class TimestampType(_AtomicType):
-    """Timestamp data type. Mapped to TIMESTAMP Snowflake data type."""
+    """Timestamp data type. This maps to the TIMESTAMP data type in Snowflake."""
 
     pass
 
 
 class TimeType(_AtomicType):
-    """Time data type. Mapped to TIME Snowflake data type."""
+    """Time data type. This maps to the TIME data type in Snowflake."""
 
     pass
 
@@ -119,46 +119,46 @@ class _FractionalType(_NumericType):
 
 
 class ByteType(_IntegralType):
-    """Byte data type. Mapped to TINYINT Snowflake date type."""
+    """Byte data type. This maps to the TINYINT data type in Snowflake."""
 
     pass
 
 
 class ShortType(_IntegralType):
-    """Short integer data type. Mapped to SMALLINT Snowflake date type."""
+    """Short integer data type. This maps to the SMALLINT data type in Snowflake."""
 
     pass
 
 
 class IntegerType(_IntegralType):
-    """Integer data type. Mapped to INT Snowflake date type."""
+    """Integer data type. This maps to the INT data type in Snowflake."""
 
     pass
 
 
 class LongType(_IntegralType):
-    """Long integer data type. Mapped to BIGINT Snowflake date type."""
+    """Long integer data type. This maps to the BIGINT data type in Snowflake."""
 
     pass
 
 
 class FloatType(_FractionalType):
-    """Float data type. Mapped to FLOAT Snowflake date type."""
+    """Float data type. This maps to the FLOAT data type in Snowflake."""
 
     pass
 
 
 class DoubleType(_FractionalType):
-    """Double data type. Mapped to DOUBLE Snowflake date type."""
+    """Double data type. This maps to the DOUBLE data type in Snowflake."""
 
     pass
 
 
 class DecimalType(_FractionalType):
-    """Decimal data type. Mapped to NUMBER Snowflake date type."""
+    """Decimal data type. This maps to the NUMBER data type in Snowflake."""
 
-    MAX_PRECISION = 38
-    MAX_SCALE = 38
+    _MAX_PRECISION = 38
+    _MAX_SCALE = 38
 
     def __init__(self, precision: int = 38, scale: int = 0):
         self.precision = precision
@@ -174,7 +174,7 @@ class DecimalType(_FractionalType):
 
 
 class ArrayType(DataType):
-    """Array data type. Mapped to ARRAY Snowflake date type."""
+    """Array data type. This maps to the ARRAY data type in Snowflake."""
 
     def __init__(self, element_type: DataType):
         self.element_type = element_type
@@ -188,9 +188,8 @@ class ArrayType(DataType):
         return self.__repr__()
 
 
-# TODO complete
 class ColumnIdentifier:
-    """Represents a Column Identifier."""
+    """Represents a column identifier."""
 
     def __init__(self, normalized_name):
         self.normalized_name = normalized_name
@@ -200,33 +199,33 @@ class ColumnIdentifier:
 
         1. If the name is quoted:
 
-            a. if it starts with _A-Z and is followed by _A-Z0-9$, remove quotes.
-            b. if it starts with $ and is followed by digits, remove quotes.
+            a. if it starts with ``_A-Z`` and is followed by ``_A-Z0-9$``, remove quotes.
+            b. if it starts with ``$`` and is followed by digits, remove quotes.
             c. otherwise, do nothing.
 
         2. If not quoted:
 
-            a. if it starts with _a-zA-Z and is followed by _a-zA-Z0-9$, upper case all letters.
-            b. if it starts with $ and is followed by digits, do nothing.
-            c. otherwise, quote name.
+            a. if it starts with ``_a-zA-Z`` and is followed by ``_a-zA-Z0-9$``, uppercase all letters.
+            b. if it starts with ``$`` and is followed by digits, do nothing.
+            c. otherwise, add quotes.
 
-        More details can be found from
+        For more information, see
         https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html
         """
-        return ColumnIdentifier.__strip_unnecessary_quotes(self.normalized_name)
+        return ColumnIdentifier._strip_unnecessary_quotes(self.normalized_name)
 
     @property
     def quoted_name(self) -> str:
         """Returns the quoted name of this column, with the following format:
 
-        1. If quoted, do nothing
+        1. If quoted, do nothing.
         2. If not quoted:
 
-            a. if it starts with _a-zA-Z and followed by _a-zA-Z0-9$, upper case all letters and then quote.
-            b. otherwise, quote name.
+            a. if it starts with ``_a-zA-Z`` and followed by ``_a-zA-Z0-9$``, uppercase all letters and then add quotes.
+            b. otherwise, add quotes.
 
         It is the same as :func:`name`, but quotes are always added. It is always safe
-        to do string comparisons between quoted column names
+        to do string comparisons between quoted column names.
         """
         return self.normalized_name
 
@@ -239,7 +238,7 @@ class ColumnIdentifier:
             return False
 
     @staticmethod
-    def __strip_unnecessary_quotes(string: str) -> str:
+    def _strip_unnecessary_quotes(string: str) -> str:
         """Removes the unnecessary quotes from name.
 
         Remove quotes if name starts with _A-Z and only contains _0-9A-Z$, or starts
@@ -312,8 +311,8 @@ class StructType(DataType):
         return [f.name for f in self.fields]
 
 
-class GeographyType(_AtomicType):
-    """Geography data type. This maps to GEOGRAPHY data type in Snowflake."""
+class _GeographyType(_AtomicType):
+    """Geography data type. This maps to the GEOGRAPHY data type in Snowflake."""
 
     def __repr__(self):
         """Returns GeographyType Info. Decimal(precision, scale)"""

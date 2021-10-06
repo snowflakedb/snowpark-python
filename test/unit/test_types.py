@@ -217,7 +217,7 @@ def test_struct_field_name():
 
 def test_strip_unnecessary_quotes():
     # Get a function reference for brevity
-    func = ColumnIdentifier._ColumnIdentifier__strip_unnecessary_quotes
+    func = ColumnIdentifier._strip_unnecessary_quotes
 
     # UPPER CASE
     #

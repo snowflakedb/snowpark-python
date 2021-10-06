@@ -8,9 +8,8 @@ import string
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
-import pandas
-
 import snowflake.snowpark
+from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
@@ -68,7 +67,7 @@ class DataFrame:
     required to produce a relational dataset. The computation is not performed until
     you call a method that performs an action (e.g. :func:`collect`).
 
-    .. rubric:: Creating a DataFrame
+    **Creating a DataFrame**
 
     You can create a DataFrame in a number of different ways, as shown in the examples
     below.
@@ -97,14 +96,14 @@ class DataFrame:
             df_merged_data = df_catalog.join(df_prices, df_catalog["itemId"] == df_prices["ID"])
 
 
-    .. rubric:: Performing operations on a DataFrame
+    **Performing operations on a DataFrame**
 
     Broadly, the operations on DataFrame can be divided into two types:
 
     - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that tranformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
     - **Actions** cause the DataFrame to be evaluated. When you call a method that performs an action, Snowpark sends the SQL query for the DataFrame to the server for evaluation.
 
-    .. rubric:: Transforming a DataFrame
+    **Transforming a DataFrame**
 
     The following examples demonstrate how you can transform a DataFrame.
 
@@ -160,7 +159,7 @@ class DataFrame:
             #  SELECT CATEGORY, SUM(AMOUNT) FROM PRICES GROUP BY CATEGORY
             df_total_price_per_category = df_prices.groupBy(col("category")).sum(col("amount"))
 
-    .. rubric:: Performing an action on a DataFrame
+    **Performing an action on a DataFrame**
 
     The following examples demonstrate how you can perform an action on a DataFrame.
 
@@ -226,7 +225,7 @@ class DataFrame:
         return DataFrame(self.session, self.__plan.clone())
 
     def toPandas(self, **kwargs) -> pandas.DataFrame:
-        """Returns the contents of this DataFrame as Pandas DataFrame.
+        """Returns the contents of this DataFrame as a Pandas DataFrame.
 
         This method is only available if Pandas is installed and available.
         """
@@ -424,9 +423,13 @@ class DataFrame:
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
-        Example::
+        Examples::
 
-            df_sorted = df.sort(col("A"), col(B).asc)
+            df_sorted = df.sort(col("A"), col("B").asc)
+            df_sorted = df.sort(Column("a"), ascending=False)
+
+            # The values from the list overwrite the column ordering.
+            sorted_rows = df.sort(["a", Column("b").desc()], ascending=[1, 1])
 
         Args:
             *cols: list of Column or column names to sort by.
@@ -755,7 +758,7 @@ class DataFrame:
         Args:
             right: The other :class:`Dataframe` to join.
             using_columns: A list of names of the columns, or the column objects, to
-                use for the join
+                use for the join.
             join_type: The type of join (e.g. "right", "outer", etc.).
         """
         if isinstance(right, DataFrame):
@@ -795,7 +798,7 @@ class DataFrame:
         raise TypeError("Invalid type for join. Must be Dataframe")
 
     def crossJoin(self, right: "DataFrame") -> "DataFrame":
-        """Performs a cross join, which returns the cartesian product of the current
+        """Performs a cross join, which returns the Cartesian product of the current
         :class:`DataFrame` and another :class:`DataFrame` (``right``).
 
         If the current and ``right`` DataFrames have columns with the same name, and
@@ -879,7 +882,7 @@ class DataFrame:
 
         Args:
             col_name: The name of the column to add or replace.
-            col: The :class:`~snowflake.snowpark.column.Column` to add or replace.
+            col: The :class:`Column` to add or replace.
         """
         return self.withColumns([col_name], [col])
 
@@ -900,7 +903,7 @@ class DataFrame:
 
         Args:
             col_names: A list of the names of the columns to add or replace.
-            cols: A list of the :class:`~snowflake.snowpark.column.Column` objects to
+            cols: A list of the :class:`Column` objects to
                     add or replace.
         """
         if len(col_names) != len(cols):
@@ -1161,11 +1164,11 @@ class DataFrame:
         self, frac: Optional[float] = None, n: Optional[int] = None
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a
-        percentage or rows to be returned.
+        percentage of rows to be returned.
 
         Args:
-            frac: the percentage or rows to be sampled.
-            n: the number of rows to sample in the range of 0 to 1,000,00.
+            frac: the percentage of rows to be sampled.
+            n: the number of rows to sample in the range of 0 to 1,000,000 (inclusive).
         Returns:
             a :class:`DataFrame` containing the sample of rows.
         """
@@ -1265,7 +1268,7 @@ class DataFrame:
 
     @property
     def schema(self) -> StructType:
-        """The definition of the columns in this DataFrame (the "relations schema" for
+        """The definition of the columns in this DataFrame (the "relational schema" for
         the DataFrame).
         """
         if not self.__placeholder_schema:
