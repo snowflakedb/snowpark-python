@@ -83,7 +83,7 @@ class Session:
     `Connecting to Snowflake using the Python Connector <https://docs.snowflake.com/en/user-guide/python-connector-example.html#connecting-to-snowflake>`_
     for the details of connection parameters.
 
-    To create a Session object from a dict of configuration properties::
+    To create a Session object from a dict of connection parameters::
 
         connection_parameters = {
             "user": "<user_name>",
@@ -102,7 +102,7 @@ class Session:
 
     class SessionBuilder:
         """
-        Provides methods to set configuration properties and create a :class:`Session`.
+        Provides methods to set connection parameters and create a :class:`Session`.
         """
 
         def __init__(self):
@@ -115,8 +115,7 @@ class Session:
 
         def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
             """
-            Adds the specified configuration property and value to
-            the SessionBuilder configuration.
+            Adds the specified connection parameter to the SessionBuilder configuration.
             """
             self.__options[key] = value
             return self
@@ -125,11 +124,11 @@ class Session:
             self, options: Dict[str, Union[int, str]]
         ) -> "Session.SessionBuilder":
             """
-            Adds the specified :class:`dict` of configuration property and value to
+            Adds the specified :class:`dict` of connection parameters to
             the SessionBuilder configuration.
 
             Note:
-                Calling this method overwrites any existing configuration properties
+                Calling this method overwrites any existing connection parameters
                 that you have already set in the SessionBuilder.
             """
             self.__options = {**self.__options, **options}
