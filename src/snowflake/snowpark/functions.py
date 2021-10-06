@@ -59,6 +59,7 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.types import DataType
+from snowflake.snowpark.udf import UserDefinedFunction
 
 
 def col(col_name: str) -> Column:
@@ -694,21 +695,23 @@ def udf(
     return_type: Optional[DataType] = None,
     input_types: Optional[List[DataType]] = None,
     name: Optional[str] = None,
-) -> Callable:
+) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
     Args:
         func: A Python function used for creating the UDF.
         return_type: A :class:`types.DataType` representing the return data
             type of the UDF. Optional if type hints are provided.
-        input_types: A list of :class:`types.DataType` representing the input
-            data types of the UDF. Optional if type hints are provided.
+        input_types: A list of :class:`~snowflake.snowpark.types.DataType`
+            representing the input data types of the UDF. Optional if
+            type hints are provided.
         name: The name to use for the UDF in Snowflake, which allows to call this UDF
             in a SQL command or via :func:`call_udf()`. If it is not provided,
             a random name will be generated automatically for the UDF.
 
     Returns:
-        A UDF function that can be called with Column expressions (:class:`Column` or :class:`str`)
+        A UDF function that can be called with Column expressions
+        (:class:`~snowflake.snowpark.Column` or :class:`str`).
 
     Examples::
 
@@ -723,9 +726,39 @@ def udf(
         df.select(add_one("a"), minus_one("b"))
         session.sql("select minus_one(1)")
 
+    Snowflake supports the following data types for the parameters for a UDF:
+
+    =========  =============================================  ==============
+    SQL Type   Python Type                                    Snowpark Type
+    =========  =============================================  ==============
+    NUMBER     ``int``                                        LongType
+    DOUBLE     ``float``                                      DoubleType
+    NUMBER     ``decimal.Decimal``                            DecimalType
+    STRING     ``str``                                        StringType
+    BOOL       ``bool``                                       BooleanType
+    TIME       ``datetime.time``                              TimeType
+    DATE       ``datetime.date``                              DateType
+    TIMESTAMP  ``datetime.datetime``                          TimestampType
+    BINARY     ``bytes`` or ``bytearray``                     BinaryType
+    ARRAY      ``list``                                       ArrayType
+    OBJECT     ``dict``                                       MapType
+    VARIANT    Dynamically mapped to the correct Python type  VariantType
+    =========  =============================================  ==============
+
     Note:
-        When type hints are provided and are complete for a function, ``return_type`` and
-        ``input_types`` are optional and will be ignored.
+        1. Currently only a temporary UDF that is scoped to this session can be
+        created and all UDF related files will be uploaded to a temporary session
+        stage (:func:`~snowflake.snowpark.Session.getSessionStage`).
+
+        2. You can also use :class:`typing.List` to annotate a :class:`list`,
+        use :class:`typing.Dict` to annotate a :class:`dict`, and use
+        :class:`typing.Any` to annotate a variant when defining a UDF.
+
+        3. When type hints are provided and are complete for a function,
+        ``return_type`` and ``input_types`` are optional and will be ignored.
+
+        4. :class:`typing.Union` is not a valid type annotation for UDFs,
+        but :class:`typing.Optional` can be used to indicate the optional type.
     """
     from snowflake.snowpark.session import Session
 

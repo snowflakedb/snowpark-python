@@ -10,6 +10,7 @@ from typing import Callable, List, NamedTuple, Optional, Tuple, Union, get_type_
 
 import cloudpickle
 
+import snowflake.snowpark
 from snowflake.snowpark._internal.sp_expressions import (
     Expression as SPExpression,
     SnowflakeUDF,
@@ -28,6 +29,34 @@ _DEFAULT_HANDLER_NAME = "compute"
 
 
 class UserDefinedFunction:
+    """
+    Encapsulates a user defined lambda or function that is returned by
+    :func:`~snowflake.snowpark.functions.udf` or by :func:`UDFRegistration.register`.
+    The constructor of this class is not supposed to be directly called.
+
+    Call an instance of :class:`UserDefinedFunction` to generate
+    :class:`~snowflake.snowpark.Column` expressions. The input type can be
+    a column name as a :class:`str`, or a :class:`~snowflake.snowpark.Column` object.
+
+    Examples::
+
+        from snowflake.snowpark.functions import udf
+
+        # `add_udf` is an instance of `UserDefinedFunction`
+        @udf
+        def add_udf(x: int, y: int) -> int:
+            return x + y
+
+        def double(x: int) -> int:
+            return 2 * x
+
+        # `double_udf` is an instance of `UserDefinedFunction`
+        double_udf = udf(double)
+
+        # call UDFs on a dataframe
+        df.select(add_udf("a", "b"), double_udf(col("a")), double_udf(df["b"]))
+    """
+
     def __init__(
         self,
         func: Callable,
@@ -36,15 +65,18 @@ class UserDefinedFunction:
         name: str,
         is_return_nullable: bool = False,
     ):
-        self.func = func
-        self.return_type = return_type
-        self.input_types = input_types
-        self.name = name
-        self.is_return_nullable = is_return_nullable
+        #: The Python function.
+        self.func: Callable = func
+        #: The UDF name.
+        self.name: str = name
+
+        self._return_type = return_type
+        self._input_types = input_types
+        self._is_return_nullable = is_return_nullable
 
     def __call__(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        *cols: Union[str, Column, List[Union[str, Column]]],
     ) -> Column:
         exprs = Utils.parse_positional_args_to_list(*cols)
         if not all(type(e) in [Column, str] for e in exprs):
@@ -60,16 +92,16 @@ class UserDefinedFunction:
         )
 
     def __create_udf_expression(self, exprs: List[SPExpression]) -> SnowflakeUDF:
-        if len(exprs) != len(self.input_types):
+        if len(exprs) != len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"
-                f" Expected: {len(exprs)}, Found: {len(self.input_types)}"
+                f" Expected: {len(exprs)}, Found: {len(self._input_types)}"
             )
         return SnowflakeUDF(
             self.name,
             exprs,
-            snow_type_to_sp_type(self.return_type),
-            nullable=self.is_return_nullable,
+            snow_type_to_sp_type(self._return_type),
+            nullable=self._is_return_nullable,
         )
 
 
@@ -79,7 +111,25 @@ class _UDFColumn(NamedTuple):
 
 
 class UDFRegistration:
-    def __init__(self, session):
+    """
+    Provides methods to register lambdas and functions as UDFs in the Snowflake database.
+
+    :attr:`~snowflake.snowpark.Session.udf` returns an object of this class. You can use
+    this object to register temporary UDFs that you plan to use in the current session.
+    The methods that register a UDF return a :class:`UserDefinedFunction` object,
+    which you can also use in :class:`~snowflake.snowpark.Column` expressions.
+
+    Examples::
+
+        def double(x: int) -> int:
+            return 2 * x
+
+        double_udf = session.udf.register(double, name="mydoubleudf")
+        session.sql(s"SELECT mydoubleudf(c) FROM table")
+        df.select(double_udf("c"))
+    """
+
+    def __init__(self, session: "snowflake.snowpark.Session"):
         self.session = session
 
     def register(
@@ -89,6 +139,11 @@ class UDFRegistration:
         input_types: Optional[List[DataType]] = None,
         name: Optional[str] = None,
     ) -> UserDefinedFunction:
+        """
+        Registers a Python function as a Snowflake Python UDF and returns the UDF.
+        The usage, input arguments and return of this method are same with
+        :func:`~snowflake.snowpark.functions.udf`.
+        """
         if not callable(func):
             raise TypeError(
                 "Invalid function: not a function or callable "
@@ -152,7 +207,7 @@ class UDFRegistration:
         input_types: List[DataType],
         udf_name: str,
         stage_location: Optional[str] = None,
-    ):
+    ) -> None:
         arg_names = [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
             _UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
@@ -213,7 +268,7 @@ def {_DEFAULT_HANDLER_NAME}({args}):
         udf_name: str,
         all_imports: str,
         is_temporary: bool,
-    ):
+    ) -> None:
         return_sql_type = convert_to_sf_type(return_type)
         input_sql_types = [convert_to_sf_type(arg.datatype) for arg in input_args]
         sql_func_args = ",".join(
