@@ -417,25 +417,24 @@ class DataFrame:
     def sort(
         self,
         *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
-        ascending: Union[
-            bool, int, List[Union[bool, int]], Tuple[Union[bool, int]]
-        ] = None,
+        ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
         Examples::
 
-            df_sorted = df.sort(col("A"), col("B").asc)
-            df_sorted = df.sort(Column("a"), ascending=False)
-
+            from snowflake.snowpark.functions import col
+            df_sorted = df.sort(col("A"), col("B").asc())
+            df_sorted = df.sort(col("a"), ascending=False)
             # The values from the list overwrite the column ordering.
-            sorted_rows = df.sort(["a", Column("b").desc()], ascending=[1, 1])
+            sorted_rows = df.sort(["a", col("b").desc()], ascending=[1, 1]).collect()
 
         Args:
             *cols: list of Column or column names to sort by.
-            ascending: boolean or list of boolean (default True). Sort ascending vs.
-                descending. Specify list for multiple sort orders. If a list is
-                specified, length of the list must equal length of the cols.
+            ascending: A :class:`bool` or a list of :class:`bool` for sorting the
+             DataFrame, where ``True`` sorts a column in ascending order and ``False``
+             sorts a column in descending order . If you specify a list of multiple
+             sort orders, the length of the list must equal the number of columns.
         """
         if not cols:
             raise ValueError("sort() needs at least one sort expression.")
