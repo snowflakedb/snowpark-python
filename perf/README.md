@@ -1,4 +1,5 @@
 # Performance test of Session / DataFrame when dealing with large amounts of rows locally.
+
 ## Why test and what to test
 Most of the time, snowpark-python client pushes down sql to SnowflakeDB so the client has no impact to performance. Yet
 some APIs send data to, or receive data from SnowflakeDB, we need to understand their performance to properly give customers advice.
@@ -12,16 +13,16 @@ These methods need testing.
 ## Test env
 1. QA1 python_udf_test_account.qa1.int.snowflakecomputing.com
 2. warehouse TEST_WH_SNOWPARK_PYTHON (xs)
-3. Client side is my MacBook Pro.
+3. Client side uses my MacBook Pro.
 4. python-connector parameters use default value except the required params to connect to DB.
 
 ## Tools used
 1. use cProfile to collect profile data in `*.prof` files.
-```commandline
+```bash
 python -m cProfile -o profile_data.prof test.py
 ```
 2. use [SnakeViz](https://jiffyclub.github.io/snakeviz/) to view the profile data.
-    - Install snakeviz```commandline
+    - Install snakeviz
       ```bash
       pip install snakeviz
       ```
@@ -58,14 +59,14 @@ Test program: `create_dataframe_save_table.py`
  infer schema | 57 | 40.5 | 14.2
  set schema | 23.5 | 2.96 | 17.4
 
-### 200,000 rows * 100 cols
+#### 200,000 rows * 100 cols
 
   Test case | Total Time (s) | Session.createDataFrame (s) | DataFrame.saveAsTable (s)
 --- | --- | --- | ---
  infer schema | 528 | 426 | 100
  set schema | 123 | 17.8 | 103
 
-### 200,000 rows * 1,000 cols
+#### 200,000 rows * 1,000 cols
   Test case | Total Time (s) | Session.createDataFrame (s) | DataFrame.saveAsTable (s)
 --- | --- | --- | ---
 set schema | 1270 | 169 | 1090
@@ -74,7 +75,7 @@ The test with infer schema runs too long, so I killed the test after hours of ru
 From profile data, `createDataFrame` was still working after 15,300 seconds.
 ![img.png](createDataFrameInferSchema.png)
 
-### 10,000 rows * 1,000 cols
+#### 10,000 rows * 1,000 cols
   Test case | Total Time (s) | Session.createDataFrame (s) | DataFrame.saveAsTable (s)
 --- | --- | --- | ---
 infer schema | 344 | 276 | 66.3
