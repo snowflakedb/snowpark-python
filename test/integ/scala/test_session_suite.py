@@ -129,6 +129,12 @@ def test_negative_test_for_missing_required_parameter_schema(db_parameters):
     assert "The SCHEMA is not set for the current session." in str(ex_info)
 
 
+def test_select_current_client(session):
+    current_client = session.sql("select current_client()")._DataFrame__show_string(10)
+    assert snowpark_utils.get_application_name() in current_client
+    assert snowpark_utils.get_version() in current_client
+
+
 def test_negative_test_to_invalid_table_name(session):
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         session.table("negative.test.invalid.table.name")
