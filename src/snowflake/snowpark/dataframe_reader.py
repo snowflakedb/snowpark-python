@@ -19,8 +19,8 @@ class DataFrameReader:
 
     To use this object:
 
-    1. Access an instance of a :class:`DataFrameReader` by calling the
-    :func:`Session.read()` method.
+    1. Access an instance of a :class:`DataFrameReader` by using the
+    :attr:`Session.read` property.
 
     2. Specify any `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_ and `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
     by calling the :func:`option` or :func:`options` method. These methods return a

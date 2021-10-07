@@ -16,9 +16,9 @@ class DataFrameWriter:
     To use this object:
 
     1. Create an instance of a :class:`DataFrameWriter` by accessing the :attr:`DataFrame.write` property.
-    2. Specify the save mode by calling :meth:`mode`, which returns the same `DataFrameWriter` that is configured to
-        save data using the specified mode.
-        The default mode is "errorifexists".
+    2. Specify the save mode by calling :meth:`mode`, which returns the same
+       :class:``DataFrameWriter`` that is configured to save data using the specified mode.
+       The default mode is "errorifexists".
     3. Call the :meth:`saveAsTable` method to save the data to the specified destination.
 
     Example::
@@ -33,20 +33,20 @@ class DataFrameWriter:
         self.__save_mode = _SaveMode.APPEND  # spark default value is error.
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
-        """Set the save mode of this `DataFrameWriter`.
+        """Set the save mode of this :class:`DataFrameWriter`.
 
         Args:
             save_mode: One of the following strings.
 
-                "append": Append data of this DataFrame to existing data.
+                ``append``: Append data of this DataFrame to existing data.
 
-                "overwrite": Overwrite existing data.
+                ``overwrite``: Overwrite existing data.
 
-                "errorifexists": Throw an exception if data already exists.
+                ``errorifexists``: Throw an exception if data already exists.
 
-                "ignore": Ignore this operation if data already exists.
+                ``ignore``: Ignore this operation if data already exists.
 
-                Default value is "errorifexists".
+                Default value is ``errorifexists``.
 
         Returns:
             The :class:`DataFrameWriter` itself.

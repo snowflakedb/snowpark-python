@@ -33,7 +33,6 @@ from snowflake.snowpark.dataframe import DataFrame
 
 class _GroupType:
     def to_string(self) -> str:
-        # TODO revisit
         return self.__class__.__name__[1:-4]
 
 
@@ -65,7 +64,7 @@ class RelationalGroupedDataFrame:
         agg_df = grouped_df.agg([(grouped_df["salary"], "mean")])
 
     The method :py:func:`DataFrame.groupBy()`
-    returns an instance of type :obj:`RelationalGroupedDataFrame`"""
+    returns a :class:`RelationalGroupedDataFrame` object."""
 
     def __init__(self, df, grouping_exprs: List[SPExpression], group_type: _GroupType):
         self.df = df
@@ -237,7 +236,7 @@ class RelationalGroupedDataFrame:
         )
 
     def builtin(self, agg_name: str) -> Callable:
-        """Computes the builtin aggregate `agg_name` over the specified columns. Use
+        """Computes the builtin aggregate ``agg_name`` over the specified columns. Use
         this function to invoke any aggregates not explicitly listed in this class.
 
         Example::

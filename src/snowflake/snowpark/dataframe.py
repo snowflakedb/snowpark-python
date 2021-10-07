@@ -557,7 +557,7 @@ class DataFrame:
             *cols: The columns to group by.
 
         Valid inputs are:
-        
+
             - Empty input
             - One or multiple :class:`Column` object(s) or column name(s) (:class:`str`)
             - A list of :class:`Column` objects or column names (:class:`str`)
