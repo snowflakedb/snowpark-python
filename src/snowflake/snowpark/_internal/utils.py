@@ -60,6 +60,10 @@ class Utils:
         return platform.system()
 
     @staticmethod
+    def get_application_name() -> str:
+        return "PythonSnowpark"
+
+    @staticmethod
     def normalize_stage_location(name: str) -> str:
         """Get the normalized name of a stage."""
         trim_name = name.strip()
