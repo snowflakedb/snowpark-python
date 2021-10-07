@@ -36,6 +36,7 @@ import functools
 from random import randint
 from typing import Any, Callable, List, Optional, Tuple, Union
 
+import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
@@ -726,48 +727,17 @@ def udf(
         df.select(add_one("a"), minus_one("b"))
         session.sql("select minus_one(1)")
 
-    Snowflake supports the following data types for the parameters for a UDF:
-
-    =========  =============================================  ================================================
-    SQL Type   Python Type                                    Snowpark Type
-    =========  =============================================  ================================================
-    NUMBER     ``int``                                        :class:`~snowflake.snowpark.types.LongType`
-    DOUBLE     ``float``                                      :class:`~snowflake.snowpark.types.DoubleType`
-    NUMBER     ``decimal.Decimal``                            :class:`~snowflake.snowpark.types.DecimalType`
-    STRING     ``str``                                        :class:`~snowflake.snowpark.types.StringType`
-    BOOL       ``bool``                                       :class:`~snowflake.snowpark.types.BooleanType`
-    TIME       ``datetime.time``                              :class:`~snowflake.snowpark.types.TimeType`
-    DATE       ``datetime.date``                              :class:`~snowflake.snowpark.types.DateType`
-    TIMESTAMP  ``datetime.datetime``                          :class:`~snowflake.snowpark.types.TimestampType`
-    BINARY     ``bytes`` or ``bytearray``                     :class:`~snowflake.snowpark.types.BinaryType`
-    ARRAY      ``list``                                       :class:`~snowflake.snowpark.types.ArrayType`
-    OBJECT     ``dict``                                       :class:`~snowflake.snowpark.types.MapType`
-    VARIANT    Dynamically mapped to the correct Python type  :class:`~snowflake.snowpark.types.VariantType`
-    =========  =============================================  ================================================
-
     Note:
-        1. Currently only a temporary UDF that is scoped to this session can be
-        created and all UDF related files will be uploaded to a temporary session
-        stage (:func:`~snowflake.snowpark.Session.getSessionStage`).
-
-        2. You can also use :class:`typing.List` to annotate a :class:`list`,
-        use :class:`typing.Dict` to annotate a :class:`dict`, and use
-        :class:`typing.Any` to annotate a variant when defining a UDF.
-
-        3. When type hints are provided and are complete for a function,
+        1. When type hints are provided and are complete for a function,
         ``return_type`` and ``input_types`` are optional and will be ignored.
+        See details of supported data types for UDFs in
+        :class:`~snowflake.snowpark.udf.UDFRegistration`.
 
-        4. :class:`typing.Union` is not a valid type annotation for UDFs,
-        but :class:`typing.Optional` can be used to indicate the optional type.
-
-        5. For data with the VARIANT SQL type, if the underlying data type is
-        TIME, DATE, TIMESTAMP and BINARY, currently it will be mapped to
-        :class:`str` in a UDF. The Snowpark library will support a dynamic mapping
-        for those types soon.
+        2. This function registers a UDF using the last created session.
+        If you want to register a UDF with a specific session, use
+        :func:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
     """
-    from snowflake.snowpark.session import Session
-
-    session = Session._get_active_session()
+    session = snowflake.snowpark.Session._get_active_session()
     if not session:
         raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
 

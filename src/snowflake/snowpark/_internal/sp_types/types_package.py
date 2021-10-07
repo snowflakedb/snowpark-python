@@ -236,7 +236,7 @@ _type_mappings = {
     type(None): SPNullType,
     bool: SPBooleanType,
     int: SPLongType,
-    float: SPDoubleType,
+    float: SPFloatType,
     str: SPStringType,
     bytearray: SPBinaryType,
     decimal.Decimal: SPDecimalType,

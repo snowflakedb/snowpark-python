@@ -32,7 +32,7 @@ class UserDefinedFunction:
     """
     Encapsulates a user defined lambda or function that is returned by
     :func:`~snowflake.snowpark.functions.udf` or by :func:`UDFRegistration.register`.
-    The constructor of this class is not supposed to be directly called.
+    The constructor of this class is not supposed to be called directly.
 
     Call an instance of :class:`UserDefinedFunction` to generate
     :class:`~snowflake.snowpark.Column` expressions. The input type can be
@@ -114,9 +114,9 @@ class UDFRegistration:
     """
     Provides methods to register lambdas and functions as UDFs in the Snowflake database.
 
-    :attr:`~snowflake.snowpark.Session.udf` returns an object of this class. You can use
-    this object to register temporary UDFs that you plan to use in the current session.
-    The methods that register a UDF return a :class:`UserDefinedFunction` object,
+    :attr:`session.udf <snowflake.snowpark.Session.udf>` returns an object of this class.
+    You can use this object to register temporary UDFs that you plan to use in the current
+    session. The methods that register a UDF return a :class:`UserDefinedFunction` object,
     which you can also use in :class:`~snowflake.snowpark.Column` expressions.
 
     Examples::
@@ -127,6 +127,41 @@ class UDFRegistration:
         double_udf = session.udf.register(double, name="mydoubleudf")
         session.sql(s"SELECT mydoubleudf(c) FROM table")
         df.select(double_udf("c"))
+
+    Snowflake supports the following data types for the parameters for a UDF:
+
+    =========  ============================================================  ================================================
+    SQL Type   Python Type                                                   Snowpark Type
+    =========  ============================================================  ================================================
+    NUMBER     ``int``                                                       :class:`~snowflake.snowpark.types.LongType`
+    NUMBER     ``decimal.Decimal``                                           :class:`~snowflake.snowpark.types.DecimalType`
+    FLOAT      ``float``                                                     :class:`~snowflake.snowpark.types.FloatType`
+    STRING     ``str``                                                       :class:`~snowflake.snowpark.types.StringType`
+    BOOL       ``bool``                                                      :class:`~snowflake.snowpark.types.BooleanType`
+    TIME       ``datetime.time``                                             :class:`~snowflake.snowpark.types.TimeType`
+    DATE       ``datetime.date``                                             :class:`~snowflake.snowpark.types.DateType`
+    TIMESTAMP  ``datetime.datetime``                                         :class:`~snowflake.snowpark.types.TimestampType`
+    BINARY     ``bytes`` or ``bytearray``                                    :class:`~snowflake.snowpark.types.BinaryType`
+    ARRAY      ``list``                                                      :class:`~snowflake.snowpark.types.ArrayType`
+    OBJECT     ``dict``                                                      :class:`~snowflake.snowpark.types.MapType`
+    VARIANT    ``dict``, ``list``, ``int``, ``float``, ``str``, or ``bool``  :class:`~snowflake.snowpark.types.VariantType`
+    =========  ============================================================  ================================================
+
+    Note:
+        1. Currently only a temporary UDF that is scoped to this session can be
+        created and all UDF related files will be uploaded to a temporary session
+        stage (:func:`session.getSessionStage() <snowflake.snowpark.Session.getSessionStage>`).
+
+        2. You can also use :class:`typing.List` to annotate a :class:`list`,
+        use :class:`typing.Dict` to annotate a :class:`dict`, and use
+        :class:`typing.Any` to annotate a variant when defining a UDF.
+
+        3. :class:`typing.Union` is not a valid type annotation for UDFs,
+        but :class:`typing.Optional` can be used to indicate the optional type.
+
+        4. Data with the VARIANT SQL type will be converted to a Python type dynamically.
+        The following SQL types are converted to :class:`str` in UDFs rather than
+        native Python types: TIME, DATE, TIMESTAMP and BINARY.
     """
 
     def __init__(self, session: "snowflake.snowpark.Session"):
@@ -141,8 +176,9 @@ class UDFRegistration:
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF and returns the UDF.
-        The usage, input arguments and return of this method are same with
-        :func:`~snowflake.snowpark.functions.udf`.
+        The usage, input arguments, and return value of this method are the same as
+        they are for :func:`~snowflake.snowpark.functions.udf` (but it cannot be used
+        as a decorator).
         """
         if not callable(func):
             raise TypeError(
