@@ -140,3 +140,7 @@ whitesource/
 docs/_build/
 # Ignore generated autosummary files created by Sphinx docs when you run make html in the docs directory.
 docs/source/_autosummary/
+
+# Ignore perf test output folder
+perf/output/
+perf/connection_parameters.py
