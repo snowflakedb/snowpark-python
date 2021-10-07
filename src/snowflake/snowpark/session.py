@@ -716,10 +716,10 @@ class Session:
         """
         Creates a new DataFrame from a range of numbers. The resulting DataFrame has
         the column name ``ID`` and a row for each number in the sequence.
-        If ``end`` is not specified, ``start`` will be used as the value of ``end``.
 
         Args:
-            start: The start of the range.
+            start: The start of the range. If ``end`` is not specified,
+                ``start`` will be used as the value of ``end``.
             end: The end of the range.
             step: The step of the range.
 
