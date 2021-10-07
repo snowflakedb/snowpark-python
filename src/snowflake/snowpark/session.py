@@ -546,11 +546,12 @@ class Session:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
                 be a :class:`list` or a :class:`tuple`. Every element in ``data`` will
                 constitute a row in the DataFrame.
-            schema: A :class:`types.StructType` containing names and data types of columns,
-                or a list of column names, or ``None``. When ``schema`` is a list of
-                column names or ``None``, the schema of the DataFrame will be inferred
-                from the data across all rows. To improve performance, provide a schema.
-                This avoids the need to infer data types with large data sets.
+            schema: A :class:`~snowflake.snowpark.types.StructType` containing names and
+                data types of columns, or a list of column names, or ``None``.
+                When ``schema`` is a list of column names or ``None``, the schema of the
+                DataFrame will be inferred from the data across all rows. To improve
+                performance, provide a schema. This avoids the need to infer data types
+                with large data sets.
 
         Examples::
 
@@ -733,13 +734,13 @@ class Session:
 
     def getDefaultDatabase(self) -> Optional[str]:
         """
-        Returns the name of the default database configured for this session in :attr:`Session.builder`.
+        Returns the name of the default database configured for this session in :attr:`builder`.
         """
         return self._conn.get_default_database()
 
     def getDefaultSchema(self) -> Optional[str]:
         """
-        Returns the name of the default schema configured for this session in :attr:`Session.builder`.
+        Returns the name of the default schema configured for this session in :attr:`builder`.
         """
         return self._conn.get_default_schema()
 
