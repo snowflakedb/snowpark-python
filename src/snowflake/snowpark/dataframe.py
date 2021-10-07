@@ -542,7 +542,9 @@ class DataFrame:
 
     def groupBy(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -555,6 +557,10 @@ class DataFrame:
             - Empty input
             - One or multiple Column object(s) or column name(s) (str)
             - A list of Column objects or column names (str)
+
+        Args:
+            *cols: the columns to group by.
+
         """
         # TODO fix dependency cycle
         from snowflake.snowpark.relational_grouped_dataframe import (
@@ -582,7 +588,7 @@ class DataFrame:
         Note that this is a transformation method and not an action method.
 
         Args:
-            n: Number of rows to return
+            n: Number of rows to return.
         """
         return self.__with_plan(SPLimit(SPLiteral(n, SPLongType()), self.__plan))
 
