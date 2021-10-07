@@ -711,15 +711,16 @@ class Session:
             project_columns
         )
 
-    def range(self, *args: int) -> DataFrame:
+    def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
         """
-        Creates a new DataFrame from a range of numbers.
-        The resulting DataFrame has the column name ``ID`` and a row for each number in the sequence.
+        Creates a new DataFrame from a range of numbers. The resulting DataFrame has
+        the column name ``ID`` and a row for each number in the sequence.
+        If ``end`` is not specified, ``start`` will be used as the value of ``end``.
 
         Args:
-            start (:class:`Optional[int]`): The start of the range.
-            end (:class:`int`): The end of the range.
-            step (:class:`Optional[int]`): The step of the range
+            start: The start of the range.
+            end: The end of the range.
+            step: The step of the range.
 
         Examples::
 
@@ -727,20 +728,8 @@ class Session:
             df2 = session.range(1, 10)
             df3 = session.range(1, 10, 2)
         """
-        start, step = 0, 1
-
-        if len(args) == 3:
-            start, end, step = args[0], args[1], args[2]
-        elif len(args) == 2:
-            start, end = args[0], args[1]
-        elif len(args) == 1:
-            end = args[0]
-        else:
-            raise ValueError(
-                f"range() requires one to three arguments. {len(args)} are provided."
-            )
-
-        return DataFrame(session=self, plan=Range(start, end, step))
+        range_plan = Range(0, start, step) if end is None else Range(start, end, step)
+        return DataFrame(session=self, plan=range_plan)
 
     def getDefaultDatabase(self) -> Optional[str]:
         """
