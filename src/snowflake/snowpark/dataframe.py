@@ -224,7 +224,7 @@ class DataFrame:
         """Returns a clone of this :class:`DataFrame`."""
         return DataFrame(self.session, self.__plan.clone())
 
-    def toPandas(self, **kwargs) -> pandas.DataFrame:
+    def toPandas(self, **kwargs) -> "pandas.DataFrame":
         """Returns the contents of this DataFrame as a Pandas DataFrame.
 
         This method is only available if Pandas is installed and available.
