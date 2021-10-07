@@ -14,7 +14,7 @@ These methods need testing.
 1. QA1 python_udf_test_account.qa1.int.snowflakecomputing.com
 2. warehouse TEST_WH_SNOWPARK_PYTHON (xs)
 3. Client side uses my MacBook Pro.
-4. python-connector parameters use default value except the required params to connect to DB.
+4. python-connector parameters use default value except the required params to connect to DB. python-connector has some parameters for better performance, we should try them later.
 
 ## Tools used
 1. use cProfile to collect profile data in `*.prof` files.
@@ -99,5 +99,6 @@ Test program: `collect_dataframe.py`
 
 ## Key findings
 1. Generally, when data grows large, `Session.createDataFrame` is slow in uploading data to Snowflake DB. We need to find good alternative ways to the users, or fine tune the performance.
-2. Infer schema shouldn't be used on any large dataset. But it's cool for small dataset. It's worth looking into opportunities to improve when we have time.
-3. `DataFrame.toPandas()` is really fast. `.collect()` is several times slower for large dataset but it still not bad acceptable performance.
+2. Infer-schema shouldn't be used on any large dataset. But it's cool for small dataset. It's worth looking into opportunities to improve when we have time.
+3. Even with explicit schema, it takes 1000 seconds to upload 200,000 rows * 1000 columns to SnowflakeDB. python-connector may have parameters to boost this performance. Need to try later.
+4. `DataFrame.toPandas()` is really fast. `.collect()` is several times slower for large dataset but it still not bad acceptable performance.
