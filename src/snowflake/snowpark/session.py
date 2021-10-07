@@ -81,7 +81,7 @@ class Session:
     The Snowpark library uses `the Snowflake Connector for Python <https://docs.snowflake.com/en/user-guide/python-connector.html>`_
     to connect to Snowflake. Refer to
     `Connecting to Snowflake using the Python Connector <https://docs.snowflake.com/en/user-guide/python-connector-example.html#connecting-to-snowflake>`_
-    for the details of connection parameters.
+    for the details of `Connection Parameters <https://docs.snowflake.com/en/user-guide/python-connector-api.html#connect>`_.
 
     To create a Session object from a dict of connection parameters::
 
