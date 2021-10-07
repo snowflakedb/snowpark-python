@@ -45,6 +45,11 @@ logger = getLogger(__name__)
 # set `paramstyle` to qmark for batch insertion
 snowflake.connector.paramstyle = "qmark"
 
+# parameters needed for usage tracking
+PARAM_APPLICATION = "application"
+PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
+PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
+
 
 class ServerConnection:
     class _Decorator:
@@ -89,8 +94,23 @@ class ServerConnection:
         conn: Optional[SnowflakeConnection] = None,
     ):
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
+        self.__add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         self._cursor = self._conn.cursor()
+
+    def __add_application_name(self):
+        if PARAM_APPLICATION not in self._lower_case_parameters:
+            self._lower_case_parameters[
+                PARAM_APPLICATION
+            ] = Utils.get_application_name()
+        if PARAM_INTERNAL_APPLICATION_NAME not in self._lower_case_parameters:
+            self._lower_case_parameters[
+                PARAM_INTERNAL_APPLICATION_NAME
+            ] = Utils.get_application_name()
+        if PARAM_INTERNAL_APPLICATION_VERSION not in self._lower_case_parameters:
+            self._lower_case_parameters[
+                PARAM_INTERNAL_APPLICATION_VERSION
+            ] = Utils.get_version()
 
     def close(self):
         self._conn.close()
