@@ -14,13 +14,13 @@ from snowflake.snowpark.types import StructType, VariantType
 
 class DataFrameReader:
     """Provides methods to load data in various supported formats from a Snowflake
-    stage to a DataFrame. The paths provided to the DataFrameReader must refer to
-    Snowflake stages.
+    stage to a :class:`DataFrame`. The paths provided to the DataFrameReader must refer
+    to Snowflake stages.
 
     To use this object:
 
-    1. Access an instance of a DataFrameReader by calling the :func:`Session.read()`
-    method.
+    1. Access an instance of a :class:`DataFrameReader` by calling the
+    :func:`Session.read()` method.
 
     2. Specify any `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_ and `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_
     by calling the :func:`option` or :func:`options` method. These methods return a
@@ -28,23 +28,23 @@ class DataFrameReader:
     specifying copy options can make error handling more robust during the reading
     process, it may have an effect on performance.)
 
-    3. Specify the schema of the data that you plan to load by constructing a StructType
-    object and passing it to the :func:`schema` method. This method returns a
-    DataFrameReader that is configured to read data that uses the specified schema.
+    3. Specify the schema of the data that you plan to load by constructing a
+    :class:`types.StructType` object and passing it to the :func:`schema` method. This method
+    returns a :class:`DataFrameReader` that is configured to read data that uses the
+    specified schema.
 
     4. Specify the format of the data by calling the method named after the format
-    (e.g. :func:`csv`, :func:`json`, etc.). These methods return a :func:`DataFrame`
+    (e.g. :func:`csv`, :func:`json`, etc.). These methods return a :class:`DataFrame`
     that is configured to load data in the specified format.
 
     5. Call a :class:`DataFrame` method that performs an action (e.g.
-    :py:func:`DataFrame.collect`) to load the data from the file.
+    :func:`DataFrame.collect`) to load the data from the file.
 
     The following examples demonstrate how to use a DataFrameReader.
 
     Example 1:
         Loading the first two columns of a CSV file and skipping the first header line::
 
-            # Import the module for StructType.
             from snowflake.snowpark.types import *
             file_path = "@mystage1"
             # Define the schema for the data in the CSV file.
@@ -64,7 +64,6 @@ class DataFrameReader:
             # Load the data into the DataFrame and return an Array of Rows containing the results.
             results = json_df.collect()
 
-
       In addition, if you want to load only a subset of files from the stage, you can use the
       `pattern <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#loading-using-pattern-matching>`_
       option to specify a regular expression that matches the files that you want to load.
@@ -74,7 +73,7 @@ class DataFrameReader:
 
             from snowflake.snowpark.types import *
             # Define the schema for the data in the CSV files.
-            user_schema: StructType = StructType(Seq(StructField("a", IntegerType()),StructField("b", StringType())))
+            user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
             # Create a DataFrame that is configured to load data from the CSV files in the stage.
             csv_df = session.read.option("pattern", ".[.]csv").schema(user_schema).csv("@stage_location")
             # Load the data into the DataFrame and return an Array of Rows containing the results.
@@ -100,14 +99,11 @@ class DataFrameReader:
 
         Args:
             name: Name of the table to use.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.session.table(name)
 
     def schema(self, schema: StructType) -> "DataFrameReader":
-        """Returns a ``DataFrameReader`` instance with the specified schema
+        """Returns a :class:`DataFrameReader` instance with the specified schema
         configuration for the data to be read.
 
         To define the schema for the data that you want to read, use a
@@ -115,15 +111,12 @@ class DataFrameReader:
 
         Args:
             schema: Schema configuration for the data to be read.
-
-        Returns:
-            :class:`DataFrameReader`
         """
         self.__user_schema = schema
         return self
 
     def csv(self, path: str) -> DataFrame:
-        """Returns a ``DataFrame`` that is set up to load data from the specified CSV
+        """Returns a :class:`DataFrame` that is set up to load data from the specified CSV
         file.
 
         This method only supports reading data from files in Snowflake stages.
@@ -143,9 +136,6 @@ class DataFrameReader:
 
         Args:
             path: The path to the CSV file (including the stage name).
-
-        Returns:
-            :class:`DataFrame`
         """
         if not self.__user_schema:
             raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
@@ -180,14 +170,12 @@ class DataFrameReader:
         Args:
             path: The path to the JSON file (including the stage name).
 
-        Returns:
-            :class:`DataFrame`
         """
         return self.__read_semi_structured_file(path, "JSON")
 
     def avro(self, path: str) -> DataFrame:
-        """Returns a ``DataFrame`` that is set up to load data from the specified Avro
-        file.
+        """Returns a :class:`DataFrame` that is set up to load data from the
+        specified Avro file.
 
         This method only supports reading data from files in Snowflake stages.
 
@@ -198,13 +186,11 @@ class DataFrameReader:
         Args:
             path: The path to the Avro file (including the stage name).
 
-        Returns:
-            :class:`DataFrame`
         """
         return self.__read_semi_structured_file(path, "AVRO")
 
     def parquet(self, path: str) -> DataFrame:
-        r"""Returns a ``DataFrame`` that is set up to load data from the specified
+        """Returns a :class:`DataFrame` that is set up to load data from the specified
         Parquet file.
 
         This method only supports reading data from files in Snowflake stages.
@@ -225,13 +211,12 @@ class DataFrameReader:
         Args:
             path: The path to the Parquet file (including the stage name).
 
-        Returns:
-            :class:`DataFrame`
         """
         return self.__read_semi_structured_file(path, "PARQUET")
 
     def orc(self, path: str) -> DataFrame:
-        r"""Returns a ``DataFrame`` that is set up to load data from the specified ORC file.
+        """Returns a :class:`DataFrame` that is set up to load data from the specified
+        ORC file.
 
         This method only supports reading data from files in Snowflake stages.
 
@@ -248,13 +233,12 @@ class DataFrameReader:
         Args:
             path: The path to the ORC file (including the stage name).
 
-        Returns:
-            :class:`DataFrame`
         """
         return self.__read_semi_structured_file(path, "ORC")
 
     def xml(self, path: str) -> DataFrame:
-        """Returns a ``DataFrame`` that is set up to load data from the specified XML file.
+        """Returns a :class:`DataFrame` that is set up to load data from the specified
+        XML file.
 
         This method only supports reading data from files in Snowflake stages.
 
@@ -271,9 +255,6 @@ class DataFrameReader:
 
         Args:
             path: The path to the XML file (including the stage name).
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__read_semi_structured_file(path, "XML")
 
@@ -309,7 +290,7 @@ class DataFrameReader:
 
               from snowflake.snowpark.types import *
               # Define the schema for the data in the CSV files.
-              user_schema = StructType(Seq(StructField("a", IntegerType()), StructField("b", StringType())))
+              user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
               # Create a DataFrame that is configured to load data from the CSV file.
               csv_df = session.read.option("field_delimiter", ":").option("skip_header", 1).schema(user_schema).csv(file_path)
               # Load the data into the DataFrame and return an Array of Rows containing the results.
@@ -325,7 +306,7 @@ class DataFrameReader:
 
                 from snowflake.snowpark.types import *
                 # Define the schema for the data in the CSV files.
-                user_schema = StructType(Seq(StructField("a", IntegerType()),StructField("b", StringType())))
+                user_schema = StructType([StructField("a", IntegerType()),StructField("b", StringType())])
                 # Create a DataFrame that is configured to load data from the CSV files in the stage.
                 csv_df = session.read.option("pattern", ".[.]csv").schema(user_schema).csv("@stage_location")
                 # Load the data into the DataFrame and return an Array of Rows containing the results.
@@ -334,9 +315,6 @@ class DataFrameReader:
         Args:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
-
-        Returns:
-            :class:`DataFrameReader`
         """
         self.__cur_options[key.upper()] = self.__parse_value(value)
         return self
@@ -360,16 +338,13 @@ class DataFrameReader:
             fields::
 
                 # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-                df = session.read.option(Map("compression"-> "lzo", "trim_space" -> true)).parquet(file_path)
+                df = session.read.option({"compression": "lzo", "trim_space": true}).parquet(file_path)
                 # Load the data into the DataFrame and return an Array of Rows containing the results.
                 results = df.collect()
 
         Args:
             configs: Dictionary of the names of options (e.g. ``compression``,
                 ``skip_header``, etc.) and their corresponding values.
-
-        Returns:
-            :class:`DataFrameReader`
         """
         for k, v in configs.items():
             self.option(k, v)
