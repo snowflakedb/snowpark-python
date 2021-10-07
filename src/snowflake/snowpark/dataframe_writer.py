@@ -63,9 +63,6 @@ class DataFrameWriter:
             table_name: A string or list of strings that specify the table name or fully-qualified object identifier
                 (database name, schema name, and table name).
 
-        Returns:
-            None
-
         Example::
 
             df.write.mode("overwrite").saveAsTable("table1")
