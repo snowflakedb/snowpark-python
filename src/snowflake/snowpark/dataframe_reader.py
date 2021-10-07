@@ -75,7 +75,7 @@ class DataFrameReader:
             # Define the schema for the data in the CSV files.
             user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
             # Create a DataFrame that is configured to load data from the CSV files in the stage.
-            csv_df = session.read.option("pattern", ".[.]csv").schema(user_schema).csv("@stage_location")
+            csv_df = session.read.option("pattern", ".*[.]csv").schema(user_schema).csv("@stage_location")
             # Load the data into the DataFrame and return an Array of Rows containing the results.
             results = csv_df.collect()
     """
@@ -163,7 +163,7 @@ class DataFrameReader:
         Example::
 
           # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-          df = session.read.json(path).where(col("\$1:num") > 1)
+          df = session.read.json(path).where(col("$1:num") > 1)
           # Load the data into the DataFrame and return an Array of Rows containing the results.
           results = df.collect()
 
@@ -203,7 +203,7 @@ class DataFrameReader:
 
             # Create a DataFrame that uses a DataFrameReader to load data from a file in
             # a stage.
-            df = session.read.parquet(path).where(col("\$1:num") > 1)
+            df = session.read.parquet(path).where(col("$1:num") > 1)
             # Load the data into the DataFrame and return an Array of Rows containing
             # the results.
             results = df.collect()
@@ -226,7 +226,7 @@ class DataFrameReader:
         Example::
 
             # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-            df = session.read.orc(path).where(col("\$1:num") > 1)
+            df = session.read.orc(path).where(col("$1:num") > 1)
             # Load the data into the DataFrame and return an Array of Rows containing the results.
             results = df.collect()
 
@@ -308,7 +308,7 @@ class DataFrameReader:
                 # Define the schema for the data in the CSV files.
                 user_schema = StructType([StructField("a", IntegerType()),StructField("b", StringType())])
                 # Create a DataFrame that is configured to load data from the CSV files in the stage.
-                csv_df = session.read.option("pattern", ".[.]csv").schema(user_schema).csv("@stage_location")
+                csv_df = session.read.option("pattern", ".*[.]csv").schema(user_schema).csv("@stage_location")
                 # Load the data into the DataFrame and return an Array of Rows containing the results.
                 results = csv_df.collect()
 

@@ -301,7 +301,7 @@ class DataFrame:
 
     def select(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -337,7 +337,7 @@ class DataFrame:
 
     def drop(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
@@ -416,7 +416,7 @@ class DataFrame:
 
     def sort(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
         ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
@@ -430,7 +430,8 @@ class DataFrame:
             sorted_rows = df.sort(["a", col("b").desc()], ascending=[1, 1]).collect()
 
         Args:
-            *cols: list of Column or column names to sort by.
+            *cols: A column name as :class:`str` or :class:`Column`, or a list of
+             columns to sort by.
             ascending: A :class:`bool` or a list of :class:`bool` for sorting the
              DataFrame, where ``True`` sorts a column in ascending order and ``False``
              sorts a column in descending order . If you specify a list of multiple
@@ -552,24 +553,18 @@ class DataFrame:
         This method returns a :class:`RelationalGroupedDataFrame` that you can use to
         perform aggregations on each group of data.
 
-        Valid inputs are:
-
-            - Empty input
-            - One or multiple Column object(s) or column name(s) (str)
-            - A list of Column objects or column names (str)
-
         Args:
-            *cols: the columns to group by.
+            *cols: The columns to group by.
+
+        Valid inputs are:
+        
+            - Empty input
+            - One or multiple :class:`Column` object(s) or column name(s) (:class:`str`)
+            - A list of :class:`Column` objects or column names (:class:`str`)
 
         """
-        # TODO fix dependency cycle
-        from snowflake.snowpark.relational_grouped_dataframe import (
-            RelationalGroupedDataFrame,
-            _GroupByType,
-        )
-
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
-        return RelationalGroupedDataFrame(self, grouping_exprs, _GroupByType())
+        return snowflake.snowpark.RelationalGroupedDataFrame(self, grouping_exprs, snowflake.snowpark.relational_grouped_dataframe._GroupByType())
 
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
@@ -718,7 +713,7 @@ class DataFrame:
         """
         return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
 
-    def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
+    def naturalJoin(self, right: "DataFrame", join_type: Optional[str] = None) -> "DataFrame":
         """Performs a natural join of the specified type (``joinType``) with the
         current DataFrame and another DataFrame (``right``).
 
@@ -729,7 +724,7 @@ class DataFrame:
 
         Args:
             right: the other :class:`DataFrame` to join
-            join_type: The type of join (e.g. "right", "outer", etc.).
+            join_type: The type of join (e.g. "right", "outer", etc.). The default value is "inner".
         """
         join_type = join_type if join_type else "inner"
         return self.__with_plan(
