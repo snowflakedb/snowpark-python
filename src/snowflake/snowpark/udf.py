@@ -42,7 +42,7 @@ class UserDefinedFunction:
 
         from snowflake.snowpark.functions import udf
 
-        # `add_udf` is an instance of `UserDefinedFunction`
+        # Create an instance of UserDefinedFunction using the @udf decorator
         @udf
         def add_udf(x: int, y: int) -> int:
             return x + y
@@ -50,7 +50,7 @@ class UserDefinedFunction:
         def double(x: int) -> int:
             return 2 * x
 
-        # `double_udf` is an instance of `UserDefinedFunction`
+        # Create an instance of UserDefinedFunction using the udf() function
         double_udf = udf(double)
 
         # call UDFs on a dataframe
@@ -159,9 +159,9 @@ class UDFRegistration:
         3. :class:`typing.Union` is not a valid type annotation for UDFs,
         but :class:`typing.Optional` can be used to indicate the optional type.
 
-        4. Data with the VARIANT SQL type will be converted to a Python type dynamically.
-        The following SQL types are converted to :class:`str` in UDFs rather than
-        native Python types: TIME, DATE, TIMESTAMP and BINARY.
+        4. Data with the VARIANT SQL type will be converted to a Python type
+        dynamically inside a UDF. The following SQL types are converted to :class:`str`
+        in UDFs rather than native Python types:  TIME, DATE, TIMESTAMP and BINARY.
     """
 
     def __init__(self, session: "snowflake.snowpark.Session"):
