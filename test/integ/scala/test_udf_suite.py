@@ -55,7 +55,6 @@ def setup(session, resources_path):
     session._run_query(f"insert into {table1} values(1),(2),(3)")
     Utils.create_table(session, table2, "a int, b int")
     session._run_query(f"insert into {table2} values(1, 2),(2, 3),(3, 4)")
-    session._run_query("alter session set enable_python_udf=true")
     yield
     Utils.drop_table(session, tmp_table_name)
     Utils.drop_table(session, table1)
