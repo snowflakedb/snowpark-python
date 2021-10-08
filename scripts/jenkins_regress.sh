@@ -15,8 +15,7 @@ exit_code_decorator(){
 
 # test
 # decrypt profile
-# TODO SNOW-471687: use preprod3 instead of qa1 after preprod3 has python 3.8 change
-gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "$TEST_DIR/parameters.py" scripts/parameters_qa1.py.gpg
+gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "$TEST_DIR/parameters.py" scripts/parameters.py.gpg
 
 # Run linter, Python 3.8 test and code coverage jobs
 exit_code_decorator "python -m tox -c $WORKING_DIR"
