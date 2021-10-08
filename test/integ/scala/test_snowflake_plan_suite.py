@@ -61,7 +61,7 @@ def test_multiple_queries(session_cnx):
             # SF always returns Long Type
             assert type(plan1.attributes()[0].datatype) == LongType
 
-            res = session.conn.execute(plan1)
+            res = session._conn.execute(plan1)
             res.sort(key=lambda x: x[0])
             assert res == [Row(1), Row(2)]
         finally:
@@ -90,7 +90,7 @@ def test_multiple_queries(session_cnx):
             assert plan3.attributes()[0].nullable
             assert type(plan3.attributes()[0].datatype) == LongType
 
-            res2 = session.conn.execute(plan3)
+            res2 = session._conn.execute(plan3)
             res2.sort(key=lambda x: x[0])
             assert res2 == [Row(1), Row(2), Row(3), Row(4)]
         finally:
