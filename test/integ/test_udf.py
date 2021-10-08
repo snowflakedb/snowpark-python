@@ -46,7 +46,6 @@ tmp_stage_name = Utils.random_stage_name()
 @pytest.fixture(scope="module", autouse=True)
 def setup(session):
     Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    session._run_query("alter session set enable_python_udf=true")
 
 
 def test_basic_udf(session):
