@@ -82,5 +82,5 @@ class DataFrameWriter:
             full_table_name, self.__save_mode, self.__dataframe._DataFrame__plan
         )
         session = self.__dataframe.session
-        snowflake_plan = session.analyzer.resolve(create_table_logic_plan)
-        session.conn.execute(snowflake_plan)
+        snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
+        session._conn.execute(snowflake_plan)

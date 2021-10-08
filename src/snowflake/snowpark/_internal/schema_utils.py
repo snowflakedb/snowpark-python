@@ -80,7 +80,7 @@ class SchemaUtils:
             if head in ["get"]:
                 return SchemaUtils.get_attributes()
             if head in ["describe"]:
-                return session.conn.convert_result_metadata_to_attribute(
+                return session._conn.convert_result_metadata_to_attribute(
                     session.runQuery(sql).get_metadta
                 )
             return []

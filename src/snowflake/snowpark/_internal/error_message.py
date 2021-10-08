@@ -251,6 +251,12 @@ class SnowparkClientExceptionMessages:
             "Cannot perform this operation because the session has been closed.", "1404"
         )
 
+    @staticmethod
+    def SERVER_FAILED_CLOSE_SESSION(message: str) -> SnowparkSessionException:
+        return SnowparkSessionException(
+            f"Failed to close this session. The error is: {message}", "1405"
+        )
+
     # General Error codes 15XX
 
     @staticmethod

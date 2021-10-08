@@ -112,12 +112,12 @@ class ServerConnection:
                 PARAM_INTERNAL_APPLICATION_VERSION
             ] = Utils.get_version()
 
-    def close(self):
-        self._conn.close()
+    def close(self) -> None:
+        if self._conn:
+            self._conn.close()
 
-    @property
-    def connection(self):
-        return self._conn
+    def is_closed(self) -> bool:
+        return self._conn.is_closed()
 
     @_Decorator.wrap_exception
     def get_session_id(self) -> int:
@@ -388,7 +388,7 @@ class ServerConnection:
                     result = self.run_query(final_query, to_pandas, **kwargs)
                     placeholders[query.query_id_place_holder] = result["sfqid"]
                     result_meta = self._cursor.description
-                if action_id < plan.session.get_last_canceled_id():
+                if action_id < plan.session._get_last_canceled_id():
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
