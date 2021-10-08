@@ -715,7 +715,8 @@ class Session:
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
         """
         Creates a new DataFrame from a range of numbers. The resulting DataFrame has
-        the column name ``ID`` and a row for each number in the sequence.
+        single column named ``ID``, containing elements in a range from ``start`` to
+        ``end`` (exclusive) with the step value ``step``.
 
         Args:
             start: The start of the range. If ``end`` is not specified,
@@ -725,8 +726,11 @@ class Session:
 
         Examples::
 
+            # create a dataframe with one column containing values from 0 to 9
             df1 = session.range(10)
+            # create a dataframe with one column containing values from 1 to 9
             df2 = session.range(1, 10)
+            # create a dataframe with one column containing values (1, 3, 5, 7, 9)
             df3 = session.range(1, 10, 2)
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
