@@ -730,7 +730,7 @@ class Session:
             df1 = session.range(10)
             # create a dataframe with one column containing values from 1 to 9
             df2 = session.range(1, 10)
-            # create a dataframe with one column containing values (1, 3, 5, 7, 9)
+            # create a dataframe with one column containing values 1, 3, 5, 7, 9
             df3 = session.range(1, 10, 2)
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
