@@ -179,7 +179,7 @@ class DataFrame:
 
     def __init__(self, session=None, plan=None):
         self.session = session
-        self.__plan = session.analyzer.resolve(plan)
+        self.__plan = session._analyzer.resolve(plan)
 
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
@@ -214,7 +214,7 @@ class DataFrame:
         return self._collect_with_tag()
 
     def _collect_with_tag(self) -> List["Row"]:
-        return self.session.conn.execute(
+        return self.session._conn.execute(
             self.__plan,
             _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
             if not self.session.query_tag
@@ -241,7 +241,7 @@ class DataFrame:
             kwargs["_statement_params"] = {
                 "QUERY_TAG": Utils.create_statement_query_tag(2)
             }
-        return self.session.conn.execute(self.__plan, to_pandas=True, **kwargs)
+        return self.session._conn.execute(self.__plan, to_pandas=True, **kwargs)
 
     def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
         """
@@ -1052,11 +1052,13 @@ class DataFrame:
         query = self.__plan.queries[-1].sql.strip().lower()
 
         if query.startswith("select"):
-            result, meta = self.session.conn.get_result_and_metadata(
+            result, meta = self.session._conn.get_result_and_metadata(
                 self.limit(n)._DataFrame__plan, **kwargs
             )
         else:
-            res, meta = self.session.conn.get_result_and_metadata(self.__plan, **kwargs)
+            res, meta = self.session._conn.get_result_and_metadata(
+                self.__plan, **kwargs
+            )
             result = res[:n]
 
         # The query has been executed
@@ -1207,7 +1209,7 @@ class DataFrame:
             view_type=view_type,
         )
 
-        return self.session.conn.execute(self.session.analyzer.resolve(cmd), **kwargs)
+        return self.session._conn.execute(self.session._analyzer.resolve(cmd), **kwargs)
 
     def first(self, n: Optional[int] = None):
         """Executes the query representing this DataFrame and returns the first ``n``

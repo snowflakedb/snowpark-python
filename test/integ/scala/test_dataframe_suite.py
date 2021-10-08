@@ -824,9 +824,9 @@ def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
     for command in misc_commands:
         session.sql(command).collect()
 
-    # Misc commands with session.conn.getResultAndMetadata
+    # Misc commands with session._conn.getResultAndMetadata
     for command in misc_commands:
-        rows, meta = session.conn.get_result_and_metadata(
+        rows, meta = session._conn.get_result_and_metadata(
             session.sql(command)._DataFrame__plan
         )
         assert len(rows) == 0 or len(rows[0]) == len(meta)

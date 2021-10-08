@@ -478,7 +478,7 @@ class SnowflakePlanBuilder:
         # TODO track usage of pattern, will refactor this function in future
         # Telemetry: https://snowflakecomputing.atlassian.net/browse/SNOW-363951
         # if pattern:
-        #   session.conn.telemetry.reportUsageOfCopyPattern()
+        #   session._conn.telemetry.reportUsageOfCopyPattern()
 
         temp_object_name = (
             fully_qualified_schema + "." + AnalyzerPackage.random_name_for_temp_object()

@@ -335,6 +335,13 @@ def test_server_session_has_been_closed():
     )
 
 
+def test_server_failed_close_session():
+    message = "unknown"
+    ex = SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(message)
+    assert ex.error_code == "1405"
+    assert ex.message == f"Failed to close this session. The error is: {message}"
+
+
 def test_general_invalid_object_name():
     type_name = "Iterable"
     ex = SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(type_name)
