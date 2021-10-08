@@ -8,6 +8,8 @@ import string
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
+import snowflake.snowpark
+from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
@@ -65,7 +67,7 @@ class DataFrame:
     required to produce a relational dataset. The computation is not performed until
     you call a method that performs an action (e.g. :func:`collect`).
 
-    .. rubric:: Creating a DataFrame
+    **Creating a DataFrame**
 
     You can create a DataFrame in a number of different ways, as shown in the examples
     below.
@@ -94,14 +96,14 @@ class DataFrame:
             df_merged_data = df_catalog.join(df_prices, df_catalog["itemId"] == df_prices["ID"])
 
 
-    .. rubric:: Performing operations on a DataFrame
+    **Performing operations on a DataFrame**
 
     Broadly, the operations on DataFrame can be divided into two types:
 
     - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that tranformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
     - **Actions** cause the DataFrame to be evaluated. When you call a method that performs an action, Snowpark sends the SQL query for the DataFrame to the server for evaluation.
 
-    .. rubric:: Transforming a DataFrame
+    **Transforming a DataFrame**
 
     The following examples demonstrate how you can transform a DataFrame.
 
@@ -157,7 +159,7 @@ class DataFrame:
             #  SELECT CATEGORY, SUM(AMOUNT) FROM PRICES GROUP BY CATEGORY
             df_total_price_per_category = df_prices.groupBy(col("category")).sum(col("amount"))
 
-    .. rubric:: Performing an action on a DataFrame
+    **Performing an action on a DataFrame**
 
     The following examples demonstrate how you can perform an action on a DataFrame.
 
@@ -207,9 +209,6 @@ class DataFrame:
     def collect(self) -> List["Row"]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self._collect_with_tag()
 
@@ -222,20 +221,13 @@ class DataFrame:
         )
 
     def clone(self) -> "DataFrame":
-        """Returns a clone of this :class:`DataFrame`.
-
-        Returns:
-            :class:`DataFrame`
-        """
+        """Returns a clone of this :class:`DataFrame`."""
         return DataFrame(self.session, self.__plan.clone())
 
-    def toPandas(self, **kwargs):
-        """Returns the contents of this DataFrame as Pandas DataFrame.
+    def toPandas(self, **kwargs) -> "pandas.DataFrame":
+        """Returns the contents of this DataFrame as a Pandas DataFrame.
 
         This method is only available if Pandas is installed and available.
-
-        Returns:
-            :class:`pandas.DataFrame`
         """
         if not self.session.query_tag:
             kwargs["_statement_params"] = {
@@ -257,9 +249,6 @@ class DataFrame:
 
         Args:
             names: list of new column names
-
-        Returns:
-            :class:`DataFrame`
         """
         col_names = Utils.parse_positional_args_to_list(*names)
         if not all(type(n) == str for n in col_names):
@@ -304,11 +293,7 @@ class DataFrame:
         return [attr.name for attr in self.__output()]
 
     def col(self, col_name: str) -> "Column":
-        """Returns a reference to a column in the DataFrame.
-
-        Returns:
-            :class:`Column`
-        """
+        """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
             return Column(SPStar(self.__plan.output()))
         else:
@@ -316,7 +301,7 @@ class DataFrame:
 
     def select(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -339,9 +324,6 @@ class DataFrame:
 
         Args:
             *cols: A :class:`Column`, :class:`str`, or a list of those.
-
-        Returns:
-             :class:`DataFrame`
         """
         exprs = Utils.parse_positional_args_to_list(*cols)
         if not exprs:
@@ -355,7 +337,7 @@ class DataFrame:
 
     def drop(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
@@ -409,9 +391,6 @@ class DataFrame:
 
         Args:
             expr: a :class:`Column` expression.
-
-        Returns:
-            a filtered :class:`DataFrame`
         """
         if type(expr) != Column:
             raise TypeError(
@@ -432,33 +411,31 @@ class DataFrame:
 
         Args:
             expr: a :class:`Column` expression.
-
-        Returns:
-            a filtered :class:`DataFrame`
         """
         return self.filter(expr)
 
     def sort(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
-        ascending: Union[
-            bool, int, List[Union[bool, int]], Tuple[Union[bool, int]]
-        ] = None,
+        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
+        ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
-        Example::
+        Examples::
 
-            df_sorted = df.sort(col("A"), col(B).asc)
+            from snowflake.snowpark.functions import col
+            df_sorted = df.sort(col("A"), col("B").asc())
+            df_sorted = df.sort(col("a"), ascending=False)
+            # The values from the list overwrite the column ordering.
+            sorted_rows = df.sort(["a", col("b").desc()], ascending=[1, 1]).collect()
 
         Args:
-            *cols: list of Column or column names to sort by.
-            ascending: boolean or list of boolean (default True). Sort ascending vs.
-                descending. Specify list for multiple sort orders. If a list is
-                specified, length of the list must equal length of the cols.
-
-        Returns:
-            a sorted :class:`DataFrame`
+            *cols: A column name as :class:`str` or :class:`Column`, or a list of
+             columns to sort by.
+            ascending: A :class:`bool` or a list of :class:`bool` for sorting the
+             DataFrame, where ``True`` sorts a column in ascending order and ``False``
+             sorts a column in descending order . If you specify a list of multiple
+             sort orders, the length of the list must equal the number of columns.
         """
         if not cols:
             raise ValueError("sort() needs at least one sort expression.")
@@ -527,9 +504,6 @@ class DataFrame:
 
             df.agg([("length", "min"), ("width", "max")])
             df.agg({"customers": "count", "amount": "sum"})
-
-        Returns:
-            :class:`DataFrame`
         """
         grouping_exprs = None
         if type(exprs) == Column:
@@ -569,40 +543,34 @@ class DataFrame:
 
     def groupBy(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
-    ):
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
 
         This method returns a :class:`RelationalGroupedDataFrame` that you can use to
         perform aggregations on each group of data.
 
+        Args:
+            *cols: The columns to group by.
+
         Valid inputs are:
 
             - Empty input
-            - One or multiple Column object(s) or column name(s) (str)
-            - A list of Column objects or column names (str)
+            - One or multiple :class:`Column` object(s) or column name(s) (:class:`str`)
+            - A list of :class:`Column` objects or column names (:class:`str`)
 
-        Returns:
-            :class:`RelationalGroupedDataFrame`
         """
-        # TODO fix dependency cycle
-        from snowflake.snowpark.relational_grouped_dataframe import (
-            RelationalGroupedDataFrame,
-            _GroupByType,
-        )
-
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
-        return RelationalGroupedDataFrame(self, grouping_exprs, _GroupByType())
+        return snowflake.snowpark.RelationalGroupedDataFrame(self, grouping_exprs, snowflake.snowpark.relational_grouped_dataframe._GroupByType())
 
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.groupBy(
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
@@ -615,10 +583,7 @@ class DataFrame:
         Note that this is a transformation method and not an action method.
 
         Args:
-            n: Number of rows to return
-
-        Returns:
-            :class:`DataFrame`
+            n: Number of rows to return.
         """
         return self.__with_plan(SPLimit(SPLiteral(n, SPLongType()), self.__plan))
 
@@ -633,9 +598,6 @@ class DataFrame:
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__with_plan(
             SPUnion(self.__plan, other._DataFrame__plan, is_all=False)
@@ -652,9 +614,6 @@ class DataFrame:
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__with_plan(
             SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
@@ -674,9 +633,6 @@ class DataFrame:
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__union_by_name_internal(other, is_all=False)
 
@@ -694,9 +650,6 @@ class DataFrame:
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__union_by_name_internal(other, is_all=True)
 
@@ -744,9 +697,6 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__with_plan(SPIntersect(self.__plan, other._DataFrame__plan))
 
@@ -760,13 +710,10 @@ class DataFrame:
 
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
 
-    def naturalJoin(self, right: "DataFrame", join_type: str = None) -> "DataFrame":
+    def naturalJoin(self, right: "DataFrame", join_type: Optional[str] = None) -> "DataFrame":
         """Performs a natural join of the specified type (``joinType``) with the
         current DataFrame and another DataFrame (``right``).
 
@@ -777,10 +724,7 @@ class DataFrame:
 
         Args:
             right: the other :class:`DataFrame` to join
-            join_type: The type of join (e.g. "right", "outer", etc.).
-
-        Returns:
-             :class:`DataFrame`
+            join_type: The type of join (e.g. "right", "outer", etc.). The default value is "inner".
         """
         join_type = join_type if join_type else "inner"
         return self.__with_plan(
@@ -793,7 +737,12 @@ class DataFrame:
             )
         )
 
-    def join(self, right, using_columns=None, join_type=None) -> "DataFrame":
+    def join(
+        self,
+        right: "DataFrame",
+        using_columns: Optional[Union[str, Column, List[Union[str, Column]]]] = None,
+        join_type: Optional[str] = None,
+    ) -> "DataFrame":
         """Performs a join of the specified type (``join_type``) with the current
         DataFrame and another DataFrame (``right``) on a list of columns
         (``using_columns``).
@@ -809,11 +758,8 @@ class DataFrame:
         Args:
             right: The other :class:`Dataframe` to join.
             using_columns: A list of names of the columns, or the column objects, to
-                use for the join
+                use for the join.
             join_type: The type of join (e.g. "right", "outer", etc.).
-
-        Returns:
-            :class:`DataFrame`
         """
         if isinstance(right, DataFrame):
             if self is right or self.__plan is right._DataFrame__plan:
@@ -852,7 +798,7 @@ class DataFrame:
         raise TypeError("Invalid type for join. Must be Dataframe")
 
     def crossJoin(self, right: "DataFrame") -> "DataFrame":
-        """Performs a cross join, which returns the cartesian product of the current
+        """Performs a cross join, which returns the Cartesian product of the current
         :class:`DataFrame` and another :class:`DataFrame` (``right``).
 
         If the current and ``right`` DataFrames have columns with the same name, and
@@ -867,9 +813,6 @@ class DataFrame:
 
         Args:
             right: the right :class:`DataFrame` to join.
-
-        Returns:
-            :class:`DataFrame`
         """
         return self.__join_dataframes_internal(
             right, SPJoinType.from_string("cross"), None
@@ -939,10 +882,7 @@ class DataFrame:
 
         Args:
             col_name: The name of the column to add or replace.
-            col: The :class:`~snowflake.snowpark.column.Column` to add or replace.
-
-        Returns:
-             :class:`~snowflake.snowpark.dataframe.DataFrame`
+            col: The :class:`Column` to add or replace.
         """
         return self.withColumns([col_name], [col])
 
@@ -963,11 +903,8 @@ class DataFrame:
 
         Args:
             col_names: A list of the names of the columns to add or replace.
-            cols: A list of the :class:`~snowflake.snowpark.column.Column` objects to
+            cols: A list of the :class:`Column` objects to
                     add or replace.
-
-        Returns:
-            :class:`~snowflake.snowpark.dataframe.DataFrame`
         """
         if len(col_names) != len(cols):
             raise ValueError(
@@ -1007,9 +944,6 @@ class DataFrame:
     def count(self) -> int:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
-
-        Returns:
-            the number of rows.
         """
         return self.agg(("*", "count"))._collect_with_tag()[0][0]
 
@@ -1021,14 +955,11 @@ class DataFrame:
         Example::
 
             df.write.mode("overwrite").saveAsTable("table1")
-
-        Returns:
-            :class:`DataFrameWriter`
         """
 
         return DataFrameWriter(self)
 
-    def show(self, n: int = 10, max_width: int = 50):
+    def show(self, n: int = 10, max_width: int = 50) -> None:
         """Evaluates this DataFrame and prints out the first ``n`` rows with the
         specified maximum number of characters per column.
 
@@ -1120,7 +1051,7 @@ class DataFrame:
             + line
         )
 
-    def createOrReplaceView(self, name: Union[str, List[str]]):
+    def createOrReplaceView(self, name: Union[str, List[str]]) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
 
         For ``name``, you can include the database and schema name (i.e. specify a
@@ -1154,7 +1085,7 @@ class DataFrame:
             else None,
         )
 
-    def createOrReplaceTempView(self, name: Union[str, List[str]]):
+    def createOrReplaceTempView(self, name: Union[str, List[str]]) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
 
         You can use the view in subsequent SQL queries and statements during the
@@ -1211,7 +1142,7 @@ class DataFrame:
 
         return self.session._conn.execute(self.session._analyzer.resolve(cmd), **kwargs)
 
-    def first(self, n: Optional[int] = None):
+    def first(self, n: Optional[int] = None) -> List[Row]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
 
@@ -1231,13 +1162,15 @@ class DataFrame:
         else:
             return self.limit(n)._collect_with_tag()
 
-    def sample(self, frac: Optional[float] = None, n: Optional[int] = None):
+    def sample(
+        self, frac: Optional[float] = None, n: Optional[int] = None
+    ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a
-        percentage or rows to be returned.
+        percentage of rows to be returned.
 
         Args:
-            frac: the percentage or rows to be sampled.
-            n: the number of rows to sample in the range of 0 to 1,000,00.
+            frac: the percentage of rows to be sampled.
+            n: the number of rows to sample in the range of 0 to 1,000,000 (inclusive).
         Returns:
             a :class:`DataFrame` containing the sample of rows.
         """
@@ -1337,11 +1270,11 @@ class DataFrame:
 
     @property
     def schema(self) -> StructType:
-        """The definition of the columns in this DataFrame (the "relations schema" for
+        """The definition of the columns in this DataFrame (the "relational schema" for
         the DataFrame).
         """
         if not self.__placeholder_schema:
-            self.__placeholder_schema = StructType.from_attributes(
+            self.__placeholder_schema = StructType._from_attributes(
                 self.__plan.attributes()
             )
         return self.__placeholder_schema
