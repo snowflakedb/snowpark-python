@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
-"""This package contains all Snowpark client side exceptions."""
+"""This package contains all Snowpark client-side exceptions."""
 from typing import Optional
 
 

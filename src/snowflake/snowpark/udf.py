@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+"""User-defined functions (UDFs) in Snowpark."""
 import io
 import os
 import pickle
@@ -130,22 +131,22 @@ class UDFRegistration:
 
     Snowflake supports the following data types for the parameters for a UDF:
 
-    =========  ============================================================  ================================================
-    SQL Type   Python Type                                                   Snowpark Type
-    =========  ============================================================  ================================================
-    NUMBER     ``int``                                                       :class:`~snowflake.snowpark.types.LongType`
-    NUMBER     ``decimal.Decimal``                                           :class:`~snowflake.snowpark.types.DecimalType`
-    FLOAT      ``float``                                                     :class:`~snowflake.snowpark.types.FloatType`
-    STRING     ``str``                                                       :class:`~snowflake.snowpark.types.StringType`
-    BOOL       ``bool``                                                      :class:`~snowflake.snowpark.types.BooleanType`
-    TIME       ``datetime.time``                                             :class:`~snowflake.snowpark.types.TimeType`
-    DATE       ``datetime.date``                                             :class:`~snowflake.snowpark.types.DateType`
-    TIMESTAMP  ``datetime.datetime``                                         :class:`~snowflake.snowpark.types.TimestampType`
-    BINARY     ``bytes`` or ``bytearray``                                    :class:`~snowflake.snowpark.types.BinaryType`
-    ARRAY      ``list``                                                      :class:`~snowflake.snowpark.types.ArrayType`
-    OBJECT     ``dict``                                                      :class:`~snowflake.snowpark.types.MapType`
-    VARIANT    ``dict``, ``list``, ``int``, ``float``, ``str``, or ``bool``  :class:`~snowflake.snowpark.types.VariantType`
-    =========  ============================================================  ================================================
+    =============================================  ================================================  =========
+    Python Type                                    Snowpark Type                                     SQL Type
+    =============================================  ================================================  =========
+    ``int``                                        :class:`~snowflake.snowpark.types.LongType`       NUMBER
+    ``decimal.Decimal``                            :class:`~snowflake.snowpark.types.DecimalType`    NUMBER
+    ``float``                                      :class:`~snowflake.snowpark.types.FloatType`      FLOAT
+    ``str``                                        :class:`~snowflake.snowpark.types.StringType`     STRING
+    ``bool``                                       :class:`~snowflake.snowpark.types.BooleanType`    BOOL
+    ``datetime.time``                              :class:`~snowflake.snowpark.types.TimeType`       TIME
+    ``datetime.date``                              :class:`~snowflake.snowpark.types.DateType`       DATE
+    ``datetime.datetime``                          :class:`~snowflake.snowpark.types.TimestampType`  TIMESTAMP
+    ``bytes`` or ``bytearray``                     :class:`~snowflake.snowpark.types.BinaryType`     BINARY
+    ``list``                                       :class:`~snowflake.snowpark.types.ArrayType`      ARRAY
+    ``dict``                                       :class:`~snowflake.snowpark.types.MapType`        OBJECT
+    Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`    VARIANT
+    =============================================  ================================================  =========
 
     Note:
         1. Currently only a temporary UDF that is scoped to this session can be
@@ -162,6 +163,12 @@ class UDFRegistration:
         4. Data with the VARIANT SQL type will be converted to a Python type
         dynamically inside a UDF. The following SQL types are converted to :class:`str`
         in UDFs rather than native Python types:  TIME, DATE, TIMESTAMP and BINARY.
+
+        5. Data returned as :class:`~snowflake.snowpark.types.ArrayType` (``list``),
+        :class:`~snowflake.snowpark.types.MapType` (``dict``) or
+        :class:`~snowflake.snowpark.types.VariantType` by a UDF will be represented
+        as a json string. You can call ``eval()`` or ``json.loads()`` to convert
+        the result to a native Python object.
     """
 
     def __init__(self, session: "snowflake.snowpark.Session"):
