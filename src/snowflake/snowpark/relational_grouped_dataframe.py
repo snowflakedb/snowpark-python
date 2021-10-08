@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import re
-from typing import List, Tuple, Union
+from typing import Callable, List, Tuple, Union
 
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -32,8 +32,7 @@ from snowflake.snowpark.dataframe import DataFrame
 
 
 class _GroupType:
-    def to_string(self):
-        # TODO revisit
+    def to_string(self) -> str:
         return self.__class__.__name__[1:-4]
 
 
@@ -62,11 +61,10 @@ class RelationalGroupedDataFrame:
     Example::
 
         grouped_df = df.groupBy("dept")
-        agg_df = grouped_df.agg(groupedDf("salary") -> "mean")
+        agg_df = grouped_df.agg([(grouped_df["salary"], "mean")])
 
-    The methods :py:func:`DataFrame.groupBy()`,
-    :py:func:`DataFrame.cube()` and :py:func:`DataFrame.rollup()`
-    return an instance of type :obj:`RelationalGroupedDataFrame`"""
+    The method :py:func:`DataFrame.groupBy()`
+    returns a :class:`RelationalGroupedDataFrame` object."""
 
     def __init__(self, df, grouping_exprs: List[SPExpression], group_type: _GroupType):
         self.df = df
@@ -168,7 +166,7 @@ class RelationalGroupedDataFrame:
             return SPUnresolvedFunction(expr, [input_expr], is_distinct=False)
 
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> "DataFrame":
-        """Returns a `class:DataFrame` with computed aggregates. The first element of
+        """Returns a :class:`DataFrame` with computed aggregates. The first element of
         the `expr` pair is the column to aggregate and the second element is the
         aggregate function to compute. The following example computes the mean of the
         price column and the sum of the sales column. The name of the aggregate
@@ -186,9 +184,6 @@ class RelationalGroupedDataFrame:
 
             from snowflake.snowpark.functions import col
             df.groupBy("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
-
-        Returns:
-            a ``DataFrame``
         """
         if not type(exprs) in (list, tuple):
             exprs = [exprs]
@@ -229,7 +224,7 @@ class RelationalGroupedDataFrame:
         """Return the max for the specified numeric columns."""
         return self.__non_empty_argument_function("max", *cols)
 
-    def count(self):
+    def count(self) -> "DataFrame":
         """Return the number of rows for each group."""
         return self.__toDF(
             [
@@ -240,9 +235,14 @@ class RelationalGroupedDataFrame:
             ]
         )
 
-    def builtin(self, agg_name: str):
-        """Computes the builtin aggregate 'aggName' over the specified columns. Use
-        this function to invoke any aggregates not explicitly listed in this class."""
+    def builtin(self, agg_name: str) -> Callable:
+        """Computes the builtin aggregate ``agg_name`` over the specified columns. Use
+        this function to invoke any aggregates not explicitly listed in this class.
+
+        Example::
+
+                df.groupBy("a").builtin("max")(col("b"))
+        """
         return lambda *cols: self.__builtin_internal(agg_name, *cols)
 
     def __builtin_internal(
