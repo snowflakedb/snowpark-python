@@ -36,6 +36,7 @@ import functools
 from random import randint
 from typing import Any, Callable, List, Optional, Tuple, Union
 
+import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
@@ -59,6 +60,7 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.types import DataType
+from snowflake.snowpark.udf import UserDefinedFunction
 
 
 def col(col_name: str) -> Column:
@@ -694,21 +696,23 @@ def udf(
     return_type: Optional[DataType] = None,
     input_types: Optional[List[DataType]] = None,
     name: Optional[str] = None,
-) -> Callable:
+) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
     Args:
         func: A Python function used for creating the UDF.
         return_type: A :class:`types.DataType` representing the return data
             type of the UDF. Optional if type hints are provided.
-        input_types: A list of :class:`types.DataType` representing the input
-            data types of the UDF. Optional if type hints are provided.
+        input_types: A list of :class:`~snowflake.snowpark.types.DataType`
+            representing the input data types of the UDF. Optional if
+            type hints are provided.
         name: The name to use for the UDF in Snowflake, which allows to call this UDF
             in a SQL command or via :func:`call_udf()`. If it is not provided,
             a random name will be generated automatically for the UDF.
 
     Returns:
-        A UDF function that can be called with Column expressions (:class:`Column` or :class:`str`)
+        A UDF function that can be called with Column expressions
+        (:class:`~snowflake.snowpark.Column` or :class:`str`).
 
     Examples::
 
@@ -724,12 +728,16 @@ def udf(
         session.sql("select minus_one(1)")
 
     Note:
-        When type hints are provided and are complete for a function, ``return_type`` and
-        ``input_types`` are optional and will be ignored.
-    """
-    from snowflake.snowpark.session import Session
+        1. When type hints are provided and are complete for a function,
+        ``return_type`` and ``input_types`` are optional and will be ignored.
+        See details of supported data types for UDFs in
+        :class:`~snowflake.snowpark.udf.UDFRegistration`.
 
-    session = Session._get_active_session()
+        2. This function registers a UDF using the last created session.
+        If you want to register a UDF with a specific session, use
+        :func:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+    """
+    session = snowflake.snowpark.Session._get_active_session()
     if not session:
         raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
 
