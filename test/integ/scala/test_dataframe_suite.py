@@ -16,7 +16,19 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkPlanException,
 )
-from snowflake.snowpark.functions import col, lit, max, mean, min, parse_json, sum
+from snowflake.snowpark.functions import (
+    as_integer,
+    col,
+    datediff,
+    get,
+    lit,
+    max,
+    mean,
+    min,
+    parse_json,
+    sum,
+    to_timestamp,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -1425,3 +1437,45 @@ def test_groupby_string_with_array_args(session):
     Utils.check_answer(
         df.groupBy(["country", "state"]).agg(sum(col("value"))), expected
     )
+
+
+def test_with_columns_keep_order(session):
+    data = {
+        "STARTTIME": 0,
+        "ENDTIME": 10000,
+        "START_STATION_ID": 2,
+        "END_STATION_ID": 3,
+    }
+    df = session.createDataFrame([Row(1, data)]).toDF(["TRIPID", "V"])
+
+    result = df.withColumns(
+        ["starttime", "endtime", "duration", "start_station_id", "end_station_id"],
+        [
+            to_timestamp(get(col("V"), lit("STARTTIME"))),
+            to_timestamp(get(col("V"), lit("ENDTIME"))),
+            datediff("minute", col("STARTTIME"), col("ENDTIME")),
+            as_integer(get(col("V"), lit("START_STATION_ID"))),
+            as_integer(get(col("V"), lit("END_STATION_ID"))),
+        ],
+    )
+
+    Utils.check_answer(
+        [
+            Row(
+                TRIPID=1,
+                V='{\n  "ENDTIME": 10000,\n  "END_STATION_ID": 3,\n  "STARTTIME": 0,\n  "START_STATION_ID": 2\n}',
+                STARTTIME=datetime(1970, 1, 1, 0, 0, 0),
+                ENDTIME=datetime(1970, 1, 1, 2, 46, 40),
+                DURATION=166,
+                START_STATION_ID=2,
+                END_STATION_ID=3,
+            )
+        ],
+        result,
+    )
+
+
+def test_with_columns_replace_existing(session):
+    df = session.createDataFrame([Row(1, 2, 3)]).toDF(["a", "b", "c"])
+    replaced = df.withColumns(["d", "b", "d"], [lit(4), lit(5), lit(6)])
+    Utils.check_answer(replaced, [Row(1, 3, 5, 6)])

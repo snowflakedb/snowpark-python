@@ -428,6 +428,28 @@ def array_intersection(
     return __with_expr(SPArrayIntersect(a1.expression, a2.expression))
 
 
+def datediff(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Column:
+    """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested.
+    Supported date and time parts are listed
+    [[https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts here]]
+
+    Example::
+
+        # year difference between two date columns
+        date.select(datediff("year", col("date_col1"), col("date_col2")))
+
+    Args:
+        part: The time part to use for calculating the difference
+        col1: The first timestamp column or minuend in the datediff
+        col2: The second timestamp column or the subtrahend in the datediff
+    """
+    if type(part) != str:
+        raise ValueError("part must be a string")
+    c1 = __to_col_if_str(col1, "datediff")
+    c2 = __to_col_if_str(col2, "datediff")
+    return builtin("datediff")(part, c1, c2)
+
+
 def is_array(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains an ARRAY value."""
     c = __to_col_if_str(col, "is_array")
@@ -1001,6 +1023,13 @@ def get_path(col: Union[Column, str], path: Union[Column, str]) -> Column:
     c1 = __to_col_if_str(col, "get_path")
     c2 = __to_col_if_str(path, "get_path")
     return builtin("get_path")(c1, c2)
+
+
+def get(col1: Union[Column, str], col2: Union[Column, str]) -> Column:
+    """Extracts a value from an object or array; returns NULL if either of the arguments is NULL."""
+    c1 = __to_col_if_str(col1, "get")
+    c2 = __to_col_if_str(col2, "get")
+    return builtin("get")(c1, c2)
 
 
 def when(condition: Column, value: Column) -> CaseExpr:
