@@ -125,9 +125,11 @@ class Utils:
             sort_key = functools.cmp_to_key(compare_rows)
             assert sorted(expected_rows, key=sort_key) == sorted(
                 actual_rows, key=sort_key
-            )
+            ), f"expected: {sorted(expected_rows, key=sort_key)}, actual: {sorted(actual_rows, key=sort_key)}"
         else:
-            assert expected_rows == actual_rows
+            assert (
+                expected_rows == actual_rows
+            ), f"expected: {expected_rows}, actual: {actual_rows}"
 
 
 class TestData:
