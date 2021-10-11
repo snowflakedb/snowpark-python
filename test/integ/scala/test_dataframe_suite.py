@@ -1464,8 +1464,8 @@ def test_with_columns_keep_order(session):
             Row(
                 TRIPID=1,
                 V='{\n  "ENDTIME": 10000,\n  "END_STATION_ID": 3,\n  "STARTTIME": 0,\n  "START_STATION_ID": 2\n}',
-                STARTTIME=datetime(1970, 1, 1, 0, 0, 0),
-                ENDTIME=datetime(1970, 1, 1, 2, 46, 40),
+                STARTTIME=datetime(1969, 12, 31, 16, 0, 0),
+                ENDTIME=datetime(1969, 12, 31, 18, 46, 40),
                 DURATION=166,
                 START_STATION_ID=2,
                 END_STATION_ID=3,
