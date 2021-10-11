@@ -64,7 +64,7 @@ from snowflake.snowpark.types import (
 def test_py_to_sp_type():
     assert type(_infer_type(None)) == SPNullType
     assert type(_infer_type(1)) == SPLongType
-    assert type(_infer_type(3.14)) == SPDoubleType
+    assert type(_infer_type(3.14)) == SPFloatType
     assert type(_infer_type("a")) == SPStringType
     assert type(_infer_type(bytearray("a", "utf-8"))) == SPBinaryType
     assert (
@@ -281,7 +281,7 @@ def test_strip_unnecessary_quotes():
 def test_python_type_to_snow_type():
     # basic types
     assert _python_type_to_snow_type(int) == (LongType(), False)
-    assert _python_type_to_snow_type(float) == (DoubleType(), False)
+    assert _python_type_to_snow_type(float) == (FloatType(), False)
     assert _python_type_to_snow_type(str) == (StringType(), False)
     assert _python_type_to_snow_type(bool) == (BooleanType(), False)
     assert _python_type_to_snow_type(bytes) == (BinaryType(), False)
@@ -363,7 +363,7 @@ def test_python_type_to_snow_type():
         True,
     )
     assert _python_type_to_snow_type(typing.List[typing.List[float]]) == (
-        ArrayType(ArrayType(DoubleType())),
+        ArrayType(ArrayType(FloatType())),
         False,
     )
     assert _python_type_to_snow_type(
