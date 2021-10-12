@@ -50,11 +50,13 @@ repos:
             (?x)^(
                 src/snowflake/snowpark/.*\.py|
                 test/.*\.py|
+                samples/.*\.py|
             )$
         exclude: >
             (?x)^(
                 src/snowflake/snowpark/version.py|
                 test/resources/.*\.py|
+                sample/dataset/.*\.py|
             )$
         args:
             - --license-filepath
