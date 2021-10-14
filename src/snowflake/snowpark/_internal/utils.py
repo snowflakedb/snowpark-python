@@ -28,17 +28,23 @@ _QUERY_TAG_TRACEBACK_LIMIT = 3
 
 class Utils:
     @staticmethod
+    def get_snowflake_id_pattern() -> str:
+        # https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html#double-quoted-identifiers
+        unquoted_id_pattern = r"([a-zA-Z_][\w\$]*)"
+        quoted_id_pattern = '("([^"]|"")+")'
+        id_pattern = f"({unquoted_id_pattern}|{quoted_id_pattern})"
+        return id_pattern
+
+    @staticmethod
     def validate_object_name(name: str):
         # Valid name can be:
         #   identifier,
         #   identifier.identifier,
         #   identifier.identifier.identifier
         #   identifier..identifier
-        unquoted_id_pattern = r"([a-zA-Z_][\w$]*)"
-        quoted_id_pattern = '("([^"]|"")+")'
-        id_pattern = f"({unquoted_id_pattern}|{quoted_id_pattern})"
+        id_pattern = Utils.get_snowflake_id_pattern()
         pattern = re.compile(
-            f"^(({id_pattern}\\.){{0,2}}|({id_pattern}\\.\\.)){id_pattern}$$"
+            f"^(({id_pattern}\\.){{0,2}}|({id_pattern}\\.\\.)){id_pattern}$"
         )
         if not pattern.match(name):
             raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
@@ -235,9 +241,45 @@ class Utils:
             )
 
     @staticmethod
-    def create_statement_query_tag(skip_levels=0) -> str:
+    def create_statement_query_tag(skip_levels: int = 0) -> str:
         stack = traceback.format_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT + skip_levels)
         return "".join(stack[:-skip_levels] if skip_levels else stack)
+
+    @staticmethod
+    def check_udf_stage(normalized: str) -> str:
+        return normalized if normalized.endswith("/") else f"{normalized}/"
+
+    @staticmethod
+    def get_stage_file_prefix_length(stage_location: str) -> int:
+        normalized = Utils.check_udf_stage(
+            Utils.normalize_stage_location(stage_location)
+        )
+        # Remove the first three characters from @~/...
+        if normalized.startswith("@~"):
+            return len(normalized) - 3
+
+        is_quoted = False
+        # "%?" is for table stage
+        stage_name_pattern = f"(%?{Utils.get_snowflake_id_pattern()})"
+        for i, c in enumerate(normalized):
+            if c == '"':
+                is_quoted = not is_quoted
+            elif c == "/" and not is_quoted:
+                # Find the first unquoted '/', then the stage name is before it,
+                # the path is after it
+                full_stage_name = normalized[:i]
+                path = normalized[i + 1 :]
+                # Find the last match of the first group, which should be the stage name.
+                stage_name = re.findall(stage_name_pattern, full_stage_name)[-1][0]
+                # For a table stage, stage name is not in the prefix,
+                # so the prefix is path. Otherwise, the prefix is stageName + "/" + path
+                return (
+                    len(path)
+                    if stage_name.startswith("%")
+                    else len(path) + len(stage_name.strip('"')) + 1
+                )
+
+        raise ValueError(f"Invalid stage {stage_location}")
 
 
 class PythonObjJSONEncoder(JSONEncoder):

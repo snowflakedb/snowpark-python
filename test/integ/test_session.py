@@ -60,31 +60,25 @@ def test_list_files_in_stage(session, resources_path):
         assert len(files3) == 1
         assert os.path.basename(test_files.test_file_avro) in files3
 
-        # TODO: SNOW-425907 the following three test cases are not working
-        # because currently list_files_in_stage function only supports
-        # the simple parsing rule, for session stage in particular
-        # uncomment them once we figure out how to get the normalized
-        # stage location
+        quoted_name = f'"{stage_name}"{prefix}'
+        files4 = session._list_files_in_stage(quoted_name)
+        assert len(files4) == 1
+        assert os.path.basename(test_files.test_file_avro) in files4
 
-        # quoted_name = f'"{stage_name}"{prefix}'
-        # files4 = session._list_files_in_stage(quoted_name)
-        # assert len(files4) == 1
-        # assert os.path.basename(test_files.test_file_avro) in files4
+        full_name_with_prefix = (
+            f"{session.getFullyQualifiedCurrentSchema()}.{quoted_name}"
+        )
+        files5 = session._list_files_in_stage(full_name_with_prefix)
+        assert len(files5) == 1
+        assert os.path.basename(test_files.test_file_avro) in files5
 
-        # full_name_with_prefix = (
-        #     f"{session.getFullyQualifiedCurrentSchema()}.{quoted_name}"
-        # )
-        # files5 = session._list_files_in_stage(full_name_with_prefix)
-        # assert len(files5) == 1
-        # assert os.path.basename(test_files.test_file_avro) in files5
-        #
-        # Utils.create_stage(session, special_name)
-        # Utils.upload_to_stage(
-        #     session, special_name, test_files.test_file_csv, compress=False
-        # )
-        # files6 = session._list_files_in_stage(special_name)
-        # assert len(files6) == 1
-        # assert os.path.basename(test_files.test_file_csv) in files6
+        Utils.create_stage(session, special_name)
+        Utils.upload_to_stage(
+            session, special_name, test_files.test_file_csv, compress=False
+        )
+        files6 = session._list_files_in_stage(special_name)
+        assert len(files6) == 1
+        assert os.path.basename(test_files.test_file_csv) in files6
     finally:
         Utils.drop_stage(session, stage_name)
         Utils.drop_stage(session, special_name)
