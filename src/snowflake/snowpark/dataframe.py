@@ -5,12 +5,14 @@
 #
 import re
 import string
+from collections import Counter
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
 from snowflake.snowpark._internal.analyzer.sp_views import (
@@ -38,10 +40,12 @@ from snowflake.snowpark._internal.sp_expressions import (
     Attribute as SPAttribute,
     Descending as SPDescending,
     Expression as SPExpression,
+    FlattenFunction,
     Literal as SPLiteral,
     NamedExpression as SPNamedExpression,
     SortOrder as SPSortOrder,
     Star as SPStar,
+    TableFunctionExpression as SPTableFunctionExpression,
 )
 from snowflake.snowpark._internal.sp_types.sp_data_types import LongType as SPLongType
 from snowflake.snowpark._internal.sp_types.sp_join_types import (
@@ -301,7 +305,9 @@ class DataFrame:
 
     def select(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -337,7 +343,9 @@ class DataFrame:
 
     def drop(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
@@ -416,7 +424,9 @@ class DataFrame:
 
     def sort(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
         ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
@@ -564,7 +574,11 @@ class DataFrame:
 
         """
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
-        return snowflake.snowpark.RelationalGroupedDataFrame(self, grouping_exprs, snowflake.snowpark.relational_grouped_dataframe._GroupByType())
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            grouping_exprs,
+            snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+        )
 
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
@@ -713,7 +727,9 @@ class DataFrame:
         """
         return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
 
-    def naturalJoin(self, right: "DataFrame", join_type: Optional[str] = None) -> "DataFrame":
+    def naturalJoin(
+        self, right: "DataFrame", join_type: Optional[str] = None
+    ) -> "DataFrame":
         """Performs a natural join of the specified type (``joinType``) with the
         current DataFrame and another DataFrame (``right``).
 
@@ -978,6 +994,43 @@ class DataFrame:
                 else None,
             )
         )
+
+    def flatten(
+        self,
+        input_: Union[str, Column],
+        path: str = None,
+        outer: bool = False,
+        recursive: bool = False,
+        mode: str = "BOTH",
+    ) -> "DataFrame":
+        mode = mode.upper()
+        if mode not in ("OBJECT", "ARRAY", "BOTH"):
+            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
+        if isinstance(input_, str):
+            input_ = self.col(input_)
+        return self._lateral(
+            FlattenFunction(input_.expression, path, outer, recursive, mode)
+        )
+
+    def _lateral(self, table_function: SPTableFunctionExpression) -> "DataFrame":
+        result_columns = [
+            attr.name
+            for attr in self.session._analyzer.resolve(
+                SPLateral(self.__plan, table_function)
+            ).attributes()
+        ]
+        common_col_names = [k for k, v in Counter(result_columns).items() if v > 0]
+        if len(common_col_names) > 0:
+            return DataFrame(self.session, SPLateral(self.__plan, table_function))
+        prefix = DataFrame.__generate_prefix("a")
+        child = self.select(
+            [
+                self.__alias_if_needed(self, attr.name, prefix, common_col_names)
+                for attr in self.__output()
+            ]
+        )
+        return DataFrame(self.session, SPLateral(child.__plan, table_function))
 
     def __show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self.__plan.queries[-1].sql.strip().lower()

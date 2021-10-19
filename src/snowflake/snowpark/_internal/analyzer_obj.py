@@ -8,6 +8,7 @@ from typing import Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakeCreateTable,
@@ -19,6 +20,10 @@ from snowflake.snowpark._internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
     LocalTempView as SPLocalTempView,
     PersistedView as SPPersistedView,
+)
+from snowflake.snowpark._internal.analyzer.table_function import (
+    TableFunctionJoin as SPTableFunctionJoin,
+    TableFunctionRelation as SPTableFunctionRelation,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
@@ -47,12 +52,14 @@ from snowflake.snowpark._internal.sp_expressions import (
     Cast as SPCast,
     Collate as SPCollate,
     Expression as SPExpression,
+    FlattenFunction as SPFlattenFunction,
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
     LeafExpression as SPLeafExpression,
     Like as SPLike,
     Literal as SPLiteral,
+    NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
     Not as SPNot,
     RegExp as SPRegExp,
     SnowflakeUDF as SPSnowflakeUDF,
@@ -60,6 +67,8 @@ from snowflake.snowpark._internal.sp_expressions import (
     Star as SPStar,
     SubfieldInt as SPSubfieldInt,
     SubfieldString as SPSubfieldString,
+    TableFunction as SPTableFunction,
+    TableFunctionExpression as SPTableFunctionExpression,
     UnaryExpression as SPUnaryExpression,
     UnaryMinus as SPUnaryMinus,
     UnresolvedAlias as SPUnresolvedAlias,
@@ -162,6 +171,9 @@ class Analyzer:
             )
 
         # Extractors
+        if isinstance(expr, SPTableFunctionExpression):
+            return self.table_function_expression_extractor(expr)
+
         if isinstance(expr, SPUnaryExpression):
             return self.unary_expression_extractor(expr)
 
@@ -172,7 +184,25 @@ class Analyzer:
 
     # TODO
     def table_function_expression_extractor(self, expr):
-        pass
+        if type(expr) == SPFlattenFunction:
+            return self.package.flatten_expression(
+                self.analyze(expr.input),
+                expr.path,
+                expr.outer,
+                expr.recursive,
+                expr.mode,
+            )
+
+        if type(expr) == SPTableFunction:
+            return self.package.function_expression(
+                expr.func_name, [self.analyze(x) for x in expr.args], False
+            )
+
+        if type(expr) == SPNamedArgumentsTableFunction:
+            return self.package.named_arguments_function(
+                expr.func_name,
+                {key: self.analyze(value) for key, value in expr.args.items()},
+            )
 
     # TODO
     def leaf_expression_extractor(self, expr):
@@ -314,6 +344,25 @@ class Analyzer:
     def do_resolve_inner(self, logical_plan, resolved_children) -> SnowflakePlan:
         if type(logical_plan) == SnowflakePlan:
             return logical_plan
+
+        if type(logical_plan) == SPTableFunctionJoin:
+            return self.plan_builder.join_table_function(
+                self.analyze(logical_plan.table_function),
+                resolved_children[logical_plan.children[0]],
+                logical_plan,
+            )
+
+        if type(logical_plan) == SPTableFunctionRelation:
+            return self.plan_builder.from_table_function(
+                self.analyze(logical_plan.table_function)
+            )
+
+        if type(logical_plan) == SPLateral:
+            return self.plan_builder.lateral(
+                self.analyze(logical_plan.table_function),
+                resolved_children[logical_plan.children[0]],
+                logical_plan,
+            )
 
         if type(logical_plan) == SPAggregate:
             return self.plan_builder.aggregate(

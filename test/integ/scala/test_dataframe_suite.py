@@ -722,6 +722,66 @@ def test_groupby(session):
     assert sorted(res, key=lambda x: x[2]) == expected_res
 
 
+def test_flatten(session):
+    table = session.sql("select parse_json(a) as a from values('[1,2]') as T(a)")
+    Utils.check_answer(table.flatten(table["a"]).select("value"), [Row("1"), Row("2")])
+    """
+    test("flatten") {
+    val table = session.sql("select parse_json(a) as a from values('[1,2]') as T(a)")
+    checkAnswer(table.flatten(table("a")).select("value"), Seq(Row("1"), Row("2")))
+
+    // conflict column names
+    val table1 = session.sql("select parse_json(value) as value from values('[1,2]') as T(value)")
+    val flatten = table1.flatten(table1("value"), "", outer = false, recursive = false, "both")
+    checkAnswer(
+      flatten.select(table1("value"), flatten("value")),
+      Seq(Row("[\n  1,\n  2\n]", "1"), Row("[\n  1,\n  2\n]", "2")),
+      sort = false)
+
+    // multiple flatten
+    val flatten1 =
+      flatten.flatten(table1("value"), "[0]", outer = true, recursive = true, "array")
+    checkAnswer(
+      flatten1.select(table1("value"), flatten("value"), flatten1("value")),
+      Seq(Row("[\n  1,\n  2\n]", "1", "1"), Row("[\n  1,\n  2\n]", "2", "1")),
+      sort = false)
+
+    // wrong mode
+    assertThrows[SnowparkClientException](
+      flatten.flatten(col("value"), "", outer = false, recursive = false, "wrong"))
+
+    // contains multiple query
+    val df = session.sql("show tables").limit(1)
+    val df1 = df.withColumn("value", lit("[1,2]")).select(parse_json(col("value")).as("value"))
+    val flatten2 = df1.flatten(df1("value"))
+    checkAnswer(flatten2.select(flatten2("value")), Seq(Row("1"), Row("2")), sort = false)
+
+    // flatten with object traversing
+    val table2 = session
+      .sql("select * from values('{\"a\":[1,2]}') as T(a)")
+      .select(parse_json(col("a")).as("a"))
+
+    val flatten3 = table2.flatten(table2("a")("a"))
+    checkAnswer(flatten3.select(flatten3("value")), Seq(Row("1"), Row("2")), sort = false)
+
+    // join
+    val df2 = table.flatten(table("a")).select(col("a"), col("value"))
+    val df3 = table2.flatten(table2("a")("a")).select(col("a"), col("value"))
+
+    checkAnswer(
+      df2.join(df3, df2("value") === df3("value")).select(df3("value")),
+      Seq(Row("1"), Row("2")),
+      sort = false)
+
+    // union
+    checkAnswer(
+      df2.union(df3).select(col("value")),
+      Seq(Row("1"), Row("2"), Row("1"), Row("2")),
+      sort = false)
+  }
+    """
+
+
 def test_createDataFrame_with_given_schema(session):
     schema = StructType(
         [

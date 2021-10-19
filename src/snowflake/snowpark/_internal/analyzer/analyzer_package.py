@@ -167,6 +167,16 @@ class AnalyzerPackage:
             + self._RightParenthesis
         )
 
+    def named_arguments_function(self, name: str, args: Dict[str, str]) -> str:
+        return (
+            name
+            + self._LeftParenthesis
+            + self._Comma.join(
+                [key + self._RightArrow + value for key, value in args.items()]
+            )
+            + self._RightParenthesis
+        )
+
     def binary_comparison(self, left: str, right: str, symbol: str) -> str:
         return left + self._Space + symbol + self._Space + right
 
@@ -207,6 +217,66 @@ class AnalyzerPackage:
             )
             + self._RightBracket
         )
+
+    def flatten_expression(
+        self, input_: str, path: str, outer: bool, recursive: bool, mode: str
+    ) -> str:
+        return (
+            self._Flatten
+            + self._LeftParenthesis
+            + self._Input
+            + self._RightArrow
+            + input_
+            + self._Comma
+            + self._Path
+            + self._RightArrow
+            + self._SingleQuote
+            + (path or "")
+            + self._SingleQuote
+            + self._Comma
+            + self._Outer
+            + self._RightArrow
+            + str(outer).upper()
+            + self._Comma
+            + self._Recursive
+            + self._RightArrow
+            + str(recursive).upper()
+            + self._Comma
+            + self._Mode
+            + self._RightArrow
+            + self._SingleQuote
+            + mode
+            + self._SingleQuote
+            + self._RightParenthesis
+        )
+
+    def lateral_statement(self, lateral_expression: str, child: str) -> str:
+        return (
+            self._Select
+            + self._Star
+            + self._From
+            + self._LeftParenthesis
+            + child
+            + self._RightParenthesis
+            + self._Comma
+            + self._Lateral
+            + lateral_expression
+        )
+
+    def join_table_function_statement(self, func: str, child: str) -> str:
+        return (
+            self._Select
+            + self._Star
+            + self._From
+            + self._LeftParenthesis
+            + child
+            + self._RightParenthesis
+            + self._Join
+            + self.table(func)
+        )
+
+    def table_function_statement(self, func: str) -> str:
+        return self.project_statement([], self.table(func))
 
     def case_when_expression(
         self, branches: List[Tuple[str, str]], else_value: str
