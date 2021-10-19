@@ -1020,8 +1020,8 @@ class DataFrame:
                 SPLateral(self.__plan, table_function)
             ).attributes()
         ]
-        common_col_names = [k for k, v in Counter(result_columns).items() if v > 0]
-        if len(common_col_names) > 0:
+        common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
+        if len(common_col_names) == 0:
             return DataFrame(self.session, SPLateral(self.__plan, table_function))
         prefix = DataFrame.__generate_prefix("a")
         child = self.select(
