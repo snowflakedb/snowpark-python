@@ -14,7 +14,7 @@ class Standardization:
     def fit(self) -> None:
         pass
 
-    def transform(self, value) -> float:
+    def transform(self, value: float) -> float:
         mean = self.session.table(self.__TEMP_TABLE).select("mean")
         stddev = self.session.table(self.__TEMP_TABLE).select("stddev")
         return (value - mean) / stddev
