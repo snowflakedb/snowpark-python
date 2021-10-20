@@ -50,6 +50,7 @@ def test_mix_temporary_and_permanent_udf(session, new_session):
                 df2.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)]
             )
         assert "SQL compilation error" in str(ex_info)
+        assert "does not exist or not authorized" in str(ex_info)
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session._run_query(f"drop function if exists {perm_func_name}(int)")
@@ -110,6 +111,7 @@ def test_support_fully_qualified_udf_name(session, new_session):
                 df2.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)]
             )
         assert "SQL compilation error" in str(ex_info)
+        assert "does not exist or not authorized" in str(ex_info)
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session._run_query(f"drop function if exists {perm_func_name}(int)")
