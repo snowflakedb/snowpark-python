@@ -16,11 +16,15 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import cloudpickle
 
 from snowflake.connector import SnowflakeConnection
+from snowflake.snowpark import Column, DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
     SnowflakeValues,
+)
+from snowflake.snowpark._internal.analyzer.table_function import (
+    TableFunctionRelation as SPTableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -29,6 +33,7 @@ from snowflake.snowpark._internal.plans.logical.logical_plan import UnresolvedRe
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
+    FlattenFunction as SPFlattenFunction,
 )
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     StringType as SPStringType,
@@ -39,9 +44,9 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     snow_type_to_sp_type,
 )
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder, Utils
-from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.functions import (
+    col,
     column,
     parse_json,
     to_array,
@@ -795,6 +800,26 @@ class Session:
         if not self.__udf_registration:
             self.__udf_registration = UDFRegistration(self)
         return self.__udf_registration
+
+    def flatten(
+        self,
+        input_: Union[str, Column],
+        path: Optional[str] = None,
+        outer: bool = False,
+        recursive: bool = False,
+        mode: str = "BOTH",
+    ) -> DataFrame:
+        mode = mode.upper()
+        if mode not in ("OBJECT", "ARRAY", "BOTH"):
+            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+        if isinstance(input_, str):
+            input_ = col(input_)
+        return DataFrame(
+            self,
+            SPTableFunctionRelation(
+                SPFlattenFunction(input_.expression, path, outer, recursive, mode)
+            ),
+        )
 
     @staticmethod
     def _get_active_session() -> Optional["Session"]:
