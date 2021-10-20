@@ -997,20 +997,62 @@ class DataFrame:
 
     def flatten(
         self,
-        input_: Union[str, Column],
-        path: str = None,
+        input: Union[str, Column],
+        path: Optional[str] = None,
         outer: bool = False,
         recursive: bool = False,
         mode: str = "BOTH",
     ) -> "DataFrame":
+        """Flattens (explodes) compound values into multiple rows.
+
+        It creates a new ``DataFrame`` from this ``DataFrame``, carries the existing columns to the new ``DataFrame``,
+        and adds the following columns to it:
+
+            - SEQ
+            - KEY
+            - PATH
+            - INDEX
+            - VALUE
+            - THIS
+
+        Reference: `Snowflake SQL function FLATTEN <https://docs.snowflake.com/en/sql-reference/functions/flatten.html>`_.
+
+        If this ``DataFrame`` also has columns with the names above, you can disambiguate the columns by renaming them.
+
+        Example::
+
+            table1 = session.sql("select parse_json(value) as value from values('[1,2]') as T(value)")
+            flattened = table1.flatten(table1["value"])
+            flattened.select(table1["value"], flattened["value"].as_("newValue")).show()
+
+        Args:
+            input: The name of a column or an :class:`Column` instance that will be unseated into rows.
+                The column data must be of Snowflake data type VARIANT, OBJECT, or ARRAY.
+            path: The path to the element within a VARIANT data structure which needs to be flattened.
+                The outermost element is to be flattened if path is empty or None.
+            outer: If False, any input rows that cannot be expanded, either because they cannot be accessed in the path
+                or because they have zero fields or entries, are completely omitted from the output.
+                Otherwise, exactly one row is generated for zero-row expansions
+                (with NULL in the KEY, INDEX, and VALUE columns).
+            recursive: If False, only the element referenced by PATH is expanded.
+                Otherwise, the expansion is performed for all sub-elements recursively.
+            mode: Specifies which types should be flattened "OBJECT", "ARRAY", or "BOTH".
+
+        Returns:
+            A new ``DataFrame`` that has the columns carried from this ``DataFrame``, the flattened new columns and new rows.
+
+        See Also:
+            - :meth:`snowflake.snowpark.Session.flatten`, which Creates a new ``DataFrame`` by flattening compound values
+                into multiple rows.
+        """
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
-        if isinstance(input_, str):
-            input_ = self.col(input_)
+        if isinstance(input, str):
+            input_ = self.col(input)
         return self._lateral(
-            FlattenFunction(input_.expression, path, outer, recursive, mode)
+            FlattenFunction(input.expression, path, outer, recursive, mode)
         )
 
     def _lateral(self, table_function: SPTableFunctionExpression) -> "DataFrame":
