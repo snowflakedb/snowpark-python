@@ -45,10 +45,11 @@ def test_mix_temporary_and_permanent_udf(session, new_session):
         # another session
         df2 = new_session.createDataFrame([1, 2], schema=["a"])
         Utils.check_answer(df2.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
-        with pytest.raises(ProgrammingError):
+        with pytest.raises(ProgrammingError) as ex_info:
             Utils.check_answer(
                 df2.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)]
             )
+        assert "SQL compilation error" in str(ex_info)
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session._run_query(f"drop function if exists {perm_func_name}(int)")
@@ -94,14 +95,21 @@ def test_support_fully_qualified_udf_name(session, new_session):
         df = session.createDataFrame([1, 2], schema=["a"])
         Utils.check_answer(df.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)])
         Utils.check_answer(df.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
+        Utils.check_answer(
+            df.select(call_udf(temp_func_name.split(".")[-1], "a")), [Row(2), Row(3)]
+        )
+        Utils.check_answer(
+            df.select(call_udf(perm_func_name.split(".")[-1], "a")), [Row(2), Row(3)]
+        )
 
         # another session
         df2 = new_session.createDataFrame([1, 2], schema=["a"])
         Utils.check_answer(df2.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
-        with pytest.raises(ProgrammingError):
+        with pytest.raises(ProgrammingError) as ex_info:
             Utils.check_answer(
                 df2.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)]
             )
+        assert "SQL compilation error" in str(ex_info)
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session._run_query(f"drop function if exists {perm_func_name}(int)")
