@@ -251,10 +251,10 @@ class UDFRegistration:
                     logger.info("Removing Snowpark uploaded file: %s", udf_file_path)
                     self.session._run_query(f"REMOVE {udf_file_path}")
                     logger.info(
-                        f"Finished removing Snowpark uploaded file: %s", udf_file_path
+                        "Finished removing Snowpark uploaded file: %s", udf_file_path
                     )
                 except BaseException as clean_ex:
-                    logger.error(f"Failed to clean uploaded file: %s", clean_ex)
+                    logger.warning("Failed to clean uploaded file: %s", clean_ex)
             raise ex
 
         return UserDefinedFunction(
