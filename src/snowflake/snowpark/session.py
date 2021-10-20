@@ -277,14 +277,14 @@ class Session:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
             immediately, and it will be uploaded when a UDF is created.
 
-            2. The Snowpark library calculates a MD5 checksum for every file/directory.
+            2. The Snowpark library calculates an MD5 checksum for every file/directory.
             Each file is uploaded to a subdirectory named after the MD5 checksum for the
             file in the stage. If there is an existing file or directory, the Snowpark
-            library will compare their checksums to determine whether it should be overwritten.
+            library will compare their checksums to determine whether it should be re-uploaded.
             Therefore, after uploading a local file to the stage, if the user makes
-            some changes on this file and intends to upload it again, just call this
+            some changes to this file and intends to upload it again, just call this
             function with the file path again, the existing file in the stage will be
-            overwritten.
+            overwritten by the re-uploaded file.
 
             3. Adding two files with the same file name is not allowed, because UDFs
             can't be created with two imports with the same name.

@@ -708,21 +708,20 @@ def udf(
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the UDF. Optional if
             type hints are provided.
-        name: The name to use for the UDF in Snowflake, which allows to call this UDF
+        name: The name to use for the UDF in Snowflake, which allows you to call this UDF
             in a SQL command or via :func:`call_udf()`. If it is not provided,
-            a random name will be generated automatically for the UDF. It must be
+            a name will be automatically generated for the UDF. A name must be
             specified when ``is_permanent`` is ``True``.
         is_permanent: Whether to create a permanent UDF. The default is ``False``.
             If it is ``True``, a valid ``stage_location`` must be provided.
-        stage_location: The stage location where the python file for the UDF
-            and its dependencies should be uploaded. It must be specified when
-            ``is_permanent`` is ``True``, and it will be ignored when
+        stage_location: The stage location where the Python file for the UDF
+            and its dependencies should be uploaded. The stage location must be specified
+            when ``is_permanent`` is ``True``, and it will be ignored when
             ``is_permanent`` is ``False``. It can be any stage other than temporary
             stages and external stages.
 
     Returns:
-        A UDF function that can be called with Column expressions
-        (:class:`~snowflake.snowpark.Column` or :class:`str`).
+        A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
 
     Examples::
 
@@ -730,7 +729,7 @@ def udf(
         # register a temporary udf
         add_one = udf(lambda x: x+1, return_types=IntegerType(), input_types=[IntegerType()])
 
-        # register a permanent udf
+        # register a permanent udf by setting is_permanent to True
         @udf(name="minus_one", is_permanent=True, stage_location="@mystage")
         def minus_one(x: int) -> int:
             return x-1

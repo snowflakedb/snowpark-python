@@ -238,7 +238,11 @@ class UDFRegistration:
                 udf_file_name,
                 stage_location,
             )
-        except Exception as ex:
+        # an exception might happen during registering a UDF
+        # (e.g., a dependency might not be found on the stage),
+        # then for a permanent udf, we should delete the uploaded
+        # python file and raise the exception
+        except BaseException as ex:
             if is_permanent:
                 upload_stage = Utils.normalize_stage_location(stage_location)
                 dest_prefix = Utils.get_udf_upload_prefix(udf_name)
@@ -249,7 +253,7 @@ class UDFRegistration:
                     logger.info(
                         f"Finished removing Snowpark uploaded file: %s", udf_file_path
                     )
-                except Exception as clean_ex:
+                except BaseException as clean_ex:
                     logger.error(f"Failed to clean uploaded file: %s", clean_ex)
             raise ex
 
