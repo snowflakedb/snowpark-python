@@ -40,6 +40,8 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
+    ArrayIntersect,
+    ArraysOverlap,
     Avg as SPAverage,
     CaseWhen as SPCaseWhen,
     Count as SPCount,
@@ -402,6 +404,18 @@ def to_date(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
     return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
 
 
+def arrays_overlap(array1: Union[Column, str], array2: Union[Column, str]) -> Column:
+    a1 = __to_col_if_str(array1, "arrays_overlap")
+    a2 = __to_col_if_str(array2, "arrays_overlap")
+    return __with_expr(ArraysOverlap(a1.expression, a2.expression))
+
+
+def array_intersection(col1: Union[Column, str], col2: Union[Column, str]) -> Column:
+    c1 = __to_col_if_str(col1, "array_intersection")
+    c2 = __to_col_if_str(col2, "array_intersection")
+    return __with_expr(ArrayIntersect(c1.expression, c2.expression))
+
+
 def is_array(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains an ARRAY value."""
     c = __to_col_if_str(col, "is_array")
@@ -553,11 +567,229 @@ def strip_null_value(col: Union[Column, str]) -> Column:
     return builtin("strip_null_value")(c)
 
 
-def array_agg(e: Union[Column, str]) -> Column:
+def array_agg(col: Union[Column, str]) -> Column:
     """Returns the input values, pivoted into an ARRAY. If the input is empty, an empty
     ARRAY is returned."""
-    c = __to_col_if_str(e, "array_agg")
+    c = __to_col_if_str(col, "array_agg")
     return builtin("array_agg")(c)
+
+
+def array_append(array: Union[Column, str], element: Union[Column, str]) -> Column:
+    """Returns an ARRAY containing all elements from the source ARRAYas well as the new element.
+    The new element is located at end of the ARRAY.
+
+    Args:
+        array: The column containing the source ARRAY.
+        element: The column containing the element to be appended. The element may be of almost
+            any data type. The data type does not need to match the data type(s) of the
+            existing elements in the ARRAY."""
+    a = __to_col_if_str(array, "array_append")
+    e = __to_col_if_str(element, "array_append")
+    return builtin("array_append")(a, e)
+
+
+def array_cat(array1: Union[Column, str], array2: Union[Column, str]) -> Column:
+    """Returns the concatenation of two ARRAYs.
+
+    Args:
+        array1: Column containing the source ARRAY.
+        array2: Column containing the ARRAY to be appended to array1."""
+    a1 = __to_col_if_str(array1, "array_cat")
+    a2 = __to_col_if_str(array2, "array_cat")
+    return builtin("array_cat")(a1, a2)
+
+
+def array_compact(array: Union[Column, str]) -> Column:
+    """Returns a compacted ARRAY with missing and null values removed,
+    effectively converting sparse arrays into dense arrays."""
+    a = __to_col_if_str(array, "array_compact")
+    return builtin("array_compact")(a)
+
+
+def array_construct(*cols: Union[Column, str]) -> Column:
+    """Returns an ARRAY constructed from zero, one, or more inputs.
+
+    Args:
+        cols: Columns containing the values (or expressions that evaluate to values). The
+            values do not all need to be of the same data type."""
+    cs = [__to_col_if_str(c, "array_construct") for c in cols]
+    return builtin("array_construct")(*cs)
+
+
+def array_construct_compact(*cols: Union[Column, str]) -> Column:
+    """Returns an ARRAY constructed from zero, one, or more inputs;
+    the constructed ARRAY omits any NULL input values.
+
+    Args:
+        cols: Columns containing the values (or expressions that evaluate to values). The
+            values do not all need to be of the same data type.
+    """
+    cs = [__to_col_if_str(c, "array_construct_compact") for c in cols]
+    return builtin("array_construct_compact")(*cs)
+
+
+def array_contains(variant: Union[Column, str], array: Union[Column, str]) -> Column:
+    """Returns {@code true} if the specified VARIANT is found in the specified ARRAY.
+
+    Args:
+        variant: Column containing the VARIANT to find.
+        array: Column containing the ARRAY to search."""
+    v = __to_col_if_str(variant, "array_contains")
+    a = __to_col_if_str(array, "array_contains")
+    return builtin("array_contains")(v, a)
+
+
+def array_insert(
+    array: Union[Column, str], pos: Union[Column, str], element: Union[Column, str]
+) -> Column:
+    """Returns an ARRAY containing all elements from the source ARRAY as well as the new element.
+
+    Args:
+        array: Column containing the source ARRAY.
+        pos: Column containing a (zero-based) position in the source ARRAY.
+            The new element is inserted at this position. The original element from this
+            position (if any) and all subsequent elements (if any) are shifted by one position
+            to the right in the resulting array (i.e. inserting at position 0 has the same
+            effect as using array_prepend).
+            A negative position is interpreted as an index from the back of the array (e.g.
+            -1 results in insertion before the last element in the array).
+        element: Column containing the element to be inserted. The new element is located at
+            position pos. The relative order of the other elements from the source
+            array is preserved."""
+    a = __to_col_if_str(array, "array_insert")
+    p = __to_col_if_str(pos, "array_insert")
+    e = __to_col_if_str(element, "array_insert")
+    return builtin("array_insert")(a, p, e)
+
+
+def array_position(variant: Union[Column, str], array: Union[Column, str]) -> Column:
+    """Returns the index of the first occurrence of an element in an ARRAY.
+
+    Args:
+        variant: Column containing the VARIANT value that you want to find. The function
+            searches for the first occurrence of this value in the array.
+        array: Column containing the ARRAY to be searched."""
+    v = __to_col_if_str(variant, "array_position")
+    a = __to_col_if_str(array, "array_position")
+    return builtin("array_position")(v, a)
+
+
+def array_prepend(array: Union[Column, str], element: Union[Column, str]) -> Column:
+    """Returns an ARRAY containing the new element as well as all elements from the source ARRAY.
+    The new element is positioned at the beginning of the ARRAY.
+
+    Args:
+        array Column containing the source ARRAY.
+        element Column containing the element to be prepended."""
+    a = __to_col_if_str(array, "array_prepend")
+    e = __to_col_if_str(element, "array_prepend")
+    return builtin("array_prepend")(a, e)
+
+
+def array_size(array: Union[Column, str]) -> Column:
+    """Returns the size of the input ARRAY.
+
+    If the specified column contains a VARIANT value that contains an ARRAY, the size of the ARRAY
+    is returned; otherwise, NULL is returned if the value is not an ARRAY."""
+    a = __to_col_if_str(array, "array_size")
+    return builtin("array_size")(a)
+
+
+def array_slice(
+    array: Union[Column, str], from_: Union[Column, str], to: Union[Column, str]
+) -> Column:
+    """Returns an ARRAY constructed from a specified subset of elements of the input ARRAY.
+
+    Args:
+        array: Column containing the source ARRAY.
+        from: Column containing a position in the source ARRAY. The position of the first
+            element is {@code 0}. Elements from positions less than this parameter are
+            not included in the resulting ARRAY.
+        to: Column containing a position in the source ARRAY. Elements from positions equal to
+            or greater than this parameter are not included in the resulting array."""
+    a = __to_col_if_str(array, "array_slice")
+    f = __to_col_if_str(from_, "array_slice")
+    t = __to_col_if_str(to, "array_slice")
+    return builtin("array_slice")(a, f, t)
+
+
+def array_to_string(array: Union[Column, str], separator: Union[Column, str]) -> Column:
+    """Returns an input ARRAY converted to a string by casting all values to strings (using
+    TO_VARCHAR) and concatenating them (using the string from the second argument to separate
+    the elements).
+
+    Args:
+        array: Column containing the ARRAY of elements to convert to a string.
+        separator: Column containing the string to put between each element (e.g. a space,
+            comma, or other human-readable separator)."""
+    a = __to_col_if_str(array, "array_to_string")
+    s = __to_col_if_str(separator, "array_to_string")
+    return builtin("array_to_string")(a, s)
+
+
+def objectagg(key: Union[Column, str], value: Union[Column, str]) -> Column:
+    """Returns one OBJECT per group. For each (key, value) input pair, where key must be a VARCHAR
+    and value must be a VARIANT, the resulting OBJECT contains a key:value field."""
+    k = __to_col_if_str(key, "objectagg")
+    v = __to_col_if_str(value, "objectagg")
+    return builtin("objectagg")(k, v)
+
+
+def object_construct(*key_values: Union[Column, str]) -> Column:
+    """Returns an OBJECT constructed from the arguments."""
+    kvs = [__to_col_if_str(kv, "object_construct") for kv in key_values]
+    return builtin("object_construct")(*kvs)
+
+
+def object_construct_keep_null(*key_values: Union[Column, str]) -> Column:
+    """Returns an object containing the contents of the input (i.e.source) object with one or more
+    keys removed."""
+    kvs = [__to_col_if_str(kv, "object_construct_keep_null") for kv in key_values]
+    return builtin("object_construct_keep_null")(*kvs)
+
+
+def object_delete(
+    obj: Union[Column, str], key1: Union[Column, str], *keys: Union[Column, str]
+) -> Column:
+    """Returns an object consisting of the input object with a new key-value pair inserted.
+    The input key must not exist in the object."""
+    o = __to_col_if_str(obj, "object_delete")
+    k1 = __to_col_if_str(key1, "object_delete")
+    ks = [__to_col_if_str(k, "object_delete") for k in keys]
+    return builtin("object_delete")(o, k1, *ks)
+
+
+def object_insert(
+    obj: Union[Column, str],
+    key: Union[Column, str],
+    value: Union[Column, str],
+    update_flag: Optional[Union[Column, str]] = None,
+) -> Column:
+    """Returns an object consisting of the input object with a new key-value pair inserted (or an
+    existing key updated with a new value)."""
+    o = __to_col_if_str(obj, "object_insert")
+    k = __to_col_if_str(key, "object_insert")
+    v = __to_col_if_str(value, "object_insert")
+    uf = __to_col_if_str(update_flag, "update_flag") if update_flag else None
+    if uf:
+        return builtin("object_insert")(o, k, v, uf)
+    else:
+        return builtin("object_insert")(o, k, v)
+
+
+def object_pick(
+    obj: Union[Column, str], key1: Union[Column, str], *keys: Union[Column, str]
+):
+    """Returns a new OBJECT containing some of the key-value pairs from an existing object.
+
+    To identify the key-value pairs to include in the new object, pass in the keys as arguments,
+    or pass in an array containing the keys.
+
+    If a specified key is not present in the input object, the key is ignored."""
+    o = __to_col_if_str(obj, "object_pick")
+    k1 = __to_col_if_str(key1, "object_pick")
+    ks = [__to_col_if_str(k, "object_pick") for k in keys]
+    return builtin("object_pick")(o, k1, *ks)
 
 
 def as_array(variant: Union[Column, str]) -> Column:
@@ -903,3 +1135,7 @@ def __to_col_if_str(e: Union[Column, str], func_name: str):
         return col(e)
     else:
         raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
+
+
+def __with_expr(expr: SPExpression) -> Column:
+    return Column(expr=expr)
