@@ -318,7 +318,7 @@ class TestData:
 
     @classmethod
     def invalid_json1(cls, session: "Session") -> DataFrame:
-        session.sql(
+        return session.sql(
             "select (column1) as v from values ('{\"a\": null'), ('{\"a: \"foo\"}'), ('{\"a:')"
         )
 
@@ -331,7 +331,7 @@ class TestData:
 
     @classmethod
     def invalid_xml1(cls, session: "Session") -> DataFrame:
-        session.sql(
+        return session.sql(
             "select (column1) as v from values ('<t1></t>'), ('<t1><t1>'), ('<t1</t1>')"
         )
 
