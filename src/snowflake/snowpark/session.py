@@ -277,13 +277,14 @@ class Session:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
             immediately, and it will be uploaded when a UDF is created.
 
-            2. Snowpark library calculates a checksum for every file/directory.
-            If there is a file or directory existing in the stage, Snowpark library
-            will compare their checksums to determine whether it should be overwritten.
+            2. The Snowpark library calculates an MD5 checksum for every file/directory.
+            Each file is uploaded to a subdirectory named after the MD5 checksum for the
+            file in the stage. If there is an existing file or directory, the Snowpark
+            library will compare their checksums to determine whether it should be re-uploaded.
             Therefore, after uploading a local file to the stage, if the user makes
-            some changes on this file and intends to upload it again, just call this
+            some changes to this file and intends to upload it again, just call this
             function with the file path again, the existing file in the stage will be
-            overwritten.
+            overwritten by the re-uploaded file.
 
             3. Adding two files with the same file name is not allowed, because UDFs
             can't be created with two imports with the same name.
@@ -427,19 +428,9 @@ class Session:
         normalized = Utils.normalize_stage_location(
             stage_location if stage_location else self.__session_stage
         )
-
-        # TODO: SNOW-425907 get the prefix length of normalized stage string
-        # currently only the session stage will be passed to this function
-        # so the parsing will be easy here:
-        # the session stage can only be '@"db"."schema".stage' or '@stage',
-        # with or without the ending slash
-        # the result prefix of a session stage will be 'stage/'
-        prefix_length = len(normalized.split(".")[-1].strip("@/")) + 1
-
-        return {
-            str(row[0])[prefix_length:]
-            for row in self.sql(f"ls {normalized}").select('"name"').collect()
-        }
+        file_list = self.sql(f"ls {normalized}").select('"name"').collect()
+        prefix_length = Utils.get_stage_file_prefix_length(normalized)
+        return {str(row[0])[prefix_length:] for row in file_list}
 
     @property
     def query_tag(self) -> Optional[str]:
