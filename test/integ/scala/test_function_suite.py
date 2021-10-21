@@ -1453,6 +1453,13 @@ def test_objectagg(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object1(session).select(objectagg("key", "value")),
+        [Row('{\n  "age": 21,\n  "zip": 94401\n}')],
+        sort=False,
+    )
+
 
 def test_object_construct(session):
     Utils.check_answer(
@@ -1464,6 +1471,13 @@ def test_object_construct(session):
     Utils.check_answer(
         TestData.object1(session).select(object_construct()),
         [Row("{}"), Row("{}")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object1(session).select(object_construct("key", "value")),
+        [Row('{\n  "age": 21\n}'), Row('{\n  "zip": 94401\n}')],
         sort=False,
     )
 
@@ -1483,11 +1497,27 @@ def test_object_construct_keep_null(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object3(session).select(object_construct_keep_null("key", "value")),
+        [Row("{}"), Row('{\n  "zip": null\n}')],
+        sort=False,
+    )
+
 
 def test_object_delete(session):
     Utils.check_answer(
         TestData.object2(session).select(
             object_delete(col("obj"), col("k"), lit("name"), lit("non-exist-key"))
+        ),
+        [Row('{\n  "zip": 21021\n}'), Row('{\n  "age": 26,\n  "zip": 94021\n}')],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_delete("obj", "k", lit("name"), lit("non-exist-key"))
         ),
         [Row('{\n  "zip": 21021\n}'), Row('{\n  "age": 26,\n  "zip": 94021\n}')],
         sort=False,
@@ -1543,6 +1573,51 @@ def test_object_insert(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object2(session).select(object_insert("obj", lit("key"), lit("v"))),
+        [
+            Row('{\n  "age": 21,\n  "key": "v",\n  "name": "Joe",\n  "zip": 21021\n}'),
+            Row('{\n  "age": 26,\n  "key": "v",\n  "name": "Jay",\n  "zip": 94021\n}'),
+        ],
+        sort=False,
+    )
+
+    resultSet = (
+        TestData.object2(session)
+        .select(object_insert("obj", lit("key"), lit("v")))
+        .collect()
+    )
+    row1 = {'"age"': "21", '"key"': '"v"', '"name"': '"Joe"', '"zip"': "21021"}
+    assert (
+        dict(
+            [
+                list(map(str.strip, rs.split(":")))
+                for rs in resultSet[0][0][1:-1].split(",")
+            ]
+        )
+        == row1
+    )
+    row2 = {'"age"': "26", '"key"': '"v"', '"name"': '"Jay"', '"zip"': "94021"}
+    assert (
+        dict(
+            [
+                list(map(str.strip, rs.split(":")))
+                for rs in resultSet[1][0][1:-1].split(",")
+            ]
+        )
+        == row2
+    )
+
+    Utils.check_answer(
+        TestData.object2(session).select(object_insert("obj", "k", "v", "flag")),
+        [
+            Row('{\n  "age": 0,\n  "name": "Joe",\n  "zip": 21021\n}'),
+            Row('{\n  "age": 26,\n  "key": 0,\n  "name": "Jay",\n  "zip": 94021\n}'),
+        ],
+        sort=False,
+    )
+
 
 def test_object_pick(session):
     Utils.check_answer(
@@ -1556,6 +1631,26 @@ def test_object_pick(session):
     Utils.check_answer(
         TestData.object2(session).select(
             object_pick(col("obj"), array_construct(lit("name"), lit("zip")))
+        ),
+        [
+            Row('{\n  "name": "Joe",\n  "zip": 21021\n}'),
+            Row('{\n  "name": "Jay",\n  "zip": 94021\n}'),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_pick("obj", "k", lit("name"), lit("non-exist-key"))
+        ),
+        [Row('{\n  "age": 21,\n  "name": "Joe"\n}'), Row('{\n  "name": "Jay"\n}')],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_pick("obj", array_construct(lit("name"), lit("zip")))
         ),
         [
             Row('{\n  "name": "Joe",\n  "zip": 21021\n}'),
