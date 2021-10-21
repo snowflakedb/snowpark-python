@@ -7,6 +7,7 @@
 import io
 import os
 import pickle
+from logging import getLogger
 from typing import Callable, List, NamedTuple, Optional, Tuple, Union, get_type_hints
 
 import cloudpickle
@@ -24,6 +25,8 @@ from snowflake.snowpark._internal.sp_types.types_package import (
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType, StringType
+
+logger = getLogger(__name__)
 
 # the default handler name for generated udf python file
 _DEFAULT_HANDLER_NAME = "compute"
@@ -116,8 +119,8 @@ class UDFRegistration:
     Provides methods to register lambdas and functions as UDFs in the Snowflake database.
 
     :attr:`session.udf <snowflake.snowpark.Session.udf>` returns an object of this class.
-    You can use this object to register temporary UDFs that you plan to use in the current
-    session. The methods that register a UDF return a :class:`UserDefinedFunction` object,
+    You can use this object to register UDFs that you plan to use in the current session.
+    The methods that register a UDF return a :class:`UserDefinedFunction` object,
     which you can also use in :class:`~snowflake.snowpark.Column` expressions.
 
     Examples::
@@ -149,9 +152,11 @@ class UDFRegistration:
     =============================================  ================================================  =========
 
     Note:
-        1. Currently only a temporary UDF that is scoped to this session can be
-        created and all UDF related files will be uploaded to a temporary session
-        stage (:func:`session.getSessionStage() <snowflake.snowpark.Session.getSessionStage>`).
+        1. A temporary UDF (when ``is_permanent`` is ``False`` in
+        :func:`~snowflake.snowpark.functions.udf` or :func:`UDFRegistration.register`)
+        is scoped to this session and all UDF related files will be uploaded to
+        a temporary session stage (:func:`session.getSessionStage() <snowflake.snowpark.Session.getSessionStage>`).
+        For a permanent UDF, these files will be uploaded to the stage that you provide.
 
         2. You can also use :class:`typing.List` to annotate a :class:`list`,
         use :class:`typing.Dict` to annotate a :class:`dict`, and use
@@ -180,6 +185,8 @@ class UDFRegistration:
         return_type: Optional[DataType] = None,
         input_types: Optional[List[DataType]] = None,
         name: Optional[str] = None,
+        is_permanent: bool = False,
+        stage_location: Optional[str] = None,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF and returns the UDF.
@@ -192,6 +199,12 @@ class UDFRegistration:
                 "Invalid function: not a function or callable "
                 f"(__call__ is not defined): {type(func)}"
             )
+
+        if is_permanent:
+            if not name:
+                raise ValueError("name must be specified for permanent udf")
+            if not stage_location:
+                raise ValueError("stage_location must be specified for permanent udf")
 
         # get the udf name
         udf_name = (
@@ -212,8 +225,38 @@ class UDFRegistration:
                 new_input_types,
             ) = self.__get_types_from_type_hints(func)
 
+        # generate a random name for udf py file
+        udf_file_name = f"udf_py_{Utils.random_number()}.py"
+
         # register udf
-        self.__do_register_udf(func, new_return_type, new_input_types, udf_name)
+        try:
+            self.__do_register_udf(
+                func,
+                new_return_type,
+                new_input_types,
+                udf_name,
+                udf_file_name,
+                stage_location,
+            )
+        # an exception might happen during registering a UDF
+        # (e.g., a dependency might not be found on the stage),
+        # then for a permanent udf, we should delete the uploaded
+        # python file and raise the exception
+        except BaseException as ex:
+            if is_permanent:
+                upload_stage = Utils.normalize_stage_location(stage_location)
+                dest_prefix = Utils.get_udf_upload_prefix(udf_name)
+                udf_file_path = f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+                try:
+                    logger.info("Removing Snowpark uploaded file: %s", udf_file_path)
+                    self.session._run_query(f"REMOVE {udf_file_path}")
+                    logger.info(
+                        "Finished removing Snowpark uploaded file: %s", udf_file_path
+                    )
+                except BaseException as clean_ex:
+                    logger.warning("Failed to clean uploaded file: %s", clean_ex)
+            raise ex
+
         return UserDefinedFunction(
             func, return_type, new_input_types, udf_name, is_return_nullable
         )
@@ -249,6 +292,7 @@ class UDFRegistration:
         return_type: DataType,
         input_types: List[DataType],
         udf_name: str,
+        udf_file_name: str,
         stage_location: Optional[str] = None,
     ) -> None:
         arg_names = [f"arg{i+1}" for i in range(len(input_types))]
@@ -263,13 +307,12 @@ class UDFRegistration:
             else self.session.getSessionStage()
         )
         dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-        dest_file_name = f"udf_py_{Utils.random_number()}.py"
-        upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{dest_file_name}"
+        upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{udf_file_name}"
         with io.BytesIO(bytes(code, "utf8")) as input_stream:
             self.session._conn.upload_stream(
                 input_stream=input_stream,
                 stage_location=upload_stage,
-                dest_filename=dest_file_name,
+                dest_filename=udf_file_name,
                 dest_prefix=dest_prefix,
                 compress_data=False,
                 overwrite=True,
@@ -284,7 +327,7 @@ class UDFRegistration:
         self.__create_python_udf(
             return_type=return_type,
             input_args=input_args,
-            handler=f"{os.path.splitext(dest_file_name)[0]}.{_DEFAULT_HANDLER_NAME}",
+            handler=f"{os.path.splitext(udf_file_name)[0]}.{_DEFAULT_HANDLER_NAME}",
             udf_name=udf_name,
             all_imports=all_imports,
             is_temporary=stage_location is None,
