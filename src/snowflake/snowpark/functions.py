@@ -402,107 +402,134 @@ def to_date(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
     return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
 
 
-def is_array(col: Union[Column, str]):
+def is_array(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains an ARRAY value."""
     c = __to_col_if_str(col, "is_array")
     return builtin("is_array")(c)
 
 
-def is_boolean(col: Union[Column, str]):
+def is_boolean(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a boolean value."""
     c = __to_col_if_str(col, "is_boolean")
     return builtin("is_boolean")(c)
 
 
-def is_binary(col: Union[Column, str]):
+def is_binary(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a binary value."""
     c = __to_col_if_str(col, "is_binary")
     return builtin("is_binary")(c)
 
 
-def is_char(col: Union[Column, str]):
+def is_char(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a string."""
     c = __to_col_if_str(col, "is_char")
     return builtin("is_char")(c)
 
 
-def is_varchar(col: Union[Column, str]):
+def is_varchar(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a string."""
     c = __to_col_if_str(col, "is_varchar")
     return builtin("is_varchar")(c)
 
 
-def is_date(col: Union[Column, str]):
+def is_date(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a date value."""
     c = __to_col_if_str(col, "is_date")
     return builtin("is_date")(c)
 
 
-def is_date_value(col: Union[Column, str]):
+def is_date_value(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a date value."""
     c = __to_col_if_str(col, "is_date_value")
     return builtin("is_date_value")(c)
 
 
-def is_decimal(col: Union[Column, str]):
+def is_decimal(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a fixed-point decimal value or integer."""
     c = __to_col_if_str(col, "is_decimal")
     return builtin("is_decimal")(c)
 
 
-def is_double(col: Union[Column, str]):
+def is_double(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer."""
     c = __to_col_if_str(col, "is_double")
     return builtin("is_double")(c)
 
 
-def is_real(col: Union[Column, str]):
+def is_real(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer."""
     c = __to_col_if_str(col, "is_real")
     return builtin("is_real")(c)
 
 
-def is_integer(col: Union[Column, str]):
+def is_integer(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a integer value."""
     c = __to_col_if_str(col, "is_integer")
     return builtin("is_integer")(c)
 
 
-def is_null_value(col: Union[Column, str]):
+def is_null_value(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a JSON null value."""
     c = __to_col_if_str(col, "is_null_value")
     return builtin("is_null_value")(c)
 
 
-def is_object(col: Union[Column, str]):
+def is_object(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains an OBJECT value."""
     c = __to_col_if_str(col, "is_object")
     return builtin("is_object")(c)
 
 
-def is_time(col: Union[Column, str]):
+def is_time(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a TIME value."""
     c = __to_col_if_str(col, "is_time")
     return builtin("is_time")(c)
 
 
-def is_timestamp_ltz(col: Union[Column, str]):
+def is_timestamp_ltz(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a TIMESTAMP value to be interpreted using the local time
     zone."""
     c = __to_col_if_str(col, "is_timestamp_ltz")
     return builtin("is_timestamp_ltz")(c)
 
 
-def is_timestamp_ntz(col: Union[Column, str]):
+def is_timestamp_ntz(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a TIMESTAMP value with no time zone."""
     c = __to_col_if_str(col, "is_timestamp_ntz")
     return builtin("is_timestamp_ntz")(c)
 
 
-def is_timestamp_tz(col: Union[Column, str]):
+def is_timestamp_tz(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a TIMESTAMP value with a time zone."""
     c = __to_col_if_str(col, "is_timestamp_tz")
     return builtin("is_timestamp_tz")(c)
+
+
+def check_json(col: Union[Column, str]) -> Column:
+    """Checks the validity of a JSON document.
+    If the input string is a valid JSON document or a NULL (i.e. no error would occur when
+    parsing the input string), the function returns NULL.
+    In case of a JSON parsing error, the function returns a string that contains the error
+    message."""
+    c = __to_col_if_str(col, "check_json")
+    return builtin("check_json")(c)
+
+
+def check_xml(col: Union[Column, str]) -> Column:
+    """Checks the validity of an XML document.
+    If the input string is a valid XML document or a NULL (i.e. no error would occur when parsing
+    the input string), the function returns NULL.
+    In case of an XML parsing error, the output string contains the error message."""
+    c = __to_col_if_str(col, "check_xml")
+    return builtin("check_xml")(c)
+
+
+def json_extract_path_text(col: Union[Column, str], path: Union[Column, str]) -> Column:
+    """Parses a JSON string and returns the value of an element at a specified path in the resulting
+    JSON document."""
+    c = __to_col_if_str(col, "json_extract_path_text")
+    p = __to_col_if_str(path, "json_extract_path_text")
+    return builtin("json_extract_path_text")(c, p)
 
 
 def parse_json(e: Union[Column, str]) -> Column:
@@ -517,6 +544,13 @@ def parse_xml(e: Union[Column, str]) -> Column:
     resulting XML document."""
     c = __to_col_if_str(e, "parse_xml")
     return builtin("parse_xml")(c)
+
+
+def strip_null_value(col: Union[Column, str]) -> Column:
+    """Converts a JSON "null" value in the specified column to a SQL NULL value.
+    All other VARIANT values in the column are returned unchanged."""
+    c = __to_col_if_str(col, "strip_null_value")
+    return builtin("strip_null_value")(c)
 
 
 def array_agg(e: Union[Column, str]) -> Column:

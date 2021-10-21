@@ -310,10 +310,29 @@ class TestData:
         )
 
     @classmethod
+    def valid_json1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select parse_json(column1) as v, column2 as k from values ('{\"a\": null}','a'), "
+            "('{\"a\": \"foo\"}','a'), ('{\"a\": \"foo\"}','b'), (null,'a')"
+        )
+
+    @classmethod
+    def invalid_json1(cls, session: "Session") -> DataFrame:
+        session.sql(
+            "select (column1) as v from values ('{\"a\": null'), ('{\"a: \"foo\"}'), ('{\"a:')"
+        )
+
+    @classmethod
     def null_xml1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select (column1) as v from values ('<t1>foo<t2>bar</t2><t3></t3></t1>'), "
             "('<t1></t1>'), (null), ('')"
+        )
+
+    @classmethod
+    def invalid_xml1(cls, session: "Session") -> DataFrame:
+        session.sql(
+            "select (column1) as v from values ('<t1></t>'), ('<t1><t1>'), ('<t1</t1>')"
         )
 
     @classmethod
