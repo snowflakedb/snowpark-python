@@ -908,7 +908,7 @@ class DataFrame:
         ``cols``.
 
         If columns with the same names already exist in the DataFrame, those columns
-        are replaced by the new columns.
+        are removed and appended at the end by new columns.
 
         This example adds new columns named ``mean_price`` and ``avg_price`` that
         contain the mean and average of the existing ``price`` column::

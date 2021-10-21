@@ -385,6 +385,11 @@ class TestData:
             "select (column1) as v from values ('<t1></t>'), ('<t1><t1>'), ('<t1</t1>')"
         )
 
+    def date1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values('2020-08-01'::Date, 1),('2010-12-01'::Date, 2) as T(a,b)"
+        )
+
     @classmethod
     def decimal_data(cls, session: "Session") -> DataFrame:
         return session.createDataFrame(
@@ -402,6 +407,13 @@ class TestData:
     def number2(cls, session):
         return session.createDataFrame(
             [cls.Number2(1, 2, 3), cls.Number2(0, -1, 4), cls.Number2(-5, 0, -9)]
+        )
+
+    @classmethod
+    def timestamp1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values('2020-05-01 13:11:20.000' :: timestamp),"
+            "('2020-08-21 01:30:05.000' :: timestamp) as T(a)"
         )
 
     @classmethod
