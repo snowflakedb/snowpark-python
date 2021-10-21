@@ -263,6 +263,20 @@ class TestData:
         )
 
     @classmethod
+    def object1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select key, to_variant(value) as value from values('age', 21),('zip', 94401) as T(key,value)"
+        )
+
+    @classmethod
+    def object2(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select object_construct(a,b,c,d,e,f) as obj, k, v, flag from values('age', 21, 'zip', "
+            + "21021, 'name', 'Joe', 'age', 0, true),('age', 26, 'zip', 94021, 'name', 'Jay', 'key', "
+            + "0, false) as T(a,b,c,d,e,f,k,v,flag)"
+        )
+
+    @classmethod
     def variant1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select to_variant(to_array('Example')) as arr1,"
@@ -310,10 +324,37 @@ class TestData:
         )
 
     @classmethod
+    def valid_json1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select parse_json(column1) as v, column2 as k from values ('{\"a\": null}','a'), "
+            + "('{\"a\": \"foo\"}','a'), ('{\"a\": \"foo\"}','b'), (null,'a')"
+        )
+
+    @classmethod
+    def invalid_json1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select (column1) as v from values ('{\"a\": null'), ('{\"a: \"foo\"}'), ('{\"a:')"
+        )
+
+    @classmethod
     def null_xml1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select (column1) as v from values ('<t1>foo<t2>bar</t2><t3></t3></t1>'), "
             "('<t1></t1>'), (null), ('')"
+        )
+
+    @classmethod
+    def valid_xml1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select parse_xml(a) as v, b as t2, c as t3, d as instance from values"
+            + "('<t1>foo<t2>bar</t2><t3></t3></t1>','t2','t3',0),('<t1></t1>','t2','t3',0),"
+            + "('<t1><t2>foo</t2><t2>bar</t2></t1>','t2','t3',1) as T(a,b,c,d)"
+        )
+
+    @classmethod
+    def invalid_xml1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select (column1) as v from values ('<t1></t>'), ('<t1><t1>'), ('<t1</t1>')"
         )
 
     @classmethod

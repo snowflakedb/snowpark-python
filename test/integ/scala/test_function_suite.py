@@ -39,6 +39,8 @@ from snowflake.snowpark.functions import (
     equal_nan,
     exp,
     floor,
+    get_ignore_case,
+    get_path,
     is_array,
     is_binary,
     is_boolean,
@@ -65,6 +67,7 @@ from snowflake.snowpark.functions import (
     min,
     negate,
     not_,
+    object_keys,
     parse_json,
     parse_xml,
     pow,
@@ -88,9 +91,11 @@ from snowflake.snowpark.functions import (
     to_variant,
     to_xml,
     translate,
+    typeof,
     var_pop,
     var_samp,
     variance,
+    xmlget,
 )
 
 
@@ -1453,5 +1458,74 @@ def test_to_xml(session):
             Row('<SnowflakeData type="INTEGER">2</SnowflakeData>'),
             Row('<SnowflakeData type="INTEGER">3</SnowflakeData>'),
         ],
+        sort=False,
+    )
+
+
+def test_typeof(session):
+    Utils.check_answer(
+        TestData.integer1(session).select(typeof(col("a"))),
+        [Row("INTEGER")] * 3,
+        sort=False,
+    )
+
+
+def test_get_ignore_case(session):
+    Utils.check_answer(
+        TestData.object2(session).select(get_ignore_case(col("obj"), col("k"))),
+        [Row("21"), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.object2(session).select(get_ignore_case(col("obj"), lit("AGE"))),
+        [Row("21"), Row("26")],
+        sort=False,
+    )
+
+
+def test_object_keys(session):
+    Utils.check_answer(
+        TestData.object2(session).select(object_keys(col("obj"))),
+        [
+            Row('[\n  "age",\n  "name",\n  "zip"\n]'),
+            Row('[\n  "age",\n  "name",\n  "zip"\n]'),
+        ],
+        sort=False,
+    )
+
+
+def test_xmlget(session):
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(
+            get_ignore_case(xmlget(col("v"), col("t2")), lit("$"))
+        ),
+        [Row('"bar"'), Row(None), Row('"foo"')],
+        sort=False,
+    )
+
+    # Scala assert getVariant() here. snowpark-python doesn't have class Variant so skip it.
+
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(
+            get_ignore_case(xmlget(col("v"), col("t3"), lit("0")), lit("@"))
+        ),
+        [Row('"t3"'), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(
+            get_ignore_case(xmlget(col("v"), col("t2"), col("instance")), lit("$"))
+        ),
+        [Row('"bar"'), Row(None), Row('"bar"')],
+        sort=False,
+    )
+
+
+def test_get_path(session):
+    Utils.check_answer(
+        TestData.valid_json1(session).select(get_path(col("v"), col("k"))),
+        [Row("null"), Row('"foo"'), Row(None), Row(None)],
         sort=False,
     )

@@ -505,6 +505,12 @@ def is_timestamp_tz(col: Union[Column, str]):
     return builtin("is_timestamp_tz")(c)
 
 
+def typeof(col: Union[Column, str]):
+    """Reports the type of a value stored in a VARIANT column. The type is returned as a string."""
+    c = __to_col_if_str(col, "typeof")
+    return builtin("typeof")(c)
+
+
 def parse_json(e: Union[Column, str]) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
     resulting JSON document."""
@@ -677,6 +683,42 @@ def to_xml(e: Union[Column, str]) -> Column:
     value. If the input is NULL, the result is also NULL."""
     c = __to_col_if_str(e, "to_xml")
     return builtin("to_xml")(c)
+
+
+def get_ignore_case(obj: Union[Column, str], field: Union[Column, str]) -> Column:
+    """Extracts a field value from an object; returns NULL if either of the arguments is NULL.
+    This function is similar to :meth:`get` but applies case-insensitive matching to field names.
+    """
+    c1 = __to_col_if_str(obj, "get_ignore_case")
+    c2 = __to_col_if_str(field, "get_ignore_case")
+    return builtin("get_ignore_case")(c1, c2)
+
+
+def object_keys(obj: Union[Column, str]) -> Column:
+    """Returns an array containing the list of keys in the input object."""
+    c = __to_col_if_str(obj, "object_keys")
+    return builtin("object_keys")(c)
+
+
+def xmlget(
+    xml: Union[Column, str],
+    tag: Union[Column, str],
+    instance: Optional[Union[Column, str]] = lit(0),
+) -> Column:
+    """Extracts an XML element object (often referred to as simply a tag) from a content of outer
+    XML element object by the name of the tag and its instance number (counting from 0).
+    """
+    c1 = __to_col_if_str(xml, "xmlget")
+    c2 = __to_col_if_str(tag, "xmlget")
+    c3 = __to_col_if_str(instance, "xmlget") if instance else None
+    return builtin("xmlget")(c1, c2, c3)
+
+
+def get_path(col: Union[Column, str], path: Union[Column, str]) -> Column:
+    """Extracts a value from semi-structured data using a path name."""
+    c1 = __to_col_if_str(col, "get_path")
+    c2 = __to_col_if_str(path, "get_path")
+    return builtin("get_path")(c1, c2)
 
 
 def when(condition: Column, value: Column) -> CaseExpr:
