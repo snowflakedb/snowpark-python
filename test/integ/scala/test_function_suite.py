@@ -502,10 +502,24 @@ def test_arrays_overlap(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(arrays_overlap("ARR1", "ARR2")),
+        [Row(True), Row(False)],
+        sort=False,
+    )
+
 
 def test_array_intersection(session):
     Utils.check_answer(
         TestData.array1(session).select(array_intersection(col("ARR1"), col("ARR2"))),
+        [Row("[\n  3\n]"), Row("[]")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(array_intersection("ARR1", "ARR2")),
         [Row("[\n  3\n]"), Row("[]")],
         sort=False,
     )
@@ -1110,6 +1124,37 @@ def test_array_append(session):
         ),
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        [
+            Row('[\n  1,\n  2,\n  3,\n  "amount",\n  3.221000000000000e+01\n]'),
+            Row('[\n  6,\n  7,\n  8,\n  "amount",\n  3.221000000000000e+01\n]'),
+        ],
+        TestData.array1(session).select(
+            array_append(array_append("arr1", lit("amount")), lit(32.21))
+        ),
+        sort=False,
+    )
+
+    # Get array result in List[Variant1]
+    result_set = (
+        TestData.array1(session)
+        .select(array_append(array_append("arr1", lit("amount")), lit(32.21)))
+        .collect()
+    )
+    row1 = ["1", "2", "3", '"amount"', "3.221000000000000e+01"]
+    assert [s.strip() for s in result_set[0][0][1:-1].split(",")] == row1
+    row2 = ["6", "7", "8", '"amount"', "3.221000000000000e+01"]
+    assert [s.strip() for s in result_set[1][0][1:-1].split(",")] == row2
+
+    Utils.check_answer(
+        [
+            Row('[\n  1,\n  2,\n  3,\n  2,\n  "e1"\n]'),
+            Row('[\n  6,\n  7,\n  8,\n  1,\n  "e2"\n]'),
+        ],
+        TestData.array2(session).select(array_append(array_append("arr1", "d"), "e")),
+    )
+
 
 def test_array_cat(session):
     Utils.check_answer(
@@ -1121,10 +1166,27 @@ def test_array_cat(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(array_cat("arr1", "arr2")),
+        [
+            Row("[\n  1,\n  2,\n  3,\n  3,\n  4,\n  5\n]"),
+            Row("[\n  6,\n  7,\n  8,\n  9,\n  0,\n  1\n]"),
+        ],
+        sort=False,
+    )
+
 
 def test_array_compact(session):
     Utils.check_answer(
         TestData.null_array1(session).select(array_compact(col("arr1"))),
+        [Row("[\n  1,\n  3\n]"), Row("[\n  6,\n  8\n]")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.null_array1(session).select(array_compact("arr1")),
         [Row("[\n  1,\n  3\n]"), Row("[\n  6,\n  8\n]")],
         sort=False,
     )
@@ -1144,6 +1206,17 @@ def test_array_construct(session):
         TestData.integer1(session).select(
             array_construct(col("a"), lit(1.2), lit(None))
         ),
+        [
+            Row("[\n  1,\n  1.200000000000000e+00,\n  undefined\n]"),
+            Row("[\n  2,\n  1.200000000000000e+00,\n  undefined\n]"),
+            Row("[\n  3,\n  1.200000000000000e+00,\n  undefined\n]"),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.integer1(session).select(array_construct("a", lit(1.2), lit(None))),
         [
             Row("[\n  1,\n  1.200000000000000e+00,\n  undefined\n]"),
             Row("[\n  2,\n  1.200000000000000e+00,\n  undefined\n]"),
@@ -1180,6 +1253,19 @@ def test_array_construct_compact(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.integer1(session).select(
+            array_construct_compact("a", lit(1.2), lit(None))
+        ),
+        [
+            Row("[\n  1,\n  1.200000000000000e+00\n]"),
+            Row("[\n  2,\n  1.200000000000000e+00\n]"),
+            Row("[\n  3,\n  1.200000000000000e+00\n]"),
+        ],
+        sort=False,
+    )
+
 
 def test_array_contains(session):
     assert (
@@ -1206,6 +1292,15 @@ def test_array_contains(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.integer1(session).select(
+            array_contains("a", array_construct(lit(1), lit(1.2), lit("string")))
+        ),
+        [Row(True), Row(False), Row(False)],
+        sort=False,
+    )
+
 
 def test_array_insert(session):
     Utils.check_answer(
@@ -1214,10 +1309,24 @@ def test_array_insert(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array2(session).select(array_insert("arr1", "d", "e")),
+        [Row('[\n  1,\n  2,\n  "e1",\n  3\n]'), Row('[\n  6,\n  "e2",\n  7,\n  8\n]')],
+        sort=False,
+    )
+
 
 def test_array_position(session):
     Utils.check_answer(
         TestData.array2(session).select(array_position(col("d"), col("arr1"))),
+        [Row(1), Row(None)],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array2(session).select(array_position("d", "arr1")),
         [Row(1), Row(None)],
         sort=False,
     )
@@ -1246,6 +1355,27 @@ def test_array_prepend(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(
+            array_prepend(array_prepend("arr1", lit("amount")), lit(32.21))
+        ),
+        [
+            Row('[\n  3.221000000000000e+01,\n  "amount",\n  1,\n  2,\n  3\n]'),
+            Row('[\n  3.221000000000000e+01,\n  "amount",\n  6,\n  7,\n  8\n]'),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array2(session).select(array_prepend(array_prepend("arr1", "d"), "e")),
+        [
+            Row('[\n  "e1",\n  2,\n  1,\n  2,\n  3\n]'),
+            Row('[\n  "e2",\n  1,\n  6,\n  7,\n  8\n]'),
+        ],
+        sort=False,
+    )
+
 
 def test_array_size(session):
     Utils.check_answer(
@@ -1266,6 +1396,25 @@ def test_array_size(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array2(session).select(array_size("arr1")),
+        [Row(3), Row(3)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array2(session).select(array_size("d")),
+        [Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array2(session).select(array_size(parse_json("f"))),
+        [Row(1), Row(2)],
+        sort=False,
+    )
+
 
 def test_array_slice(session):
     Utils.check_answer(
@@ -1274,10 +1423,24 @@ def test_array_slice(session):
         sort=False,
     )
 
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array3(session).select(array_slice("arr1", "d", "e")),
+        [Row("[\n  2\n]"), Row("[\n  5\n]"), Row("[\n  6,\n  7\n]")],
+        sort=False,
+    )
+
 
 def test_array_to_string(session):
     Utils.check_answer(
         TestData.array3(session).select(array_to_string(col("arr1"), col("f"))),
+        [Row("1,2,3"), Row("4, 5, 6"), Row("6;7;8")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array3(session).select(array_to_string("arr1", "f")),
         [Row("1,2,3"), Row("4, 5, 6"), Row("6;7;8")],
         sort=False,
     )
