@@ -894,7 +894,7 @@ def test_object_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
         df.select(object_agg([1], "column")).collect()
-    assert "'OBJECTAGG' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'OBJECT_AGG' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(object_construct([1])).collect()
