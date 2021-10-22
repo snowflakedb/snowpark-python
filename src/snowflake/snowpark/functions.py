@@ -505,7 +505,7 @@ def is_timestamp_tz(col: Union[Column, str]):
     return builtin("is_timestamp_tz")(c)
 
 
-def typeof(col: Union[Column, str]):
+def typeof(col: Union[Column, str]) -> Column:
     """Reports the type of a value stored in a VARIANT column. The type is returned as a string."""
     c = __to_col_if_str(col, "typeof")
     return builtin("typeof")(c)
@@ -703,14 +703,14 @@ def object_keys(obj: Union[Column, str]) -> Column:
 def xmlget(
     xml: Union[Column, str],
     tag: Union[Column, str],
-    instance: Optional[Union[Column, str]] = lit(0),
+    instance_num: Union[Column, str] = lit(0),
 ) -> Column:
     """Extracts an XML element object (often referred to as simply a tag) from a content of outer
     XML element object by the name of the tag and its instance number (counting from 0).
     """
     c1 = __to_col_if_str(xml, "xmlget")
     c2 = __to_col_if_str(tag, "xmlget")
-    c3 = __to_col_if_str(instance, "xmlget") if instance else None
+    c3 = __to_col_if_str(instance_num, "xmlget") if instance_num is not None else lit(0)
     return builtin("xmlget")(c1, c2, c3)
 
 
