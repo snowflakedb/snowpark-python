@@ -81,12 +81,12 @@ from snowflake.snowpark.functions import (
     min,
     negate,
     not_,
+    object_agg,
     object_construct,
     object_construct_keep_null,
     object_delete,
     object_insert,
     object_pick,
-    objectagg,
     parse_json,
     parse_xml,
     pow,
@@ -1448,14 +1448,14 @@ def test_array_to_string(session):
 
 def test_objectagg(session):
     Utils.check_answer(
-        TestData.object1(session).select(objectagg(col("key"), col("value"))),
+        TestData.object1(session).select(object_agg(col("key"), col("value"))),
         [Row('{\n  "age": 21,\n  "zip": 94401\n}')],
         sort=False,
     )
 
     # Same as above, but pass str instead of Column
     Utils.check_answer(
-        TestData.object1(session).select(objectagg("key", "value")),
+        TestData.object1(session).select(object_agg("key", "value")),
         [Row('{\n  "age": 21,\n  "zip": 94401\n}')],
         sort=False,
     )

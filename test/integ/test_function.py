@@ -73,12 +73,12 @@ from snowflake.snowpark.functions import (
     log,
     negate,
     not_,
+    object_agg,
     object_construct,
     object_construct_keep_null,
     object_delete,
     object_insert,
     object_pick,
-    objectagg,
     parse_json,
     parse_xml,
     pow,
@@ -893,7 +893,7 @@ def test_object_negative(session):
     df = session.sql("select 1").toDF("a")
 
     with pytest.raises(TypeError) as ex_info:
-        df.select(objectagg([1], "column")).collect()
+        df.select(object_agg([1], "column")).collect()
     assert "'OBJECTAGG' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:

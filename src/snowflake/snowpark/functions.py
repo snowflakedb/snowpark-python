@@ -40,8 +40,8 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
-    ArrayIntersect,
-    ArraysOverlap,
+    ArrayIntersect as SPArrayIntersect,
+    ArraysOverlap as SPArraysOverlap,
     Avg as SPAverage,
     CaseWhen as SPCaseWhen,
     Count as SPCount,
@@ -405,15 +405,27 @@ def to_date(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
 
 
 def arrays_overlap(array1: Union[Column, str], array2: Union[Column, str]) -> Column:
+    """Compares whether two ARRAYs have at least one element in common. Returns TRUE
+    if there is at least one element in common; otherwise returns FALSE. The function
+    is NULL-safe, meaning it treats NULLs as known values for comparing equality."""
     a1 = __to_col_if_str(array1, "arrays_overlap")
     a2 = __to_col_if_str(array2, "arrays_overlap")
-    return __with_expr(ArraysOverlap(a1.expression, a2.expression))
+    return __with_expr(SPArraysOverlap(a1.expression, a2.expression))
 
 
-def array_intersection(col1: Union[Column, str], col2: Union[Column, str]) -> Column:
-    c1 = __to_col_if_str(col1, "array_intersection")
-    c2 = __to_col_if_str(col2, "array_intersection")
-    return __with_expr(ArrayIntersect(c1.expression, c2.expression))
+def array_intersection(
+    array1: Union[Column, str], array2: Union[Column, str]
+) -> Column:
+    """Returns an array that contains the matching elements in the two input arrays.
+
+    The function is NULL-safe, meaning it treats NULLs as known values for comparing equality.
+
+    Args:
+        array1: An ARRAY that contains elements to be compared.
+        array2: An ARRAY that contains elements to be compared."""
+    a1 = __to_col_if_str(array1, "array_intersection")
+    a2 = __to_col_if_str(array2, "array_intersection")
+    return __with_expr(SPArrayIntersect(a1.expression, a2.expression))
 
 
 def is_array(col: Union[Column, str]) -> Column:
@@ -575,7 +587,7 @@ def array_agg(col: Union[Column, str]) -> Column:
 
 
 def array_append(array: Union[Column, str], element: Union[Column, str]) -> Column:
-    """Returns an ARRAY containing all elements from the source ARRAYas well as the new element.
+    """Returns an ARRAY containing all elements from the source ARRAY as well as the new element.
     The new element is located at end of the ARRAY.
 
     Args:
@@ -601,7 +613,11 @@ def array_cat(array1: Union[Column, str], array2: Union[Column, str]) -> Column:
 
 def array_compact(array: Union[Column, str]) -> Column:
     """Returns a compacted ARRAY with missing and null values removed,
-    effectively converting sparse arrays into dense arrays."""
+    effectively converting sparse arrays into dense arrays.
+
+    Args:
+        array: Column containing the source ARRAY to be compacted
+    """
     a = __to_col_if_str(array, "array_compact")
     return builtin("array_compact")(a)
 
@@ -617,8 +633,8 @@ def array_construct(*cols: Union[Column, str]) -> Column:
 
 
 def array_construct_compact(*cols: Union[Column, str]) -> Column:
-    """Returns an ARRAY constructed from zero, one, or more inputs;
-    the constructed ARRAY omits any NULL input values.
+    """Returns an ARRAY constructed from zero, one, or more inputs.
+    The constructed ARRAY omits any NULL input values.
 
     Args:
         cols: Columns containing the values (or expressions that evaluate to values). The
@@ -629,7 +645,7 @@ def array_construct_compact(*cols: Union[Column, str]) -> Column:
 
 
 def array_contains(variant: Union[Column, str], array: Union[Column, str]) -> Column:
-    """Returns {@code true} if the specified VARIANT is found in the specified ARRAY.
+    """Returns True if the specified VARIANT is found in the specified ARRAY.
 
     Args:
         variant: Column containing the VARIANT to find.
@@ -702,8 +718,8 @@ def array_slice(
 
     Args:
         array: Column containing the source ARRAY.
-        from: Column containing a position in the source ARRAY. The position of the first
-            element is {@code 0}. Elements from positions less than this parameter are
+        from_: Column containing a position in the source ARRAY. The position of the first
+            element is 0. Elements from positions less than this parameter are
             not included in the resulting ARRAY.
         to: Column containing a position in the source ARRAY. Elements from positions equal to
             or greater than this parameter are not included in the resulting array."""
@@ -727,12 +743,12 @@ def array_to_string(array: Union[Column, str], separator: Union[Column, str]) ->
     return builtin("array_to_string")(a, s)
 
 
-def objectagg(key: Union[Column, str], value: Union[Column, str]) -> Column:
-    """Returns one OBJECT per group. For each (key, value) input pair, where key must be a VARCHAR
-    and value must be a VARIANT, the resulting OBJECT contains a key:value field."""
-    k = __to_col_if_str(key, "objectagg")
-    v = __to_col_if_str(value, "objectagg")
-    return builtin("objectagg")(k, v)
+def object_agg(key: Union[Column, str], value: Union[Column, str]) -> Column:
+    """Returns one OBJECT per group. For each key-value input pair, where key must be a VARCHAR
+    and value must be a VARIANT, the resulting OBJECT contains a key-value field."""
+    k = __to_col_if_str(key, "object_agg")
+    v = __to_col_if_str(value, "object_agg")
+    return builtin("object_agg")(k, v)
 
 
 def object_construct(*key_values: Union[Column, str]) -> Column:
@@ -742,7 +758,7 @@ def object_construct(*key_values: Union[Column, str]) -> Column:
 
 
 def object_construct_keep_null(*key_values: Union[Column, str]) -> Column:
-    """Returns an object containing the contents of the input (i.e.source) object with one or more
+    """Returns an object containing the contents of the input (i.e. source) object with one or more
     keys removed."""
     kvs = [__to_col_if_str(kv, "object_construct_keep_null") for kv in key_values]
     return builtin("object_construct_keep_null")(*kvs)
