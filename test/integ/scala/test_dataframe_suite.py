@@ -755,7 +755,8 @@ def test_flatten(session):
     assert "mode must be one of ('OBJECT', 'ARRAY', 'BOTH')" in str(ex_info)
 
     # contains multiple query
-    df = session.sql("show tables").limit(1)
+    df = session.sql("show schemas").limit(1)
+    # scala uses `show tables`. But there is no table in python test. `show schemas` guarantees result is not empty.
     df1 = df.withColumn("value", lit("[1,2]")).select(
         parse_json(col("value")).as_("value")
     )

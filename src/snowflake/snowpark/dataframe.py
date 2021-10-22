@@ -1030,11 +1030,11 @@ class DataFrame:
                 The column data must be of Snowflake data type VARIANT, OBJECT, or ARRAY.
             path: The path to the element within a VARIANT data structure which needs to be flattened.
                 The outermost element is to be flattened if path is empty or ``None``.
-            outer: If ``False``, any input rows that cannot be expanded, either because they cannot be accessed in the path
+            outer: If ``False``, any input rows that cannot be expanded, either because they cannot be accessed in the ``path``
                 or because they have zero fields or entries, are completely omitted from the output.
                 Otherwise, exactly one row is generated for zero-row expansions
                 (with NULL in the KEY, INDEX, and VALUE columns).
-            recursive: If ``False``, only the element referenced by PATH is expanded.
+            recursive: If ``False``, only the element referenced by ``path`` is expanded.
                 Otherwise, the expansion is performed for all sub-elements recursively.
             mode: Specifies which types should be flattened "OBJECT", "ARRAY", or "BOTH".
 
@@ -1049,7 +1049,7 @@ class DataFrame:
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
         if isinstance(input, str):
-            input_ = self.col(input)
+            input = self.col(input)
         return self._lateral(
             FlattenFunction(input.expression, path, outer, recursive, mode)
         )
