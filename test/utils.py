@@ -327,7 +327,7 @@ class TestData:
     def valid_json1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select parse_json(column1) as v, column2 as k from values ('{\"a\": null}','a'), "
-            + "('{\"a\": \"foo\"}','a'), ('{\"a\": \"foo\"}','b'), (null,'a')"
+            "('{\"a\": \"foo\"}','a'), ('{\"a\": \"foo\"}','b'), (null,'a')"
         )
 
     @classmethod
