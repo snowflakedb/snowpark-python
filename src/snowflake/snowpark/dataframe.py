@@ -927,35 +927,24 @@ class DataFrame:
                 f"The size of column names: {len(col_names)} is not equal to the size of columns: {len(cols)}"
             )
 
-        column_map = {AnalyzerPackage.quote_name(n): c for n, c in zip(col_names, cols)}
-        # Get a list of the columns that we are replacing or that already exist in the current
-        # dataframe plan with the new and updated column names.
-        replaced_and_existing_columns = []
-        output_names = []
-        for field in self.__output():
-            output_names.append(field.name)
-            if field.name in column_map:
-                # Replacing column
-                col_name = field.name
-                col = column_map[field.name]
-                column_to_append = (
-                    col.as_(col_name)
-                    if (type(col) == Column and type(col_name) == str)
-                    else Column(field)
-                )
-                replaced_and_existing_columns.append(column_to_append)
-            else:
-                # Keeping existing column
-                replaced_and_existing_columns.append(Column(field))
+        # Get a list of the new columns and their dedupped values
+        new_column_names = set()
+        new_cols_reversed = []
+        for n, c in zip(reversed(col_names), reversed(cols)):
+            qn = AnalyzerPackage.quote_name(n)
+            if qn not in new_column_names:
+                new_column_names.add(qn)
+                new_cols_reversed.append(c.as_(qn))
 
-        # Adding in new columns that aren't part of this dataframe
-        new_columns = [
-            col.as_(col_name)
-            for col_name, col in column_map.items()
-            if col_name not in output_names
+        # Get a list of existing column names that are not being replaced
+        old_cols = [
+            Column(field)
+            for field in self.__output()
+            if field.name not in new_column_names
         ]
 
-        return self.select([*replaced_and_existing_columns, *new_columns])
+        # Put it all together
+        return self.select([*old_cols, *reversed(new_cols_reversed)])
 
     def count(self) -> int:
         """Executes the query representing this DataFrame and returns the number of

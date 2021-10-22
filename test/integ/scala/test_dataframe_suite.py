@@ -1478,4 +1478,4 @@ def test_with_columns_keep_order(session):
 def test_with_columns_replace_existing(session):
     df = session.createDataFrame([Row(1, 2, 3)]).toDF(["a", "b", "c"])
     replaced = df.withColumns(["d", "b", "d"], [lit(4), lit(5), lit(6)])
-    Utils.check_answer(replaced, [Row(A=1, B=5, C=3, D=6)])
+    Utils.check_answer(replaced, [Row(A=1, C=3, B=5, D=6)])
