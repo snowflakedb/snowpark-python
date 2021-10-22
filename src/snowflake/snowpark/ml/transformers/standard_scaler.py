@@ -3,6 +3,8 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+from snowflake.snowpark import Column
+from snowflake.snowpark.functions import sql_expr
 
 
 class StandardScaler:
@@ -14,7 +16,7 @@ class StandardScaler:
     def fit(self) -> None:
         pass
 
-    def transform(self, value: float) -> float:
-        mean = self.session.table(self.__TEMP_TABLE).select("mean")
-        stddev = self.session.table(self.__TEMP_TABLE).select("stddev")
-        return (value - mean) / stddev
+    def transform(self, c: Column) -> Column:
+        mean = sql_expr(f"select mean from {self.__TEMP_TABLE}")
+        stddev = sql_expr(f"select stddev from {self.__TEMP_TABLE}")
+        return (c - mean) / stddev
