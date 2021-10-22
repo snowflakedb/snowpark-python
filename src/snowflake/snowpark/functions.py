@@ -431,7 +431,7 @@ def array_intersection(
 def datediff(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Column:
     """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested.
 
-    `Supported date and time parts https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts`_
+    `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
 
     Example::
 
@@ -450,10 +450,10 @@ def datediff(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> C
     return builtin("datediff")(part, c1, c2)
 
 
-def dateadd(part: str, col1: Union[Column, str], col2: Union[Column, str]):
+def dateadd(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Column:
     """Adds the specified value for the specified date or time art to date or time expr.
 
-    `Supported date and time parts https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts`_
+    `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
 
     Example::
 
