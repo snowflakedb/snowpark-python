@@ -2295,3 +2295,9 @@ def test_get(session):
         TestData.object2(session).select(get(col("obj"), lit("AGE"))),
         sort=False,
     )
+
+    Utils.check_answer(
+        [Row("2"), Row("7")],
+        TestData.array1(session).select(get(col("arr1"), 1)),
+        sort=False,
+    )
