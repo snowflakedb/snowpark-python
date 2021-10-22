@@ -827,15 +827,15 @@ class Session:
             df = session.flatten(parse_json(lit('{"a":[1,2]}')), "a", False, False, "BOTH")
 
         Args:
-            input: The name of a column or an :class:`Column` instance that will be unseated into rows.
+            input: The name of a column or a :class:`Column` instance that will be unseated into rows.
                 The column data must be of Snowflake data type VARIANT, OBJECT, or ARRAY.
             path: The path to the element within a VARIANT data structure which needs to be flattened.
                 The outermost element is to be flattened if path is empty or None.
-            outer: If False, any input rows that cannot be expanded, either because they cannot be accessed in the path
+            outer: If ``False``, any input rows that cannot be expanded, either because they cannot be accessed in the path
                 or because they have zero fields or entries, are completely omitted from the output.
                 Otherwise, exactly one row is generated for zero-row expansions
                 (with NULL in the KEY, INDEX, and VALUE columns).
-            recursive: If False, only the element referenced by PATH is expanded.
+            recursive: If ``False``, only the element referenced by PATH is expanded.
                 Otherwise, the expansion is performed for all sub-elements recursively.
             mode: Specifies which types should be flattened "OBJECT", "ARRAY", or "BOTH".
 
@@ -843,12 +843,9 @@ class Session:
             A new :class:`DataFrame` that has the flattened new columns and new rows from the compound data.
 
         See Also:
-            - :meth:`snowflake.snowpark.DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding
-                a VARIANT column of an existing :class:`DataFrame`.
+            - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
         """
 
-        # TODO: Should this method be merged with DataFrame.flatten? Discuss after PrPr Phase 1.
-        #  This implementation is the same as Scala.
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")

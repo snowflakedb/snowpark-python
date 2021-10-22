@@ -750,8 +750,9 @@ def test_flatten(session):
     )
 
     # wrong mode
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as ex_info:
         flatten.flatten(col("value"), "", outer=False, recursive=False, mode="wrong")
+    assert "mode must be one of ('OBJECT', 'ARRAY', 'BOTH')" in str(ex_info)
 
     # contains multiple query
     df = session.sql("show tables").limit(1)

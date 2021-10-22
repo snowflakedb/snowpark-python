@@ -219,7 +219,7 @@ class AnalyzerPackage:
         )
 
     def flatten_expression(
-        self, input_: str, path: str, outer: bool, recursive: bool, mode: str
+        self, input_: str, path: Optional[str], outer: bool, recursive: bool, mode: str
     ) -> str:
         return (
             self._Flatten

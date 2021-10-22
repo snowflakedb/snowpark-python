@@ -182,7 +182,6 @@ class Analyzer:
 
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))
 
-    # TODO
     def table_function_expression_extractor(self, expr):
         if type(expr) == SPFlattenFunction:
             return self.package.flatten_expression(
