@@ -382,6 +382,14 @@ class Pow(BinaryExpression):
     sql_operator = "POWER"
 
 
+class ArraysOverlap(BinaryExpression):
+    sql_operator = "ARRAYS_OVERLAP"
+
+
+class ArrayIntersect(BinaryExpression):
+    sql_operator = "ARRAY_INTERSECTION"
+
+
 class BitwiseAnd(BinaryExpression):
     sql_operator = "BITAND"
 
