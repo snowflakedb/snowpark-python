@@ -21,10 +21,12 @@ from snowflake.snowpark.functions import (
 @pytest.mark.parametrize(
     "func", [xmlget, typeof, get_ignore_case, object_keys, get_path]
 )
-def test_typeof_negative(func):
+def test_funcs_negative(func):
     signature = inspect.signature(func)
     params = list(signature.parameters.values())
-    for i in range(len(params)):  # Test the i-th parameter for every iteration
+    for i in range(
+        len(params)
+    ):  # Pass an integer (invalid parameter type) as the i-th parameter for every iteration.
         param_values = [1] * len(params)
         for j in range(len(params)):
             if i != j and params[j].annotation == Union[Column, str]:
