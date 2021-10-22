@@ -31,6 +31,8 @@ from snowflake.snowpark.functions import (
     builtin,
     ceil,
     char,
+    check_json,
+    check_xml,
     coalesce,
     col,
     contains,
@@ -57,6 +59,7 @@ from snowflake.snowpark.functions import (
     is_timestamp_ntz,
     is_timestamp_tz,
     is_varchar,
+    json_extract_path_text,
     kurtosis,
     lit,
     log,
@@ -77,6 +80,7 @@ from snowflake.snowpark.functions import (
     stddev,
     stddev_pop,
     stddev_samp,
+    strip_null_value,
     substring,
     sum,
     sum_distinct,
@@ -875,6 +879,93 @@ def test_char(session):
     )
 
 
+def test_check_json(session):
+    Utils.check_answer(
+        TestData.null_json1(session).select(check_json(col("v"))),
+        [Row(None), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.invalid_json1(session).select(check_json(col("v"))),
+        [
+            Row("incomplete object value, pos 11"),
+            Row("missing colon, pos 7"),
+            Row("unfinished string, pos 5"),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.null_json1(session).select(check_json("v")),
+        [Row(None), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.invalid_json1(session).select(check_json("v")),
+        [
+            Row("incomplete object value, pos 11"),
+            Row("missing colon, pos 7"),
+            Row("unfinished string, pos 5"),
+        ],
+        sort=False,
+    )
+
+
+def test_check_xml(session):
+    Utils.check_answer(
+        TestData.null_xml1(session).select(check_xml(col("v"))),
+        [Row(None), Row(None), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.invalid_xml1(session).select(check_xml(col("v"))),
+        [
+            Row("no opening tag for </t>, pos 8"),
+            Row("missing closing tags: </t1></t1>, pos 8"),
+            Row("bad character in XML tag name: '<', pos 4"),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.null_xml1(session).select(check_xml("v")),
+        [Row(None), Row(None), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.invalid_xml1(session).select(check_xml("v")),
+        [
+            Row("no opening tag for </t>, pos 8"),
+            Row("missing closing tags: </t1></t1>, pos 8"),
+            Row("bad character in XML tag name: '<', pos 4"),
+        ],
+        sort=False,
+    )
+
+
+def test_json_extract_path_text(session):
+    Utils.check_answer(
+        TestData.valid_json1(session).select(
+            json_extract_path_text(col("v"), col("k"))
+        ),
+        [Row(None), Row("foo"), Row(None), Row(None)],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.valid_json1(session).select(json_extract_path_text("v", "k")),
+        [Row(None), Row("foo"), Row(None), Row(None)],
+        sort=False,
+    )
+
+
 def test_parse_json(session):
     null_json1 = TestData.null_json1(session)
     Utils.check_answer(
@@ -915,6 +1006,22 @@ def test_parse_xml(session):
         ],
         sort=False,
     )
+
+
+def test_strip_null_value(session):
+    Utils.check_answer(
+        TestData.null_json1(session).select(sql_expr("v:a")),
+        [Row("null"), Row('"foo"'), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.null_json1(session).select(strip_null_value(sql_expr("v:a"))),
+        [Row(None), Row('"foo"'), Row(None)],
+        sort=False,
+    )
+
+    # This test needs columns to be passed and can't be replicated by passing strings
 
 
 def test_array_agg(session):
