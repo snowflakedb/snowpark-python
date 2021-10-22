@@ -686,7 +686,7 @@ def to_xml(e: Union[Column, str]) -> Column:
 
 
 def get_ignore_case(obj: Union[Column, str], field: Union[Column, str]) -> Column:
-    """Extracts a field value from an object; returns NULL if either of the arguments is NULL.
+    """Extracts a field value from an object. Returns NULL if either of the arguments is NULL.
     This function is similar to :meth:`get` but applies case-insensitive matching to field names.
     """
     c1 = __to_col_if_str(obj, "get_ignore_case")
