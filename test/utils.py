@@ -263,6 +263,46 @@ class TestData:
         )
 
     @classmethod
+    def array3(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select array_construct(a,b,c) as arr1, d, e, f "
+            "from values(1,2,3,1,2,','),(4,5,6,1,-1,', '),(6,7,8,0,2,';') as T(a,b,c,d,e,f)"
+        )
+
+    @classmethod
+    def object1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select key, to_variant(value) as value from "
+            "values('age', 21),('zip', 94401) as T(key,value)"
+        )
+
+    @classmethod
+    def object2(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select object_construct(a,b,c,d,e,f) as obj, k, v, flag from "
+            "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0, true),"
+            "('age', 26, 'zip', 94021, 'name', 'Jay', 'key', 0, false) as T(a,b,c,d,e,f,k,v,flag)"
+        )
+
+    @classmethod
+    def object3(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select key, to_variant(value) as value from "
+            "values(null, 21),('zip', null) as T(key,value)"
+        )
+
+    @classmethod
+    def null_array1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select array_construct(a,b,c) as arr1, array_construct(d,e,f) as arr2 "
+            "from values(1,null,3,3,null,5),(6,null,8,9,null,1) as T(a,b,c,d,e,f)"
+        )
+
+    @classmethod
+    def zero1(cls, session: "Session") -> DataFrame:
+        return session.sql("select * from values(0) as T(a)")
+
+    @classmethod
     def variant1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select to_variant(to_array('Example')) as arr1,"
