@@ -27,7 +27,7 @@ The following examples demonstrate the use of some of these functions::
     df.select(callBuiltin("radians", col("e")))
 
     # Call a user-defined function (UDF) by name.
-    df.select(callUDF("some_func", col("c")))
+    df.select(call_udf("some_func", col("c")))
 
     # Evaluate an SQL expression
     df.select(sqlExpr("c + 1"))
