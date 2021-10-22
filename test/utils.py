@@ -370,6 +370,14 @@ class TestData:
         )
 
     @classmethod
+    def valid_xml1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select parse_xml(a) as v, b as t2, c as t3, d as instance from values"
+            + "('<t1>foo<t2>bar</t2><t3></t3></t1>','t2','t3',0),('<t1></t1>','t2','t3',0),"
+            + "('<t1><t2>foo</t2><t2>bar</t2></t1>','t2','t3',1) as T(a,b,c,d)"
+        )
+
+    @classmethod
     def invalid_xml1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select (column1) as v from values ('<t1></t>'), ('<t1><t1>'), ('<t1</t1>')"
