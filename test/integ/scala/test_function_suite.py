@@ -7,6 +7,8 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from test.utils import TestData, Utils
 
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     abs,
@@ -54,6 +56,8 @@ from snowflake.snowpark.functions import (
     equal_nan,
     exp,
     floor,
+    get_ignore_case,
+    get_path,
     is_array,
     is_binary,
     is_boolean,
@@ -81,6 +85,7 @@ from snowflake.snowpark.functions import (
     min,
     negate,
     not_,
+    object_keys,
     object_agg,
     object_construct,
     object_construct_keep_null,
@@ -111,9 +116,11 @@ from snowflake.snowpark.functions import (
     to_variant,
     to_xml,
     translate,
+    typeof,
     var_pop,
     var_samp,
     variance,
+    xmlget,
 )
 
 
@@ -2178,5 +2185,80 @@ def test_to_xml(session):
             Row('<SnowflakeData type="INTEGER">2</SnowflakeData>'),
             Row('<SnowflakeData type="INTEGER">3</SnowflakeData>'),
         ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("a", ["a", col("a")])
+def test_typeof(session, a):
+    Utils.check_answer(
+        TestData.integer1(session).select(typeof(a)),
+        [Row("INTEGER")] * 3,
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("obj, k", [("obj", "k"), (col("obj"), col("k"))])
+def test_get_ignore_case(session, obj, k):
+    Utils.check_answer(
+        TestData.object2(session).select(get_ignore_case(obj, k)),
+        [Row("21"), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.object2(session).select(get_ignore_case(obj, lit("AGE"))),
+        [Row("21"), Row("26")],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("column", ["obj", col("obj")])
+def test_object_keys(session, column):
+    Utils.check_answer(
+        TestData.object2(session).select(object_keys(column)),
+        [
+            Row('[\n  "age",\n  "name",\n  "zip"\n]'),
+            Row('[\n  "age",\n  "name",\n  "zip"\n]'),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "v, t2, t3, instance",
+    [("v", "t2", "t3", "instance"), (col("v"), col("t2"), col("t3"), col("instance"))],
+)
+def test_xmlget(session, v, t2, t3, instance):
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(get_ignore_case(xmlget(v, t2), lit("$"))),
+        [Row('"bar"'), Row(None), Row('"foo"')],
+        sort=False,
+    )
+
+    # Scala assert getVariant() here. snowpark-python doesn't have class Variant so skip it.
+
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(
+            get_ignore_case(xmlget(v, t3, lit("0")), lit("@"))
+        ),
+        [Row('"t3"'), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(
+            get_ignore_case(xmlget(col("v"), t2, instance), lit("$"))
+        ),
+        [Row('"bar"'), Row(None), Row('"bar"')],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("v, k", [("v", "k"), (col("v"), col("k"))])
+def test_get_path(session, v, k):
+    Utils.check_answer(
+        TestData.valid_json1(session).select(get_path(v, k)),
+        [Row("null"), Row('"foo"'), Row(None), Row(None)],
         sort=False,
     )
