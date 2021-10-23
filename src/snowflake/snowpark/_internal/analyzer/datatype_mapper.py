@@ -189,7 +189,11 @@ class DataTypeMapper:
             if isinstance(data_type, _GeographyType):
                 return "TRY_TO_GEOGRAPHY(NULL)"
             if isinstance(data_type, ArrayType):
-                return "PARSE_JSON('NULL')::ARRAY"
+                return "PARSE_JSON('NULL') :: ARRAY"
+            if isinstance(data_type, MapType):
+                return "PARSE_JSON('NULL') :: OBJECT"
+            if isinstance(data_type, VariantType):
+                return "PARSE_JSON('NULL') :: VARIANT"
             return "NULL :: " + convert_to_sf_type(data_type)
 
         if isinstance(data_type, _NumericType):
