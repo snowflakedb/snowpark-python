@@ -1475,7 +1475,31 @@ def test_with_columns_keep_order(session):
     )
 
 
+def test_with_columns_input_doesnt_match_each_other(session):
+    df = session.createDataFrame([Row(1, 2, 3)]).toDF(["a", "b", "c"])
+    with pytest.raises(ValueError) as ex_info:
+        df.withColumns(["e", "f"], [lit(1)])
+    assert (
+        "The size of column names (2) is not equal to the size of columns (1)"
+        in str(ex_info)
+    )
+
+
 def test_with_columns_replace_existing(session):
     df = session.createDataFrame([Row(1, 2, 3)]).toDF(["a", "b", "c"])
-    replaced = df.withColumns(["d", "b", "d"], [lit(4), lit(5), lit(6)])
+    replaced = df.withColumns(["b", "d"], [lit(5), lit(6)])
     Utils.check_answer(replaced, [Row(A=1, C=3, B=5, D=6)])
+
+    with pytest.raises(ValueError) as ex_info:
+        df.withColumns(["d", "b", "d"], [lit(4), lit(5), lit(6)])
+    assert (
+        "The same column name is used multiple times in the col_names parameter."
+        in str(ex_info)
+    )
+
+    with pytest.raises(ValueError) as ex_info:
+        df.withColumns(["d", "b", "D"], [lit(4), lit(5), lit(6)])
+    assert (
+        "The same column name is used multiple times in the col_names parameter."
+        in str(ex_info)
+    )
