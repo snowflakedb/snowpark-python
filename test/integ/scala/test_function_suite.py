@@ -2311,12 +2311,6 @@ def test_get(session):
         sort=False,
     )
 
-    Utils.check_answer(
-        [Row("2"), Row("7")],
-        TestData.array1(session).select(get(col("arr1"), 1)),
-        sort=False,
-    )
-
     # Same as above, but pass str instead of Column
     Utils.check_answer(
         [Row("21"), Row(None)],
@@ -2327,11 +2321,5 @@ def test_get(session):
     Utils.check_answer(
         [Row(None), Row(None)],
         TestData.object2(session).select(get("obj", lit("AGE"))),
-        sort=False,
-    )
-
-    Utils.check_answer(
-        [Row("2"), Row("7")],
-        TestData.array1(session).select(get("arr1", 1)),
         sort=False,
     )
