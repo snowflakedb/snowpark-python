@@ -16,11 +16,15 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import cloudpickle
 
 from snowflake.connector import SnowflakeConnection
+from snowflake.snowpark import Column, DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
     SnowflakeValues,
+)
+from snowflake.snowpark._internal.analyzer.table_function import (
+    TableFunctionRelation as SPTableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -29,6 +33,7 @@ from snowflake.snowpark._internal.plans.logical.logical_plan import UnresolvedRe
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
+    FlattenFunction as SPFlattenFunction,
 )
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     StringType as SPStringType,
@@ -39,9 +44,9 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     snow_type_to_sp_type,
 )
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder, Utils
-from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.functions import (
+    col,
     column,
     parse_json,
     to_array,
@@ -786,6 +791,63 @@ class Session:
         if not self.__udf_registration:
             self.__udf_registration = UDFRegistration(self)
         return self.__udf_registration
+
+    def flatten(
+        self,
+        input: Union[str, Column],
+        path: Optional[str] = None,
+        outer: bool = False,
+        recursive: bool = False,
+        mode: str = "BOTH",
+    ) -> DataFrame:
+        """Creates a new :class:`DataFrame` by flattening compound values into multiple rows.
+
+        The new :class:`DataFrame` will consist of the following columns:
+
+            - SEQ
+            - KEY
+            - PATH
+            - INDEX
+            - VALUE
+            - THIS
+
+        Reference: `Snowflake SQL function FLATTEN <https://docs.snowflake.com/en/sql-reference/functions/flatten.html>`_.
+
+        Example::
+
+            df = session.flatten(parse_json(lit('{"a":[1,2]}')), "a", False, False, "BOTH")
+
+        Args:
+            input: The name of a column or a :class:`Column` instance that will be unseated into rows.
+                The column data must be of Snowflake data type VARIANT, OBJECT, or ARRAY.
+            path: The path to the element within a VARIANT data structure which needs to be flattened.
+                The outermost element is to be flattened if path is empty or None.
+            outer: If ``False``, any input rows that cannot be expanded, either because they cannot be accessed in the ``path``
+                or because they have zero fields or entries, are completely omitted from the output.
+                Otherwise, exactly one row is generated for zero-row expansions
+                (with NULL in the KEY, INDEX, and VALUE columns).
+            recursive: If ``False``, only the element referenced by ``path`` is expanded.
+                Otherwise, the expansion is performed for all sub-elements recursively.
+            mode: Specifies which types should be flattened "OBJECT", "ARRAY", or "BOTH".
+
+        Returns:
+            A new :class:`DataFrame` that has the flattened new columns and new rows from the compound data.
+
+        See Also:
+            - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
+        """
+
+        mode = mode.upper()
+        if mode not in ("OBJECT", "ARRAY", "BOTH"):
+            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+        if isinstance(input, str):
+            input = col(input)
+        return DataFrame(
+            self,
+            SPTableFunctionRelation(
+                SPFlattenFunction(input.expression, path, outer, recursive, mode)
+            ),
+        )
 
     @staticmethod
     def _get_active_session() -> Optional["Session"]:

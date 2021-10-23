@@ -16,7 +16,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkPlanException,
 )
-from snowflake.snowpark.functions import col, lit, max, mean, min, sum
+from snowflake.snowpark.functions import col, lit, max, mean, min, parse_json, sum
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -720,6 +720,126 @@ def test_groupby(session):
 
     res = df.groupBy([col("country"), col("state")]).agg(sum(col("value"))).collect()
     assert sorted(res, key=lambda x: x[2]) == expected_res
+
+
+def test_flatten(session):
+    table = session.sql("select parse_json(a) as a from values('[1,2]') as T(a)")
+    Utils.check_answer(table.flatten(table["a"]).select("value"), [Row("1"), Row("2")])
+
+    # conflict column names
+    table1 = session.sql(
+        "select parse_json(value) as value from values('[1,2]') as T(value)"
+    )
+    flatten = table1.flatten(
+        table1["value"], "", outer=False, recursive=False, mode="both"
+    )
+    Utils.check_answer(
+        flatten.select(table1["value"], flatten["value"]),
+        [Row("[\n  1,\n  2\n]", "1"), Row("[\n  1,\n  2\n]", "2")],
+        sort=False,
+    )
+
+    # multiple flatten
+    flatten1 = flatten.flatten(
+        table1["value"], "[0]", outer=True, recursive=True, mode="array"
+    )
+    Utils.check_answer(
+        flatten1.select(table1["value"], flatten["value"], flatten1["value"]),
+        [Row("[\n  1,\n  2\n]", "1", "1"), Row("[\n  1,\n  2\n]", "2", "1")],
+        sort=False,
+    )
+
+    # wrong mode
+    with pytest.raises(ValueError) as ex_info:
+        flatten.flatten(col("value"), "", outer=False, recursive=False, mode="wrong")
+    assert "mode must be one of ('OBJECT', 'ARRAY', 'BOTH')" in str(ex_info)
+
+    # contains multiple query
+    df = session.sql("show schemas").limit(1)
+    # scala uses `show tables`. But there is no table in python test. `show schemas` guarantees result is not empty.
+    df1 = df.withColumn("value", lit("[1,2]")).select(
+        parse_json(col("value")).as_("value")
+    )
+    flatten2 = df1.flatten(df1["value"])
+    Utils.check_answer(
+        flatten2.select(flatten2["value"]), [Row("1"), Row("2")], sort=False
+    )
+
+    # flatten with object traversing
+    table2 = session.sql("select * from values('{\"a\":[1,2]}') as T(a)").select(
+        parse_json(col("a")).as_("a")
+    )
+
+    flatten3 = table2.flatten(table2["a"]["a"])
+    Utils.check_answer(
+        flatten3.select(flatten3["value"]), [Row("1"), Row("2")], sort=False
+    )
+
+    # join
+    df2 = table.flatten(table["a"]).select(col("a"), col("value"))
+    df3 = table2.flatten(table2["a"]["a"]).select(col("a"), col("value"))
+
+    Utils.check_answer(
+        df2.join(df3, df2["value"] == df3["value"]).select(df3["value"]),
+        [Row("1"), Row("2")],
+        sort=False,
+    )
+
+    # union
+    Utils.check_answer(
+        df2.union(df3).select(col("value")),
+        [Row("1"), Row("2"), Row("1"), Row("2")],
+        sort=False,
+    )
+
+
+def test_flatten_in_session(session):
+    Utils.check_answer(
+        session.flatten(parse_json(lit("""["a","'"]"""))).select(col("value")),
+        [Row('"a"'), Row('"\'"')],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        session.flatten(
+            parse_json(lit("""{"a":[1,2]}""")),
+            "a",
+            outer=True,
+            recursive=True,
+            mode="ARRAY",
+        ).select("value"),
+        [Row("1"), Row("2")],
+    )
+
+    with pytest.raises(ValueError):
+        session.flatten(
+            parse_json(lit("[1]")), "", outer=False, recursive=False, mode="wrong"
+        )
+
+    df1 = session.flatten(parse_json(lit("[1,2]")))
+    df2 = session.flatten(
+        parse_json(lit("""{"a":[1,2]}""")),
+        "a",
+        outer=False,
+        recursive=False,
+        mode="BOTH",
+    )
+
+    # union
+    Utils.check_answer(
+        df1.union(df2).select("path"),
+        [Row("[0]"), Row("[1]"), Row("a[0]"), Row("a[1]")],
+        sort=False,
+    )
+
+    # join
+    Utils.check_answer(
+        df1.join(df2, df1["value"] == df2["value"]).select(
+            df1["path"].as_("path1"), df2["path"].as_("path2")
+        ),
+        [Row("[0]", "a[0]"), Row("[1]", "a[1]")],
+        sort=False,
+    )
 
 
 def test_createDataFrame_with_given_schema(session):
