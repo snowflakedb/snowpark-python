@@ -902,13 +902,13 @@ class DataFrame:
         """
         return self.withColumns([col_name], [col])
 
-    def withColumns(self, col_names: List[str], cols: List[Column]) -> "DataFrame":
+    def withColumns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
-        ``cols``.
+        ``values``.
 
         If columns with the same names already exist in the DataFrame, those columns
-        are replaced by the new columns.
+        are removed and appended at the end by new columns.
 
         This example adds new columns named ``mean_price`` and ``avg_price`` that
         contain the mean and average of the existing ``price`` column::
@@ -919,43 +919,34 @@ class DataFrame:
 
         Args:
             col_names: A list of the names of the columns to add or replace.
-            cols: A list of the :class:`Column` objects to
+            values: A list of the :class:`Column` objects to
                     add or replace.
         """
-        if len(col_names) != len(cols):
+        if len(col_names) != len(values):
             raise ValueError(
-                f"The size of column names: {len(col_names)} is not equal to the size of columns: {len(cols)}"
+                f"The size of column names ({len(col_names)}) is not equal to the size of columns ({len(values)})"
             )
 
-        column_map = {AnalyzerPackage.quote_name(n): c for n, c in zip(col_names, cols)}
-        # Get a list of the columns that we are replacing or that already exist in the current
-        # dataframe plan with the new and updated column names.
-        replaced_and_existing_columns = []
-        output_names = []
-        for field in self.__output():
-            output_names.append(field.name)
-            if field.name in column_map:
-                # Replacing column
-                col_name = field.name
-                col = column_map[field.name]
-                column_to_append = (
-                    col.as_(col_name)
-                    if (type(col) == Column and type(col_name) == str)
-                    else Column(field)
-                )
-                replaced_and_existing_columns.append(column_to_append)
-            else:
-                # Keeping existing column
-                replaced_and_existing_columns.append(Column(field))
+        # Get a list of the new columns and their dedupped values
+        qualified_names = [AnalyzerPackage.quote_name(n) for n in col_names]
+        new_column_names = set(qualified_names)
 
-        # Adding in new columns that aren't part of this dataframe
-        new_columns = [
-            col.as_(col_name)
-            for col_name, col in column_map.items()
-            if col_name not in output_names
+        if len(col_names) != len(new_column_names):
+            raise ValueError(
+                "The same column name is used multiple times in the col_names parameter."
+            )
+
+        new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
+
+        # Get a list of existing column names that are not being replaced
+        old_cols = [
+            Column(field)
+            for field in self.__output()
+            if field.name not in new_column_names
         ]
 
-        return self.select([*replaced_and_existing_columns, *new_columns])
+        # Put it all together
+        return self.select([*old_cols, *new_cols])
 
     def count(self) -> int:
         """Executes the query representing this DataFrame and returns the number of

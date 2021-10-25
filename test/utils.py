@@ -125,9 +125,11 @@ class Utils:
             sort_key = functools.cmp_to_key(compare_rows)
             assert sorted(expected_rows, key=sort_key) == sorted(
                 actual_rows, key=sort_key
-            )
+            ), f"expected: '{sorted(expected_rows, key=sort_key)}', actual: '{sorted(actual_rows, key=sort_key)}'"
         else:
-            assert expected_rows == actual_rows
+            assert (
+                expected_rows == actual_rows
+            ), f"expected: '{expected_rows}', actual: '{actual_rows}'"
 
 
 class TestData:
@@ -384,6 +386,12 @@ class TestData:
         )
 
     @classmethod
+    def date1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values('2020-08-01'::Date, 1),('2010-12-01'::Date, 2) as T(a,b)"
+        )
+
+    @classmethod
     def decimal_data(cls, session: "Session") -> DataFrame:
         return session.createDataFrame(
             [
@@ -400,6 +408,13 @@ class TestData:
     def number2(cls, session):
         return session.createDataFrame(
             [cls.Number2(1, 2, 3), cls.Number2(0, -1, 4), cls.Number2(-5, 0, -9)]
+        )
+
+    @classmethod
+    def timestamp1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values('2020-05-01 13:11:20.000' :: timestamp),"
+            "('2020-08-21 01:30:05.000' :: timestamp) as T(a)"
         )
 
     @classmethod
