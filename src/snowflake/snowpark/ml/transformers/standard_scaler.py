@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 from snowflake.snowpark import Column
-from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.functions import builtin
 
 
 class StandardScaler:
@@ -17,8 +17,4 @@ class StandardScaler:
         pass
 
     def transform(self, c: Column) -> Column:
-        name = c.getName()
-        df = self.session.sql(
-            f"select ((select {name} from table) - mean) / stddev from {self.__TEMP_TABLE}"
-        )
-        return df.col(name)
+        return builtin("hayu.standardscaler.transform")(c)
