@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 from snowflake.snowpark import Column
+from snowflake.snowpark.functions import builtin
 
 
 class StringIndexer:
@@ -16,10 +17,4 @@ class StringIndexer:
         pass
 
     def transform(self, c: Column) -> Column:
-        # input = self.session.createDataFrame([c])
-        # temp = self.session.table(self.__TEMP_TABLE)
-        name = c.getName()
-        df = self.session.sql(
-            f"select index from table left join {self.__TEMP_TABLE} on {name}={self.__TEMP_TABLE}.distinct_values"
-        )
-        return df.col("index")
+        return builtin("hayu.stringindexer.transform")(c)
