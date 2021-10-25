@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 from snowflake.snowpark import Column
-from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.functions import builtin
 
 
 class Imputer:
@@ -17,5 +17,4 @@ class Imputer:
         pass
 
     def transform(self, c: Column) -> Column:
-        mean = sql_expr(f"select mean from {self.__TEMP_TABLE}")
-        mode = sql_expr(f"select mode from {self.__TEMP_TABLE}")
+        return builtin("hayu.imputer.transform")(c)
