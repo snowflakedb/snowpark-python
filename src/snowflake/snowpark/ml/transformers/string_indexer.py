@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.snowpark.functions import col
+from snowflake.snowpark import Column
 
 
 class StringIndexer:
@@ -15,9 +15,11 @@ class StringIndexer:
     def fit(self) -> None:
         pass
 
-    def transform(self, value) -> int:
-        return (
-            self.session.table(self.__TEMP_TABLE)
-            .select("id")
-            .where(col("distinct_values") == value)
+    def transform(self, c: Column) -> Column:
+        # input = self.session.createDataFrame([c])
+        # temp = self.session.table(self.__TEMP_TABLE)
+        name = c.getName()
+        df = self.session.sql(
+            f"select {name}, index from table left join {self.__TEMP_TABLE} on {name}={self.__TEMP_TABLE}.distinct_values"
         )
+        return df.col(name)
