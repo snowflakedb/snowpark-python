@@ -20,6 +20,6 @@ class StringIndexer:
         # temp = self.session.table(self.__TEMP_TABLE)
         name = c.getName()
         df = self.session.sql(
-            f"select {name}, index from table left join {self.__TEMP_TABLE} on {name}={self.__TEMP_TABLE}.distinct_values"
+            f"select index from table left join {self.__TEMP_TABLE} on {name}={self.__TEMP_TABLE}.distinct_values"
         )
-        return df.col(name)
+        return df.col("index")
