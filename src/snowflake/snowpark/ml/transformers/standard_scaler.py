@@ -17,6 +17,8 @@ class StandardScaler:
         pass
 
     def transform(self, c: Column) -> Column:
-        mean = sql_expr(f"select mean from {self.__TEMP_TABLE}")
-        stddev = sql_expr(f"select stddev from {self.__TEMP_TABLE}")
-        return (c - mean) / stddev
+        name = c.getName()
+        df = self.session.sql(
+            f"select ((select {name} from table) - mean) / stddev from {self.__TEMP_TABLE}"
+        )
+        return df.col(name)
