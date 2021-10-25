@@ -51,8 +51,11 @@ from snowflake.snowpark.functions import (
     col,
     contains,
     count_distinct,
+    dateadd,
+    datediff,
     exp,
     floor,
+    get,
     is_array,
     is_binary,
     is_char,
@@ -920,3 +923,23 @@ def test_object_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(object_pick([1], "key", "key1")).collect()
     assert "'OBJECT_PICK' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_date_operations_negative(session):
+    df = session.sql("select 1").toDF("a")
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(datediff("year", [1], "col")).collect()
+    assert "'DATEDIFF' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(dateadd("year", [1], "col")).collect()
+    assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_get_negative(session):
+    df = session.sql("select 1").toDF("a")
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(get([1], 1)).collect()
+    assert "'GET' expected Column or str, got: <class 'list'>" in str(ex_info)

@@ -53,11 +53,14 @@ from snowflake.snowpark.functions import (
     contains,
     count,
     count_distinct,
+    dateadd,
+    datediff,
     equal_nan,
     exp,
     floor,
     get_ignore_case,
     get_path,
+    get,
     is_array,
     is_binary,
     is_boolean,
@@ -446,6 +449,38 @@ def test_translate(session):
     Utils.check_answer(
         TestData.string3(session).select(translate("A", lit("ab "), lit("XY"))),
         [Row("XYcYX"), Row("X12321X")],
+        sort=False,
+    )
+
+
+def test_datediff(session):
+    Utils.check_answer(
+        [Row(1), Row(1)],
+        TestData.timestamp1(session)
+        .select(col("a"), dateadd("year", lit(1), col("a")).as_("b"))
+        .select(datediff("year", col("a"), col("b"))),
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        [Row(1), Row(1)],
+        TestData.timestamp1(session)
+        .select("a", dateadd("year", lit(1), "a").as_("b"))
+        .select(datediff("year", "a", "b")),
+    )
+
+
+def test_dateadd(session):
+    Utils.check_answer(
+        [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))],
+        TestData.date1(session).select(dateadd("year", lit(1), col("a"))),
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))],
+        TestData.date1(session).select(dateadd("year", lit(1), "a")),
         sort=False,
     )
 
@@ -2260,5 +2295,31 @@ def test_get_path(session, v, k):
     Utils.check_answer(
         TestData.valid_json1(session).select(get_path(v, k)),
         [Row("null"), Row('"foo"'), Row(None), Row(None)],
+        sort=False,
+    )
+
+
+def test_get(session):
+    Utils.check_answer(
+        [Row("21"), Row(None)],
+        TestData.object2(session).select(get(col("obj"), col("k"))),
+        sort=False,
+    )
+    Utils.check_answer(
+        [Row(None), Row(None)],
+        TestData.object2(session).select(get(col("obj"), lit("AGE"))),
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        [Row("21"), Row(None)],
+        TestData.object2(session).select(get("obj", "k")),
+        sort=False,
+    )
+
+    Utils.check_answer(
+        [Row(None), Row(None)],
+        TestData.object2(session).select(get("obj", lit("AGE"))),
         sort=False,
     )

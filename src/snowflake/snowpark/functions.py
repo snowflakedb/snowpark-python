@@ -428,6 +428,50 @@ def array_intersection(
     return __with_expr(SPArrayIntersect(a1.expression, a2.expression))
 
 
+def datediff(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Column:
+    """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested.
+
+    `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
+
+    Example::
+
+        # year difference between two date columns
+        date.select(datediff("year", col("date_col1"), col("date_col2")))
+
+    Args:
+        part: The time part to use for calculating the difference
+        col1: The first timestamp column or minuend in the datediff
+        col2: The second timestamp column or the subtrahend in the datediff
+    """
+    if type(part) != str:
+        raise ValueError("part must be a string")
+    c1 = __to_col_if_str(col1, "datediff")
+    c2 = __to_col_if_str(col2, "datediff")
+    return builtin("datediff")(part, c1, c2)
+
+
+def dateadd(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Column:
+    """Adds the specified value for the specified date or time art to date or time expr.
+
+    `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
+
+    Example::
+
+        # add one year on dates
+        date.select(dateadd("year", lit(1), col("date_col")))
+
+    Args:
+        part: The time part to use for the addition
+        col1: The first timestamp column or addend in the dateadd
+        col2: The second timestamp column or the addend in the dateadd
+    """
+    if type(part) != str:
+        raise ValueError("part must be a string")
+    c1 = __to_col_if_str(col1, "dateadd")
+    c2 = __to_col_if_str(col2, "dateadd")
+    return builtin("dateadd")(part, c1, c2)
+
+
 def is_array(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains an ARRAY value."""
     c = __to_col_if_str(col, "is_array")
@@ -1003,6 +1047,13 @@ def get_path(col: Union[Column, str], path: Union[Column, str]) -> Column:
     return builtin("get_path")(c1, c2)
 
 
+def get(col1: Union[Column, str], col2: Union[Column, str]) -> Column:
+    """Extracts a value from an object or array; returns NULL if either of the arguments is NULL."""
+    c1 = __to_col_if_str(col1, "get")
+    c2 = __to_col_if_str(col2, "get")
+    return builtin("get")(c1, c2)
+
+
 def when(condition: Column, value: Column) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
@@ -1186,13 +1237,26 @@ def builtin(function_name: str) -> Callable:
     return lambda *args: call_builtin(function_name, *args)
 
 
-def __to_col_if_str(e: Union[Column, str], func_name: str):
+def __to_col_if_str(e: Union[Column, str], func_name: str) -> Column:
     if isinstance(e, Column):
         return e
     elif isinstance(e, str):
         return col(e)
     else:
         raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
+
+
+def __to_col_if_str_or_int(e: Union[Column, str, int], func_name: str) -> Column:
+    if isinstance(e, Column):
+        return e
+    elif isinstance(e, str):
+        return col(e)
+    elif isinstance(e, int):
+        return lit(e)
+    else:
+        raise TypeError(
+            f"'{func_name.upper()}' expected Column, str, or int, got: {type(e)}"
+        )
 
 
 def __with_expr(expr: SPExpression) -> Column:
