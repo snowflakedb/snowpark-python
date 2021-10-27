@@ -32,8 +32,6 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
-pytestmark = pytest.mark.udf
-
 tmp_stage_name = Utils.random_stage_name()
 tmp_table_name = Utils.random_name()
 table1 = Utils.random_name()

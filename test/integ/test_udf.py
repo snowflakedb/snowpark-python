@@ -38,8 +38,6 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
-pytestmark = pytest.mark.udf
-
 tmp_stage_name = Utils.random_stage_name()
 
 

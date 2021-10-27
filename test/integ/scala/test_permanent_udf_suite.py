@@ -14,8 +14,6 @@ from snowflake.snowpark import Row, Session
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.functions import call_udf
 
-pytestmark = pytest.mark.udf
-
 
 @pytest.fixture(scope="module")
 def new_session(session, db_parameters) -> Session:
