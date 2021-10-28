@@ -17,10 +17,10 @@ def test_transform(session):
     )
     indexer = StringIndexer()
     output_df = df.select(indexer.transform(df.col("value"))).collect()
-    # expected_df = session.createDataFrame([Row(17555), Row(41209)]).toDF("output")
     expected_df = (
-        session.createDataFrame([Row(-1), Row(41209)]).toDF(["expected"]).collect()
+        session.createDataFrame([Row(17555), Row(41209)]).toDF("output").collect()
     )
+    # expected_df = session.createDataFrame([Row(-1), Row(41209)]).toDF(["expected"]).collect()
 
     logger.info(f"INPUT: {df}")
     logger.info(f"OUTPUT: {output_df}")
