@@ -320,7 +320,7 @@ class ServerConnection:
         compress_str = f"AUTO_COMPRESS = {str(compress_data).upper()}"
         source_compression_str = f"SOURCE_COMPRESSION = {source_compression.upper()}"
         overwrite_str = f"OVERWRITE = {str(overwrite).upper()}"
-        final_statement = f"PUT '{local_path}' {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
+        final_statement = f"PUT {local_path} {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
         return final_statement
 
     @_Decorator.wrap_exception
