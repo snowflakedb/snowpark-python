@@ -3,16 +3,27 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+from snowflake.snowpark import Row
 from snowflake.snowpark.ml.transformers.standard_scaler import StandardScaler
 
 
 def test_transform(session):
-    mean = 3
-    stddev = 0.32
-    temp_df = session.createDataFrame([[mean, stddev]]).toDF("mean", "stddev")
-    test_df = session.createDataFrame([2.0, 3.0, 5.0]).toDF("value")
-    test_col = test_df.col("value")
-    standard_score = (test_col - temp_df.col("mean")) / temp_df.col("stddev")
+    mean = 5.492480
+    stddev = 2.884792887
 
+    df = session.createDataFrame([2.0, 5.0]).toDF("value")
+    expected_df = (
+        session.createDataFrame(
+            [
+                Row((2.0 - mean) / stddev),
+                Row((5.0 - mean) / stddev),
+            ]
+        )
+        .toDF(["expected"])
+        .collect()
+    )
     scaler = StandardScaler()
-    assert scaler.transform(test_col) == standard_score
+    actual_df = df.select(scaler.transform(df.col("value"))).collect()
+
+    for value1, value2 in zip(expected_df, actual_df):
+        assert "{:.5f}".format(value1[0]) == "{:.5f}".format(value2[0])
