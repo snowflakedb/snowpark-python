@@ -222,8 +222,8 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
-        session.addImport(temp_file_path1)
-        new_session.addImport(temp_file_path2)
+        session.addImport(temp_file_path1.strpath)
+        new_session.addImport(temp_file_path2.strpath)
         df1 = session.createDataFrame([filename]).toDF("a")
         df2 = new_session.createDataFrame([filename]).toDF("a")
         session.udf.register(
@@ -239,8 +239,6 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
         Utils.drop_stage(session, stage_name)
         session.clearImports()
         new_session.clearImports()
-        temp_dir1.cleanup()
-        temp_dir2.cleanup()
 
 
 def test_udf_read_file_with_staged_file(session, resources_path):
