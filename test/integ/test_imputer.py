@@ -12,7 +12,7 @@ def test_transform_numerical(session):
     mean = float(session.table(TABLENAME).collect()[0][0])
 
     df = session.createDataFrame([1.0, None]).toDF("value")
-    expected_df = session.createDataFrame([1.0, mean]).toDF(["expected"]).collect()
+    expected_df = session.createDataFrame([1.0, mean]).toDF("expected").collect()
     imputer = Imputer()
     actual_df = df.select(imputer.transform(df.col("value"))).collect()
 
@@ -23,7 +23,7 @@ def test_transform_categorical(session):
     mode = session.table(TABLENAME).collect()[0][1]
 
     df = session.createDataFrame(["a", None]).toDF("value")
-    expected_df = session.createDataFrame(["a", mode]).toDF(["expected"]).collect()
+    expected_df = session.createDataFrame(["a", mode]).toDF("expected").collect()
     imputer = Imputer()
     actual_df = df.select(imputer.transform(df.col("value"))).collect()
 
