@@ -22,7 +22,7 @@ def test_transform(session):
                 Row((5.0 - mean) / stddev),
             ]
         )
-        .toDF(["expected"])
+        .toDF("expected")
         .collect()
     )
     scaler = StandardScaler()
