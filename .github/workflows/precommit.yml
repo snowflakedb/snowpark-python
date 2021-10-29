@@ -80,7 +80,7 @@ jobs:
           - image_name: windows-latest
             download_name: windows
         python-version: [3.8]
-        cloud-provider: [aws, azure]
+        cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
