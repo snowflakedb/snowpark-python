@@ -11,9 +11,7 @@ TABLENAME = "hayu.stringindexer.table_temp"
 
 
 def test_transform(session):
-    df = session.createDataFrame([["Northwest Territories"], ["Alberta"]]).toDF(
-        ["value"]
-    )
+    df = session.createDataFrame(["Northwest Territories", "Alberta"]).toDF("value")
     indexer = StringIndexer()
     expected_df = session.createDataFrame([Row(2), Row(11)]).toDF("expected").collect()
     actual_df = df.select(indexer.transform(df.col("value"))).collect()
