@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+from test.utils import Utils
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.ml.transformers.string_indexer import StringIndexer
@@ -29,5 +30,5 @@ def test_transform(session):
     assert output_df == expected_df
 
     # Utils.check_answer(
-    #     output_df, [Row(-1), Row(41209)]
+    #     [Row(17555), Row(41209)], output_df
     # )
