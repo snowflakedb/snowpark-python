@@ -50,6 +50,7 @@ repos:
             (?x)^(
                 src/snowflake/snowpark/.*\.py|
                 test/.*\.py|
+                perf/.*\.py|
             )$
         exclude: >
             (?x)^(
