@@ -11,7 +11,6 @@ from snowflake.snowpark import Column
 from snowflake.snowpark._internal.sp_expressions import (
     NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
     TableFunction as SPTableFunction,
-    UnresolvedAttribute as SPUnresolvedAttribute,
 )
 from snowflake.snowpark.functions import (
     _create_table_function_expression,

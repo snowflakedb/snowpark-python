@@ -34,7 +34,7 @@ The following examples demonstrate the use of some of these functions::
 """
 import functools
 from random import randint
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
