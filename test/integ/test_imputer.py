@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+
 from snowflake.snowpark.ml.transformers.Imputer import Imputer
 
 TABLENAME = "hayu.imputer.table_temp"
@@ -16,7 +17,8 @@ def test_transform_numerical(session):
     imputer = Imputer()
     actual_df = df.select(imputer.transform(df.col("value"))).collect()
 
-    assert expected_df == actual_df
+    for value1, value2 in zip(expected_df, actual_df):
+        assert "{:.6f}".format(value1[0]) == "{:.6f}".format(value2[0])
 
 
 def test_transform_categorical(session):
