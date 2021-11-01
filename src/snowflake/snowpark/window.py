@@ -46,7 +46,7 @@ class Window:
     #: Returns a value representing unbounded following.
     unboundedFollowing: int = sys.maxsize
 
-    # Returns a value representing current row.
+    #: Returns a value representing current row.
     currentRow: int = 0
 
     @staticmethod
