@@ -10,6 +10,20 @@ from snowflake.snowpark.ml.transformers.standard_scaler import StandardScaler
 TABLENAME = "hayu.standardscaler.table_temp"
 
 
+def test_fit(session):
+    df = session.createDataFrame([-1.0, 2.0, 3.5, 4.0]).toDF("value")
+    expected_mean = 2.125
+    expected_stddev = 1.948557158515
+
+    scaler = StandardScaler(session=session, input_col="value")
+    scaler.fit(df)
+    actual_mean = float(session.table(TABLENAME).collect()[0][0])
+    actual_stddev = float(session.table(TABLENAME).collect()[0][1])
+
+    assert "{:.6f}".format(expected_mean) == "{:.6f}".format(actual_mean)
+    assert "{:.6f}".format(expected_stddev) == "{:.6f}".format(actual_stddev)
+
+
 def test_transform(session):
     mean = float(session.table(TABLENAME).collect()[0][0])
     stddev = float(session.table(TABLENAME).collect()[0][1])
