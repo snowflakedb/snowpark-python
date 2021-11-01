@@ -192,7 +192,9 @@ def test_udf_read_file_with_snowflake_import_directory_basic(session, resources_
         session.clearImports()
 
 
-def test_udf_read_file_with_snowflake_import_directory_complex(session, new_session):
+def test_udf_read_file_with_snowflake_import_directory_complex(
+    session, tmpdir_factory, new_session
+):
     def read_file(name: str) -> str:
         import sys
 
@@ -204,10 +206,10 @@ def test_udf_read_file_with_snowflake_import_directory_complex(session, new_sess
 
     # Two session to read two files (same file name, but different content) in UDF
     filename = Utils.random_name()
-    temp_dir1 = tempfile.TemporaryDirectory()
-    temp_dir2 = tempfile.TemporaryDirectory()
-    temp_file_path1 = os.path.join(temp_dir1.name, filename)
-    temp_file_path2 = os.path.join(temp_dir2.name, filename)
+    temp_dir1 = tmpdir_factory.mktemp("data")
+    temp_dir2 = tmpdir_factory.mktemp("data")
+    temp_file_path1 = temp_dir1.join(filename)
+    temp_file_path2 = temp_dir2.join(filename)
     file_content1 = "abc,123"
     file_content2 = "abcd,1234"
     with open(temp_file_path1, "w") as f1:
@@ -220,8 +222,8 @@ def test_udf_read_file_with_snowflake_import_directory_complex(session, new_sess
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
-        session.addImport(temp_file_path1)
-        new_session.addImport(temp_file_path2)
+        session.addImport(temp_file_path1.strpath)
+        new_session.addImport(temp_file_path2.strpath)
         df1 = session.createDataFrame([filename]).toDF("a")
         df2 = new_session.createDataFrame([filename]).toDF("a")
         session.udf.register(
@@ -237,8 +239,6 @@ def test_udf_read_file_with_snowflake_import_directory_complex(session, new_sess
         Utils.drop_stage(session, stage_name)
         session.clearImports()
         new_session.clearImports()
-        temp_dir1.cleanup()
-        temp_dir2.cleanup()
 
 
 def test_udf_read_file_with_staged_file(session, resources_path):
