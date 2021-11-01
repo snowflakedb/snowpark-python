@@ -80,7 +80,7 @@ jobs:
           - image_name: windows-latest
             download_name: windows
         python-version: [3.8]
-        cloud-provider: [aws, azure]
+        cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
@@ -108,8 +108,18 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - name: Run tests
+      - if: ${{ false == contains('gcp', matrix.cloud-provider) }}
+        name: Run tests (including UDF Tests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-udf"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ contains('gcp', matrix.cloud-provider) }}
+        name: Run tests (excluding UDF Tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
