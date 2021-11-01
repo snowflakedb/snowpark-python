@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
 from snowflake.snowpark.types import DataType
+from snowflake.snowpark.window import Window, WindowSpec
 
 
 class Column:
@@ -111,9 +112,9 @@ class Column:
 
     def __getitem__(self, field: Union[str, int]):
         if type(field) == str:
-            return Column._with_expr(SPSubfieldString(self.expression, field))
+            return Column(SPSubfieldString(self.expression, field))
         elif type(field) == int:
-            return Column._with_expr(SPSubfieldInt(self.expression, field))
+            return Column(SPSubfieldInt(self.expression, field))
         else:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
@@ -121,74 +122,70 @@ class Column:
     def __eq__(self, other: "Column") -> "Column":
         """Equal to."""
         right = self._to_expr(other)
-        return Column._with_expr(SPEqualTo(self.expression, right))
+        return Column(SPEqualTo(self.expression, right))
 
     def __ne__(self, other: "Column") -> "Column":
         """Not equal to."""
         right = self._to_expr(other)
-        return Column._with_expr(SPNotEqualTo(self.expression, right))
+        return Column(SPNotEqualTo(self.expression, right))
 
     def __gt__(self, other: "Column") -> "Column":
         """Greater than."""
-        return Column._with_expr(SPGreaterThan(self.expression, self._to_expr(other)))
+        return Column(SPGreaterThan(self.expression, self._to_expr(other)))
 
     def __lt__(self, other: "Column") -> "Column":
         """Less than."""
-        return Column._with_expr(SPLessThan(self.expression, self._to_expr(other)))
+        return Column(SPLessThan(self.expression, self._to_expr(other)))
 
     def __ge__(self, other: "Column") -> "Column":
         """Greater than or equal to."""
-        return Column._with_expr(
-            SPGreaterThanOrEqual(self.expression, self._to_expr(other))
-        )
+        return Column(SPGreaterThanOrEqual(self.expression, self._to_expr(other)))
 
     def __le__(self, other: "Column") -> "Column":
         """Less than or equal to."""
-        return Column._with_expr(
-            SPLessThanOrEqual(self.expression, self._to_expr(other))
-        )
+        return Column(SPLessThanOrEqual(self.expression, self._to_expr(other)))
 
     def __add__(self, other: "Column") -> "Column":
         """Plus."""
-        return Column._with_expr(SPAdd(self.expression, self._to_expr(other)))
+        return Column(SPAdd(self.expression, self._to_expr(other)))
 
     def __radd__(self, other: "Column") -> "Column":
-        return Column._with_expr(SPAdd(self._to_expr(other), self.expression))
+        return Column(SPAdd(self._to_expr(other), self.expression))
 
     def __sub__(self, other: "Column") -> "Column":
         """Minus."""
-        return Column._with_expr(SPSubtract(self.expression, self._to_expr(other)))
+        return Column(SPSubtract(self.expression, self._to_expr(other)))
 
     def __rsub__(self, other: "Column") -> "Column":
-        return Column._with_expr(SPSubtract(self._to_expr(other), self.expression))
+        return Column(SPSubtract(self._to_expr(other), self.expression))
 
     def __mul__(self, other: "Column") -> "Column":
         """Multiply."""
-        return Column._with_expr(SPMultiply(self.expression, self._to_expr(other)))
+        return Column(SPMultiply(self.expression, self._to_expr(other)))
 
     def __rmul__(self, other: "Column") -> "Column":
-        return Column._with_expr(SPMultiply(self._to_expr(other), self.expression))
+        return Column(SPMultiply(self._to_expr(other), self.expression))
 
     def __truediv__(self, other: "Column") -> "Column":
         """Divide."""
-        return Column._with_expr(SPDivide(self.expression, self._to_expr(other)))
+        return Column(SPDivide(self.expression, self._to_expr(other)))
 
     def __rtruediv__(self, other: "Column") -> "Column":
-        return Column._with_expr(SPDivide(self._to_expr(other), self.expression))
+        return Column(SPDivide(self._to_expr(other), self.expression))
 
     def __mod__(self, other: "Column") -> "Column":
         """Reminder."""
-        return Column._with_expr(SPRemainder(self.expression, self._to_expr(other)))
+        return Column(SPRemainder(self.expression, self._to_expr(other)))
 
     def __rmod__(self, other: "Column") -> "Column":
-        return Column._with_expr(SPRemainder(self._to_expr(other), self.expression))
+        return Column(SPRemainder(self._to_expr(other), self.expression))
 
     def __pow__(self, other: "Column") -> "Column":
         """Power."""
-        return Column._with_expr(SPPow(self.expression, self._to_expr(other)))
+        return Column(SPPow(self.expression, self._to_expr(other)))
 
     def __rpow__(self, other: "Column") -> "Column":
-        return Column._with_expr(SPPow(self._to_expr(other), self.expression))
+        return Column(SPPow(self._to_expr(other), self.expression))
 
     def between(self, lower_bound: "Column", upper_bound: "Column") -> "Column":
         """Between lower bound and upper bound."""
@@ -196,94 +193,86 @@ class Column:
 
     def bitand(self, other: "Column") -> "Column":
         """Bitwise and."""
-        return Column._with_expr(SPBitwiseAnd(self._to_expr(other), self.expression))
+        return Column(SPBitwiseAnd(self._to_expr(other), self.expression))
 
     def bitor(self, other: "Column") -> "Column":
         """Bitwise or."""
-        return Column._with_expr(SPBitwiseOr(self._to_expr(other), self.expression))
+        return Column(SPBitwiseOr(self._to_expr(other), self.expression))
 
     def bitxor(self, other: "Column") -> "Column":
         """Bitwise xor."""
-        return Column._with_expr(SPBitwiseXor(self._to_expr(other), self.expression))
+        return Column(SPBitwiseXor(self._to_expr(other), self.expression))
 
     def __neg__(self) -> "Column":
         """Unary minus."""
-        return Column._with_expr(SPUnaryMinus(self.expression))
+        return Column(SPUnaryMinus(self.expression))
 
     def equal_null(self, other: "Column") -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
-        return Column._with_expr(SPEqualNullSafe(self.expression, self._to_expr(other)))
+        return Column(SPEqualNullSafe(self.expression, self._to_expr(other)))
 
     def equal_nan(self) -> "Column":
         """Is NaN."""
-        return Column._with_expr(SPIsNaN(self.expression))
+        return Column(SPIsNaN(self.expression))
 
     def is_null(self) -> "Column":
         """Is null."""
-        return Column._with_expr(SPIsNull(self.expression))
+        return Column(SPIsNull(self.expression))
 
     def is_not_null(self) -> "Column":
         """Is not null."""
-        return Column._with_expr(SPIsNotNull(self.expression))
+        return Column(SPIsNotNull(self.expression))
 
     # `and, or, not` cannot be overloaded in Python, so use bitwise operators as boolean operators
     def __and__(self, other: "Column") -> "Column":
         """And."""
-        return Column._with_expr(SPAnd(self.expression, self._to_expr(other)))
+        return Column(SPAnd(self.expression, self._to_expr(other)))
 
     def __rand__(self, other: "Column") -> "Column":
-        return Column._with_expr(SPAnd(self._to_expr(other), self.expression))
+        return Column(SPAnd(self._to_expr(other), self.expression))
 
     def __or__(self, other: "Column") -> "Column":
         """Or."""
-        return Column._with_expr(SPOr(self.expression, self._to_expr(other)))
+        return Column(SPOr(self.expression, self._to_expr(other)))
 
     def __ror__(self, other: "Column") -> "Column":
-        return Column._with_expr(SPAnd(self._to_expr(other), self.expression))
+        return Column(SPAnd(self._to_expr(other), self.expression))
 
     def __invert__(self) -> "Column":
         """Unary not."""
-        return Column._with_expr(SPNot(self.expression))
+        return Column(SPNot(self.expression))
 
     def cast(self, to: DataType) -> "Column":
         """Casts the value of the Column to the specified data type."""
-        return Column._with_expr(SPCast(self.expression, to))
+        return Column(SPCast(self.expression, to))
 
     def desc(self) -> "Column":
         """Returns a Column expression with values sorted in descending order."""
-        return Column._with_expr(SPSortOrder(self.expression, SPDescending()))
+        return Column(SPSortOrder(self.expression, SPDescending()))
 
     def desc_nulls_first(self) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted before non-null values)."""
-        return Column._with_expr(
-            SPSortOrder(self.expression, SPDescending(), SPNullFirst())
-        )
+        return Column(SPSortOrder(self.expression, SPDescending(), SPNullFirst()))
 
     def desc_nulls_last(self) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted after non-null values)."""
-        return Column._with_expr(
-            SPSortOrder(self.expression, SPDescending(), SPNullLast())
-        )
+        return Column(SPSortOrder(self.expression, SPDescending(), SPNullLast()))
 
     def asc(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order."""
-        return Column._with_expr(SPSortOrder(self.expression, SPAscending()))
+        return Column(SPSortOrder(self.expression, SPAscending()))
 
     def asc_nulls_first(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted before non-null values)."""
-        return Column._with_expr(
-            SPSortOrder(self.expression, SPAscending(), SPNullFirst())
-        )
+        return Column(SPSortOrder(self.expression, SPAscending(), SPNullFirst()))
 
     def asc_nulls_last(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted after non-null values)."""
-        return Column._with_expr(
-            SPSortOrder(self.expression, SPAscending(), SPNullLast())
-        )
+        return Column(SPSortOrder(self.expression, SPAscending(), SPNullLast()))
 
     def like(self, pattern: Union["Column", str]) -> "Column":
         """Allows case-sensitive matching of strings based on comparison with a pattern.
@@ -291,7 +280,7 @@ class Column:
         For details, see the Snowflake documentation on
         `LIKE <https://docs.snowflake.com/en/sql-reference/functions/like.html#usage-notes>`_.
         """
-        return Column._with_expr(
+        return Column(
             SPLike(
                 self.expression,
                 pattern.expression
@@ -306,7 +295,7 @@ class Column:
         For details, see the Snowflake documentation on
         `regular expressions <https://docs.snowflake.com/en/sql-reference/functions-regexp.html#label-regexp-general-usage-notes>`_.
         """
-        return Column._with_expr(
+        return Column(
             SPRegExp(
                 self.expression,
                 pattern.expression
@@ -322,7 +311,7 @@ class Column:
         For details, see the Snowflake documentation on
         `collation specifications <https://docs.snowflake.com/en/sql-reference/collation.html#label-collation-specification>`_.
         """
-        return Column._with_expr(SPCollate(self.expression, collation_spec))
+        return Column(SPCollate(self.expression, collation_spec))
 
     def getName(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
@@ -345,11 +334,18 @@ class Column:
 
     def name(self, alias: str) -> "Column":
         """Returns a new renamed Column."""
-        return Column._with_expr(
-            SPAlias(self.expression, AnalyzerPackage.quote_name(alias))
-        )
+        return Column(SPAlias(self.expression, AnalyzerPackage.quote_name(alias)))
 
-    def _named(self) -> SPExpression:
+    def over(self, window: Optional[WindowSpec] = None) -> "Column":
+        """
+        Returns a windows frame, based on the specified
+        :class:`~snowflake.snowpark.window.WindowSpec`.
+        """
+        if not window:
+            window = Window._spec()
+        return window._with_aggregate(self.expression)
+
+    def _named(self) -> SPNamedExpression:
         if isinstance(self.expression, SPNamedExpression):
             return self.expression
         else:
@@ -367,10 +363,6 @@ class Column:
     @classmethod
     def _expr(cls, e: str):
         return cls(SPUnresolvedAttribute.quoted(e))
-
-    @classmethod
-    def _with_expr(cls, new_expr):
-        return cls(new_expr)
 
 
 class CaseExpr(Column):
@@ -410,7 +402,3 @@ class CaseExpr(Column):
     def else_(self, value: Column) -> "CaseExpr":
         """Sets the default result for this CASE expression. Alias for otherwise."""
         return self.otherwise(value)
-
-    @classmethod
-    def _with_expr(cls, new_expr):
-        return Column._with_expr(new_expr)
