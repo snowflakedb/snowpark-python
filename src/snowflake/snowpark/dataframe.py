@@ -829,14 +829,14 @@ class DataFrame:
             func_named_arguments: The named arguments for the sql function, if it accepts named arguments.
 
         Example::
-            df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses)
+            df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
             name_address_list = df.joinTableFunction("split_to_table", df["addresses"], lit(" ")).collect()
 
         Returns:
             A new :class:`DataFrame` that has the columns carried from this :class`DataFrame`, plus new colums and rows from the lateral join with the table function.
 
         See Also:
-            - :meth:`Session.table_function`, which Creates a new :class:`DataFrame` by using the sql table function.
+            - :meth:`Session.table_function`, which creates a new :class:`DataFrame` by using the sql table function.
 
         """
         func_expr = _create_table_function_expression(

@@ -507,7 +507,7 @@ class Session:
             A new :class:`DataFrame` with data from calling the table function.
 
         See Also:
-            - :meth:`DataFrame.joinTableFunction`, which joins an existing :class:`DataFrame` and a sql function.
+            - :meth:`DataFrame.joinTableFunction`, which lateral joins an existing :class:`DataFrame` and a sql function.
         """
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
