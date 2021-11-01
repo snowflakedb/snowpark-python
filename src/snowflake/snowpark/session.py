@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder, Utils
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.functions import (
+    _create_table_function_expression,
     col,
     column,
     parse_json,
@@ -484,6 +485,38 @@ class Session:
             Utils.validate_object_name(n)
         return DataFrame(self, UnresolvedRelation(fqdn))
 
+    def table_function(
+        self,
+        func_name: Union[str, List[str]],
+        *func_arguments: Union[Column, str],
+        **func_named_arguments: Union[Column, str],
+    ) -> DataFrame:
+        """Creates a new DataFrame from the given snowflake sql table function.
+
+        Args:
+
+            func_name: The sql function name.
+            func_arguments: The positional arguments for the sql function.
+            func_named_arguments: The named arguments for the sql function, if it accepts named arguments.
+
+        Example::
+
+            word_list = session.table_function("split_to_table", lit("split words to table"), " ").collect()
+
+        Returns:
+            A new :class:`DataFrame` with data from calling the table function.
+
+        See Also:
+            - :meth:`DataFrame.joinTableFunction`, which joins an existing :class:`DataFrame` and a sql function.
+        """
+        func_expr = _create_table_function_expression(
+            func_name, *func_arguments, **func_named_arguments
+        )
+        return DataFrame(
+            self,
+            SPTableFunctionRelation(func_expr),
+        )
+
     def sql(self, query: str) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
@@ -835,6 +868,7 @@ class Session:
 
         See Also:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
+            - :meth:`table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
 
         mode = mode.upper()
