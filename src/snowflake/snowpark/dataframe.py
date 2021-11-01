@@ -822,15 +822,17 @@ class DataFrame:
     ) -> "DataFrame":
         """Lateral joins the current DataFrame with the output of the specified table function.
 
+        Reference: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
+
+        Example::
+            df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
+            name_address_list = df.joinTableFunction("split_to_table", df["addresses"], lit(" ")).collect()
+
         Args:
 
             func_name: The sql function name.
             func_arguments: The positional arguments for the sql function.
             func_named_arguments: The named arguments for the sql function, if it accepts named arguments.
-
-        Example::
-            df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
-            name_address_list = df.joinTableFunction("split_to_table", df["addresses"], lit(" ")).collect()
 
         Returns:
             A new :class:`DataFrame` that has the columns carried from this :class`DataFrame`, plus new colums and rows from the lateral join with the table function.

@@ -493,15 +493,17 @@ class Session:
     ) -> DataFrame:
         """Creates a new DataFrame from the given snowflake sql table function.
 
+        Reference: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
+
+        Example::
+
+            word_list = session.table_function("split_to_table", lit("split words to table"), " ").collect()
+
         Args:
 
             func_name: The sql function name.
             func_arguments: The positional arguments for the sql function.
             func_named_arguments: The named arguments for the sql function, if it accepts named arguments.
-
-        Example::
-
-            word_list = session.table_function("split_to_table", lit("split words to table"), " ").collect()
 
         Returns:
             A new :class:`DataFrame` with data from calling the table function.
