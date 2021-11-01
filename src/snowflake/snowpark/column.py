@@ -338,8 +338,7 @@ class Column:
 
     def over(self, window: Optional[WindowSpec] = None) -> "Column":
         """
-        Returns a windows frame, based on the specified
-        :class:`~snowflake.snowpark.window.WindowSpec`.
+        Returns a window frame, based on the specified :class:`~snowflake.snowpark.window.WindowSpec`.
         """
         if not window:
             window = Window._spec()

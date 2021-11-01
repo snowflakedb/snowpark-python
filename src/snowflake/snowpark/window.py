@@ -88,15 +88,15 @@ class Window:
     @staticmethod
     def rowsBetween(start: int, end: int) -> "WindowSpec":
         """
-        Returns a :class:`WindowSpec` object with rows between clause.
+        Returns a :class:`WindowSpec` object with the row frame clause.
 
         Args:
             start: The relative position from the current row as a boundary start (inclusive).
                 The frame is unbounded if this is :attr:`Window.unboundedPreceding`, or any
-                value less than or equal to ``-sys.maxsize``.
+                value less than or equal to -9223372036854775807 (``-sys.maxsize``).
             end: The relative position from the current row as a boundary end (inclusive).
                 The frame is unbounded if this is :attr:`Window.unboundedFollowing`, or any
-                value greater than or equal to ``sys.maxsize``.
+                value greater than or equal to 9223372036854775807 (``sys.maxsize``).
 
         Note:
             You can use :attr:`Window.unboundedPreceding`, :attr:`Window.unboundedFollowing`,
@@ -108,15 +108,15 @@ class Window:
     @staticmethod
     def rangeBetween(start: int, end: int) -> "WindowSpec":
         """
-        Returns a :class:`WindowSpec` object with range between clause.
+        Returns a :class:`WindowSpec` object with the range frame clause.
 
         Args:
             start: The relative position from the current row as a boundary start (inclusive).
                 The frame is unbounded if this is :attr:`Window.unboundedPreceding`, or any
-                value less than or equal to ``-sys.maxsize``.
+                value less than or equal to -9223372036854775807 (``-sys.maxsize``).
             end: The relative position from the current row as a boundary end (inclusive).
                 The frame is unbounded if this is :attr:`Window.unboundedFollowing`, or any
-                value greater than or equal to ``sys.maxsize``.
+                value greater than or equal to 9223372036854775807 (``sys.maxsize``).
 
         Note:
             You can use :attr:`Window.unboundedPreceding`, :attr:`Window.unboundedFollowing`,

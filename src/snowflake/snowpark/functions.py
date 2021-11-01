@@ -413,7 +413,7 @@ def arrays_overlap(array1: Union[Column, str], array2: Union[Column, str]) -> Co
     is NULL-safe, meaning it treats NULLs as known values for comparing equality."""
     a1 = __to_col_if_str(array1, "arrays_overlap")
     a2 = __to_col_if_str(array2, "arrays_overlap")
-    return __with_expr(SPArraysOverlap(a1.expression, a2.expression))
+    return Column(SPArraysOverlap(a1.expression, a2.expression))
 
 
 def array_intersection(
@@ -428,7 +428,7 @@ def array_intersection(
         array2: An ARRAY that contains elements to be compared."""
     a1 = __to_col_if_str(array1, "array_intersection")
     a2 = __to_col_if_str(array2, "array_intersection")
-    return __with_expr(SPArrayIntersect(a1.expression, a2.expression))
+    return Column(SPArrayIntersect(a1.expression, a2.expression))
 
 
 def datediff(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Column:
@@ -1260,10 +1260,6 @@ def __to_col_if_str_or_int(e: Union[Column, str, int], func_name: str) -> Column
         raise TypeError(
             f"'{func_name.upper()}' expected Column, str, or int, got: {type(e)}"
         )
-
-
-def __with_expr(expr: SPExpression) -> Column:
-    return Column(expr=expr)
 
 
 def _create_table_function_expression(
