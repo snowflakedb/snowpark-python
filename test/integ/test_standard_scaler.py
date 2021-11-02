@@ -18,6 +18,7 @@ def test_fit(session):
 
     scaler = StandardScaler(session=session, input_col="input_value")
     scaler.fit(input_df)
+
     actual_mean = float(session.table(TABLENAME).collect()[0][0])
     actual_stddev = float(session.table(TABLENAME).collect()[0][1])
 
@@ -35,6 +36,7 @@ def test_transform(session):
 
     values = [-0.6, 5.0, 10.2]
     df = session.createDataFrame(values).toDF("value")
+
     expected_df = session.createDataFrame(
         [Row((v - expected_mean) / expected_stddev) for v in values]
     ).toDF("expected")
