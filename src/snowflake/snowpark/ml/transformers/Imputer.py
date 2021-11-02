@@ -3,18 +3,25 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.snowpark import Column
+from snowflake.snowpark import Column, DataFrame
 from snowflake.snowpark.functions import builtin
 
 
 class Imputer:
-    def __init__(self, session=None):
+    __DATABASE = "hayu"
+    __SCHEMA = "imputer"
+    __BUNDLE = f"{__DATABASE}.{__SCHEMA}"
+
+    def __init__(self, session=None, input_col=None):
         self.session = session
+        self.input_col = input_col
 
-    __TEMP_TABLE = "table_temp"
+    def fit(self, input_df: DataFrame, isNumerical: bool) -> str:
+        query = input_df.select(self.input_col)._DataFrame__plan.queries[-1].sql
+        res = self.session.sql(
+            f"call {self.__BUNDLE}.fit($${query}$$, {isNumerical})"
+        ).collect()
+        return res[0][0]
 
-    def fit(self) -> None:
-        pass
-
-    def transform(self, c: Column) -> Column:
-        return builtin("hayu.imputer.transform")(c)
+    def transform(self, col: Column) -> Column:
+        return builtin(f"{self.__BUNDLE}.transform")(col)
