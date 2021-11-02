@@ -8,11 +8,18 @@ from snowflake.snowpark.functions import builtin
 
 
 class StringIndexer:
-    def __init__(self, session=None):
+    __DATABASE = "hayu"
+    __SCHEMA = "stringindexer"
+    __BUNDLE = f"{__DATABASE}.{__SCHEMA}"
+
+    def __init__(self, session=None, input_col=None):
         self.session = session
+        self.input_col = input_col
 
-    def fit(self, df: DataFrame) -> str:
-        pass
+    def fit(self, input_df: DataFrame) -> str:
+        query = input_df.select(self.input_col)._DataFrame__plan.queries[-1].sql
+        res = self.session.sql(f"call {self.__BUNDLE}.fit($${query}$$)").collect()
+        return res[0][0]
 
-    def transform(self, c: Column) -> Column:
-        return builtin("hayu.stringindexer.transform")(c)
+    def transform(self, col: Column) -> Column:
+        return builtin(f"{self.__BUNDLE}.transform")(col)
