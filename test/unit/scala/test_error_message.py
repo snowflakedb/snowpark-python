@@ -10,12 +10,12 @@ from snowflake.snowpark.exceptions import (
     SnowparkCreateViewException,
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
+    SnowparkFetchDataException,
     SnowparkInvalidObjectNameException,
     SnowparkJoinException,
     SnowparkMissingDbOrSchemaException,
     SnowparkPlanException,
     SnowparkQueryCancelledException,
-    SnowparkServerException,
     SnowparkSessionException,
     SnowparkSQLAmbiguousJoinException,
     SnowparkSQLException,
@@ -340,6 +340,14 @@ def test_server_failed_close_session():
     ex = SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(message)
     assert ex.error_code == "1405"
     assert ex.message == f"Failed to close this session. The error is: {message}"
+
+
+def test_server_failed_fetch_pandas():
+    message = "unknown"
+    ex = SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(message)
+    assert isinstance(ex, SnowparkFetchDataException)
+    assert ex.error_code == "1406"
+    assert ex.message == f"Failed to fetch a pandas dataframe. The error is: {message}"
 
 
 def test_general_invalid_object_name():

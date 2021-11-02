@@ -173,6 +173,15 @@ class SnowparkQueryCancelledException(SnowparkServerException):
     pass
 
 
+class SnowparkFetchDataException(SnowparkServerException):
+    """Exception for when we are trying to fetch data from Snowflake.
+
+    Includes error codes: 1406.
+    """
+
+    pass
+
+
 class SnowparkInvalidObjectNameException(SnowparkGeneralException):
     """Exception for inputting an invalid object name. Checked locally.
 

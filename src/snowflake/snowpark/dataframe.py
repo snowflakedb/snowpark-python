@@ -229,15 +229,28 @@ class DataFrame:
         return DataFrame(self.session, self.__plan.clone())
 
     def toPandas(self, **kwargs) -> "pandas.DataFrame":
-        """Returns the contents of this DataFrame as a Pandas DataFrame.
+        """
+        Returns the contents of this DataFrame as a Pandas DataFrame.
 
-        This method is only available if Pandas is installed and available.
+        Note:
+            1. This method is only available if Pandas is installed and available.
+
+            2. If you use :func:`Session.sql` with this method, the input query of :func:`Session.sql` can only be a SELECT statement.
         """
         if not self.session.query_tag:
             kwargs["_statement_params"] = {
                 "QUERY_TAG": Utils.create_statement_query_tag(2)
             }
-        return self.session._conn.execute(self.__plan, to_pandas=True, **kwargs)
+        result = self.session._conn.execute(self.__plan, to_pandas=True, **kwargs)
+
+        # if the returned result is not a pandas dataframe, raise Exception
+        # this might happen when calling this method with non-select commands
+        if not isinstance(result, pandas.DataFrame):
+            raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
+                "toPandas() does not return a Pandas DataFrame. "
+                "If you use session.sql(...).toPandas(), the input query can only be a "
+                "SELECT statement."
+            )
 
     def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
         """
@@ -1033,7 +1046,7 @@ class DataFrame:
             A new :class:`DataFrame` that has the columns carried from this :class`DataFrame`, the flattened new columns and new rows.
 
         See Also:
-            - :meth:`Session.flatten`, which Creates a new :class:`DataFrame` by flattening compound values into multiple rows.
+            - :meth:`Session.flatten`, which creates a new :class:`DataFrame` by flattening compound values into multiple rows.
         """
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):
