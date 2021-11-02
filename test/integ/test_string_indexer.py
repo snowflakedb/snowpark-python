@@ -16,6 +16,10 @@ def test_fit(session):
     input_df = session.createDataFrame(["a", "b", "c", "b", "d", "a"]).toDF(
         "input_value"
     )
+
+    indexer = StringIndexer(session=session, input_col="input_value")
+    indexer.fit(input_df)
+
     expected_df = session.createDataFrame(
         [
             Row("a", 1),
@@ -24,9 +28,6 @@ def test_fit(session):
             Row("d", 4),
         ]
     ).toDF("distinct_value", "index")
-
-    indexer = StringIndexer(session=session, input_col="input_value")
-    indexer.fit(input_df)
     actual_df = session.table(TABLENAME)
 
     Utils.check_answer(expected_df, actual_df)
@@ -36,10 +37,12 @@ def test_transform(session):
     input_df = session.createDataFrame(["a", "b", "c", "b", "d", "a"]).toDF(
         "input_value"
     )
+
     indexer = StringIndexer(session=session, input_col="input_value")
     indexer.fit(input_df)
 
     df = session.createDataFrame(["b", "d", "z", "a"]).toDF("value")
+
     expected_df = session.createDataFrame([2, 4, -1, 1]).toDF("expected")
     actual_df = df.select(indexer.transform(df["value"]))
 
