@@ -245,9 +245,10 @@ class DataFrame:
 
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
+        # e.g., session.sql("create ...").toPandas()
         if not isinstance(result, pandas.DataFrame):
             raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-                "toPandas() does not return a Pandas DataFrame. "
+                "toPandas() did not return a Pandas DataFrame. "
                 "If you use session.sql(...).toPandas(), the input query can only be a "
                 "SELECT statement."
             )

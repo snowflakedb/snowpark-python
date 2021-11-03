@@ -338,6 +338,10 @@ class ServerConnection:
             raise ex
 
         # fetch_pandas_all() only works for SELECT statements
+        # We call fetchall() if fetch_pandas_all() fails, because
+        # when the query plan has multiple queries, it will have
+        # non-select statements, and it shouldn't fail if the user
+        # calls toPandas() to execute the query.
         if to_pandas:
             try:
                 data = results_cursor.fetch_pandas_all()
