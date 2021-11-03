@@ -566,6 +566,28 @@ class SnowflakePlanBuilder:
                 None,
             )
 
+    def lateral(
+        self,
+        table_function: str,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+    ) -> SnowflakePlan:
+        return self.build(
+            lambda x: self.pkg.lateral_statement(table_function, x), child, source_plan
+        )
+
+    def from_table_function(self, func: str) -> SnowflakePlan:
+        return self.query(self.pkg.table_function_statement(func), None)
+
+    def join_table_function(
+        self, func: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+    ) -> SnowflakePlan:
+        return self.build(
+            lambda x: self.pkg.join_table_function_statement(func, x),
+            child,
+            source_plan,
+        )
+
     def _add_result_scan_if_not_select(self, plan):
         if isinstance(plan.source_plan, SetOperation):
             return plan

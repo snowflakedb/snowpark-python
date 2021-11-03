@@ -47,6 +47,8 @@ setup(
         "snowflake.snowpark._internal.plans",
         "snowflake.snowpark._internal.plans.logical",
         "snowflake.snowpark._internal.sp_types",
+        "snowflake.snowpark.ml",
+        "snowflake.snowpark.ml.transformers",
     ],
     package_dir={
         "": "src",
