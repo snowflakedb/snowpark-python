@@ -5,12 +5,14 @@
 #
 import re
 import string
+from collections import Counter
 from random import choice
 from typing import Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
 from snowflake.snowpark._internal.analyzer.sp_views import (
@@ -38,10 +40,12 @@ from snowflake.snowpark._internal.sp_expressions import (
     Attribute as SPAttribute,
     Descending as SPDescending,
     Expression as SPExpression,
+    FlattenFunction,
     Literal as SPLiteral,
     NamedExpression as SPNamedExpression,
     SortOrder as SPSortOrder,
     Star as SPStar,
+    TableFunctionExpression as SPTableFunctionExpression,
 )
 from snowflake.snowpark._internal.sp_types.sp_data_types import LongType as SPLongType
 from snowflake.snowpark._internal.sp_types.sp_join_types import (
@@ -301,7 +305,9 @@ class DataFrame:
 
     def select(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -337,7 +343,9 @@ class DataFrame:
 
     def drop(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
@@ -416,7 +424,9 @@ class DataFrame:
 
     def sort(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]],
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
         ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
@@ -564,7 +574,11 @@ class DataFrame:
 
         """
         grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
-        return snowflake.snowpark.RelationalGroupedDataFrame(self, grouping_exprs, snowflake.snowpark.relational_grouped_dataframe._GroupByType())
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            grouping_exprs,
+            snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+        )
 
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
@@ -713,7 +727,9 @@ class DataFrame:
         """
         return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
 
-    def naturalJoin(self, right: "DataFrame", join_type: Optional[str] = None) -> "DataFrame":
+    def naturalJoin(
+        self, right: "DataFrame", join_type: Optional[str] = None
+    ) -> "DataFrame":
         """Performs a natural join of the specified type (``joinType``) with the
         current DataFrame and another DataFrame (``right``).
 
@@ -886,13 +902,13 @@ class DataFrame:
         """
         return self.withColumns([col_name], [col])
 
-    def withColumns(self, col_names: List[str], cols: List[Column]) -> "DataFrame":
+    def withColumns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
-        ``cols``.
+        ``values``.
 
         If columns with the same names already exist in the DataFrame, those columns
-        are replaced by the new columns.
+        are removed and appended at the end by new columns.
 
         This example adds new columns named ``mean_price`` and ``avg_price`` that
         contain the mean and average of the existing ``price`` column::
@@ -903,43 +919,34 @@ class DataFrame:
 
         Args:
             col_names: A list of the names of the columns to add or replace.
-            cols: A list of the :class:`Column` objects to
+            values: A list of the :class:`Column` objects to
                     add or replace.
         """
-        if len(col_names) != len(cols):
+        if len(col_names) != len(values):
             raise ValueError(
-                f"The size of column names: {len(col_names)} is not equal to the size of columns: {len(cols)}"
+                f"The size of column names ({len(col_names)}) is not equal to the size of columns ({len(values)})"
             )
 
-        column_map = {AnalyzerPackage.quote_name(n): c for n, c in zip(col_names, cols)}
-        # Get a list of the columns that we are replacing or that already exist in the current
-        # dataframe plan with the new and updated column names.
-        replaced_and_existing_columns = []
-        output_names = []
-        for field in self.__output():
-            output_names.append(field.name)
-            if field.name in column_map:
-                # Replacing column
-                col_name = field.name
-                col = column_map[field.name]
-                column_to_append = (
-                    col.as_(col_name)
-                    if (type(col) == Column and type(col_name) == str)
-                    else Column(field)
-                )
-                replaced_and_existing_columns.append(column_to_append)
-            else:
-                # Keeping existing column
-                replaced_and_existing_columns.append(Column(field))
+        # Get a list of the new columns and their dedupped values
+        qualified_names = [AnalyzerPackage.quote_name(n) for n in col_names]
+        new_column_names = set(qualified_names)
 
-        # Adding in new columns that aren't part of this dataframe
-        new_columns = [
-            col.as_(col_name)
-            for col_name, col in column_map.items()
-            if col_name not in output_names
+        if len(col_names) != len(new_column_names):
+            raise ValueError(
+                "The same column name is used multiple times in the col_names parameter."
+            )
+
+        new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
+
+        # Get a list of existing column names that are not being replaced
+        old_cols = [
+            Column(field)
+            for field in self.__output()
+            if field.name not in new_column_names
         ]
 
-        return self.select([*replaced_and_existing_columns, *new_columns])
+        # Put it all together
+        return self.select([*old_cols, *new_cols])
 
     def count(self) -> int:
         """Executes the query representing this DataFrame and returns the number of
@@ -978,6 +985,84 @@ class DataFrame:
                 else None,
             )
         )
+
+    def flatten(
+        self,
+        input: Union[str, Column],
+        path: Optional[str] = None,
+        outer: bool = False,
+        recursive: bool = False,
+        mode: str = "BOTH",
+    ) -> "DataFrame":
+        """Flattens (explodes) compound values into multiple rows.
+
+        It creates a new ``DataFrame`` from this ``DataFrame``, carries the existing columns to the new ``DataFrame``,
+        and adds the following columns to it:
+
+            - SEQ
+            - KEY
+            - PATH
+            - INDEX
+            - VALUE
+            - THIS
+
+        Reference: `Snowflake SQL function FLATTEN <https://docs.snowflake.com/en/sql-reference/functions/flatten.html>`_.
+
+        If this ``DataFrame`` also has columns with the names above, you can disambiguate the columns by renaming them.
+
+        Example::
+
+            table1 = session.sql("select parse_json(value) as value from values('[1,2]') as T(value)")
+            flattened = table1.flatten(table1["value"])
+            flattened.select(table1["value"], flattened["value"].as_("newValue")).show()
+
+        Args:
+            input: The name of a column or a :class:`Column` instance that will be unseated into rows.
+                The column data must be of Snowflake data type VARIANT, OBJECT, or ARRAY.
+            path: The path to the element within a VARIANT data structure which needs to be flattened.
+                The outermost element is to be flattened if path is empty or ``None``.
+            outer: If ``False``, any input rows that cannot be expanded, either because they cannot be accessed in the ``path``
+                or because they have zero fields or entries, are completely omitted from the output.
+                Otherwise, exactly one row is generated for zero-row expansions
+                (with NULL in the KEY, INDEX, and VALUE columns).
+            recursive: If ``False``, only the element referenced by ``path`` is expanded.
+                Otherwise, the expansion is performed for all sub-elements recursively.
+            mode: Specifies which types should be flattened "OBJECT", "ARRAY", or "BOTH".
+
+        Returns:
+            A new :class:`DataFrame` that has the columns carried from this :class`DataFrame`, the flattened new columns and new rows.
+
+        See Also:
+            - :meth:`Session.flatten`, which Creates a new :class:`DataFrame` by flattening compound values into multiple rows.
+        """
+        mode = mode.upper()
+        if mode not in ("OBJECT", "ARRAY", "BOTH"):
+            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
+        if isinstance(input, str):
+            input = self.col(input)
+        return self._lateral(
+            FlattenFunction(input.expression, path, outer, recursive, mode)
+        )
+
+    def _lateral(self, table_function: SPTableFunctionExpression) -> "DataFrame":
+        result_columns = [
+            attr.name
+            for attr in self.session._analyzer.resolve(
+                SPLateral(self.__plan, table_function)
+            ).attributes()
+        ]
+        common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
+        if len(common_col_names) == 0:
+            return DataFrame(self.session, SPLateral(self.__plan, table_function))
+        prefix = DataFrame.__generate_prefix("a")
+        child = self.select(
+            [
+                self.__alias_if_needed(self, attr.name, prefix, common_col_names)
+                for attr in self.__output()
+            ]
+        )
+        return DataFrame(self.session, SPLateral(child.__plan, table_function))
 
     def __show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self.__plan.queries[-1].sql.strip().lower()

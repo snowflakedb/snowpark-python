@@ -40,6 +40,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _GeographyType,
     _NumericType,
 )
 
@@ -184,8 +185,15 @@ class DataTypeMapper:
     @staticmethod
     def schema_expression(data_type, is_nullable):
         if is_nullable:
-            # if isinstance(datatype) == GeographyType:
-            #     return "TRY_TO_GEOGRAPHY(NULL)"
+            # Put _GeographyType here to avoid forgetting it in the future when we support Geography.
+            if isinstance(data_type, _GeographyType):
+                return "TRY_TO_GEOGRAPHY(NULL)"
+            if isinstance(data_type, ArrayType):
+                return "PARSE_JSON('NULL') :: ARRAY"
+            if isinstance(data_type, MapType):
+                return "PARSE_JSON('NULL') :: OBJECT"
+            if isinstance(data_type, VariantType):
+                return "PARSE_JSON('NULL') :: VARIANT"
             return "NULL :: " + convert_to_sf_type(data_type)
 
         if isinstance(data_type, _NumericType):
@@ -208,8 +216,8 @@ class DataTypeMapper:
             return "to_object(parse_json('0'))"
         if isinstance(data_type, VariantType):
             return "to_variant(0)"
-        # if isinstance(datatype, GeographyType):
-        #    return "true"
+        if isinstance(data_type, _GeographyType):
+            return "to_geography('POINT(-122.35 37.55)')"
         raise Exception(f"Unsupported data type: {data_type.type_name}")
 
     @staticmethod
