@@ -188,3 +188,86 @@ def test_zip_file_or_directory_to_stream():
             test_files.test_udf_directory, "test_udf_dir"
         )
     assert "doesn't lead to" in str(ex_info)
+
+
+def test_get_stage_file_prefix_length():
+    stageName = "@stage"  # stage/
+    assert Utils.get_stage_file_prefix_length(stageName) == 6
+
+    stageName2 = "@stage/"  # stage/
+    assert Utils.get_stage_file_prefix_length(stageName2) == 6
+
+    stageName3 = '@"sta/ge"/'  # sta/ge/
+    assert Utils.get_stage_file_prefix_length(stageName3) == 7
+
+    stageName4 = '@"stage.1"/dir'  # stage.1/dir/
+    assert Utils.get_stage_file_prefix_length(stageName4) == 12
+
+    quotedStageName = '@"stage"'  # stage/
+    assert Utils.get_stage_file_prefix_length(quotedStageName) == 6
+
+    quotedStageName2 = '@"stage"/'  # stage/
+    assert Utils.get_stage_file_prefix_length(quotedStageName2) == 6
+
+    stagePrefix = "@stage/dir"  # stage/dir/
+    assert Utils.get_stage_file_prefix_length(stagePrefix) == 10
+
+    stagePrefix2 = '@"stage"/dir'  # stage/dir/
+    assert Utils.get_stage_file_prefix_length(stagePrefix2) == 10
+
+    schemaStage = "@schema.stage"  # stage/
+    assert Utils.get_stage_file_prefix_length(schemaStage) == 6
+
+    schemaStage2 = "@schema.stage/"  # stage/
+    assert Utils.get_stage_file_prefix_length(schemaStage2) == 6
+
+    schemaStage3 = '@"schema".stage'  # stage/
+    assert Utils.get_stage_file_prefix_length(schemaStage3) == 6
+
+    schemaStage4 = '@"schema".stage/'  # stage/
+    assert Utils.get_stage_file_prefix_length(schemaStage4) == 6
+
+    schemaStage5 = '@"schema"."stage"'  # stage/
+    assert Utils.get_stage_file_prefix_length(schemaStage5) == 6
+
+    schemaStage6 = '@"schema"."sta/ge"/'  # sta/ge/
+    assert Utils.get_stage_file_prefix_length(schemaStage6) == 7
+
+    schemaStage7 = '@"schema.1".stage/dir'  # stage/dir/
+    assert Utils.get_stage_file_prefix_length(schemaStage7) == 10
+
+    dbStage = "@db.schema.stage"  # stage/
+    assert Utils.get_stage_file_prefix_length(dbStage) == 6
+
+    dbStage1 = "@db..stage"  # stage/
+    assert Utils.get_stage_file_prefix_length(dbStage1) == 6
+
+    dbStage2 = "@db.schema.stage/"  # stage/
+    assert Utils.get_stage_file_prefix_length(dbStage2) == 6
+
+    dbStage3 = "@db..stage/"  # stage/
+    assert Utils.get_stage_file_prefix_length(dbStage3) == 6
+
+    dbStage4 = '@"db"."schema"."stage"'  # stage/
+    assert Utils.get_stage_file_prefix_length(dbStage4) == 6
+
+    dbStage5 = '@"db".."stage"/'  # stage/
+    assert Utils.get_stage_file_prefix_length(dbStage5) == 6
+
+    dbStage6 = '@"db.1"."schema.1"."stage.1"/dir'  # stage.1/dir/
+    assert Utils.get_stage_file_prefix_length(dbStage6) == 12
+
+    tempStage = '@"TESTDB_SNOWPARK"."SN_TEST_OBJECT_1509309849".SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL'
+    assert Utils.get_stage_file_prefix_length(tempStage) == 36
+
+    tempStage2 = '@"TESTDB_SNOWPARK"."SN_TEST_OBJECT_1509309849".SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL/'
+    assert Utils.get_stage_file_prefix_length(tempStage2) == 36
+
+    tempStage3 = '@"TESTDB_SNOWPARK"."SN_TEST_OBJECT_1509309849"."SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL"/'
+    assert Utils.get_stage_file_prefix_length(tempStage3) == 36
+
+    userStage = "@~/dir"  # dir/
+    assert Utils.get_stage_file_prefix_length(userStage) == 4
+
+    tableStage = "db.schema.%table/dir"  # dir/
+    assert Utils.get_stage_file_prefix_length(tableStage) == 4
