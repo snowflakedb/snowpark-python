@@ -252,6 +252,8 @@ class DataFrame:
                 "SELECT statement."
             )
 
+        return result
+
     def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.

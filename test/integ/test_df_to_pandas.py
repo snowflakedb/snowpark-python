@@ -14,33 +14,36 @@ from snowflake.snowpark.functions import col
 
 def test_to_pandas_new_df_from_range(session):
     # Single column
-    python_df = session.range(3, 8)
-    pandas_df = python_df.toPandas()
+    snowpark_df = session.range(3, 8)
+    pandas_df = snowpark_df.toPandas()
 
-    assert type(pandas_df) == PandasDF
+    assert isinstance(pandas_df, PandasDF)
     assert "ID" in pandas_df
     assert len(pandas_df.columns) == 1
-    assert type(pandas_df["ID"]) == PandasSeries
+    assert isinstance(pandas_df["ID"], PandasSeries)
     assert all(pandas_df["ID"][i] == i + 3 for i in range(5))
 
     # Two columns
-    python_df = session.range(3, 8).select([col("id"), col("id").alias("other")])
-    pandas_df = python_df.toPandas()
+    snowpark_df = session.range(3, 8).select([col("id"), col("id").alias("other")])
+    pandas_df = snowpark_df.toPandas()
 
-    assert type(pandas_df) == PandasDF
+    assert isinstance(pandas_df, PandasDF)
     assert "ID" in pandas_df
     assert "OTHER" in pandas_df
     assert len(pandas_df.columns) == 2
-    assert type(pandas_df["ID"]) == PandasSeries
+    assert isinstance(pandas_df["ID"], PandasSeries)
     assert all(pandas_df["ID"][i] == i + 3 for i in range(5))
-    assert type(pandas_df["OTHER"]) == PandasSeries
+    assert isinstance(pandas_df["OTHER"], PandasSeries)
     assert all(pandas_df["OTHER"][i] == i + 3 for i in range(5))
 
 
 def test_to_pandas_non_select(session):
     # `with ... select ...` is also a SELECT statement
-    session.sql("select 1").toPandas()
-    session.sql("with mytable as (select 1) select * from mytable").toPandas()
+    isinstance(session.sql("select 1").toPandas(), PandasDF)
+    isinstance(
+        session.sql("with mytable as (select 1) select * from mytable").toPandas(),
+        PandasDF,
+    )
 
     # non SELECT statements will fail
     def check_fetch_data_exception(query: str) -> None:
@@ -60,4 +63,4 @@ def test_to_pandas_non_select(session):
     assert df._DataFrame__plan.queries[0].sql.strip().startswith("CREATE")
     assert df._DataFrame__plan.queries[1].sql.strip().startswith("INSERT")
     assert df._DataFrame__plan.queries[2].sql.strip().startswith("SELECT")
-    df.toPandas()
+    isinstance(df.toPandas(), PandasDF)
