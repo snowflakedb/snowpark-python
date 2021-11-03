@@ -125,9 +125,11 @@ class Utils:
             sort_key = functools.cmp_to_key(compare_rows)
             assert sorted(expected_rows, key=sort_key) == sorted(
                 actual_rows, key=sort_key
-            )
+            ), f"expected: '{sorted(expected_rows, key=sort_key)}', actual: '{sorted(actual_rows, key=sort_key)}'"
         else:
-            assert expected_rows == actual_rows
+            assert (
+                expected_rows == actual_rows
+            ), f"expected: '{expected_rows}', actual: '{actual_rows}'"
 
 
 class TestData:
@@ -263,6 +265,46 @@ class TestData:
         )
 
     @classmethod
+    def array3(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select array_construct(a,b,c) as arr1, d, e, f "
+            "from values(1,2,3,1,2,','),(4,5,6,1,-1,', '),(6,7,8,0,2,';') as T(a,b,c,d,e,f)"
+        )
+
+    @classmethod
+    def object1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select key, to_variant(value) as value from "
+            "values('age', 21),('zip', 94401) as T(key,value)"
+        )
+
+    @classmethod
+    def object2(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select object_construct(a,b,c,d,e,f) as obj, k, v, flag from "
+            "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0, true),"
+            "('age', 26, 'zip', 94021, 'name', 'Jay', 'key', 0, false) as T(a,b,c,d,e,f,k,v,flag)"
+        )
+
+    @classmethod
+    def object3(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select key, to_variant(value) as value from "
+            "values(null, 21),('zip', null) as T(key,value)"
+        )
+
+    @classmethod
+    def null_array1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select array_construct(a,b,c) as arr1, array_construct(d,e,f) as arr2 "
+            "from values(1,null,3,3,null,5),(6,null,8,9,null,1) as T(a,b,c,d,e,f)"
+        )
+
+    @classmethod
+    def zero1(cls, session: "Session") -> DataFrame:
+        return session.sql("select * from values(0) as T(a)")
+
+    @classmethod
     def variant1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select to_variant(to_array('Example')) as arr1,"
@@ -310,10 +352,43 @@ class TestData:
         )
 
     @classmethod
+    def valid_json1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select parse_json(column1) as v, column2 as k from values ('{\"a\": null}','a'), "
+            "('{\"a\": \"foo\"}','a'), ('{\"a\": \"foo\"}','b'), (null,'a')"
+        )
+
+    @classmethod
+    def invalid_json1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select (column1) as v from values ('{\"a\": null'), ('{\"a: \"foo\"}'), ('{\"a:')"
+        )
+
+    @classmethod
     def null_xml1(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select (column1) as v from values ('<t1>foo<t2>bar</t2><t3></t3></t1>'), "
             "('<t1></t1>'), (null), ('')"
+        )
+
+    @classmethod
+    def valid_xml1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select parse_xml(a) as v, b as t2, c as t3, d as instance from values"
+            + "('<t1>foo<t2>bar</t2><t3></t3></t1>','t2','t3',0),('<t1></t1>','t2','t3',0),"
+            + "('<t1><t2>foo</t2><t2>bar</t2></t1>','t2','t3',1) as T(a,b,c,d)"
+        )
+
+    @classmethod
+    def invalid_xml1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select (column1) as v from values ('<t1></t>'), ('<t1><t1>'), ('<t1</t1>')"
+        )
+
+    @classmethod
+    def date1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values('2020-08-01'::Date, 1),('2010-12-01'::Date, 2) as T(a,b)"
         )
 
     @classmethod
@@ -333,6 +408,13 @@ class TestData:
     def number2(cls, session):
         return session.createDataFrame(
             [cls.Number2(1, 2, 3), cls.Number2(0, -1, 4), cls.Number2(-5, 0, -9)]
+        )
+
+    @classmethod
+    def timestamp1(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values('2020-05-01 13:11:20.000' :: timestamp),"
+            "('2020-08-21 01:30:05.000' :: timestamp) as T(a)"
         )
 
     @classmethod
