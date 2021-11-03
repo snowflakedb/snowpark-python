@@ -12,6 +12,20 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
+    array_append,
+    array_cat,
+    array_compact,
+    array_construct,
+    array_construct_compact,
+    array_contains,
+    array_insert,
+    array_intersection,
+    array_position,
+    array_prepend,
+    array_size,
+    array_slice,
+    array_to_string,
+    arrays_overlap,
     as_array,
     as_binary,
     as_char,
@@ -31,12 +45,17 @@ from snowflake.snowpark.functions import (
     call_builtin,
     ceil,
     char,
+    check_json,
+    check_xml,
     coalesce,
     col,
     contains,
     count_distinct,
+    dateadd,
+    datediff,
     exp,
     floor,
+    get,
     is_array,
     is_binary,
     is_char,
@@ -52,10 +71,17 @@ from snowflake.snowpark.functions import (
     is_timestamp_ntz,
     is_timestamp_tz,
     is_varchar,
+    json_extract_path_text,
     lit,
     log,
     negate,
     not_,
+    object_agg,
+    object_construct,
+    object_construct_keep_null,
+    object_delete,
+    object_insert,
+    object_pick,
     parse_json,
     parse_xml,
     pow,
@@ -63,6 +89,7 @@ from snowflake.snowpark.functions import (
     split,
     sqrt,
     startswith,
+    strip_null_value,
     substring,
     to_array,
     to_binary,
@@ -726,6 +753,20 @@ def test_random_negative(session):
     assert "invalid identifier 'ABC'" in str(ex_info)
 
 
+def test_check_functions_negative(session):
+    df = session.sql("select 1").toDF("a")
+
+    # check_json
+    with pytest.raises(TypeError) as ex_info:
+        df.select(check_json([1])).collect()
+    assert "'CHECK_JSON' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    # check_xml
+    with pytest.raises(TypeError) as ex_info:
+        df.select(check_xml([1])).collect()
+    assert "'CHECK_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
 def test_parse_functions_negative(session):
     df = session.sql("select 1").toDF("a")
 
@@ -738,6 +779,25 @@ def test_parse_functions_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(parse_xml([1])).collect()
     assert "'PARSE_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_json_functions_negative(session):
+    df = session.sql("select 1").toDF("a")
+
+    # json_extract_path_text
+    with pytest.raises(TypeError) as ex_info:
+        df.select(json_extract_path_text([1], "a")).collect()
+    assert (
+        "'JSON_EXTRACT_PATH_TEXT' expected Column or str, got: <class 'list'>"
+        in str(ex_info)
+    )
+
+    # strip_null_value
+    with pytest.raises(TypeError) as ex_info:
+        df.select(strip_null_value([1])).collect()
+    assert "'STRIP_NULL_VALUE' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
 
 
 def test_to_filetype_negative(session):
@@ -753,8 +813,133 @@ def test_to_filetype_negative(session):
     assert "'TO_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-def test_array_agg_negative(session):
+def test_array_negative(session):
     df = session.sql("select 1").toDF("a")
+
     with pytest.raises(TypeError) as ex_info:
         df.select(array_agg([1])).collect()
     assert "'ARRAY_AGG' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_append([1], "column")).collect()
+    assert "'ARRAY_APPEND' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_cat([1], "column")).collect()
+    assert "'ARRAY_CAT' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_compact([1])).collect()
+    assert "'ARRAY_COMPACT' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_construct([1])).collect()
+    assert "'ARRAY_CONSTRUCT' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_construct_compact([1])).collect()
+    assert (
+        "'ARRAY_CONSTRUCT_COMPACT' expected Column or str, got: <class 'list'>"
+        in str(ex_info)
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_contains([1], "column")).collect()
+    assert "'ARRAY_CONTAINS' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_insert([1], lit(3), "column")).collect()
+    assert "'ARRAY_INSERT' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_position([1], "column")).collect()
+    assert "'ARRAY_POSITION' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_prepend([1], "column")).collect()
+    assert "'ARRAY_PREPEND' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_size([1])).collect()
+    assert "'ARRAY_SIZE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_slice([1], "col1", "col2")).collect()
+    assert "'ARRAY_SLICE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_to_string([1], "column")).collect()
+    assert "'ARRAY_TO_STRING' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(arrays_overlap([1], "column")).collect()
+    assert "'ARRAYS_OVERLAP' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(array_intersection([1], "column")).collect()
+    assert "'ARRAY_INTERSECTION' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+
+def test_object_negative(session):
+    df = session.sql("select 1").toDF("a")
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(object_agg([1], "column")).collect()
+    assert "'OBJECT_AGG' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(object_construct([1])).collect()
+    assert "'OBJECT_CONSTRUCT' expected Column or str, got: <class 'list'>" in str(
+        ex_info
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(object_construct_keep_null([1], "column")).collect()
+    assert (
+        "'OBJECT_CONSTRUCT_KEEP_NULL' expected Column or str, got: <class 'list'>"
+        in str(ex_info)
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(object_delete([1], "column", "col1", "col2")).collect()
+    assert "'OBJECT_DELETE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(object_insert([1], "key", "key1")).collect()
+    assert "'OBJECT_INSERT' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(object_pick([1], "key", "key1")).collect()
+    assert "'OBJECT_PICK' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_date_operations_negative(session):
+    df = session.sql("select 1").toDF("a")
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(datediff("year", [1], "col")).collect()
+    assert "'DATEDIFF' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(dateadd("year", [1], "col")).collect()
+    assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_get_negative(session):
+    df = session.sql("select 1").toDF("a")
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(get([1], 1)).collect()
+    assert "'GET' expected Column or str, got: <class 'list'>" in str(ex_info)
