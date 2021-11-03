@@ -26,7 +26,7 @@ from test.utils import TestData, TestFiles, Utils
 from typing import Any, Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, Session
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.functions import call_udf, col, udf
 from snowflake.snowpark.types import (
@@ -439,6 +439,29 @@ def test_type_hints(session):
     ).collect() == [Row('{\n  "Tree": "Tree Pine"\n}')]
 
 
+def test_permanent_udf(session, db_parameters):
+    stage_name = Utils.random_stage_name()
+    udf_name = Utils.random_name()
+    new_session = Session.builder.configs(db_parameters).create()
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=False)
+        udf(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            name=udf_name,
+            is_permanent=True,
+            stage_location=stage_name,
+        )
+        assert session.sql(f"select {udf_name}(8, 9)").collect() == [Row(17)]
+        assert new_session.sql(f"select {udf_name}(8, 9)").collect() == [Row(17)]
+    finally:
+        session._run_query(f"drop function if exists {udf_name}(int, int)")
+        Utils.drop_stage(session, stage_name)
+        new_session.close()
+        Session._set_active_session(session)
+
+
 def test_udf_negative(session):
     def f(x):
         return x
@@ -527,6 +550,22 @@ def test_udf_negative(session):
             return x + y
 
     assert "invalid type typing.Union[int, float]" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+
+        @udf(is_permanent=True)
+        def add_udf(x: int, y: int) -> int:
+            return x + y
+
+    assert "name must be specified for permanent udf" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+
+        @udf(is_permanent=True, name="udf")
+        def add_udf(x: int, y: int) -> int:
+            return x + y
+
+    assert "stage_location must be specified for permanent udf" in str(ex_info)
 
 
 def test_add_imports_negative(session, resources_path):

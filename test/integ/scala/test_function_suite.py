@@ -7,11 +7,26 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from test.utils import TestData, Utils
 
+import pytest
+
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.sp_expressions import UnresolvedAttribute
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
+    array_append,
+    array_cat,
+    array_compact,
+    array_construct,
+    array_construct_compact,
+    array_contains,
+    array_insert,
+    array_intersection,
+    array_position,
+    array_prepend,
+    array_size,
+    array_slice,
+    array_to_string,
+    arrays_overlap,
     as_array,
     as_binary,
     as_char,
@@ -31,14 +46,21 @@ from snowflake.snowpark.functions import (
     builtin,
     ceil,
     char,
+    check_json,
+    check_xml,
     coalesce,
     col,
     contains,
     count,
     count_distinct,
+    dateadd,
+    datediff,
     equal_nan,
     exp,
     floor,
+    get_ignore_case,
+    get_path,
+    get,
     is_array,
     is_binary,
     is_boolean,
@@ -57,6 +79,7 @@ from snowflake.snowpark.functions import (
     is_timestamp_ntz,
     is_timestamp_tz,
     is_varchar,
+    json_extract_path_text,
     kurtosis,
     lit,
     log,
@@ -65,6 +88,13 @@ from snowflake.snowpark.functions import (
     min,
     negate,
     not_,
+    object_keys,
+    object_agg,
+    object_construct,
+    object_construct_keep_null,
+    object_delete,
+    object_insert,
+    object_pick,
     parse_json,
     parse_xml,
     pow,
@@ -77,6 +107,7 @@ from snowflake.snowpark.functions import (
     stddev,
     stddev_pop,
     stddev_samp,
+    strip_null_value,
     substring,
     sum,
     sum_distinct,
@@ -88,9 +119,11 @@ from snowflake.snowpark.functions import (
     to_variant,
     to_xml,
     translate,
+    typeof,
     var_pop,
     var_samp,
     variance,
+    xmlget,
 )
 
 
@@ -420,6 +453,38 @@ def test_translate(session):
     )
 
 
+def test_datediff(session):
+    Utils.check_answer(
+        [Row(1), Row(1)],
+        TestData.timestamp1(session)
+        .select(col("a"), dateadd("year", lit(1), col("a")).as_("b"))
+        .select(datediff("year", col("a"), col("b"))),
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        [Row(1), Row(1)],
+        TestData.timestamp1(session)
+        .select("a", dateadd("year", lit(1), "a").as_("b"))
+        .select(datediff("year", "a", "b")),
+    )
+
+
+def test_dateadd(session):
+    Utils.check_answer(
+        [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))],
+        TestData.date1(session).select(dateadd("year", lit(1), col("a"))),
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))],
+        TestData.date1(session).select(dateadd("year", lit(1), "a")),
+        sort=False,
+    )
+
+
 def test_to_timestamp(session):
     long1 = TestData.long1(session)
     Utils.check_answer(
@@ -469,6 +534,36 @@ def test_to_date(session):
     # same as above, but pass str instead of Column
     Utils.check_answer(
         df.select(to_date("A", lit("YYYY.MM.DD"))), [Row(date(2020, 7, 23))]
+    )
+
+
+def test_arrays_overlap(session):
+    Utils.check_answer(
+        TestData.array1(session).select(arrays_overlap(col("ARR1"), col("ARR2"))),
+        [Row(True), Row(False)],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(arrays_overlap("ARR1", "ARR2")),
+        [Row(True), Row(False)],
+        sort=False,
+    )
+
+
+def test_array_intersection(session):
+    Utils.check_answer(
+        TestData.array1(session).select(array_intersection(col("ARR1"), col("ARR2"))),
+        [Row("[\n  3\n]"), Row("[]")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(array_intersection("ARR1", "ARR2")),
+        [Row("[\n  3\n]"), Row("[]")],
+        sort=False,
     )
 
 
@@ -875,6 +970,93 @@ def test_char(session):
     )
 
 
+def test_check_json(session):
+    Utils.check_answer(
+        TestData.null_json1(session).select(check_json(col("v"))),
+        [Row(None), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.invalid_json1(session).select(check_json(col("v"))),
+        [
+            Row("incomplete object value, pos 11"),
+            Row("missing colon, pos 7"),
+            Row("unfinished string, pos 5"),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.null_json1(session).select(check_json("v")),
+        [Row(None), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.invalid_json1(session).select(check_json("v")),
+        [
+            Row("incomplete object value, pos 11"),
+            Row("missing colon, pos 7"),
+            Row("unfinished string, pos 5"),
+        ],
+        sort=False,
+    )
+
+
+def test_check_xml(session):
+    Utils.check_answer(
+        TestData.null_xml1(session).select(check_xml(col("v"))),
+        [Row(None), Row(None), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.invalid_xml1(session).select(check_xml(col("v"))),
+        [
+            Row("no opening tag for </t>, pos 8"),
+            Row("missing closing tags: </t1></t1>, pos 8"),
+            Row("bad character in XML tag name: '<', pos 4"),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.null_xml1(session).select(check_xml("v")),
+        [Row(None), Row(None), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.invalid_xml1(session).select(check_xml("v")),
+        [
+            Row("no opening tag for </t>, pos 8"),
+            Row("missing closing tags: </t1></t1>, pos 8"),
+            Row("bad character in XML tag name: '<', pos 4"),
+        ],
+        sort=False,
+    )
+
+
+def test_json_extract_path_text(session):
+    Utils.check_answer(
+        TestData.valid_json1(session).select(
+            json_extract_path_text(col("v"), col("k"))
+        ),
+        [Row(None), Row("foo"), Row(None), Row(None)],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.valid_json1(session).select(json_extract_path_text("v", "k")),
+        [Row(None), Row("foo"), Row(None), Row(None)],
+        sort=False,
+    )
+
+
 def test_parse_json(session):
     null_json1 = TestData.null_json1(session)
     Utils.check_answer(
@@ -917,6 +1099,22 @@ def test_parse_xml(session):
     )
 
 
+def test_strip_null_value(session):
+    Utils.check_answer(
+        TestData.null_json1(session).select(sql_expr("v:a")),
+        [Row("null"), Row('"foo"'), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.null_json1(session).select(strip_null_value(sql_expr("v:a"))),
+        [Row(None), Row('"foo"'), Row(None)],
+        sort=False,
+    )
+
+    # This test needs columns to be passed and can't be replicated by passing strings
+
+
 def test_array_agg(session):
     assert (
         str(
@@ -932,6 +1130,575 @@ def test_array_agg(session):
         str(TestData.monthly_sales(session).select(array_agg("amount")).collect()[0][0])
         == "[\n  10000,\n  400,\n  4500,\n  35000,\n  5000,\n  3000,\n  200,\n  90500,\n  6000,\n  "
         + "5000,\n  2500,\n  9500,\n  8000,\n  10000,\n  800,\n  4500\n]"
+    )
+
+
+def test_array_append(session):
+    Utils.check_answer(
+        [
+            Row('[\n  1,\n  2,\n  3,\n  "amount",\n  3.221000000000000e+01\n]'),
+            Row('[\n  6,\n  7,\n  8,\n  "amount",\n  3.221000000000000e+01\n]'),
+        ],
+        TestData.array1(session).select(
+            array_append(array_append(col("arr1"), lit("amount")), lit(32.21))
+        ),
+        sort=False,
+    )
+
+    # Get array result in List[Variant1]
+    result_set = (
+        TestData.array1(session)
+        .select(array_append(array_append(col("arr1"), lit("amount")), lit(32.21)))
+        .collect()
+    )
+    row1 = ["1", "2", "3", '"amount"', "3.221000000000000e+01"]
+    assert [s.strip() for s in result_set[0][0][1:-1].split(",")] == row1
+    row2 = ["6", "7", "8", '"amount"', "3.221000000000000e+01"]
+    assert [s.strip() for s in result_set[1][0][1:-1].split(",")] == row2
+
+    Utils.check_answer(
+        [
+            Row('[\n  1,\n  2,\n  3,\n  2,\n  "e1"\n]'),
+            Row('[\n  6,\n  7,\n  8,\n  1,\n  "e2"\n]'),
+        ],
+        TestData.array2(session).select(
+            array_append(array_append(col("arr1"), col("d")), col("e"))
+        ),
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        [
+            Row('[\n  1,\n  2,\n  3,\n  "amount",\n  3.221000000000000e+01\n]'),
+            Row('[\n  6,\n  7,\n  8,\n  "amount",\n  3.221000000000000e+01\n]'),
+        ],
+        TestData.array1(session).select(
+            array_append(array_append("arr1", lit("amount")), lit(32.21))
+        ),
+        sort=False,
+    )
+
+    # Get array result in List[Variant1]
+    result_set = (
+        TestData.array1(session)
+        .select(array_append(array_append("arr1", lit("amount")), lit(32.21)))
+        .collect()
+    )
+    row1 = ["1", "2", "3", '"amount"', "3.221000000000000e+01"]
+    assert [s.strip() for s in result_set[0][0][1:-1].split(",")] == row1
+    row2 = ["6", "7", "8", '"amount"', "3.221000000000000e+01"]
+    assert [s.strip() for s in result_set[1][0][1:-1].split(",")] == row2
+
+    Utils.check_answer(
+        [
+            Row('[\n  1,\n  2,\n  3,\n  2,\n  "e1"\n]'),
+            Row('[\n  6,\n  7,\n  8,\n  1,\n  "e2"\n]'),
+        ],
+        TestData.array2(session).select(array_append(array_append("arr1", "d"), "e")),
+    )
+
+
+def test_array_cat(session):
+    Utils.check_answer(
+        TestData.array1(session).select(array_cat(col("arr1"), col("arr2"))),
+        [
+            Row("[\n  1,\n  2,\n  3,\n  3,\n  4,\n  5\n]"),
+            Row("[\n  6,\n  7,\n  8,\n  9,\n  0,\n  1\n]"),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(array_cat("arr1", "arr2")),
+        [
+            Row("[\n  1,\n  2,\n  3,\n  3,\n  4,\n  5\n]"),
+            Row("[\n  6,\n  7,\n  8,\n  9,\n  0,\n  1\n]"),
+        ],
+        sort=False,
+    )
+
+
+def test_array_compact(session):
+    Utils.check_answer(
+        TestData.null_array1(session).select(array_compact(col("arr1"))),
+        [Row("[\n  1,\n  3\n]"), Row("[\n  6,\n  8\n]")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.null_array1(session).select(array_compact("arr1")),
+        [Row("[\n  1,\n  3\n]"), Row("[\n  6,\n  8\n]")],
+        sort=False,
+    )
+
+
+def test_array_construct(session):
+    assert (
+        TestData.zero1(session)
+        .select(array_construct(lit(1), lit(1.2), lit("string"), lit(""), lit(None)))
+        .collect()[0][0]
+        == '[\n  1,\n  1.200000000000000e+00,\n  "string",\n  "",\n  undefined\n]'
+    )
+
+    assert TestData.zero1(session).select(array_construct()).collect()[0][0] == "[]"
+
+    Utils.check_answer(
+        TestData.integer1(session).select(
+            array_construct(col("a"), lit(1.2), lit(None))
+        ),
+        [
+            Row("[\n  1,\n  1.200000000000000e+00,\n  undefined\n]"),
+            Row("[\n  2,\n  1.200000000000000e+00,\n  undefined\n]"),
+            Row("[\n  3,\n  1.200000000000000e+00,\n  undefined\n]"),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.integer1(session).select(array_construct("a", lit(1.2), lit(None))),
+        [
+            Row("[\n  1,\n  1.200000000000000e+00,\n  undefined\n]"),
+            Row("[\n  2,\n  1.200000000000000e+00,\n  undefined\n]"),
+            Row("[\n  3,\n  1.200000000000000e+00,\n  undefined\n]"),
+        ],
+        sort=False,
+    )
+
+
+def test_array_construct_compact(session):
+    assert (
+        TestData.zero1(session)
+        .select(
+            array_construct_compact(lit(1), lit(1.2), lit("string"), lit(""), lit(None))
+        )
+        .collect()[0][0]
+        == '[\n  1,\n  1.200000000000000e+00,\n  "string",\n  ""\n]'
+    )
+
+    assert (
+        TestData.zero1(session).select(array_construct_compact()).collect()[0][0]
+        == "[]"
+    )
+
+    Utils.check_answer(
+        TestData.integer1(session).select(
+            array_construct_compact(col("a"), lit(1.2), lit(None))
+        ),
+        [
+            Row("[\n  1,\n  1.200000000000000e+00\n]"),
+            Row("[\n  2,\n  1.200000000000000e+00\n]"),
+            Row("[\n  3,\n  1.200000000000000e+00\n]"),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.integer1(session).select(
+            array_construct_compact("a", lit(1.2), lit(None))
+        ),
+        [
+            Row("[\n  1,\n  1.200000000000000e+00\n]"),
+            Row("[\n  2,\n  1.200000000000000e+00\n]"),
+            Row("[\n  3,\n  1.200000000000000e+00\n]"),
+        ],
+        sort=False,
+    )
+
+
+def test_array_contains(session):
+    assert (
+        TestData.zero1(session)
+        .select(
+            array_contains(lit(1), array_construct(lit(1), lit(1.2), lit("string")))
+        )
+        .collect()[0][0]
+    )
+
+    assert (
+        not TestData.zero1(session)
+        .select(
+            array_contains(lit(-1), array_construct(lit(1), lit(1.2), lit("string")))
+        )
+        .collect()[0][0]
+    )
+
+    Utils.check_answer(
+        TestData.integer1(session).select(
+            array_contains(col("a"), array_construct(lit(1), lit(1.2), lit("string")))
+        ),
+        [Row(True), Row(False), Row(False)],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.integer1(session).select(
+            array_contains("a", array_construct(lit(1), lit(1.2), lit("string")))
+        ),
+        [Row(True), Row(False), Row(False)],
+        sort=False,
+    )
+
+
+def test_array_insert(session):
+    Utils.check_answer(
+        TestData.array2(session).select(array_insert(col("arr1"), col("d"), col("e"))),
+        [Row('[\n  1,\n  2,\n  "e1",\n  3\n]'), Row('[\n  6,\n  "e2",\n  7,\n  8\n]')],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array2(session).select(array_insert("arr1", "d", "e")),
+        [Row('[\n  1,\n  2,\n  "e1",\n  3\n]'), Row('[\n  6,\n  "e2",\n  7,\n  8\n]')],
+        sort=False,
+    )
+
+
+def test_array_position(session):
+    Utils.check_answer(
+        TestData.array2(session).select(array_position(col("d"), col("arr1"))),
+        [Row(1), Row(None)],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array2(session).select(array_position("d", "arr1")),
+        [Row(1), Row(None)],
+        sort=False,
+    )
+
+
+def test_array_prepend(session):
+    Utils.check_answer(
+        TestData.array1(session).select(
+            array_prepend(array_prepend(col("arr1"), lit("amount")), lit(32.21))
+        ),
+        [
+            Row('[\n  3.221000000000000e+01,\n  "amount",\n  1,\n  2,\n  3\n]'),
+            Row('[\n  3.221000000000000e+01,\n  "amount",\n  6,\n  7,\n  8\n]'),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array2(session).select(
+            array_prepend(array_prepend(col("arr1"), col("d")), col("e"))
+        ),
+        [
+            Row('[\n  "e1",\n  2,\n  1,\n  2,\n  3\n]'),
+            Row('[\n  "e2",\n  1,\n  6,\n  7,\n  8\n]'),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array1(session).select(
+            array_prepend(array_prepend("arr1", lit("amount")), lit(32.21))
+        ),
+        [
+            Row('[\n  3.221000000000000e+01,\n  "amount",\n  1,\n  2,\n  3\n]'),
+            Row('[\n  3.221000000000000e+01,\n  "amount",\n  6,\n  7,\n  8\n]'),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array2(session).select(array_prepend(array_prepend("arr1", "d"), "e")),
+        [
+            Row('[\n  "e1",\n  2,\n  1,\n  2,\n  3\n]'),
+            Row('[\n  "e2",\n  1,\n  6,\n  7,\n  8\n]'),
+        ],
+        sort=False,
+    )
+
+
+def test_array_size(session):
+    Utils.check_answer(
+        TestData.array2(session).select(array_size(col("arr1"))),
+        [Row(3), Row(3)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array2(session).select(array_size(col("d"))),
+        [Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array2(session).select(array_size(parse_json(col("f")))),
+        [Row(1), Row(2)],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array2(session).select(array_size("arr1")),
+        [Row(3), Row(3)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array2(session).select(array_size("d")),
+        [Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array2(session).select(array_size(parse_json("f"))),
+        [Row(1), Row(2)],
+        sort=False,
+    )
+
+
+def test_array_slice(session):
+    Utils.check_answer(
+        TestData.array3(session).select(array_slice(col("arr1"), col("d"), col("e"))),
+        [Row("[\n  2\n]"), Row("[\n  5\n]"), Row("[\n  6,\n  7\n]")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array3(session).select(array_slice("arr1", "d", "e")),
+        [Row("[\n  2\n]"), Row("[\n  5\n]"), Row("[\n  6,\n  7\n]")],
+        sort=False,
+    )
+
+
+def test_array_to_string(session):
+    Utils.check_answer(
+        TestData.array3(session).select(array_to_string(col("arr1"), col("f"))),
+        [Row("1,2,3"), Row("4, 5, 6"), Row("6;7;8")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.array3(session).select(array_to_string("arr1", "f")),
+        [Row("1,2,3"), Row("4, 5, 6"), Row("6;7;8")],
+        sort=False,
+    )
+
+
+def test_objectagg(session):
+    Utils.check_answer(
+        TestData.object1(session).select(object_agg(col("key"), col("value"))),
+        [Row('{\n  "age": 21,\n  "zip": 94401\n}')],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object1(session).select(object_agg("key", "value")),
+        [Row('{\n  "age": 21,\n  "zip": 94401\n}')],
+        sort=False,
+    )
+
+
+def test_object_construct(session):
+    Utils.check_answer(
+        TestData.object1(session).select(object_construct(col("key"), col("value"))),
+        [Row('{\n  "age": 21\n}'), Row('{\n  "zip": 94401\n}')],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.object1(session).select(object_construct()),
+        [Row("{}"), Row("{}")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object1(session).select(object_construct("key", "value")),
+        [Row('{\n  "age": 21\n}'), Row('{\n  "zip": 94401\n}')],
+        sort=False,
+    )
+
+
+def test_object_construct_keep_null(session):
+    Utils.check_answer(
+        TestData.object3(session).select(
+            object_construct_keep_null(col("key"), col("value"))
+        ),
+        [Row("{}"), Row('{\n  "zip": null\n}')],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.object1(session).select(object_construct_keep_null()),
+        [Row("{}"), Row("{}")],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object3(session).select(object_construct_keep_null("key", "value")),
+        [Row("{}"), Row('{\n  "zip": null\n}')],
+        sort=False,
+    )
+
+
+def test_object_delete(session):
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_delete(col("obj"), col("k"), lit("name"), lit("non-exist-key"))
+        ),
+        [Row('{\n  "zip": 21021\n}'), Row('{\n  "age": 26,\n  "zip": 94021\n}')],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_delete("obj", "k", lit("name"), lit("non-exist-key"))
+        ),
+        [Row('{\n  "zip": 21021\n}'), Row('{\n  "age": 26,\n  "zip": 94021\n}')],
+        sort=False,
+    )
+
+
+def test_object_insert(session):
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_insert(col("obj"), lit("key"), lit("v"))
+        ),
+        [
+            Row('{\n  "age": 21,\n  "key": "v",\n  "name": "Joe",\n  "zip": 21021\n}'),
+            Row('{\n  "age": 26,\n  "key": "v",\n  "name": "Jay",\n  "zip": 94021\n}'),
+        ],
+        sort=False,
+    )
+
+    resultSet = (
+        TestData.object2(session)
+        .select(object_insert(col("obj"), lit("key"), lit("v")))
+        .collect()
+    )
+    row1 = {'"age"': "21", '"key"': '"v"', '"name"': '"Joe"', '"zip"': "21021"}
+    assert (
+        dict(
+            [
+                list(map(str.strip, rs.split(":")))
+                for rs in resultSet[0][0][1:-1].split(",")
+            ]
+        )
+        == row1
+    )
+    row2 = {'"age"': "26", '"key"': '"v"', '"name"': '"Jay"', '"zip"': "94021"}
+    assert (
+        dict(
+            [
+                list(map(str.strip, rs.split(":")))
+                for rs in resultSet[1][0][1:-1].split(",")
+            ]
+        )
+        == row2
+    )
+
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_insert(col("obj"), col("k"), col("v"), col("flag"))
+        ),
+        [
+            Row('{\n  "age": 0,\n  "name": "Joe",\n  "zip": 21021\n}'),
+            Row('{\n  "age": 26,\n  "key": 0,\n  "name": "Jay",\n  "zip": 94021\n}'),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object2(session).select(object_insert("obj", lit("key"), lit("v"))),
+        [
+            Row('{\n  "age": 21,\n  "key": "v",\n  "name": "Joe",\n  "zip": 21021\n}'),
+            Row('{\n  "age": 26,\n  "key": "v",\n  "name": "Jay",\n  "zip": 94021\n}'),
+        ],
+        sort=False,
+    )
+
+    resultSet = (
+        TestData.object2(session)
+        .select(object_insert("obj", lit("key"), lit("v")))
+        .collect()
+    )
+    row1 = {'"age"': "21", '"key"': '"v"', '"name"': '"Joe"', '"zip"': "21021"}
+    assert (
+        dict(
+            [
+                list(map(str.strip, rs.split(":")))
+                for rs in resultSet[0][0][1:-1].split(",")
+            ]
+        )
+        == row1
+    )
+    row2 = {'"age"': "26", '"key"': '"v"', '"name"': '"Jay"', '"zip"': "94021"}
+    assert (
+        dict(
+            [
+                list(map(str.strip, rs.split(":")))
+                for rs in resultSet[1][0][1:-1].split(",")
+            ]
+        )
+        == row2
+    )
+
+    Utils.check_answer(
+        TestData.object2(session).select(object_insert("obj", "k", "v", "flag")),
+        [
+            Row('{\n  "age": 0,\n  "name": "Joe",\n  "zip": 21021\n}'),
+            Row('{\n  "age": 26,\n  "key": 0,\n  "name": "Jay",\n  "zip": 94021\n}'),
+        ],
+        sort=False,
+    )
+
+
+def test_object_pick(session):
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_pick(col("obj"), col("k"), lit("name"), lit("non-exist-key"))
+        ),
+        [Row('{\n  "age": 21,\n  "name": "Joe"\n}'), Row('{\n  "name": "Jay"\n}')],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_pick(col("obj"), array_construct(lit("name"), lit("zip")))
+        ),
+        [
+            Row('{\n  "name": "Joe",\n  "zip": 21021\n}'),
+            Row('{\n  "name": "Jay",\n  "zip": 94021\n}'),
+        ],
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_pick("obj", "k", lit("name"), lit("non-exist-key"))
+        ),
+        [Row('{\n  "age": 21,\n  "name": "Joe"\n}'), Row('{\n  "name": "Jay"\n}')],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.object2(session).select(
+            object_pick("obj", array_construct(lit("name"), lit("zip")))
+        ),
+        [
+            Row('{\n  "name": "Joe",\n  "zip": 21021\n}'),
+            Row('{\n  "name": "Jay",\n  "zip": 94021\n}'),
+        ],
+        sort=False,
     )
 
 
@@ -1453,5 +2220,106 @@ def test_to_xml(session):
             Row('<SnowflakeData type="INTEGER">2</SnowflakeData>'),
             Row('<SnowflakeData type="INTEGER">3</SnowflakeData>'),
         ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("a", ["a", col("a")])
+def test_typeof(session, a):
+    Utils.check_answer(
+        TestData.integer1(session).select(typeof(a)),
+        [Row("INTEGER")] * 3,
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("obj, k", [("obj", "k"), (col("obj"), col("k"))])
+def test_get_ignore_case(session, obj, k):
+    Utils.check_answer(
+        TestData.object2(session).select(get_ignore_case(obj, k)),
+        [Row("21"), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.object2(session).select(get_ignore_case(obj, lit("AGE"))),
+        [Row("21"), Row("26")],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("column", ["obj", col("obj")])
+def test_object_keys(session, column):
+    Utils.check_answer(
+        TestData.object2(session).select(object_keys(column)),
+        [
+            Row('[\n  "age",\n  "name",\n  "zip"\n]'),
+            Row('[\n  "age",\n  "name",\n  "zip"\n]'),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "v, t2, t3, instance",
+    [("v", "t2", "t3", "instance"), (col("v"), col("t2"), col("t3"), col("instance"))],
+)
+def test_xmlget(session, v, t2, t3, instance):
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(get_ignore_case(xmlget(v, t2), lit("$"))),
+        [Row('"bar"'), Row(None), Row('"foo"')],
+        sort=False,
+    )
+
+    # Scala assert getVariant() here. snowpark-python doesn't have class Variant so skip it.
+
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(
+            get_ignore_case(xmlget(v, t3, lit("0")), lit("@"))
+        ),
+        [Row('"t3"'), Row(None), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(
+            get_ignore_case(xmlget(col("v"), t2, instance), lit("$"))
+        ),
+        [Row('"bar"'), Row(None), Row('"bar"')],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("v, k", [("v", "k"), (col("v"), col("k"))])
+def test_get_path(session, v, k):
+    Utils.check_answer(
+        TestData.valid_json1(session).select(get_path(v, k)),
+        [Row("null"), Row('"foo"'), Row(None), Row(None)],
+        sort=False,
+    )
+
+
+def test_get(session):
+    Utils.check_answer(
+        [Row("21"), Row(None)],
+        TestData.object2(session).select(get(col("obj"), col("k"))),
+        sort=False,
+    )
+    Utils.check_answer(
+        [Row(None), Row(None)],
+        TestData.object2(session).select(get(col("obj"), lit("AGE"))),
+        sort=False,
+    )
+
+    # Same as above, but pass str instead of Column
+    Utils.check_answer(
+        [Row("21"), Row(None)],
+        TestData.object2(session).select(get("obj", "k")),
+        sort=False,
+    )
+
+    Utils.check_answer(
+        [Row(None), Row(None)],
+        TestData.object2(session).select(get("obj", lit("AGE"))),
         sort=False,
     )

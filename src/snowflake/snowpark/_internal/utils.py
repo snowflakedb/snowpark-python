@@ -23,24 +23,32 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
-_QUERY_TAG_TRACEBACK_LIMIT = 3
+QUERY_TAG_TRACEBACK_LIMIT = 3
+
+# https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html
+SNOWFLAKE_UNQUOTED_ID_PATTERN = r"([a-zA-Z_][\w\$]*)"
+SNOWFLAKE_QUOTED_ID_PATTERN = '("([^"]|"")+")'
+SNOWFLAKE_ID_PATTERN = (
+    f"({SNOWFLAKE_UNQUOTED_ID_PATTERN}|{SNOWFLAKE_QUOTED_ID_PATTERN})"
+)
+
+# Valid name can be:
+#   identifier,
+#   identifier.identifier,
+#   identifier.identifier.identifier
+#   identifier..identifier
+SNOWFLAKE_OBJECT_RE_PATTERN = re.compile(
+    f"^(({SNOWFLAKE_ID_PATTERN}\\.){{0,2}}|({SNOWFLAKE_ID_PATTERN}\\.\\.)){SNOWFLAKE_ID_PATTERN}$"
+)
+
+# "%?" is for table stage
+SNOWFLAKE_STAGE_NAME_PATTERN = f"(%?{SNOWFLAKE_ID_PATTERN})"
 
 
 class Utils:
     @staticmethod
     def validate_object_name(name: str):
-        # Valid name can be:
-        #   identifier,
-        #   identifier.identifier,
-        #   identifier.identifier.identifier
-        #   identifier..identifier
-        unquoted_id_pattern = r"([a-zA-Z_][\w$]*)"
-        quoted_id_pattern = '("([^"]|"")+")'
-        id_pattern = f"({unquoted_id_pattern}|{quoted_id_pattern})"
-        pattern = re.compile(
-            f"^(({id_pattern}\\.){{0,2}}|({id_pattern}\\.\\.)){id_pattern}$$"
-        )
-        if not pattern.match(name):
+        if not SNOWFLAKE_OBJECT_RE_PATTERN.match(name):
             raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
     @staticmethod
@@ -235,9 +243,44 @@ class Utils:
             )
 
     @staticmethod
-    def create_statement_query_tag(skip_levels=0) -> str:
-        stack = traceback.format_stack(limit=_QUERY_TAG_TRACEBACK_LIMIT + skip_levels)
+    def create_statement_query_tag(skip_levels: int = 0) -> str:
+        stack = traceback.format_stack(limit=QUERY_TAG_TRACEBACK_LIMIT + skip_levels)
         return "".join(stack[:-skip_levels] if skip_levels else stack)
+
+    @staticmethod
+    def get_stage_file_prefix_length(stage_location: str) -> int:
+        normalized = Utils.normalize_stage_location(stage_location)
+        if not normalized.endswith("/"):
+            normalized = f"{normalized}/"
+
+        # Remove the first three characters from @~/...
+        if normalized.startswith("@~"):
+            return len(normalized) - 3
+
+        is_quoted = False
+        for i, c in enumerate(normalized):
+            if c == '"':
+                is_quoted = not is_quoted
+            elif c == "/" and not is_quoted:
+                # Find the first unquoted '/', then the stage name is before it,
+                # the path is after it
+                full_stage_name = normalized[:i]
+                path = normalized[i + 1 :]
+                # Find the last match of the first group, which should be the stage name.
+                # If not found, the stage name should be invalid
+                res = re.findall(SNOWFLAKE_STAGE_NAME_PATTERN, full_stage_name)
+                if not res:
+                    break
+                stage_name = res[-1][0]
+                # For a table stage, stage name is not in the prefix,
+                # so the prefix is path. Otherwise, the prefix is stageName + "/" + path
+                return (
+                    len(path)
+                    if stage_name.startswith("%")
+                    else len(path) + len(stage_name.strip('"')) + 1
+                )
+
+        raise ValueError(f"Invalid stage {stage_location}")
 
 
 class PythonObjJSONEncoder(JSONEncoder):
