@@ -8,6 +8,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkCreateViewException,
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
+    SnowparkFetchDataException,
     SnowparkInvalidObjectNameException,
     SnowparkJoinException,
     SnowparkMissingDbOrSchemaException,
@@ -255,6 +256,12 @@ class SnowparkClientExceptionMessages:
     def SERVER_FAILED_CLOSE_SESSION(message: str) -> SnowparkSessionException:
         return SnowparkSessionException(
             f"Failed to close this session. The error is: {message}", "1405"
+        )
+
+    @staticmethod
+    def SERVER_FAILED_FETCH_PANDAS(message: str) -> SnowparkFetchDataException:
+        return SnowparkFetchDataException(
+            f"Failed to fetch a Pandas Dataframe. The error is: {message}", "1406"
         )
 
     # General Error codes 15XX

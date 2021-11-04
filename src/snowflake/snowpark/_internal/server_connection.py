@@ -12,6 +12,7 @@ import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
+from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
@@ -335,8 +336,21 @@ class ServerConnection:
         except Exception as ex:
             logger.error("Failed to execute query {}\n{}".format(query, ex))
             raise ex
+
+        # fetch_pandas_all() only works for SELECT statements
+        # We call fetchall() if fetch_pandas_all() fails, because
+        # when the query plan has multiple queries, it will have
+        # non-select statements, and it shouldn't fail if the user
+        # calls toPandas() to execute the query.
         if to_pandas:
-            data = results_cursor.fetch_pandas_all()
+            try:
+                data = results_cursor.fetch_pandas_all()
+            except NotSupportedError:
+                data = results_cursor.fetchall()
+            except BaseException as ex:
+                raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
+                    str(ex)
+                )
         else:
             data = results_cursor.fetchall()
         return {"data": data, "sfqid": results_cursor.sfqid}
