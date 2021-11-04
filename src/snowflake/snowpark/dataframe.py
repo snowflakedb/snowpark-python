@@ -1234,7 +1234,7 @@ class DataFrame:
         Returns:
              A list of the first ``n`` :class:`Row` objects if ``n`` is not ``None``. If ``n`` is negative or
              larger than the number of rows in the result, returns all rows in the
-             results. If no input is given, it returns the first :class:`Row` of
+             results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
         if n is None:
