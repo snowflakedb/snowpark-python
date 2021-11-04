@@ -64,6 +64,8 @@ from snowflake.snowpark._internal.sp_expressions import (
     RegExp as SPRegExp,
     SnowflakeUDF as SPSnowflakeUDF,
     SortOrder as SPSortOrder,
+    SpecialFrameBoundary as SPSpecialFrameBoundary,
+    SpecifiedWindowFrame as SPSpecifiedWindowFrame,
     Star as SPStar,
     SubfieldInt as SPSubfieldInt,
     SubfieldString as SPSubfieldString,
@@ -74,6 +76,9 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
+    UnspecifiedFrame as SPUnspecifiedFrame,
+    WindowExpression as SPWindowExpression,
+    WindowSpecDefinition as SPWindowSpecDefinition,
 )
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     ByteType as SPByteType,
@@ -96,25 +101,25 @@ class Analyzer:
         self.alias_maps_to_use = None
 
     def analyze(self, expr) -> str:
-        if type(expr) == SPLike:
+        if isinstance(expr, SPLike):
             return self.package.like_expression(
                 self.analyze(expr.expr), self.analyze(expr.pattern)
             )
 
-        if type(expr) == SPRegExp:
+        if isinstance(expr, SPRegExp):
             return self.package.regexp_expression(
                 self.analyze(expr.expr), self.analyze(expr.pattern)
             )
 
-        if type(expr) == SPCollate:
+        if isinstance(expr, SPCollate):
             return self.package.collate_expression(
                 self.analyze(expr.expr), expr.collation_spec
             )
 
-        if type(expr) == SPSubfieldString or type(expr) == SPSubfieldInt:
+        if isinstance(expr, (SPSubfieldString, SPSubfieldInt)):
             return self.package.subfield_expression(self.analyze(expr.expr), expr.field)
 
-        if type(expr) == SPCaseWhen:
+        if isinstance(expr, SPCaseWhen):
             return self.package.case_when_expression(
                 [
                     (self.analyze(condition), self.analyze(value))
@@ -124,33 +129,55 @@ class Analyzer:
             )
 
         # aggregate
-        if type(expr) == SPAggregateExpression:
+        if isinstance(expr, SPAggregateExpression):
             return self.aggr_extractor_convert_expr(
                 expr.aggregate_function, expr.is_distinct
             )
 
-        if type(expr) is SPLiteral:
+        # window
+        if isinstance(expr, SPWindowExpression):
+            return self.package.window_expression(
+                self.analyze(expr.window_function), self.analyze(expr.window_spec)
+            )
+        if isinstance(expr, SPWindowSpecDefinition):
+            return self.package.window_spec_expression(
+                list(map(self.analyze, expr.partition_spec)),
+                list(map(self.analyze, expr.order_spec)),
+                self.analyze(expr.frame_spec),
+            )
+        if isinstance(expr, SPSpecifiedWindowFrame):
+            return self.package.specified_window_frame_expression(
+                expr.frame_type.sql,
+                self.window_frame_boundary(self.__to_sql_avoid_offset(expr.lower)),
+                self.window_frame_boundary(self.__to_sql_avoid_offset(expr.upper)),
+            )
+        if isinstance(expr, SPUnspecifiedFrame):
+            return ""
+        if isinstance(expr, SPSpecialFrameBoundary):
+            return expr.sql()
+
+        if isinstance(expr, SPLiteral):
             return DataTypeMapper.to_sql(expr.value, expr.datatype)
 
-        if type(expr) is SPAttributeReference:
+        if isinstance(expr, SPAttributeReference):
             name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
             return self.package.quote_name(name)
 
         # unresolved expression
-        if type(expr) is SPUnresolvedAttribute:
+        if isinstance(expr, SPUnresolvedAttribute):
             if len(expr.name_parts) == 1:
                 return expr.name_parts[0]
             else:
                 raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(
                     ".".join(expr.name_parts)
                 )
-        if type(expr) is SPUnresolvedFunction:
+        if isinstance(expr, SPUnresolvedFunction):
             # TODO expr.name should return FunctionIdentifier, and we should pass expr.name.funcName
             return self.package.function_expression(
                 expr.name, list(map(self.analyze, expr.children)), expr.is_distinct
             )
 
-        if type(expr) == SPAlias:
+        if isinstance(expr, SPAlias):
             quoted_name = self.package.quote_name(expr.name)
             if isinstance(expr.child, SPAttributeReference):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
@@ -159,13 +186,13 @@ class Analyzer:
                         self.generated_alias_maps[k] = quoted_name
             return self.package.alias_expression(self.analyze(expr.child), quoted_name)
 
-        if type(expr) == SPStar:
+        if isinstance(expr, SPStar):
             if not expr.expressions:
                 return "*"
             else:
                 return ",".join(list(map(self.analyze, expr.expressions)))
 
-        if type(expr) == SPSnowflakeUDF:
+        if isinstance(expr, SPSnowflakeUDF):
             return self.package.function_expression(
                 expr.udf_name, list(map(self.analyze, expr.children)), False
             )
@@ -183,7 +210,7 @@ class Analyzer:
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))
 
     def table_function_expression_extractor(self, expr):
-        if type(expr) == SPFlattenFunction:
+        if isinstance(expr, SPFlattenFunction):
             return self.package.flatten_expression(
                 self.analyze(expr.input),
                 expr.path,
@@ -192,12 +219,12 @@ class Analyzer:
                 expr.mode,
             )
 
-        if type(expr) == SPTableFunction:
+        if isinstance(expr, SPTableFunction):
             return self.package.function_expression(
                 expr.func_name, [self.analyze(x) for x in expr.args], False
             )
 
-        if type(expr) == SPNamedArgumentsTableFunction:
+        if isinstance(expr, SPNamedArgumentsTableFunction):
             return self.package.named_arguments_function(
                 expr.func_name,
                 {key: self.analyze(value) for key, value in expr.args.items()},
@@ -221,37 +248,28 @@ class Analyzer:
         pass
 
     def unary_expression_extractor(self, expr) -> Optional[str]:
-        if type(expr) == SPUnresolvedAlias:
+        if isinstance(expr, SPUnresolvedAlias):
             return self.analyze(expr.child)
-        elif type(expr) == SPCast:
+        elif isinstance(expr, SPCast):
             return self.package.cast_expression(self.analyze(expr.child), expr.to)
-        elif type(expr) == SPSortOrder:
+        elif isinstance(expr, SPSortOrder):
             return self.package.order_expression(
                 self.analyze(expr.child), expr.direction.sql, expr.null_ordering.sql
             )
-        elif type(expr) == SPUnaryMinus:
+        elif isinstance(expr, SPUnaryMinus):
             return self.package.unary_minus_expression(self.analyze(expr.child))
-        elif type(expr) == SPNot:
+        elif isinstance(expr, SPNot):
             return self.package.not_expression(self.analyze(expr.child))
-        elif type(expr) == SPIsNaN:
+        elif isinstance(expr, SPIsNaN):
             return self.package.is_nan_expression(self.analyze(expr.child))
-        elif type(expr) == SPIsNull:
+        elif isinstance(expr, SPIsNull):
             return self.package.is_null_expression(self.analyze(expr.child))
-        elif type(expr) == SPIsNotNull:
+        elif isinstance(expr, SPIsNotNull):
             return self.package.is_not_null_expression(self.analyze(expr.child))
         else:
-            # TODO: SNOW-369125: pretty_name of Expression
             return self.package.function_expression(
                 expr.pretty_name, [self.analyze(expr.child)], False
             )
-
-    # TODO
-    def special_frame_boundary_extractor(self, expr):
-        pass
-
-    # TODO
-    def offset_window_function_extractor(self, expr):
-        pass
 
     def binary_operator_extractor(self, expr):
         if isinstance(expr, SPBinaryArithmeticExpression):
@@ -290,14 +308,19 @@ class Analyzer:
     def grouping_extractor(self, expr: SPExpression):
         pass
 
-    # TODO
     def window_frame_boundary(self, offset: str) -> str:
-        pass
+        try:
+            num = int(offset)
+            return self.package.window_frame_boundary_expression(
+                str(abs(num)), num >= 0
+            )
+        except:
+            return offset
 
     def __to_sql_avoid_offset(self, expr: SPExpression) -> str:
         # if expression is integral literal, return the number without casting,
         # otherwise process as normal
-        if type(expr) == SPLiteral:
+        if isinstance(expr, SPLiteral):
             if isinstance(
                 expr.datatype, (SPIntegerType, SPLongType, SPShortType, SPByteType)
             ):
@@ -341,29 +364,29 @@ class Analyzer:
         return self.do_resolve_inner(logical_plan, resolved_children)
 
     def do_resolve_inner(self, logical_plan, resolved_children) -> SnowflakePlan:
-        if type(logical_plan) == SnowflakePlan:
+        if isinstance(logical_plan, SnowflakePlan):
             return logical_plan
 
-        if type(logical_plan) == SPTableFunctionJoin:
+        if isinstance(logical_plan, SPTableFunctionJoin):
             return self.plan_builder.join_table_function(
                 self.analyze(logical_plan.table_function),
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
             )
 
-        if type(logical_plan) == SPTableFunctionRelation:
+        if isinstance(logical_plan, SPTableFunctionRelation):
             return self.plan_builder.from_table_function(
                 self.analyze(logical_plan.table_function)
             )
 
-        if type(logical_plan) == SPLateral:
+        if isinstance(logical_plan, SPLateral):
             return self.plan_builder.lateral(
                 self.analyze(logical_plan.table_function),
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
             )
 
-        if type(logical_plan) == SPAggregate:
+        if isinstance(logical_plan, SPAggregate):
             return self.plan_builder.aggregate(
                 list(
                     map(self.__to_sql_avoid_offset, logical_plan.grouping_expressions)
@@ -373,14 +396,14 @@ class Analyzer:
                 logical_plan,
             )
 
-        if type(logical_plan) == SPProject:
+        if isinstance(logical_plan, SPProject):
             return self.plan_builder.project(
                 list(map(self.analyze, logical_plan.project_list)),
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
 
-        if type(logical_plan) == SPFilter:
+        if isinstance(logical_plan, SPFilter):
             return self.plan_builder.filter(
                 self.analyze(logical_plan.condition),
                 resolved_children[logical_plan.child],
@@ -388,7 +411,7 @@ class Analyzer:
             )
 
         # Add a sample stop to the plan being built
-        if type(logical_plan) == SPSample:
+        if isinstance(logical_plan, SPSample):
             return self.plan_builder.sample(
                 resolved_children[logical_plan.child],
                 logical_plan,
@@ -396,7 +419,7 @@ class Analyzer:
                 logical_plan.row_count,
             )
 
-        if type(logical_plan) == SPJoin:
+        if isinstance(logical_plan, SPJoin):
             return self.plan_builder.join(
                 resolved_children[logical_plan.left],
                 resolved_children[logical_plan.right],
@@ -405,14 +428,14 @@ class Analyzer:
                 logical_plan,
             )
 
-        if type(logical_plan) == SPSort:
+        if isinstance(logical_plan, SPSort):
             return self.plan_builder.sort(
                 list(map(self.analyze, logical_plan.order)),
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
 
-        if type(logical_plan) in (SPIntersect, SPUnion, SPExcept):
+        if isinstance(logical_plan, (SPIntersect, SPUnion, SPExcept)):
             return self.plan_builder.set_operator(
                 resolved_children[logical_plan.left],
                 resolved_children[logical_plan.right],
@@ -420,7 +443,7 @@ class Analyzer:
                 logical_plan,
             )
 
-        if type(logical_plan) == SPRange:
+        if isinstance(logical_plan, SPRange):
             # The column name id lower-case is hard-coded by Spark as the output
             # schema of Range. Since this corresponds to the Snowflake column "id"
             # (quoted lower-case) it's a little hard for users. So we switch it to
@@ -432,7 +455,7 @@ class Analyzer:
                 logical_plan,
             )
 
-        if type(logical_plan) == SnowflakeValues:
+        if isinstance(logical_plan, SnowflakeValues):
             if logical_plan.data:
                 if (
                     len(logical_plan.output) * len(logical_plan.data)
@@ -454,17 +477,17 @@ class Analyzer:
                     logical_plan,
                 )
 
-        if type(logical_plan) == SPUnresolvedRelation:
+        if isinstance(logical_plan, SPUnresolvedRelation):
             return self.plan_builder.table(".".join(logical_plan.multipart_identifier))
 
-        if type(logical_plan) == SnowflakeCreateTable:
+        if isinstance(logical_plan, SnowflakeCreateTable):
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.mode,
                 resolved_children[logical_plan.children[0]],
             )
 
-        if type(logical_plan) == SPLimit:
+        if isinstance(logical_plan, SPLimit):
             if isinstance(logical_plan.child, SPSort):
                 on_top_of_order_by = True
             elif (
@@ -482,14 +505,14 @@ class Analyzer:
                 logical_plan,
             )
 
-        if type(logical_plan) == SPCreateViewCommand:
+        if isinstance(logical_plan, SPCreateViewCommand):
             if type(logical_plan.view_type) == SPPersistedView:
                 is_temp = False
             elif type(logical_plan.view_type) == SPLocalTempView:
                 is_temp = True
             else:
                 raise SnowparkClientExceptionMessages.PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
-                    type(logical_plan.view_type)
+                    str(logical_plan.view_type)
                 )
 
             return self.plan_builder.create_or_replace_view(
