@@ -491,9 +491,9 @@ class Session:
         *func_arguments: Union[Column, str],
         **func_named_arguments: Union[Column, str],
     ) -> DataFrame:
-        """Creates a new DataFrame from the given snowflake sql table function.
+        """Creates a new DataFrame from the given snowflake SQL table function.
 
-        Reference: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
+        References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
         Example::
 
@@ -501,15 +501,15 @@ class Session:
 
         Args:
 
-            func_name: The sql function name.
-            func_arguments: The positional arguments for the sql function.
-            func_named_arguments: The named arguments for the sql function, if it accepts named arguments.
+            func_name: The SQL function name.
+            func_arguments: The positional arguments for the SQL function.
+            func_named_arguments: The named arguments for the SQL function, if it accepts named arguments.
 
         Returns:
             A new :class:`DataFrame` with data from calling the table function.
 
         See Also:
-            - :meth:`DataFrame.joinTableFunction`, which lateral joins an existing :class:`DataFrame` and a sql function.
+            - :meth:`DataFrame.joinTableFunction`, which lateral joins an existing :class:`DataFrame` and a SQL function.
         """
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -846,7 +846,7 @@ class Session:
             - VALUE
             - THIS
 
-        Reference: `Snowflake SQL function FLATTEN <https://docs.snowflake.com/en/sql-reference/functions/flatten.html>`_.
+        References: `Snowflake SQL function FLATTEN <https://docs.snowflake.com/en/sql-reference/functions/flatten.html>`_.
 
         Example::
 

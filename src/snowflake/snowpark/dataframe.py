@@ -822,7 +822,7 @@ class DataFrame:
     ) -> "DataFrame":
         """Lateral joins the current DataFrame with the output of the specified table function.
 
-        Reference: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
+        References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
         Example::
             df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
@@ -830,15 +830,15 @@ class DataFrame:
 
         Args:
 
-            func_name: The sql function name.
-            func_arguments: The positional arguments for the sql function.
-            func_named_arguments: The named arguments for the sql function, if it accepts named arguments.
+            func_name: The SQL function name.
+            func_arguments: The positional arguments for the SQL function.
+            func_named_arguments: The named arguments for the SQL function, if it accepts named arguments.
 
         Returns:
             A new :class:`DataFrame` that has the columns carried from this :class`DataFrame`, plus new colums and rows from the lateral join with the table function.
 
         See Also:
-            - :meth:`Session.table_function`, which creates a new :class:`DataFrame` by using the sql table function.
+            - :meth:`Session.table_function`, which creates a new :class:`DataFrame` by using the SQL table function.
 
         """
         func_expr = _create_table_function_expression(
@@ -1039,7 +1039,7 @@ class DataFrame:
             - VALUE
             - THIS
 
-        Reference: `Snowflake SQL function FLATTEN <https://docs.snowflake.com/en/sql-reference/functions/flatten.html>`_.
+        References: `Snowflake SQL function FLATTEN <https://docs.snowflake.com/en/sql-reference/functions/flatten.html>`_.
 
         If this ``DataFrame`` also has columns with the names above, you can disambiguate the columns by renaming them.
 
@@ -1063,7 +1063,7 @@ class DataFrame:
             mode: Specifies which types should be flattened "OBJECT", "ARRAY", or "BOTH".
 
         Returns:
-            A new :class:`DataFrame` that has the columns carried from this :class`DataFrame`, the flattened new columns and new rows.
+            A new :class:`DataFrame` that has the columns carried from this :class:`DataFrame`, the flattened new columns and new rows.
 
         See Also:
             - :meth:`Session.flatten`, which Creates a new :class:`DataFrame` by flattening compound values into multiple rows.

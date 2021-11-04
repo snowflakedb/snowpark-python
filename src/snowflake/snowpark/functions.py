@@ -1271,6 +1271,8 @@ def _create_table_function_expression(
     *args: Union["Column", str],
     **named_args: Union["Column", str],
 ) -> SPTableFunctionExpression:
+    if args and named_args:
+        raise ValueError("A table function shouldn't have both args and named args")
     if type(func_name) == str:
         fqdn = func_name
     elif type(func_name) == list:
@@ -1279,8 +1281,6 @@ def _create_table_function_expression(
         fqdn = ".".join(func_name)
     else:
         raise TypeError("The table function name should be a str or a list of strs.")
-    if args and named_args:
-        raise ValueError("A table function shouldn't have both args and named args")
     func_arguments = args
     if func_arguments:
         return SPTableFunction(
