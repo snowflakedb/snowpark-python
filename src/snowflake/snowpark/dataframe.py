@@ -763,7 +763,7 @@ class DataFrame:
         DataFrame and another DataFrame (``right``) on a list of columns
         (``using_columns``).
 
-        The method assumes that the columns in ``usingColumns`` have the same meaning
+        The method assumes that the columns in ``using_columns`` have the same meaning
         in the left and right DataFrames.
 
         Examples::
@@ -1227,14 +1227,14 @@ class DataFrame:
 
         return self.session._conn.execute(self.session._analyzer.resolve(cmd), **kwargs)
 
-    def first(self, n: Optional[int] = None) -> List[Row]:
+    def first(self, n: Optional[int] = None) -> Union[Optional[Row], List[Row]]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
 
         Returns:
-             A list of the first ``n`` :class:`Row` objects. If ``n`` is negative or
+             A list of the first ``n`` :class:`Row` objects if ``n`` is not ``None``. If ``n`` is negative or
              larger than the number of rows in the result, returns all rows in the
-             results. If no input is given, it returns the first :class:`Row` of
+             results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
         if n is None:
@@ -1246,6 +1246,8 @@ class DataFrame:
             return self._collect_with_tag()
         else:
             return self.limit(n)._collect_with_tag()
+
+    take = first
 
     def sample(
         self, frac: Optional[float] = None, n: Optional[int] = None
