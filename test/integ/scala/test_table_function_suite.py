@@ -11,8 +11,8 @@ from snowflake.snowpark.types import StructField, StructType, VariantType
 def test_dataframe_join_table_function(session):
     df = session.createDataFrame(["[1,2]", "[3,4]"], schema=["a"])
     Utils.check_answer(
-        [Row("1"), Row("2"), Row("3"), Row("4")],
         df.joinTableFunction("flatten", input=parse_json(df["a"])).select("value"),
+        [Row("1"), Row("2"), Row("3"), Row("4")],
         sort=False,
     )
 
@@ -25,18 +25,18 @@ def test_dataframe_join_table_function(session):
 
 def test_session_table_function(session):
     Utils.check_answer(
-        [Row("1"), Row("2")],
         session.table_function("flatten", input=parse_json(lit("[1,2]"))).select(
             "value"
         ),
+        [Row("1"), Row("2")],
         sort=False,
     )
 
     Utils.check_answer(
-        [Row("split"), Row("by"), Row("space")],
         session.table_function(
             "split_to_table", lit("split by space"), lit(" ")
         ).select("value"),
+        [Row("split"), Row("by"), Row("space")],
         sort=False,
     )
 
