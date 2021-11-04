@@ -21,6 +21,9 @@ from snowflake.snowpark._internal.analyzer.sp_views import (
     PersistedView as SPPersistedView,
     ViewType as SPViewType,
 )
+from snowflake.snowpark._internal.analyzer.table_function import (
+    TableFunctionJoin as SPTableFunctionJoin,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Except as SPExcept,
@@ -59,6 +62,7 @@ from snowflake.snowpark._internal.sp_types.sp_join_types import (
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
+from snowflake.snowpark.functions import _create_table_function_expression
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -808,10 +812,39 @@ class DataFrame:
 
             return self.__join_dataframes(right, using_columns, sp_join_type)
 
-        # TODO handle case where right is a TableFunction
-        # if isinstance(right, TableFunction):
-        #    return self.__join_dataframe_table_function(other, using_columns)
         raise TypeError("Invalid type for join. Must be Dataframe")
+
+    def joinTableFunction(
+        self,
+        func_name: Union[str, List[str]],
+        *func_arguments: Union[Column, str],
+        **func_named_arguments: Union[Column, str],
+    ) -> "DataFrame":
+        """Lateral joins the current DataFrame with the output of the specified table function.
+
+        References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
+
+        Example::
+            df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
+            name_address_list = df.joinTableFunction("split_to_table", df["addresses"], lit(" ")).collect()
+
+        Args:
+
+            func_name: The SQL function name.
+            func_arguments: The positional arguments for the SQL function.
+            func_named_arguments: The named arguments for the SQL function, if it accepts named arguments.
+
+        Returns:
+            A new :class:`DataFrame` that has the columns carried from this :class:`DataFrame`, plus new columns and rows from the lateral join with the table function.
+
+        See Also:
+            - :meth:`Session.table_function`, which creates a new :class:`DataFrame` by using the SQL table function.
+
+        """
+        func_expr = _create_table_function_expression(
+            func_name, *func_arguments, **func_named_arguments
+        )
+        return DataFrame(self.session, SPTableFunctionJoin(self.__plan, func_expr))
 
     def crossJoin(self, right: "DataFrame") -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
@@ -1006,7 +1039,7 @@ class DataFrame:
             - VALUE
             - THIS
 
-        Reference: `Snowflake SQL function FLATTEN <https://docs.snowflake.com/en/sql-reference/functions/flatten.html>`_.
+        References: `Snowflake SQL function FLATTEN <https://docs.snowflake.com/en/sql-reference/functions/flatten.html>`_.
 
         If this ``DataFrame`` also has columns with the names above, you can disambiguate the columns by renaming them.
 
@@ -1030,7 +1063,7 @@ class DataFrame:
             mode: Specifies which types should be flattened "OBJECT", "ARRAY", or "BOTH".
 
         Returns:
-            A new :class:`DataFrame` that has the columns carried from this :class`DataFrame`, the flattened new columns and new rows.
+            A new :class:`DataFrame` that has the columns carried from this :class:`DataFrame`, the flattened new columns and new rows.
 
         See Also:
             - :meth:`Session.flatten`, which Creates a new :class:`DataFrame` by flattening compound values into multiple rows.
