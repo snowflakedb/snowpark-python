@@ -49,7 +49,7 @@ def test_to_pandas_non_select(session):
     def check_fetch_data_exception(query: str) -> None:
         with pytest.raises(SnowparkFetchDataException) as ex_info:
             session.sql(query).toPandas()
-        assert "the input query can only be a SELECT statement" in str(ex_info)
+        assert "the input query can only be a SELECT statement" in str(ex_info.value)
 
     temp_table_name = Utils.random_name()
     check_fetch_data_exception("show tables")
