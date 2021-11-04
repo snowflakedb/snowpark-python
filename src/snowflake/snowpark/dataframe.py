@@ -835,7 +835,7 @@ class DataFrame:
             func_named_arguments: The named arguments for the SQL function, if it accepts named arguments.
 
         Returns:
-            A new :class:`DataFrame` that has the columns carried from this :class`DataFrame`, plus new colums and rows from the lateral join with the table function.
+            A new :class:`DataFrame` that has the columns carried from this :class:`DataFrame`, plus new columns and rows from the lateral join with the table function.
 
         See Also:
             - :meth:`Session.table_function`, which creates a new :class:`DataFrame` by using the SQL table function.
