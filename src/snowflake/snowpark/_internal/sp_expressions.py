@@ -7,7 +7,7 @@
 #
 #  File containing the Expression definitions for ASTs (Spark).
 import uuid
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     DataType,
@@ -549,7 +549,7 @@ class FlattenFunction(TableFunctionExpression):
 
 
 class TableFunction(TableFunctionExpression):
-    def __init__(self, func_name: str, args: List[Expression]):
+    def __init__(self, func_name: str, args: Iterable[Expression]):
         super().__init__()
         self.func_name = func_name
         self.args = args
