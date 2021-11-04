@@ -84,8 +84,8 @@ class Utils:
 
     @staticmethod
     def check_answer(
-        expected: Union[Row, List[Row], DataFrame],
         actual: Union[Row, List[Row], DataFrame],
+        expected: Union[Row, List[Row], DataFrame],
         sort=True,
     ):
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):

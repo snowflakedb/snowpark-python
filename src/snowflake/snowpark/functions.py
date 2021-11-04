@@ -51,8 +51,11 @@ from snowflake.snowpark._internal.sp_expressions import (
     Literal as SPLiteral,
     Max as SPMax,
     Min as SPMin,
+    NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
     Star as SPStar,
     Sum as SPSum,
+    TableFunction as SPTableFunction,
+    TableFunctionExpression as SPTableFunctionExpression,
     UnresolvedFunction as SPUnresolvedFunction,
 )
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
@@ -573,7 +576,7 @@ def is_timestamp_tz(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a TIMESTAMP value with a time zone."""
     c = __to_col_if_str(col, "is_timestamp_tz")
     return builtin("is_timestamp_tz")(c)
-  
+
 
 def typeof(col: Union[Column, str]) -> Column:
     """Reports the type of a value stored in a VARIANT column. The type is returned as a string."""
@@ -1261,3 +1264,36 @@ def __to_col_if_str_or_int(e: Union[Column, str, int], func_name: str) -> Column
 
 def __with_expr(expr: SPExpression) -> Column:
     return Column(expr=expr)
+
+
+def _create_table_function_expression(
+    func_name: Union[str, List[str]],
+    *args: Union["Column", str],
+    **named_args: Union["Column", str],
+) -> SPTableFunctionExpression:
+    if args and named_args:
+        raise ValueError("A table function shouldn't have both args and named args")
+    if type(func_name) == str:
+        fqdn = func_name
+    elif type(func_name) == list:
+        for n in func_name:
+            Utils.validate_object_name(n)
+        fqdn = ".".join(func_name)
+    else:
+        raise TypeError("The table function name should be a str or a list of strs.")
+    func_arguments = args
+    if func_arguments:
+        return SPTableFunction(
+            fqdn,
+            (
+                __to_col_if_str(arg, "table_function").expression
+                for arg in func_arguments
+            ),
+        )
+    return SPNamedArgumentsTableFunction(
+        fqdn,
+        {
+            arg_name: __to_col_if_str(arg, "table_function").expression
+            for arg_name, arg in named_args.items()
+        },
+    )
