@@ -261,7 +261,7 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def SERVER_FAILED_FETCH_PANDAS(message: str) -> SnowparkFetchDataException:
         return SnowparkFetchDataException(
-            f"Failed to fetch a pandas dataframe. The error is: {message}", "1406"
+            f"Failed to fetch a Pandas Dataframe. The error is: {message}", "1406"
         )
 
     # General Error codes 15XX

@@ -250,7 +250,9 @@ class DataFrame:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
                 "toPandas() did not return a Pandas DataFrame. "
                 "If you use session.sql(...).toPandas(), the input query can only be a "
-                "SELECT statement."
+                "SELECT statement. Or you can use session.sql(...).collect() to get a "
+                "list of Row objects for a non-SELECT statement, then convert it to a "
+                "Pandas DataFrame."
             )
 
         return result
