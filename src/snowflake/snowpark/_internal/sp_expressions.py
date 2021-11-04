@@ -657,7 +657,7 @@ class SpecialFrameBoundary(Expression):
         super().__init__()
 
     def sql(self) -> str:
-        pass
+        raise NotImplementedError
 
 
 class UnboundedPreceding(SpecialFrameBoundary):
