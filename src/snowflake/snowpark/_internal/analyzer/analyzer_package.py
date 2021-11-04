@@ -677,6 +677,48 @@ class AnalyzerPackage:
     def is_not_null_expression(self, child: str) -> str:
         return child + self._Is + self._Not + self._Null
 
+    def window_expression(self, window_function: str, window_spec: str) -> str:
+        return (
+            window_function
+            + self._Over
+            + self._LeftParenthesis
+            + window_spec
+            + self._RightParenthesis
+        )
+
+    def window_spec_expression(
+        self, partition_spec: List[str], order_spec: List[str], frame_spec: str
+    ) -> str:
+        return (
+            (
+                self._PartitionBy + self._Comma.join(partition_spec)
+                if partition_spec
+                else self._EmptyString
+            )
+            + (
+                self._OrderBy + self._Comma.join(order_spec)
+                if order_spec
+                else self._EmptyString
+            )
+            + frame_spec
+        )
+
+    def specified_window_frame_expression(
+        self, frame_type: str, lower: str, upper: str
+    ) -> str:
+        return (
+            self._Space
+            + frame_type
+            + self._Between
+            + lower
+            + self._And
+            + upper
+            + self._Space
+        )
+
+    def window_frame_boundary_expression(self, offset: str, is_following: bool) -> str:
+        return offset + (self._Following if is_following else self._Preceding)
+
     def cast_expression(self, child: str, datatype: DataType) -> str:
         return (
             self._Cast
