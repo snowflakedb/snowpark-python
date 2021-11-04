@@ -870,7 +870,7 @@ class Session:
 
         See Also:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
-            - :meth:`table_function`, which can be used for any Snowflake table functions, including ``flatten``.
+            - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
 
         mode = mode.upper()

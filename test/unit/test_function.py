@@ -70,7 +70,6 @@ def test_create_table_function_expression_named_args():
 def test_create_table_function_expression_named_wrong_params():
     with pytest.raises(ValueError) as ve:
         _create_table_function_expression("func_name", lit("v1"), argb=lit("v2"))
-    assert isinstance(ve.value, ValueError)
     assert (
         "A table function shouldn't have both args and named args" == ve.value.args[0]
     )
@@ -79,7 +78,6 @@ def test_create_table_function_expression_named_wrong_params():
 def test_create_table_function_expression_named_wrong_table_name():
     with pytest.raises(TypeError) as ve:
         _create_table_function_expression(1)
-    assert isinstance(ve.value, TypeError)
     assert (
         "The table function name should be a str or a list of strs." == ve.value.args[0]
     )
