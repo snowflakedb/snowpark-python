@@ -26,6 +26,7 @@ from typing import (
     get_args,
     get_origin,
 )
+from collections import OrderedDict, defaultdict
 
 from snowflake.snowpark.types import (
     ArrayType,
@@ -37,6 +38,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
+    GeographyType,
     IntegerType,
     LongType,
     MapType,
@@ -87,8 +89,8 @@ def convert_to_sf_type(datatype: DataType) -> str:
         return "OBJECT"
     if isinstance(datatype, VariantType):
         return "VARIANT"
-    # if isinstance(datatype, GeographyType):
-    #    return "GEOGRAPHY"
+    if isinstance(datatype, GeographyType):
+       return "GEOGRAPHY"
     raise TypeError(f"Unsupported data type: {datatype.type_name}")
 
 

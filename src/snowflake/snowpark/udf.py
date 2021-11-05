@@ -165,6 +165,7 @@ class UDFRegistration:
     ``list``                                       :class:`~snowflake.snowpark.types.ArrayType`      ARRAY
     ``dict``                                       :class:`~snowflake.snowpark.types.MapType`        OBJECT
     Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`    VARIANT
+    ``str``                                        :class:`~snowflake.snowpark.types.GeographyType`  GEOGRAPHY
     =============================================  ================================================  =========
 
     Note:

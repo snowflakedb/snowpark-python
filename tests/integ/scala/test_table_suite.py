@@ -10,6 +10,14 @@ import pytest
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
 from tests.utils import Utils
+from snowflake.snowpark.types import (
+    ArrayType,
+    Geography,
+    GeographyType,
+    MapType,
+    StringType,
+    VariantType,
+)
 
 
 @pytest.fixture(scope="function")
@@ -26,6 +34,22 @@ def table_name_4(session: Session):
     table_name = Utils.random_name()
     Utils.create_table(session, table_name, "num int")
     session._run_query(f"insert into {table_name} values (1), (2), (3)")
+    yield table_name
+    Utils.drop_table(session, table_name)
+
+
+@pytest.fixture(scope="function")
+def semi_structured_table(session: Session):
+    table_name = Utils.random_name()
+    Utils.create_table(
+        session, table_name, "a1 array, o1 object, v1 variant, g1 geography"
+    )
+    query = (
+        f"insert into {table_name} select parse_json(a), parse_json(b), "
+        "parse_json(a), to_geography(c) from values('[1,2]', '{a:1}', 'POINT(-122.35 37.55)'),"
+        "('[1,2,3]', '{b:2}', 'POINT(-12 37)') as T(a,b,c)"
+    )
+    session._run_query(query)
     yield table_name
     Utils.drop_table(session, table_name)
 
@@ -179,9 +203,36 @@ def test_quotes_upper_and_lower_case_name(session, table_name_1):
         Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
 
 
-@pytest.mark.skip("To port from scala after Python implements Geography")
-def test_table_with_semi_structured_types(session):
-    pass
+# @pytest.mark.skip("To port from scala after Python implements Geography")
+def test_table_with_semi_structured_types(session, semi_structured_table):
+    df = session.table(semi_structured_table)
+    types = [s.datatype for s in df.schema.fields]
+    assert len(types) == 4
+    expected_types = [
+        ArrayType(StringType()),
+        MapType(StringType(), StringType()),
+        VariantType(),
+        GeographyType(),
+    ]
+    assert all([t in expected_types for t in types])
+    Utils.check_answer(
+        df,
+        [
+            Row(
+                "[\n  1,\n  2\n]",
+                '{\n  "a": 1\n}',
+                "[\n  1,\n  2\n]",
+                '{\n  "coordinates": [\n    -122.35,\n    37.55\n  ],\n  "type": "Point"\n}',
+            ),
+            Row(
+                "[\n  1,\n  2,\n  3\n]",
+                '{\n  "b": 2\n}',
+                "[\n  1,\n  2,\n  3\n]",
+                '{\n  "coordinates": [\n    -12,\n    37\n  ],\n  "type": "Point"\n}',
+            ),
+        ],
+        sort=False,
+    )
 
 
 @pytest.mark.skip("To port from scala after Python implements Geography")
