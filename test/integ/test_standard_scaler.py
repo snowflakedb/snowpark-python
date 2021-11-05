@@ -5,7 +5,9 @@
 #
 import pytest
 
+from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
+from snowflake.snowpark.exceptions import SnowparkColumnException
 from snowflake.snowpark.functions import avg, stddev
 from snowflake.snowpark.ml.transformers.standard_scaler import StandardScaler
 
@@ -13,7 +15,16 @@ TABLENAME = "table_temp"
 
 
 def test_fit(session):
-    input_df = session.createDataFrame([-1.0, 2.0, 3.5, 4.0]).toDF("input_value")
+    input_df = session.createDataFrame(
+        [
+            Row(1, "a", -1.0),
+            Row(2, "a", 8.3),
+            Row(3, "b", 2.0),
+            Row(4, "c", 3.5),
+            Row(5, "d", 2.5),
+            Row(6, "b", 4.0),
+        ]
+    ).toDF("id", "str", "input_value")
     expected_mean = input_df.select(avg(input_df["input_value"])).collect()[0][0]
     expected_stddev = input_df.select(stddev(input_df["input_value"])).collect()[0][0]
 
@@ -26,34 +37,77 @@ def test_fit(session):
     assert "{:.4f}".format(actual_mean) == "{:.4f}".format(expected_mean)
     assert "{:.4f}".format(actual_stddev) == "{:.4f}".format(expected_stddev)
 
-    # compares with incorrect mean and stddev
-    incorrect_mean = expected_mean + 1
-    incorrect_stddev = expected_stddev + 1
+    # input_df does not contain input_col
+    missing_input_col_input_df = session.createDataFrame(
+        [
+            Row(1, "a", -1.0),
+            Row(2, "a", 8.3),
+            Row(3, "b", 2.0),
+            Row(4, "c", 3.5),
+            Row(5, "d", 2.5),
+            Row(6, "b", 4.0),
+        ]
+    ).toDF("id", "str", "float")
 
-    with pytest.raises(AssertionError) as ex_info:
-        assert "{:.4f}".format(actual_mean) == "{:.4f}".format(incorrect_mean)
+    with pytest.raises(ProgrammingError) as ex_info:
+        scaler.fit(missing_input_col_input_df)
+    assert "invalid identifier 'INPUT_VALUE'" in str(ex_info)
+
+    # standard scaler with session as None
+    none_session_scaler = StandardScaler(session=None, input_col="input_value")
+
+    with pytest.raises(AttributeError) as ex_info:
+        none_session_scaler.fit(input_df)
+    assert "'NoneType' object has no attribute 'sql'" in str(ex_info)
+
+    # standard scaler with input_col as None
+    none_input_col_scaler = StandardScaler(session=session, input_col=None)
+
+    with pytest.raises(TypeError) as ex_info:
+        none_input_col_scaler.fit(input_df)
+    assert "The select() input must be Column, str, or list" in str(ex_info)
+
+    # input_df type is not DataFrame
+    with pytest.raises(TypeError) as ex_info:
+        scaler.fit(None)
     assert (
-        f"assert '{'{:.4f}'.format(actual_mean)}' == '{'{:.4f}'.format(incorrect_mean)}'"
+        "StandardScaler.fit() input type must be DataFrame. Got: <class 'NoneType'>"
         in str(ex_info)
     )
 
-    with pytest.raises(AssertionError) as ex_info:
-        assert "{:.4f}".format(actual_stddev) == "{:.4f}".format(incorrect_stddev)
+    with pytest.raises(TypeError) as ex_info:
+        scaler.fit("df")
     assert (
-        f"assert '{'{:.4f}'.format(actual_stddev)}' == '{'{:.4f}'.format(incorrect_stddev)}'"
+        "StandardScaler.fit() input type must be DataFrame. Got: <class 'str'>"
+        in str(ex_info)
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        scaler.fit(0)
+    assert (
+        "StandardScaler.fit() input type must be DataFrame. Got: <class 'int'>"
         in str(ex_info)
     )
 
 
 def test_transform(session):
-    input_df = session.createDataFrame([-1.0, 2.0, 3.5, 4.0]).toDF("input_value")
+    input_df = session.createDataFrame(
+        [
+            Row(1, "a", -1.0),
+            Row(2, "b", 2.0),
+            Row(3, "c", 3.5),
+            Row(4, "b", 4.0),
+            Row(5, "d", 2.5),
+            Row(6, "a", 8.3),
+        ]
+    ).toDF("id", "str", "input_value")
     expected_mean = input_df.select(avg(input_df["input_value"])).collect()[0][0]
     expected_stddev = input_df.select(stddev(input_df["input_value"])).collect()[0][0]
 
     scaler = StandardScaler(session=session, input_col="input_value")
     scaler.fit(input_df)
 
-    values = [-0.6, 5.0, 10.2, 8.3, 0.1]
+    values = [5.0, 10.2, 0.1, -0.6]
     df = session.createDataFrame(values).toDF("value")
 
     expected_df = session.createDataFrame(
@@ -63,32 +117,39 @@ def test_transform(session):
     expected_rows = expected_df.collect()
     actual_rows = actual_df.collect()
 
-    assert len(actual_rows) == len(expected_rows)
     for value1, value2 in zip(actual_rows, expected_rows):
         assert "{:.4f}".format(value1[0]) == "{:.4f}".format(value2[0])
 
-    # compares with df with a missing row
-    missing_value_df = session.createDataFrame(
-        [Row((v - expected_mean) / expected_stddev) for v in values[:-1]]
-    ).toDF("missing")
-    missing_value_rows = missing_value_df.collect()
-
-    with pytest.raises(AssertionError) as ex_info:
-        assert len(actual_rows) == len(missing_value_rows)
-    assert f"assert {len(actual_rows)} == {len(missing_value_rows)}" in str(ex_info)
-
-    # compares with df with incorrect values
-    incorrect_value_df = session.createDataFrame(
-        [Row((v - expected_mean) / expected_stddev + 1) for v in values]
-    ).toDF("incorrect")
-    incorrect_value_rows = incorrect_value_df.collect()
-
-    assert len(actual_rows) == len(incorrect_value_rows)
-    with pytest.raises(AssertionError) as ex_info:
-        assert "{:.4f}".format(actual_rows[0][0]) == "{:.4f}".format(
-            incorrect_value_rows[0][0]
-        )
+    # col type is not Column
+    with pytest.raises(TypeError) as ex_info:
+        df.select(scaler.transform(None))
     assert (
-        f"assert '{'{:.4f}'.format(actual_rows[0][0])}' == '{'{:.4f}'.format(incorrect_value_rows[0][0])}'"
+        "StandardScaler.transform() input type must be Column. Got: <class 'NoneType'>"
         in str(ex_info)
     )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(scaler.transform("value"))
+    assert (
+        "StandardScaler.transform() input type must be Column. Got: <class 'str'>"
+        in str(ex_info)
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(scaler.transform(0))
+    assert (
+        "StandardScaler.transform() input type must be Column. Got: <class 'int'>"
+        in str(ex_info)
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(scaler.transform(df))
+    assert (
+        "StandardScaler.transform() input type must be Column. Got: <class 'snowflake.snowpark.dataframe.DataFrame'>"
+        in str(ex_info)
+    )
+
+    # df does not contain col
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.select(scaler.transform(df["missing"]))
+    assert "'The DataFrame does not contain the column named missing." in str(ex_info)
