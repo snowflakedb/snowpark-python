@@ -139,6 +139,13 @@ def test_transform(session):
         in str(ex_info)
     )
 
+    with pytest.raises(TypeError) as ex_info:
+        df.select(indexer.transform(df))
+    assert (
+        "StringIndexer.transform() input type must be Column. Got: <class 'snowflake.snowpark.dataframe.DataFrame'>"
+        in str(ex_info)
+    )
+
     # df does not contain col
     with pytest.raises(SnowparkColumnException) as ex_info:
         df.select(indexer.transform(df["missing"]))
