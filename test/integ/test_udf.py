@@ -568,7 +568,7 @@ def test_udf_negative(session):
     assert "stage_location must be specified for permanent udf" in str(ex_info)
 
 
-def test_add_imports_negative(session, resources_path):
+def test_add_imports_negative(sfession, resources_path):
     test_files = TestFiles(resources_path)
 
     with pytest.raises(FileNotFoundError) as ex_info:
@@ -681,4 +681,50 @@ def test_udf_variant_type(session):
         Row("<class 'bool'>"),
         Row("<class 'list'>"),
         Row("<class 'dict'>"),
+    ]
+
+
+def test_udf_replace(session):
+    df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+
+    # Register named UDF and expect that it works.
+    add_udf = session.udf.register(
+        lambda x, y: x + y,
+        name="test_udf_replace_add",
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        replace=True,
+    )
+    assert df.select(add_udf("a", "b")).collect() == [
+        Row(3),
+        Row(7),
+    ]
+
+    # Replace named UDF with different one and expect that data is changed.
+    add_udf = session.udf.register(
+        lambda x, y: x + y + 1,
+        name="test_udf_replace_add",
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        replace=True,
+    )
+    assert df.select(add_udf("a", "b")).collect() == [
+        Row(4),
+        Row(8),
+    ]
+
+    # Try to register UDF without replacing and expect failure.
+    with pytest.raises(ProgrammingError):
+        add_udf = session.udf.register(
+            lambda x, y: x + y,
+            name="test_udf_replace_add",
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            replace=False,
+        )
+
+    # Expect second UDF version to still be there.
+    assert df.select(add_udf("a", "b")).collect() == [
+        Row(4),
+        Row(8),
     ]
