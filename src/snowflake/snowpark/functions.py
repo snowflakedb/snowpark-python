@@ -573,7 +573,7 @@ def is_timestamp_tz(col: Union[Column, str]) -> Column:
     """Returns true if the specified VARIANT column contains a TIMESTAMP value with a time zone."""
     c = __to_col_if_str(col, "is_timestamp_tz")
     return builtin("is_timestamp_tz")(c)
-  
+
 
 def typeof(col: Union[Column, str]) -> Column:
     """Reports the type of a value stored in a VARIANT column. The type is returned as a string."""
@@ -1073,6 +1073,7 @@ def udf(
     name: Optional[str] = None,
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
+    replace: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -1094,6 +1095,10 @@ def udf(
             when ``is_permanent`` is ``True``, and it will be ignored when
             ``is_permanent`` is ``False``. It can be any stage other than temporary
             stages and external stages.
+        replace: Whether to replace UDF that already was registered. The default is ``False``.
+            If it is ``False``, attempting to register UDF with a name that already exists
+            results in ProgrammingError exception being thrown.
+            If it is ``True``, existing UDF with the same name is overwritten if it exists.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -1135,6 +1140,7 @@ def udf(
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,
+            replace=replace,
         )
     else:
         return session.udf.register(
@@ -1144,6 +1150,7 @@ def udf(
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,
+            replace=replace,
         )
 
 
