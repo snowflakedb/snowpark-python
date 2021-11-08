@@ -318,11 +318,7 @@ class Literal(LeafExpression):
                 raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                     type(value)
                 )
-            self.datatype = _type_mappings[type(value)]
-
-    @classmethod
-    def create(cls, value):
-        return cls(value, _infer_type(value))
+            self.datatype = _type_mappings[type(value)]()
 
 
 class BinaryArithmeticExpression(BinaryExpression):
