@@ -1076,6 +1076,7 @@ def udf(
     name: Optional[str] = None,
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
+    replace: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -1097,6 +1098,10 @@ def udf(
             when ``is_permanent`` is ``True``, and it will be ignored when
             ``is_permanent`` is ``False``. It can be any stage other than temporary
             stages and external stages.
+        replace: Whether to replace a UDF that already was registered. The default is ``False``.
+            If it is ``False``, attempting to register a UDF with a name that already exists
+            results in a ``ProgrammingError`` exception being thrown.
+            If it is ``True``, an existing UDF with the same name is overwritten.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -1138,6 +1143,7 @@ def udf(
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,
+            replace=replace,
         )
     else:
         return session.udf.register(
@@ -1147,6 +1153,7 @@ def udf(
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,
+            replace=replace,
         )
 
 
