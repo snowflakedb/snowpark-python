@@ -12,14 +12,14 @@ class StringIndexer:
     __SCHEMA = "stringindexer"
     __BUNDLE = f"{__DATABASE}.{__SCHEMA}"
 
-    def __init__(self, session=None, input_col=None):
+    def __init__(self, session, input_col):
         self.session = session
         self.input_col = input_col
 
     def fit(self, input_df: DataFrame) -> str:
-        if type(input_df) is not DataFrame:
+        if not isinstance(input_df, DataFrame):
             raise TypeError(
-                f"StringIndexer.fit() input type must be DataFrame. Got: {type(input_df)}"
+                f"StringIndexer.fit() input type must be DataFrame. Got: {input_df.__class__}"
             )
 
         query = input_df.select(self.input_col)._DataFrame__plan.queries[-1].sql
@@ -27,9 +27,9 @@ class StringIndexer:
         return res[0][0]
 
     def transform(self, col: Column) -> Column:
-        if type(col) is not Column:
+        if not isinstance(col, Column):
             raise TypeError(
-                f"StringIndexer.transform() input type must be Column. Got: {type(col)}"
+                f"StringIndexer.transform() input type must be Column. Got: {col.__class__}"
             )
 
         return builtin(f"{self.__BUNDLE}.transform")(col)
