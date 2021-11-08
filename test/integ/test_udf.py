@@ -682,3 +682,63 @@ def test_udf_variant_type(session):
         Row("<class 'list'>"),
         Row("<class 'dict'>"),
     ]
+
+
+def test_udf_replace(session):
+    df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+
+    # Register named UDF and expect that it works.
+    add_udf = session.udf.register(
+        lambda x, y: x + y,
+        name="test_udf_replace_add",
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        replace=True,
+    )
+    assert df.select(add_udf("a", "b")).collect() == [
+        Row(3),
+        Row(7),
+    ]
+
+    # Replace named UDF with different one and expect that data is changed.
+    add_udf = session.udf.register(
+        lambda x, y: x + y + 1,
+        name="test_udf_replace_add",
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        replace=True,
+    )
+    assert df.select(add_udf("a", "b")).collect() == [
+        Row(4),
+        Row(8),
+    ]
+
+    # Try to register UDF without replacing and expect failure.
+    with pytest.raises(ProgrammingError) as ex_info:
+        add_udf = session.udf.register(
+            lambda x, y: x + y,
+            name="test_udf_replace_add",
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            replace=False,
+        )
+    assert "SQL compilation error" in str(ex_info)
+
+    # Expect second UDF version to still be there.
+    assert df.select(add_udf("a", "b")).collect() == [
+        Row(4),
+        Row(8),
+    ]
+
+    # Register via udf() in functions.py and expect that it works.
+    add_udf = udf(
+        lambda x, y: x + y,
+        name="test_udf_replace_add",
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        replace=True,
+    )
+    assert df.select(add_udf("a", "b")).collect() == [
+        Row(3),
+        Row(7),
+    ]

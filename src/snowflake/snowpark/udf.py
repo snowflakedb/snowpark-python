@@ -187,12 +187,17 @@ class UDFRegistration:
         name: Optional[str] = None,
         is_permanent: bool = False,
         stage_location: Optional[str] = None,
+        replace: bool = False,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF and returns the UDF.
         The usage, input arguments, and return value of this method are the same as
         they are for :func:`~snowflake.snowpark.functions.udf` (but it cannot be used
         as a decorator).
+
+        By default UDF registration fails if a function with the same name is already
+        registered. Invoking `register` with replace set to `True` will overwrite the
+        previously registered function.
         """
         if not callable(func):
             raise TypeError(
@@ -237,6 +242,7 @@ class UDFRegistration:
                 udf_name,
                 udf_file_name,
                 stage_location,
+                replace,
             )
         # an exception might happen during registering a UDF
         # (e.g., a dependency might not be found on the stage),
@@ -294,6 +300,7 @@ class UDFRegistration:
         udf_name: str,
         udf_file_name: str,
         stage_location: Optional[str] = None,
+        replace: bool = False,
     ) -> None:
         arg_names = [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
@@ -331,6 +338,7 @@ class UDFRegistration:
             udf_name=udf_name,
             all_imports=all_imports,
             is_temporary=stage_location is None,
+            replace=replace,
         )
 
     def __generate_python_code(self, func: Callable, arg_names: List[str]) -> str:
@@ -354,6 +362,7 @@ def {_DEFAULT_HANDLER_NAME}({args}):
         udf_name: str,
         all_imports: str,
         is_temporary: bool,
+        replace: bool,
     ) -> None:
         return_sql_type = convert_to_sf_type(return_type)
         input_sql_types = [convert_to_sf_type(arg.datatype) for arg in input_args]
@@ -361,7 +370,8 @@ def {_DEFAULT_HANDLER_NAME}({args}):
             [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
         )
         create_udf_query = f"""
-CREATE {"TEMPORARY" if is_temporary else ""} FUNCTION {udf_name}({sql_func_args})
+CREATE {"OR REPLACE " if replace else ""}
+{"TEMPORARY" if is_temporary else ""} FUNCTION {udf_name}({sql_func_args})
 RETURNS {return_sql_type}
 LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
