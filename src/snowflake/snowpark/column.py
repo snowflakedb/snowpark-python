@@ -285,7 +285,7 @@ class Column:
                 self.expression,
                 pattern.expression
                 if type(pattern) == Column
-                else Column(SPLiteral.create(pattern)).expression,
+                else Column(SPLiteral(pattern)).expression,
             )
         )
 
@@ -300,7 +300,7 @@ class Column:
                 self.expression,
                 pattern.expression
                 if type(pattern) == Column
-                else Column(SPLiteral.create(pattern)).expression,
+                else Column(SPLiteral(pattern)).expression,
             )
         )
 
@@ -357,7 +357,7 @@ class Column:
         elif isinstance(expr, SPExpression):
             return expr
         else:
-            return SPLiteral.create(expr)
+            return SPLiteral(expr)
 
     @classmethod
     def _expr(cls, e: str):

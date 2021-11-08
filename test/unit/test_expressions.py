@@ -3,8 +3,24 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.snowpark._internal.sp_expressions import *
+import datetime
+import decimal
+
+import pytest
+
+from snowflake.snowpark._internal.sp_expressions import (
+    AggregateExpression,
+    Attribute,
+    AttributeReference,
+    Complete,
+    Count,
+    Literal,
+    UnresolvedAttribute,
+    UnresolvedFunction,
+)
 from snowflake.snowpark._internal.sp_types.sp_data_types import DecimalType, IntegerType
+from snowflake.snowpark._internal.sp_types.types_package import _type_mappings
+from snowflake.snowpark.exceptions import SnowparkPlanException
 
 
 def test_expression_sql():
@@ -28,3 +44,28 @@ def test_expression_sql():
         Count(AttributeReference("A", IntegerType(), False)), Complete(), False, None
     )
     assert "COUNT(A)" == agg_expr.sql()
+
+
+def test_literal():
+    basic_data = [
+        1,
+        "one",
+        1.0,
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        True,
+        bytearray("a", "utf-8"),
+        bytes("a", "utf-8"),
+        decimal.Decimal(0.5),
+    ]
+
+    structured_data = [(1, 1), [2, 2], {"1": 2}]
+
+    for d in basic_data:
+        assert Literal(d).datatype == _type_mappings[type(d)]
+
+    for d in structured_data:
+        with pytest.raises(SnowparkPlanException) as ex_info:
+            Literal(d)
+        assert "Cannot create a Literal" in str(ex_info)

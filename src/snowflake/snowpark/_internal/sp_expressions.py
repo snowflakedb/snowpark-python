@@ -7,8 +7,9 @@
 #
 #  File containing the Expression definitions for ASTs (Spark).
 import uuid
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     DataType,
     DecimalType,
@@ -16,7 +17,7 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
     IntegralType,
     LongType,
 )
-from snowflake.snowpark._internal.sp_types.types_package import _infer_type
+from snowflake.snowpark._internal.sp_types.types_package import _type_mappings
 
 
 class Expression:
@@ -307,10 +308,17 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
 
 # Leaf Expressions
 class Literal(LeafExpression):
-    def __init__(self, value, datatype):
+    def __init__(self, value: Any, datatype: Optional[DataType] = None):
         super().__init__()
         self.value = value
-        self.datatype = datatype
+        if datatype:
+            self.datatype = datatype
+        else:
+            if type(value) not in _type_mappings:
+                raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
+                    type(value)
+                )
+            self.datatype = _type_mappings[type(value)]
 
     @classmethod
     def create(cls, value):
