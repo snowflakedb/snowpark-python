@@ -9,7 +9,6 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
-from snowflake.snowpark.exceptions import SnowparkColumnException
 from snowflake.snowpark.functions import avg, builtin
 from snowflake.snowpark.ml.transformers.Imputer import Imputer
 
@@ -199,11 +198,6 @@ def test_transform_numerical(session):
         "Imputer.transform() input type must be Column. Got: <class 'snowflake.snowpark.dataframe.DataFrame'>"
         in str(ex_info)
     )
-
-    # df does not contain col
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.select(imputer.transform(df["missing"]))
-    assert "'The DataFrame does not contain the column named missing." in str(ex_info)
 
 
 def test_transform_categorical(session):
