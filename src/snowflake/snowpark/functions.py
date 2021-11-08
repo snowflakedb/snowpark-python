@@ -1097,7 +1097,7 @@ def udf(
             stages and external stages.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
-            results in a ProgrammingError exception being thrown.
+            results in a ``ProgrammingError`` exception being thrown.
             If it is ``True``, an existing UDF with the same name is overwritten.
 
     Returns:

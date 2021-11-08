@@ -195,9 +195,9 @@ class UDFRegistration:
         they are for :func:`~snowflake.snowpark.functions.udf` (but it cannot be used
         as a decorator).
 
-        By default UDF registration fails if function with the same name is already
-        registered. Invoking `register` with replace = True will overwrite previously
-        registered function.
+        By default UDF registration fails if a function with the same name is already
+        registered. Invoking `register` with replace set to `True` will overwrite the
+        previously registered function.
         """
         if not callable(func):
             raise TypeError(
@@ -370,7 +370,7 @@ def {_DEFAULT_HANDLER_NAME}({args}):
             [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
         )
         create_udf_query = f"""
-CREATE {"OR REPLACE" if replace else ""}
+CREATE {"OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} FUNCTION {udf_name}({sql_func_args})
 RETURNS {return_sql_type}
 LANGUAGE PYTHON
