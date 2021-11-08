@@ -63,7 +63,7 @@ def test_literal():
     structured_data = [(1, 1), [2, 2], {"1": 2}]
 
     for d in basic_data:
-        assert Literal(d).datatype == _type_mappings[type(d)]
+        assert isinstance(Literal(d).datatype, _type_mappings[type(d)])
 
     for d in structured_data:
         with pytest.raises(SnowparkPlanException) as ex_info:

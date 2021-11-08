@@ -17,7 +17,10 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
     IntegralType,
     LongType,
 )
-from snowflake.snowpark._internal.sp_types.types_package import _type_mappings
+from snowflake.snowpark._internal.sp_types.types_package import (
+    _infer_type,
+    _type_mappings,
+)
 
 
 class Expression:
@@ -318,7 +321,7 @@ class Literal(LeafExpression):
                 raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                     type(value)
                 )
-            self.datatype = _type_mappings[type(value)]()
+            self.datatype = _infer_type(value)
 
 
 class BinaryArithmeticExpression(BinaryExpression):

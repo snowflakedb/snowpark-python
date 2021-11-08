@@ -77,10 +77,10 @@ def column(col_name: str) -> Column:
 def lit(literal: Any) -> Column:
     """
     Creates a :class:`Column` expression for a literal value.
-    It only supports basic Python data types (``int``, ``float``, ``str``,
+    It only supports basic Python data types, such as: ``int``, ``float``, ``str``,
     ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
-    ``datetime.datetime``, ``decimal.Decimal``), other than structured data types
-    (e.g., ``list``, ``tuple``, ``dict``).
+    ``datetime.datetime``, ``decimal.Decimal``. Structured data types,
+    such as: ``list``, ``tuple``, ``dict`` are not supported.
     """
     return literal if isinstance(literal, Column) else Column(SPLiteral(literal))
 
