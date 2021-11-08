@@ -1095,10 +1095,10 @@ def udf(
             when ``is_permanent`` is ``True``, and it will be ignored when
             ``is_permanent`` is ``False``. It can be any stage other than temporary
             stages and external stages.
-        replace: Whether to replace UDF that already was registered. The default is ``False``.
-            If it is ``False``, attempting to register UDF with a name that already exists
-            results in ProgrammingError exception being thrown.
-            If it is ``True``, existing UDF with the same name is overwritten if it exists.
+        replace: Whether to replace a UDF that already was registered. The default is ``False``.
+            If it is ``False``, attempting to register a UDF with a name that already exists
+            results in a ProgrammingError exception being thrown.
+            If it is ``True``, an existing UDF with the same name is overwritten.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
