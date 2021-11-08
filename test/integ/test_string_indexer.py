@@ -9,7 +9,6 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
-from snowflake.snowpark.exceptions import SnowparkColumnException
 from snowflake.snowpark.ml.transformers.string_indexer import StringIndexer
 
 TABLENAME = "table_temp"
@@ -145,8 +144,3 @@ def test_transform(session):
         "StringIndexer.transform() input type must be Column. Got: <class 'snowflake.snowpark.dataframe.DataFrame'>"
         in str(ex_info)
     )
-
-    # df does not contain col
-    with pytest.raises(SnowparkColumnException) as ex_info:
-        df.select(indexer.transform(df["missing"]))
-    assert "'The DataFrame does not contain the column named missing." in str(ex_info)
