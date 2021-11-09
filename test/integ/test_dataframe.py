@@ -1042,7 +1042,7 @@ def test_dataframe_duplicated_column_names(session):
     assert "duplicate column name 'A'" in str(ex_info)
 
 
-def test_dataframe_dropna(session):
+def test_dropna(session):
     Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])
     Utils.check_answer(
         TestData.double3(session).dropna(cols=["a"]), [Row(1.0, 1), Row(4.0, None)]

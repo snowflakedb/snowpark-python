@@ -1370,7 +1370,8 @@ class DataFrame:
                 row to be included. In each case:
 
                     * If ``minNonNullsPerRow`` is not provided or ``None``, the
-                      length of ``cols`` will be used by default.
+                      length of ``cols`` will be used by default, which means that
+                      a row will be dropped if it contains any null value.
 
                     * If ``minNonNullsPerRow`` is greater than the number of
                       the specified columns, the method returns an empty DataFrame.
