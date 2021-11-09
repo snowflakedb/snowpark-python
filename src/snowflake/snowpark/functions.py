@@ -1058,6 +1058,16 @@ def when(condition: Column, value: Column) -> CaseExpr:
     return CaseExpr(SPCaseWhen([(condition.expression, value.expression)]))
 
 
+def iff(condition: Column, expr1: Any, expr2: Any) -> Column:
+    """
+    Returns one of two specified expressions, depending on a condition.
+    This is equivalent to an ``if-then-else`` expression. If ``condition``
+    evaluates to TRUE, the function returns ``expr1``. Otherwise, the
+    function returns ``expr2``.
+    """
+    return builtin("iff")(condition, expr1, expr2)
+
+
 def udf(
     func: Optional[Callable] = None,
     *,

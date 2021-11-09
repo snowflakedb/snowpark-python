@@ -4,11 +4,13 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import json
+import math
 from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
-from test.utils import TestFiles, Utils
+from test.utils import TestData, TestFiles, Utils
 
 import pytest
 
@@ -22,6 +24,7 @@ from snowflake.snowpark._internal.sp_expressions import (
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     DecimalType as SPDecimalType,
 )
+from snowflake.snowpark.exceptions import SnowparkColumnException
 from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.types import (
     ArrayType,
@@ -1037,3 +1040,89 @@ def test_dataframe_duplicated_column_names(session):
     with pytest.raises(ProgrammingError) as ex_info:
         df.createOrReplaceView(Utils.random_name())
     assert "duplicate column name 'A'" in str(ex_info)
+
+
+def test_dataframe_dropna(session):
+    Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])
+    Utils.check_answer(
+        TestData.double3(session).dropna(cols=["a"]), [Row(1.0, 1), Row(4.0, None)]
+    )
+    res = TestData.double3(session).dropna(1).collect()
+    assert res[0] == Row(1.0, 1)
+    assert math.isnan(res[1][0])
+    assert res[1][1] == 2
+    assert res[2] == Row(None, 3)
+    assert res[3] == Row(4.0, None)
+
+
+def test_fillna(session):
+    # fillna for all basic data types
+    data = [
+        1,
+        "one",
+        1.0,
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        True,
+        bytearray("a", "utf-8"),
+        Decimal(0.5),
+    ]
+    none_data = [None] * len(data)
+    none_data[2] = float("nan")
+    col_names = ["col{}".format(idx + 1) for idx in range(len(data))]
+    value_dict = {
+        col_name: (
+            json.dumps(value) if isinstance(value, (list, dict, tuple)) else value
+        )
+        for col_name, value in zip(col_names, data)
+    }
+    df = session.createDataFrame([data, none_data], schema=col_names)
+    Utils.check_answer(df.fillna(value_dict), [Row(*data), Row(*data)])
+
+    # Python `int` can be filled into FloatType/DoubleType,
+    # but Python `float` can't be filled into IntegerType/LongType (will be ignored)
+    Utils.check_answer(
+        session.createDataFrame(
+            [[1, 1.1], [None, None]], schema=["col1", "col2"]
+        ).fillna({"col1": 1.1, "col2": 1}),
+        [Row(1, 1.1), Row(None, 1)],
+    )
+
+
+def test_replace(session):
+    df = session.createDataFrame(
+        [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
+    )
+
+    # empty replacement or cols will return the original dataframe
+    Utils.check_answer(
+        df.replace(replacement={}), [Row(1, 1.0, "1.0"), Row(2, 2.0, "2.0")]
+    )
+    Utils.check_answer(
+        df.replace({1: 4}, cols=[]), [Row(1, 1.0, "1.0"), Row(2, 2.0, "2.0")]
+    )
+
+    # cols=None will apply the replacement to all columns
+    # we can replace a float with an integer
+    Utils.check_answer(
+        df.replace({1: 3, 2: 4}), [Row(3, 3.0, "1.0"), Row(4, 4.0, "2.0")]
+    )
+
+    # we can't replace an integer with a float
+    # and replace a string with a float (will be skipped)
+    Utils.check_answer(
+        df.replace({1: 3.0, 2: 4.0, "1.0": 1.0, "2.0": "3.0"}),
+        [Row(1, 3.0, "1.0"), Row(2, 4.0, "3.0")],
+    )
+
+    # we can replace any value with a None
+    Utils.check_answer(
+        df.replace({1: None, 2: None, "2.0": None}),
+        [Row(None, None, "1.0"), Row(None, None, None)],
+    )
+
+    # wrong column name
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        df.replace({1: 3}, cols=["d"])
+    assert "The DataFrame does not contain the column named" in str(ex_info)

@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+import math
 import os
 import re
 from datetime import datetime
@@ -1502,4 +1503,144 @@ def test_with_columns_replace_existing(session):
     assert (
         "The same column name is used multiple times in the col_names parameter."
         in str(ex_info)
+    )
+
+
+def test_dropna(session):
+    Utils.check_answer(
+        TestData.double3(session).na.drop(1, ["a"]), [Row(1.0, 1), Row(4.0, None)]
+    )
+
+    res = TestData.double3(session).dropna(1, ["a", "b"]).collect()
+    assert res[0] == Row(1.0, 1)
+    assert math.isnan(res[1][0])
+    assert res[1][1] == 2
+    assert res[2] == Row(None, 3)
+    assert res[3] == Row(4.0, None)
+
+    assert TestData.double3(session).na.drop(0, ["a"]).count() == 6
+    assert TestData.double3(session).na.drop(3, ["a", "b"]).count() == 0
+    assert TestData.double3(session).na.drop(1, []).count() == 6
+
+    # wrong column name
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        TestData.double3(session).na.drop(1, ["c"])
+    assert "The DataFrame does not contain the column named" in str(ex_info)
+
+
+def test_fillna(session):
+    Utils.check_answer(
+        TestData.null_data3(session).na.fill(
+            {"flo": 12.3, "int": 11, "boo": False, "str": "f"}
+        ),
+        [
+            Row(1.0, 1, True, "a"),
+            Row(12.3, 2, False, "b"),
+            Row(12.3, 3, False, "f"),
+            Row(4.0, 11, False, "d"),
+            Row(12.3, 11, False, "f"),
+            Row(12.3, 11, False, "f"),
+        ],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.null_data3(session).na.fill(
+            {"flo": 22.3, "int": 22, "boo": False, "str": "f"}
+        ),
+        [
+            Row(1.0, 1, True, "a"),
+            Row(22.3, 2, False, "b"),
+            Row(22.3, 3, False, "f"),
+            Row(4.0, 22, False, "d"),
+            Row(22.3, 22, False, "f"),
+            Row(22.3, 22, False, "f"),
+        ],
+        sort=False,
+    )
+    # wrong type
+    Utils.check_answer(
+        TestData.null_data3(session).na.fill(
+            {"flo": 12.3, "int": "11", "boo": False, "str": 1}
+        ),
+        [
+            Row(1.0, 1, True, "a"),
+            Row(12.3, 2, False, "b"),
+            Row(12.3, 3, False, None),
+            Row(4.0, None, False, "d"),
+            Row(12.3, None, False, None),
+            Row(12.3, None, False, None),
+        ],
+        sort=False,
+    )
+    # wrong column name
+    with pytest.raises(SnowparkColumnException) as ex_info:
+        TestData.null_data3(session).na.fill({"wrong": 11})
+    assert "The DataFrame does not contain the column named" in str(ex_info)
+
+
+def test_replace(session):
+    res = TestData.null_data3(session).na.replace({2: 300, 1: 200}, ["flo"]).collect()
+    assert res[0] == Row(200.0, 1, True, "a")
+    assert math.isnan(res[1][0])
+    assert res[1][1:] == Row(2, None, "b")
+    assert res[2:-1] == [
+        Row(None, 3, False, None),
+        Row(4.0, None, None, "d"),
+        Row(None, None, None, None),
+    ]
+    assert math.isnan(res[-1][0])
+    assert res[-1][1:] == Row(None, None, None)
+
+    # replace null
+    res = TestData.null_data3(session).na.replace({None: True}, ["boo"]).collect()
+    assert res[0] == Row(1.0, 1, True, "a")
+    assert math.isnan(res[1][0])
+    assert res[1][1:] == Row(2, True, "b")
+    assert res[2:-1] == [
+        Row(None, 3, False, None),
+        Row(4.0, None, True, "d"),
+        Row(None, None, True, None),
+    ]
+    assert math.isnan(res[-1][0])
+    assert res[-1][1:] == Row(None, True, None)
+
+    # replace NaN
+    Utils.check_answer(
+        TestData.null_data3(session).na.replace({float("nan"): 11}, ["flo"]),
+        [
+            Row(1.0, 1, True, "a"),
+            Row(11, 2, None, "b"),
+            Row(None, 3, False, None),
+            Row(4.0, None, None, "d"),
+            Row(None, None, None, None),
+            Row(11, None, None, None),
+        ],
+        sort=False,
+    )
+
+    # incompatible type (skip that replacement and do nothing)
+    res = TestData.null_data3(session).na.replace({None: "aa"}, ["flo"]).collect()
+    assert res[0] == Row(1.0, 1, True, "a")
+    assert math.isnan(res[1][0])
+    assert res[1][1:] == Row(2, None, "b")
+    assert res[2:-1] == [
+        Row(None, 3, False, None),
+        Row(4.0, None, None, "d"),
+        Row(None, None, None, None),
+    ]
+    assert math.isnan(res[-1][0])
+    assert res[-1][1:] == Row(None, None, None)
+
+    # replace NaN with None
+    Utils.check_answer(
+        TestData.null_data3(session).na.replace({float("nan"): None}, ["flo"]),
+        [
+            Row(1.0, 1, True, "a"),
+            Row(None, 2, None, "b"),
+            Row(None, 3, False, None),
+            Row(4.0, None, None, "d"),
+            Row(None, None, None, None),
+            Row(None, None, None, None),
+        ],
+        sort=False,
     )
