@@ -7,7 +7,7 @@
 
     .. autosummary::
         {% for item in ['CaseExpr', 'Column', 'DataFrame', 'DataFrameReader', 'DataFrameWriter',
-            'RelationalGroupedDataFrame', 'Row', 'Session']
+            'RelationalGroupedDataFrame', 'Row', 'Session', 'FileOperation', 'PutResult', 'GetResult']
         %}
             {{ item }}
         {% endfor %}

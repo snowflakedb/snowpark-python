@@ -11,6 +11,7 @@ from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
+from snowflake.snowpark.file_operation import FileOperation, GetResult, PutResult
 from snowflake.snowpark.relational_grouped_dataframe import RelationalGroupedDataFrame
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
@@ -22,6 +23,9 @@ __all__ = [
     "CaseExpr",
     "Row",
     "Session",
+    "FileOperation",
+    "PutResult",
+    "GetResult",
     "DataFrame",
     "DataFrameWriter",
     "DataFrameReader",

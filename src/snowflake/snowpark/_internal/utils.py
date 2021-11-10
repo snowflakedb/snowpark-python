@@ -78,6 +78,21 @@ class Utils:
         return trim_name if trim_name.startswith("@") else f"@{trim_name}"
 
     @staticmethod
+    def is_single_quoted(name: str):
+        return name.startswith("'") and name.endswith("'")
+
+    @staticmethod
+    def normalize_local_file(file: str):
+        trim_file = file.strip()
+        # For PUT/GET commands, if there are any special characters including spaces in
+        # directory and file names, it needs to be quoted with single quote. For example,
+        # 'file:///tmp/load data' for a path containing a directory named "load data").
+        # So, if `file` is single quoted, it doesn't make sense to add "file://".
+        if trim_file.startswith("file://") or Utils.is_single_quoted(file):
+            return trim_file
+        return f"file://{trim_file}"
+
+    @staticmethod
     def get_udf_upload_prefix(udf_name: str) -> str:
         """Get the valid stage prefix when uploading a UDF."""
         if re.match("[\\w]+$", udf_name):
