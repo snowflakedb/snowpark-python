@@ -15,6 +15,7 @@ from snowflake.snowpark.file_operation import FileOperation, GetResult, PutResul
 from snowflake.snowpark.relational_grouped_dataframe import RelationalGroupedDataFrame
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
+from snowflake.snowpark.window import Window, WindowSpec
 
 # types, udf, functions, exceptions still use its own modules
 
@@ -30,4 +31,6 @@ __all__ = [
     "DataFrameWriter",
     "DataFrameReader",
     "RelationalGroupedDataFrame",
+    "Window",
+    "WindowSpec",
 ]

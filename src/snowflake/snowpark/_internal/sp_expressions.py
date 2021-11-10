@@ -33,7 +33,7 @@ class Expression:
         self.child = child
         self.nullable = True
         self.children = [child] if child else None
-        self.datatype: DataType = None
+        self.datatype: Optional[DataType] = None
 
     def pretty_name(self) -> str:
         """Returns a user-facing string representation of this expression's name.
@@ -649,3 +649,76 @@ class SnowflakeUDF(Expression):
         self.children = children
         self.datatype = datatype
         self.nullable = nullable
+
+
+# Window Expressions
+class SpecialFrameBoundary(Expression):
+    def __init__(self):
+        super().__init__()
+
+    def sql(self) -> str:
+        raise NotImplementedError
+
+
+class UnboundedPreceding(SpecialFrameBoundary):
+    def sql(self) -> str:
+        return "UNBOUNDED PRECEDING"
+
+
+class UnboundedFollowing(SpecialFrameBoundary):
+    def sql(self) -> str:
+        return "UNBOUNDED FOLLOWING"
+
+
+class CurrentRow(SpecialFrameBoundary):
+    def sql(self) -> str:
+        return "CURRENT ROW"
+
+
+class FrameType:
+    sql = None
+
+
+class RowFrame(FrameType):
+    sql = "ROWS"
+
+
+class RangeFrame(FrameType):
+    sql = "RANGE"
+
+
+class WindowFrame(Expression):
+    def __init__(self):
+        super().__init__()
+
+
+class UnspecifiedFrame(WindowFrame):
+    pass
+
+
+class SpecifiedWindowFrame(WindowFrame):
+    def __init__(self, frame_type: FrameType, lower: Expression, upper: Expression):
+        super().__init__()
+        self.frame_type = frame_type
+        self.lower = lower
+        self.upper = upper
+
+
+class WindowSpecDefinition(Expression):
+    def __init__(
+        self,
+        partition_spec: List[Expression],
+        order_spec: List[SortOrder],
+        frame_spec: WindowFrame,
+    ):
+        super().__init__()
+        self.partition_spec = partition_spec
+        self.order_spec = order_spec
+        self.frame_spec = frame_spec
+
+
+class WindowExpression(Expression):
+    def __init__(self, window_function: Expression, window_spec: WindowSpecDefinition):
+        super().__init__()
+        self.window_function = window_function
+        self.window_spec = window_spec
