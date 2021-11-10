@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Except as SPExcept,
     Intersect as SPIntersect,
     Join as SPJoin,
+    Pivot as SPPivot,
     Range as SPRange,
     Sort as SPSort,
     Union as SPUnion,
@@ -46,6 +47,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     Alias as SPAlias,
     AttributeReference as SPAttributeReference,
+    BaseGroupingSets as SPBaseGroupingSets,
     BinaryArithmeticExpression as SPBinaryArithmeticExpression,
     BinaryExpression as SPBinaryExpression,
     CaseWhen as SPCaseWhen,
@@ -53,6 +55,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Collate as SPCollate,
     Expression as SPExpression,
     FlattenFunction as SPFlattenFunction,
+    FunctionExpression as SPFunctionExpression,
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
@@ -133,6 +136,8 @@ class Analyzer:
             return self.aggr_extractor_convert_expr(
                 expr.aggregate_function, expr.is_distinct
             )
+        if isinstance(expr, SPBaseGroupingSets):
+            return self.grouping_extractor(expr)
 
         # window
         if isinstance(expr, SPWindowExpression):
@@ -185,6 +190,13 @@ class Analyzer:
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
             return self.package.alias_expression(self.analyze(expr.child), quoted_name)
+
+        if isinstance(expr, SPFunctionExpression):
+            return self.package.function_expression(
+                expr.name,
+                [self.__to_sql_avoid_offset(c) for c in expr.children],
+                expr.is_distinct,
+            )
 
         if isinstance(expr, SPStar):
             if not expr.expressions:
@@ -306,7 +318,13 @@ class Analyzer:
 
     # TODO
     def grouping_extractor(self, expr: SPExpression):
-        pass
+        return self.analyze(
+            SPFunctionExpression(
+                expr.pretty_name().upper(),
+                [c.child if isinstance(c, SPAlias) else c for c in expr.children],
+                False,
+            )
+        )
 
     def window_frame_boundary(self, offset: str) -> str:
         try:
@@ -502,6 +520,18 @@ class Analyzer:
                 self.__to_sql_avoid_offset(logical_plan.limit_expr),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
+                logical_plan,
+            )
+
+        if isinstance(logical_plan, SPPivot):
+            if len(logical_plan.aggregates) != 1:
+                raise ValueError("Only one aggregate is supported with pivot")
+
+            return self.plan_builder.pivot(
+                self.analyze(logical_plan.pivot_column),
+                [self.analyze(pv) for pv in logical_plan.pivot_values],
+                self.analyze(logical_plan.aggregates[0]),
+                self.resolve(logical_plan.child),
                 logical_plan,
             )
 
