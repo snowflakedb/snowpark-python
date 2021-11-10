@@ -309,29 +309,34 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self._name = alias_func
 
 
+ALLOWED_PYTHON_DATA_TYPES_IN_LITERAL = tuple(_type_mappings.keys())
+ALLOWED_SNOWPARK_DATA_TYPES_IN_LITERAL = (
+    *_type_mappings.values(),
+    IntegralType,
+    DoubleType,
+)
+
+
 # Leaf Expressions
 class Literal(LeafExpression):
     def __init__(self, value: Any, datatype: Optional[DataType] = None):
         super().__init__()
+
+        # check value
+        if not isinstance(value, ALLOWED_PYTHON_DATA_TYPES_IN_LITERAL):
+            raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
+                type(value)
+            )
         self.value = value
 
-        allowed_python_data_types = tuple(_type_mappings.keys())
-        allowed_snowpark_data_types = (
-            *_type_mappings.values(),
-            IntegralType,
-            DoubleType,
-        )
+        # check datatype
         if datatype:
-            if not isinstance(datatype, allowed_snowpark_data_types):
+            if not isinstance(datatype, ALLOWED_SNOWPARK_DATA_TYPES_IN_LITERAL):
                 raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                     str(datatype)
                 )
             self.datatype = datatype
         else:
-            if not isinstance(value, allowed_python_data_types):
-                raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
-                    type(value)
-                )
             self.datatype = _infer_type(value)
 
 
