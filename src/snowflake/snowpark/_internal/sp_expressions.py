@@ -314,10 +314,21 @@ class Literal(LeafExpression):
     def __init__(self, value: Any, datatype: Optional[DataType] = None):
         super().__init__()
         self.value = value
+
+        allowed_python_data_types = tuple(_type_mappings.keys())
+        allowed_snowpark_data_types = (
+            *_type_mappings.values(),
+            IntegralType,
+            DoubleType,
+        )
         if datatype:
+            if not isinstance(datatype, allowed_snowpark_data_types):
+                raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
+                    str(datatype)
+                )
             self.datatype = datatype
         else:
-            if type(value) not in _type_mappings:
+            if not isinstance(value, allowed_python_data_types):
                 raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                     type(value)
                 )

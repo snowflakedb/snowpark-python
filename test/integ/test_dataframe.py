@@ -1006,26 +1006,6 @@ def test_create_dataframe_with_invalid_data(session_cnx):
         assert "Data consists of rows with different lengths" in str(ex_info)
 
 
-# This test was originall party of scala-integ tests, but was removed.
-def test_special_decimal_literals(session):
-    normal_scale = lit(Decimal("0.1"))
-    small_scale = Column(Literal(Decimal("0.00001"), SPDecimalType(5, 5)))
-
-    df = session.range(2).select(normal_scale, small_scale)
-
-    show_str = df._DataFrame__show_string(10)
-    assert (
-        show_str
-        == """-----------------------------------------------------------
-|"0.1 ::  NUMBER (38, 18)"  |"0.00001 ::  NUMBER (5, 5)"  |
------------------------------------------------------------
-|0.100000000000000000       |0.00001                      |
-|0.100000000000000000       |0.00001                      |
------------------------------------------------------------
-"""
-    )
-
-
 def test_attribute_reference_to_sql(session):
     from snowflake.snowpark.functions import sum as sum_
 
