@@ -7,10 +7,11 @@ import re
 import string
 from collections import Counter
 from random import choice
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
+from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
@@ -572,6 +573,26 @@ class DataFrame:
 
         return self.groupBy().agg(grouping_exprs)
 
+    def rollup(
+        self,
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Performs a SQL
+        `GROUP BY ROLLUP <https://docs.snowflake.com/en/sql-reference/constructs/group-by-rollup.html>`_.
+        on the DataFrame.
+
+        Args:
+            cols: The columns to group by rollup.
+        """
+        rollup_exprs = self.__convert_cols_to_exprs("rollup()", *cols)
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            rollup_exprs,
+            snowflake.snowpark.relational_grouped_dataframe._RollupType(),
+        )
+
     def groupBy(
         self,
         *cols: Union[
@@ -601,6 +622,26 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
+    def cube(
+        self,
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Performs a SQL
+        `GROUP BY CUBE <https://docs.snowflake.com/en/sql-reference/constructs/group-by-cube.html>`_.
+        on the DataFrame.
+
+        Args:
+            cols: The columns to group by cube.
+        """
+        cube_exprs = self.__convert_cols_to_exprs("cube()", *cols)
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            cube_exprs,
+            snowflake.snowpark.relational_grouped_dataframe._CubeType(),
+        )
+
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -610,6 +651,37 @@ class DataFrame:
         return self.groupBy(
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
+
+    def pivot(
+        self,
+        pivot_col: Union[str, Column],
+        values: Union[List[Any], Tuple[Any]],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Rotates this DataFrame by turning the unique values from one column in the input
+        expression into multiple columns and aggregating results where required on any
+        remaining column values.
+
+        Only one aggregate is supported with pivot.
+
+        Example::
+
+            val dfPivoted = df.pivot("col_1", [1,2,3]).agg(sum(col("col_2")))
+
+        Args:
+            pivot_col: The column or name of the column to use
+            values: A list of values in the column
+        """
+        pc = self.__convert_cols_to_exprs("pivot()", pivot_col)
+        value_exprs = [
+            v.expression if isinstance(v, Column) else SPLiteral(v) for v in values
+        ]
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            [],
+            snowflake.snowpark.relational_grouped_dataframe._PivotType(
+                pc[0], value_exprs
+            ),
+        )
 
     def limit(self, n: int) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current

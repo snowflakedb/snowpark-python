@@ -268,17 +268,17 @@ class BaseGroupingSets(Expression):
 
 
 class Cube(BaseGroupingSets):
-    def __init__(self, grouping_set_indexes, children=[]):
+    def __init__(self, grouping_set_indexes):
         super().__init__()
         self.grouping_set_indexes = grouping_set_indexes
-        self.children = children
+        self.children = self.grouping_set_indexes
 
 
 class Rollup(BaseGroupingSets):
-    def __init__(self, grouping_set_indexes, children=[]):
+    def __init__(self, grouping_set_indexes):
         super().__init__()
         self.grouping_set_indexes = grouping_set_indexes
-        self.children = children
+        self.children = self.grouping_set_indexes
 
 
 # Named Expressions
@@ -551,6 +551,21 @@ class SubfieldInt(Expression):
         super().__init__(expr)
         self.expr = expr
         self.field = field
+
+
+class FunctionExpression(Expression):
+    def __init__(self, name: str, arguments: List[Expression], is_distinct: bool):
+        super().__init__()
+        self.name = name
+        self.children = arguments
+        self.is_distinct = is_distinct
+
+    def pretty_name(self) -> str:
+        return self.name
+
+    def sql(self) -> str:
+        distinct = "DISTINCT " if self.is_distinct else ""
+        return f"{self.pretty_name()}({distinct}{', '.join([c.sql() for c in self.children()])})"
 
 
 class TableFunctionExpression(Expression):

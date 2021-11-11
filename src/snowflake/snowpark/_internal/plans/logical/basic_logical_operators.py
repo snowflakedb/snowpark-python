@@ -17,7 +17,7 @@ from snowflake.snowpark._internal.plans.logical.logical_plan import (
     LogicalPlan,
     UnaryNode,
 )
-from snowflake.snowpark._internal.sp_expressions import SortOrder
+from snowflake.snowpark._internal.sp_expressions import Expression, SortOrder
 
 
 class Join(BinaryNode):
@@ -64,13 +64,16 @@ class Aggregate(UnaryNode):
 
 class Pivot(UnaryNode):
     def __init__(
-        self, group_by_exprs_opt, pivot_column, pivot_values, aggregates, child
+        self,
+        pivot_column: Expression,
+        pivot_values: List[Expression],
+        aggregates: List[Expression],
+        child: LogicalPlan,
     ):
         super().__init__()
-        self.group_by_exprs_opt = group_by_exprs_opt
         self.pivot_column = pivot_column
         self.pivot_values = pivot_values
-        self.aggregate = aggregates
+        self.aggregates = aggregates
         self.child = child
 
 
