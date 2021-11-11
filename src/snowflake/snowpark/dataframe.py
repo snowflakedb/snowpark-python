@@ -665,7 +665,7 @@ class DataFrame:
 
         Example::
 
-            val dfPivoted = df.pivot("col_1", Seq(1,2,3)).agg(sum(col("col_2")))
+            val dfPivoted = df.pivot("col_1", [1,2,3]).agg(sum(col("col_2")))
 
         Args:
             pivot_col: The column or name of the column to use
