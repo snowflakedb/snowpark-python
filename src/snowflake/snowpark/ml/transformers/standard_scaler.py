@@ -11,6 +11,7 @@ class StandardScaler:
     __DATABASE = "hayu"
     __SCHEMA = "standardscaler"
     __BUNDLE = f"{__DATABASE}.{__SCHEMA}"
+    __SESSION_SCHEMA = "standardscaler_clone"
 
     def __init__(self, session, input_col):
         self.session = session
@@ -22,8 +23,15 @@ class StandardScaler:
                 f"StandardScaler.fit() input type must be DataFrame. Got: {input_df.__class__}"
             )
 
+        # clone a standardscaler schema
+        # self.session.sql(
+        #     f"create or replace schema {self.__SESSION_SCHEMA} clone {self.__BUNDLE}"
+        # ).collect()
+
         query = input_df.select(self.input_col)._DataFrame__plan.queries[-1].sql
-        res = self.session.sql(f"call {self.__BUNDLE}.fit($${query}$$)").collect()
+        res = self.session.sql(
+            f"call {self.__SESSION_SCHEMA}.fit($${query}$$)"
+        ).collect()
         return res[0][0]
 
     def transform(self, col: Column) -> Column:
@@ -32,4 +40,4 @@ class StandardScaler:
                 f"StandardScaler.transform() input type must be Column. Got: {col.__class__}"
             )
 
-        return builtin(f"{self.__BUNDLE}.transform")(col)
+        return builtin(f"{self.__SESSION_SCHEMA}.transform")(col)
