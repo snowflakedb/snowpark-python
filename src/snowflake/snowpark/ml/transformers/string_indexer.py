@@ -24,9 +24,9 @@ class StringIndexer:
             )
 
         # clone a stringindexer schema
-        self.session.sql(
-            f"create or replace schema {self.__SESSION_SCHEMA} clone {self.__BUNDLE}"
-        ).collect()
+        # self.session.sql(
+        #     f"create or replace schema {self.__SESSION_SCHEMA} clone {self.__BUNDLE}"
+        # ).collect()
 
         query = input_df.select(self.input_col)._DataFrame__plan.queries[-1].sql
         res = self.session.sql(
@@ -40,4 +40,4 @@ class StringIndexer:
                 f"StringIndexer.transform() input type must be Column. Got: {col.__class__}"
             )
 
-        return builtin(f"{self.__SCHEMA}.transform")(col)
+        return builtin(f"{self.__SESSION_SCHEMA}.transform")(col)
