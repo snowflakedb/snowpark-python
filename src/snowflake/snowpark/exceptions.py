@@ -109,7 +109,7 @@ class SnowparkDataframeReaderException(SnowparkDataframeException):
 class SnowparkCreateViewException(SnowparkPlanException):
     """Exception for errors while trying to create a view.
 
-    Includes error codes: 1203, 1204.
+    Includes error codes: 1203, 1204, 1205, 1206.
     """
 
     pass

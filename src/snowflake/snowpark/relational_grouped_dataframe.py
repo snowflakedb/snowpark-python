@@ -26,7 +26,6 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import IntegerType as SPInteger
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
@@ -159,7 +158,7 @@ class RelationalGroupedDataFrame:
             return SPUnresolvedFunction("stddev", [input_expr], is_distinct=False)
         elif lowered in ["count", "size"]:
             if isinstance(input_expr, SPStar):
-                return SPCount(SPLiteral(1, SPInteger())).to_aggregate_expression()
+                return SPCount(SPLiteral(1)).to_aggregate_expression()
             else:
                 return SPCount(input_expr).to_aggregate_expression()
         else:
@@ -229,7 +228,7 @@ class RelationalGroupedDataFrame:
         return self.__toDF(
             [
                 SPAlias(
-                    SPCount(SPLiteral(1, SPInteger())).to_aggregate_expression(),
+                    SPCount(SPLiteral(1)).to_aggregate_expression(),
                     "count",
                 )
             ]
