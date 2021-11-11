@@ -50,7 +50,6 @@ from snowflake.snowpark._internal.sp_expressions import (
     Star as SPStar,
     TableFunctionExpression as SPTableFunctionExpression,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import LongType as SPLongType
 from snowflake.snowpark._internal.sp_types.sp_join_types import (
     Cross as SPCrossJoin,
     JoinType as SPJoinType,
@@ -621,7 +620,7 @@ class DataFrame:
         Args:
             n: Number of rows to return.
         """
-        return self.__with_plan(SPLimit(SPLiteral(n, SPLongType()), self.__plan))
+        return self.__with_plan(SPLimit(SPLiteral(n), self.__plan))
 
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -898,7 +897,7 @@ class DataFrame:
 
         if type(join_type) in [SPLeftSemi, SPLeftAnti]:
             # Create a Column with expression 'true AND <expr> AND <expr> .."
-            join_cond = Column(SPLiteral.create(True))
+            join_cond = Column(SPLiteral(True))
             for c in using_columns:
                 quoted = AnalyzerPackage.quote_name(c)
                 join_cond = join_cond & (self.col(quoted) == right.col(quoted))

@@ -236,14 +236,14 @@ class WindowSpec:
         elif start <= Window.unboundedPreceding:
             boundary_start = SPUnboundedPreceding()
         else:
-            boundary_start = SPLiteral.create(start)
+            boundary_start = SPLiteral(start)
 
         if end == 0:
             boundary_end = SPCurrentRow()
         elif end >= Window.unboundedFollowing:
             boundary_end = SPUnboundedFollowing()
         else:
-            boundary_end = SPLiteral.create(end)
+            boundary_end = SPLiteral(end)
 
         return boundary_start, boundary_end
 

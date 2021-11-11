@@ -749,8 +749,8 @@ def test_negate_and_not_negative(session):
 def test_random_negative(session):
     df = session.sql("select 1")
     with pytest.raises(ProgrammingError) as ex_info:
-        res = df.select(random("abc")).collect()
-    assert "invalid identifier 'ABC'" in str(ex_info)
+        df.select(random("abc")).collect()
+    assert "Numeric value 'abc' is not recognized" in str(ex_info)
 
 
 def test_check_functions_negative(session):
