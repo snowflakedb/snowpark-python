@@ -16,7 +16,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Alias as SPAlias,
     Cube as SPCube,
     Expression as SPExpression,
-    GroupingSets as SPGroupingSets,
+    GroupingSetsExpression as SPGroupingSetsExpression,
     Literal as SPLiteral,
     NamedExpression as SPNamedExpression,
     Rollup as SPRollup,
@@ -72,7 +72,7 @@ class RelationalGroupedDataFrame:
     def __toDF(self, agg_exprs: List[SPExpression]):
         aliased_agg = []
         for grouping_expr in self.grouping_exprs:
-            if isinstance(grouping_expr, SPGroupingSets):
+            if isinstance(grouping_expr, SPGroupingSetsExpression):
                 # avoid doing list(set(grouping_expr.args)) because it will change the order
                 gr_used = set()
                 gr_uniq = [

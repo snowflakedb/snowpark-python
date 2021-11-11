@@ -575,7 +575,7 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
 
-class GroupingSets(Expression):
+class GroupingSetsExpression(Expression):
     def __init__(self, args: List[Expression]):
         super().__init__()
         self.args = args
