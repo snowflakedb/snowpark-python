@@ -629,7 +629,7 @@ class DataFrame:
         ],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
-        `GROUP BY CUBE <https://docs.snowflake.com/en/sql-reference/constructs/group-by-rollup.html>`_.
+        `GROUP BY CUBE <https://docs.snowflake.com/en/sql-reference/constructs/group-by-cube.html>`_.
         on the DataFrame.
 
         Args:
