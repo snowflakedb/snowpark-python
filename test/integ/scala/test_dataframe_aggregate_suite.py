@@ -11,6 +11,7 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row
+from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     avg,
     col,
@@ -35,18 +36,62 @@ from snowflake.snowpark.functions import (
 )
 
 
-def test_limit_plus_aggregates(session):
-    df = session.createDataFrame([["a", 1], ["b", 2], ["c", 1], ["d", 5]]).toDF(
-        ["id", "value"]
+def test_pivot(session):
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [Row(1, 10400, 8000, 11000, 18000), Row(2, 39500, 90700, 12000, 5300)],
+        sort=False,
     )
-    limit2df = df.limit(2)
-    res1 = limit2df.groupBy("id").count().select(col("id")).collect()
-    res1.sort(key=lambda x: x[0])
 
-    res2 = limit2df.select(col("id")).collect()
-    res2.sort(key=lambda x: x[0])
+    with pytest.raises(SnowparkDataframeException) as ex_info:
+        TestData.monthly_sales(session).pivot(
+            "month", ["JAN", "FEB", "MAR", "APR"]
+        ).agg([sum(col("amount")), avg(col("amount"))]).sort(col("empid"))
 
-    assert res1 == res2
+    assert (
+        "You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot() method."
+        in str(ex_info)
+    )
+
+
+def test_join_on_pivot(session):
+    df1 = (
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum(col("amount")))
+        .sort(col("empid"))
+    )
+
+    df2 = session.createDataFrame([[1, 12345], [2, 67890]]).toDF("empid", "may")
+
+    Utils.check_answer(
+        df1.join(df2, "empid"),
+        [
+            Row(1, 10400, 8000, 11000, 18000, 12345),
+            Row(2, 39500, 90700, 12000, 5300, 67890),
+        ],
+        sort=False,
+    )
+
+
+def test_pivot_on_join(session):
+    df = session.createDataFrame([[1, "One"], [2, "Two"]]).toDF("empid", "name")
+
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .join(df, "empid")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum(col("amount")))
+        .sort(col("name")),
+        [
+            Row(1, "One", 10400, 8000, 11000, 18000),
+            Row(2, "Two", 39500, 90700, 12000, 5300),
+        ],
+        sort=False,
+    )
 
 
 def test_rel_grouped_dataframe_agg(session):
