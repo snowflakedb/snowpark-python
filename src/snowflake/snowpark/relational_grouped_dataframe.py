@@ -122,7 +122,6 @@ class RelationalGroupedDataFrame:
             return DataFrame(
                 self.df.session,
                 SPPivot(
-                    [self.__alias(e) for e in grouping_expr],
                     self.group_type.pivot_col,
                     self.group_type.values,
                     agg_exprs,
@@ -146,11 +145,11 @@ class RelationalGroupedDataFrame:
         p = re.compile("[^\\x20-\\x7E]")
         return p.sub("", identifier.replace('"', ""))
 
-    def __str_to_expr(self, expr: str):
+    def __str_to_expr(self, expr: str) -> Callable:
         return lambda input_expr: self.__expr_to_func(expr, input_expr)
 
     @staticmethod
-    def __expr_to_func(expr: str, input_expr: SPExpression):
+    def __expr_to_func(expr: str, input_expr: SPExpression) -> SPExpression:
         lowered = expr.lower()
         if lowered in ["avg", "average", "mean"]:
             return SPUnresolvedFunction("avg", [input_expr], is_distinct=False)

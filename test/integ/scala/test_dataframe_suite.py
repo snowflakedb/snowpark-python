@@ -9,7 +9,7 @@ from test.utils import TestData, TestFiles, Utils
 
 import pytest
 
-from snowflake import connector
+import snowflake.connector
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -388,7 +388,7 @@ def test_sample_negative(session):
     df = session.range(row_count)
     with pytest.raises(ValueError):
         df.sample(n=-1)
-    with pytest.raises(connector.errors.ProgrammingError):
+    with pytest.raises(snowflake.connector.errors.ProgrammingError):
         df.sample(n=1000001).count()
     with pytest.raises(ValueError):
         df.sample(frac=-0.01)
@@ -598,19 +598,19 @@ def test_select_negative_select(session):
     assert "The select() input cannot be empty" in str(ex_info)
 
     # select columns which don't exist
-    with pytest.raises(connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
         df.select("not_exists_column").collect()
     assert "SQL compilation error" in str(ex_info)
 
-    with pytest.raises(connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
         df.select(["not_exists_column"]).collect()
     assert "SQL compilation error" in str(ex_info)
 
-    with pytest.raises(connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
         df.select(col("not_exists_column")).collect()
     assert "SQL compilation error" in str(ex_info)
 
-    with pytest.raises(connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
         df.select([col("not_exists_column")]).collect()
     assert "SQL compilation error" in str(ex_info)
 
@@ -693,6 +693,81 @@ def test_dataframe_agg(session):
     assert df.agg([("empid", "min"), ("name", "min")]).collect() == [Row(1, "One")]
 
 
+def test_rollup(session):
+    df = session.createDataFrame(
+        [
+            ("country A", "state A", 50),
+            ("country A", "state A", 50),
+            ("country A", "state B", 5),
+            ("country A", "state B", 5),
+            ("country B", "state A", 100),
+            ("country B", "state A", 100),
+            ("country B", "state B", 10),
+            ("country B", "state B", 10),
+        ]
+    ).toDF(["country", "state", "value"])
+
+    # At least one column needs to be provided ( negative test )
+    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+        df.rollup(list()).agg(sum(col("value"))).show()
+
+    assert "001003 (42000): SQL compilation error" in str(ex_info)
+
+    # rollup() on 1 column
+    expected_result = [
+        Row("country A", 110),
+        Row("country B", 220),
+        Row(None, 330),
+    ]
+    Utils.check_answer(df.rollup("country").agg(sum(col("value"))), expected_result)
+    Utils.check_answer(df.rollup(["country"]).agg(sum(col("value"))), expected_result)
+    Utils.check_answer(
+        df.rollup(col("country")).agg(sum(col("value"))), expected_result
+    )
+    Utils.check_answer(
+        df.rollup([col("country")]).agg(sum(col("value"))), expected_result
+    )
+
+    # rollup() on 2 columns
+    expected_result = [
+        Row(None, None, 330),
+        Row("country A", None, 110),
+        Row("country A", "state A", 100),
+        Row("country A", "state B", 10),
+        Row("country B", None, 220),
+        Row("country B", "state A", 200),
+        Row("country B", "state B", 20),
+    ]
+    Utils.check_answer(
+        df.rollup("country", "state")
+        .agg(sum(col("value")))
+        .sort(col("country"), col("state")),
+        expected_result,
+        False,
+    )
+    Utils.check_answer(
+        df.rollup(["country", "state"])
+        .agg(sum(col("value")))
+        .sort(col("country"), col("state")),
+        expected_result,
+        False,
+    )
+    Utils.check_answer(
+        df.rollup(col("country"), col("state"))
+        .agg(sum(col("value")))
+        .sort(col("country"), col("state")),
+        expected_result,
+        False,
+    )
+    Utils.check_answer(
+        df.rollup([col("country"), col("state")])
+        .agg(sum(col("value")))
+        .sort(col("country"), col("state")),
+        expected_result,
+        False,
+    )
+
+
 def test_groupby(session):
     df = session.createDataFrame(
         [
@@ -732,6 +807,81 @@ def test_groupby(session):
 
     res = df.groupBy([col("country"), col("state")]).agg(sum(col("value"))).collect()
     assert sorted(res, key=lambda x: x[2]) == expected_res
+
+
+def test_cube(session):
+    df = session.createDataFrame(
+        [
+            ("country A", "state A", 50),
+            ("country A", "state A", 50),
+            ("country A", "state B", 5),
+            ("country A", "state B", 5),
+            ("country B", "state A", 100),
+            ("country B", "state A", 100),
+            ("country B", "state B", 10),
+            ("country B", "state B", 10),
+        ]
+    ).toDF(["country", "state", "value"])
+
+    # At least one column needs to be provided ( negative test )
+    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+        df.cube(list()).agg(sum(col("value"))).show()
+
+    assert "001003 (42000): SQL compilation error" in str(ex_info)
+
+    # cube() on 1 column
+    expected_result = [
+        Row("country A", 110),
+        Row("country B", 220),
+        Row(None, 330),
+    ]
+    Utils.check_answer(df.cube("country").agg(sum(col("value"))), expected_result)
+    Utils.check_answer(df.cube(["country"]).agg(sum(col("value"))), expected_result)
+    Utils.check_answer(df.cube(col("country")).agg(sum(col("value"))), expected_result)
+    Utils.check_answer(
+        df.cube([col("country")]).agg(sum(col("value"))), expected_result
+    )
+
+    # cube() on 2 columns
+    expected_result = [
+        Row(None, None, 330),
+        Row(None, "state A", 300),  # This is an extra row comparing with rollup().
+        Row(None, "state B", 30),  # This is an extra row comparing with rollup().
+        Row("country A", None, 110),
+        Row("country A", "state A", 100),
+        Row("country A", "state B", 10),
+        Row("country B", None, 220),
+        Row("country B", "state A", 200),
+        Row("country B", "state B", 20),
+    ]
+    Utils.check_answer(
+        df.cube("country", "state")
+        .agg(sum(col("value")))
+        .sort(col("country"), col("state")),
+        expected_result,
+        False,
+    )
+    Utils.check_answer(
+        df.cube(["country", "state"])
+        .agg(sum(col("value")))
+        .sort(col("country"), col("state")),
+        expected_result,
+        False,
+    )
+    Utils.check_answer(
+        df.cube(col("country"), col("state"))
+        .agg(sum(col("value")))
+        .sort(col("country"), col("state")),
+        expected_result,
+        False,
+    )
+    Utils.check_answer(
+        df.cube([col("country"), col("state")])
+        .agg(sum(col("value")))
+        .sort(col("country"), col("state")),
+        expected_result,
+        False,
+    )
 
 
 def test_flatten(session):
@@ -1037,7 +1187,7 @@ def test_create_or_replace_temporary_view(session, db_parameters):
         # Get a second session object
         session2 = Session.builder.configs(db_parameters).create()
         assert session is not session2
-        with pytest.raises(connector.errors.ProgrammingError) as ex_info:
+        with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
             session2.table(view_name).collect()
         assert "does not exist or not authorized" in str(ex_info)
     finally:
@@ -1385,6 +1535,72 @@ def test_drop_with_array_args(session):
 def test_agg_with_array_args(session):
     df = session.createDataFrame([[1, 2], [4, 5]]).toDF("col1", "col2")
     Utils.check_answer(df.agg([max(col("col1")), mean(col("col2"))]), [Row(4, 3.5)])
+
+
+def test_rollup_with_array_args(session):
+    df = session.createDataFrame(
+        [
+            ("country A", "state A", 50),
+            ("country A", "state A", 50),
+            ("country A", "state B", 5),
+            ("country A", "state B", 5),
+            ("country B", "state A", 100),
+            ("country B", "state A", 100),
+            ("country B", "state B", 10),
+            ("country B", "state B", 10),
+        ]
+    ).toDF(["country", "state", "value"])
+
+    expected_result = [
+        Row(None, None, 330),
+        Row("country A", None, 110),
+        Row("country A", "state A", 100),
+        Row("country A", "state B", 10),
+        Row("country B", None, 220),
+        Row("country B", "state A", 200),
+        Row("country B", "state B", 20),
+    ]
+
+    Utils.check_answer(
+        df.rollup([col("country"), col("state")])
+        .agg(sum(col("value")))
+        .sort(col("country"), col("state")),
+        expected_result,
+        sort=False,
+    )
+
+
+def test_rollup_string_with_array_args(session):
+    df = session.createDataFrame(
+        [
+            ("country A", "state A", 50),
+            ("country A", "state A", 50),
+            ("country A", "state B", 5),
+            ("country A", "state B", 5),
+            ("country B", "state A", 100),
+            ("country B", "state A", 100),
+            ("country B", "state B", 10),
+            ("country B", "state B", 10),
+        ]
+    ).toDF(["country", "state", "value"])
+
+    expected_result = [
+        Row(None, None, 330),
+        Row("country A", None, 110),
+        Row("country A", "state A", 100),
+        Row("country A", "state B", 10),
+        Row("country B", None, 220),
+        Row("country B", "state A", 200),
+        Row("country B", "state B", 20),
+    ]
+
+    Utils.check_answer(
+        df.rollup(["country", "state"])
+        .agg(sum("value"))
+        .sort(col("country"), col("state")),
+        expected_result,
+        sort=False,
+    )
 
 
 def test_groupby_with_array_args(session):
