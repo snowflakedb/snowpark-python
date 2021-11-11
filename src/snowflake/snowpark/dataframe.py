@@ -673,8 +673,7 @@ class DataFrame:
         """
         pc = self.__convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
-            v.expression if isinstance(v, Column) else SPLiteral.create(v)
-            for v in values
+            v.expression if isinstance(v, Column) else SPLiteral(v) for v in values
         ]
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,

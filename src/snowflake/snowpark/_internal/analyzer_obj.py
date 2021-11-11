@@ -316,7 +316,6 @@ class Analyzer:
             expr.pretty_name(), [self.analyze(c) for c in expr.children], is_distinct
         )
 
-    # TODO
     def grouping_extractor(self, expr: SPExpression):
         return self.analyze(
             SPFunctionExpression(
