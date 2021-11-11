@@ -235,6 +235,14 @@ def test_plan_invalid_type():
     assert ex.message == f"Invalid type, analyze. {t}"
 
 
+def test_plan_cannot_create_literal():
+    t = "list"
+    ex = SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(t)
+    assert type(ex) == SnowparkPlanException
+    assert ex.error_code == "1206"
+    assert ex.message == f"Cannot create a Literal for {t}"
+
+
 def test_sql_last_query_return_resultset():
     ex = SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
     assert type(ex) == SnowparkSQLException

@@ -58,10 +58,6 @@ from snowflake.snowpark._internal.sp_expressions import (
     TableFunctionExpression as SPTableFunctionExpression,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    IntegerType as SPIntegerType,
-    LongType as SPLongType,
-)
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.types import DataType
@@ -78,17 +74,15 @@ def column(col_name: str) -> Column:
     return Column(col_name)
 
 
-def lit(literal) -> Column:
-    """Creates a :class:`Column` expression for a literal value."""
-    return typedLit(literal)
-
-
-def typedLit(literal) -> Column:
-    """Creates a :class:`Column` expression for a literal value."""
-    if type(literal) == Column:
-        return literal
-    else:
-        return Column(SPLiteral.create(literal))
+def lit(literal: Any) -> Column:
+    """
+    Creates a :class:`Column` expression for a literal value.
+    It only supports basic Python data types, such as: ``int``, ``float``, ``str``,
+    ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
+    ``datetime.datetime``, ``decimal.Decimal``. Structured data types,
+    such as: ``list``, ``tuple``, ``dict`` are not supported.
+    """
+    return literal if isinstance(literal, Column) else Column(SPLiteral(literal))
 
 
 def sql_expr(sql: str) -> Column:
@@ -108,11 +102,7 @@ def count(e: Union[Column, str]) -> Column:
     """Returns either the number of non-NULL records for the specified columns, or the
     total number of records."""
     c = __to_col_if_str(e, "count")
-    exp = (
-        SPCount(SPLiteral(1, SPIntegerType()))
-        if isinstance(c, SPStar)
-        else SPCount(c.expression)
-    )
+    exp = SPCount(SPLiteral(1)) if isinstance(c, SPStar) else SPCount(c.expression)
     return __with_aggregate_function(exp)
 
 
@@ -261,7 +251,7 @@ def not_(e: Union[Column, str]) -> Column:
 def random(seed: Optional[int] = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
     s = seed if seed is not None else randint(-(2 ** 63), 2 ** 63 - 1)
-    return builtin("random")(SPLiteral(s, SPLongType()))
+    return builtin("random")(SPLiteral(s))
 
 
 def to_decimal(e: Union[Column, str], precision: int, scale: int) -> Column:
@@ -1221,7 +1211,7 @@ def call_builtin(function_name: str, *args: Any) -> Column:
         elif isinstance(arg, SPExpression):
             sp_expressions.append(arg)
         else:
-            sp_expressions.append(SPLiteral.create(arg))
+            sp_expressions.append(SPLiteral(arg))
 
     return Column(
         SPUnresolvedFunction(function_name, sp_expressions, is_distinct=False)
