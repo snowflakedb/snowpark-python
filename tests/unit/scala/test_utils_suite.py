@@ -56,13 +56,13 @@ def test_md5():
             Utils.calculate_md5(test_files.test_udf_directory)
             == "051593215a8fa0445d81154e5fdfd89e"
         )
-        assert Utils.calculate_md5(resources_path) == "0854581cb9d43395afe2da1b659ef69a"
+        assert Utils.calculate_md5(resources_path) == "bdb9d0f05314e528a2267393ce4c46fb"
     else:
         assert (
             Utils.calculate_md5(test_files.test_udf_directory)
             == "956d97863a5e5f11840339bd208549ef"
         )
-        assert Utils.calculate_md5(resources_path) == "684c73e6ace20c3fc1c88794ea934f78"
+        assert Utils.calculate_md5(resources_path) == "4a7e0e3ffda738600b344ac12c167aa4"
 
 
 def test_normalize_stage_location():
