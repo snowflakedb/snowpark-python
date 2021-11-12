@@ -18,14 +18,10 @@ from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
-    Literal,
     Star as SPStar,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    DecimalType as SPDecimalType,
-)
-from snowflake.snowpark.exceptions import SnowparkColumnException
-from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkPlanException
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -1044,18 +1040,78 @@ def test_dataframe_duplicated_column_names(session):
 
 def test_dropna(session):
     Utils.check_answer(TestData.double3(session).dropna(), [Row(1.0, 1)])
-    Utils.check_answer(
-        TestData.double3(session).dropna(cols=["a"]), [Row(1.0, 1), Row(4.0, None)]
-    )
-    res = TestData.double3(session).dropna(1).collect()
+
+    res = TestData.double3(session).dropna(how="all").collect()
     assert res[0] == Row(1.0, 1)
     assert math.isnan(res[1][0])
     assert res[1][1] == 2
     assert res[2] == Row(None, 3)
     assert res[3] == Row(4.0, None)
 
+    Utils.check_answer(
+        TestData.double3(session).dropna(subset=["a"]), [Row(1.0, 1), Row(4.0, None)]
+    )
+
+    res = TestData.double3(session).dropna(thresh=1).collect()
+    assert res[0] == Row(1.0, 1)
+    assert math.isnan(res[1][0])
+    assert res[1][1] == 2
+    assert res[2] == Row(None, 3)
+    assert res[3] == Row(4.0, None)
+
+    with pytest.raises(TypeError) as ex_info:
+        TestData.double3(session).dropna(subset={1: "a"})
+    assert "subset should be a list or tuple of column names" in str(ex_info)
+
 
 def test_fillna(session):
+    Utils.check_answer(
+        TestData.double3(session).fillna(11),
+        [
+            Row(1.0, 1),
+            Row(11.0, 2),
+            Row(11.0, 3),
+            Row(4.0, 11),
+            Row(11.0, 11),
+            Row(11.0, 11),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.double3(session).fillna(11, subset=["a"]),
+        [
+            Row(1.0, 1),
+            Row(11.0, 2),
+            Row(11.0, 3),
+            Row(4.0, None),
+            Row(11.0, None),
+            Row(11.0, None),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.double3(session).fillna(None),
+        [
+            Row(1.0, 1),
+            Row(None, 2),
+            Row(None, 3),
+            Row(4.0, None),
+            Row(None, None),
+            Row(None, None),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.null_data1(session).fillna({}), TestData.null_data1(session).collect()
+    )
+    Utils.check_answer(
+        TestData.null_data1(session).fillna(1, subset=[]),
+        TestData.null_data1(session).collect(),
+    )
+
     # fillna for all basic data types
     data = [
         1,
@@ -1089,24 +1145,53 @@ def test_fillna(session):
         [Row(1, 1.1), Row(None, 1)],
     )
 
+    # negative case
+    df = session.createDataFrame(
+        [[[1, 2], (1, 3)], [None, None]], schema=["col1", "col2"]
+    )
+    with pytest.raises(TypeError) as ex_info:
+        df.fillna(1, subset={1: "a"})
+    assert "subset should be a list or tuple of column names" in str(ex_info)
+    with pytest.raises(ValueError) as ex_info:
+        df.fillna([1, 3])
+    assert "All values in value should be in one of" in str(ex_info)
+    with pytest.raises(ValueError) as ex_info:
+        df.fillna((1, 3))
+    assert "All values in value should be in one of" in str(ex_info)
+    with pytest.raises(ValueError) as ex_info:
+        df.fillna({1: 3})
+    assert "All keys in value should be column names (str)" in str(ex_info)
+
 
 def test_replace(session):
     df = session.createDataFrame(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
     )
 
-    # empty replacement or cols will return the original dataframe
+    # empty to_replace or subset will return the original dataframe
+    Utils.check_answer(df.replace({}), [Row(1, 1.0, "1.0"), Row(2, 2.0, "2.0")])
     Utils.check_answer(
-        df.replace(replacement={}), [Row(1, 1.0, "1.0"), Row(2, 2.0, "2.0")]
-    )
-    Utils.check_answer(
-        df.replace({1: 4}, cols=[]), [Row(1, 1.0, "1.0"), Row(2, 2.0, "2.0")]
+        df.replace({1: 4}, subset=[]), [Row(1, 1.0, "1.0"), Row(2, 2.0, "2.0")]
     )
 
-    # cols=None will apply the replacement to all columns
+    # subset=None will apply the replacement to all columns
     # we can replace a float with an integer
+    Utils.check_answer(df.replace(1, 3), [Row(3, 3.0, "1.0"), Row(2, 2.0, "2.0")])
     Utils.check_answer(
-        df.replace({1: 3, 2: 4}), [Row(3, 3.0, "1.0"), Row(4, 4.0, "2.0")]
+        df.replace([1, 2], [3, 4]), [Row(3, 3.0, "1.0"), Row(4, 4.0, "2.0")]
+    )
+    Utils.check_answer(df.replace([1, 2], 3), [Row(3, 3.0, "1.0"), Row(3, 3.0, "2.0")])
+    # value will be ignored
+    Utils.check_answer(
+        df.replace({1: 3, 2: 4}, value=5), [Row(3, 3.0, "1.0"), Row(4, 4.0, "2.0")]
+    )
+
+    # subset
+    Utils.check_answer(
+        df.replace({1: 3, 2: 4}, subset=["a"]), [Row(3, 1.0, "1.0"), Row(4, 2.0, "2.0")]
+    )
+    Utils.check_answer(
+        df.replace({1: 3, 2: 4}, subset="b"), [Row(1, 3.0, "1.0"), Row(2, 4.0, "2.0")]
     )
 
     # we can't replace an integer with a float
@@ -1121,8 +1206,27 @@ def test_replace(session):
         df.replace({1: None, 2: None, "2.0": None}),
         [Row(None, None, "1.0"), Row(None, None, None)],
     )
+    Utils.check_answer(
+        df.replace(1.0, None),
+        [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
+    )
 
-    # wrong column name
+    # negative case
     with pytest.raises(SnowparkColumnException) as ex_info:
-        df.replace({1: 3}, cols=["d"])
+        df.replace({1: 3}, subset=["d"])
     assert "The DataFrame does not contain the column named" in str(ex_info)
+    with pytest.raises(TypeError) as ex_info:
+        df.replace({1: 2}, subset={1: "a"})
+    assert "subset should be a list or tuple of column names" in str(ex_info)
+    with pytest.raises(ValueError) as ex_info:
+        df.replace([1], [2, 3])
+    assert "to_replace and value lists should be of the same length" in str(ex_info)
+    with pytest.raises(ValueError) as ex_info:
+        df.replace(1, [2, 3])
+    assert "All keys and values in value should be in one of" in str(ex_info)
+    with pytest.raises(ValueError) as ex_info:
+        df.replace([1, (1, 2)], [2, 3])
+    assert "All keys and values in value should be in one of" in str(ex_info)
+    with pytest.raises(ValueError) as ex_info:
+        df.replace(1, {1: 2})
+    assert "All keys and values in value should be in one of" in str(ex_info)

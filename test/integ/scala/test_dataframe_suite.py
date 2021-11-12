@@ -1508,23 +1508,24 @@ def test_with_columns_replace_existing(session):
 
 def test_dropna(session):
     Utils.check_answer(
-        TestData.double3(session).na.drop(1, ["a"]), [Row(1.0, 1), Row(4.0, None)]
+        TestData.double3(session).na.drop(thresh=1, subset=["a"]),
+        [Row(1.0, 1), Row(4.0, None)],
     )
 
-    res = TestData.double3(session).dropna(1, ["a", "b"]).collect()
+    res = TestData.double3(session).na.drop(thresh=1, subset=["a", "b"]).collect()
     assert res[0] == Row(1.0, 1)
     assert math.isnan(res[1][0])
     assert res[1][1] == 2
     assert res[2] == Row(None, 3)
     assert res[3] == Row(4.0, None)
 
-    assert TestData.double3(session).na.drop(0, ["a"]).count() == 6
-    assert TestData.double3(session).na.drop(3, ["a", "b"]).count() == 0
-    assert TestData.double3(session).na.drop(1, []).count() == 6
+    assert TestData.double3(session).na.drop(thresh=0, subset=["a"]).count() == 6
+    assert TestData.double3(session).na.drop(thresh=3, subset=["a", "b"]).count() == 0
+    assert TestData.double3(session).na.drop(thresh=1, subset=[]).count() == 6
 
     # wrong column name
     with pytest.raises(SnowparkColumnException) as ex_info:
-        TestData.double3(session).na.drop(1, ["c"])
+        TestData.double3(session).na.drop(thresh=1, subset=["c"])
     assert "The DataFrame does not contain the column named" in str(ex_info)
 
 
@@ -1579,7 +1580,11 @@ def test_fillna(session):
 
 
 def test_replace(session):
-    res = TestData.null_data3(session).na.replace({2: 300, 1: 200}, ["flo"]).collect()
+    res = (
+        TestData.null_data3(session)
+        .na.replace({2: 300, 1: 200}, subset=["flo"])
+        .collect()
+    )
     assert res[0] == Row(200.0, 1, True, "a")
     assert math.isnan(res[1][0])
     assert res[1][1:] == Row(2, None, "b")
@@ -1592,7 +1597,9 @@ def test_replace(session):
     assert res[-1][1:] == Row(None, None, None)
 
     # replace null
-    res = TestData.null_data3(session).na.replace({None: True}, ["boo"]).collect()
+    res = (
+        TestData.null_data3(session).na.replace({None: True}, subset=["boo"]).collect()
+    )
     assert res[0] == Row(1.0, 1, True, "a")
     assert math.isnan(res[1][0])
     assert res[1][1:] == Row(2, True, "b")
@@ -1606,7 +1613,7 @@ def test_replace(session):
 
     # replace NaN
     Utils.check_answer(
-        TestData.null_data3(session).na.replace({float("nan"): 11}, ["flo"]),
+        TestData.null_data3(session).na.replace({float("nan"): 11}, subset=["flo"]),
         [
             Row(1.0, 1, True, "a"),
             Row(11, 2, None, "b"),
@@ -1619,7 +1626,9 @@ def test_replace(session):
     )
 
     # incompatible type (skip that replacement and do nothing)
-    res = TestData.null_data3(session).na.replace({None: "aa"}, ["flo"]).collect()
+    res = (
+        TestData.null_data3(session).na.replace({None: "aa"}, subset=["flo"]).collect()
+    )
     assert res[0] == Row(1.0, 1, True, "a")
     assert math.isnan(res[1][0])
     assert res[1][1:] == Row(2, None, "b")
@@ -1633,7 +1642,7 @@ def test_replace(session):
 
     # replace NaN with None
     Utils.check_answer(
-        TestData.null_data3(session).na.replace({float("nan"): None}, ["flo"]),
+        TestData.null_data3(session).na.replace({float("nan"): None}, subset=["flo"]),
         [
             Row(1.0, 1, True, "a"),
             Row(None, 2, None, "b"),
