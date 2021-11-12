@@ -15,7 +15,7 @@ exit_code_decorator(){
 
 # test
 # decrypt profile
-gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "$TEST_DIR/parameters.py" scripts/parameters.py.gpg
+gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/parameters.py" scripts/parameters.py.gpg
 
 # Run linter, Python 3.8 test and code coverage jobs
 exit_code_decorator "python -m tox -c $WORKING_DIR" -e udf
