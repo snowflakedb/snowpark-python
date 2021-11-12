@@ -61,6 +61,7 @@ from snowflake.snowpark._internal.sp_types.sp_join_types import (
 )
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.functions import _create_table_function_expression
 from snowflake.snowpark.row import Row
@@ -195,6 +196,8 @@ class DataFrame:
         self.__placeholder_schema = None
         self.__placeholder_output = None
 
+        self._stat = None
+
     @staticmethod
     def get_unaliased(col_name: str) -> List[str]:
         unaliased = list()
@@ -213,6 +216,12 @@ class DataFrame:
     def __generate_prefix(prefix: str) -> str:
         alphanumeric = string.ascii_lowercase + string.digits
         return f"{prefix}_{''.join(choice(alphanumeric) for _ in range(DataFrame.__NUM_PREFIX_DIGITS))}_"
+
+    @property
+    def stat(self) -> DataFrameStatFunctions:
+        if not self._stat:
+            self._stat = DataFrameStatFunctions(self)
+        return self._stat
 
     def collect(self) -> List["Row"]:
         """Executes the query representing this DataFrame and returns the result as a
