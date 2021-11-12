@@ -56,7 +56,7 @@ def test_md5():
             Utils.calculate_md5(test_files.test_udf_directory)
             == "051593215a8fa0445d81154e5fdfd89e"
         )
-        assert Utils.calculate_md5(resources_path) == "bdb9d0f05314e528a2267393ce4c46fb"
+        assert Utils.calculate_md5(resources_path) == "0854581cb9d43395afe2da1b659ef69a"
     else:
         assert (
             Utils.calculate_md5(test_files.test_udf_directory)
