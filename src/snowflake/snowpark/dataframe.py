@@ -6,7 +6,6 @@
 import re
 import string
 from collections import Counter
-from logging import getLogger
 from random import choice
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -66,8 +65,6 @@ from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.functions import _create_table_function_expression
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
-
-logger = getLogger(__name__)
 
 
 class DataFrame:
