@@ -246,7 +246,6 @@ class ServerConnection:
                 self._cursor.describe(query)
             )
 
-    @_Decorator.wrap_exception
     @_Decorator.log_msg_and_telemetry("Uploading file to stage")
     def upload_file(
         self,
@@ -271,7 +270,6 @@ class ServerConnection:
             )
         )
 
-    @_Decorator.wrap_exception
     @_Decorator.log_msg_and_telemetry("Uploading stream to stage")
     def upload_stream(
         self,
@@ -285,18 +283,28 @@ class ServerConnection:
         overwrite: bool = False,
     ) -> None:
         uri = f"file:///tmp/placeholder/{dest_filename}"
-        self.run_query(
-            self.__build_put_statement(
-                uri,
-                stage_location,
-                dest_prefix,
-                parallel,
-                compress_data,
-                source_compression,
-                overwrite,
-            ),
-            file_stream=input_stream,
-        )
+        try:
+            self.run_query(
+                self.__build_put_statement(
+                    uri,
+                    stage_location,
+                    dest_prefix,
+                    parallel,
+                    compress_data,
+                    source_compression,
+                    overwrite,
+                ),
+                file_stream=input_stream,
+            )
+        except ValueError as ex:
+            if input_stream.closed:
+                raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
+                    dest_filename
+                )
+            else:
+                raise ex
+        except BaseException as ex:
+            raise ex
 
     def __build_put_statement(
         self,

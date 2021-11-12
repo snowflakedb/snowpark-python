@@ -1077,6 +1077,7 @@ def udf(
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
     replace: bool = False,
+    parallel: int = 4,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -1100,8 +1101,13 @@ def udf(
             stages and external stages.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown.
-            If it is ``True``, an existing UDF with the same name is overwritten.
+            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            an existing UDF with the same name is overwritten.
+        parallel: The number of threads to use for uploading UDF files with
+            `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
+            command. The default value is 4 and supported values are from 1 to 99.
+            Increasing the number of threads can improve performance when uploading
+            large UDF files.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -1130,6 +1136,10 @@ def udf(
         2. This function registers a UDF using the last created session.
         If you want to register a UDF with a specific session, use
         :func:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+
+        3. By default UDF registration fails if a function with the same name is already
+        registered. Invoking :func:`udf` with ``replace`` set to `True` will overwrite the
+        previously registered function.
     """
     session = snowflake.snowpark.Session._get_active_session()
     if not session:
@@ -1144,6 +1154,7 @@ def udf(
             is_permanent=is_permanent,
             stage_location=stage_location,
             replace=replace,
+            parallel=parallel,
         )
     else:
         return session.udf.register(
@@ -1154,6 +1165,7 @@ def udf(
             is_permanent=is_permanent,
             stage_location=stage_location,
             replace=replace,
+            parallel=parallel,
         )
 
 

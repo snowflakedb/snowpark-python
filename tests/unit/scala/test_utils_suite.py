@@ -91,102 +91,103 @@ def test_zip_file_or_directory_to_stream():
         with zipfile.ZipFile(input_stream) as zf:
             assert zf.testzip() is None
             assert sorted(zf.namelist()) == sorted(expected_files)
-        input_stream.close()
 
-    stream = Utils.zip_file_or_directory_to_stream(test_files.test_udf_py_file)
-    check_zip_files_and_close_stream(stream, ["test_udf_file.py"])
+    with Utils.zip_file_or_directory_to_stream(test_files.test_udf_py_file) as stream:
+        check_zip_files_and_close_stream(stream, ["test_udf_file.py"])
 
-    stream = Utils.zip_file_or_directory_to_stream(
+    with Utils.zip_file_or_directory_to_stream(
         test_files.test_udf_py_file,
         leading_path=test_files.test_udf_directory,
         add_init_py=True,
-    )
-    check_zip_files_and_close_stream(stream, ["test_udf_file.py"])
+    ) as stream:
+        check_zip_files_and_close_stream(stream, ["test_udf_file.py"])
 
-    stream = Utils.zip_file_or_directory_to_stream(
+    with Utils.zip_file_or_directory_to_stream(
         test_files.test_udf_py_file,
         leading_path=os.path.dirname(test_files.test_udf_directory),
-    )
-    check_zip_files_and_close_stream(stream, ["test_udf_dir/test_udf_file.py"])
+    ) as stream:
+        check_zip_files_and_close_stream(stream, ["test_udf_dir/test_udf_file.py"])
 
-    stream = Utils.zip_file_or_directory_to_stream(
+    with Utils.zip_file_or_directory_to_stream(
         test_files.test_udf_py_file,
         leading_path=os.path.dirname(test_files.test_udf_directory),
         add_init_py=True,
-    )
-    check_zip_files_and_close_stream(
-        stream, ["test_udf_dir/test_udf_file.py", "test_udf_dir/__init__.py"]
-    )
+    ) as stream:
+        check_zip_files_and_close_stream(
+            stream, ["test_udf_dir/test_udf_file.py", "test_udf_dir/__init__.py"]
+        )
 
-    stream = Utils.zip_file_or_directory_to_stream(
+    with Utils.zip_file_or_directory_to_stream(
         test_files.test_udf_py_file,
         leading_path=os.path.dirname(os.path.dirname(test_files.test_udf_directory)),
         add_init_py=True,
-    )
-    check_zip_files_and_close_stream(
-        stream,
-        [
-            "resources/test_udf_dir/test_udf_file.py",
-            "resources/test_udf_dir/__init__.py",
-            "resources/__init__.py",
-        ],
-    )
+    ) as stream:
+        check_zip_files_and_close_stream(
+            stream,
+            [
+                "resources/test_udf_dir/test_udf_file.py",
+                "resources/test_udf_dir/__init__.py",
+                "resources/__init__.py",
+            ],
+        )
 
-    stream = Utils.zip_file_or_directory_to_stream(test_files.test_udf_directory)
-    check_zip_files_and_close_stream(
-        stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
-    )
+    with Utils.zip_file_or_directory_to_stream(test_files.test_udf_directory) as stream:
+        check_zip_files_and_close_stream(
+            stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
+        )
 
-    stream = Utils.zip_file_or_directory_to_stream(
+    with Utils.zip_file_or_directory_to_stream(
         test_files.test_udf_directory,
         leading_path=os.path.dirname(test_files.test_udf_directory),
         add_init_py=True,
-    )
-    check_zip_files_and_close_stream(
-        stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
-    )
+    ) as stream:
+        check_zip_files_and_close_stream(
+            stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
+        )
 
-    stream = Utils.zip_file_or_directory_to_stream(
+    with Utils.zip_file_or_directory_to_stream(
         test_files.test_udf_directory,
         leading_path=os.path.dirname(os.path.dirname(test_files.test_udf_directory)),
         add_init_py=True,
-    )
-    check_zip_files_and_close_stream(
-        stream,
-        [
-            "resources/test_udf_dir/",
-            "resources/test_udf_dir/test_udf_file.py",
-            "resources/__init__.py",
-        ],
-    )
+    ) as stream:
+        check_zip_files_and_close_stream(
+            stream,
+            [
+                "resources/test_udf_dir/",
+                "resources/test_udf_dir/test_udf_file.py",
+                "resources/__init__.py",
+            ],
+        )
 
-    stream = Utils.zip_file_or_directory_to_stream(resources_path)
-    check_zip_files_and_close_stream(
-        stream,
-        [
-            "resources/",
-            "resources/broken.csv",
-            "resources/test.avro",
-            "resources/test.orc",
-            "resources/test.parquet",
-            "resources/test.xml",
-            "resources/test2CSV.csv",
-            "resources/testCSV.csv",
-            "resources/testCSVcolon.csv",
-            "resources/testCSVquotes.csv",
-            "resources/testJson.json",
-            "resources/test_udf_dir/",
-            "resources/test_udf_dir/test_udf_file.py",
-        ],
-    )
+    with Utils.zip_file_or_directory_to_stream(resources_path) as stream:
+        check_zip_files_and_close_stream(
+            stream,
+            [
+                "resources/",
+                "resources/broken.csv",
+                "resources/test.avro",
+                "resources/test.orc",
+                "resources/test.parquet",
+                "resources/test.xml",
+                "resources/test2CSV.csv",
+                "resources/testCSV.csv",
+                "resources/testCSVcolon.csv",
+                "resources/testCSVquotes.csv",
+                "resources/testJson.json",
+                "resources/test_udf_dir/",
+                "resources/test_udf_dir/test_udf_file.py",
+            ],
+        )
 
     with pytest.raises(FileNotFoundError):
-        Utils.zip_file_or_directory_to_stream("file_not_found.txt")
+        with Utils.zip_file_or_directory_to_stream("file_not_found.txt"):
+            pass
 
     with pytest.raises(ValueError) as ex_info:
-        Utils.zip_file_or_directory_to_stream(
+        with Utils.zip_file_or_directory_to_stream(
             test_files.test_udf_directory, "test_udf_dir"
-        )
+        ):
+            pass
     assert "doesn't lead to" in str(ex_info)
 
 
