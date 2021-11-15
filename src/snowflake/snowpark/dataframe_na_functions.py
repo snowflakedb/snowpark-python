@@ -61,7 +61,7 @@ class DataFrameNaFunctions:
         Args:
             how: An ``str`` with value either 'any' or 'all'. If 'any', drop a row if
                 it contains any nulls. If 'all', drop a row only if all its values are null.
-                The default value is 'any'.
+                The default value is 'any'. If ``thresh`` is provided, ``how`` will be ignored.
             thresh: The minimum number of non-null and non-NaN
                 values that should be in the specified columns in order for the
                 row to be included. It overwrites ``how``. In each case:
@@ -100,7 +100,7 @@ class DataFrameNaFunctions:
         # translate to
         # select * from table where
         # iff(float_col = 'NaN' or float_col is null, 0, 1)
-        # iff(non_float_col is null, 0, 1) >= min_non_nulls_per_row
+        # iff(non_float_col is null, 0, 1) >= thresh
 
         if how is not None and how not in ["any", "all"]:
             raise ValueError("how ('" + how + "') should be 'any' or 'all'")
@@ -113,7 +113,7 @@ class DataFrameNaFunctions:
         elif not isinstance(subset, (list, tuple)):
             raise TypeError("subset should be a list or tuple of column names")
 
-        # if min_non_nulls_per_row is not provided,
+        # if thresh is not provided,
         # drop a row if it contains any nulls when how == 'any',
         # otherwise drop a row only if all its values are null.
         if thresh is None:
@@ -262,7 +262,7 @@ class DataFrameNaFunctions:
                         # iff(col is null, value, col)
                         res_columns.append(iff(col.is_null(), value, col).as_(col_name))
                 else:
-                    logger.info(
+                    logger.warning(
                         "Input value type doesn't match the target column data type, "
                         f"this replacement was skipped. Column Name: {col_name}, "
                         f"Type: {datatype}, Input Value: {value}, Type: {type(value)}"
@@ -400,7 +400,7 @@ class DataFrameNaFunctions:
                             else when(cond, replace_value)
                         )
                     else:
-                        logger.info(
+                        logger.warning(
                             "Input key or value type doesn't match the target column data type, "
                             f"this replacement was skipped. Column Name: {col_name}, "
                             f"Type: {datatype}, Input Key: {key}, Type: {type(key)}, "

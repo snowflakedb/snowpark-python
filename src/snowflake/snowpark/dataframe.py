@@ -1350,10 +1350,11 @@ class DataFrame:
         """
         Returns a new DataFrame that excludes all rows containing fewer than
         a specified number of non-null and non-NaN values in the specified
-        columns.
+        columns. The usage, input arguments, and return value of this method
+        are the same as they are for :meth:`DataFrameNaFunctions.drop`.
 
         See Also:
-            :func:`DataFrameNaFunctions.drop`
+            :meth:`DataFrameNaFunctions.drop`
         """
         return self.na.drop(how, thresh, subset)
 
@@ -1364,11 +1365,11 @@ class DataFrame:
     ) -> "DataFrame":
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified
-        columns with the values provided. This method is an alias of
-        :func:`DataFrameNaFunctions.fill`.
+        columns with the values provided. The usage, input arguments, and return value
+        of this method are the same as they are for :meth:`DataFrameNaFunctions.fill`.
 
         See Also:
-            :func:`DataFrameNaFunctions.fill`
+            :meth:`DataFrameNaFunctions.fill`
         """
         return self.na.fill(value, subset)
 
@@ -1380,10 +1381,11 @@ class DataFrame:
     ) -> "DataFrame":
         """
         Returns a new DataFrame that replaces values in the specified columns.
-        This method is an alias of :func:`DataFrameNaFunctions.replace`.
+        The usage, input arguments, and return value of this method are the same as
+        they are for :meth:`DataFrameNaFunctions.replace`.
 
         See Also:
-            :func:`DataFrameNaFunctions.replace`
+            :meth:`DataFrameNaFunctions.replace`
         """
         return self.na.replace(to_replace, value, subset)
 
