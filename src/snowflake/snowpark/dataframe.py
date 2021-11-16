@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
-from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
@@ -195,8 +194,12 @@ class DataFrame:
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
         self.__placeholder_output = None
-
-        self._stat = None
+        self._stat = DataFrameStatFunctions(self)
+        self.approxQuantile = self._stat.approxQuantile
+        self.corr = self._stat.corr
+        self.cov = self._stat.cov
+        self.crosstab = self._stat.crosstab
+        self.sampleBy = self._stat.sampleBy
 
     @staticmethod
     def get_unaliased(col_name: str) -> List[str]:
@@ -219,8 +222,6 @@ class DataFrame:
 
     @property
     def stat(self) -> DataFrameStatFunctions:
-        if not self._stat:
-            self._stat = DataFrameStatFunctions(self)
         return self._stat
 
     def collect(self) -> List["Row"]:

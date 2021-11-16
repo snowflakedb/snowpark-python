@@ -132,12 +132,14 @@ def count_distinct(col: Union[Column, str], *columns: Union[Column, str]) -> Col
 
 
 def covar_pop(column1: Union[Column, str], column2: [Column, str]) -> Column:
+    """Returns the population covariance for non-null pairs in a group."""
     col1 = _to_col_if_str(column1, "covar_pop")
     col2 = _to_col_if_str(column2, "covar_pop")
     return builtin("covar_pop")(col1, col2)
 
 
 def covar_samp(column1: Union[Column, str], column2: [Column, str]) -> Column:
+    """Returns the sample covariance for non-null pairs in a group."""
     col1 = _to_col_if_str(column1, "covar_samp")
     col2 = _to_col_if_str(column2, "covar_samp")
     return builtin("covar_samp")(col1, col2)
