@@ -1,18 +1,21 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+import math
 import os
 import re
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from test.utils import TestData, TestFiles, Utils
 
 import pytest
 
 import snowflake.connector
+from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
+    SnowparkDataframeException,
     SnowparkInvalidObjectNameException,
     SnowparkPlanException,
 )
@@ -319,6 +322,249 @@ def test_joins_on_result_scan(session):
     result = df1.join(df2, '"name"')
     result.collect()  # no error
     assert len(result.schema.fields) == 3
+
+
+def test_df_stat_corr(session):
+    with pytest.raises(ProgrammingError) as exec_info:
+        TestData.string1(session).stat.corr("a", "b")
+    assert "100038 (22018)" in str(exec_info)
+
+    assert TestData.null_data2(session).stat.corr("a", "b") is None
+    assert TestData.double4(session).stat.corr("a", "b") is None
+    assert math.isnan(TestData.double3(session).stat.corr("a", "b"))
+    assert TestData.double2(session).stat.corr("a", "b") == 0.9999999999999991
+
+
+def test_df_stat_cov(session):
+    with pytest.raises(ProgrammingError) as exec_info:
+        TestData.string1(session).stat.cov("a", "b")
+    assert "100038 (22018)" in str(exec_info)
+
+    assert TestData.null_data2(session).stat.cov("a", "b") == 0
+    assert TestData.double4(session).stat.cov("a", "b") is None
+    assert math.isnan(TestData.double3(session).stat.cov("a", "b"))
+    assert TestData.double2(session).stat.cov("a", "b") == 0.010000000000000037
+
+
+def test_df_stat_approxQuantile(session):
+    assert TestData.approx_numbers(session).stat.approxQuantile("a", [0.5]) == [4.5]
+    assert TestData.approx_numbers(session).stat.approxQuantile(
+        "a", [0, 0.1, 0.4, 0.6, 1]
+    ) == [-0.5, 0.5, 3.5, 5.5, 9.5]
+
+    with pytest.raises(ProgrammingError) as exec_info:
+        TestData.approx_numbers(session).stat.approxQuantile("a", [-1])
+    assert "Invalid value [-1.0] for function 'APPROX_PERCENTILE_ESTIMATE'" in str(
+        exec_info
+    )
+
+    with pytest.raises(ProgrammingError) as exec_info:
+        TestData.string1(session).stat.approxQuantile("a", [0.5])
+    assert "Numeric value 'test1' is not recognized" in str(exec_info)
+
+    table_name = Utils.random_name()
+    Utils.create_table(session, table_name, "num int")
+    try:
+        assert session.table(table_name).stat.approxQuantile("num", [0.5])[0] is None
+
+        res = TestData.double2(session).stat.approxQuantile(["a", "b"], [0, 0.1, 0.6])
+        assert res[0] == [0.05, 0.15000000000000002, 0.25]
+        assert res[1] == [0.45, 0.55, 0.6499999999999999]
+
+        # ApproxNumbers2 contains a column called T, which conflicts with tmpColumnName.
+        # This test demos that the query still works.
+        assert (
+            TestData.approx_numbers2(session).stat.approxQuantile("a", [0.5])[0] == 4.5
+        )
+        assert (
+            TestData.approx_numbers2(session).stat.approxQuantile("t", [0.5])[0] == 3.0
+        )
+
+        assert TestData.double2(session).stat.approxQuantile("a", []) == []
+        assert TestData.double2(session).stat.approxQuantile([], []) == []
+        assert TestData.double2(session).stat.approxQuantile([], [0.5]) == []
+    finally:
+        Utils.drop_table(table_name)
+
+
+def test_df_stat_crosstab(session):
+    cross_tab = (
+        TestData.monthly_sales(session).stat.crosstab("empid", "month").collect()
+    )
+    assert (
+        cross_tab[0]["EMPID"] == 1
+        and cross_tab[0]["'JAN'"] == 2
+        and cross_tab[0]["'FEB'"] == 2
+        and cross_tab[0]["'MAR'"] == 2
+        and cross_tab[0]["'APR'"] == 2
+    )
+    assert (
+        cross_tab[1]["EMPID"] == 2
+        and cross_tab[1]["'JAN'"] == 2
+        and cross_tab[1]["'FEB'"] == 2
+        and cross_tab[1]["'MAR'"] == 2
+        and cross_tab[1]["'APR'"] == 2
+    )
+
+    cross_tab_2 = (
+        TestData.monthly_sales(session).stat.crosstab("month", "empid").collect()
+    )
+    assert (
+        cross_tab_2[0]["MONTH"] == "JAN"
+        and cross_tab_2[0]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[1]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+    assert (
+        cross_tab_2[1]["MONTH"] == "FEB"
+        and cross_tab_2[1]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[1]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+    assert (
+        cross_tab_2[2]["MONTH"] == "MAR"
+        and cross_tab_2[2]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[2]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+    assert (
+        cross_tab_2[3]["MONTH"] == "APR"
+        and cross_tab_2[3]["CAST(1 AS NUMBER(38,0))"] == 2
+        and cross_tab_2[3]["CAST(2 AS NUMBER(38,0))"] == 2
+    )
+
+    cross_tab_3 = TestData.date1(session).stat.crosstab("a", "b").collect()
+    assert (
+        cross_tab_3[0]["A"] == date(2020, 8, 1)
+        and cross_tab_3[0]["CAST(1 AS NUMBER(38,0))"] == 1
+        and cross_tab_3[0]["CAST(2 AS NUMBER(38,0))"] == 0
+    )
+    assert (
+        cross_tab_3[1]["A"] == date(2010, 12, 1)
+        and cross_tab_3[1]["CAST(1 AS NUMBER(38,0))"] == 0
+        and cross_tab_3[1]["CAST(2 AS NUMBER(38,0))"] == 1
+    )
+
+    cross_tab_4 = TestData.date1(session).stat.crosstab("b", "a").collect()
+    assert (
+        cross_tab_4[0]["B"] == 1
+        and cross_tab_4[0]["TO_DATE('2020-08-01')"] == 1
+        and cross_tab_4[0]["TO_DATE('2010-12-01')"] == 0
+    )
+    assert (
+        cross_tab_4[1]["B"] == 2
+        and cross_tab_4[1]["TO_DATE('2020-08-01')"] == 0
+        and cross_tab_4[1]["TO_DATE('2010-12-01')"] == 1
+    )
+
+    cross_tab_5 = TestData.string7(session).stat.crosstab("a", "b").collect()
+    assert (
+        cross_tab_5[0]["A"] == "str"
+        and cross_tab_5[0]["CAST(1 AS NUMBER(38,0))"] == 1
+        and cross_tab_5[0]["CAST(2 AS NUMBER(38,0))"] == 0
+    )
+    assert (
+        cross_tab_5[1]["A"] is None
+        and cross_tab_5[1]["CAST(1 AS NUMBER(38,0))"] == 0
+        and cross_tab_5[1]["CAST(2 AS NUMBER(38,0))"] == 1
+    )
+
+    cross_tab_6 = TestData.string7(session).stat.crosstab("b", "a").collect()
+    assert (
+        cross_tab_6[0]["B"] == 1
+        and cross_tab_6[0]["'str'"] == 1
+        and cross_tab_6[0]["NULL"] == 0
+    )
+    assert (
+        cross_tab_6[1]["B"] == 2
+        and cross_tab_6[1]["'str'"] == 0
+        and cross_tab_6[1]["NULL"] == 0
+    )
+
+
+def test_df_stat_sampleBy(session):
+    sample_by = (
+        TestData.monthly_sales(session)
+        .stat.sampleBy(col("empid"), {1: 0.0, 2: 1.0})
+        .collect()
+    )
+    expected_data = [
+        [2, 4500, "JAN"],
+        [2, 35000, "JAN"],
+        [2, 200, "FEB"],
+        [2, 90500, "FEB"],
+        [2, 2500, "MAR"],
+        [2, 9500, "MAR"],
+        [2, 800, "APR"],
+        [2, 4500, "APR"],
+    ]
+    assert len(sample_by) == len(expected_data)
+    for i, row in enumerate(sample_by):
+        assert (
+            row["EMPID"] == expected_data[i][0]
+            and row["AMOUNT"] == expected_data[i][1]
+            and row["MONTH"] == expected_data[i][2]
+        )
+
+    sample_by_2 = (
+        TestData.monthly_sales(session)
+        .stat.sampleBy(col("month"), {"JAN": 1.0})
+        .collect()
+    )
+    expected_data_2 = [
+        [1, 10000, "JAN"],
+        [1, 400, "JAN"],
+        [2, 4500, "JAN"],
+        [2, 35000, "JAN"],
+    ]
+    assert len(sample_by_2) == len(expected_data_2)
+    for i, row in enumerate(sample_by_2):
+        assert (
+            row["EMPID"] == expected_data_2[i][0]
+            and row["AMOUNT"] == expected_data_2[i][1]
+            and row["MONTH"] == expected_data_2[i][2]
+        )
+
+    sample_by_3 = TestData.monthly_sales(session).stat.sampleBy(col("month"), {})
+    schema_names = sample_by_3.schema.names
+    assert (
+        schema_names[0] == "EMPID"
+        and schema_names[1] == "AMOUNT"
+        and schema_names[2] == "MONTH"
+    )
+    assert len(sample_by_3.collect()) == 0
+
+
+def test_df_stat_crosstab_max_column_test(session):
+    df1 = session.createDataFrame(
+        [
+            [Utils.random_alphanumeric_str(230), Utils.random_alphanumeric_str(230)]
+            for _ in range(1000)
+        ],
+        schema=["a", "b"],
+    )
+    assert df1.stat.crosstab("a", "b").count() == 1000
+
+    df2 = session.createDataFrame(
+        [
+            [Utils.random_alphanumeric_str(230), Utils.random_alphanumeric_str(230)]
+            for _ in range(1001)
+        ],
+        schema=["a", "b"],
+    )
+    with pytest.raises(SnowparkDataframeException) as exec_info:
+        df2.stat.crosstab("a", "b").collect()
+    assert (
+        "The number of distinct values in the second input column (1001) exceeds the maximum number of distinct values allowed (1000)"
+        in str(exec_info)
+    )
+
+    df3 = session.createDataFrame([[1, 1] for _ in range(1000)], schema=["a", "b"])
+    res_3 = df3.stat.crosstab("a", "b").collect()
+    assert len(res_3) == 1
+    assert res_3[0]["A"] == 1 and res_3[0]["CAST(1 AS NUMBER(38,0))"] == 1000
+
+    df4 = session.createDataFrame([[1, 1] for _ in range(1001)], schema=["a", "b"])
+    res_4 = df4.stat.crosstab("a", "b").collect()
+    assert len(res_4) == 1
+    assert res_4[0]["A"] == 1 and res_4[0]["CAST(1 AS NUMBER(38,0))"] == 1001
 
 
 def test_select_star(session):

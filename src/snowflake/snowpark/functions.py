@@ -94,7 +94,7 @@ def sql_expr(sql: str) -> Column:
 def approx_count_distinct(e: Union[Column, str]) -> Column:
     """Returns the average of non-NULL records. If all records inside a group are NULL,
     the function returns NULL."""
-    c = __to_col_if_str(e, "approx_count_distinct")
+    c = _to_col_if_str(e, "approx_count_distinct")
     return builtin("approx_count_distinct")(c)
 
 
@@ -107,9 +107,9 @@ def avg(e: Union[Column, str]) -> Column:
 
 def corr(column1: Union[Column, str], column2: Union[Column, str]) -> Column:
     """Returns the correlation coefficient for non-null pairs in a group."""
-    column1 = __to_col_if_str(column1, "corr")
-    column2 = __to_col_if_str(column2, "corr")
-    return builtin("corr")(column1, column2)
+    c1 = _to_col_if_str(column1, "corr")
+    c2 = _to_col_if_str(column2, "corr")
+    return builtin("corr")(c1, c2)
 
 
 def count(e: Union[Column, str]) -> Column:
@@ -132,14 +132,14 @@ def count_distinct(col: Union[Column, str], *columns: Union[Column, str]) -> Col
 
 
 def covar_pop(column1: Union[Column, str], column2: [Column, str]) -> Column:
-    col1 = __to_col_if_str(column1, "covar_pop")
-    col2 = __to_col_if_str(column1, "covar_pop")
+    col1 = _to_col_if_str(column1, "covar_pop")
+    col2 = _to_col_if_str(column2, "covar_pop")
     return builtin("covar_pop")(col1, col2)
 
 
 def covar_samp(column1: Union[Column, str], column2: [Column, str]) -> Column:
-    col1 = __to_col_if_str(column1, "covar_samp")
-    col2 = __to_col_if_str(column2, "covar_samp")
+    col1 = _to_col_if_str(column1, "covar_samp")
+    col2 = _to_col_if_str(column2, "covar_samp")
     return builtin("covar_samp")(col1, col2)
 
 
@@ -243,9 +243,9 @@ def var_pop(e: Union[Column, str]) -> Column:
     return builtin("var_pop")(c)
 
 
-def approx_percentile(col: Column, percentile: float) -> Column:
+def approx_percentile(col: Union[Column, str], percentile: float) -> Column:
     """Returns an approximated value for the desired percentile. This function uses the t-Digest algorithm."""
-    c = __to_col_if_str(col, "approx_percentile")
+    c = _to_col_if_str(col, "approx_percentile")
     return builtin("approx_percentile")(c, sql_expr(str(percentile)))
 
 
@@ -253,7 +253,7 @@ def approx_percentile_accumulate(col: Union[Column, str]) -> Column:
     """Returns the internal representation of the t-Digest state (as a JSON object) at the end of aggregation.
     This function uses the t-Digest algorithm.
     """
-    c = __to_col_if_str(col, "approx_percentile_accumulate")
+    c = _to_col_if_str(col, "approx_percentile_accumulate")
     return builtin("approx_percentile_accumulate")(c)
 
 
@@ -262,7 +262,7 @@ def approx_percentile_estimate(state: Union[Column, str], percentile: float) -> 
     APPROX_PERCENTILE_ESTIMATE(APPROX_PERCENTILE_ACCUMULATE(.)) is equivalent to
     APPROX_PERCENTILE(.).
     """
-    c = __to_col_if_str(state, "approx_percentile_estimate")
+    c = _to_col_if_str(state, "approx_percentile_estimate")
     return builtin("approx_percentile_estimate")(c, sql_expr(str(percentile)))
 
 
@@ -273,7 +273,7 @@ def approx_percentile_combine(state: Union[Column, str]) -> Column:
     later be combined using APPROX_PERCENTILE_COMBINE, producing the same output state as a
     single run of APPROX_PERCENTILE_ACCUMULATE over the entire table.
     """
-    c = __to_col_if_str(state, "approx_percentile_combine")
+    c = _to_col_if_str(state, "approx_percentile_combine")
     return builtin("approx_percentile_combine")(c)
 
 

@@ -3,13 +3,13 @@
 #
 
 from functools import reduce
-from typing import Any, Dict, Iterable, List, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.functions import (
-    __to_col_if_str as _to_col_if_str,
+    _to_col_if_str,
     approx_percentile_accumulate,
     approx_percentile_estimate,
     corr as corr_func,
@@ -30,8 +30,8 @@ class DataFrameStatFunctions:
         col: Union[Column, str, Iterable[Union[str, Column]]],
         percentile: Iterable[float],
     ) -> List[Union[float, List[float]]]:
-        temp_col_name = "percent_accu"
-        if not percentile:
+        temp_col_name = "t"
+        if not percentile or not col:
             return []
         if isinstance(col, (Column, str)):
             res = (
@@ -49,19 +49,13 @@ class DataFrameStatFunctions:
             ]
             output_cols = [
                 approx_percentile_estimate(f"{temp_col_name}_{i}", p)
-                for p in percentile
                 for i in range(len(accumate_cols))
+                for p in percentile
             ]
-            percentile_len = len(output_cols) / len(accumate_cols)
+            percentile_len = len(output_cols) // len(accumate_cols)
             res = self._df.select(accumate_cols).select(output_cols)._collect_with_tag()
             return [
-                list(
-                    res[
-                        j * len(accumate_cols) : j * len(accumate_cols)
-                        + percentile_len
-                        + 1
-                    ]
-                )
+                [x for x in res[0][j * percentile_len : (j + 1) * percentile_len]]
                 for j in range(len(accumate_cols))
             ]
         else:
@@ -69,14 +63,18 @@ class DataFrameStatFunctions:
                 "'col' must be a column name, a column object, or a list of them."
             )
 
-    def corr(self, col1: Union[Column, str], col2: Union[Column, str]) -> float:
+    def corr(
+        self, col1: Union[Column, str], col2: Union[Column, str]
+    ) -> Optional[float]:
         """Calculates the correlation coefficient for non-null pairs in two numeric columns."""
         res = self._df.select(corr_func(col1, col2))._collect_with_tag()
-        return res[0][0]
+        return res[0][0] if res[0] is not None else None
 
-    def cov(self, col1: Union[Column, str], col2: Union[Column, str]):
+    def cov(
+        self, col1: Union[Column, str], col2: Union[Column, str]
+    ) -> Optional[float]:
         res = self._df.select(covar_samp(col1, col2))._collect_with_tag()
-        return res[0][0]
+        return res[0][0] if res[0] is not None else None
 
     def crosstab(self, col1: Union[Column, str], col2: Union[Column, str]):
         row_count = self._df.select(count_distinct(col2))._collect_with_tag()[0][0]
@@ -91,6 +89,7 @@ class DataFrameStatFunctions:
 
     def sampleBy(self, col: Union[Column, str], fractions: Dict[Any, float]):
         # TODO: Any should be replaced when we have a type-hint type for snowflake-supported datatypes
+        #  https://snowflakecomputing.atlassian.net/browse/SNOW-500245
         if not fractions:
             return self._df.limit(0)
         col = _to_col_if_str(col, "sampleBy")

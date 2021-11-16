@@ -12,6 +12,11 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     abs,
+    approx_count_distinct,
+    approx_percentile,
+    approx_percentile_accumulate,
+    approx_percentile_combine,
+    approx_percentile_estimate,
     array_agg,
     array_append,
     array_cat,
@@ -51,16 +56,19 @@ from snowflake.snowpark.functions import (
     coalesce,
     col,
     contains,
+    corr,
     count,
     count_distinct,
+    covar_pop,
+    covar_samp,
     dateadd,
     datediff,
     equal_nan,
     exp,
     floor,
+    get,
     get_ignore_case,
     get_path,
-    get,
     is_array,
     is_binary,
     is_boolean,
@@ -88,12 +96,12 @@ from snowflake.snowpark.functions import (
     min,
     negate,
     not_,
-    object_keys,
     object_agg,
     object_construct,
     object_construct_keep_null,
     object_delete,
     object_insert,
+    object_keys,
     object_pick,
     parse_json,
     parse_xml,
@@ -151,6 +159,13 @@ def test_avg(session):
     assert res == [Row(Decimal("2.2"))]
 
 
+def test_corr(session):
+    Utils.check_answer(
+        TestData.number1(session).groupBy(col("K")).agg(corr("V1", col("v2"))),
+        [Row(1, None), Row(2, 0.40367115665231024)],
+    )
+
+
 def test_count(session):
     res = TestData.duplicated_numbers(session).select(count(col("A"))).collect()
     assert res == [Row(5)]
@@ -164,6 +179,18 @@ def test_count(session):
 
     df = TestData.duplicated_numbers(session).select(count_distinct("A"))
     assert df.collect() == [Row(3)]
+
+
+def test_covariance(session):
+    Utils.check_answer(
+        TestData.number1(session).groupBy("K").agg(covar_pop("V1", col("V2"))),
+        [Row(1, 0.0), Row(2, 38.75)],
+    )
+
+    Utils.check_answer(
+        TestData.number1(session).groupBy("K").agg(covar_samp("V1", col("V2"))),
+        [Row(1, None), Row(2, 51.666666666666664)],
+    )
 
 
 def test_kurtosis(session):
@@ -2322,4 +2349,83 @@ def test_get(session):
         [Row(None), Row(None)],
         TestData.object2(session).select(get("obj", lit("AGE"))),
         sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_a", ["A", col("A")])
+def test_approx_count_distinct(session, col_a):
+    Utils.check_answer(
+        TestData.duplicated_numbers(session).select(approx_count_distinct(col_a)),
+        [Row(3)],
+    )
+
+
+@pytest.mark.parametrize("col_a", ["A", col("A")])
+def test_approx_percentile(session, col_a):
+    Utils.check_answer(
+        TestData.approx_numbers(session).select(approx_percentile(col_a, 0.5)),
+        [Row(4.5)],
+    )
+
+
+@pytest.mark.parametrize("col_a", ["A", col("A")])
+def test_approx_percentile_accumulate(session, col_a):
+    Utils.check_answer(
+        TestData.approx_numbers(session).select(approx_percentile_accumulate(col_a)),
+        [
+            Row(
+                '{\n  "state": [\n    0.000000000000000e+00,\n    1.000000000000000e+00,\n    '
+                + "1.000000000000000e+00,\n    1.000000000000000e+00,\n    2.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    3.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "4.000000000000000e+00,\n    1.000000000000000e+00,\n    5.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    6.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "7.000000000000000e+00,\n    1.000000000000000e+00,\n    8.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    9.000000000000000e+00,\n    1.000000000000000e+00\n  ],\n  "
+                + '"type": "tdigest",\n  "version": 1\n}'
+            )
+        ],
+    )
+
+
+@pytest.mark.parametrize("col_a", ["A", col("A")])
+def test_approx_percentile_estimate(session, col_a):
+    Utils.check_answer(
+        TestData.approx_numbers(session).select(
+            approx_percentile_estimate(approx_percentile_accumulate(col_a), 0.5)
+        ),
+        TestData.approx_numbers(session).select(approx_percentile(col_a, 0.5)),
+    )
+
+
+@pytest.mark.parametrize("col_a, col_b", [("A", "B"), (col("A"), col("B"))])
+def test_approx_percentile_combine(session, col_a, col_b):
+    df1 = (
+        TestData.approx_numbers(session)
+        .select(col_a)
+        .where(col("a") >= lit(3))
+        .select(approx_percentile_accumulate(col_a).as_("b"))
+    )
+    df2 = TestData.approx_numbers(session).select(
+        approx_percentile_accumulate(col_a).as_("b")
+    )
+    df = df1.union(df2)
+    Utils.check_answer(
+        df.select(approx_percentile_combine(col_b)),
+        [
+            Row(
+                '{\n  "state": [\n    0.000000000000000e+00,\n    1.000000000000000e+00,\n    '
+                + "1.000000000000000e+00,\n    1.000000000000000e+00,\n    2.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    3.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "3.000000000000000e+00,\n    1.000000000000000e+00,\n    4.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    4.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "5.000000000000000e+00,\n    1.000000000000000e+00,\n    5.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    6.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "6.000000000000000e+00,\n    1.000000000000000e+00,\n    7.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    7.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "8.000000000000000e+00,\n    1.000000000000000e+00,\n    8.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    9.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + '9.000000000000000e+00,\n    1.000000000000000e+00\n  ],\n  "type": "tdigest",\n  '
+                + '"version": 1\n}'
+            )
+        ],
     )
