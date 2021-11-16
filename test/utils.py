@@ -250,8 +250,7 @@ class TestData:
     @classmethod
     def nan_data1(cls, session: "Session") -> DataFrame:
         return session.sql(
-            "select * from values(1.0, 1),('NaN'::Double, 2),(null, 3),"
-            " (4.0, null), (null, null), ('NaN'::Double, null) as T(a, b)"
+            "select * from values(1.2),('NaN'::Double),(null),(2.3) as T(a)"
         )
 
     @classmethod

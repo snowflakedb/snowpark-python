@@ -384,7 +384,7 @@ def test_df_stat_approxQuantile(session):
         assert TestData.double2(session).stat.approxQuantile([], []) == []
         assert TestData.double2(session).stat.approxQuantile([], [0.5]) == []
     finally:
-        Utils.drop_table(table_name)
+        Utils.drop_table(session, table_name)
 
 
 def test_df_stat_crosstab(session):
