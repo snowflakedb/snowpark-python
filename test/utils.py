@@ -123,9 +123,11 @@ class Utils:
                 return 0
 
             sort_key = functools.cmp_to_key(compare_rows)
-            assert sorted(expected_rows, key=sort_key) == sorted(
-                actual_rows, key=sort_key
-            ), f"expected: '{sorted(expected_rows, key=sort_key)}', actual: '{sorted(actual_rows, key=sort_key)}'"
+            sorted_expected_rows = sorted(expected_rows, key=sort_key)
+            sorted_actual_rows = sorted(actual_rows, key=sort_key)
+            assert (
+                sorted_expected_rows == sorted_actual_rows
+            ), f"expected: '{sorted_expected_rows}', actual: '{sorted_actual_rows}'"
         else:
             assert (
                 expected_rows == actual_rows
@@ -201,7 +203,16 @@ class TestData:
     @classmethod
     def null_data2(cls, session: "Session") -> DataFrame:
         return session.sql(
-            "select * from values(1,2,3),(null,2,3),(null,null,3),(null,null,null),(1,null,3),(1,null,null),(1,2,null) as T(a,b,c)"
+            "select * from values(1,2,3),(null,2,3),(null,null,3),(null,null,null),"
+            "(1,null,3),(1,null,null),(1,2,null) as T(a,b,c)"
+        )
+
+    @classmethod
+    def null_data3(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values(1.0, 1, true, 'a'),('NaN'::Double, 2, null, 'b'),"
+            "(null, 3, false, null), (4.0, null, null, 'd'), (null, null, null, null),"
+            "('NaN'::Double, null, null, null) as T(flo, int, boo, str)"
         )
 
     @classmethod
@@ -216,6 +227,13 @@ class TestData:
     def double2(cls, session: "Session") -> DataFrame:
         return session.sql(
             "select * from values(0.1, 0.5),(0.2, 0.6),(0.3, 0.7) as T(a,b)"
+        )
+
+    @classmethod
+    def double3(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values(1.0, 1),('NaN'::Double, 2),(null, 3),"
+            "(4.0, null), (null, null), ('NaN'::Double, null) as T(a, b)"
         )
 
     @classmethod
