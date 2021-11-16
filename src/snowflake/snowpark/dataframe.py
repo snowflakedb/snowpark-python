@@ -64,6 +64,7 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.functions import _create_table_function_expression
+from snowflake.snowpark.grouping_sets import GroupingSets
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -636,6 +637,19 @@ class DataFrame:
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
+            snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+        )
+
+    def groupByGroupingSets(
+        self,
+        *grouping_sets: Union[GroupingSets, List[GroupingSets], Tuple[GroupingSets]],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            [
+                gs.to_expression
+                for gs in Utils.parse_positional_args_to_list(*grouping_sets)
+            ],
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 

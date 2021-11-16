@@ -76,9 +76,10 @@ class RelationalGroupedDataFrame:
                 # avoid doing list(set(grouping_expr.args)) because it will change the order
                 gr_used = set()
                 gr_uniq = [
-                    arg
+                    a
                     for arg in grouping_expr.args
-                    if arg not in gr_used and (gr_used.add(arg) or True)
+                    for a in arg
+                    if a not in gr_used and (gr_used.add(a) or True)
                 ]
                 aliased_agg.extend(gr_uniq)
             else:

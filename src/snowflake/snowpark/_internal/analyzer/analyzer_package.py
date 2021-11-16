@@ -197,6 +197,18 @@ class AnalyzerPackage:
     def limit_expression(self, num: int) -> str:
         return self._Limit + str(num)
 
+    def grouping_set_expression(self, args: List[List[str]]):
+        flat_args = [
+            self._LeftParenthesis + self._Comma.join(arg) + self._RightParenthesis
+            for arg in args
+        ]
+        return (
+            self._GroupingSets
+            + self._LeftParenthesis
+            + self._Comma.join(flat_args)
+            + self._RightParenthesis
+        )
+
     def like_expression(self, expr: str, pattern: str) -> str:
         return expr + self._Like + pattern
 
