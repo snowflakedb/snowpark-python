@@ -3,7 +3,7 @@
 #
 
 from functools import reduce
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
@@ -31,28 +31,31 @@ class DataFrameStatFunctions:
 
     def approxQuantile(
         self,
-        col: Union[Column, str, Iterable[Union[str, Column]]],
-        percentile: Iterable[float],
-    ) -> List[Union[float, List[float]]]:
-        """For a specified numeric column and an array of desired quantiles, returns an approximate value for the column at each of the desired quantiles.
+        col: Union[
+            Column, str, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
+        percentile: Union[List[float], Tuple[float]],
+    ) -> Union[List[float], List[List[float]]]:
+        """For a specified numeric column and a list of desired quantiles, returns an approximate value for the column at each of the desired quantiles.
         This function uses the t-Digest algorithm.
 
-        Example::
+        Examples::
 
             df = session.createDataFrame([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], schema=["a"])
             res = df.stat.approxQuantile("a", [0, 0.1, 0.4, 0.6, 1])
-            assert res == [-0.5, 0.5, 3.5, 5.5, 9.5]
+            # res will be [-0.5, 0.5, 3.5, 5.5, 9.5]
 
             df2 = session.createDataFrame([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
             res2 = df2.stat.approxQuantile(["a", "b"], [0, 0.1, 0.6])
-            assert res2 == [[0.05, 0.15000000000000002, 0.25)], [0.45, 0.55, 0.6499999999999999]]
+            # res2 will be [[0.05, 0.15000000000000002, 0.25)], [0.45, 0.55, 0.6499999999999999]]
 
         Args:
             col: The name of the numeric column.
-            percentile: An array of double values greater than or equal to 0.0 and less than 1.0.
+            percentile: A list of float values greater than or equal to 0.0 and less than 1.0.
 
         Return:
-            A list of approximate percentile values if ``col`` is a single column name, or a list of list of approximate percentile values if ``col`` is a list of column names.
+            A list of approximate percentile values if ``col`` is a single column name, or A matrix with the dimensions `(len(col) * len(percentile)` containing the
+                approximate percentile values if ``col`` is a list of column names.
         """
         temp_col_name = "t"
         if not percentile or not col:
@@ -66,7 +69,7 @@ class DataFrameStatFunctions:
                 ._collect_with_tag()
             )
             return list(res[0])
-        elif isinstance(col, Iterable):
+        elif isinstance(col, (List, Tuple)):
             accumate_cols = [
                 approx_percentile_accumulate(col_i).as_(f"{temp_col_name}_{i}")
                 for i, col_i in enumerate(col)
@@ -96,7 +99,7 @@ class DataFrameStatFunctions:
 
             df = session.createDataFrame([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
             res = df.stat.corr("a", "b")
-            assert res == 0.9999999999999991
+            # res will be 0.9999999999999991
 
         Args:
             col1: The name of the first numeric column to use.
@@ -118,7 +121,7 @@ class DataFrameStatFunctions:
 
            df = session.createDataFrame([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
            res = df.stat.cov("a", "b")
-           assert res == 0.010000000000000037
+           # res will be 0.010000000000000037
 
         Args:
             col1: The name of the first numeric column to use.
@@ -165,8 +168,6 @@ class DataFrameStatFunctions:
         Args:
             col1: The name of the first column to use.
             col2: The name of the second column to use.
-        Return:
-            A new DataFrame containing the contingency table.
         """
         row_count = self._df.select(count_distinct(col2))._collect_with_tag()[0][0]
         if row_count > _MAX_COLUMNS_PER_TABLE:
@@ -185,7 +186,7 @@ class DataFrameStatFunctions:
 
         Example::
 
-            df = Seq(("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)).toDF("name", "age")
+            df = session.createDataFrame([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
             fractions = {"Bob": 0.5, "Nico": 1.0}
             df.stat.sampleBy("name", fractions).show()
 
@@ -202,8 +203,6 @@ class DataFrameStatFunctions:
             col: The name of the column that defines the strata.
             fractions: A ``dict`` that specifies the fraction to use for the sample for each stratum.
                 If a stratum is not specified in the ``dict``, the method uses 0 as the fraction.
-        Return:
-            A new DataFrame that contains the stratified sample.
         """
         # TODO: `Any` in the type hint should be replaced when we have a type-hint type for snowflake-supported datatypes
         #  JIRA https://snowflakecomputing.atlassian.net/browse/SNOW-500245

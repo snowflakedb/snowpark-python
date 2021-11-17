@@ -159,9 +159,12 @@ def test_avg(session):
     assert res == [Row(Decimal("2.2"))]
 
 
-def test_corr(session):
+@pytest.mark.parametrize(
+    "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
+)
+def test_corr(session, k, v1, v2):
     Utils.check_answer(
-        TestData.number1(session).groupBy(col("K")).agg(corr("V1", col("v2"))),
+        TestData.number1(session).groupBy(k).agg(corr(v1, v2)),
         [Row(1, None), Row(2, 0.40367115665231024)],
     )
 
@@ -181,9 +184,12 @@ def test_count(session):
     assert df.collect() == [Row(3)]
 
 
-def test_covariance(session):
+@pytest.mark.parametrize(
+    "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
+)
+def test_covariance(session, k, v1, v2):
     Utils.check_answer(
-        TestData.number1(session).groupBy("K").agg(covar_pop("V1", col("V2"))),
+        TestData.number1(session).groupBy(k).agg(covar_pop(v1, v2)),
         [Row(1, 0.0), Row(2, 38.75)],
     )
 

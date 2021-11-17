@@ -60,8 +60,8 @@ from snowflake.snowpark._internal.sp_types.sp_join_types import (
 )
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
+from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.functions import _create_table_function_expression
 from snowflake.snowpark.row import Row
@@ -202,7 +202,10 @@ class DataFrame:
         self.crosstab = self._stat.crosstab
         self.sampleBy = self._stat.sampleBy
 
-        self.__na = None
+        self._na = DataFrameNaFunctions(self)
+        self.dropna = self._na.drop
+        self.fillna = self._na.fill
+        self.replace = self._na.replace
 
     @staticmethod
     def get_unaliased(col_name: str) -> List[str]:
@@ -1419,57 +1422,7 @@ class DataFrame:
         Returns a :class:`DataFrameNaFunctions` object that provides functions for
         handling missing values in the DataFrame.
         """
-        if not self.__na:
-            self.__na = DataFrameNaFunctions(self)
-        return self.__na
-
-    def dropna(
-        self,
-        how: str = "any",
-        thresh: Optional[int] = None,
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> "DataFrame":
-        """
-        Returns a new DataFrame that excludes all rows containing fewer than
-        a specified number of non-null and non-NaN values in the specified
-        columns. The usage, input arguments, and return value of this method
-        are the same as they are for :meth:`DataFrameNaFunctions.drop`.
-
-        See Also:
-            :meth:`DataFrameNaFunctions.drop`
-        """
-        return self.na.drop(how, thresh, subset)
-
-    def fillna(
-        self,
-        value: Union[Any, Dict[str, Any]],
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> "DataFrame":
-        """
-        Returns a new DataFrame that replaces all null and NaN values in the specified
-        columns with the values provided. The usage, input arguments, and return value
-        of this method are the same as they are for :meth:`DataFrameNaFunctions.fill`.
-
-        See Also:
-            :meth:`DataFrameNaFunctions.fill`
-        """
-        return self.na.fill(value, subset)
-
-    def replace(
-        self,
-        to_replace: Union[Any, List[Any], Tuple[Any, ...], Dict[Any, Any]],
-        value: Optional[Union[Any, List[Any], Tuple[Any, ...]]] = None,
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> "DataFrame":
-        """
-        Returns a new DataFrame that replaces values in the specified columns.
-        The usage, input arguments, and return value of this method are the same as
-        they are for :meth:`DataFrameNaFunctions.replace`.
-
-        See Also:
-            :meth:`DataFrameNaFunctions.replace`
-        """
-        return self.na.replace(to_replace, value, subset)
+        return self._na
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:

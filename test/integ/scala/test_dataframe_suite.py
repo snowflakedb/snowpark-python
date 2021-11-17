@@ -327,7 +327,7 @@ def test_joins_on_result_scan(session):
 def test_df_stat_corr(session):
     with pytest.raises(ProgrammingError) as exec_info:
         TestData.string1(session).stat.corr("a", "b")
-    assert "100038 (22018)" in str(exec_info)
+    assert "Numeric value 'a' is not recognized" in str(exec_info)
 
     assert TestData.null_data2(session).stat.corr("a", "b") is None
     assert TestData.double4(session).stat.corr("a", "b") is None
@@ -338,7 +338,7 @@ def test_df_stat_corr(session):
 def test_df_stat_cov(session):
     with pytest.raises(ProgrammingError) as exec_info:
         TestData.string1(session).stat.cov("a", "b")
-    assert "100038 (22018)" in str(exec_info)
+    assert "Numeric value 'a' is not recognized" in str(exec_info)
 
     assert TestData.null_data2(session).stat.cov("a", "b") == 0
     assert TestData.double4(session).stat.cov("a", "b") is None
