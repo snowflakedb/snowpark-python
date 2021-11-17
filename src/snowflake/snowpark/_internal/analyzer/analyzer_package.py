@@ -617,7 +617,7 @@ class AnalyzerPackage:
 
     def file_operation_statement(
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
-    ):
+    ) -> str:
         if command.lower() == "put":
             return f"{self._Put}{file_name}{self._Space}{stage_location}{self._Space}{self._get_operation_statement(options)}"
         if command.lower() == "get":
