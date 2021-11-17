@@ -277,9 +277,9 @@ class SnowparkClientExceptionMessages:
             "A file stream was closed when uploading UDF files. "
             f"The destination file name is: {dest_filename}. "
             "If you were creating a UDF, this is probably caused "
-            "by an oversize generated udf file. Please don't include "
+            "by an oversized generated UDF file. Please don't include "
             "large global variables (e.g., a ML model with hundreds of "
-            "parameters) in a UDF, and consider to upload it to a stage "
+            "parameters) in a UDF, and consider uploading it to a stage "
             "first and read it from a stage.",
             "1407",
         )

@@ -296,6 +296,8 @@ class ServerConnection:
                 ),
                 file_stream=input_stream,
             )
+        # If ValueError is raised and the stream is closed, we throw the error.
+        # https://docs.python.org/3/library/io.html#io.IOBase.close
         except ValueError as ex:
             if input_stream.closed:
                 raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(

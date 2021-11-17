@@ -1103,7 +1103,7 @@ def udf(
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
             an existing UDF with the same name is overwritten.
-        parallel: The number of threads to use for uploading UDF files with
+        parallel: The number of threads to use for uploading UDF files with the
             `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
@@ -1137,7 +1137,7 @@ def udf(
         If you want to register a UDF with a specific session, use
         :func:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
 
-        3. By default UDF registration fails if a function with the same name is already
+        3. By default, UDF registration fails if a function with the same name is already
         registered. Invoking :func:`udf` with ``replace`` set to `True` will overwrite the
         previously registered function.
     """
