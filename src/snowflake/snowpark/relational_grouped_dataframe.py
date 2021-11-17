@@ -26,7 +26,6 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnresolvedFunction as SPUnresolvedFunction,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import IntegerType as SPInteger
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
@@ -123,7 +122,6 @@ class RelationalGroupedDataFrame:
             return DataFrame(
                 self.df.session,
                 SPPivot(
-                    [self.__alias(e) for e in grouping_expr],
                     self.group_type.pivot_col,
                     self.group_type.values,
                     agg_exprs,
@@ -147,11 +145,11 @@ class RelationalGroupedDataFrame:
         p = re.compile("[^\\x20-\\x7E]")
         return p.sub("", identifier.replace('"', ""))
 
-    def __str_to_expr(self, expr: str):
+    def __str_to_expr(self, expr: str) -> Callable:
         return lambda input_expr: self.__expr_to_func(expr, input_expr)
 
     @staticmethod
-    def __expr_to_func(expr: str, input_expr: SPExpression):
+    def __expr_to_func(expr: str, input_expr: SPExpression) -> SPExpression:
         lowered = expr.lower()
         if lowered in ["avg", "average", "mean"]:
             return SPUnresolvedFunction("avg", [input_expr], is_distinct=False)
@@ -159,7 +157,7 @@ class RelationalGroupedDataFrame:
             return SPUnresolvedFunction("stddev", [input_expr], is_distinct=False)
         elif lowered in ["count", "size"]:
             if isinstance(input_expr, SPStar):
-                return SPCount(SPLiteral(1, SPInteger())).to_aggregate_expression()
+                return SPCount(SPLiteral(1)).to_aggregate_expression()
             else:
                 return SPCount(input_expr).to_aggregate_expression()
         else:
@@ -229,7 +227,7 @@ class RelationalGroupedDataFrame:
         return self.__toDF(
             [
                 SPAlias(
-                    SPCount(SPLiteral(1, SPInteger())).to_aggregate_expression(),
+                    SPCount(SPLiteral(1)).to_aggregate_expression(),
                     "count",
                 )
             ]

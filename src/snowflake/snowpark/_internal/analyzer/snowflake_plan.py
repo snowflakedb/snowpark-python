@@ -451,6 +451,22 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
+    def pivot(
+        self,
+        pivot_column: str,
+        pivot_values: List[str],
+        aggregate: str,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+    ) -> SnowflakePlan:
+        return self.build(
+            lambda x: self.pkg.pivot_statement(
+                pivot_column, pivot_values, aggregate, x
+            ),
+            child,
+            source_plan,
+        )
+
     def create_or_replace_view(
         self, name: str, child: SnowflakePlan, is_temp: bool
     ) -> SnowflakePlan:

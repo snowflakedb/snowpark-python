@@ -7,10 +7,11 @@ import re
 import string
 from collections import Counter
 from random import choice
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
+from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
@@ -50,7 +51,6 @@ from snowflake.snowpark._internal.sp_expressions import (
     Star as SPStar,
     TableFunctionExpression as SPTableFunctionExpression,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import LongType as SPLongType
 from snowflake.snowpark._internal.sp_types.sp_join_types import (
     Cross as SPCrossJoin,
     JoinType as SPJoinType,
@@ -61,6 +61,7 @@ from snowflake.snowpark._internal.sp_types.sp_join_types import (
 )
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.functions import _create_table_function_expression
 from snowflake.snowpark.row import Row
@@ -195,6 +196,8 @@ class DataFrame:
         self.__placeholder_schema = None
         self.__placeholder_output = None
 
+        self.__na = None
+
     @staticmethod
     def get_unaliased(col_name: str) -> List[str]:
         unaliased = list()
@@ -318,7 +321,7 @@ class DataFrame:
         # Does not exist in scala snowpark.
         return [attr.name for attr in self.__output()]
 
-    def col(self, col_name: str) -> "Column":
+    def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
             return Column(SPStar(self.__plan.output()))
@@ -573,6 +576,26 @@ class DataFrame:
 
         return self.groupBy().agg(grouping_exprs)
 
+    def rollup(
+        self,
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Performs a SQL
+        `GROUP BY ROLLUP <https://docs.snowflake.com/en/sql-reference/constructs/group-by-rollup.html>`_.
+        on the DataFrame.
+
+        Args:
+            cols: The columns to group by rollup.
+        """
+        rollup_exprs = self.__convert_cols_to_exprs("rollup()", *cols)
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            rollup_exprs,
+            snowflake.snowpark.relational_grouped_dataframe._RollupType(),
+        )
+
     def groupBy(
         self,
         *cols: Union[
@@ -602,6 +625,26 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
+    def cube(
+        self,
+        *cols: Union[
+            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Performs a SQL
+        `GROUP BY CUBE <https://docs.snowflake.com/en/sql-reference/constructs/group-by-cube.html>`_.
+        on the DataFrame.
+
+        Args:
+            cols: The columns to group by cube.
+        """
+        cube_exprs = self.__convert_cols_to_exprs("cube()", *cols)
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            cube_exprs,
+            snowflake.snowpark.relational_grouped_dataframe._CubeType(),
+        )
+
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -612,6 +655,37 @@ class DataFrame:
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
 
+    def pivot(
+        self,
+        pivot_col: Union[str, Column],
+        values: Union[List[Any], Tuple[Any]],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Rotates this DataFrame by turning the unique values from one column in the input
+        expression into multiple columns and aggregating results where required on any
+        remaining column values.
+
+        Only one aggregate is supported with pivot.
+
+        Example::
+
+            val dfPivoted = df.pivot("col_1", [1,2,3]).agg(sum(col("col_2")))
+
+        Args:
+            pivot_col: The column or name of the column to use
+            values: A list of values in the column
+        """
+        pc = self.__convert_cols_to_exprs("pivot()", pivot_col)
+        value_exprs = [
+            v.expression if isinstance(v, Column) else SPLiteral(v) for v in values
+        ]
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            [],
+            snowflake.snowpark.relational_grouped_dataframe._PivotType(
+                pc[0], value_exprs
+            ),
+        )
+
     def limit(self, n: int) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame (similar to LIMIT in SQL).
@@ -621,7 +695,7 @@ class DataFrame:
         Args:
             n: Number of rows to return.
         """
-        return self.__with_plan(SPLimit(SPLiteral(n, SPLongType()), self.__plan))
+        return self.__with_plan(SPLimit(SPLiteral(n), self.__plan))
 
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -898,7 +972,7 @@ class DataFrame:
 
         if type(join_type) in [SPLeftSemi, SPLeftAnti]:
             # Create a Column with expression 'true AND <expr> AND <expr> .."
-            join_cond = Column(SPLiteral.create(True))
+            join_cond = Column(SPLiteral(True))
             for c in using_columns:
                 quoted = AnalyzerPackage.quote_name(c)
                 join_cond = join_cond & (self.col(quoted) == right.col(quoted))
@@ -934,7 +1008,7 @@ class DataFrame:
     def __join_dataframe_table_function(self, table_function, columns) -> "DataFrame":
         pass
 
-    def withColumn(self, col_name: str, col: "Column") -> "DataFrame":
+    def withColumn(self, col_name: str, col: Column) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
         ``col_name``. The column is computed by using the specified expression ``col``.
@@ -1328,6 +1402,64 @@ class DataFrame:
         return self.__with_plan(
             SPSample(self.__plan, probability_fraction=frac, row_count=n)
         )
+
+    @property
+    def na(self) -> DataFrameNaFunctions:
+        """
+        Returns a :class:`DataFrameNaFunctions` object that provides functions for
+        handling missing values in the DataFrame.
+        """
+        if not self.__na:
+            self.__na = DataFrameNaFunctions(self)
+        return self.__na
+
+    def dropna(
+        self,
+        how: str = "any",
+        thresh: Optional[int] = None,
+        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+    ) -> "DataFrame":
+        """
+        Returns a new DataFrame that excludes all rows containing fewer than
+        a specified number of non-null and non-NaN values in the specified
+        columns. The usage, input arguments, and return value of this method
+        are the same as they are for :meth:`DataFrameNaFunctions.drop`.
+
+        See Also:
+            :meth:`DataFrameNaFunctions.drop`
+        """
+        return self.na.drop(how, thresh, subset)
+
+    def fillna(
+        self,
+        value: Union[Any, Dict[str, Any]],
+        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+    ) -> "DataFrame":
+        """
+        Returns a new DataFrame that replaces all null and NaN values in the specified
+        columns with the values provided. The usage, input arguments, and return value
+        of this method are the same as they are for :meth:`DataFrameNaFunctions.fill`.
+
+        See Also:
+            :meth:`DataFrameNaFunctions.fill`
+        """
+        return self.na.fill(value, subset)
+
+    def replace(
+        self,
+        to_replace: Union[Any, List[Any], Tuple[Any, ...], Dict[Any, Any]],
+        value: Optional[Union[Any, List[Any], Tuple[Any, ...]]] = None,
+        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+    ) -> "DataFrame":
+        """
+        Returns a new DataFrame that replaces values in the specified columns.
+        The usage, input arguments, and return value of this method are the same as
+        they are for :meth:`DataFrameNaFunctions.replace`.
+
+        See Also:
+            :meth:`DataFrameNaFunctions.replace`
+        """
+        return self.na.replace(to_replace, value, subset)
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:

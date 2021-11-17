@@ -176,6 +176,10 @@ class SnowparkClientExceptionMessages:
     def PLAN_INVALID_TYPE(type: str) -> SnowparkPlanException:
         return SnowparkPlanException(f"Invalid type, analyze. {type}", "1205")
 
+    @staticmethod
+    def PLAN_CANNOT_CREATE_LITERAL(type: str) -> SnowparkPlanException:
+        return SnowparkPlanException(f"Cannot create a Literal for {type}", "1206")
+
     # SQL Execution error codes 03XX
 
     @staticmethod

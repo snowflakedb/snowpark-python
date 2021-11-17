@@ -9,6 +9,7 @@ Contains core classes of Snowpark.
 """
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.file_operation import FileOperation, GetResult, PutResult
@@ -28,6 +29,7 @@ __all__ = [
     "PutResult",
     "GetResult",
     "DataFrame",
+    "DataFrameNaFunctions",
     "DataFrameWriter",
     "DataFrameReader",
     "RelationalGroupedDataFrame",

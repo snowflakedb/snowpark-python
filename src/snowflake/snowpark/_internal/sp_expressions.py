@@ -7,8 +7,9 @@
 #
 #  File containing the Expression definitions for ASTs (Spark).
 import uuid
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     DataType,
     DecimalType,
@@ -16,7 +17,10 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
     IntegralType,
     LongType,
 )
-from snowflake.snowpark._internal.sp_types.types_package import _infer_type
+from snowflake.snowpark._internal.sp_types.types_package import (
+    _infer_type,
+    _type_mappings,
+)
 
 
 class Expression:
@@ -264,17 +268,17 @@ class BaseGroupingSets(Expression):
 
 
 class Cube(BaseGroupingSets):
-    def __init__(self, grouping_set_indexes, children=[]):
+    def __init__(self, grouping_set_indexes):
         super().__init__()
         self.grouping_set_indexes = grouping_set_indexes
-        self.children = children
+        self.children = self.grouping_set_indexes
 
 
 class Rollup(BaseGroupingSets):
-    def __init__(self, grouping_set_indexes, children=[]):
+    def __init__(self, grouping_set_indexes):
         super().__init__()
         self.grouping_set_indexes = grouping_set_indexes
-        self.children = children
+        self.children = self.grouping_set_indexes
 
 
 # Named Expressions
@@ -305,16 +309,35 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self._name = alias_func
 
 
+ALLOWED_PYTHON_DATA_TYPES_IN_LITERAL = tuple(_type_mappings.keys())
+ALLOWED_SNOWPARK_DATA_TYPES_IN_LITERAL = (
+    *_type_mappings.values(),
+    IntegralType,
+    DoubleType,
+)
+
+
 # Leaf Expressions
 class Literal(LeafExpression):
-    def __init__(self, value, datatype):
+    def __init__(self, value: Any, datatype: Optional[DataType] = None):
         super().__init__()
-        self.value = value
-        self.datatype = datatype
 
-    @classmethod
-    def create(cls, value):
-        return cls(value, _infer_type(value))
+        # check value
+        if not isinstance(value, ALLOWED_PYTHON_DATA_TYPES_IN_LITERAL):
+            raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
+                type(value)
+            )
+        self.value = value
+
+        # check datatype
+        if datatype:
+            if not isinstance(datatype, ALLOWED_SNOWPARK_DATA_TYPES_IN_LITERAL):
+                raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
+                    str(datatype)
+                )
+            self.datatype = datatype
+        else:
+            self.datatype = _infer_type(value)
 
 
 class BinaryArithmeticExpression(BinaryExpression):
@@ -528,6 +551,21 @@ class SubfieldInt(Expression):
         super().__init__(expr)
         self.expr = expr
         self.field = field
+
+
+class FunctionExpression(Expression):
+    def __init__(self, name: str, arguments: List[Expression], is_distinct: bool):
+        super().__init__()
+        self.name = name
+        self.children = arguments
+        self.is_distinct = is_distinct
+
+    def pretty_name(self) -> str:
+        return self.name
+
+    def sql(self) -> str:
+        distinct = "DISTINCT " if self.is_distinct else ""
+        return f"{self.pretty_name()}({distinct}{', '.join([c.sql() for c in self.children()])})"
 
 
 class TableFunctionExpression(Expression):

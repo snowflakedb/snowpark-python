@@ -760,6 +760,28 @@ class AnalyzerPackage:
             + self.project_statement([], child)
         )
 
+    def pivot_statement(
+        self, pivot_column: str, pivot_values: List[str], aggregate: str, child: str
+    ) -> str:
+        return (
+            self._Select
+            + self._Star
+            + self._From
+            + self._LeftParenthesis
+            + child
+            + self._RightParenthesis
+            + self._Pivot
+            + self._LeftParenthesis
+            + aggregate
+            + self._For
+            + pivot_column
+            + self._In
+            + self._LeftParenthesis
+            + self._Comma.join(pivot_values)
+            + self._RightParenthesis
+            + self._RightParenthesis
+        )
+
     def copy_into_table(
         self,
         table_name: str,
