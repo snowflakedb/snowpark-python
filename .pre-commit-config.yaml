@@ -35,7 +35,7 @@ repos:
         exclude: >
             (?x)^(
                 license_header.txt|
-                test/resources/.*|
+                tests/resources/.*|
                 docs/.*|
             )$
     -   id: check-yaml
@@ -49,12 +49,12 @@ repos:
         files: >
             (?x)^(
                 src/snowflake/snowpark/.*\.py|
-                test/.*\.py|
+                tests/.*\.py|
             )$
         exclude: >
             (?x)^(
                 src/snowflake/snowpark/version.py|
-                test/resources/.*\.py|
+                tests/resources/.*\.py|
             )$
         args:
             - --license-filepath
