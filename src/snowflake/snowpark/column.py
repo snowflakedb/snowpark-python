@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.sp_expressions import (
@@ -110,10 +110,10 @@ class Column:
         else:
             raise TypeError("Column constructor only accepts str or expression.")
 
-    def __getitem__(self, field: Union[str, int]):
-        if type(field) == str:
+    def __getitem__(self, field: Union[str, int]) -> "Column":
+        if isinstance(field, str):
             return Column(SPSubfieldString(self.expression, field))
-        elif type(field) == int:
+        elif isinstance(field, int):
             return Column(SPSubfieldInt(self.expression, field))
         else:
             raise TypeError(f"Unexpected item type: {type(field)}")
@@ -189,7 +189,9 @@ class Column:
 
     def between(self, lower_bound: "Column", upper_bound: "Column") -> "Column":
         """Between lower bound and upper bound."""
-        return (lower_bound <= self) & (self <= upper_bound)
+        return (self._to_expr(lower_bound) <= self) & (
+            self <= self._to_expr(upper_bound)
+        )
 
     def bitand(self, other: "Column") -> "Column":
         """Bitwise and."""
@@ -351,7 +353,7 @@ class Column:
             return SPUnresolvedAlias(self.expression, None)
 
     @staticmethod
-    def _to_expr(expr) -> SPExpression:
+    def _to_expr(expr: Union["Column", SPExpression, Any]) -> SPExpression:
         if isinstance(expr, Column):
             return expr.expression
         elif isinstance(expr, SPExpression):
@@ -360,7 +362,7 @@ class Column:
             return SPLiteral(expr)
 
     @classmethod
-    def _expr(cls, e: str):
+    def _expr(cls, e: str) -> "Column":
         return cls(SPUnresolvedAttribute.quoted(e))
 
 
@@ -378,8 +380,8 @@ class CaseExpr(Column):
 
         from snowflake.snowpark.functions import when, col, lit
         df.select(
-            when(col("col").is_null(), lit(1)) \\
-                .when(col("col") == 1, lit(2)) \\
+            when(col("col").is_null(), lit(1)) \
+                .when(col("col") == 1, lit(2)) \
                 .otherwise(lit(3))
         )
     """
@@ -391,13 +393,13 @@ class CaseExpr(Column):
     def when(self, condition: Column, value: Column) -> "CaseExpr":
         """Appends one more WHEN condition to the CASE expression."""
         return CaseExpr(
-            SPCaseWhen([*self.__branches, (condition.expression, value.expression)])
+            SPCaseWhen(
+                [*self.__branches, (condition.expression, Column._to_expr(value))]
+            )
         )
 
     def otherwise(self, value: Column) -> "CaseExpr":
         """Sets the default result for this CASE expression."""
-        return CaseExpr(SPCaseWhen(self.__branches, value.expression))
+        return CaseExpr(SPCaseWhen(self.__branches, Column._to_expr(value)))
 
-    def else_(self, value: Column) -> "CaseExpr":
-        """Sets the default result for this CASE expression. Alias for otherwise."""
-        return self.otherwise(value)
+    else_ = otherwise

@@ -18,8 +18,9 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
     LongType,
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
+    _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
     _infer_type,
-    _type_mappings,
 )
 
 
@@ -291,21 +292,13 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self._name = alias_func
 
 
-ALLOWED_PYTHON_DATA_TYPES_IN_LITERAL = tuple(_type_mappings.keys())
-ALLOWED_SNOWPARK_DATA_TYPES_IN_LITERAL = (
-    *_type_mappings.values(),
-    IntegralType,
-    DoubleType,
-)
-
-
 # Leaf Expressions
 class Literal(LeafExpression):
     def __init__(self, value: Any, datatype: Optional[DataType] = None):
         super().__init__()
 
         # check value
-        if not isinstance(value, ALLOWED_PYTHON_DATA_TYPES_IN_LITERAL):
+        if not isinstance(value, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
             raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                 type(value)
             )
@@ -313,7 +306,7 @@ class Literal(LeafExpression):
 
         # check datatype
         if datatype:
-            if not isinstance(datatype, ALLOWED_SNOWPARK_DATA_TYPES_IN_LITERAL):
+            if not isinstance(datatype, _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE):
                 raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                     str(datatype)
                 )
