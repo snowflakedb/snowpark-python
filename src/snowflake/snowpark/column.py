@@ -380,8 +380,8 @@ class CaseExpr(Column):
 
         from snowflake.snowpark.functions import when, col, lit
         df.select(
-            when(col("col").is_null(), lit(1)) \
-                .when(col("col") == 1, lit(2)) \
+            when(col("col").is_null(), lit(1)) \\
+                .when(col("col") == 1, lit(2)) \\
                 .otherwise(lit(3))
         )
     """
