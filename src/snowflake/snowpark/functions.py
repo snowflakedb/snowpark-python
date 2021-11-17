@@ -1114,7 +1114,6 @@ def get(col1: Union[Column, str], col2: Union[Column, str]) -> Column:
 
 # TODO SNOW-500245: `Any` in the type hint should be replaced
 #  when we have a type-hint type for snowflake-supported datatypes
-#  also fix the type hint in column.py
 def when(condition: Column, value: Any) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.

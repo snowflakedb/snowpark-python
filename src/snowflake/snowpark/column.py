@@ -121,89 +121,89 @@ class Column:
     # overload operators
     def __eq__(self, other: "Column") -> "Column":
         """Equal to."""
-        right = self._to_expr(other)
+        right = Column._to_expr(other)
         return Column(SPEqualTo(self.expression, right))
 
     def __ne__(self, other: "Column") -> "Column":
         """Not equal to."""
-        right = self._to_expr(other)
+        right = Column._to_expr(other)
         return Column(SPNotEqualTo(self.expression, right))
 
     def __gt__(self, other: "Column") -> "Column":
         """Greater than."""
-        return Column(SPGreaterThan(self.expression, self._to_expr(other)))
+        return Column(SPGreaterThan(self.expression, Column._to_expr(other)))
 
     def __lt__(self, other: "Column") -> "Column":
         """Less than."""
-        return Column(SPLessThan(self.expression, self._to_expr(other)))
+        return Column(SPLessThan(self.expression, Column._to_expr(other)))
 
     def __ge__(self, other: "Column") -> "Column":
         """Greater than or equal to."""
-        return Column(SPGreaterThanOrEqual(self.expression, self._to_expr(other)))
+        return Column(SPGreaterThanOrEqual(self.expression, Column._to_expr(other)))
 
     def __le__(self, other: "Column") -> "Column":
         """Less than or equal to."""
-        return Column(SPLessThanOrEqual(self.expression, self._to_expr(other)))
+        return Column(SPLessThanOrEqual(self.expression, Column._to_expr(other)))
 
     def __add__(self, other: "Column") -> "Column":
         """Plus."""
-        return Column(SPAdd(self.expression, self._to_expr(other)))
+        return Column(SPAdd(self.expression, Column._to_expr(other)))
 
     def __radd__(self, other: "Column") -> "Column":
-        return Column(SPAdd(self._to_expr(other), self.expression))
+        return Column(SPAdd(Column._to_expr(other), self.expression))
 
     def __sub__(self, other: "Column") -> "Column":
         """Minus."""
-        return Column(SPSubtract(self.expression, self._to_expr(other)))
+        return Column(SPSubtract(self.expression, Column._to_expr(other)))
 
     def __rsub__(self, other: "Column") -> "Column":
-        return Column(SPSubtract(self._to_expr(other), self.expression))
+        return Column(SPSubtract(Column._to_expr(other), self.expression))
 
     def __mul__(self, other: "Column") -> "Column":
         """Multiply."""
-        return Column(SPMultiply(self.expression, self._to_expr(other)))
+        return Column(SPMultiply(self.expression, Column._to_expr(other)))
 
     def __rmul__(self, other: "Column") -> "Column":
-        return Column(SPMultiply(self._to_expr(other), self.expression))
+        return Column(SPMultiply(Column._to_expr(other), self.expression))
 
     def __truediv__(self, other: "Column") -> "Column":
         """Divide."""
-        return Column(SPDivide(self.expression, self._to_expr(other)))
+        return Column(SPDivide(self.expression, Column._to_expr(other)))
 
     def __rtruediv__(self, other: "Column") -> "Column":
-        return Column(SPDivide(self._to_expr(other), self.expression))
+        return Column(SPDivide(Column._to_expr(other), self.expression))
 
     def __mod__(self, other: "Column") -> "Column":
         """Reminder."""
-        return Column(SPRemainder(self.expression, self._to_expr(other)))
+        return Column(SPRemainder(self.expression, Column._to_expr(other)))
 
     def __rmod__(self, other: "Column") -> "Column":
-        return Column(SPRemainder(self._to_expr(other), self.expression))
+        return Column(SPRemainder(Column._to_expr(other), self.expression))
 
     def __pow__(self, other: "Column") -> "Column":
         """Power."""
-        return Column(SPPow(self.expression, self._to_expr(other)))
+        return Column(SPPow(self.expression, Column._to_expr(other)))
 
     def __rpow__(self, other: "Column") -> "Column":
-        return Column(SPPow(self._to_expr(other), self.expression))
+        return Column(SPPow(Column._to_expr(other), self.expression))
 
     def between(self, lower_bound: "Column", upper_bound: "Column") -> "Column":
         """Between lower bound and upper bound."""
-        return (self._to_expr(lower_bound) <= self) & (
-            self <= self._to_expr(upper_bound)
+        return (Column._to_expr(lower_bound) <= self) & (
+            self <= Column._to_expr(upper_bound)
         )
 
     def bitand(self, other: "Column") -> "Column":
         """Bitwise and."""
-        return Column(SPBitwiseAnd(self._to_expr(other), self.expression))
+        return Column(SPBitwiseAnd(Column._to_expr(other), self.expression))
 
     def bitor(self, other: "Column") -> "Column":
         """Bitwise or."""
-        return Column(SPBitwiseOr(self._to_expr(other), self.expression))
+        return Column(SPBitwiseOr(Column._to_expr(other), self.expression))
 
     def bitxor(self, other: "Column") -> "Column":
         """Bitwise xor."""
-        return Column(SPBitwiseXor(self._to_expr(other), self.expression))
+        return Column(SPBitwiseXor(Column._to_expr(other), self.expression))
 
     def __neg__(self) -> "Column":
         """Unary minus."""
@@ -211,7 +211,7 @@ class Column:
 
     def equal_null(self, other: "Column") -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
-        return Column(SPEqualNullSafe(self.expression, self._to_expr(other)))
+        return Column(SPEqualNullSafe(self.expression, Column._to_expr(other)))
 
     def equal_nan(self) -> "Column":
         """Is NaN."""
@@ -228,17 +228,17 @@ class Column:
     # `and, or, not` cannot be overloaded in Python, so use bitwise operators as boolean operators
     def __and__(self, other: "Column") -> "Column":
         """And."""
-        return Column(SPAnd(self.expression, self._to_expr(other)))
+        return Column(SPAnd(self.expression, Column._to_expr(other)))
 
     def __rand__(self, other: "Column") -> "Column":
-        return Column(SPAnd(self._to_expr(other), self.expression))
+        return Column(SPAnd(Column._to_expr(other), self.expression))
 
     def __or__(self, other: "Column") -> "Column":
         """Or."""
-        return Column(SPOr(self.expression, self._to_expr(other)))
+        return Column(SPOr(self.expression, Column._to_expr(other)))
 
     def __ror__(self, other: "Column") -> "Column":
-        return Column(SPAnd(self._to_expr(other), self.expression))
+        return Column(SPAnd(Column._to_expr(other), self.expression))
 
     def __invert__(self) -> "Column":
         """Unary not."""
@@ -352,9 +352,19 @@ class Column:
         else:
             return SPUnresolvedAlias(self.expression, None)
 
-    @staticmethod
-    def _to_expr(expr: Union["Column", SPExpression, Any]) -> SPExpression:
-        if isinstance(expr, Column):
+    # TODO SNOW-500245: `Any` in the type hint should be replaced
+    #  when we have a type-hint type for snowflake-supported datatypes
+    #  also fix other type hints in column.py
+    @classmethod
+    def _to_expr(cls, expr: Union["Column", SPExpression, Any]) -> SPExpression:
+        """
+        Convert a Column object, or an literal value to an expression.
+        If it's a Column, get its expression.
+        If it's already an expression, return it directly.
+        If it's a literal value (here we treat str as literal value instead of column name),
+        create a Literal expression.
+        """
+        if isinstance(expr, cls):
             return expr.expression
         elif isinstance(expr, SPExpression):
             return expr
