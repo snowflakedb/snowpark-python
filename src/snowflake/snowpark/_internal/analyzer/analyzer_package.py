@@ -623,14 +623,13 @@ class AnalyzerPackage:
         if command.lower() == "get":
             return f"{self._Get}{stage_location}{self._Space}{file_name}{self._Space}{self._get_operation_statement(options)}"
         raise ValueError(f"Unsupported file operation type {command}")
-        # TODO: raise ErrorMessage.PLAN_UNSUPPORTED_FILE_OPERATION_TYPE()
 
-    def _get_operation_statement(self, options: Dict[str, str]):
+    def _get_operation_statement(self, options: Dict[str, str]) -> str:
         return self._Space.join(
             f"{k.upper() + self._Equals + str(v)}" for k, v in options.items()
         )
 
-    def _get_options_statement(self, options: Dict[str, str]) -> str:
+    def get_options_statement(self, options: Dict[str, str]) -> str:
         return (
             self._Space
             + self._Space.join(

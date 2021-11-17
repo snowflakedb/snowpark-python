@@ -9,10 +9,9 @@ import json
 import logging
 import os
 from array import array
-from collections import UserDict
 from functools import reduce
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 

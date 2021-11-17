@@ -6,6 +6,7 @@ import os
 import random
 import shutil
 import string
+import time
 from test.utils import TestFiles, Utils
 
 import pytest
@@ -24,12 +25,14 @@ def random_alphanumeric_name():
 def temp_source_directory(tmpdir_factory):
     directory = tmpdir_factory.mktemp("snowpark_test_source")
     yield directory
+    shutil.rmtree(str(directory))
 
 
 @pytest.fixture(scope="module")
 def temp_target_directory(tmpdir_factory):
     directory = tmpdir_factory.mktemp("snowpark_test_target")
     yield directory
+    shutil.rmtree(str(directory))
 
 
 @pytest.fixture(scope="module")
@@ -37,7 +40,6 @@ def path1(temp_source_directory):
     file = temp_source_directory.join(f"file_1_{Utils.random_name()}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
-    # temp_source_directory.unlink(file)
 
 
 @pytest.fixture(scope="module")
@@ -45,7 +47,6 @@ def path2(temp_source_directory):
     file = temp_source_directory.join(f"file_2_{Utils.random_name()}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
-    # temp_source_directory.unlink(file)
 
 
 @pytest.fixture(scope="module")
@@ -53,7 +54,6 @@ def path3(temp_source_directory):
     file = temp_source_directory.join(f"file_3_{Utils.random_name()}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
-    # temp_source_directory.unlink(file)
 
 
 @pytest.fixture(scope="module")
@@ -81,7 +81,8 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     assert first_result["target_compression"] == "GZIP"
     assert first_result["status"] == "UPLOADED"
     assert first_result["message"] == ""
-    # TODO Scala has an additional field "ENCRYPTED" while Python doesn't. Need to check python-connector.
+    # Scala has encryption but python doesn't
+    # assert first_result["encryption"] == "DECRYPTED"
 
     second_result = session.file.put(
         f"file://{path2}", stage_with_prefix, auto_compress=False
@@ -125,7 +126,7 @@ def test_put_with_one_file_twice(session, temp_stage, path1):
     assert second_result["source_compression"] == "NONE"
     assert second_result["target_compression"] == "GZIP"
     assert second_result["status"] in ("SKIPPED", "UPLOADED")
-    # TODO: check why the error message doesn't occur in second_result["message"] while Scala has this error
+    # Scala has "message" field. Python has an empty "message"
     # assert "File with same destination name and checksum already exists" in second_result["message"]
 
 
@@ -274,25 +275,22 @@ def test_get_negative_test(session, temp_stage, temp_target_directory, path1):
     )
     assert len(get_results) == 0
 
-    # If target directory doesn't exist, create the directory and download files
-    # TODO: Python and Scala drivers may behave differently. Python raise a ProgrammingError if target dir doesn't exist.
-    #  Scala (JDBC?) creates the non-exist directory tree automatically
-    # put_results = session.file.put(path1, stage_with_prefix)
-    # assert len(put_results) == 1
-    # assert put_results[0]["status"] == "UPLOADED"
-    # get_results = session.file.get(stage_with_prefix, "/not_exist_target_test/test2")
-    # try:
-    #     assert len(get_results) == 1
-    #     assert get_results[0]["status"] == "DOWNLOADED"
-    # finally:
-    #     os.remove("not_exist_target_test")
+    put_results = session.file.put(path1, stage_with_prefix)
+    assert len(put_results) == 1
+    assert put_results[0]["status"] == "UPLOADED"
+    get_results = session.file.get(stage_with_prefix, "not_exist_target_test/test2")
+    try:
+        assert len(get_results) == 1
+        assert get_results[0]["status"] == "DOWNLOADED"
+    finally:
+        shutil.rmtree("not_exist_target_test")
 
 
 @pytest.mark.skip(
+    "Python connector doesn't have COLLISION in the result"
     "This error sometimes happen probably because python-connector doesn't handle file conflict well."
     "snowflake.connector.errors.OperationalError: 253002: FileNotFoundError(2, 'No such file or directory')"
 )
-# TODO: check with python-connector
 def test_get_negative_test_file_name_collision(
     session, temp_stage, tmpdir_factory, path1
 ):
@@ -307,7 +305,6 @@ def test_get_negative_test_file_name_collision(
         assert len(results) == 2
         assert results[0]["status"] == "DOWNLOADED"
         # GCP doesn't detect download collision
-        # TODO: Python and Scala may behave differently for "COLLISION"
         assert (
             results[1]["status"] == "COLLISION"
             and "has same name as" in results[1]["message"]
@@ -320,22 +317,25 @@ def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
     special_directory = tmp_path_factory.mktemp("dir !_")
-    special_path1 = special_directory.joinpath("file_!.txt")
-    special_path1.write_text("aaa")
-    special_path2 = special_directory.joinpath("file_.txt")
-    special_path2.write_text("bbb")
-    put1 = session.file.put(
-        f"'file://{Utils.escape_path(special_path1)}'", stage_with_prefix
-    )
-    assert len(put1) == 1
-    put2 = session.file.put(
-        f"'file://{Utils.escape_path(special_path2)}'", stage_with_prefix
-    )
-    assert len(put2) == 1
+    try:
+        special_path1 = special_directory.joinpath("file_!.txt")
+        special_path1.write_text("aaa")
+        special_path2 = special_directory.joinpath("file_.txt")
+        special_path2.write_text("bbb")
+        put1 = session.file.put(
+            f"'file://{Utils.escape_path(special_path1)}'", stage_with_prefix
+        )
+        assert len(put1) == 1
+        put2 = session.file.put(
+            f"'file://{Utils.escape_path(special_path2)}'", stage_with_prefix
+        )
+        assert len(put2) == 1
 
-    dest_directory = tmp_path_factory.mktemp("dir !_")
-    get1 = session.file.get(
-        stage_with_prefix, f"'file://{Utils.escape_path(dest_directory)}'"
-    )
-    assert len(get1) == 2
-    assert len(list(dest_directory.iterdir())) == 2
+        dest_directory = tmp_path_factory.mktemp("dir !_")
+        get1 = session.file.get(
+            stage_with_prefix, f"'file://{Utils.escape_path(dest_directory)}'"
+        )
+        assert len(get1) == 2
+        assert len(list(dest_directory.iterdir())) == 2
+    finally:
+        shutil.rmtree(special_directory)
