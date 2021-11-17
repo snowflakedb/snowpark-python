@@ -34,7 +34,7 @@ class DataFrameStatFunctions:
         col: Union[
             Column, str, List[Union[str, Column]], Tuple[Union[str, Column], ...]
         ],
-        percentile: Union[List[float], Tuple[float]],
+        percentile: Union[List[float], Tuple[float, ...]],
     ) -> Union[List[float], List[List[float]]]:
         """For a specified numeric column and a list of desired quantiles, returns an approximate value for the column at each of the desired quantiles.
         This function uses the t-Digest algorithm.
