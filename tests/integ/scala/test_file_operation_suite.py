@@ -6,12 +6,11 @@ import os
 import random
 import shutil
 import string
-import time
-from test.utils import TestFiles, Utils
 
 import pytest
 
 from snowflake.connector import ProgrammingError
+from tests.utils import TestFiles, Utils
 
 
 def random_alphanumeric_name():

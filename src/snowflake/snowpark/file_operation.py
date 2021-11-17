@@ -116,11 +116,10 @@ class FileOperation:
 
         Example::
 
-            put_result = session.file.put("file:///tmp/file*.csv", "@myStage/prefix2", auto_compress=False)
+            put_result = session.file.put("/tmp/file*.csv", "@myStage/prefix2", auto_compress=False)
 
         Args:
-            local_file_name: The path to the local files to upload. Specify the path in the following format:
-                ``file://<path_to_file>/<filename>``. (The``file://`` prefix is optional.) To match multiple files in the path,
+            local_file_name: The path to the local files to upload. To match multiple files in the path,
                 you can specify the wildcard characters ``*`` and ``?``.
             stage_location: The stage and prefix where you want to upload the files.
             parallel: Specifies the number of threads to use for uploading files. The upload process separates batches of data files by size:
@@ -167,22 +166,21 @@ class FileOperation:
 
         Examples::
             # Upload files to a stage.
-            session.file.put("file:///tmp/file_1.csv", "@myStage/prefix")
-            session.file.put("file:///tmp/file_2.csv", "@myStage/prefix")
+            session.file.put("/tmp/file_1.csv", "@myStage/prefix")
+            session.file.put("/tmp/file_2.csv", "@myStage/prefix")
 
             # Download one file from a stage.
-            get_result1 = session.file.get("@myStage/prefix/file_1.csv", "file:///tmp/target")
+            get_result1 = session.file.get("@myStage/prefix/file_1.csv", "/tmp/target")
 
             # Download all the files from @myStage/prefix.
-            get_result2 = session.file.get("@myStage/prefix", "file:///tmp/target2")
+            get_result2 = session.file.get("@myStage/prefix", "/tmp/target2")
 
             # Download files with names that match a regular expression pattern.
-            get_result3 = session.file.get("@myStage/prefix", "file:///tmp/target3", pattern=".*file_.*.csv.gz")
+            get_result3 = session.file.get("@myStage/prefix", "/tmp/target3", pattern=".*file_.*.csv.gz")
 
         Args:
             stage_location: A directory or filename on a stage, from which you want to download the files.
-            target_directory: The path to the local directory where the file(s) should be downloaded.
-                Specify the path in the following format: file://<path_to_file>/<filename>`.
+            target_directory: The path to the local directory where the files should be downloaded.
                 If ``target_directory`` does not already exist, the method creates the directory.
             parallel: Specifies the number of threads to use for downloading the files.
                 The granularity unit for downloading is one file.
