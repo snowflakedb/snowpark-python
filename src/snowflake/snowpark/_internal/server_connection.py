@@ -305,8 +305,6 @@ class ServerConnection:
                 )
             else:
                 raise ex
-        except BaseException as ex:
-            raise ex
 
     def __build_put_statement(
         self,
