@@ -1,0 +1,216 @@
+#
+# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
+#
+
+from functools import reduce
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import snowflake.snowpark
+from snowflake.snowpark import Column
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.functions import (
+    _to_col_if_str,
+    approx_percentile_accumulate,
+    approx_percentile_estimate,
+    corr as corr_func,
+    count,
+    count_distinct,
+    covar_samp,
+)
+
+_MAX_COLUMNS_PER_TABLE = 1000
+
+
+class DataFrameStatFunctions:
+    """Provides computed statistical functions for DataFrames.
+    To access an object of this class, use :attr:`DataFrame.stat`.
+    """
+
+    def __init__(self, df: "snowflake.snowpark.DataFrame"):
+        self._df = df
+
+    def approxQuantile(
+        self,
+        col: Union[
+            Column, str, List[Union[str, Column]], Tuple[Union[str, Column], ...]
+        ],
+        percentile: Union[List[float], Tuple[float, ...]],
+    ) -> Union[List[float], List[List[float]]]:
+        """For a specified numeric column and a list of desired quantiles, returns an approximate value for the column at each of the desired quantiles.
+        This function uses the t-Digest algorithm.
+
+        Examples::
+
+            df = session.createDataFrame([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], schema=["a"])
+            res = df.stat.approxQuantile("a", [0, 0.1, 0.4, 0.6, 1])
+            # res will be [-0.5, 0.5, 3.5, 5.5, 9.5]
+
+            df2 = session.createDataFrame([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+            res2 = df2.stat.approxQuantile(["a", "b"], [0, 0.1, 0.6])
+            # res2 will be [[0.05, 0.15000000000000002, 0.25)], [0.45, 0.55, 0.6499999999999999]]
+
+        Args:
+            col: The name of the numeric column.
+            percentile: A list of float values greater than or equal to 0.0 and less than 1.0.
+
+        Return:
+            A list of approximate percentile values if ``col`` is a single column name, or a matrix with the dimensions `(len(col) * len(percentile)` containing the
+                approximate percentile values if ``col`` is a list of column names.
+        """
+        temp_col_name = "t"
+        if not percentile or not col:
+            return []
+        if isinstance(col, (Column, str)):
+            res = (
+                self._df.select(approx_percentile_accumulate(col).as_(temp_col_name))
+                .select(
+                    [approx_percentile_estimate(temp_col_name, p) for p in percentile]
+                )
+                ._collect_with_tag()
+            )
+            return list(res[0])
+        elif isinstance(col, (List, Tuple)):
+            accumate_cols = [
+                approx_percentile_accumulate(col_i).as_(f"{temp_col_name}_{i}")
+                for i, col_i in enumerate(col)
+            ]
+            output_cols = [
+                approx_percentile_estimate(f"{temp_col_name}_{i}", p)
+                for i in range(len(accumate_cols))
+                for p in percentile
+            ]
+            percentile_len = len(output_cols) // len(accumate_cols)
+            res = self._df.select(accumate_cols).select(output_cols)._collect_with_tag()
+            return [
+                [x for x in res[0][j * percentile_len : (j + 1) * percentile_len]]
+                for j in range(len(accumate_cols))
+            ]
+        else:
+            raise TypeError(
+                "'col' must be a column name, a column object, or a list of them."
+            )
+
+    def corr(
+        self, col1: Union[Column, str], col2: Union[Column, str]
+    ) -> Optional[float]:
+        """Calculates the correlation coefficient for non-null pairs in two numeric columns.
+
+        Example::
+
+            df = session.createDataFrame([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+            res = df.stat.corr("a", "b")
+            # res will be 0.9999999999999991
+
+        Args:
+            col1: The name of the first numeric column to use.
+            col2: The name of the second numeric column to use.
+
+        Return:
+            The correlation of the two numeric columns.
+            If there is not enough data to generate the correlation, the method returns ``None``.
+        """
+        res = self._df.select(corr_func(col1, col2))._collect_with_tag()
+        return res[0][0] if res[0] is not None else None
+
+    def cov(
+        self, col1: Union[Column, str], col2: Union[Column, str]
+    ) -> Optional[float]:
+        """Calculates the sample covariance for non-null pairs in two numeric columns.
+
+        Example::
+
+           df = session.createDataFrame([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+           res = df.stat.cov("a", "b")
+           # res will be 0.010000000000000037
+
+        Args:
+            col1: The name of the first numeric column to use.
+            col2: The name of the second numeric column to use.
+
+        Return:
+            The sample covariance of the two numeric columns.
+            If there is not enough data to generate the covariance, the method returns None.
+        """
+        res = self._df.select(covar_samp(col1, col2))._collect_with_tag()
+        return res[0][0] if res[0] is not None else None
+
+    def crosstab(
+        self, col1: Union[Column, str], col2: Union[Column, str]
+    ) -> "snowflake.snowpark.DataFrame":
+        """Computes a pair-wise frequency table (a ``contingency table``) for the specified columns.
+        The method returns a DataFrame containing this table.
+
+        In the returned contingency table:
+            - The first column of each row contains the distinct values of ``col1``.
+            - The name of the first column is the name of ``col1``.
+            - The rest of the column names are the distinct values of ``col2``.
+            - For pairs that have no occurrences, the contingency table contains 0 as the count.
+
+        Note:
+            The number of distinct values in ``col2`` should not exceed 1000.
+
+        Example::
+
+            df = session.createDataFrame([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
+            ct = df.stat.crosstab("key", "value")
+            ct.show()
+
+        The above example prints out the following result:
+
+        ======  ==========================  ==========================  ===============================
+        "KEY"   "CAST(1 AS NUMBER(38,0))"   "CAST(2 AS NUMBER(38,0))"   "CAST(3 AS NUMBER(38,0))"
+        ======  ==========================  ==========================  ===============================
+        1       1                           1                           0
+        2       2                           0                           1
+        3       0                           1                           1
+        ======  ==========================  ==========================  ===============================
+
+        Args:
+            col1: The name of the first column to use.
+            col2: The name of the second column to use.
+        """
+        row_count = self._df.select(count_distinct(col2))._collect_with_tag()[0][0]
+        if row_count > _MAX_COLUMNS_PER_TABLE:
+            raise SnowparkClientExceptionMessages.DF_CROSS_TAB_COUNT_TOO_LARGE(
+                row_count, _MAX_COLUMNS_PER_TABLE
+            )
+        column_names = [
+            row[0] for row in self._df.select(col2).distinct()._collect_with_tag()
+        ]
+        return self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
+
+    def sampleBy(
+        self, col: Union[Column, str], fractions: Dict[Any, float]
+    ) -> "snowflake.snowpark.DataFrame":
+        """Returns a DataFrame containing a stratified sample without replacement, based on a ``dict`` that specifies the fraction for each stratum.
+
+        Example::
+
+            df = session.createDataFrame([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
+            fractions = {"Bob": 0.5, "Nico": 1.0}
+            df.stat.sampleBy("name", fractions).show()
+
+        The above example prints out the following result:
+
+        =======  ==========
+        "NAME"   "AGE"
+        =======  ==========
+        Bob      17
+        Nico     8
+        =======  ==========
+
+        Args:
+            col: The name of the column that defines the strata.
+            fractions: A ``dict`` that specifies the fraction to use for the sample for each stratum.
+                If a stratum is not specified in the ``dict``, the method uses 0 as the fraction.
+        """
+        # TODO: `Any` in the type hint should be replaced when we have a type-hint type for snowflake-supported datatypes
+        #  JIRA https://snowflakecomputing.atlassian.net/browse/SNOW-500245
+        if not fractions:
+            return self._df.limit(0)
+        col = _to_col_if_str(col, "sampleBy")
+        res_df = reduce(
+            lambda x, y: x.unionAll(y),
+            [self._df.filter(col == k).sample(v) for k, v in fractions.items()],
+        )
+        return res_df

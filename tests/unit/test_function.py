@@ -14,6 +14,14 @@ from snowflake.snowpark._internal.sp_expressions import (
 )
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
+    approx_count_distinct,
+    approx_percentile,
+    approx_percentile_accumulate,
+    approx_percentile_combine,
+    approx_percentile_estimate,
+    corr,
+    covar_pop,
+    covar_samp,
     get_ignore_case,
     get_path,
     lit,
@@ -24,7 +32,21 @@ from snowflake.snowpark.functions import (
 
 
 @pytest.mark.parametrize(
-    "func", [xmlget, typeof, get_ignore_case, object_keys, get_path]
+    "func",
+    [
+        xmlget,
+        typeof,
+        get_ignore_case,
+        object_keys,
+        get_path,
+        approx_percentile,
+        approx_percentile_accumulate,
+        approx_percentile_estimate,
+        approx_percentile_combine,
+        corr,
+        covar_pop,
+        covar_samp,
+    ],
 )
 def test_funcs_negative(func):
     signature = inspect.signature(func)
@@ -36,11 +58,15 @@ def test_funcs_negative(func):
         for j in range(len(params)):
             if i != j and params[j].annotation == Union[Column, str]:
                 param_values[j] = lit(1)  # pass a value of type Column
-        with pytest.raises(TypeError) as ex_info:
-            func(*param_values)
-        assert f"'{func.__name__.upper()}' expected Column or str, got: {int}" in str(
-            ex_info
-        )
+        if (
+            params[j].annotation == Union[Column, str]
+        ):  # it should be Column or str, but given 1
+            with pytest.raises(TypeError) as ex_info:
+                func(*param_values)
+            assert (
+                f"'{func.__name__.upper()}' expected Column or str, got: {int}"
+                in str(ex_info)
+            )
 
 
 def test_create_table_function_expression_args():
