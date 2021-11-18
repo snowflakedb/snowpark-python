@@ -22,7 +22,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     convert_to_sf_type,
     snow_type_to_sp_type,
 )
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType, StringType
 
@@ -214,7 +214,7 @@ class UDFRegistration:
         # get the udf name
         udf_name = (
             name
-            or f"{self.session.getFullyQualifiedCurrentSchema()}.tempUDF_{Utils.random_number()}"
+            or f"{self.session.getFullyQualifiedCurrentSchema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
         )
         Utils.validate_object_name(udf_name)
 
