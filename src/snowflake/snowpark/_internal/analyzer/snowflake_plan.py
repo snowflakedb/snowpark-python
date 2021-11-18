@@ -28,7 +28,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     snow_type_to_sp_type,
     sp_type_to_snow_type,
 )
-from snowflake.snowpark._internal.utils import _SaveMode
+from snowflake.snowpark._internal.utils import TempObjectType, Utils, _SaveMode
 from snowflake.snowpark.row import Row
 
 
@@ -272,7 +272,7 @@ class SnowflakePlanBuilder:
         data: List[Row],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        temp_table_name = self.pkg.random_name_for_temp_object("TABLE")
+        temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         attributes = [
             Attribute(
                 sp_attr.name, sp_type_to_snow_type(sp_attr.datatype), sp_attr.nullable
@@ -501,7 +501,7 @@ class SnowflakePlanBuilder:
             temp_file_format_name = (
                 fully_qualified_schema
                 + "."
-                + AnalyzerPackage.random_name_for_temp_object("FILE_FORMAT")
+                + Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
             )
             queries = [
                 Query(
@@ -551,7 +551,7 @@ class SnowflakePlanBuilder:
             temp_table_name = (
                 fully_qualified_schema
                 + "."
-                + AnalyzerPackage.random_name_for_temp_object("TABLE")
+                + Utils.random_name_for_temp_object(TempObjectType.TABLE)
             )
             queries = [
                 Query(

@@ -44,6 +44,17 @@ SNOWFLAKE_OBJECT_RE_PATTERN = re.compile(
 # "%?" is for table stage
 SNOWFLAKE_STAGE_NAME_PATTERN = f"(%?{SNOWFLAKE_ID_PATTERN})"
 
+# Prefix for allowed temp object names in stored proc
+TEMP_OBJECT_NAME_PREFIX = "SNOWPARK_TEMP_"
+
+
+class TempObjectType(Enum):
+    TABLE = "TABLE"
+    VIEW = "VIEW"
+    STAGE = "STAGE"
+    FUNCTION = "FUNCTION"
+    FILE_FORMAT = "FILE FORMAT"
+
 
 class Utils:
     @staticmethod
@@ -281,6 +292,10 @@ class Utils:
                 )
 
         raise ValueError(f"Invalid stage {stage_location}")
+
+    @staticmethod
+    def random_name_for_temp_object(object_type: TempObjectType) -> str:
+        return f"{TEMP_OBJECT_NAME_PREFIX}{object_type.value}_{Utils.random_number()}"
 
 
 class PythonObjJSONEncoder(JSONEncoder):
