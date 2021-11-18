@@ -12,6 +12,7 @@ import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
+from snowflake.connector.description import PLATFORM
 from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
@@ -97,6 +98,7 @@ class ServerConnection:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self.__add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
+        self._is_stored_proc = PLATFORM == "XP"
         self._cursor = self._conn.cursor()
 
     def __add_application_name(self):
@@ -431,6 +433,7 @@ class ServerConnection:
             kwargs["_statement_params"]["QUERY_TAG"]
             if "_statement_params" in kwargs
             and "QUERY_TAG" in kwargs["_statement_params"]
+            and not self._is_stored_proc
             else None
         )
         if query_tag:
