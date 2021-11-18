@@ -57,18 +57,18 @@ def test_fit(session):
         encoder.fit(missing_input_col_input_df)
     assert "invalid identifier 'INPUT_VALUE'" in str(ex_info)
 
-    # string indexer with session as None
-    none_session_indexer = OneHotEncoder(session=None, input_col="input_value")
+    # one hot encoder with session as None
+    none_session_encoder = OneHotEncoder(session=None, input_col="input_value")
 
     with pytest.raises(AttributeError) as ex_info:
-        none_session_indexer.fit(input_df)
+        none_session_encoder.fit(input_df)
     assert "'NoneType' object has no attribute 'sql'" in str(ex_info)
 
-    # string indexer with input_col as None
-    none_input_col_indexer = OneHotEncoder(session=session, input_col=None)
+    # one hot encoder with input_col as None
+    none_input_col_encoder = OneHotEncoder(session=session, input_col=None)
 
     with pytest.raises(TypeError) as ex_info:
-        none_input_col_indexer.fit(input_df)
+        none_input_col_encoder.fit(input_df)
     assert "The select() input must be Column, str, or list" in str(ex_info)
 
     # input_df type is not DataFrame
