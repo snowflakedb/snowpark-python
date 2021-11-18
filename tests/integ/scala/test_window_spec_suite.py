@@ -13,13 +13,22 @@ from snowflake.snowpark.functions import (
     avg,
     col,
     count,
+    cume_dist,
+    dense_rank,
     kurtosis,
+    lead,
     lit,
+    max as max_,
+    mean,
     min as min_,
+    ntile,
+    percent_rank,
+    rank,
+    row_number,
     skew,
     sum as sum_,
 )
-from tests.utils import Utils
+from tests.utils import TestData, Utils
 
 
 def test_partition_by_order_by_rows_between(session):
@@ -88,6 +97,90 @@ def test_window_function_with_aggregates(session):
     )
 
 
+def test_window_function_inside_where_and_having_clauses(session):
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).select("a").where(
+            rank().over(Window.orderBy("b")) == 1
+        ).collect()
+    assert "invalid identifier" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).where(
+            (col("b") == 2) & rank().over(Window.orderBy("b")) == 1
+        ).collect()
+    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).groupBy("a").agg(avg("b").as_("avgb")).where(
+            (col("a") > col("avgb")) & rank().over(Window.orderBy("a")) == 1
+        ).collect()
+    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).groupBy("a").agg(
+            [max_("b").as_("avgb"), sum_("b").as_("sumb")]
+        ).where(rank().over(Window.orderBy("a")) == 1).collect()
+    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).groupBy("a").agg(
+            [max_("b").as_("avgb"), sum_("b").as_("sumb")]
+        ).where((col("sumb") == 5) & rank().over(Window.orderBy("a")) == 1).collect()
+    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
+
+
+def test_reuse_window_partition_by(session):
+    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).toDF(
+        "key", "value"
+    )
+    w = Window.partitionBy("key").orderBy("value")
+
+    Utils.check_answer(
+        df.select(lead("key", 1).over(w), lead("value", 1).over(w)),
+        [Row(1, "1"), Row(2, "2"), Row(None, None), Row(None, None)],
+    )
+
+
+def test_reuse_window_order_by(session):
+    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).toDF(
+        "key", "value"
+    )
+    w = Window.orderBy("value").partitionBy("key")
+
+    Utils.check_answer(
+        df.select(lead("key", 1).over(w), lead("value", 1).over(w)),
+        [Row(1, "1"), Row(2, "2"), Row(None, None), Row(None, None)],
+    )
+
+
+def test_rank_functions_in_unspecific_window(session):
+    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).toDF(
+        "key", "value"
+    )
+    Utils.check_answer(
+        df.select(
+            "key",
+            max_("key").over(Window.partitionBy("value").orderBy("key")),
+            min_("key").over(Window.partitionBy("value").orderBy("key")),
+            mean("key").over(Window.partitionBy("value").orderBy("key")),
+            count("key").over(Window.partitionBy("value").orderBy("key")),
+            sum_("key").over(Window.partitionBy("value").orderBy("key")),
+            ntile(lit(2)).over(Window.partitionBy("value").orderBy("key")),
+            row_number().over(Window.partitionBy("value").orderBy("key")),
+            dense_rank().over(Window.partitionBy("value").orderBy("key")),
+            rank().over(Window.partitionBy("value").orderBy("key")),
+            cume_dist().over(Window.partitionBy("value").orderBy("key")),
+            percent_rank().over(Window.partitionBy("value").orderBy("key")),
+        ).collect(),
+        [
+            Row(1, 1, 1, 1.0, 1, 1, 1, 1, 1, 1, 0.3333333333333333, 0.0),
+            Row(1, 1, 1, 1.0, 1, 1, 1, 1, 1, 1, 1.0, 0.0),
+            Row(2, 2, 1, Decimal("1.666667"), 3, 5, 1, 2, 2, 2, 1.0, 0.5),
+            Row(2, 2, 1, Decimal("1.666667"), 3, 5, 2, 3, 2, 2, 1.0, 0.5),
+        ],
+    )
+
+
 def test_empty_over_spec(session):
     df = session.createDataFrame([("a", 1), ("a", 1), ("a", 2), ("b", 2)]).toDF(
         "key", "value"
@@ -135,6 +228,16 @@ def test_null_inputs(session):
         ],
         sort=False,
     )
+
+
+def test_window_function_should_fail_if_order_by_clause_is_not_specified(session):
+    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).toDF(
+        "key", "value"
+    )
+    # Here we missed .orderBy("key")!
+    with pytest.raises(ProgrammingError) as ex_info:
+        df.select(row_number().over(Window.partitionBy("value"))).collect()
+    assert "requires ORDER BY in window specification" in str(ex_info)
 
 
 def test_aggregation_function_on_invalid_column(session):

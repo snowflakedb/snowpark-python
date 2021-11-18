@@ -112,24 +112,6 @@ class BinaryExpression(Expression):
         return "{} {} {}".format(self.left, self.sql_operator, self.right)
 
 
-class UnresolvedFunction(Expression):
-    def __init__(self, name, arguments, is_distinct=False):
-        super().__init__()
-        self.name = name
-        self.children = arguments
-        self.is_distinct = is_distinct
-
-    def pretty_name(self) -> str:
-        return self.name.strip('"')
-
-    def sql(self) -> str:
-        distinct = "DISTINCT " if self.is_distinct else ""
-        return f"{self.pretty_name()}({distinct}{', '.join(c.sql() for c in self.children)})"
-
-    def __repr__(self):
-        return f"{self.name}({', '.join((str(c) for c in self.children))})"
-
-
 # ##### AggregateModes
 class AggregateMode:
     pass
@@ -565,7 +547,7 @@ class FunctionExpression(Expression):
 
     def sql(self) -> str:
         distinct = "DISTINCT " if self.is_distinct else ""
-        return f"{self.pretty_name()}({distinct}{', '.join([c.sql() for c in self.children()])})"
+        return f"{self.pretty_name()}({distinct}{', '.join([c.sql() for c in self.children])})"
 
 
 class TableFunctionExpression(Expression):
