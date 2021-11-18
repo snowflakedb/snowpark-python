@@ -223,8 +223,7 @@ class DataFrame:
 
     @staticmethod
     def __generate_prefix(prefix: str) -> str:
-        alphanumeric = string.ascii_lowercase + string.digits
-        return f"{prefix}_{''.join(choice(alphanumeric) for _ in range(DataFrame.__NUM_PREFIX_DIGITS))}_"
+        return f"{prefix}_{Utils.generate_random_alphanumeric(DataFrame.__NUM_PREFIX_DIGITS)}_"
 
     @property
     def stat(self) -> DataFrameStatFunctions:
