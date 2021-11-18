@@ -430,8 +430,8 @@ class AnalyzerPackage:
     def left_semi_or_anti_join_statement(
         self, left: str, right: str, join_type: type, condition: str
     ) -> str:
-        left_alias = self.random_name_for_temp_object(TempObjectType.TABLE)
-        right_alias = self.random_name_for_temp_object(TempObjectType.TABLE)
+        left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
         if join_type == SPLeftSemi:
             where_condition = self._Where + self._Exists
@@ -467,8 +467,8 @@ class AnalyzerPackage:
     def snowflake_supported_join_statement(
         self, left: str, right: str, join_type: SPJoinType, condition: str
     ) -> str:
-        left_alias = self.random_name_for_temp_object(TempObjectType.TABLE)
-        right_alias = self.random_name_for_temp_object(TempObjectType.TABLE)
+        left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
         if type(join_type) == SPUsingJoin:
             join_sql = join_type.tpe.sql
