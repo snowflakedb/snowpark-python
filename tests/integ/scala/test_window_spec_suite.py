@@ -12,7 +12,10 @@ from snowflake.snowpark import Row, Window
 from snowflake.snowpark.functions import (
     avg,
     col,
+    corr,
     count,
+    covar_pop,
+    covar_samp,
     cume_dist,
     dense_rank,
     kurtosis,
@@ -26,7 +29,13 @@ from snowflake.snowpark.functions import (
     rank,
     row_number,
     skew,
+    stddev,
+    stddev_pop,
+    stddev_samp,
     sum as sum_,
+    var_pop,
+    var_samp,
+    variance,
 )
 from tests.utils import TestData, Utils
 
@@ -231,13 +240,132 @@ def test_null_inputs(session):
 
 
 def test_window_function_should_fail_if_order_by_clause_is_not_specified(session):
-    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).toDF(
+    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).toDF(
         "key", "value"
     )
     # Here we missed .orderBy("key")!
     with pytest.raises(ProgrammingError) as ex_info:
         df.select(row_number().over(Window.partitionBy("value"))).collect()
     assert "requires ORDER BY in window specification" in str(ex_info)
+
+
+def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
+    df = session.createDataFrame(
+        [
+            ("a", "p1", 10.0, 20.0),
+            ("b", "p1", 20.0, 10.0),
+            ("c", "p2", 20.0, 20.0),
+            ("d", "p2", 20.0, 20.0),
+            ("e", "p3", 0.0, 0.0),
+            ("f", "p3", 6.0, 12.0),
+            ("g", "p3", 6.0, 12.0),
+            ("h", "p3", 8.0, 16.0),
+            ("i", "p4", 5.0, 5.0),
+        ]
+    ).toDF("key", "partitionId", "value1", "value2")
+    Utils.check_answer(
+        df.select(
+            "key",
+            corr("value1", "value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            covar_pop("value1", "value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            var_pop("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            stddev_pop("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            var_pop("value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            stddev_pop("value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+        ),
+        [
+            Row("a", -1.0, -25.0, 25.0, 5.0, 25.0, 5.0),
+            Row("b", -1.0, -25.0, 25.0, 5.0, 25.0, 5.0),
+            Row("c", None, 0.0, 0.0, 0.0, 0.0, 0.0),
+            Row("d", None, 0.0, 0.0, 0.0, 0.0, 0.0),
+            Row("e", 1.0, 18.0, 9.0, 3.0, 36.0, 6.0),
+            Row("f", 1.0, 18.0, 9.0, 3.0, 36.0, 6.0),
+            Row("g", 1.0, 18.0, 9.0, 3.0, 36.0, 6.0),
+            Row("h", 1.0, 18.0, 9.0, 3.0, 36.0, 6.0),
+            Row("i", None, 0.0, 0.0, 0.0, 0.0, 0.0),
+        ],
+    )
+
+
+def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
+    df = session.createDataFrame(
+        [
+            ("a", "p1", 10.0, 20.0),
+            ("b", "p1", 20.0, 10.0),
+            ("c", "p2", 20.0, 20.0),
+            ("d", "p2", 20.0, 20.0),
+            ("e", "p3", 0.0, 0.0),
+            ("f", "p3", 6.0, 12.0),
+            ("g", "p3", 6.0, 12.0),
+            ("h", "p3", 8.0, 16.0),
+            ("i", "p4", 5.0, 5.0),
+        ]
+    ).toDF("key", "partitionId", "value1", "value2")
+    Utils.check_answer(
+        df.select(
+            "key",
+            covar_samp("value1", "value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            var_samp("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            variance("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            stddev_samp("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            stddev("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+        ),
+        [
+            Row("a", -50.0, 50.0, 50.0, 7.0710678118654755, 7.0710678118654755),
+            Row("b", -50.0, 50.0, 50.0, 7.0710678118654755, 7.0710678118654755),
+            Row("c", 0.0, 0.0, 0.0, 0.0, 0.0),
+            Row("d", 0.0, 0.0, 0.0, 0.0, 0.0),
+            Row("e", 24.0, 12.0, 12.0, 3.4641016151377544, 3.4641016151377544),
+            Row("f", 24.0, 12.0, 12.0, 3.4641016151377544, 3.4641016151377544),
+            Row("g", 24.0, 12.0, 12.0, 3.4641016151377544, 3.4641016151377544),
+            Row("h", 24.0, 12.0, 12.0, 3.4641016151377544, 3.4641016151377544),
+            Row("i", None, None, None, None, None),
+        ],
+    )
 
 
 def test_aggregation_function_on_invalid_column(session):
