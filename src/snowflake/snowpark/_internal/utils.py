@@ -12,10 +12,12 @@ import os
 import platform
 import random
 import re
+import string
 import traceback
 import zipfile
 from enum import Enum
 from json import JSONEncoder
+from random import choice
 from typing import IO, List, Optional, Tuple, Type
 
 from snowflake.connector.version import VERSION as connector_version
@@ -43,6 +45,18 @@ SNOWFLAKE_OBJECT_RE_PATTERN = re.compile(
 
 # "%?" is for table stage
 SNOWFLAKE_STAGE_NAME_PATTERN = f"(%?{SNOWFLAKE_ID_PATTERN})"
+
+# Prefix for allowed temp object names in stored proc
+TEMP_OBJECT_NAME_PREFIX = "SNOWPARK_TEMP_"
+ALPHANUMERIC = string.digits + string.ascii_lowercase
+
+
+class TempObjectType(Enum):
+    TABLE = "TABLE"
+    VIEW = "VIEW"
+    STAGE = "STAGE"
+    FUNCTION = "FUNCTION"
+    FILE_FORMAT = "FILE_FORMAT"
 
 
 class Utils:
@@ -281,6 +295,14 @@ class Utils:
                 )
 
         raise ValueError(f"Invalid stage {stage_location}")
+
+    @staticmethod
+    def random_name_for_temp_object(object_type: TempObjectType) -> str:
+        return f"{TEMP_OBJECT_NAME_PREFIX}{object_type.value}_{Utils.generate_random_alphanumeric(10).upper()}"
+
+    @staticmethod
+    def generate_random_alphanumeric(length: int) -> str:
+        return "".join(choice(ALPHANUMERIC) for _ in range(length))
 
 
 class PythonObjJSONEncoder(JSONEncoder):

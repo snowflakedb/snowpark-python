@@ -43,7 +43,11 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     _merge_type,
     snow_type_to_sp_type,
 )
-from snowflake.snowpark._internal.utils import PythonObjJSONEncoder, Utils
+from snowflake.snowpark._internal.utils import (
+    PythonObjJSONEncoder,
+    TempObjectType,
+    Utils,
+)
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
@@ -181,7 +185,7 @@ class Session:
 "python.connector.session.id" : {self.__session_id},
 "os.name" : {Utils.get_os_name()}
 """
-        self.__session_stage = f"snowSession_{self.__session_id}"
+        self.__session_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
         self.__stage_created = False
         self.__udf_registration = None
         self.__plan_builder = SnowflakePlanBuilder(self)
