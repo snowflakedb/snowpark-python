@@ -181,7 +181,7 @@ class Session:
 "python.connector.session.id" : {self.__session_id},
 "os.name" : {Utils.get_os_name()}
 """
-        self.__session_stage = f"snowSession_{self.__session_id}"
+        self.__session_stage = f"SNOWPARK_TEMP_STAGE_{self.__session_id}"
         self.__stage_created = False
         self.__udf_registration = None
         self.__plan_builder = SnowflakePlanBuilder(self)

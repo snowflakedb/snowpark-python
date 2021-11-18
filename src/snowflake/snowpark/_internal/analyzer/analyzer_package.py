@@ -387,7 +387,7 @@ class AnalyzerPackage:
         )
 
     def values_statement(self, output: List["SPAttribute"], data: List["Row"]) -> str:
-        table_name = AnalyzerPackage.random_name_for_temp_object()
+        table_name = AnalyzerPackage.random_name_for_temp_object("TABLE")
         data_types = [attr.datatype for attr in output]
         names = [AnalyzerPackage.quote_name(attr.name) for attr in output]
         rows = []
@@ -430,8 +430,8 @@ class AnalyzerPackage:
     def left_semi_or_anti_join_statement(
         self, left: str, right: str, join_type: type, condition: str
     ) -> str:
-        left_alias = self.random_name_for_temp_object()
-        right_alias = self.random_name_for_temp_object()
+        left_alias = self.random_name_for_temp_object("TABLE")
+        right_alias = self.random_name_for_temp_object("TABLE")
 
         if join_type == SPLeftSemi:
             where_condition = self._Where + self._Exists
@@ -467,8 +467,8 @@ class AnalyzerPackage:
     def snowflake_supported_join_statement(
         self, left: str, right: str, join_type: SPJoinType, condition: str
     ) -> str:
-        left_alias = self.random_name_for_temp_object()
-        right_alias = self.random_name_for_temp_object()
+        left_alias = self.random_name_for_temp_object("TABLE")
+        right_alias = self.random_name_for_temp_object("TABLE")
 
         if type(join_type) == SPUsingJoin:
             join_sql = join_type.tpe.sql
@@ -913,5 +913,10 @@ class AnalyzerPackage:
         )
 
     @staticmethod
-    def random_name_for_temp_object() -> str:
-        return f"SN_TEMP_OBJECT_{Utils.random_number()}"
+    def random_name_for_temp_object(object_type: str = None) -> str:
+        if object_type not in ["TABLE", "VIEW", "STAGE", "FUNCTION", "FILE_FORMAT"]:
+            raise Exception(
+                "Only TABLE, VIEW, STAGE, FUNCTION and FILE_FORMAT are allowed for temp object"
+            )
+
+        return f"SNOWPARK_TEMP_{object_type}_{Utils.random_number()}"
