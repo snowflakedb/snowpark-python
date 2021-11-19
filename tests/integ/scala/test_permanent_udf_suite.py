@@ -134,7 +134,6 @@ def test_negative_invalid_permanent_function_name(session):
 
 
 def test_clean_up_files_if_udf_registration_fails(session):
-    session.sql("alter session set enable_python_udf = true").collect()
     long_string = "".join(random.choices(string.ascii_letters, k=64 * 1024))
 
     def large_udf() -> str:
