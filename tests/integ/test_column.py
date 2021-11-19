@@ -8,8 +8,8 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException
-from snowflake.snowpark.functions import col, lit
-from tests.utils import Utils
+from snowflake.snowpark.functions import col, lit, when
+from tests.utils import TestData, Utils
 
 
 def test_column_constructors_subscriptable(session):
@@ -35,12 +35,24 @@ def test_between(session):
     )
 
     # between in where
-    Utils.check_answer(
-        df.where(col("a").between(lit(2), lit(6))), [Row(3, 4), Row(5, 6)]
-    )
+    Utils.check_answer(df.where(col("a").between(lit(2), 6)), [Row(3, 4), Row(5, 6)])
 
     # between in select
     Utils.check_answer(
-        df.select(col("a").between(lit(2), lit(6))),
+        df.select(col("a").between(lit(2), 6)),
         [Row(False), Row(True), Row(True), Row(False), Row(False)],
     )
+
+
+def test_when_accept_literal_value(session):
+    assert TestData.null_data1(session).select(
+        when(col("a").is_null(), 5).when(col("a") == 1, 6).otherwise(7).as_("a")
+    ).collect() == [Row(5), Row(7), Row(6), Row(7), Row(5)]
+    assert TestData.null_data1(session).select(
+        when(col("a").is_null(), 5).when(col("a") == 1, 6).else_(7).as_("a")
+    ).collect() == [Row(5), Row(7), Row(6), Row(7), Row(5)]
+
+    # empty otherwise
+    assert TestData.null_data1(session).select(
+        when(col("a").is_null(), 5).when(col("a") == 1, 6).as_("a")
+    ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
