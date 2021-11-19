@@ -276,7 +276,7 @@ class DataFrame:
 
         return result
 
-    def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
+    def toDF(self, *names: Union[str, List[str], Tuple[str, ...]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -292,8 +292,10 @@ class DataFrame:
             names: list of new column names
         """
         col_names = Utils.parse_positional_args_to_list(*names)
-        if not all(type(n) == str for n in col_names):
-            raise TypeError(f"Invalid input type in toDF(), expected str or list[str].")
+        if not all(isinstance(n, str) for n in col_names):
+            raise TypeError(
+                f"Invalid input type in toDF(), expected str or a list of strs."
+            )
 
         if len(self.__output()) != len(col_names):
             raise ValueError(
@@ -309,13 +311,13 @@ class DataFrame:
         return self.select(new_cols)
 
     def __getitem__(self, item):
-        if type(item) == str:
+        if isinstance(item, str):
             return self.col(item)
         elif isinstance(item, Column):
             return self.filter(item)
-        elif type(item) in [list, tuple]:
+        elif isinstance(item, (list, tuple)):
             return self.select(item)
-        elif type(item) == int:
+        elif isinstance(item, int):
             return self.__getitem__(self.columns[item])
         else:
             raise TypeError(f"Unexpected item type: {type(item)}")
@@ -370,12 +372,19 @@ class DataFrame:
         """
         exprs = Utils.parse_positional_args_to_list(*cols)
         if not exprs:
-            raise TypeError("The select() input cannot be empty")
+            raise ValueError("The input of select() cannot be empty")
 
-        if not all(type(e) in [Column, str] for e in exprs):
-            raise TypeError("The select() input must be Column, str, or list")
+        names = []
+        for e in exprs:
+            if isinstance(e, Column):
+                names.append(e._named())
+            elif isinstance(e, str):
+                names.append(Column(e)._named())
+            else:
+                raise TypeError(
+                    "The input of select() must be Column, column name, or a list of them"
+                )
 
-        names = [e._named() if type(e) == Column else Column(e)._named() for e in exprs]
         return self.__with_plan(SPProject(names, self.__plan))
 
     def drop(
@@ -399,28 +408,29 @@ class DataFrame:
             :class:`SnowparkClientException`: if the resulting :class:`DataFrame`
                 contains no output columns.
         """
+        # an empty list should be accept, as dropping nothing
         if not cols:
-            raise TypeError("drop() input cannot be empty")
+            raise ValueError("The input of drop() cannot be empty")
         exprs = Utils.parse_positional_args_to_list(*cols)
 
         names = []
         for c in exprs:
-            if type(c) is str:
+            if isinstance(c, str):
                 names.append(c)
-            elif type(c) is Column and isinstance(c.expression, SPAttribute):
+            elif isinstance(c, Column) and isinstance(c.expression, SPAttribute):
                 names.append(
                     self.__plan.expr_to_alias.get(
                         c.expression.expr_id, c.expression.name
                     )
                 )
-            elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
+            elif isinstance(c, Column) and isinstance(c.expression, SPNamedExpression):
                 names.append(c.expression.name)
             else:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
 
-        normalized = {AnalyzerPackage.quote_name(n) for n in names}
-        existing = [attr.name for attr in self.__output()]
-        keep_col_names = [c for c in existing if c not in normalized]
+        normalized_names = {AnalyzerPackage.quote_name(n) for n in names}
+        existing_names = [attr.name for attr in self.__output()]
+        keep_col_names = [c for c in existing_names if c not in normalized_names]
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
         else:
@@ -430,25 +440,9 @@ class DataFrame:
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
-        Example::
+        Examples::
 
             df_filtered = df.filter(col("A") > 1 && col("B") < 100)
-
-        Args:
-            expr: a :class:`Column` expression.
-        """
-        if type(expr) != Column:
-            raise TypeError(
-                f"DataFrame.filter() input type must be Column. Got: {type(expr)}"
-            )
-
-        return self.__with_plan(SPFilter(expr.expression, self.__plan))
-
-    def where(self, expr: Column) -> "DataFrame":
-        """Filters rows based on the specified conditional expression (similar to WHERE
-        in SQL). This is equivalent to calling :func:`filter()`.
-
-        Examples::
 
             # The following two result in the same SQL query:
             prices_df.filter(col("price") > 100)
@@ -457,7 +451,14 @@ class DataFrame:
         Args:
             expr: a :class:`Column` expression.
         """
-        return self.filter(expr)
+        if not isinstance(expr, Column):
+            raise TypeError(
+                f"The input type of filter() must be Column. Got: {type(expr)}"
+            )
+
+        return self.__with_plan(SPFilter(expr.expression, self.__plan))
+
+    where = filter
 
     def sort(
         self,
@@ -491,9 +492,9 @@ class DataFrame:
             raise ValueError("sort() needs at least one sort expression.")
         orders = []
         if ascending is not None:
-            if type(ascending) in [list, tuple]:
+            if isinstance(ascending, (list, tuple)):
                 orders = [SPAscending() if asc else SPDescending() for asc in ascending]
-            elif type(ascending) in [bool, int]:
+            elif isinstance(ascending, (bool, int)):
                 orders = [SPAscending() if ascending else SPDescending()]
             else:
                 raise TypeError(
@@ -511,7 +512,7 @@ class DataFrame:
             expr = exprs[idx]
             # orders will overwrite current orders in expression (but will not overwrite null ordering)
             # if no order is provided, use ascending order
-            if type(exprs[idx]) == SPSortOrder:
+            if isinstance(exprs[idx], SPSortOrder):
                 sort_exprs.append(
                     SPSortOrder(expr.child, orders[idx], expr.null_ordering)
                     if orders
@@ -553,31 +554,32 @@ class DataFrame:
             df.agg({"customers": "count", "amount": "sum"})
         """
         grouping_exprs = None
-        if type(exprs) == Column:
+        if isinstance(exprs, Column):
             grouping_exprs = [exprs]
-        elif type(exprs) in [list, tuple]:
+        elif isinstance(exprs, (list, tuple)):
             # the first if-statement also handles the case of empty list
-            if all(type(e) == Column for e in exprs):
+            if all(isinstance(e, Column) for e in exprs):
                 grouping_exprs = [e for e in exprs]
             elif all(
-                type(e) in [list, tuple]
+                isinstance(e, (list, tuple))
                 and len(e) == 2
-                and type(e[0]) == type(e[1]) == str
+                and isinstance(e[0], str)
+                and isinstance(e[1], str)
                 for e in exprs
             ):
                 grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
             # case for just a single pair passed as input
             elif len(exprs) == 2:
-                if type(exprs[0]) == type(exprs[1]) == str:
+                if isinstance(exprs[0], str) and isinstance(exprs[1], str):
                     grouping_exprs = [(self.col(exprs[0]), exprs[1])]
             else:
                 raise TypeError(
                     "Lists passed to DataFrame.agg() should only contain Column-objects, or pairs of strings."
                 )
-        elif type(exprs) == dict:
+        elif isinstance(exprs, dict):
             grouping_exprs = []
             for k, v in exprs.items():
-                if not type(k) == type(v) == str:
+                if not (isinstance(k, str) and isinstance(v, str)):
                     raise TypeError(
                         f"Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types {type(k), type(v)}"
                     )
@@ -889,8 +891,8 @@ class DataFrame:
             if self is right or self.__plan is right._DataFrame__plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
 
-            if type(join_type) == SPCrossJoin or (
-                type(join_type) == str
+            if isinstance(join_type, SPCrossJoin) or (
+                isinstance(join_type, str)
                 and join_type.strip().lower().replace("_", "").startswith("cross")
             ):
                 if using_columns:
@@ -977,12 +979,12 @@ class DataFrame:
         using_columns: Union[Column, List[str]],
         join_type: SPJoinType,
     ) -> "DataFrame":
-        if type(using_columns) == Column:
+        if isinstance(using_columns, Column):
             return self.__join_dataframes_internal(
                 right, join_type, join_exprs=using_columns
             )
 
-        if type(join_type) in [SPLeftSemi, SPLeftAnti]:
+        if isinstance(join_type, (SPLeftSemi, SPLeftAnti)):
             # Create a Column with expression 'true AND <expr> AND <expr> .."
             join_cond = Column(SPLiteral(True))
             for c in using_columns:
@@ -1273,7 +1275,9 @@ class DataFrame:
             + line
         )
 
-    def createOrReplaceView(self, name: Union[str, List[str]]) -> List[Row]:
+    def createOrReplaceView(
+        self, name: Union[str, List[str], Tuple[str, ...]]
+    ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
 
         For ``name``, you can include the database and schema name (i.e. specify a
@@ -1286,17 +1290,13 @@ class DataFrame:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
         """
-        if type(name) == str:
+        if isinstance(name, str):
             formatted_name = name
-        elif isinstance(name, (list, tuple)):
-            if not all(type(i) == str for i in name):
-                raise ValueError(
-                    f"createOrReplaceView takes as input a string or list of strings."
-                )
+        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
             formatted_name = ".".join(name)
         else:
-            raise ValueError(
-                f"createOrReplaceView takes as input a string or list of strings."
+            raise TypeError(
+                f"The input of createOrReplaceView() can only a str or list of strs."
             )
 
         return self.__do_create_or_replace_view(
@@ -1307,7 +1307,9 @@ class DataFrame:
             else None,
         )
 
-    def createOrReplaceTempView(self, name: Union[str, List[str]]) -> List[Row]:
+    def createOrReplaceTempView(
+        self, name: Union[str, List[str], Tuple[str, ...]]
+    ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
 
         You can use the view in subsequent SQL queries and statements during the
@@ -1324,17 +1326,13 @@ class DataFrame:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
         """
-        if type(name) == str:
+        if isinstance(name, str):
             formatted_name = name
-        elif isinstance(name, (list, tuple)):
-            if not all(type(i) == str for i in name):
-                raise ValueError(
-                    f"createOrReplaceTempView() takes as input a string or list of strings."
-                )
+        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
             formatted_name = ".".join(name)
         else:
-            raise ValueError(
-                f"createOrReplaceTempView() takes as input a string or list of strings."
+            raise TypeError(
+                f"The input of createOrReplaceTempView() can only a str or list of strs."
             )
 
         return self.__do_create_or_replace_view(
@@ -1377,7 +1375,7 @@ class DataFrame:
         if n is None:
             result = self.limit(1)._collect_with_tag()
             return result[0] if result else None
-        elif not type(n) == int:
+        elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
             return self._collect_with_tag()
@@ -1480,7 +1478,7 @@ class DataFrame:
                     name,
                     lhs_prefix,
                     []
-                    if type(join_type) in [SPLeftSemi, SPLeftAnti]
+                    if isinstance(join_type, (SPLeftSemi, SPLeftAnti))
                     else common_col_names,
                 )
                 for name in lhs_names
@@ -1522,9 +1520,9 @@ class DataFrame:
         """Convert a string or a Column, or a list of string and Column objects to expression(s)."""
 
         def convert(col: Union[str, Column]):
-            if type(col) == str:
+            if isinstance(col, str):
                 return self.__resolve(col)
-            elif type(col) == Column:
+            elif isinstance(col, Column):
                 return col.expression
             else:
                 raise TypeError(

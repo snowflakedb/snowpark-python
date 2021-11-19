@@ -92,12 +92,12 @@ class RelationalGroupedDataFrame:
         unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
         aliased_agg = [self.__alias(a) for a in unique]
 
-        if type(self.group_type) == _GroupByType:
+        if isinstance(self.group_type, _GroupByType):
             return DataFrame(
                 self.df.session,
                 SPAggregate(self.grouping_exprs, aliased_agg, self.df._DataFrame__plan),
             )
-        if type(self.group_type) == _RollupType:
+        if isinstance(self.group_type, _RollupType):
             return DataFrame(
                 self.df.session,
                 SPAggregate(
@@ -106,14 +106,14 @@ class RelationalGroupedDataFrame:
                     self.df._DataFrame__plan,
                 ),
             )
-        if type(self.group_type) == _CubeType:
+        if isinstance(self.group_type, _CubeType):
             return DataFrame(
                 self.df.session,
                 SPAggregate(
                     [SPCube(self.grouping_exprs)], aliased_agg, self.df._DataFrame__plan
                 ),
             )
-        if type(self.group_type) == _PivotType:
+        if isinstance(self.group_type, _PivotType):
             if len(agg_exprs) != 1:
                 raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             return DataFrame(
@@ -177,20 +177,23 @@ class RelationalGroupedDataFrame:
             from snowflake.snowpark.functions import col
             df.groupBy("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
         """
-        if not type(exprs) in (list, tuple):
+        if not isinstance(exprs, (list, tuple)):
             exprs = [exprs]
 
-        if all(type(e) == Column for e in exprs):
-            return self.__toDF([e.expression for e in exprs])
-        elif all(
-            type(e) == tuple and type(e[0]) == Column and type(e[1]) == str
-            for e in exprs
-        ):
-            return self.__toDF(
-                [self.__str_to_expr(expr)(col.expression) for col, expr in exprs]
-            )
-        else:
-            raise TypeError("Invalid input types for agg()")
+        agg_exprs = []
+        for e in exprs:
+            if isinstance(e, Column):
+                agg_exprs.append(e.expression)
+            elif (
+                isinstance(e, tuple)
+                and isinstance(e[0], Column)
+                and isinstance(e[1], str)
+            ):
+                agg_exprs.append(self.__str_to_expr(e[1])(e[0].expression))
+            else:
+                raise TypeError("Invalid input types for agg()")
+
+        return self.__toDF(agg_exprs)
 
     def avg(self, *cols: Union[Column, str]) -> "DataFrame":
         """Return the average for the specified numeric columns."""

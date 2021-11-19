@@ -212,7 +212,7 @@ class AnalyzerPackage:
             + self._LeftBracket
             + (
                 self._SingleQuote + field + self._SingleQuote
-                if type(field) == str
+                if isinstance(field, str)
                 else str(field)
             )
             + self._RightBracket
@@ -470,16 +470,16 @@ class AnalyzerPackage:
         left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
-        if type(join_type) == SPUsingJoin:
+        if isinstance(join_type, SPUsingJoin):
             join_sql = join_type.tpe.sql
-        elif type(join_type) == SPNaturalJoin:
+        elif isinstance(join_type, SPNaturalJoin):
             join_sql = self._Natural + join_type.tpe.sql
         else:
             join_sql = join_type.sql
 
         # This generates sql like "USING(a, b)"
         using_condition = None
-        if type(join_type) == SPUsingJoin:
+        if isinstance(join_type, SPUsingJoin):
             if len(join_type.using_columns) != 0:
                 using_condition = (
                     self._Using
@@ -521,20 +521,20 @@ class AnalyzerPackage:
     def join_statement(
         self, left: str, right: str, join_type: SPJoinType, condition: str
     ) -> str:
-        if type(join_type) == SPLeftSemi:
+        if isinstance(join_type, SPLeftSemi):
             return self.left_semi_or_anti_join_statement(
                 left, right, SPLeftSemi, condition
             )
-        if type(join_type) == SPLeftAnti:
+        if isinstance(join_type, SPLeftAnti):
             return self.left_semi_or_anti_join_statement(
                 left, right, SPLeftAnti, condition
             )
-        if type(join_type) == SPUsingJoin:
-            if type(join_type.tpe) == SPLeftSemi:
+        if isinstance(join_type, SPUsingJoin):
+            if isinstance(join_type.tpe, SPLeftSemi):
                 raise Exception(
                     "Internal error: Unexpected Using clause in left semi join"
                 )
-            if type(join_type.tpe) == SPLeftAnti:
+            if isinstance(join_type.tpe, SPLeftAnti):
                 raise Exception(
                     "Internal error: Unexpected Using clause in left anti join"
                 )
@@ -901,13 +901,13 @@ class AnalyzerPackage:
     # Most integer types map to number(38,0)
     # https://docs.snowflake.com/en/sql-reference/
     # data-types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
-    # TODO static
-    def number(self, precision: int = 38, scale: int = 0) -> str:
+    @classmethod
+    def number(cls, precision: int = 38, scale: int = 0) -> str:
         return (
-            self._Number
-            + self._LeftParenthesis
+            cls._Number
+            + cls._LeftParenthesis
             + str(precision)
-            + self._Comma
+            + cls._Comma
             + str(scale)
-            + self._RightParenthesis
+            + cls._RightParenthesis
         )

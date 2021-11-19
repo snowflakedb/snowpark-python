@@ -521,9 +521,9 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, SPCreateViewCommand):
-            if type(logical_plan.view_type) == SPPersistedView:
+            if isinstance(logical_plan.view_type, SPPersistedView):
                 is_temp = False
-            elif type(logical_plan.view_type) == SPLocalTempView:
+            elif isinstance(logical_plan.view_type, SPLocalTempView):
                 is_temp = True
             else:
                 raise SnowparkClientExceptionMessages.PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
