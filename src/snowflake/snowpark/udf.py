@@ -7,6 +7,7 @@
 import io
 import os
 import pickle
+import zipfile
 from logging import getLogger
 from typing import Callable, List, NamedTuple, Optional, Tuple, Union, get_type_hints
 
@@ -188,16 +189,16 @@ class UDFRegistration:
         is_permanent: bool = False,
         stage_location: Optional[str] = None,
         replace: bool = False,
+        parallel: int = 4,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF and returns the UDF.
         The usage, input arguments, and return value of this method are the same as
-        they are for :func:`~snowflake.snowpark.functions.udf` (but it cannot be used
-        as a decorator).
+        they are for :func:`~snowflake.snowpark.functions.udf`, but :meth:`register`
+        cannot be used as a decorator.
 
-        By default UDF registration fails if a function with the same name is already
-        registered. Invoking `register` with replace set to `True` will overwrite the
-        previously registered function.
+        See Also:
+            :func:`~snowflake.snowpark.functions.udf`
         """
         if not callable(func):
             raise TypeError(
@@ -210,6 +211,11 @@ class UDFRegistration:
                 raise ValueError("name must be specified for permanent udf")
             if not stage_location:
                 raise ValueError("stage_location must be specified for permanent udf")
+
+        if parallel < 1 or parallel > 99:
+            raise ValueError(
+                "Supported values of parallel are from 1 to 99, " f"but got {parallel}"
+            )
 
         # get the udf name
         udf_name = (
@@ -231,7 +237,8 @@ class UDFRegistration:
             ) = self.__get_types_from_type_hints(func)
 
         # generate a random name for udf py file
-        udf_file_name = f"udf_py_{Utils.random_number()}.py"
+        # and we compress it first then upload it
+        udf_file_name = f"udf_py_{Utils.random_number()}.zip"
 
         # register udf
         try:
@@ -243,6 +250,7 @@ class UDFRegistration:
                 udf_file_name,
                 stage_location,
                 replace,
+                parallel,
             )
         # an exception might happen during registering a UDF
         # (e.g., a dependency might not be found on the stage),
@@ -301,6 +309,7 @@ class UDFRegistration:
         udf_file_name: str,
         stage_location: Optional[str] = None,
         replace: bool = False,
+        parallel: int = 4,
     ) -> None:
         arg_names = [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
@@ -315,12 +324,19 @@ class UDFRegistration:
         )
         dest_prefix = Utils.get_udf_upload_prefix(udf_name)
         upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{udf_file_name}"
-        with io.BytesIO(bytes(code, "utf8")) as input_stream:
+        udf_file_name_base = os.path.splitext(udf_file_name)[0]
+        with io.BytesIO() as input_stream:
+            with zipfile.ZipFile(
+                input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
+            ) as zf:
+                zf.writestr(f"{udf_file_name_base}.py", code)
             self.session._conn.upload_stream(
                 input_stream=input_stream,
                 stage_location=upload_stage,
                 dest_filename=udf_file_name,
                 dest_prefix=dest_prefix,
+                parallel=parallel,
+                source_compression="DEFLATE",
                 compress_data=False,
                 overwrite=True,
             )
@@ -334,7 +350,7 @@ class UDFRegistration:
         self.__create_python_udf(
             return_type=return_type,
             input_args=input_args,
-            handler=f"{os.path.splitext(udf_file_name)[0]}.{_DEFAULT_HANDLER_NAME}",
+            handler=f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}",
             udf_name=udf_name,
             all_imports=all_imports,
             is_temporary=stage_location is None,
