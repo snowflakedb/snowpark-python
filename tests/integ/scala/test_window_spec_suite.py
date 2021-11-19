@@ -12,14 +12,32 @@ from snowflake.snowpark import Row, Window
 from snowflake.snowpark.functions import (
     avg,
     col,
+    corr,
     count,
+    covar_pop,
+    covar_samp,
+    cume_dist,
+    dense_rank,
     kurtosis,
+    lead,
     lit,
+    max as max_,
+    mean,
     min as min_,
+    ntile,
+    percent_rank,
+    rank,
+    row_number,
     skew,
+    stddev,
+    stddev_pop,
+    stddev_samp,
     sum as sum_,
+    var_pop,
+    var_samp,
+    variance,
 )
-from tests.utils import Utils
+from tests.utils import TestData, Utils
 
 
 def test_partition_by_order_by_rows_between(session):
@@ -88,6 +106,90 @@ def test_window_function_with_aggregates(session):
     )
 
 
+def test_window_function_inside_where_and_having_clauses(session):
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).select("a").where(
+            rank().over(Window.orderBy("b")) == 1
+        ).collect()
+    assert "invalid identifier" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).where(
+            (col("b") == 2) & rank().over(Window.orderBy("b")) == 1
+        ).collect()
+    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).groupBy("a").agg(avg("b").as_("avgb")).where(
+            (col("a") > col("avgb")) & rank().over(Window.orderBy("a")) == 1
+        ).collect()
+    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).groupBy("a").agg(
+            [max_("b").as_("avgb"), sum_("b").as_("sumb")]
+        ).where(rank().over(Window.orderBy("a")) == 1).collect()
+    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
+
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data2(session).groupBy("a").agg(
+            [max_("b").as_("avgb"), sum_("b").as_("sumb")]
+        ).where((col("sumb") == 5) & rank().over(Window.orderBy("a")) == 1).collect()
+    assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
+
+
+def test_reuse_window_partition_by(session):
+    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).toDF(
+        "key", "value"
+    )
+    w = Window.partitionBy("key").orderBy("value")
+
+    Utils.check_answer(
+        df.select(lead("key", 1).over(w), lead("value", 1).over(w)),
+        [Row(1, "1"), Row(2, "2"), Row(None, None), Row(None, None)],
+    )
+
+
+def test_reuse_window_order_by(session):
+    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).toDF(
+        "key", "value"
+    )
+    w = Window.orderBy("value").partitionBy("key")
+
+    Utils.check_answer(
+        df.select(lead("key", 1).over(w), lead("value", 1).over(w)),
+        [Row(1, "1"), Row(2, "2"), Row(None, None), Row(None, None)],
+    )
+
+
+def test_rank_functions_in_unspecific_window(session):
+    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).toDF(
+        "key", "value"
+    )
+    Utils.check_answer(
+        df.select(
+            "key",
+            max_("key").over(Window.partitionBy("value").orderBy("key")),
+            min_("key").over(Window.partitionBy("value").orderBy("key")),
+            mean("key").over(Window.partitionBy("value").orderBy("key")),
+            count("key").over(Window.partitionBy("value").orderBy("key")),
+            sum_("key").over(Window.partitionBy("value").orderBy("key")),
+            ntile(lit(2)).over(Window.partitionBy("value").orderBy("key")),
+            row_number().over(Window.partitionBy("value").orderBy("key")),
+            dense_rank().over(Window.partitionBy("value").orderBy("key")),
+            rank().over(Window.partitionBy("value").orderBy("key")),
+            cume_dist().over(Window.partitionBy("value").orderBy("key")),
+            percent_rank().over(Window.partitionBy("value").orderBy("key")),
+        ).collect(),
+        [
+            Row(1, 1, 1, 1.0, 1, 1, 1, 1, 1, 1, 0.3333333333333333, 0.0),
+            Row(1, 1, 1, 1.0, 1, 1, 1, 1, 1, 1, 1.0, 0.0),
+            Row(2, 2, 1, Decimal("1.666667"), 3, 5, 1, 2, 2, 2, 1.0, 0.5),
+            Row(2, 2, 1, Decimal("1.666667"), 3, 5, 2, 3, 2, 2, 1.0, 0.5),
+        ],
+    )
+
+
 def test_empty_over_spec(session):
     df = session.createDataFrame([("a", 1), ("a", 1), ("a", 2), ("b", 2)]).toDF(
         "key", "value"
@@ -134,6 +236,135 @@ def test_null_inputs(session):
             Row("b", 2, None, None),
         ],
         sort=False,
+    )
+
+
+def test_window_function_should_fail_if_order_by_clause_is_not_specified(session):
+    df = session.createDataFrame([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).toDF(
+        "key", "value"
+    )
+    # Here we missed .orderBy("key")!
+    with pytest.raises(ProgrammingError) as ex_info:
+        df.select(row_number().over(Window.partitionBy("value"))).collect()
+    assert "requires ORDER BY in window specification" in str(ex_info)
+
+
+def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
+    df = session.createDataFrame(
+        [
+            ("a", "p1", 10.0, 20.0),
+            ("b", "p1", 20.0, 10.0),
+            ("c", "p2", 20.0, 20.0),
+            ("d", "p2", 20.0, 20.0),
+            ("e", "p3", 0.0, 0.0),
+            ("f", "p3", 6.0, 12.0),
+            ("g", "p3", 6.0, 12.0),
+            ("h", "p3", 8.0, 16.0),
+            ("i", "p4", 5.0, 5.0),
+        ]
+    ).toDF("key", "partitionId", "value1", "value2")
+    Utils.check_answer(
+        df.select(
+            "key",
+            corr("value1", "value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            covar_pop("value1", "value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            var_pop("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            stddev_pop("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            var_pop("value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            stddev_pop("value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+        ),
+        [
+            Row("a", -1.0, -25.0, 25.0, 5.0, 25.0, 5.0),
+            Row("b", -1.0, -25.0, 25.0, 5.0, 25.0, 5.0),
+            Row("c", None, 0.0, 0.0, 0.0, 0.0, 0.0),
+            Row("d", None, 0.0, 0.0, 0.0, 0.0, 0.0),
+            Row("e", 1.0, 18.0, 9.0, 3.0, 36.0, 6.0),
+            Row("f", 1.0, 18.0, 9.0, 3.0, 36.0, 6.0),
+            Row("g", 1.0, 18.0, 9.0, 3.0, 36.0, 6.0),
+            Row("h", 1.0, 18.0, 9.0, 3.0, 36.0, 6.0),
+            Row("i", None, 0.0, 0.0, 0.0, 0.0, 0.0),
+        ],
+    )
+
+
+def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
+    df = session.createDataFrame(
+        [
+            ("a", "p1", 10.0, 20.0),
+            ("b", "p1", 20.0, 10.0),
+            ("c", "p2", 20.0, 20.0),
+            ("d", "p2", 20.0, 20.0),
+            ("e", "p3", 0.0, 0.0),
+            ("f", "p3", 6.0, 12.0),
+            ("g", "p3", 6.0, 12.0),
+            ("h", "p3", 8.0, 16.0),
+            ("i", "p4", 5.0, 5.0),
+        ]
+    ).toDF("key", "partitionId", "value1", "value2")
+    Utils.check_answer(
+        df.select(
+            "key",
+            covar_samp("value1", "value2").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            var_samp("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            variance("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            stddev_samp("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+            stddev("value1").over(
+                Window.partitionBy("partitionId")
+                .orderBy("key")
+                .rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+            ),
+        ),
+        [
+            Row("a", -50.0, 50.0, 50.0, 7.0710678118654755, 7.0710678118654755),
+            Row("b", -50.0, 50.0, 50.0, 7.0710678118654755, 7.0710678118654755),
+            Row("c", 0.0, 0.0, 0.0, 0.0, 0.0),
+            Row("d", 0.0, 0.0, 0.0, 0.0, 0.0),
+            Row("e", 24.0, 12.0, 12.0, 3.4641016151377544, 3.4641016151377544),
+            Row("f", 24.0, 12.0, 12.0, 3.4641016151377544, 3.4641016151377544),
+            Row("g", 24.0, 12.0, 12.0, 3.4641016151377544, 3.4641016151377544),
+            Row("h", 24.0, 12.0, 12.0, 3.4641016151377544, 3.4641016151377544),
+            Row("i", None, None, None, None, None),
+        ],
     )
 
 

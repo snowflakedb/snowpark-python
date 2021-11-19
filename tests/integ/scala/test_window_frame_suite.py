@@ -10,8 +10,84 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Window
-from snowflake.snowpark.functions import avg, col, count, min as min_, sum as sum_
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    count,
+    lag,
+    lead,
+    min as min_,
+    sum as sum_,
+)
 from tests.utils import Utils
+
+
+def test_lead_lag_with_positive_offset(session):
+    df = session.createDataFrame(
+        [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
+    )
+    window = Window.partitionBy("key").orderBy("value")
+    Utils.check_answer(
+        df.select("key", lead("value", 1).over(window), lag("value", 1).over(window)),
+        [Row(1, "3", None), Row(1, None, "1"), Row(2, "4", None), Row(2, None, "2")],
+    )
+
+
+def test_reverse_lead_lag_with_positive_offset(session):
+    df = session.createDataFrame(
+        [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
+    )
+    window = Window.partitionBy("key").orderBy(col("value").desc())
+    Utils.check_answer(
+        df.select("key", lead("value", 1).over(window), lag("value", 1).over(window)),
+        [Row(1, "1", None), Row(1, None, "3"), Row(2, "2", None), Row(2, None, "4")],
+    )
+
+
+def test_lead_lag_with_negative_offset(session):
+    df = session.createDataFrame(
+        [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
+    )
+    window = Window.partitionBy("key").orderBy("value")
+    Utils.check_answer(
+        df.select("key", lead("value", -1).over(window), lag("value", -1).over(window)),
+        [Row(1, "1", None), Row(1, None, "3"), Row(2, "2", None), Row(2, None, "4")],
+    )
+
+
+def test_reverse_lead_lag_with_negative_offset(session):
+    df = session.createDataFrame(
+        [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
+    )
+    window = Window.partitionBy("key").orderBy(col("value").desc())
+    Utils.check_answer(
+        df.select("key", lead("value", -1).over(window), lag("value", -1).over(window)),
+        [Row(1, "3", None), Row(1, None, "1"), Row(2, "4", None), Row(2, None, "2")],
+    )
+
+
+def test_lead_lag_with_default_value(session):
+    default = None
+    df = session.createDataFrame(
+        [(1, "1"), (2, "2"), (1, "3"), (2, "4"), (2, "5")], schema=["key", "value"]
+    )
+    window = Window.partitionBy("key").orderBy("value")
+    Utils.check_answer(
+        df.select(
+            "key",
+            lead("value", 2).over(window),
+            lag("value", 2).over(window),
+            lead("value", -2).over(window),
+            lag("value", -2).over(window),
+        ),
+        [
+            Row(1, default, default, default, default),
+            Row(1, default, default, default, default),
+            Row(2, "5", default, default, "5"),
+            Row(2, default, "2", "2", default),
+            Row(2, default, default, default, default),
+        ],
+    )
 
 
 def test_unbounded_rows_range_between_with_aggregation(session):
@@ -90,7 +166,7 @@ def test_rows_between_boundary(session):
     )
 
 
-def test_range_between_should_accep_at_most_one_order_by_expression_when_unbounded(
+def test_range_between_should_accept_at_most_one_order_by_expression_when_unbounded(
     session,
 ):
     df = session.createDataFrame([(1, 1)]).toDF("key", "value")
