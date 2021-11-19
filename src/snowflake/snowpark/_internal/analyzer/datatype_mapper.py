@@ -8,6 +8,7 @@ import math
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
+import snowflake.snowpark._internal.analyzer.analyzer_package as analyzer_package
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     ArrayType as SPArrayType,
     BinaryType as SPBinaryType,
@@ -50,54 +51,49 @@ class DataTypeMapper:
     MICROS_PER_MILLIS = 1000
 
     @staticmethod
-    # TODO
-    def to_sql(value, spark_data_type: SPDataType):
+    def to_sql(value, spark_data_type: SPDataType) -> str:
         """Convert a value with SparkSQL DataType to a snowflake compatible sql"""
 
         # Handle null values
-        if type(spark_data_type) in [
-            SPNullType,
-            SPArrayType,
-            SPMapType,
-            SPStructType,
-            SPGeographyType,
-        ]:
+        if isinstance(
+            spark_data_type,
+            (SPNullType, SPArrayType, SPMapType, SPStructType, SPGeographyType),
+        ):
             if value is None:
                 return "NULL"
-        if type(spark_data_type) is SPBinaryType:
+        if isinstance(spark_data_type, SPBinaryType):
             if value is None:
                 return "NULL :: binary"
-        if type(spark_data_type) is SPIntegerType:
+        if isinstance(spark_data_type, SPIntegerType):
             if value is None:
                 return "NULL :: int"
-        if type(spark_data_type) is SPShortType:
+        if isinstance(spark_data_type, SPShortType):
             if value is None:
                 return "NULL :: smallint"
-        if type(spark_data_type) is SPByteType:
+        if isinstance(spark_data_type, SPByteType):
             if value is None:
                 return "NULL :: tinyint"
-        if type(spark_data_type) is SPLongType:
+        if isinstance(spark_data_type, SPLongType):
             if value is None:
                 return "NULL :: bigint"
-        if type(spark_data_type) is SPFloatType:
+        if isinstance(spark_data_type, SPFloatType):
             if value is None:
                 return "NULL :: float"
-        if type(spark_data_type) is SPStringType:
+        if isinstance(spark_data_type, SPStringType):
             if value is None:
                 return "NULL :: string"
-        if type(spark_data_type) is SPDoubleType:
+        if isinstance(spark_data_type, SPDoubleType):
             if value is None:
                 return "NULL :: double"
-        if type(spark_data_type) is SPBooleanType:
+        if isinstance(spark_data_type, SPBooleanType):
             if value is None:
                 return "NULL :: boolean"
         if value is None:
             return "NULL"
 
         # Not nulls
-        if type(spark_data_type) is SPStringType:
-            # TODO revisit, original check: if UTF8string or String
-            if type(value) is str:
+        if isinstance(spark_data_type, SPStringType):
+            if isinstance(value, str):
                 return (
                     "'"
                     + str(value)
@@ -106,19 +102,18 @@ class DataTypeMapper:
                     .replace("\n", "\\n")
                     + "'"
                 )
-        if type(spark_data_type) is SPByteType:
-            return str(value) + f":: tinyint"
-        if type(spark_data_type) is SPShortType:
-            return str(value) + f":: smallint"
-        if type(spark_data_type) is SPIntegerType:
-            return str(value) + f":: int"
-        if type(spark_data_type) is SPLongType:
-            return str(value) + f":: bigint"
-        if type(spark_data_type) is SPBooleanType:
-            return str(value) + f":: boolean"
+        if isinstance(spark_data_type, SPByteType):
+            return str(value) + f" :: tinyint"
+        if isinstance(spark_data_type, SPShortType):
+            return str(value) + f" :: smallint"
+        if isinstance(spark_data_type, SPIntegerType):
+            return str(value) + f" :: int"
+        if isinstance(spark_data_type, SPLongType):
+            return str(value) + f" :: bigint"
+        if isinstance(spark_data_type, SPBooleanType):
+            return str(value) + f" :: boolean"
 
-        # TODO revisit after SNOW-165195 : Add support for all valid SparkSQL and SnowflakeSQL types
-        if type(value) is float and type(spark_data_type) is SPFloatType:
+        if isinstance(value, float) and isinstance(spark_data_type, SPFloatType):
             if math.isnan(float(value)):
                 cast_value = "'Nan'"
             elif math.isinf(value) and value > 0:
@@ -129,7 +124,7 @@ class DataTypeMapper:
                 cast_value = f"'{value}'"
             return f"{cast_value} :: {spark_data_type.sql}"
 
-        if type(spark_data_type) is SPDoubleType:
+        if isinstance(spark_data_type, SPDoubleType):
             if math.isnan(float(value)):
                 return "'Nan' :: DOUBLE"
             elif math.isinf(value) and value > 0:
@@ -138,41 +133,36 @@ class DataTypeMapper:
                 return "'-Infinity' :: DOUBLE"
             return f"'{value}' :: DOUBLE"
 
-        if type(value) is Decimal and type(spark_data_type) is SPDecimalType:
-            # TODO fix circular dependency
-            from .analyzer_package import AnalyzerPackage
+        if isinstance(value, Decimal) and isinstance(spark_data_type, SPDecimalType):
+            return f"{value} :: {analyzer_package.AnalyzerPackage.number(spark_data_type.precision, spark_data_type.scale)}"
 
-            package = AnalyzerPackage()
-            return f"{value} :: {package.number(spark_data_type.precision, spark_data_type.scale)}"
-
-        if type(spark_data_type) is SPDateType:
-            if type(value) is int:
+        if isinstance(spark_data_type, SPDateType):
+            if isinstance(value, int):
                 # add value as number of days to 1970-01-01
                 target_date = date(1970, 1, 1) + timedelta(days=value)
                 return f"DATE '{target_date.isoformat()}'"
-            elif type(value) is date:
+            elif isinstance(value, date):
                 return f"DATE '{value.isoformat()}'"
 
-        if type(spark_data_type) is SPTimestampType:
-            if type(value) is int:
+        if isinstance(spark_data_type, SPTimestampType):
+            if isinstance(value, int):
                 # add value as microseconds to 1970-01-01 00:00:00.00.
                 target_time = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
                     microseconds=value
                 )
                 trimmed_ms = target_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 return f"TIMESTAMP '{trimmed_ms}'"
-            elif type(value) is datetime:
+            elif isinstance(value, datetime):
                 trimmed_ms = value.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 return f"TIMESTAMP '{trimmed_ms}'"
 
-        if type(spark_data_type) is SPTimeType:
-            if type(value) == time:
+        if isinstance(spark_data_type, SPTimeType):
+            if isinstance(value, time):
                 trimmed_ms = value.strftime("%H:%M:%S.%f")[:-3]
                 return f"TIME('{trimmed_ms}')"
 
-        if (
-            type(value) in [list, bytes, bytearray]
-            and type(spark_data_type) is SPBinaryType
+        if isinstance(value, (list, bytes, bytearray)) and isinstance(
+            spark_data_type, SPBinaryType
         ):
             return "'{}' :: binary".format(binascii.hexlify(value).decode())
 

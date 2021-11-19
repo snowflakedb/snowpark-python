@@ -19,8 +19,8 @@ from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     Star as SPStar,
 )
-from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkPlanException
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.exceptions import SnowparkColumnException
+from snowflake.snowpark.functions import col, when
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -328,17 +328,15 @@ def test_filter_incorrect_type(session_cnx):
         with pytest.raises(TypeError) as ex_info:
             df.filter("string_type")
         assert ex_info.type == TypeError
-        assert (
-            "DataFrame.filter() input type must be Column. Got: <class 'str'>"
-            in str(ex_info)
+        assert "The input type of filter() must be Column. Got: <class 'str'>" in str(
+            ex_info
         )
 
         with pytest.raises(TypeError) as ex_info:
             df.filter(1234)
         assert ex_info.type == TypeError
-        assert (
-            "DataFrame.filter() input type must be Column. Got: <class 'int'>"
-            in str(ex_info)
+        assert "The input type of filter() must be Column. Got: <class 'int'>" in str(
+            ex_info
         )
 
 
@@ -971,7 +969,7 @@ def test_create_dataframe_with_invalid_data(session_cnx):
         assert "only accepts data as a list or a tuple" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame(Row(a=1, b=2))
-        assert "only accepts data as a list or a tuple" in str(ex_info)
+        assert "createDataFrame() function does not accept a Row object" in str(ex_info)
 
         # inconsistent type
         with pytest.raises(TypeError) as ex_info:
@@ -1230,3 +1228,10 @@ def test_replace(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace(1, {1: 2})
     assert "All keys and values in value should be in one of" in str(ex_info)
+
+
+def test_select_case_expr(session):
+    df = session.createDataFrame([1, 2, 3], schema=["a"])
+    Utils.check_answer(
+        df.select(when(col("a") == 1, 4).otherwise(col("a"))), [Row(4), Row(2), Row(3)]
+    )

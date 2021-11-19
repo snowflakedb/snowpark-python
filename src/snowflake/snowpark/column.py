@@ -286,7 +286,7 @@ class Column:
             SPLike(
                 self.expression,
                 pattern.expression
-                if type(pattern) == Column
+                if isinstance(pattern, Column)
                 else Column(SPLiteral(pattern)).expression,
             )
         )
@@ -301,7 +301,7 @@ class Column:
             SPRegExp(
                 self.expression,
                 pattern.expression
-                if type(pattern) == Column
+                if isinstance(pattern, Column)
                 else Column(SPLiteral(pattern)).expression,
             )
         )
