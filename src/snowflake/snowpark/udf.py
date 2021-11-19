@@ -363,7 +363,7 @@ class UDFRegistration:
             all_imports=all_imports,
             is_temporary=stage_location is None,
             replace=replace,
-            code=code,
+            inline_python_code=code,
         )
 
     def __generate_python_code(self, func: Callable, arg_names: List[str]) -> str:
@@ -388,20 +388,20 @@ def {_DEFAULT_HANDLER_NAME}({args}):
         all_imports: str,
         is_temporary: bool,
         replace: bool,
-        code: Optional[str],
+        inline_python_code: Optional[str] = None,
     ) -> None:
         return_sql_type = convert_to_sf_type(return_type)
         input_sql_types = [convert_to_sf_type(arg.datatype) for arg in input_args]
         sql_func_args = ",".join(
             [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
         )
-        inline_code = (
+        inline_python_code_in_sql = (
             f"""
 AS $$
-{code}
+{inline_python_code}
 $$
 """
-            if code
+            if inline_python_code
             else ""
         )
 
@@ -413,6 +413,6 @@ LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
 IMPORTS=({all_imports})
 HANDLER='{handler}'
-{inline_code}
+{inline_python_code_in_sql}
 """
         self.session._run_query(create_udf_query)
