@@ -4,8 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 """
-Provides utility functions that generate :class:`Column` expressions that you can pass
-to :class:`DataFrame` transformation methods. These functions generate references to
+Provides utility functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass
+to :class:`~snowflake.snowpark.DataFrame` transformation methods. These functions generate references to
 columns, literals, and SQL expressions (e.g. "c + 1").
 
 This object also provides functions that correspond to Snowflake
@@ -65,18 +65,18 @@ from snowflake.snowpark.udf import UserDefinedFunction
 
 
 def col(col_name: str) -> Column:
-    """Returns the :class:`Column` with the specified name."""
+    """Returns the :class:`~snowflake.snowpark.Column` with the specified name."""
     return Column(col_name)
 
 
 def column(col_name: str) -> Column:
-    """Returns a :class:`Column` with the specified name. Alias for col."""
+    """Returns a :class:`~snowflake.snowpark.Column` with the specified name. Alias for col."""
     return Column(col_name)
 
 
 def lit(literal: Any) -> Column:
     """
-    Creates a :class:`Column` expression for a literal value.
+    Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
     It only supports basic Python data types, such as: ``int``, ``float``, ``str``,
     ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
     ``datetime.datetime``, ``decimal.Decimal``. Structured data types,
@@ -86,7 +86,7 @@ def lit(literal: Any) -> Column:
 
 
 def sql_expr(sql: str) -> Column:
-    """Creates a :class:`Column` expression from raw SQL text.
+    """Creates a :class:`~snowflake.snowpark.Column` expression from raw SQL text.
     Note that the function does not interpret or check the SQL text."""
     return Column._expr(sql)
 
@@ -1112,7 +1112,9 @@ def get(col1: Union[Column, str], col2: Union[Column, str]) -> Column:
     return builtin("get")(c1, c2)
 
 
-def when(condition: Column, value: Column) -> CaseExpr:
+# TODO SNOW-500245: `Any` in the type hint should be replaced
+#  when we have a type-hint type for snowflake-supported datatypes
+def when(condition: Column, value: Any) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
     When a condition evaluates to TRUE, the evaluation stops and the associated
@@ -1120,7 +1122,7 @@ def when(condition: Column, value: Column) -> CaseExpr:
     then the result after the optional OTHERWISE is returned, if present;
     otherwise NULL is returned.
     """
-    return CaseExpr(SPCaseWhen([(condition.expression, value.expression)]))
+    return CaseExpr(SPCaseWhen([(condition.expression, Column._to_expr(value))]))
 
 
 def iff(condition: Column, expr1: Any, expr2: Any) -> Column:
@@ -1333,10 +1335,7 @@ def call_udf(
     Args:
         udf_name: The name of UDF in Snowflake.
         cols: Columns that the UDF will be applied to, as :class:`str`,
-            :class:`Column` or a list of those.
-
-    Returns:
-        :class:`Column`.
+            :class:`~snowflake.snowpark.Column` or a list of those.
 
     Example::
 
@@ -1348,10 +1347,7 @@ def call_udf(
     return Column(
         SPFunctionExpression(
             udf_name,
-            [
-                e.expression if type(e) == Column else Column(e).expression
-                for e in exprs
-            ],
+            [_to_col_if_str(e, "call_udf").expression for e in exprs],
             is_distinct=False,
         )
     )
@@ -1364,29 +1360,19 @@ def call_builtin(function_name: str, *args: Any) -> Column:
     Args:
         function_name: The name of built-in function in Snowflake
         args: Arguments can be in two types:
-            a. :class:`Column`, or
+            a. :class:`~snowflake.snowpark.Column`, or
             b. Basic Python types such as int, float, str, which are converted to Snowpark literals.
-
-    Returns:
-        :class:`Column`.
 
     Example::
 
         df.select(call_builtin("avg", col("a")))
     """
 
-    sp_expressions = []
-    for arg in Utils.parse_positional_args_to_list(*args):
-        if type(arg) == Column:
-            sp_expressions.append(arg.expression)
-        elif isinstance(arg, SPExpression):
-            sp_expressions.append(arg)
-        else:
-            sp_expressions.append(SPLiteral(arg))
+    expressions = [
+        Column._to_expr(arg) for arg in Utils.parse_positional_args_to_list(*args)
+    ]
 
-    return Column(
-        SPFunctionExpression(function_name, sp_expressions, is_distinct=False)
-    )
+    return Column(SPFunctionExpression(function_name, expressions, is_distinct=False))
 
 
 def builtin(function_name: str) -> Callable:
@@ -1415,19 +1401,6 @@ def _to_col_if_str(e: Union[Column, str], func_name: str) -> Column:
         return col(e)
     else:
         raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
-
-
-def _to_col_if_str_or_int(e: Union[Column, str, int], func_name: str) -> Column:
-    if isinstance(e, Column):
-        return e
-    elif isinstance(e, str):
-        return col(e)
-    elif isinstance(e, int):
-        return lit(e)
-    else:
-        raise TypeError(
-            f"'{func_name.upper()}' expected Column, str, or int, got: {type(e)}"
-        )
 
 
 def _create_table_function_expression(

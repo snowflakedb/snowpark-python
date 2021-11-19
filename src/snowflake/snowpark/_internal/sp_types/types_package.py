@@ -59,6 +59,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _NumericType,
 )
 
 
@@ -245,6 +246,12 @@ _type_mappings = {
     datetime.time: SPTimeType,
     bytes: SPBinaryType,
 }
+
+_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = tuple(_type_mappings.keys())
+_VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
+    *_type_mappings.values(),
+    _NumericType,
+)
 
 # Mapping Python array types to Spark SQL DataType
 # We should be careful here. The size of these types in python depends on C
