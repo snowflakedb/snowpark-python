@@ -32,6 +32,11 @@ logger = getLogger(__name__)
 # the default handler name for generated udf python file
 _DEFAULT_HANDLER_NAME = "compute"
 
+# Max code size to inline generated closure. Beyond this threshold, the closure will be uploaded to a stage for imports.
+# Current number is the same as scala. We might have the potential to make it larger but that requires further benchmark
+# because zip compression ratio is quite high.
+_MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
+
 
 class UserDefinedFunction:
     """
@@ -316,45 +321,49 @@ class UDFRegistration:
             _UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
         ]
         code = self.__generate_python_code(func, arg_names)
-
         upload_stage = (
             Utils.normalize_stage_location(stage_location)
             if stage_location
             else self.session.getSessionStage()
         )
-        dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-        upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{udf_file_name}"
-        udf_file_name_base = os.path.splitext(udf_file_name)[0]
-        with io.BytesIO() as input_stream:
-            with zipfile.ZipFile(
-                input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
-            ) as zf:
-                zf.writestr(f"{udf_file_name_base}.py", code)
-            self.session._conn.upload_stream(
-                input_stream=input_stream,
-                stage_location=upload_stage,
-                dest_filename=udf_file_name,
-                dest_prefix=dest_prefix,
-                parallel=parallel,
-                source_compression="DEFLATE",
-                compress_data=False,
-                overwrite=True,
-            )
+        all_urls = self.session._resolve_imports(upload_stage)
+        handler = _DEFAULT_HANDLER_NAME
+
+        # Upload closure to stage if it is beyond inline closure size limit
+        if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
+            dest_prefix = Utils.get_udf_upload_prefix(udf_name)
+            upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+            udf_file_name_base = os.path.splitext(udf_file_name)[0]
+            with io.BytesIO() as input_stream:
+                with zipfile.ZipFile(
+                    input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
+                ) as zf:
+                    zf.writestr(f"{udf_file_name_base}.py", code)
+                self.session._conn.upload_stream(
+                    input_stream=input_stream,
+                    stage_location=upload_stage,
+                    dest_filename=udf_file_name,
+                    dest_prefix=dest_prefix,
+                    parallel=parallel,
+                    source_compression="DEFLATE",
+                    compress_data=False,
+                    overwrite=True,
+                )
+            all_urls.append(upload_file_stage_location)
+            code = None
+            handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
 
         # build imports string
-        all_urls = [
-            *self.session._resolve_imports(upload_stage),
-            upload_file_stage_location,
-        ]
         all_imports = ",".join([f"'{url}'" for url in all_urls])
         self.__create_python_udf(
             return_type=return_type,
             input_args=input_args,
-            handler=f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}",
+            handler=handler,
             udf_name=udf_name,
             all_imports=all_imports,
             is_temporary=stage_location is None,
             replace=replace,
+            code=code,
         )
 
     def __generate_python_code(self, func: Callable, arg_names: List[str]) -> str:
@@ -379,12 +388,23 @@ def {_DEFAULT_HANDLER_NAME}({args}):
         all_imports: str,
         is_temporary: bool,
         replace: bool,
+        code: Optional[str],
     ) -> None:
         return_sql_type = convert_to_sf_type(return_type)
         input_sql_types = [convert_to_sf_type(arg.datatype) for arg in input_args]
         sql_func_args = ",".join(
             [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
         )
+        inline_code = (
+            f"""
+AS $$
+{code}
+$$
+"""
+            if code
+            else ""
+        )
+
         create_udf_query = f"""
 CREATE {"OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} FUNCTION {udf_name}({sql_func_args})
@@ -393,5 +413,6 @@ LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
 IMPORTS=({all_imports})
 HANDLER='{handler}'
+{inline_code}
 """
         self.session._run_query(create_udf_query)
