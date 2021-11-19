@@ -83,18 +83,18 @@ class UserDefinedFunction:
         self,
         *cols: Union[str, Column, List[Union[str, Column]]],
     ) -> Column:
-        exprs = Utils.parse_positional_args_to_list(*cols)
-        if not all(type(e) in [Column, str] for e in exprs):
-            raise TypeError(f"UDF {self.name} input must be Column, str, or list")
+        exprs = []
+        for c in Utils.parse_positional_args_to_list(*cols):
+            if isinstance(c, Column):
+                exprs.append(c.expression)
+            elif isinstance(c, str):
+                exprs.append(Column(c).expression)
+            else:
+                raise TypeError(
+                    f"The input of UDF {self.name} must be Column, column name, or a list of them"
+                )
 
-        return Column(
-            self.__create_udf_expression(
-                [
-                    e.expression if type(e) == Column else Column(e).expression
-                    for e in exprs
-                ]
-            )
-        )
+        return Column(self.__create_udf_expression(exprs))
 
     def __create_udf_expression(self, exprs: List[SPExpression]) -> SnowflakeUDF:
         if len(exprs) != len(self._input_types):

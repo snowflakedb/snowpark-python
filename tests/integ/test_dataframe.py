@@ -328,17 +328,15 @@ def test_filter_incorrect_type(session_cnx):
         with pytest.raises(TypeError) as ex_info:
             df.filter("string_type")
         assert ex_info.type == TypeError
-        assert (
-            "DataFrame.filter() input type must be Column. Got: <class 'str'>"
-            in str(ex_info)
+        assert "The input type of filter() must be Column. Got: <class 'str'>" in str(
+            ex_info
         )
 
         with pytest.raises(TypeError) as ex_info:
             df.filter(1234)
         assert ex_info.type == TypeError
-        assert (
-            "DataFrame.filter() input type must be Column. Got: <class 'int'>"
-            in str(ex_info)
+        assert "The input type of filter() must be Column. Got: <class 'int'>" in str(
+            ex_info
         )
 
 
@@ -971,7 +969,7 @@ def test_create_dataframe_with_invalid_data(session_cnx):
         assert "only accepts data as a list or a tuple" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame(Row(a=1, b=2))
-        assert "only accepts data as a list or a tuple" in str(ex_info)
+        assert "createDataFrame() function does not accept a Row object" in str(ex_info)
 
         # inconsistent type
         with pytest.raises(TypeError) as ex_info:

@@ -56,7 +56,9 @@ class SnowflakePlan(LogicalPlan):
                         if not match:
                             raise e
                         col = match.group(1)
-                        children = [arg for arg in args if type(arg) == SnowflakePlan]
+                        children = [
+                            arg for arg in args if isinstance(arg, SnowflakePlan)
+                        ]
                         remapped = [
                             SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
                                 "", val
