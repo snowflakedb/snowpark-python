@@ -14,17 +14,14 @@ from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
 )
 from snowflake.snowpark._internal.sp_expressions import (
     Alias as SPAlias,
-    Count as SPCount,
     Cube as SPCube,
     Expression as SPExpression,
     GroupingSets as SPGroupingSets,
     Literal as SPLiteral,
     NamedExpression as SPNamedExpression,
     Rollup as SPRollup,
-    Star as SPStar,
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
-    UnresolvedFunction as SPUnresolvedFunction,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
@@ -152,16 +149,13 @@ class RelationalGroupedDataFrame:
     def __expr_to_func(expr: str, input_expr: SPExpression) -> SPExpression:
         lowered = expr.lower()
         if lowered in ["avg", "average", "mean"]:
-            return SPUnresolvedFunction("avg", [input_expr], is_distinct=False)
+            return functions.avg(Column(input_expr)).expression
         elif lowered in ["stddev", "std"]:
-            return SPUnresolvedFunction("stddev", [input_expr], is_distinct=False)
+            return functions.stddev(Column(input_expr)).expression
         elif lowered in ["count", "size"]:
-            if isinstance(input_expr, SPStar):
-                return SPCount(SPLiteral(1)).to_aggregate_expression()
-            else:
-                return SPCount(input_expr).to_aggregate_expression()
+            return functions.count(Column(input_expr)).expression
         else:
-            return SPUnresolvedFunction(expr, [input_expr], is_distinct=False)
+            return functions.builtin(lowered)(input_expr).expression
 
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> "DataFrame":
         """Returns a :class:`DataFrame` with computed aggregates. The first element of
@@ -227,7 +221,7 @@ class RelationalGroupedDataFrame:
         return self.__toDF(
             [
                 SPAlias(
-                    SPCount(SPLiteral(1)).to_aggregate_expression(),
+                    functions.builtin("count")(SPLiteral(1)).expression,
                     "count",
                 )
             ]
