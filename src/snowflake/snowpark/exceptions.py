@@ -148,7 +148,7 @@ class SnowparkSQLUnexpectedAliasException(SnowparkSQLException):
 class SnowparkSessionException(SnowparkServerException):
     """Exception for any session related errors.
 
-    Includes error codes: 1402, 1404.
+    Includes error codes: 1402, 1403, 1404, 1405.
     """
 
     pass
@@ -177,6 +177,15 @@ class SnowparkFetchDataException(SnowparkServerException):
     """Exception for when we are trying to fetch data from Snowflake.
 
     Includes error codes: 1406.
+    """
+
+    pass
+
+
+class SnowparkUploadUdfFileException(SnowparkServerException):
+    """Exception for when we are trying to upload UDF files to the server.
+
+    Includes error codes: 1407.
     """
 
     pass
