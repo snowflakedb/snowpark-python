@@ -10,8 +10,8 @@ import snowflake.snowpark.dataframe
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_types.types_package import (
+    _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     _python_type_to_snow_type,
-    _type_mappings,
 )
 from snowflake.snowpark.functions import iff, lit, when
 from snowflake.snowpark.types import (
@@ -23,7 +23,6 @@ from snowflake.snowpark.types import (
 )
 
 logger = getLogger(__name__)
-_VALID_PYTHON_TYPES_FOR_VALUE_IN_NA_FUNCTION = tuple(_type_mappings.keys())
 
 
 def _is_value_type_matching_for_na_function(value: Any, datatype: DataType) -> bool:
@@ -222,13 +221,13 @@ class DataFrameNaFunctions:
             return self.df
         if not all(
             [
-                isinstance(v, _VALID_PYTHON_TYPES_FOR_VALUE_IN_NA_FUNCTION)
+                isinstance(v, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
                 for v in value_dict.values()
             ]
         ):
             raise ValueError(
                 "All values in value should be in one of "
-                f"{_VALID_PYTHON_TYPES_FOR_VALUE_IN_NA_FUNCTION} types"
+                f"{_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
             )
 
         # the dictionary is ordered after Python3.7
@@ -359,14 +358,14 @@ class DataFrameNaFunctions:
             return self.df
         if not all(
             [
-                isinstance(k, _VALID_PYTHON_TYPES_FOR_VALUE_IN_NA_FUNCTION)
-                and isinstance(v, _VALID_PYTHON_TYPES_FOR_VALUE_IN_NA_FUNCTION)
+                isinstance(k, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
+                and isinstance(v, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
                 for k, v in replacement.items()
             ]
         ):
             raise ValueError(
                 "All keys and values in value should be in one of "
-                f"{_VALID_PYTHON_TYPES_FOR_VALUE_IN_NA_FUNCTION} types"
+                f"{_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
             )
 
         # the dictionary is ordered after Python3.7
