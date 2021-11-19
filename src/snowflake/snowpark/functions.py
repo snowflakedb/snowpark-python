@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     CaseWhen as SPCaseWhen,
     Count as SPCount,
     Expression as SPExpression,
+    FunctionExpression as SPFunctionExpression,
     IsNaN as SPIsNan,
     IsNull as SPIsNull,
     Literal as SPLiteral,
@@ -56,7 +57,6 @@ from snowflake.snowpark._internal.sp_expressions import (
     Sum as SPSum,
     TableFunction as SPTableFunction,
     TableFunctionExpression as SPTableFunctionExpression,
-    UnresolvedFunction as SPUnresolvedFunction,
 )
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import CaseExpr, Column
@@ -116,18 +116,21 @@ def count(e: Union[Column, str]) -> Column:
     """Returns either the number of non-NULL records for the specified columns, or the
     total number of records."""
     c = _to_col_if_str(e, "count")
-    exp = SPCount(SPLiteral(1)) if isinstance(c, SPStar) else SPCount(c.expression)
+    exp = (
+        SPCount(SPLiteral(1))
+        if isinstance(c.expression, SPStar)
+        else SPCount(c.expression)
+    )
     return __with_aggregate_function(exp)
 
 
-def count_distinct(col: Union[Column, str], *columns: Union[Column, str]) -> Column:
+def count_distinct(*cols: Union[Column, str]) -> Column:
     """Returns either the number of non-NULL distinct records for the specified columns,
     or the total number of the distinct records.
     """
-    cols = [_to_col_if_str(col, "count_distinct")]
-    cols.extend([_to_col_if_str(c, "count_distinct") for c in columns])
+    cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
-        SPUnresolvedFunction("count", [c.expression for c in cols], is_distinct=True)
+        SPFunctionExpression("count", [c.expression for c in cs], is_distinct=True)
     )
 
 
@@ -1130,6 +1133,90 @@ def iff(condition: Column, expr1: Any, expr2: Any) -> Column:
     return builtin("iff")(condition, expr1, expr2)
 
 
+def cume_dist() -> Column:
+    """
+    Finds the cumulative distribution of a value with regard to other values
+    within the same window partition.
+    """
+    return builtin("cume_dist")()
+
+
+def rank() -> Column:
+    """
+    Returns the rank of a value within an ordered group of values.
+    The rank value starts at 1 and continues up.
+    """
+    return builtin("rank")()
+
+
+def percent_rank() -> Column:
+    """
+    Returns the relative rank of a value within a group of values, specified as a percentage
+    ranging from 0.0 to 1.0.
+    """
+    return builtin("percent_rank")()
+
+
+def dense_rank() -> Column:
+    """
+    Returns the rank of a value within a group of values, without gaps in the ranks.
+    The rank value starts at 1 and continues up sequentially.
+    If two values are the same, they will have the same rank.
+    """
+    return builtin("dense_rank")()
+
+
+def row_number() -> Column:
+    """
+    Returns a unique row number for each row within a window partition.
+    The row number starts at 1 and continues up sequentially.
+    """
+    return builtin("row_number")()
+
+
+def lag(
+    e: Union[Column, str],
+    offset: int = 1,
+    default_value: Optional[Union[Column, Any]] = None,
+) -> Column:
+    """
+    Accesses data in a previous row in the same result set without having to
+    join the table to itself.
+    """
+    c = _to_col_if_str(e, "lag")
+    return builtin("lag")(
+        c,
+        SPLiteral(offset),
+        SPLiteral(None) if default_value is None else default_value,
+    )
+
+
+def lead(
+    e: Union[Column, str],
+    offset: int = 1,
+    default_value: Optional[Union[Column, Any]] = None,
+) -> Column:
+    """
+    Accesses data in a subsequent row in the same result set without having to
+    join the table to itself.
+    """
+    c = _to_col_if_str(e, "lead")
+    return builtin("lead")(
+        c,
+        SPLiteral(offset),
+        SPLiteral(None) if default_value is None else default_value,
+    )
+
+
+def ntile(e: Union[Column, str]) -> Column:
+    """
+    Divides an ordered data set equally into the number of buckets specified by n.
+    Buckets are sequentially numbered 1 through n.
+    """
+    c = _to_col_if_str(e, "ntile")
+    return builtin("ntile")(c)
+
+
 def udf(
     func: Optional[Callable] = None,
     *,
@@ -1259,7 +1346,7 @@ def call_udf(
     Utils.validate_object_name(udf_name)
     exprs = Utils.parse_positional_args_to_list(*cols)
     return Column(
-        SPUnresolvedFunction(
+        SPFunctionExpression(
             udf_name,
             [
                 e.expression if type(e) == Column else Column(e).expression
@@ -1298,7 +1385,7 @@ def call_builtin(function_name: str, *args: Any) -> Column:
             sp_expressions.append(SPLiteral(arg))
 
     return Column(
-        SPUnresolvedFunction(function_name, sp_expressions, is_distinct=False)
+        SPFunctionExpression(function_name, sp_expressions, is_distinct=False)
     )
 
 

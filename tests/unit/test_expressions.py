@@ -14,9 +14,9 @@ from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference,
     Complete,
     Count,
+    FunctionExpression,
     Literal,
     UnresolvedAttribute,
-    UnresolvedFunction,
 )
 from snowflake.snowpark._internal.sp_types.sp_data_types import DecimalType, IntegerType
 from snowflake.snowpark._internal.sp_types.types_package import _type_mappings
@@ -27,18 +27,18 @@ def test_expression_sql():
     attribute = Attribute("A")
     assert "A" == attribute.sql()
 
-    ar = AttributeReference("A", DecimalType, True)
+    ar = AttributeReference("A", DecimalType(), True)
     assert "A" == ar.sql()
 
     unresolved_attribute = UnresolvedAttribute(["namepart1", "namepart2"])
     assert "namepart1.namepart2" == unresolved_attribute.sql()
 
-    unresolved_function = UnresolvedFunction(
+    function_expression = FunctionExpression(
         name="func",
         arguments=[AttributeReference("A", IntegerType(), True)],
         is_distinct=False,
     )
-    assert "func(A)" == unresolved_function.sql()
+    assert "func(A)" == function_expression.sql()
 
     agg_expr = AggregateExpression(
         Count(AttributeReference("A", IntegerType(), False)), Complete(), False, None

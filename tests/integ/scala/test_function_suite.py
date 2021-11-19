@@ -60,14 +60,17 @@ from snowflake.snowpark.functions import (
     count_distinct,
     covar_pop,
     covar_samp,
+    cume_dist,
     dateadd,
     datediff,
+    dense_rank,
     equal_nan,
     exp,
     floor,
     get,
     get_ignore_case,
     get_path,
+    iff,
     is_array,
     is_binary,
     is_boolean,
@@ -88,6 +91,8 @@ from snowflake.snowpark.functions import (
     is_varchar,
     json_extract_path_text,
     kurtosis,
+    lag,
+    lead,
     lit,
     log,
     max,
@@ -95,6 +100,7 @@ from snowflake.snowpark.functions import (
     min,
     negate,
     not_,
+    ntile,
     object_agg,
     object_construct,
     object_construct_keep_null,
@@ -104,8 +110,11 @@ from snowflake.snowpark.functions import (
     object_pick,
     parse_json,
     parse_xml,
+    percent_rank,
     pow,
     random,
+    rank,
+    row_number,
     skew,
     split,
     sql_expr,
@@ -132,6 +141,7 @@ from snowflake.snowpark.functions import (
     variance,
     xmlget,
 )
+from snowflake.snowpark.window import Window
 from tests.utils import TestData, Utils
 
 
@@ -2433,5 +2443,133 @@ def test_approx_percentile_combine(session, col_a, col_b):
                 + '9.000000000000000e+00,\n    1.000000000000000e+00\n  ],\n  "type": "tdigest",\n  '
                 + '"version": 1\n}'
             )
-        ],
+        ])
+
+
+def test_iff(session):
+    df = session.createDataFrame(
+        [(True, 2, 2, 4), (False, 12, 12, 14), (True, 22, 23, 24)],
+        schema=["a", "b", "c", "d"],
+    )
+    Utils.check_answer(
+        df.select("a", "b", "d", iff(col("a"), col("b"), col("d"))),
+        [Row(True, 2, 4, 2), Row(False, 12, 14, 14), Row(True, 22, 24, 22)],
+        sort=False,
+    )
+    Utils.check_answer(
+        df.select("b", "c", "d", iff(col("b") == col("c"), col("b"), col("d"))),
+        [Row(2, 2, 4, 2), Row(12, 12, 14, 12), Row(22, 23, 24, 24)],
+        sort=False,
+    )
+
+
+def test_cume_dist(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            cume_dist().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+        ),
+        [Row(0.3333333333333333), Row(1.0), Row(1.0), Row(1.0), Row(1.0)],
+        sort=False,
+    )
+
+
+def test_dense_rank(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(dense_rank().over(Window.orderBy(col("X")))),
+        [Row(1), Row(1), Row(2), Row(2), Row(2)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_z", ["Z", col("Z")])
+def test_lag(session, col_z):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lag(col_z, 1, 0).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(0), Row(10), Row(1), Row(0), Row(1)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lag(col_z, 1).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(None), Row(10), Row(1), Row(None), Row(1)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lag(col_z).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(None), Row(10), Row(1), Row(None), Row(1)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_z", ["Z", col("Z")])
+def test_lead(session, col_z):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lead(col_z, 1, 0).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(1), Row(3), Row(0), Row(3), Row(0)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lead(col_z, 1).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(1), Row(3), Row(None), Row(3), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lead(col_z).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(1), Row(3), Row(None), Row(3), Row(None)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_n", ["n", col("n")])
+def test_ntile(session, col_n):
+    df = TestData.xyz(session).withColumn("n", lit(4))
+    Utils.check_answer(
+        df.select(ntile(col_n).over(Window.partitionBy(col("X")).orderBy(col("Y")))),
+        [Row(1), Row(2), Row(3), Row(1), Row(2)],
+        sort=False,
+    )
+
+
+def test_percent_rank(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            percent_rank().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+        ),
+        [Row(0.0), Row(0.5), Row(0.5), Row(0.0), Row(0.0)],
+        sort=False,
+    )
+
+
+def test_rank(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            rank().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+        ),
+        [Row(1), Row(2), Row(2), Row(1), Row(1)],
+        sort=False,
+    )
+
+
+def test_row_number(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            row_number().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+        ),
+        [Row(1), Row(2), Row(3), Row(1), Row(2)],
+        sort=False,
     )
