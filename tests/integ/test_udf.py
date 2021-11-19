@@ -742,3 +742,31 @@ def test_udf_replace(session):
         Row(3),
         Row(7),
     ]
+
+
+def test_udf_parallel(session):
+    for i in [1, 50, 99]:
+        udf(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            parallel=i,
+        )
+
+    with pytest.raises(ValueError) as ex_info:
+        udf(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            parallel=0,
+        )
+    assert "Supported values of parallel are from 1 to 99" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        udf(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            parallel=100,
+        )
+    assert "Supported values of parallel are from 1 to 99" in str(ex_info)

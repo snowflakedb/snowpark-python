@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import array
+import contextlib
 import datetime
 import decimal
 import hashlib
@@ -111,6 +112,7 @@ class Utils:
         return ".pyc", ".pyo", ".pyd", ".pyi"
 
     @staticmethod
+    @contextlib.contextmanager
     def zip_file_or_directory_to_stream(
         path: str,
         leading_path: Optional[str] = None,
@@ -172,7 +174,8 @@ class Utils:
                     zf.writestr(os.path.join(head, "__init__.py"), "")
                     head, _ = os.path.split(head)
 
-        return input_stream
+        yield input_stream
+        input_stream.close()
 
     @staticmethod
     def parse_positional_args_to_list(*inputs) -> List:

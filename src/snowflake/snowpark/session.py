@@ -408,17 +408,18 @@ class Session:
                 else:
                     # local directory or .py file
                     if os.path.isdir(path) or path.endswith(".py"):
-                        input_stream = Utils.zip_file_or_directory_to_stream(
+                        with Utils.zip_file_or_directory_to_stream(
                             path, leading_path, add_init_py=True
-                        )
-                        self._conn.upload_stream(
-                            input_stream=input_stream,
-                            stage_location=normalized_stage_location,
-                            dest_filename=filename,
-                            dest_prefix=prefix,
-                            compress_data=False,
-                            overwrite=True,
-                        )
+                        ) as input_stream:
+                            self._conn.upload_stream(
+                                input_stream=input_stream,
+                                stage_location=normalized_stage_location,
+                                dest_filename=filename,
+                                dest_prefix=prefix,
+                                source_compression="DEFLATE",
+                                compress_data=False,
+                                overwrite=True,
+                            )
                     # local file
                     else:
                         self._conn.upload_file(

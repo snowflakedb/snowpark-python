@@ -21,6 +21,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLInvalidIdException,
     SnowparkSQLUnexpectedAliasException,
+    SnowparkUploadUdfFileException,
     _SnowparkInternalException,
 )
 
@@ -356,6 +357,16 @@ def test_server_failed_fetch_pandas():
     assert isinstance(ex, SnowparkFetchDataException)
     assert ex.error_code == "1406"
     assert ex.message == f"Failed to fetch a Pandas Dataframe. The error is: {message}"
+
+
+def test_server_udf_upload_file_stream_closed():
+    dest_filename = "file"
+    ex = SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
+        dest_filename
+    )
+    assert isinstance(ex, SnowparkUploadUdfFileException)
+    assert ex.error_code == "1407"
+    assert "A file stream was closed when uploading UDF files" in ex.message
 
 
 def test_general_invalid_object_name():
