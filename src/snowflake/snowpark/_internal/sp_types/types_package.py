@@ -63,43 +63,42 @@ from snowflake.snowpark.types import (
 )
 
 
-# TODO maybe change to isinstance()
 def convert_to_sf_type(datatype: DataType) -> str:
-    if type(datatype) == DecimalType:
+    if isinstance(datatype, DecimalType):
         return f"NUMBER({datatype.precision}, {datatype.scale})"
-    if type(datatype) == IntegerType:
+    if isinstance(datatype, IntegerType):
         return "INT"
-    if type(datatype) == ShortType:
+    if isinstance(datatype, ShortType):
         return "SMALLINT"
-    if type(datatype) == ByteType:
+    if isinstance(datatype, ByteType):
         return "BYTEINT"
-    if type(datatype) == LongType:
+    if isinstance(datatype, LongType):
         return "BIGINT"
-    if type(datatype) == FloatType:
+    if isinstance(datatype, FloatType):
         return "FLOAT"
-    if type(datatype) == DoubleType:
+    if isinstance(datatype, DoubleType):
         return "DOUBLE"
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
-    if type(datatype) in [StringType, NullType]:
+    if isinstance(datatype, (StringType, NullType)):
         return "STRING"
-    if type(datatype) == BooleanType:
+    if isinstance(datatype, BooleanType):
         return "BOOLEAN"
-    if type(datatype) == DateType:
+    if isinstance(datatype, DateType):
         return "DATE"
-    if type(datatype) == TimeType:
+    if isinstance(datatype, TimeType):
         return "TIME"
-    if type(datatype) == TimestampType:
+    if isinstance(datatype, TimestampType):
         return "TIMESTAMP"
-    if type(datatype) == BinaryType:
+    if isinstance(datatype, BinaryType):
         return "BINARY"
-    if type(datatype) == ArrayType:
+    if isinstance(datatype, ArrayType):
         return "ARRAY"
-    if type(datatype) == MapType:
+    if isinstance(datatype, MapType):
         return "OBJECT"
-    if type(datatype) == VariantType:
+    if isinstance(datatype, VariantType):
         return "VARIANT"
-    # if type(datatype) is GeographyType:
+    # if isinstance(datatype, GeographyType):
     #    return "GEOGRAPHY"
     raise TypeError(f"Unsupported data type: {datatype.type_name}")
 

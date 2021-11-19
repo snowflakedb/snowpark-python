@@ -230,9 +230,9 @@ class ColumnIdentifier:
         return self.normalized_name
 
     def __eq__(self, other):
-        if type(other) == str:
+        if isinstance(other, str):
             return self.normalized_name == other
-        elif type(other) == ColumnIdentifier:
+        elif isinstance(other, ColumnIdentifier):
             return self.normalized_name == other.normalized_name
         else:
             return False
@@ -249,7 +249,6 @@ class ColumnIdentifier:
         return string[1:-1] if result else string
 
 
-# TODO complete
 class StructField:
     """Represents the content of :class:`StructField`."""
 
@@ -261,7 +260,7 @@ class StructField:
     ):
         self.column_identifier = (
             ColumnIdentifier(column_identifier)
-            if type(column_identifier) == str
+            if isinstance(column_identifier, str)
             else column_identifier
         )
         self.datatype = datatype

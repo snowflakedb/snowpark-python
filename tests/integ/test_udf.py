@@ -224,7 +224,7 @@ def test_annotation_syntax_udf(session):
     # so it can't be simply called
     with pytest.raises(TypeError) as ex_info:
         add_udf(1, 2)
-    assert "input must be Column, str, or list" in str(ex_info)
+    assert "must be Column, column name, or a list of them" in str(ex_info)
 
 
 def test_session_register_udf(session):

@@ -361,15 +361,15 @@ def log(
     base: Union[Column, str, int, float], x: Union[Column, str, int, float]
 ) -> Column:
     """Returns the logarithm of a numeric expression."""
-    b = lit(base) if type(base) in [int, float] else _to_col_if_str(base, "log")
-    arg = lit(x) if type(x) in [int, float] else _to_col_if_str(x, "log")
+    b = lit(base) if isinstance(base, (int, float)) else _to_col_if_str(base, "log")
+    arg = lit(x) if isinstance(x, (int, float)) else _to_col_if_str(x, "log")
     return builtin("log")(b, arg)
 
 
 def pow(l: Union[Column, str, int, float], r: Union[Column, str, int, float]) -> Column:
     """Returns a number (l) raised to the specified power (r)."""
-    number = lit(l) if type(l) in [int, float] else _to_col_if_str(l, "pow")
-    power = lit(r) if type(r) in [int, float] else _to_col_if_str(r, "pow")
+    number = lit(l) if isinstance(l, (int, float)) else _to_col_if_str(l, "pow")
+    power = lit(r) if isinstance(r, (int, float)) else _to_col_if_str(r, "pow")
     return builtin("pow")(number, power)
 
 
@@ -392,8 +392,8 @@ def substring(
     than or equal to zero. If the length is a negative number, the function returns an
     empty string."""
     s = _to_col_if_str(str, "substring")
-    p = pos if type(pos) == Column else lit(pos)
-    l = len if type(len) == Column else lit(len)
+    p = pos if isinstance(pos, Column) else lit(pos)
+    l = len if isinstance(len, Column) else lit(len)
     return builtin("substring")(s, p, l)
 
 
@@ -501,7 +501,7 @@ def datediff(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> C
         col1: The first timestamp column or minuend in the datediff
         col2: The second timestamp column or the subtrahend in the datediff
     """
-    if type(part) != str:
+    if not isinstance(part, str):
         raise ValueError("part must be a string")
     c1 = _to_col_if_str(col1, "datediff")
     c2 = _to_col_if_str(col2, "datediff")
@@ -523,7 +523,7 @@ def dateadd(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Co
         col1: The first timestamp column or addend in the dateadd
         col2: The second timestamp column or the addend in the dateadd
     """
-    if type(part) != str:
+    if not isinstance(part, str):
         raise ValueError("part must be a string")
     c1 = _to_col_if_str(col1, "dateadd")
     c2 = _to_col_if_str(col2, "dateadd")
@@ -1410,9 +1410,9 @@ def _create_table_function_expression(
 ) -> SPTableFunctionExpression:
     if args and named_args:
         raise ValueError("A table function shouldn't have both args and named args")
-    if type(func_name) == str:
+    if isinstance(func_name, str):
         fqdn = func_name
-    elif type(func_name) == list:
+    elif isinstance(func_name, list):
         for n in func_name:
             Utils.validate_object_name(n)
         fqdn = ".".join(func_name)
