@@ -9,7 +9,7 @@ from math import sqrt
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark import Row
+from snowflake.snowpark import GroupingSets, Row
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     avg,
@@ -33,7 +33,6 @@ from snowflake.snowpark.functions import (
     var_samp,
     variance,
 )
-from snowflake.snowpark.grouping_sets import GroupingSets
 from tests.utils import TestData, Utils
 
 
@@ -184,7 +183,7 @@ def test_group_by_grouping_sets(session):
         .groupByGroupingSets(
             GroupingSets([col("medical_license"), col("radio_license")]),
             GroupingSets([col("radio_license")]),
-        )  # duplicated column IS NOT removed in the result (in scala it is removed)
+        )  # duplicated column is removed in the result
         .agg(col("radio_license"))
         .sort(col("radio_license")),
         [
@@ -205,7 +204,7 @@ def test_group_by_grouping_sets(session):
                 GroupingSets([col("medical_license"), col("radio_license")]),
                 GroupingSets([col("radio_license")]),
             ]
-        )  # duplicated column IS NOT removed in the result  (in scala it is removed)
+        )  # duplicated column is removed in the result
         .agg(col("radio_license").as_("rl"))
         .sort(col("rl"))
         .select("medical_license", "rl"),

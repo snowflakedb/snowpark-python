@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
+from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
@@ -48,6 +49,33 @@ class _PivotType(_GroupType):
     def __init__(self, pivot_col: SPExpression, values: List[SPExpression]):
         self.pivot_col = pivot_col
         self.values = values
+
+
+class GroupingSets:
+    """Creates a GroupingSets object from a list of column/expression sets that you pass
+    to :meth:`DataFrame.groupByGroupingSets`.
+
+    Examples::
+
+        GroupingSets([col("a")], [col("b")])  # Becomes "GROUPING SETS ((a), (b))"
+        GroupingSets([col("a") , col("b")], [col("c"), col("d")])   # Becomes "GROUPING SETS ((a, b), (c, d))"
+        GroupingSets([col("a"), col("b")])        # Becomes "GROUPING SETS ((a, b))"
+        GroupingSets(col("a"), col("b"))  # Becomes "GROUPING SETS ((a, b))"
+    """
+
+    def __init__(self, *sets: Union[Column, List[Column]]):
+        # prepared_sets = (
+        #     [sets[0]]
+        #     if len(sets) == 1
+        #     else [*sets]
+        # )
+        prepared_sets = Utils.parse_positional_args_to_list(*sets)
+        prepared_sets = (
+            prepared_sets if isinstance(prepared_sets[0], list) else [prepared_sets]
+        )
+        self.to_expression = SPGroupingSetsExpression(
+            [[c.expression for c in s] for s in prepared_sets]
+        )
 
 
 class RelationalGroupedDataFrame:

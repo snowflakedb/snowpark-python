@@ -64,7 +64,6 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.functions import _create_table_function_expression
-from snowflake.snowpark.grouping_sets import GroupingSets
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -642,8 +641,39 @@ class DataFrame:
 
     def groupByGroupingSets(
         self,
-        *grouping_sets: Union[GroupingSets, List[GroupingSets], Tuple[GroupingSets]],
+        *grouping_sets: Union[
+            "snowflake.snowpark.GroupingSets",
+            List["snowflake.snowpark.GroupingSets"],
+            Tuple["snowflake.snowpark.GroupingSets"],
+        ],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Performs a SQL
+        `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_.
+        on the DataFrame.
+
+        GROUP BY GROUPING SETS is an extension of the GROUP BY clause
+        that allows computing multiple GROUP BY clauses in a single statement.
+        The group set is a set of dimension columns.
+
+        GROUP BY GROUPING SETS is equivalent to the UNION of two or
+        more GROUP BY operations in the same result set.
+
+
+        Examples::
+
+            `df.groupByGroupingSets(GroupingSets([col("a")]))`  # is equivalent to
+            `df.groupByGroupingSets(GroupingSets(col("a")))`  # is equivalent to
+            `df.groupBy("a")`
+
+            `df.groupByGroupingSets(GroupingSets([col("a")], [col("b")]))`  # is equivalent to
+            `df.groupBy("a")` unionAll `df.groupBy("b")`
+
+            `df.groupByGroupingSets(GroupingSets([col("a"), col("b")], [col("c")]))`  # is equivalent to
+            `df.groupBy("a", "b")` unionAll `df.groupBy("c")`
+
+        Args:
+            grouping_sets: The list of :class:`GroupingSets` to group by
+        """
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             [

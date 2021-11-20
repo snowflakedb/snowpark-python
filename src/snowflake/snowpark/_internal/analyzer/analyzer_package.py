@@ -197,7 +197,7 @@ class AnalyzerPackage:
     def limit_expression(self, num: int) -> str:
         return self._Limit + str(num)
 
-    def grouping_set_expression(self, args: List[List[str]]):
+    def grouping_set_expression(self, args: List[List[str]]) -> str:
         flat_args = [
             self._LeftParenthesis + self._Comma.join(arg) + self._RightParenthesis
             for arg in args
