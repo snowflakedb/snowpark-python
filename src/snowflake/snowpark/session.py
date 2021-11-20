@@ -49,6 +49,7 @@ from snowflake.snowpark._internal.utils import (
     Utils,
 )
 from snowflake.snowpark.dataframe_reader import DataFrameReader
+from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
     col,
@@ -171,6 +172,13 @@ class Session:
     builder: SessionBuilder = SessionBuilder()
 
     def __init__(self, conn: ServerConnection):
+        global _active_session
+        if _active_session and conn._is_stored_proc:
+            raise SnowparkSessionException(
+                "Session was already created. "
+                "We don't allow user to create their own session inside a stored procedure. "
+                "Please use the session provided in the handler."
+            )
         self._conn = conn
         self.__query_tag = None
         self.__import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
