@@ -53,7 +53,8 @@ class _PivotType(_GroupType):
 
 class GroupingSets:
     """Creates a GroupingSets object from a list of column/expression sets that you pass
-    to :meth:`DataFrame.groupByGroupingSets`.
+    to :meth:`DataFrame.groupByGroupingSets`. See :meth:`DataFrame.groupByGroupingSets` for
+    examples of how to use this class with a :class:`DataFrame`.
 
     Examples::
 
@@ -64,11 +65,6 @@ class GroupingSets:
     """
 
     def __init__(self, *sets: Union[Column, List[Column]]):
-        # prepared_sets = (
-        #     [sets[0]]
-        #     if len(sets) == 1
-        #     else [*sets]
-        # )
         prepared_sets = Utils.parse_positional_args_to_list(*sets)
         prepared_sets = (
             prepared_sets if isinstance(prepared_sets[0], list) else [prepared_sets]

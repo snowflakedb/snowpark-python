@@ -490,10 +490,7 @@ class UnresolvedAttribute(Attribute):
         return ".".join(self.name_parts)
 
     def __eq__(self, other):
-        if type(other) is type(self):
-            return str(self) == str(other)
-        else:
-            return False
+        return type(other) is type(self) and str(self) == str(other)
 
     def __hash__(self):
         return hash(str(self))

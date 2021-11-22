@@ -644,7 +644,7 @@ class DataFrame:
         *grouping_sets: Union[
             "snowflake.snowpark.GroupingSets",
             List["snowflake.snowpark.GroupingSets"],
-            Tuple["snowflake.snowpark.GroupingSets"],
+            Tuple["snowflake.snowpark.GroupingSets", ...],
         ],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
@@ -661,18 +661,18 @@ class DataFrame:
 
         Examples::
 
-            `df.groupByGroupingSets(GroupingSets([col("a")]))`  # is equivalent to
-            `df.groupByGroupingSets(GroupingSets(col("a")))`  # is equivalent to
-            `df.groupBy("a")`
+            df.groupByGroupingSets(GroupingSets([col("a")]))  # is equivalent to
+            df.groupByGroupingSets(GroupingSets(col("a")))  # is equivalent to
+            df.groupBy("a")
 
-            `df.groupByGroupingSets(GroupingSets([col("a")], [col("b")]))`  # is equivalent to
-            `df.groupBy("a")` unionAll `df.groupBy("b")`
+            df.groupByGroupingSets(GroupingSets([col("a")], [col("b")]))  # is equivalent to
+            df.groupBy("a").unionAll(df.groupBy("b"))
 
-            `df.groupByGroupingSets(GroupingSets([col("a"), col("b")], [col("c")]))`  # is equivalent to
-            `df.groupBy("a", "b")` unionAll `df.groupBy("c")`
+            df.groupByGroupingSets(GroupingSets([col("a"), col("b")], [col("c")]))  # is equivalent to
+            df.groupBy("a", "b").unionAll(df.groupBy("c"))
 
         Args:
-            grouping_sets: The list of :class:`GroupingSets` to group by
+            grouping_sets: The list of :class:`GroupingSets` to group by.
         """
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
