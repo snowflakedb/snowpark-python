@@ -7,7 +7,7 @@
 import sys
 from typing import List, Tuple, Union
 
-import snowflake.snowpark.column
+import snowflake.snowpark
 from snowflake.snowpark._internal.sp_expressions import (
     Ascending as SPAscending,
     CurrentRow as SPCurrentRow,
@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     WindowFrame as SPWindowFrame,
     WindowSpecDefinition as SPWindowSpecDefinition,
 )
+from snowflake.snowpark._internal.sp_types.types_package import ColumnOrName
 from snowflake.snowpark._internal.utils import Utils
 
 
@@ -52,10 +53,9 @@ class Window:
     @staticmethod
     def partitionBy(
         *cols: Union[
-            str,
-            "snowflake.snowpark.column.Column",
-            List[Union[str, "snowflake.snowpark.column.Column"]],
-            Tuple[Union[str, "snowflake.snowpark.column.Column"], ...],
+            ColumnOrName,
+            List[ColumnOrName],
+            Tuple[ColumnOrName, ...],
         ]
     ) -> "WindowSpec":
         """
@@ -70,10 +70,9 @@ class Window:
     @staticmethod
     def orderBy(
         *cols: Union[
-            str,
-            "snowflake.snowpark.column.Column",
-            List[Union[str, "snowflake.snowpark.column.Column"]],
-            Tuple[Union[str, "snowflake.snowpark.column.Column"], ...],
+            ColumnOrName,
+            List[ColumnOrName],
+            Tuple[ColumnOrName, ...],
         ]
     ) -> "WindowSpec":
         """
@@ -146,10 +145,9 @@ class WindowSpec:
     def partitionBy(
         self,
         *cols: Union[
-            str,
-            "snowflake.snowpark.column.Column",
-            List[Union[str, "snowflake.snowpark.column.Column"]],
-            Tuple[Union[str, "snowflake.snowpark.column.Column"], ...],
+            ColumnOrName,
+            List[ColumnOrName],
+            Tuple[ColumnOrName, ...],
         ]
     ) -> "WindowSpec":
         """
@@ -171,10 +169,9 @@ class WindowSpec:
     def orderBy(
         self,
         *cols: Union[
-            str,
-            "snowflake.snowpark.column.Column",
-            List[Union[str, "snowflake.snowpark.column.Column"]],
-            Tuple[Union[str, "snowflake.snowpark.column.Column"], ...],
+            ColumnOrName,
+            List[ColumnOrName],
+            Tuple[ColumnOrName, ...],
         ]
     ) -> "WindowSpec":
         """

@@ -6,6 +6,7 @@
 import re
 from typing import Callable, List, Tuple, Union
 
+import snowflake.snowpark  # don't remove, it's used for forward reference
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
@@ -24,6 +25,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
 from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.sp_types.types_package import ColumnOrName
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
@@ -220,27 +222,27 @@ class RelationalGroupedDataFrame:
 
         return self.__toDF(agg_exprs)
 
-    def avg(self, *cols: Union[Column, str]) -> "DataFrame":
+    def avg(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the average for the specified numeric columns."""
         return self.__non_empty_argument_function("avg", *cols)
 
-    def mean(self, *cols: Union[Column, str]) -> "DataFrame":
+    def mean(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the average for the specified numeric columns. Alias of :obj:`avg`."""
         return self.avg(*cols)
 
-    def sum(self, *cols: Union[Column, str]) -> "DataFrame":
+    def sum(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the sum for the specified numeric columns."""
         return self.__non_empty_argument_function("sum", *cols)
 
-    def median(self, *cols: Union[Column, str]) -> "DataFrame":
+    def median(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the median for the specified numeric columns."""
         return self.__non_empty_argument_function("median", *cols)
 
-    def min(self, *cols: Union[Column, str]) -> "DataFrame":
+    def min(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the min for the specified numeric columns."""
         return self.__non_empty_argument_function("min", *cols)
 
-    def max(self, *cols: Union[Column, str]) -> "DataFrame":
+    def max(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the max for the specified numeric columns."""
         return self.__non_empty_argument_function("max", *cols)
 
@@ -265,9 +267,7 @@ class RelationalGroupedDataFrame:
         """
         return lambda *cols: self.__builtin_internal(agg_name, *cols)
 
-    def __builtin_internal(
-        self, agg_name: str, *cols: Union[Column, str]
-    ) -> "DataFrame":
+    def __builtin_internal(self, agg_name: str, *cols: ColumnOrName) -> "DataFrame":
         agg_exprs = []
         for c in cols:
             c_expr = Column(c).expression if isinstance(c, str) else c.expression
@@ -276,7 +276,7 @@ class RelationalGroupedDataFrame:
         return self.__toDF(agg_exprs)
 
     def __non_empty_argument_function(
-        self, func_name: str, *cols: Union[Column, str]
+        self, func_name: str, *cols: ColumnOrName
     ) -> "DataFrame":
         if not cols:
             raise ValueError(
