@@ -428,10 +428,10 @@ def upper(e: ColumnOrName) -> Column:
     return builtin("upper")(c)
 
 
-def contains(col: ColumnOrName, str: ColumnOrName) -> Column:
+def contains(col: ColumnOrName, string: ColumnOrName) -> Column:
     """Returns true if col contains str."""
     c = _to_col_if_str(col, "contains")
-    s = _to_col_if_str(str, "contains")
+    s = _to_col_if_str(string, "contains")
     return builtin("contains")(c, s)
 
 
@@ -1084,14 +1084,18 @@ def object_keys(obj: ColumnOrName) -> Column:
 def xmlget(
     xml: ColumnOrName,
     tag: ColumnOrName,
-    instance_num: ColumnOrName = lit(0),
+    instance_num: Union[ColumnOrName, int] = 0,
 ) -> Column:
     """Extracts an XML element object (often referred to as simply a tag) from a content of outer
     XML element object by the name of the tag and its instance number (counting from 0).
     """
     c1 = _to_col_if_str(xml, "xmlget")
     c2 = _to_col_if_str(tag, "xmlget")
-    c3 = _to_col_if_str(instance_num, "xmlget") if instance_num is not None else lit(0)
+    c3 = (
+        instance_num
+        if isinstance(instance_num, int)
+        else _to_col_if_str(instance_num, "xmlget")
+    )
     return builtin("xmlget")(c1, c2, c3)
 
 
