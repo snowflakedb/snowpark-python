@@ -661,15 +661,15 @@ class DataFrame:
 
         Examples::
 
-            df.groupByGroupingSets(GroupingSets([col("a")]))  # is equivalent to
-            df.groupByGroupingSets(GroupingSets(col("a")))  # is equivalent to
-            df.groupBy("a")
+            df.groupByGroupingSets(GroupingSets([col("a")])).count().collect()  # is equivalent to
+            df.groupByGroupingSets(GroupingSets(col("a"))).count().collect()  # is equivalent to
+            df.groupBy("a").count().collect()
 
-            df.groupByGroupingSets(GroupingSets([col("a")], [col("b")]))  # is equivalent to
-            df.groupBy("a").unionAll(df.groupBy("b"))
+            df.groupByGroupingSets(GroupingSets([col("a")], [col("b")])).count().collect()  # is equivalent to
+            df.groupBy("a").count().unionAll(df.groupBy("b").count()).collect()
 
-            df.groupByGroupingSets(GroupingSets([col("a"), col("b")], [col("c")]))  # is equivalent to
-            df.groupBy("a", "b").unionAll(df.groupBy("c"))
+            df.groupByGroupingSets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()  # is equivalent to
+            df.groupBy("a", "b").count().unionAll(df.groupBy("c").count()).collect()
 
         Args:
             grouping_sets: The list of :class:`GroupingSets` to group by.
