@@ -16,13 +16,14 @@ from snowflake.snowpark._internal.sp_expressions import (
     Alias as SPAlias,
     Cube as SPCube,
     Expression as SPExpression,
-    GroupingSets as SPGroupingSets,
+    GroupingSetsExpression as SPGroupingSetsExpression,
     Literal as SPLiteral,
     NamedExpression as SPNamedExpression,
     Rollup as SPRollup,
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
+from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
@@ -50,6 +51,29 @@ class _PivotType(_GroupType):
         self.values = values
 
 
+class GroupingSets:
+    """Creates a GroupingSets object from a list of column/expression sets that you pass
+    to :meth:`DataFrame.groupByGroupingSets`. See :meth:`DataFrame.groupByGroupingSets` for
+    examples of how to use this class with a :class:`DataFrame`.
+
+    Examples::
+
+        GroupingSets([col("a")], [col("b")])  # Becomes "GROUPING SETS ((a), (b))"
+        GroupingSets([col("a") , col("b")], [col("c"), col("d")])   # Becomes "GROUPING SETS ((a, b), (c, d))"
+        GroupingSets([col("a"), col("b")])        # Becomes "GROUPING SETS ((a, b))"
+        GroupingSets(col("a"), col("b"))  # Becomes "GROUPING SETS ((a, b))"
+    """
+
+    def __init__(self, *sets: Union[Column, List[Column]]):
+        prepared_sets = Utils.parse_positional_args_to_list(*sets)
+        prepared_sets = (
+            prepared_sets if isinstance(prepared_sets[0], list) else [prepared_sets]
+        )
+        self.to_expression = SPGroupingSetsExpression(
+            [[c.expression for c in s] for s in prepared_sets]
+        )
+
+
 class RelationalGroupedDataFrame:
     """Represents an underlying DataFrame with rows that are grouped by common values.
     Can be used to define aggregations on these grouped DataFrames.
@@ -72,13 +96,14 @@ class RelationalGroupedDataFrame:
     def __toDF(self, agg_exprs: List[SPExpression]):
         aliased_agg = []
         for grouping_expr in self.grouping_exprs:
-            if isinstance(grouping_expr, SPGroupingSets):
+            if isinstance(grouping_expr, SPGroupingSetsExpression):
                 # avoid doing list(set(grouping_expr.args)) because it will change the order
                 gr_used = set()
                 gr_uniq = [
-                    arg
+                    a
                     for arg in grouping_expr.args
-                    if arg not in gr_used and (gr_used.add(arg) or True)
+                    for a in arg
+                    if a not in gr_used and (gr_used.add(a) or True)
                 ]
                 aliased_agg.extend(gr_uniq)
             else:
