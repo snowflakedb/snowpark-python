@@ -9,7 +9,7 @@ from math import sqrt
 import pytest
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark import Row
+from snowflake.snowpark import GroupingSets, Row
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     avg,
@@ -116,6 +116,107 @@ def test_rel_grouped_dataframe_agg(session):
     assert df.agg([(col("empid"), "min"), (col("name"), "min")]).collect() == [
         Row(1, "One")
     ]
+
+
+def test_group_by_grouping_sets(session):
+    result = (
+        TestData.nurse(session)
+        .groupBy("medical_license")
+        .agg(count(col("*")).as_("count"))
+        .withColumn("radio_license", lit(None))
+        .select("medical_license", "radio_license", "count")
+        .unionAll(
+            TestData.nurse(session)
+            .groupBy("radio_license")
+            .agg(count(col("*")).as_("count"))
+            .withColumn("medical_license", lit(None))
+            .select("medical_license", "radio_license", "count")
+        )
+        .sort(col("count"))
+        .collect()
+    )
+
+    grouping_sets = (
+        TestData.nurse(session)
+        .groupByGroupingSets(
+            GroupingSets([col("medical_license")], [col("radio_license")])
+        )
+        .agg(count(col("*")).as_("count"))
+        .sort(col("count"))
+    )
+
+    Utils.check_answer(grouping_sets, result, sort=False)
+
+    Utils.check_answer(
+        grouping_sets,
+        [
+            Row(None, "General", 1),
+            Row(None, "Amateur Extra", 1),
+            Row("RN", None, 2),
+            Row(None, "Technician", 2),
+            Row(None, None, 3),
+            Row("LVN", None, 5),
+        ],
+        sort=False,
+    )
+
+    # comparing with groupBy
+    Utils.check_answer(
+        TestData.nurse(session)
+        .groupBy("medical_license", "radio_license")
+        .agg(count(col("*")).as_("count"))
+        .sort(col("count"))
+        .select("count", "medical_license", "radio_license"),
+        [
+            Row(1, "LVN", "General"),
+            Row(1, "RN", "Amateur Extra"),
+            Row(1, "RN", None),
+            Row(2, "LVN", "Technician"),
+            Row(2, "LVN", None),
+        ],
+        sort=False,
+    )
+
+    # mixed grouping expression
+    Utils.check_answer(
+        TestData.nurse(session)
+        .groupByGroupingSets(
+            GroupingSets([col("medical_license"), col("radio_license")]),
+            GroupingSets([col("radio_license")]),
+        )  # duplicated column is removed in the result
+        .agg(col("radio_license"))
+        .sort(col("radio_license")),
+        [
+            Row("LVN", None),
+            Row("RN", None),
+            Row("RN", "Amateur Extra"),
+            Row("LVN", "General"),
+            Row("LVN", "Technician"),
+        ],
+        sort=False,
+    )
+
+    # default constructor
+    Utils.check_answer(
+        TestData.nurse(session)
+        .groupByGroupingSets(
+            [
+                GroupingSets([col("medical_license"), col("radio_license")]),
+                GroupingSets([col("radio_license")]),
+            ]
+        )  # duplicated column is removed in the result
+        .agg(col("radio_license").as_("rl"))
+        .sort(col("rl"))
+        .select("medical_license", "rl"),
+        [
+            Row("LVN", None),
+            Row("RN", None),
+            Row("RN", "Amateur Extra"),
+            Row("LVN", "General"),
+            Row("LVN", "Technician"),
+        ],
+        sort=False,
+    )
 
 
 def test_rel_grouped_dataframe_max(session):

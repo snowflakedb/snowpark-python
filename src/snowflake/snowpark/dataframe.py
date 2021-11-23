@@ -639,6 +639,50 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
+    def groupByGroupingSets(
+        self,
+        *grouping_sets: Union[
+            "snowflake.snowpark.GroupingSets",
+            List["snowflake.snowpark.GroupingSets"],
+            Tuple["snowflake.snowpark.GroupingSets", ...],
+        ],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Performs a SQL
+        `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_.
+        on the DataFrame.
+
+        GROUP BY GROUPING SETS is an extension of the GROUP BY clause
+        that allows computing multiple GROUP BY clauses in a single statement.
+        The group set is a set of dimension columns.
+
+        GROUP BY GROUPING SETS is equivalent to the UNION of two or
+        more GROUP BY operations in the same result set.
+
+
+        Examples::
+
+            df.groupByGroupingSets(GroupingSets([col("a")])).count().collect()  # is equivalent to
+            df.groupByGroupingSets(GroupingSets(col("a"))).count().collect()  # is equivalent to
+            df.groupBy("a").count().collect()
+
+            df.groupByGroupingSets(GroupingSets([col("a")], [col("b")])).count().collect()  # is equivalent to
+            df.groupBy("a").count().unionAll(df.groupBy("b").count()).collect()
+
+            df.groupByGroupingSets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()  # is equivalent to
+            df.groupBy("a", "b").count().unionAll(df.groupBy("c").count()).collect()
+
+        Args:
+            grouping_sets: The list of :class:`GroupingSets` to group by.
+        """
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            [
+                gs.to_expression
+                for gs in Utils.parse_positional_args_to_list(*grouping_sets)
+            ],
+            snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+        )
+
     def cube(
         self,
         *cols: Union[
