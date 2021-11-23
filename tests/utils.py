@@ -530,6 +530,20 @@ class TestData:
     def column_has_special_char(cls, session: "Session") -> DataFrame:
         return session.createDataFrame([[1, 2], [3, 4]]).toDF(['"col %"', '"col *"'])
 
+    @classmethod
+    def nurse(cls, session: "Session") -> DataFrame:
+        return session.createDataFrame(
+            [
+                [201, "Thomas Leonard Vicente", "LVN", "Technician"],
+                [202, "Tamara Lolita VanZant", "LVN", "Technician"],
+                [341, "Georgeann Linda Vente", "LVN", "General"],
+                [471, "Andrea Renee Nouveau", "RN", "Amateur Extra"],
+                [101, "Lily Vine", "LVN", None],
+                [102, "Larry Vancouver", "LVN", None],
+                [172, "Rhonda Nova", "RN", None],
+            ]
+        ).toDF(["id", "full_name", "medical_license", "radio_license"])
+
 
 class TestFiles:
     def __init__(self, resources_path):

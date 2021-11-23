@@ -489,6 +489,12 @@ class UnresolvedAttribute(Attribute):
     def __str__(self):
         return ".".join(self.name_parts)
 
+    def __eq__(self, other):
+        return type(other) is type(self) and str(self) == str(other)
+
+    def __hash__(self):
+        return hash(str(self))
+
     def sql(self):
         return self.__str__()
 
@@ -575,8 +581,8 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
 
-class GroupingSets(Expression):
-    def __init__(self, args: List[Expression]):
+class GroupingSetsExpression(Expression):
+    def __init__(self, args: List[List[Expression]]):
         super().__init__()
         self.args = args
         self.datatype = None

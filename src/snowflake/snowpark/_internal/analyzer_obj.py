@@ -56,6 +56,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Expression as SPExpression,
     FlattenFunction as SPFlattenFunction,
     FunctionExpression as SPFunctionExpression,
+    GroupingSetsExpression as SPGroupingSetsExpression,
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
@@ -100,6 +101,11 @@ class Analyzer:
         self.alias_maps_to_use = None
 
     def analyze(self, expr) -> str:
+        if isinstance(expr, SPGroupingSetsExpression):
+            return self.package.grouping_set_expression(
+                [[self.analyze(a) for a in arg] for arg in expr.args]
+            )
+
         if isinstance(expr, SPLike):
             return self.package.like_expression(
                 self.analyze(expr.expr), self.analyze(expr.pattern)
