@@ -6,7 +6,7 @@
 import re
 from typing import Callable, List, Tuple, Union
 
-import snowflake.snowpark  # don't remove, it's used for forward reference
+import snowflake.snowpark  # type: ignore
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (

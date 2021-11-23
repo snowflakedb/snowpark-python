@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 
-import snowflake.snowpark  # don't remove, it's used for forward reference
+import snowflake.snowpark  # type: ignore
 from snowflake.connector import SnowflakeConnection
 from snowflake.snowpark import DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
