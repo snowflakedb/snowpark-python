@@ -2304,12 +2304,23 @@ def test_object_keys(session, column):
 
 
 @pytest.mark.parametrize(
-    "v, t2, t3, instance",
-    [("v", "t2", "t3", "instance"), (col("v"), col("t2"), col("t3"), col("instance"))],
+    "v, t2, t3, instance, zero",
+    [
+        ("v", "t2", "t3", "instance", 0),
+        (col("v"), col("t2"), col("t3"), col("instance"), lit(0)),
+    ],
 )
-def test_xmlget(session, v, t2, t3, instance):
+def test_xmlget(session, v, t2, t3, instance, zero):
     Utils.check_answer(
         TestData.valid_xml1(session).select(get_ignore_case(xmlget(v, t2), lit("$"))),
+        [Row('"bar"'), Row(None), Row('"foo"')],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(
+            get_ignore_case(xmlget(v, t2, zero), lit("$"))
+        ),
         [Row('"bar"'), Row(None), Row('"foo"')],
         sort=False,
     )
@@ -2443,7 +2454,8 @@ def test_approx_percentile_combine(session, col_a, col_b):
                 + '9.000000000000000e+00,\n    1.000000000000000e+00\n  ],\n  "type": "tdigest",\n  '
                 + '"version": 1\n}'
             )
-        ])
+        ],
+    )
 
 
 def test_iff(session):

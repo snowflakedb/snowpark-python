@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     SnowflakeUDF,
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrName,
     _python_type_to_snow_type,
     convert_to_sf_type,
     snow_type_to_sp_type,
@@ -86,7 +87,7 @@ class UserDefinedFunction:
 
     def __call__(
         self,
-        *cols: Union[str, Column, List[Union[str, Column]]],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> Column:
         exprs = []
         for c in Utils.parse_positional_args_to_list(*cols):

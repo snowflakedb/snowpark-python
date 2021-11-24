@@ -4,13 +4,14 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
-import snowflake.snowpark.dataframe
+import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_types.types_package import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    LiteralType,
     _python_type_to_snow_type,
 )
 from snowflake.snowpark.functions import iff, lit, when
@@ -25,7 +26,9 @@ from snowflake.snowpark.types import (
 logger = getLogger(__name__)
 
 
-def _is_value_type_matching_for_na_function(value: Any, datatype: DataType) -> bool:
+def _is_value_type_matching_for_na_function(
+    value: LiteralType, datatype: DataType
+) -> bool:
     # Python `int` can match into FloatType/DoubleType,
     # but Python `float` can't match IntegerType/LongType.
     # None should be compatible with any Snowpark type.
@@ -157,7 +160,7 @@ class DataFrameNaFunctions:
 
     def fill(
         self,
-        value: Union[Any, Dict[str, Any]],
+        value: Union[LiteralType, Dict[str, LiteralType]],
         subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
@@ -275,8 +278,15 @@ class DataFrameNaFunctions:
 
     def replace(
         self,
-        to_replace: Union[Any, List[Any], Tuple[Any, ...], Dict[Any, Any]],
-        value: Optional[Union[Any, List[Any], Tuple[Any, ...]]] = None,
+        to_replace: Union[
+            LiteralType,
+            List[LiteralType],
+            Tuple[LiteralType, ...],
+            Dict[LiteralType, LiteralType],
+        ],
+        value: Optional[
+            Union[LiteralType, List[LiteralType], Tuple[LiteralType, ...]]
+        ] = None,
         subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """

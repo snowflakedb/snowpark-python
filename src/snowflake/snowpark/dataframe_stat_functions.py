@@ -3,11 +3,15 @@
 #
 
 from functools import reduce
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrName,
+    LiteralType,
+)
 from snowflake.snowpark.functions import (
     _to_col_if_str,
     approx_percentile_accumulate,
@@ -31,9 +35,7 @@ class DataFrameStatFunctions:
 
     def approxQuantile(
         self,
-        col: Union[
-            Column, str, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        col: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
         percentile: Union[List[float], Tuple[float, ...]],
     ) -> Union[List[float], List[List[float]]]:
         """For a specified numeric column and a list of desired quantiles, returns an approximate value for the column at each of the desired quantiles.
@@ -90,9 +92,7 @@ class DataFrameStatFunctions:
                 "'col' must be a column name, a column object, or a list of them."
             )
 
-    def corr(
-        self, col1: Union[Column, str], col2: Union[Column, str]
-    ) -> Optional[float]:
+    def corr(self, col1: ColumnOrName, col2: ColumnOrName) -> Optional[float]:
         """Calculates the correlation coefficient for non-null pairs in two numeric columns.
 
         Example::
@@ -112,9 +112,7 @@ class DataFrameStatFunctions:
         res = self._df.select(corr_func(col1, col2))._collect_with_tag()
         return res[0][0] if res[0] is not None else None
 
-    def cov(
-        self, col1: Union[Column, str], col2: Union[Column, str]
-    ) -> Optional[float]:
+    def cov(self, col1: ColumnOrName, col2: ColumnOrName) -> Optional[float]:
         """Calculates the sample covariance for non-null pairs in two numeric columns.
 
         Example::
@@ -135,7 +133,7 @@ class DataFrameStatFunctions:
         return res[0][0] if res[0] is not None else None
 
     def crosstab(
-        self, col1: Union[Column, str], col2: Union[Column, str]
+        self, col1: ColumnOrName, col2: ColumnOrName
     ) -> "snowflake.snowpark.DataFrame":
         """Computes a pair-wise frequency table (a ``contingency table``) for the specified columns.
         The method returns a DataFrame containing this table.
@@ -180,7 +178,7 @@ class DataFrameStatFunctions:
         return self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
 
     def sampleBy(
-        self, col: Union[Column, str], fractions: Dict[Any, float]
+        self, col: ColumnOrName, fractions: Dict[LiteralType, float]
     ) -> "snowflake.snowpark.DataFrame":
         """Returns a DataFrame containing a stratified sample without replacement, based on a ``dict`` that specifies the fraction for each stratum.
 
@@ -204,8 +202,6 @@ class DataFrameStatFunctions:
             fractions: A ``dict`` that specifies the fraction to use for the sample for each stratum.
                 If a stratum is not specified in the ``dict``, the method uses 0 as the fraction.
         """
-        # TODO: `Any` in the type hint should be replaced when we have a type-hint type for snowflake-supported datatypes
-        #  JIRA https://snowflakecomputing.atlassian.net/browse/SNOW-500245
         if not fractions:
             return self._df.limit(0)
         col = _to_col_if_str(col, "sampleBy")
