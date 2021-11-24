@@ -4,10 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import re
-import string
 from collections import Counter
-from random import choice
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
@@ -57,6 +55,10 @@ from snowflake.snowpark._internal.sp_types.sp_join_types import (
     LeftSemi as SPLeftSemi,
     NaturalJoin as SPNaturalJoin,
     UsingJoin as SPUsingJoin,
+)
+from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrName,
+    LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
@@ -344,9 +346,7 @@ class DataFrame:
 
     def select(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -389,9 +389,7 @@ class DataFrame:
 
     def drop(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
@@ -462,9 +460,7 @@ class DataFrame:
 
     def sort(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[str, Column, List[ColumnOrName], Tuple[ColumnOrName, ...]],
         ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
@@ -592,9 +588,7 @@ class DataFrame:
 
     def rollup(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
         `GROUP BY ROLLUP <https://docs.snowflake.com/en/sql-reference/constructs/group-by-rollup.html>`_.
@@ -612,9 +606,7 @@ class DataFrame:
 
     def groupBy(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -685,9 +677,7 @@ class DataFrame:
 
     def cube(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
         `GROUP BY CUBE <https://docs.snowflake.com/en/sql-reference/constructs/group-by-cube.html>`_.
@@ -715,8 +705,8 @@ class DataFrame:
 
     def pivot(
         self,
-        pivot_col: Union[str, Column],
-        values: Union[List[Any], Tuple[Any]],
+        pivot_col: ColumnOrName,
+        values: Union[List[LiteralType], Tuple[LiteralType, ...]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -726,11 +716,11 @@ class DataFrame:
 
         Example::
 
-            val dfPivoted = df.pivot("col_1", [1,2,3]).agg(sum(col("col_2")))
+            df_pivoted = df.pivot("col_1", [1,2,3]).agg(sum(col("col_2")))
 
         Args:
-            pivot_col: The column or name of the column to use
-            values: A list of values in the column
+            pivot_col: The column or name of the column to use.
+            values: A list of values in the column.
         """
         pc = self.__convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
@@ -910,7 +900,7 @@ class DataFrame:
     def join(
         self,
         right: "DataFrame",
-        using_columns: Optional[Union[str, Column, List[Union[str, Column]]]] = None,
+        using_columns: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
         join_type: Optional[str] = None,
     ) -> "DataFrame":
         """Performs a join of the specified type (``join_type``) with the current
@@ -967,8 +957,8 @@ class DataFrame:
     def joinTableFunction(
         self,
         func_name: Union[str, List[str]],
-        *func_arguments: Union[Column, str],
-        **func_named_arguments: Union[Column, str],
+        *func_arguments: ColumnOrName,
+        **func_named_arguments: ColumnOrName,
     ) -> "DataFrame":
         """Lateral joins the current DataFrame with the output of the specified table function.
 
@@ -1171,7 +1161,7 @@ class DataFrame:
 
     def flatten(
         self,
-        input: Union[str, Column],
+        input: ColumnOrName,
         path: Optional[str] = None,
         outer: bool = False,
         recursive: bool = False,
@@ -1559,11 +1549,11 @@ class DataFrame:
     def __convert_cols_to_exprs(
         self,
         calling_method: str,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName]],
     ) -> List["SPExpression"]:
         """Convert a string or a Column, or a list of string and Column objects to expression(s)."""
 
-        def convert(col: Union[str, Column]):
+        def convert(col: ColumnOrName):
             if isinstance(col, str):
                 return self.__resolve(col)
             elif isinstance(col, Column):

@@ -15,8 +15,9 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 
+import snowflake.snowpark  # type: ignore
 from snowflake.connector import SnowflakeConnection
-from snowflake.snowpark import Column, DataFrame
+from snowflake.snowpark import DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -39,6 +40,7 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
     StringType as SPStringType,
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrName,
     _infer_schema_from_list,
     _merge_type,
     snow_type_to_sp_type,
@@ -493,8 +495,8 @@ class Session:
     def table_function(
         self,
         func_name: Union[str, List[str]],
-        *func_arguments: Union[Column, str],
-        **func_named_arguments: Union[Column, str],
+        *func_arguments: ColumnOrName,
+        **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
         """Creates a new DataFrame from the given snowflake SQL table function.
 
@@ -844,7 +846,7 @@ class Session:
 
     def flatten(
         self,
-        input: Union[str, Column],
+        input: ColumnOrName,
         path: Optional[str] = None,
         outer: bool = False,
         recursive: bool = False,
