@@ -846,7 +846,7 @@ class Session:
 
     def flatten(
         self,
-        input: "ColumnOrName",
+        input: ColumnOrName,
         path: Optional[str] = None,
         outer: bool = False,
         recursive: bool = False,
