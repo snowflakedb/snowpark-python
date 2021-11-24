@@ -7,14 +7,14 @@ import re
 import string
 from collections import Counter
 from random import choice
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
-from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
+from snowflake.snowpark._internal.analyzer.snowflake_plan import CopyIntoNode
 from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
 from snowflake.snowpark._internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
@@ -63,6 +63,10 @@ from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
+from snowflake.snowpark.exceptions import (
+    SnowparkClientException,
+    SnowparkDataframeException,
+)
 from snowflake.snowpark.functions import _create_table_function_expression
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -197,6 +201,8 @@ class DataFrame:
         self.__placeholder_output = None
 
         self.__na = None
+
+        self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
 
     @staticmethod
     def get_unaliased(col_name: str) -> List[str]:
@@ -1090,6 +1096,81 @@ class DataFrame:
         """
 
         return DataFrameWriter(self)
+
+    def copy_into_table(
+        self,
+        table_name: Union[str, Iterable[str]],
+        *,
+        pattern: Optional[str] = None,
+        validation_mode: Optional[str] = None,
+        target_columns: Optional[List[str]] = None,
+        transformations: Optional[List[Column]] = None,
+        format_type_options: Optional[Dict[str, Any]] = None,
+        copy_options: Optional[Dict[str, Any]] = None,
+        cloud_provider_parameters: Optional[Dict[str, Any]] = None,
+    ) -> List[Row]:
+        if not self._reader or not self._reader._file_path:
+            raise SnowparkDataframeException(
+                "To copy into a table, the DataFrame must be created from a DataFrameReader and specify a file path."
+            )
+        if (
+            target_columns
+            and transformations
+            and len(target_columns) != len(transformations)
+        ):
+            raise ValueError(
+                f"Number of column names provided to copy into does not match the number of transformations provided. Number of column names: {len(target_columns)}, number of transformations: {len(transformations)}"
+            )
+
+        full_table_name = (
+            table_name if isinstance(table_name, str) else ".".join(table_name)
+        )
+        Utils.validate_object_name(full_table_name)
+        pattern = pattern or self._reader._cur_options.get("pattern")
+        format_type_options = format_type_options or self._reader._cur_options.get(
+            "format_type_options"
+        )
+        target_columns = target_columns or self._reader._cur_options.get(
+            "target_columns"
+        )
+        transformations = transformations or self._reader._cur_options.get(
+            "transformations"
+        )
+        copy_options = copy_options or self._reader._cur_options.get("copy_options")
+        validation_mode = validation_mode or self._reader._cur_options.get(
+            "validation_mode"
+        )
+        cloud_provider_parameters = (
+            cloud_provider_parameters
+            or self._reader._cur_options.get("cloud_provider_parameters")
+        )
+        normalized_column_names = (
+            [AnalyzerPackage.quote_name(col_name) for col_name in target_columns]
+            if target_columns
+            else None
+        )
+        transformation_exps = (
+            [column.expression for column in transformations]
+            if transformations
+            else None
+        )
+        return DataFrame(
+            self.session,
+            CopyIntoNode(
+                full_table_name,
+                files=self._reader._file_path,
+                file_format=self._reader._file_type,
+                pattern=pattern,
+                column_names=normalized_column_names,
+                transformations=transformation_exps,
+                copy_options=copy_options,
+                format_type_options=format_type_options,
+                validation_mode=validation_mode,
+                cloud_provider_parameters=cloud_provider_parameters,
+                user_schema=self._reader._user_schema,
+                cur_options=self._reader._cur_options,
+            ),
+        )._collect_with_tag()
 
     def show(self, n: int = 10, max_width: int = 50) -> None:
         """Evaluates this DataFrame and prints out the first ``n`` rows with the

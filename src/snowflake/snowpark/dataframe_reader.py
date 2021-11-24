@@ -82,8 +82,10 @@ class DataFrameReader:
 
     def __init__(self, session: "snowflake.snowpark.Session"):
         self.session = session
-        self.__user_schema = None
-        self.__cur_options = {}
+        self._user_schema = None
+        self._cur_options = {}
+        self._file_path = None
+        self._file_type = None
 
     def table(self, name: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the specified
@@ -112,7 +114,7 @@ class DataFrameReader:
         Args:
             schema: Schema configuration for the data to be read.
         """
-        self.__user_schema = schema
+        self._user_schema = schema
         return self
 
     def csv(self, path: str) -> DataFrame:
@@ -137,18 +139,23 @@ class DataFrameReader:
         Args:
             path: The path to the CSV file (including the stage name).
         """
-        if not self.__user_schema:
+        if not self._user_schema:
             raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
-        return DataFrame(
+
+        self._file_path = path
+        self._file_type = "csv"
+        df = DataFrame(
             self.session,
             self.session._Session__plan_builder.read_file(
                 path,
-                "csv",
-                self.__cur_options,
+                self._file_type,
+                self._cur_options,
                 self.session.getFullyQualifiedCurrentSchema(),
-                self.__user_schema._to_attributes(),
+                self._user_schema._to_attributes(),
             ),
         )
+        df._reader = self
+        return df
 
     def json(self, path: str) -> DataFrame:
         r"""Returns a :class:`DataFrame` that is set up to load data from the
@@ -316,7 +323,7 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
-        self.__cur_options[key.upper()] = self.__parse_value(value)
+        self._cur_options[key.upper()] = self.__parse_value(value)
         return self
 
     def options(self, configs: Dict) -> "DataFrameReader":
@@ -359,15 +366,19 @@ class DataFrameReader:
             return AnalyzerPackage.single_quote(str(v))
 
     def __read_semi_structured_file(self, path: str, format: str) -> "DataFrame":
-        if self.__user_schema:
+        if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
-        return DataFrame(
+        self._file_path = path
+        self._file_type = format
+        df = DataFrame(
             self.session,
             self.session._Session__plan_builder.read_file(
                 path,
                 format,
-                self.__cur_options,
+                self._cur_options,
                 self.session.getFullyQualifiedCurrentSchema(),
                 [Attribute('"$1"', VariantType())],
             ),
         )
+        df._reader = self
+        return df

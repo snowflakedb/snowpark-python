@@ -4,7 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import re
-from typing import Dict, List, Optional, Tuple, Union
+import typing
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
@@ -21,6 +22,10 @@ from snowflake.snowpark._internal.sp_types.types_package import convert_to_sf_ty
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
+
+
+class Optinal:
+    pass
 
 
 class AnalyzerPackage:
@@ -139,6 +144,8 @@ class AnalyzerPackage:
     _QuestionMark = "?"
     _Pattern = " PATTERN "
     _WithinGroup = " WITHIN GROUP "
+    _ValidationMode = " VALIDATION_MODE "
+    _CopyOptions = " COPY_OPTIONS "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (
@@ -771,23 +778,75 @@ class AnalyzerPackage:
     def copy_into_table(
         self,
         table_name: str,
-        filepath: str,
-        format: str,
+        file_path: str,
+        file_format: str,
         format_type_options: Dict[str, str],
         copy_options: Dict[str, str],
         pattern: str,
+        *,
+        validation_mode: typing.Optional[str] = None,
+        cloud_provider_parameters: typing.Optional[
+            Dict[str, Any]
+        ] = None,  # TODO: to use it in the following sql
+        column_names: Optional[List[str]] = None,
+        transformations: Optional[List[str]] = None,
     ) -> str:
-        """copy into <table_name> from <file_path> file_format = (type =
-        <format> <format_type_options>) <copy_options>"""
+        """
+        /* Standard data load */
+        COPY INTO [<namespace>.]<table_name>
+             FROM { internalStage | externalStage | externalLocation }
+        [ FILES = ( '<file_name>' [ , '<file_name>' ] [ , ... ] ) ]
+        [ PATTERN = '<regex_pattern>' ]
+        [ FILE_FORMAT = ( { FORMAT_NAME = '[<namespace>.]<file_format_name>' |
+                            TYPE = { CSV | JSON | AVRO | ORC | PARQUET | XML } [ formatTypeOptions ] } ) ]
+        [ copyOptions ]
+        [ VALIDATION_MODE = RETURN_<n>_ROWS | RETURN_ERRORS | RETURN_ALL_ERRORS ]
 
+        /* Data load with transformation */
+        COPY INTO [<namespace>.]<table_name> [ ( <col_name> [ , <col_name> ... ] ) ]
+             FROM ( SELECT [<alias>.]$<file_col_num>[.<element>] [ , [<alias>.]$<file_col_num>[.<element>] ... ]
+                    FROM { internalStage | externalStage } )
+        [ FILES = ( '<file_name>' [ , '<file_name>' ] [ , ... ] ) ]
+        [ PATTERN = '<regex_pattern>' ]
+        [ FILE_FORMAT = ( { FORMAT_NAME = '[<namespace>.]<file_format_name>' |
+                            TYPE = { CSV | JSON | AVRO | ORC | PARQUET | XML } [ formatTypeOptions ] } ) ]
+        [ copyOptions ]
+        """
+        column_str = (
+            self._LeftParenthesis
+            + self._Comma.join(column_names)
+            + self._RightParenthesis
+            if column_names
+            else self._EmptyString
+        )
+        from_str = (
+            self._LeftParenthesis
+            + self._Select
+            + self._Comma.join(transformations)
+            + self._From
+            + file_path
+            + self._RightParenthesis
+            if transformations
+            else file_path
+        )
+        validation_str = (
+            f"{self._ValidationMode} = {validation_mode}" if validation_mode else ""
+        )
+        ftostr = (
+            self._FileFormat
+            + self._Equals
+            + self._LeftParenthesis
+            + self._Type
+            + self._Equals
+            + file_format
+        )
         if format_type_options:
-            ftostr = (
+            ftostr += (
                 self._Space
                 + self._Space.join(f"{k}={v}" for k, v in format_type_options.items())
                 + self._Space
             )
-        else:
-            ftostr = ""
+        ftostr += self._RightParenthesis
 
         if copy_options:
             costr = (
@@ -802,22 +861,17 @@ class AnalyzerPackage:
             self._Copy
             + self._Into
             + table_name
+            + column_str
             + self._From
-            + filepath
+            + from_str
             + (
                 self._Pattern + self._Equals + self.single_quote(pattern)
                 if pattern
                 else self._EmptyString
             )
-            + self._FileFormat
-            + self._Equals
-            + self._LeftParenthesis
-            + self._Type
-            + self._Equals
-            + format
             + ftostr
-            + self._RightParenthesis
             + costr
+            + validation_str
         )
 
     def create_temp_table_statement(self, table_name: str, schema: str) -> str:
