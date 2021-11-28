@@ -6,6 +6,7 @@
 import re
 from typing import Callable, List, Tuple, Union
 
+import snowflake.snowpark  # type: ignore
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
@@ -14,18 +15,17 @@ from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
 )
 from snowflake.snowpark._internal.sp_expressions import (
     Alias as SPAlias,
-    Count as SPCount,
     Cube as SPCube,
     Expression as SPExpression,
-    GroupingSets as SPGroupingSets,
+    GroupingSetsExpression as SPGroupingSetsExpression,
     Literal as SPLiteral,
     NamedExpression as SPNamedExpression,
     Rollup as SPRollup,
-    Star as SPStar,
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
-    UnresolvedFunction as SPUnresolvedFunction,
 )
+from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.sp_types.types_package import ColumnOrName
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
@@ -53,6 +53,29 @@ class _PivotType(_GroupType):
         self.values = values
 
 
+class GroupingSets:
+    """Creates a GroupingSets object from a list of column/expression sets that you pass
+    to :meth:`DataFrame.groupByGroupingSets`. See :meth:`DataFrame.groupByGroupingSets` for
+    examples of how to use this class with a :class:`DataFrame`.
+
+    Examples::
+
+        GroupingSets([col("a")], [col("b")])  # Becomes "GROUPING SETS ((a), (b))"
+        GroupingSets([col("a") , col("b")], [col("c"), col("d")])   # Becomes "GROUPING SETS ((a, b), (c, d))"
+        GroupingSets([col("a"), col("b")])        # Becomes "GROUPING SETS ((a, b))"
+        GroupingSets(col("a"), col("b"))  # Becomes "GROUPING SETS ((a, b))"
+    """
+
+    def __init__(self, *sets: Union[Column, List[Column]]):
+        prepared_sets = Utils.parse_positional_args_to_list(*sets)
+        prepared_sets = (
+            prepared_sets if isinstance(prepared_sets[0], list) else [prepared_sets]
+        )
+        self.to_expression = SPGroupingSetsExpression(
+            [[c.expression for c in s] for s in prepared_sets]
+        )
+
+
 class RelationalGroupedDataFrame:
     """Represents an underlying DataFrame with rows that are grouped by common values.
     Can be used to define aggregations on these grouped DataFrames.
@@ -75,13 +98,14 @@ class RelationalGroupedDataFrame:
     def __toDF(self, agg_exprs: List[SPExpression]):
         aliased_agg = []
         for grouping_expr in self.grouping_exprs:
-            if isinstance(grouping_expr, SPGroupingSets):
+            if isinstance(grouping_expr, SPGroupingSetsExpression):
                 # avoid doing list(set(grouping_expr.args)) because it will change the order
                 gr_used = set()
                 gr_uniq = [
-                    arg
+                    a
                     for arg in grouping_expr.args
-                    if arg not in gr_used and (gr_used.add(arg) or True)
+                    for a in arg
+                    if a not in gr_used and (gr_used.add(a) or True)
                 ]
                 aliased_agg.extend(gr_uniq)
             else:
@@ -95,12 +119,12 @@ class RelationalGroupedDataFrame:
         unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
         aliased_agg = [self.__alias(a) for a in unique]
 
-        if type(self.group_type) == _GroupByType:
+        if isinstance(self.group_type, _GroupByType):
             return DataFrame(
                 self.df.session,
                 SPAggregate(self.grouping_exprs, aliased_agg, self.df._DataFrame__plan),
             )
-        if type(self.group_type) == _RollupType:
+        if isinstance(self.group_type, _RollupType):
             return DataFrame(
                 self.df.session,
                 SPAggregate(
@@ -109,14 +133,14 @@ class RelationalGroupedDataFrame:
                     self.df._DataFrame__plan,
                 ),
             )
-        if type(self.group_type) == _CubeType:
+        if isinstance(self.group_type, _CubeType):
             return DataFrame(
                 self.df.session,
                 SPAggregate(
                     [SPCube(self.grouping_exprs)], aliased_agg, self.df._DataFrame__plan
                 ),
             )
-        if type(self.group_type) == _PivotType:
+        if isinstance(self.group_type, _PivotType):
             if len(agg_exprs) != 1:
                 raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             return DataFrame(
@@ -152,16 +176,13 @@ class RelationalGroupedDataFrame:
     def __expr_to_func(expr: str, input_expr: SPExpression) -> SPExpression:
         lowered = expr.lower()
         if lowered in ["avg", "average", "mean"]:
-            return SPUnresolvedFunction("avg", [input_expr], is_distinct=False)
+            return functions.avg(Column(input_expr)).expression
         elif lowered in ["stddev", "std"]:
-            return SPUnresolvedFunction("stddev", [input_expr], is_distinct=False)
+            return functions.stddev(Column(input_expr)).expression
         elif lowered in ["count", "size"]:
-            if isinstance(input_expr, SPStar):
-                return SPCount(SPLiteral(1)).to_aggregate_expression()
-            else:
-                return SPCount(input_expr).to_aggregate_expression()
+            return functions.count(Column(input_expr)).expression
         else:
-            return SPUnresolvedFunction(expr, [input_expr], is_distinct=False)
+            return functions.builtin(lowered)(input_expr).expression
 
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> "DataFrame":
         """Returns a :class:`DataFrame` with computed aggregates. The first element of
@@ -183,42 +204,45 @@ class RelationalGroupedDataFrame:
             from snowflake.snowpark.functions import col
             df.groupBy("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
         """
-        if not type(exprs) in (list, tuple):
+        if not isinstance(exprs, (list, tuple)):
             exprs = [exprs]
 
-        if all(type(e) == Column for e in exprs):
-            return self.__toDF([e.expression for e in exprs])
-        elif all(
-            type(e) == tuple and type(e[0]) == Column and type(e[1]) == str
-            for e in exprs
-        ):
-            return self.__toDF(
-                [self.__str_to_expr(expr)(col.expression) for col, expr in exprs]
-            )
-        else:
-            raise TypeError("Invalid input types for agg()")
+        agg_exprs = []
+        for e in exprs:
+            if isinstance(e, Column):
+                agg_exprs.append(e.expression)
+            elif (
+                isinstance(e, tuple)
+                and isinstance(e[0], Column)
+                and isinstance(e[1], str)
+            ):
+                agg_exprs.append(self.__str_to_expr(e[1])(e[0].expression))
+            else:
+                raise TypeError("Invalid input types for agg()")
 
-    def avg(self, *cols: Union[Column, str]) -> "DataFrame":
+        return self.__toDF(agg_exprs)
+
+    def avg(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the average for the specified numeric columns."""
         return self.__non_empty_argument_function("avg", *cols)
 
-    def mean(self, *cols: Union[Column, str]) -> "DataFrame":
+    def mean(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the average for the specified numeric columns. Alias of :obj:`avg`."""
         return self.avg(*cols)
 
-    def sum(self, *cols: Union[Column, str]) -> "DataFrame":
+    def sum(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the sum for the specified numeric columns."""
         return self.__non_empty_argument_function("sum", *cols)
 
-    def median(self, *cols: Union[Column, str]) -> "DataFrame":
+    def median(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the median for the specified numeric columns."""
         return self.__non_empty_argument_function("median", *cols)
 
-    def min(self, *cols: Union[Column, str]) -> "DataFrame":
+    def min(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the min for the specified numeric columns."""
         return self.__non_empty_argument_function("min", *cols)
 
-    def max(self, *cols: Union[Column, str]) -> "DataFrame":
+    def max(self, *cols: ColumnOrName) -> "DataFrame":
         """Return the max for the specified numeric columns."""
         return self.__non_empty_argument_function("max", *cols)
 
@@ -227,7 +251,7 @@ class RelationalGroupedDataFrame:
         return self.__toDF(
             [
                 SPAlias(
-                    SPCount(SPLiteral(1)).to_aggregate_expression(),
+                    functions.builtin("count")(SPLiteral(1)).expression,
                     "count",
                 )
             ]
@@ -243,9 +267,7 @@ class RelationalGroupedDataFrame:
         """
         return lambda *cols: self.__builtin_internal(agg_name, *cols)
 
-    def __builtin_internal(
-        self, agg_name: str, *cols: Union[Column, str]
-    ) -> "DataFrame":
+    def __builtin_internal(self, agg_name: str, *cols: ColumnOrName) -> "DataFrame":
         agg_exprs = []
         for c in cols:
             c_expr = Column(c).expression if isinstance(c, str) else c.expression
@@ -254,7 +276,7 @@ class RelationalGroupedDataFrame:
         return self.__toDF(agg_exprs)
 
     def __non_empty_argument_function(
-        self, func_name: str, *cols: Union[Column, str]
+        self, func_name: str, *cols: ColumnOrName
     ) -> "DataFrame":
         if not cols:
             raise ValueError(

@@ -7,14 +7,25 @@
 # existing code originally distributed by the Apache Software Foundation as part of the
 # Apache Spark project, under the Apache License, Version 2.0.
 
+import collections
 import ctypes
 import datetime
 import decimal
 import sys
-import typing
 from array import array
-from collections import OrderedDict, defaultdict
-from typing import List, Optional, Tuple, Type
+from typing import (
+    Any,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    OrderedDict,
+    Tuple,
+    Type,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     ArrayType as SPArrayType,
@@ -59,46 +70,46 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _NumericType,
 )
 
 
-# TODO maybe change to isinstance()
 def convert_to_sf_type(datatype: DataType) -> str:
-    if type(datatype) == DecimalType:
+    if isinstance(datatype, DecimalType):
         return f"NUMBER({datatype.precision}, {datatype.scale})"
-    if type(datatype) == IntegerType:
+    if isinstance(datatype, IntegerType):
         return "INT"
-    if type(datatype) == ShortType:
+    if isinstance(datatype, ShortType):
         return "SMALLINT"
-    if type(datatype) == ByteType:
+    if isinstance(datatype, ByteType):
         return "BYTEINT"
-    if type(datatype) == LongType:
+    if isinstance(datatype, LongType):
         return "BIGINT"
-    if type(datatype) == FloatType:
+    if isinstance(datatype, FloatType):
         return "FLOAT"
-    if type(datatype) == DoubleType:
+    if isinstance(datatype, DoubleType):
         return "DOUBLE"
     # We regard NullType as String, which is required when creating
     # a dataframe from local data with all None values
-    if type(datatype) in [StringType, NullType]:
+    if isinstance(datatype, (StringType, NullType)):
         return "STRING"
-    if type(datatype) == BooleanType:
+    if isinstance(datatype, BooleanType):
         return "BOOLEAN"
-    if type(datatype) == DateType:
+    if isinstance(datatype, DateType):
         return "DATE"
-    if type(datatype) == TimeType:
+    if isinstance(datatype, TimeType):
         return "TIME"
-    if type(datatype) == TimestampType:
+    if isinstance(datatype, TimestampType):
         return "TIMESTAMP"
-    if type(datatype) == BinaryType:
+    if isinstance(datatype, BinaryType):
         return "BINARY"
-    if type(datatype) == ArrayType:
+    if isinstance(datatype, ArrayType):
         return "ARRAY"
-    if type(datatype) == MapType:
+    if isinstance(datatype, MapType):
         return "OBJECT"
-    if type(datatype) == VariantType:
+    if isinstance(datatype, VariantType):
         return "VARIANT"
-    # if type(datatype) is GeographyType:
+    # if isinstance(datatype, GeographyType):
     #    return "GEOGRAPHY"
     raise TypeError(f"Unsupported data type: {datatype.type_name}")
 
@@ -245,6 +256,12 @@ _type_mappings = {
     datetime.time: SPTimeType,
     bytes: SPBinaryType,
 }
+
+_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = tuple(_type_mappings.keys())
+_VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
+    *_type_mappings.values(),
+    _NumericType,
+)
 
 # Mapping Python array types to Spark SQL DataType
 # We should be careful here. The size of these types in python depends on C
@@ -435,13 +452,13 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
     if tp in _type_mappings:
         return sp_type_to_snow_type(_type_mappings[tp]()), False
 
-    tp_origin = typing.get_origin(tp)
-    tp_args = typing.get_args(tp)
+    tp_origin = get_origin(tp)
+    tp_args = get_args(tp)
 
     # only typing.Optional[X], i.e., typing.Union[X, None] is accepted
     if (
         tp_origin
-        and tp_origin == typing.Union
+        and tp_origin == Union
         and tp_args
         and len(tp_args) == 2
         and tp_args[1] == type(None)
@@ -449,16 +466,22 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
         return _python_type_to_snow_type(tp_args[0])[0], True
 
     # typing.List, typing.Tuple, list, tuple
-    list_tps = [list, tuple, typing.List, typing.Tuple]
+    list_tps = [list, tuple, List, Tuple]
     if tp in list_tps or (tp_origin and tp_origin in list_tps):
         element_type = (
             _python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
         )
         return ArrayType(element_type), False
 
-    # typing.Dict, typing.DefaultDict, dict, defaultdict
-    # TODO: add typing.OrderedDict after upgrading to Python 3.8
-    dict_tps = [dict, defaultdict, OrderedDict, typing.Dict, typing.DefaultDict]
+    # typing.Dict, typing.DefaultDict, typing.OrderDict, dict, defaultdict, OrderedDict
+    dict_tps = [
+        dict,
+        collections.defaultdict,
+        collections.OrderedDict,
+        OrderedDict,
+        Dict,
+        DefaultDict,
+    ]
     if tp in dict_tps or (tp_origin and tp_origin in dict_tps):
         key_type = _python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
         value_type = (
@@ -466,7 +489,12 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
         )
         return MapType(key_type, value_type), False
 
-    if tp == typing.Any:
+    if tp == Any:
         return VariantType(), False
 
     raise TypeError(f"invalid type {tp}")
+
+
+# Type hints
+ColumnOrName = Union["snowflake.snowpark.column.Column", str]
+LiteralType = Union[_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]

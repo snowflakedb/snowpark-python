@@ -4,7 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import os
-import tempfile
+import random
+import string
 
 import pytest
 
@@ -133,15 +134,17 @@ def test_negative_invalid_permanent_function_name(session):
 
 
 def test_clean_up_files_if_udf_registration_fails(session):
-    def add_one(x: int) -> int:
-        return x + 1
+    long_string = "".join(random.choices(string.ascii_letters, k=64 * 1024))
+
+    def large_udf() -> str:
+        return long_string
 
     perm_func_name = Utils.random_name()
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
         session.udf.register(
-            add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
+            large_udf, name=perm_func_name, is_permanent=True, stage_location=stage_name
         )
         # only udf_py_xxxx.py will exsit under stage_name/func_name
         assert len(session.sql(f"ls @{stage_name}/{perm_func_name}").collect()) == 1
@@ -149,7 +152,7 @@ def test_clean_up_files_if_udf_registration_fails(session):
         # register the same name UDF, CREATE UDF will fail
         with pytest.raises(ProgrammingError) as ex_info:
             session.udf.register(
-                add_one,
+                large_udf,
                 name=perm_func_name,
                 is_permanent=True,
                 stage_location=stage_name,

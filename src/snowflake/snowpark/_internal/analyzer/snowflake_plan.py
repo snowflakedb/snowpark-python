@@ -29,7 +29,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     snow_type_to_sp_type,
     sp_type_to_snow_type,
 )
-from snowflake.snowpark._internal.utils import _SaveMode
+from snowflake.snowpark._internal.utils import TempObjectType, Utils, _SaveMode
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -58,7 +58,9 @@ class SnowflakePlan(LogicalPlan):
                         if not match:
                             raise e
                         col = match.group(1)
-                        children = [arg for arg in args if type(arg) == SnowflakePlan]
+                        children = [
+                            arg for arg in args if isinstance(arg, SnowflakePlan)
+                        ]
                         remapped = [
                             SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
                                 "", val
@@ -274,7 +276,7 @@ class SnowflakePlanBuilder:
         data: List[Row],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        temp_table_name = self.pkg.random_name_for_temp_object()
+        temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         attributes = [
             Attribute(
                 sp_attr.name, sp_type_to_snow_type(sp_attr.datatype), sp_attr.nullable
@@ -498,16 +500,17 @@ class SnowflakePlanBuilder:
         # if pattern:
         #   session._conn.telemetry.reportUsageOfCopyPattern()
 
-        temp_object_name = (
-            fully_qualified_schema + "." + AnalyzerPackage.random_name_for_temp_object()
-        )
-
         pkg = AnalyzerPackage()
         if not copy_options:  # use select
+            temp_file_format_name = (
+                fully_qualified_schema
+                + "."
+                + Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+            )
             queries = [
                 Query(
                     pkg.create_file_format_statement(
-                        temp_object_name,
+                        temp_file_format_name,
                         format,
                         format_type_options,
                         temp=True,
@@ -516,7 +519,10 @@ class SnowflakePlanBuilder:
                 ),
                 Query(
                     pkg.select_from_path_with_format_statement(
-                        pkg.schema_cast_seq(schema), path, temp_object_name, pattern
+                        pkg.schema_cast_seq(schema),
+                        path,
+                        temp_file_format_name,
+                        pattern,
                     )
                 ),
             ]
@@ -546,16 +552,21 @@ class SnowflakePlanBuilder:
                     Attribute(f'"COL{index}"', att.datatype, att.nullable)
                 )
 
+            temp_table_name = (
+                fully_qualified_schema
+                + "."
+                + Utils.random_name_for_temp_object(TempObjectType.TABLE)
+            )
             queries = [
                 Query(
                     pkg.create_temp_table_statement(
-                        temp_object_name,
+                        temp_table_name,
                         pkg.attribute_to_schema_string(temp_table_schema),
                     )
                 ),
                 Query(
                     pkg.copy_into_table(
-                        temp_object_name,
+                        temp_table_name,
                         path,
                         format,
                         format_type_options,
@@ -569,12 +580,12 @@ class SnowflakePlanBuilder:
                             f"{new_att.name} AS {input_att.name}"
                             for new_att, input_att in zip(temp_table_schema, schema)
                         ],
-                        temp_object_name,
+                        temp_table_name,
                     )
                 ),
             ]
 
-            post_actions = [pkg.drop_table_if_exists_statement(temp_object_name)]
+            post_actions = [pkg.drop_table_if_exists_statement(temp_table_name)]
             return SnowflakePlan(
                 queries,
                 pkg.schema_value_statement(schema),

@@ -19,6 +19,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLInvalidIdException,
     SnowparkSQLUnexpectedAliasException,
+    SnowparkUploadUdfFileException,
     _SnowparkInternalException,
 )
 
@@ -274,6 +275,23 @@ class SnowparkClientExceptionMessages:
     def SERVER_FAILED_FETCH_PANDAS(message: str) -> SnowparkFetchDataException:
         return SnowparkFetchDataException(
             f"Failed to fetch a Pandas Dataframe. The error is: {message}", "1406"
+        )
+
+    @staticmethod
+    def SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
+        dest_filename: str,
+    ) -> SnowparkUploadUdfFileException:
+        return SnowparkUploadUdfFileException(
+            "A file stream was closed when uploading UDF files. "
+            f"The destination file name is: {dest_filename}. "
+            "If you were creating a UDF, this is probably caused "
+            "by an oversized generated UDF file. Please don't use "
+            "global variables that reference to large data (e.g., "
+            "a ML model with hundreds of parameters) in a UDF, and "
+            "consider uploading the large data to a stage, then the "
+            "UDF can be read it from the stage while also retain a "
+            "small size.",
+            "1407",
         )
 
     # General Error codes 15XX

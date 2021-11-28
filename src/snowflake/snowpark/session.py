@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 
+import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.snowpark import Column, DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
@@ -39,11 +40,16 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
     StringType as SPStringType,
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrName,
     _infer_schema_from_list,
     _merge_type,
     snow_type_to_sp_type,
 )
-from snowflake.snowpark._internal.utils import PythonObjJSONEncoder, Utils
+from snowflake.snowpark._internal.utils import (
+    PythonObjJSONEncoder,
+    TempObjectType,
+    Utils,
+)
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
@@ -181,7 +187,7 @@ class Session:
 "python.connector.session.id" : {self.__session_id},
 "os.name" : {Utils.get_os_name()}
 """
-        self.__session_stage = f"snowSession_{self.__session_id}"
+        self.__session_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
         self.__stage_created = False
         self.__udf_registration = None
         self.__plan_builder = SnowflakePlanBuilder(self)
@@ -404,17 +410,18 @@ class Session:
                 else:
                     # local directory or .py file
                     if os.path.isdir(path) or path.endswith(".py"):
-                        input_stream = Utils.zip_file_or_directory_to_stream(
+                        with Utils.zip_file_or_directory_to_stream(
                             path, leading_path, add_init_py=True
-                        )
-                        self._conn.upload_stream(
-                            input_stream=input_stream,
-                            stage_location=normalized_stage_location,
-                            dest_filename=filename,
-                            dest_prefix=prefix,
-                            compress_data=False,
-                            overwrite=True,
-                        )
+                        ) as input_stream:
+                            self._conn.upload_stream(
+                                input_stream=input_stream,
+                                stage_location=normalized_stage_location,
+                                dest_filename=filename,
+                                dest_prefix=prefix,
+                                source_compression="DEFLATE",
+                                compress_data=False,
+                                overwrite=True,
+                            )
                     # local file
                     else:
                         self._conn.upload_file(
@@ -463,7 +470,7 @@ class Session:
             self._conn.run_query("alter session unset query_tag")
         self.__query_tag = tag
 
-    def table(self, name: Union[str, List[str]]) -> DataFrame:
+    def table(self, name: Union[str, List[str], Tuple[str, ...]]) -> DataFrame:
         """
         Returns a DataFrame that points the specified table.
 
@@ -475,12 +482,12 @@ class Session:
 
             df = session.table("mytable")
         """
-        if type(name) == str:
+        if isinstance(name, str):
             fqdn = [name]
-        elif type(name) == list:
+        elif isinstance(name, (list, tuple)):
             fqdn = name
         else:
-            raise TypeError("The table name should be str or a list of strs.")
+            raise TypeError("The input of table() should be a str or a list of strs.")
         for n in fqdn:
             Utils.validate_object_name(n)
         return DataFrame(self, UnresolvedRelation(fqdn))
@@ -488,8 +495,8 @@ class Session:
     def table_function(
         self,
         func_name: Union[str, List[str]],
-        *func_arguments: Union[Column, str],
-        **func_named_arguments: Union[Column, str],
+        *func_arguments: ColumnOrName,
+        **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
         """Creates a new DataFrame from the given snowflake SQL table function.
 
@@ -602,7 +609,10 @@ class Session:
             raise ValueError("data cannot be None.")
 
         # check the type of data
-        if type(data) not in (list, tuple):
+        if isinstance(data, Row):
+            raise TypeError("createDataFrame() function does not accept a Row object.")
+
+        if not isinstance(data, (list, tuple)):
             raise TypeError(
                 "createDataFrame() function only accepts data as a list or a tuple."
             )
@@ -653,15 +663,17 @@ class Session:
         for field in new_schema.fields:
             sp_type = (
                 SPStringType()
-                if type(field.datatype)
-                in [
-                    VariantType,
-                    ArrayType,
-                    MapType,
-                    TimeType,
-                    DateType,
-                    TimestampType,
-                ]
+                if isinstance(
+                    field.datatype,
+                    (
+                        VariantType,
+                        ArrayType,
+                        MapType,
+                        TimeType,
+                        DateType,
+                        TimestampType,
+                    ),
+                )
                 else snow_type_to_sp_type(field.datatype)
             )
             sp_attrs.append(
@@ -678,26 +690,31 @@ class Session:
             for value, data_type in zip(row, data_types):
                 if value is None:
                     converted_row.append(None)
-                elif type(value) == decimal.Decimal and type(data_type) == DecimalType:
+                elif isinstance(value, decimal.Decimal) and isinstance(
+                    data_type, DecimalType
+                ):
                     converted_row.append(value)
-                elif (
-                    type(value) == datetime.datetime
-                    and type(data_type) == TimestampType
+                elif isinstance(value, datetime.datetime) and isinstance(
+                    data_type, TimestampType
                 ):
                     converted_row.append(str(value))
-                elif type(value) == datetime.time and type(data_type) == TimeType:
+                elif isinstance(value, datetime.time) and isinstance(
+                    data_type, TimeType
+                ):
                     converted_row.append(str(value))
-                elif type(value) == datetime.date and type(data_type) == DateType:
+                elif isinstance(value, datetime.date) and isinstance(
+                    data_type, DateType
+                ):
                     converted_row.append(str(value))
                 elif isinstance(data_type, _AtomicType):  # consider inheritance
                     converted_row.append(value)
-                elif (
-                    type(value) in [list, tuple, array] and type(data_type) == ArrayType
+                elif isinstance(value, (list, tuple, array)) and isinstance(
+                    data_type, ArrayType
                 ):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
-                elif type(value) == dict and type(data_type) == MapType:
+                elif isinstance(value, dict) and isinstance(data_type, MapType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
-                elif type(data_type) == VariantType:
+                elif isinstance(data_type, VariantType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
                     raise TypeError(
@@ -708,7 +725,7 @@ class Session:
         # construct a project statement to convert string value back to variant
         project_columns = []
         for field in new_schema.fields:
-            if type(field.datatype) == DecimalType:
+            if isinstance(field.datatype, DecimalType):
                 project_columns.append(
                     to_decimal(
                         column(field.name),
@@ -716,26 +733,26 @@ class Session:
                         field.datatype.scale,
                     ).as_(field.name)
                 )
-            elif type(field.datatype) == TimestampType:
+            elif isinstance(field.datatype, TimestampType):
                 project_columns.append(to_timestamp(column(field.name)).as_(field.name))
-            elif type(field.datatype) == TimeType:
+            elif isinstance(field.datatype, TimeType):
                 project_columns.append(to_time(column(field.name)).as_(field.name))
-            elif type(field.datatype) == DateType:
+            elif isinstance(field.datatype, DateType):
                 project_columns.append(to_date(column(field.name)).as_(field.name))
-            elif type(field.datatype) == VariantType:
+            elif isinstance(field.datatype, VariantType):
                 project_columns.append(
                     to_variant(parse_json(column(field.name))).as_(field.name)
                 )
-            elif type(field.datatype) == ArrayType:
+            elif isinstance(field.datatype, ArrayType):
                 project_columns.append(
                     to_array(parse_json(column(field.name))).as_(field.name)
                 )
-            elif type(field.datatype) == MapType:
+            elif isinstance(field.datatype, MapType):
                 project_columns.append(
                     to_object(parse_json(column(field.name))).as_(field.name)
                 )
             # TODO: support geo type
-            # elif type(field.data_type) == Geography:
+            # elif isinstance(field.data_type, Geography):
             else:
                 project_columns.append(column(field.name))
 
@@ -829,7 +846,7 @@ class Session:
 
     def flatten(
         self,
-        input: Union[str, Column],
+        input: ColumnOrName,
         path: Optional[str] = None,
         outer: bool = False,
         recursive: bool = False,

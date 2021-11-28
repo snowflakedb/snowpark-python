@@ -358,9 +358,9 @@ class DataFrameReader:
         return self
 
     def __parse_value(self, v) -> str:
-        if type(v) in [bool, int]:
+        if isinstance(v, (bool, int)):
             return str(v)
-        elif type(v) == str and v.lower() in ["true", "false"]:
+        elif isinstance(v, str) and v.lower() in ["true", "false"]:
             return v
         else:
             return AnalyzerPackage.single_quote(str(v))

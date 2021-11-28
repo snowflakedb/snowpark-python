@@ -7,6 +7,7 @@ import functools
 import os
 import platform
 import random
+import string
 import uuid
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
@@ -31,6 +32,15 @@ class Utils:
     @staticmethod
     def random_name() -> str:
         return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_")).upper()
+
+    @staticmethod
+    def random_alphanumeric_str(n: int):
+        return "".join(
+            random.choice(
+                string.ascii_uppercase + string.ascii_lowercase + string.digits
+            )
+            for _ in range(n)
+        )
 
     @staticmethod
     def random_stage_name() -> str:
@@ -142,6 +152,7 @@ class TestData:
     LowerCaseData = NamedTuple("LowerCaseData", [("n", int), ("l", str)])
     UpperCaseData = NamedTuple("UpperCaseData", [("N", int), ("L", str)])
     NullInt = NamedTuple("NullInts", [("a", Optional[int])])
+    Number1 = NamedTuple("Number1", [("K", int), ("v1", float), ("v2", float)])
     Number2 = NamedTuple("Number2", [("x", int), ("y", int), ("z", int)])
     MonthlySales = NamedTuple(
         "MonthlySales", [("empid", int), ("amount", int), ("month", str)]
@@ -243,8 +254,25 @@ class TestData:
         )
 
     @classmethod
+    def double4(cls, session: "Session") -> DataFrame:
+        return session.sql("select * from values(1.0, 1) as T(a, b)")
+
+    @classmethod
     def duplicated_numbers(cls, session: "Session") -> DataFrame:
         return session.sql("select * from values(3),(2),(1),(3),(2) as T(a)")
+
+    @classmethod
+    def approx_numbers(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values(1),(2),(3),(4),(5),(6),(7),(8),(9),(0) as T(a)"
+        )
+
+    @classmethod
+    def approx_numbers2(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values(1, 1),(2, 1),(3, 3),(4, 3),(5, 3),(6, 3),(7, 3),"
+            + "(8, 5),(9, 5),(0, 5) as T(a, T)"
+        )
 
     @classmethod
     def string1(cls, session: "Session") -> DataFrame:
@@ -267,6 +295,16 @@ class TestData:
     @classmethod
     def string5(cls, session: "Session") -> DataFrame:
         return session.sql("select * from values('1,2,3,4,5') as T(a)")
+
+    @classmethod
+    def string6(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "select * from values('1,2,3,4,5', ','),('1 2 3 4 5', ' ') as T(a, b)"
+        )
+
+    @classmethod
+    def string7(cls, session: "Session") -> DataFrame:
+        return session.sql("select * from values('str', 1),(null, 2) as T(a, b)")
 
     @classmethod
     def array1(cls, session: "Session") -> DataFrame:
@@ -423,6 +461,18 @@ class TestData:
         ).toDF(["a", "b"])
 
     @classmethod
+    def number1(cls, session) -> DataFrame:
+        return session.createDataFrame(
+            [
+                cls.Number1(1, 10.0, 0.0),
+                cls.Number1(2, 10.0, 11.0),
+                cls.Number1(2, 20.0, 22.0),
+                cls.Number1(2, 25.0, 0.0),
+                cls.Number1(2, 30.0, 35.0),
+            ]
+        )
+
+    @classmethod
     def number2(cls, session):
         return session.createDataFrame(
             [cls.Number2(1, 2, 3), cls.Number2(0, -1, 4), cls.Number2(-5, 0, -9)]
@@ -479,6 +529,20 @@ class TestData:
     @classmethod
     def column_has_special_char(cls, session: "Session") -> DataFrame:
         return session.createDataFrame([[1, 2], [3, 4]]).toDF(['"col %"', '"col *"'])
+
+    @classmethod
+    def nurse(cls, session: "Session") -> DataFrame:
+        return session.createDataFrame(
+            [
+                [201, "Thomas Leonard Vicente", "LVN", "Technician"],
+                [202, "Tamara Lolita VanZant", "LVN", "Technician"],
+                [341, "Georgeann Linda Vente", "LVN", "General"],
+                [471, "Andrea Renee Nouveau", "RN", "Amateur Extra"],
+                [101, "Lily Vine", "LVN", None],
+                [102, "Larry Vancouver", "LVN", None],
+                [172, "Rhonda Nova", "RN", None],
+            ]
+        ).toDF(["id", "full_name", "medical_license", "radio_license"])
 
 
 class TestFiles:
