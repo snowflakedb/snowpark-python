@@ -116,6 +116,7 @@ class AnalyzerPackage:
     _EqualNull = " EQUAL_NULL "
     _IsNaN = " = 'NaN'"
     _File = " FILE "
+    _Files = " FILES "
     _Format = " FORMAT "
     _Type = " TYPE "
     _Equals = " = "
@@ -784,10 +785,8 @@ class AnalyzerPackage:
         copy_options: Dict[str, str],
         pattern: str,
         *,
-        validation_mode: typing.Optional[str] = None,
-        cloud_provider_parameters: typing.Optional[
-            Dict[str, Any]
-        ] = None,  # TODO: to use it in the following sql
+        files: Optional[str] = None,
+        validation_mode: Optional[str] = None,
         column_names: Optional[List[str]] = None,
         transformations: Optional[List[str]] = None,
     ) -> str:
@@ -829,6 +828,15 @@ class AnalyzerPackage:
             if transformations
             else file_path
         )
+        files_str = (
+            self._Files
+            + self._Equals
+            + self._LeftParenthesis
+            + self._Comma.join(files)
+            + self._RightParenthesis
+            if files
+            else ""
+        )
         validation_str = (
             f"{self._ValidationMode} = {validation_mode}" if validation_mode else ""
         )
@@ -869,6 +877,7 @@ class AnalyzerPackage:
                 if pattern
                 else self._EmptyString
             )
+            + files_str
             + ftostr
             + costr
             + validation_str

@@ -554,14 +554,14 @@ class Analyzer:
         if isinstance(logical_plan, CopyIntoNode):
             if logical_plan.table_name:
                 return self.plan_builder.copy_into_table(
+                    path=logical_plan.file_path,
                     table_name=logical_plan.table_name,
-                    path=logical_plan.files,
+                    files=logical_plan.files,
                     pattern=logical_plan.pattern,
                     file_format=logical_plan.file_format,
                     format_type_options=logical_plan.format_type_options,
                     copy_options=logical_plan.copy_options,
                     validation_mode=logical_plan.validation_mode,
-                    cloud_provider_parameters=logical_plan.cloud_provider_parameters,
                     column_names=logical_plan.column_names,
                     transformations=[
                         self.analyze(x) for x in logical_plan.transformations

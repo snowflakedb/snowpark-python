@@ -588,12 +588,12 @@ class SnowflakePlanBuilder:
         self,
         table_name: str,
         path: str,
+        files: str,
         pattern,
         file_format: str,
         format_type_options: Dict[str, Any],
         copy_options,
         validation_mode,
-        cloud_provider_parameters,
         column_names: List[str],
         transformations: List[str],
         user_schema: Optional[StructType],
@@ -601,18 +601,18 @@ class SnowflakePlanBuilder:
         copy_command = self.pkg.copy_into_table(
             table_name=table_name,
             file_path=path,
+            files=files,
             file_format=file_format,
             format_type_options=format_type_options,
             copy_options=copy_options,
             pattern=pattern,
             validation_mode=validation_mode,
-            cloud_provider_parameters=cloud_provider_parameters,
             column_names=column_names,
             transformations=transformations,
         )
         if self.__session._table_exists(table_name):
             queries = [Query(copy_command)]
-        else:
+        elif user_schema and not transformations:
             attributes = user_schema._to_attributes()
             queries = [
                 Query(
@@ -625,56 +625,11 @@ class SnowflakePlanBuilder:
                 ),
                 Query(copy_command),
             ]
+        else:
+            raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
+                table_name
+            )
         return SnowflakePlan(queries, copy_command, [], {}, self.__session, None)
-        """
-  def copyInto(
-      tableName: String,
-      path: String,
-      format: String,
-      options: Map[String, String], // key should be upper case
-      fullyQualifiedSchema: String,
-      columnNames: Seq[String],
-      transformations: Seq[String],
-      userSchema: Option[StructType]): SnowflakePlan = {
-    val (copyOptions, formatTypeOptions) = options
-      .filter {
-        case (k, _) => !k.equals("PATTERN")
-      }
-      .partition {
-        case (k, _) => CopyOption.contains(k)
-      }
-    val pattern = options.get("PATTERN")
-    // track usage of pattern, will refactor this function in future
-    if (pattern.nonEmpty) {
-      session.conn.telemetry.reportUsageOfCopyPattern()
-    }
-
-    val copyCommand = copyIntoTable(
-      tableName,
-      path,
-      format,
-      formatTypeOptions,
-      copyOptions,
-      pattern,
-      columnNames,
-      transformations)
-
-    val queries = if (session.tableExists(tableName)) {
-      Seq(Query(copyCommand))
-    } else if (userSchema.nonEmpty && transformations.isEmpty) {
-      // If target table doesn't exist,
-      // Generate CREATE TABLE command from user input schema.
-      val attributes = userSchema.get.toAttributes
-      Seq(
-        Query(createTableStatement(tableName, attributeToSchemaString(attributes), false, false)),
-        Query(copyCommand))
-    } else {
-      throw ErrorMessage.DF_COPY_INTO_CANNOT_CREATE_TABLE(tableName)
-    }
-
-    SnowflakePlan(queries, copyCommand, Seq.empty, Map.empty[ExprId, String], session, None, true)
-  }
-        """
 
     def lateral(
         self,
@@ -766,7 +721,8 @@ class CopyIntoNode(LeafNode):
         self,
         table_name: str,
         *,
-        files: str = None,
+        file_path: Optional[str] = None,
+        files: Optional[str] = None,
         pattern: Optional[str] = None,
         file_format: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]],
@@ -774,12 +730,12 @@ class CopyIntoNode(LeafNode):
         transformations: Optional[List[Column]] = None,
         copy_options: Optional[Dict[str, Any]] = None,
         validation_mode: Optional[str] = None,
-        cloud_provider_parameters: Dict[str, Any] = None,
         user_schema: Optional[StructType] = None,
         cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
     ):
         super().__init__()
         self.table_name = table_name
+        self.file_path = file_path
         self.files = files
         self.pattern = pattern
         self.file_format = file_format
@@ -788,6 +744,5 @@ class CopyIntoNode(LeafNode):
         self.copy_options = copy_options
         self.format_type_options = format_type_options
         self.validation_mode = validation_mode
-        self.cloud_provider_parameters = cloud_provider_parameters
         self.user_schema = user_schema
         self.cur_options = cur_options

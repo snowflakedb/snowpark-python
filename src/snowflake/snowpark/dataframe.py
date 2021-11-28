@@ -67,7 +67,10 @@ from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkDataframeException,
 )
-from snowflake.snowpark.functions import _create_table_function_expression
+from snowflake.snowpark.functions import (
+    _create_table_function_expression,
+    _to_col_if_str,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -1101,13 +1104,13 @@ class DataFrame:
         self,
         table_name: Union[str, Iterable[str]],
         *,
+        files: Optional[List[str]] = None,
         pattern: Optional[str] = None,
         validation_mode: Optional[str] = None,
         target_columns: Optional[List[str]] = None,
-        transformations: Optional[List[Column]] = None,
+        transformations: Optional[List[Union[Column, str]]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
-        copy_options: Optional[Dict[str, Any]] = None,
-        cloud_provider_parameters: Optional[Dict[str, Any]] = None,
+        **options: Any,
     ) -> List[Row]:
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
@@ -1136,13 +1139,14 @@ class DataFrame:
         transformations = transformations or self._reader._cur_options.get(
             "transformations"
         )
-        copy_options = copy_options or self._reader._cur_options.get("copy_options")
+        transformations = (
+            [_to_col_if_str(column, "copy_into_table") for column in transformations]
+            if transformations
+            else None
+        )
+        copy_options = options or self._reader._cur_options.get("copy_options")
         validation_mode = validation_mode or self._reader._cur_options.get(
             "validation_mode"
-        )
-        cloud_provider_parameters = (
-            cloud_provider_parameters
-            or self._reader._cur_options.get("cloud_provider_parameters")
         )
         normalized_column_names = (
             [AnalyzerPackage.quote_name(col_name) for col_name in target_columns]
@@ -1150,7 +1154,10 @@ class DataFrame:
             else None
         )
         transformation_exps = (
-            [column.expression for column in transformations]
+            [
+                column.expression if isinstance(column, Column) else column
+                for column in transformations
+            ]
             if transformations
             else None
         )
@@ -1158,7 +1165,8 @@ class DataFrame:
             self.session,
             CopyIntoNode(
                 full_table_name,
-                files=self._reader._file_path,
+                file_path=self._reader._file_path,
+                files=files,
                 file_format=self._reader._file_type,
                 pattern=pattern,
                 column_names=normalized_column_names,
@@ -1166,7 +1174,6 @@ class DataFrame:
                 copy_options=copy_options,
                 format_type_options=format_type_options,
                 validation_mode=validation_mode,
-                cloud_provider_parameters=cloud_provider_parameters,
                 user_schema=self._reader._user_schema,
                 cur_options=self._reader._cur_options,
             ),
