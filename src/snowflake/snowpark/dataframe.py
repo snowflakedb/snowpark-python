@@ -5,13 +5,14 @@
 #
 import re
 from collections import Counter
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
+from snowflake.snowpark._internal.analyzer.snowflake_plan import CopyIntoNode
 from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
 from snowflake.snowpark._internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
@@ -65,7 +66,14 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
-from snowflake.snowpark.functions import _create_table_function_expression
+from snowflake.snowpark.exceptions import (
+    SnowparkClientException,
+    SnowparkDataframeException,
+)
+from snowflake.snowpark.functions import (
+    _create_table_function_expression,
+    _to_col_if_str,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -208,6 +216,8 @@ class DataFrame:
         self.dropna = self._na.drop
         self.fillna = self._na.fill
         self.replace = self._na.replace
+
+        self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
 
     @staticmethod
     def get_unaliased(col_name: str) -> List[str]:
@@ -965,6 +975,7 @@ class DataFrame:
         References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
         Example::
+
             df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
             name_address_list = df.joinTableFunction("split_to_table", df["addresses"], lit(" ")).collect()
 
@@ -1138,6 +1149,124 @@ class DataFrame:
         """
 
         return DataFrameWriter(self)
+
+    def copy_into_table(
+        self,
+        table_name: Union[str, Iterable[str]],
+        *,
+        files: Optional[Iterable[str]] = None,
+        pattern: Optional[str] = None,
+        validation_mode: Optional[str] = None,
+        target_columns: Optional[Iterable[str]] = None,
+        transformations: Optional[Iterable[Union[Column, str]]] = None,
+        format_type_options: Optional[Dict[str, Any]] = None,
+        **copy_options: Any,
+    ) -> List[Row]:
+        """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
+
+        It returns the load result described in `OUTPUT section of the COPY INTO <table> command <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#output>`__.
+        The returned result also depends on the value of ``validation_mode``.
+
+        It's slightly different from the ``COPY INTO`` command in that this method will automatically create a table if the table doesn't exist and the input files are CSV files whereas the ``COPY INTO <table>`` doesn't.
+
+        To call this method, this DataFrame must be created from a :class:`DataFrameReader`.
+
+        Example::
+
+            # user_schema is used to read from CSV files. For other files it's not needed.
+            user_schema = StructType(StructField("A", StringType()), StructField("A_LEN", IntegerType())
+            stage_location = "@somestage/somefiles.csv"
+            # Use the DataFrameReader (session.read below) to read from CSV files.
+            df = session.read.schema(user_schema).csv(stage_location)
+            # specify transformations and target column names. It's optional for the `copy into` command
+            transformations = [col("$1"), length(col("$1"))]
+            target_column_names = ["A", "A_LEN"]
+            # Use format type options and copy options
+            csv_file_format_options = {"skip_header": 2}
+            df.copy_into_table("T", target_column_names, transformations, format_type_options=csv_file_format_options, force=True)
+
+        The arguments of this function match the optional parameters of the `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#optional-parameters>`__.
+
+        Args:
+            table_name: A string or list of strings that specify the table name or fully-qualified object identifier
+                (database name, schema name, and table name).
+            files: Specific files to load from the stage location.
+            pattern: The regular expression that is used to match file names of the stage location.
+            validation_mode: A ``str`` that instructs the ``COPY INTO <table>`` command to validate the data files instead of loading them into the specified table.
+                Values can be "RETURN_n_ROWS", "RETURN_ERRORS", or "RETURN_ALL_ERRORS". Refer to the above mentioned ``COPY INTO <table>`` command optional parameters for more details.
+            target_columns: Name of the columns in the table where the data should be saved.
+            transformations: A list of column transformations.
+            format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
+            copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
+        """
+        if not self._reader or not self._reader._file_path:
+            raise SnowparkDataframeException(
+                "To copy into a table, the DataFrame must be created from a DataFrameReader and specify a file path."
+            )
+        target_columns = tuple(target_columns) if target_columns else None
+        transformations = tuple(transformations) if transformations else None
+        if (
+            target_columns
+            and transformations
+            and len(target_columns) != len(transformations)
+        ):
+            raise ValueError(
+                f"Number of column names provided to copy into does not match the number of transformations provided. Number of column names: {len(target_columns)}, number of transformations: {len(transformations)}"
+            )
+
+        full_table_name = (
+            table_name if isinstance(table_name, str) else ".".join(table_name)
+        )
+        Utils.validate_object_name(full_table_name)
+        pattern = pattern or self._reader._cur_options.get("pattern")
+        format_type_options = format_type_options or self._reader._cur_options.get(
+            "format_type_options"
+        )
+        target_columns = target_columns or self._reader._cur_options.get(
+            "target_columns"
+        )
+        transformations = transformations or self._reader._cur_options.get(
+            "transformations"
+        )
+        transformations = (
+            [_to_col_if_str(column, "copy_into_table") for column in transformations]
+            if transformations
+            else None
+        )
+        copy_options = copy_options or self._reader._cur_options.get("copy_options")
+        validation_mode = validation_mode or self._reader._cur_options.get(
+            "validation_mode"
+        )
+        normalized_column_names = (
+            [AnalyzerPackage.quote_name(col_name) for col_name in target_columns]
+            if target_columns
+            else None
+        )
+        transformation_exps = (
+            [
+                column.expression if isinstance(column, Column) else column
+                for column in transformations
+            ]
+            if transformations
+            else None
+        )
+        return DataFrame(
+            self.session,
+            CopyIntoNode(
+                full_table_name,
+                file_path=self._reader._file_path,
+                files=files,
+                file_format=self._reader._file_type,
+                pattern=pattern,
+                column_names=normalized_column_names,
+                transformations=transformation_exps,
+                copy_options=copy_options,
+                format_type_options=format_type_options,
+                validation_mode=validation_mode,
+                user_schema=self._reader._user_schema,
+                cur_options=self._reader._cur_options,
+            ),
+        )._collect_with_tag()
 
     def show(self, n: int = 10, max_width: int = 50) -> None:
         """Evaluates this DataFrame and prints out the first ``n`` rows with the

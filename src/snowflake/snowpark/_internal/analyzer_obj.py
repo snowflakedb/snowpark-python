@@ -10,7 +10,9 @@ from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPacka
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CopyIntoNode,
     SnowflakeCreateTable,
     SnowflakePlan,
     SnowflakePlanBuilder,
@@ -85,6 +87,7 @@ from snowflake.snowpark._internal.sp_expressions import (
 )
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
     IntegralType as SPIntegralType,
+    VariantType as SPVariantType,
 )
 
 ARRAY_BIND_THRESHOLD = 512
@@ -539,3 +542,42 @@ class Analyzer:
             return self.plan_builder.create_or_replace_view(
                 logical_plan.name.table, self.resolve(logical_plan.child), is_temp
             )
+
+        if isinstance(logical_plan, CopyIntoNode):
+            if logical_plan.table_name:
+                return self.plan_builder.copy_into_table(
+                    path=logical_plan.file_path,
+                    table_name=logical_plan.table_name,
+                    files=logical_plan.files,
+                    pattern=logical_plan.pattern,
+                    file_format=logical_plan.file_format,
+                    format_type_options=logical_plan.format_type_options,
+                    copy_options=logical_plan.copy_options,
+                    validation_mode=logical_plan.validation_mode,
+                    column_names=logical_plan.column_names,
+                    transformations=[
+                        self.analyze(x) for x in logical_plan.transformations
+                    ]
+                    if logical_plan.transformations
+                    else None,
+                    user_schema=logical_plan.user_schema,
+                )
+            elif logical_plan.file_format and logical_plan.file_format.upper() == "CSV":
+                if not logical_plan.user_schema:
+                    raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
+                else:
+                    return self.plan_builder.read_file(
+                        logical_plan.files,
+                        logical_plan.file_format,
+                        logical_plan.cur_options,
+                        self.session.getFullyQualifiedCurrentSchema(),
+                        logical_plan.user_schema._to_attributes(),
+                    )
+            else:
+                return self.plan_builder.read_file(
+                    logical_plan.files,
+                    logical_plan.file_format,
+                    logical_plan.cur_options,
+                    self.session.getFullyQualifiedCurrentSchema(),
+                    [Attribute('"$1"', SPVariantType())],
+                )
