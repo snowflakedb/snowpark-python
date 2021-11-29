@@ -574,8 +574,6 @@ class Analyzer:
                         logical_plan.user_schema._to_attributes(),
                     )
             else:
-                if not logical_plan.user_schema:
-                    raise ValueError()  # TODO: change to another error
                 return self.plan_builder.read_file(
                     logical_plan.files,
                     logical_plan.file_format,
@@ -583,39 +581,3 @@ class Analyzer:
                     self.session.getFullyQualifiedCurrentSchema(),
                     [Attribute('"$1"', SPVariantType())],
                 )
-
-        """
-            def createSnowflakePlan(): SnowflakePlan = {
-            if (tableName.nonEmpty) {
-              // copy into target table
-              session.plans.copyInto(
-                tableName.get,
-                stageLocation,
-                formatType,
-                curOptions,
-                fullyQualifiedSchema,
-                columnNames,
-                transformations.map(Analyzer.analyze),
-                userSchema)
-            } else if (formatType.equals("CSV")) {
-              if (userSchema.isEmpty) {
-                throw ErrorMessage.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
-              } else {
-                session.plans.readFile(
-                  stageLocation,
-                  formatType,
-                  curOptions,
-                  fullyQualifiedSchema,
-                  userSchema.get.toAttributes)
-              }
-            } else {
-              require(userSchema.isEmpty, s"Read $formatType does not support user schema")
-              session.plans.readFile(
-                stageLocation,
-                formatType,
-                curOptions,
-                fullyQualifiedSchema,
-                Seq(Attribute("\"$1\"", VariantType)))
-            }
-          }
-        """

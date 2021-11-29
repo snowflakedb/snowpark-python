@@ -6,7 +6,10 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeException,
+    SnowparkDataframeReaderException,
+)
 from snowflake.snowpark.functions import builtin, col, get, lit, sql_expr, xmlget
 from snowflake.snowpark.types import (
     DoubleType,
@@ -480,6 +483,15 @@ def test_transormation_as_clause_no_effect(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
+def test_copy_with_wrong_dataframe(session):
+    with pytest.raises(SnowparkDataframeException) as exec_info:
+        session.table("a_table_name").copy_into_table("a_table_name")
+    assert (
+        "To copy into a table, the DataFrame must be created from a DataFrameReader and specify a file path."
+        in str(exec_info)
+    )
+
+
 @pytest.mark.parametrize(
     "file_format, file_name, assert_data",
     [
@@ -684,3 +696,49 @@ def test_copy_non_csv_negative_test(session, tmp_stage_name1, file_format, file_
         )
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_copy_into_with_validation_mode(session, tmp_stage_name1, tmp_table_name):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    rows = df.copy_into_table(tmp_table_name, validation_mode="RETURN_2_ROWS")
+    assert rows == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
+
+
+@pytest.mark.parametrize(
+    "pattern, result",
+    [
+        (r".*estCSV\.csv", [Row(1, "one", 1.2), Row(2, "two", 2.2)]),
+        (r".*asdf\.csv", []),  # no files match
+    ],
+)
+def test_copy_into_with_pattern(
+    session, tmp_stage_name1, tmp_table_name, pattern, result
+):
+    test_file_on_stage = f"@{tmp_stage_name1}/"
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    rows = df.copy_into_table(
+        tmp_table_name, pattern=pattern, validation_mode="RETURN_2_ROWS"
+    )
+    assert rows == result
+
+
+def test_copy_into_with_files(session, tmp_stage_name1, tmp_table_name):
+    test_file_on_stage = f"@{tmp_stage_name1}/"
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    rows = df.copy_into_table(
+        tmp_table_name, files=["testCSV.csv"], validation_mode="RETURN_2_ROWS"
+    )
+    assert rows == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
+
+
+def test_copy_into_with_files_no_match(session, tmp_stage_name1, tmp_table_name):
+    test_file_on_stage = f"@{tmp_stage_name1}/"
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+    rows = df.copy_into_table(
+        tmp_table_name, files=["asdf.csv"], validation_mode="RETURN_ERRORS"
+    )
+    assert (
+        "The file might not exist." in rows[0]["ERROR"]
+        and rows[0]["FILE"] == "asdf.csv"
+    )

@@ -5,7 +5,6 @@
 #
 import re
 from collections import Counter
-from random import choice
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
@@ -976,6 +975,7 @@ class DataFrame:
         References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
         Example::
+
             df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
             name_address_list = df.joinTableFunction("split_to_table", df["addresses"], lit(" ")).collect()
 
@@ -1154,18 +1154,60 @@ class DataFrame:
         self,
         table_name: Union[str, Iterable[str]],
         *,
-        files: Optional[List[str]] = None,
+        files: Optional[Iterable[str]] = None,
         pattern: Optional[str] = None,
         validation_mode: Optional[str] = None,
-        target_columns: Optional[List[str]] = None,
-        transformations: Optional[List[Union[Column, str]]] = None,
+        target_columns: Optional[Iterable[str]] = None,
+        transformations: Optional[Iterable[Union[Column, str]]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
-        **options: Any,
+        **copy_options: Any,
     ) -> List[Row]:
+        """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`_ command to load data from files in a stage location into a specified table.
+
+        It's slightly different from the ``COPY INTO`` command in that this method will automatically create a table if the table doesn't exist and the input files are CSV files whereas the ``COPY INTO <table>`` doesn't.
+
+        To call this method, this DataFrame must be created from a :class:`DataFrameReader`.
+
+        Example::
+
+            # user_schema is used to read from CSV files. For other files it's not needed.
+            user_schema = StructType(StructField("A", StringType()), StructField("A_LEN", IntegerType())
+            # Use the DataFrameReader (session.read below) to read from CSV files.
+            df = session.read.schema(user_schema).csv(stage_location_that_has_csv_files)
+            # specify transformations and target column names. It's optional for the `copy into` command
+            transformations = [col("$1"), length(col("$1"))]
+            target_column_names = ["A", "A_LEN"]
+            # Use format type options and copy options
+            csv_file_format_options = {"skip_header": 2}
+            df.copy_into_table("T", target_column_names, transformations, format_type_options=csv_file_format_options, force=True)
+
+        The arguments of this function match the optional parameters of the `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#optional-parameters>`_
+
+        Args:
+            table_name: A string or list of strings that specify the table name or fully-qualified object identifier
+                (database name, schema name, and table name).
+            files: Specific files to load from the stage location.
+            pattern: The regular expression that is used to match file names of the stage location.
+            validation_mode: A ``str`` that instructs the ``COPY INTO`` command to validate the data files instead of loading them into the specified table.
+                Values can be:
+                    - "RETURN_n_ROWS".
+                    - "RETURN_ERRORS",
+                    - "RETURN_ALL_ERRORS"
+                Refer to the above mentioned ``COPY INTO`` command optioanl parameters for more details.
+            target_columns: Name of the columns in the table where the data should be saved.
+            transformations: A list of column transformations.
+            format_type_options: A dict that contains the ``formatTypeOptions`` of the ``copy into`` command.
+            copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``copy into`` command.
+
+        Returns: The load result described in `COPY INTO OUTPUT <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#output>`_
+            It will return other data depending on ``validation_mode`` value.
+        """
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
                 "To copy into a table, the DataFrame must be created from a DataFrameReader and specify a file path."
             )
+        target_columns = tuple(target_columns) if target_columns else None
+        transformations = tuple(transformations) if transformations else None
         if (
             target_columns
             and transformations
@@ -1194,7 +1236,7 @@ class DataFrame:
             if transformations
             else None
         )
-        copy_options = options or self._reader._cur_options.get("copy_options")
+        copy_options = copy_options or self._reader._cur_options.get("copy_options")
         validation_mode = validation_mode or self._reader._cur_options.get(
             "validation_mode"
         )

@@ -844,7 +844,9 @@ class AnalyzerPackage:
             self._Files
             + self._Equals
             + self._LeftParenthesis
-            + self._Comma.join(files)
+            + self._Comma.join(
+                [self._SingleQuote + f + self._SingleQuote for f in files]
+            )
             + self._RightParenthesis
             if files
             else ""
