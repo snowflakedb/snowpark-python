@@ -23,10 +23,6 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
 
 
-class Optinal:
-    pass
-
-
 class AnalyzerPackage:
     _LeftParenthesis = "("
     _RightParenthesis = ")"
