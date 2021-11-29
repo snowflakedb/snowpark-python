@@ -24,13 +24,13 @@ The following examples demonstrate the use of some of these functions::
     # Call system-defined functions that have no corresponding function in the functions
     # object. This example calls the RADIANS() SQL function, passing in values from the
     # column "e".
-    df.select(callBuiltin("radians", col("e")))
+    df.select(call_builtin("radians", col("e")))
 
     # Call a user-defined function (UDF) by name.
     df.select(call_udf("some_func", col("c")))
 
-    # Evaluate an SQL expression
-    df.select(sqlExpr("c + 1"))
+    # Evaluate a SQL expression
+    df.select(sql_expr("c + 1"))
 """
 import functools
 from random import randint
@@ -1270,7 +1270,7 @@ def udf(
 
         from snowflake.snowpark.types import IntegerType
         # register a temporary udf
-        add_one = udf(lambda x: x+1, return_types=IntegerType(), input_types=[IntegerType()])
+        add_one = udf(lambda x: x+1, return_type=IntegerType(), input_types=[IntegerType()])
 
         # register a permanent udf by setting is_permanent to True
         @udf(name="minus_one", is_permanent=True, stage_location="@mystage")

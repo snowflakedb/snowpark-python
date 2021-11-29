@@ -251,7 +251,7 @@ class DataFrame:
 
     def toPandas(self, **kwargs) -> "pandas.DataFrame":
         """
-        Returns the contents of this DataFrame as a Pandas DataFrame.
+        Returns the contents of this DataFrame as a `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -440,7 +440,7 @@ class DataFrame:
 
         Examples::
 
-            df_filtered = df.filter(col("A") > 1 && col("B") < 100)
+            df_filtered = df.filter(col("A") > 1 & col("B") < 100)
 
             # The following two result in the same SQL query:
             prices_df.filter(col("price") > 100)
