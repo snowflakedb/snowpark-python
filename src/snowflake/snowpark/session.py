@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.utils import (
     Utils,
 )
 from snowflake.snowpark.dataframe_reader import DataFrameReader
+from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
     col,
@@ -194,6 +195,8 @@ class Session:
 
         self.__last_action_id = 0
         self.__last_canceled_id = 0
+
+        self.__file = None
 
         self._analyzer = Analyzer(self)
 
@@ -833,6 +836,18 @@ class Session:
                 missing_item, missing_item, missing_item
             )
         return database + "." + schema
+
+    @property
+    def file(self) -> FileOperation:
+        """Returns a :class:`FileOperation` object that you can use to perform file operations on stages.
+
+        Examples:
+            session.file.put("file:///tmp/file1.csv", "@myStage/prefix1")
+            session.file.get("@myStage/prefix1", "file:///tmp")
+        """
+        if not self.__file:
+            self.__file = FileOperation(self)
+        return self.__file
 
     @property
     def udf(self) -> UDFRegistration:

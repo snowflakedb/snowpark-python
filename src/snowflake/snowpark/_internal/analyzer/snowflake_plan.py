@@ -308,6 +308,16 @@ class SnowflakePlanBuilder:
     def table(self, table_name):
         return self.query(self.pkg.project_statement([], table_name), None)
 
+    def file_operation_plan(
+        self, command, file_name, stage_location, options: Dict[str, str]
+    ) -> SnowflakePlan:
+        return self.query(
+            self.pkg.file_operation_statement(
+                command, file_name, stage_location, options
+            ),
+            None,
+        )
+
     def project(self, project_list, child, source_plan, is_distinct=False):
         return self.build(
             lambda x: self.pkg.project_statement(
