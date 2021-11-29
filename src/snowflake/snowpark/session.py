@@ -16,8 +16,8 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import cloudpickle
 
 import snowflake.snowpark  # type: ignore
-from snowflake.connector import SnowflakeConnection
-from snowflake.snowpark import DataFrame
+from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.snowpark import Column, DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -916,6 +916,13 @@ class Session:
                 SPFlattenFunction(input.expression, path, outer, recursive, mode)
             ),
         )
+
+    def _table_exists(self, table_name: str):
+        try:
+            self._run_query(f"DESCRIBE TABLE {table_name}")
+            return True
+        except ProgrammingError:
+            return False
 
     @staticmethod
     def _get_active_session() -> Optional["Session"]:
