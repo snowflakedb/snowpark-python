@@ -4,8 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import re
-import typing
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
@@ -146,7 +145,6 @@ class AnalyzerPackage:
     _Pattern = " PATTERN "
     _WithinGroup = " WITHIN GROUP "
     _ValidationMode = " VALIDATION_MODE "
-    _CopyOptions = " COPY_OPTIONS "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (

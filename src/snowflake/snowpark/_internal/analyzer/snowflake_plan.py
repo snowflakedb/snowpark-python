@@ -597,17 +597,17 @@ class SnowflakePlanBuilder:
 
     def copy_into_table(
         self,
-        table_name: str,
-        path: str,
-        files: str,
-        pattern,
         file_format: str,
-        format_type_options: Dict[str, Any],
-        copy_options,
-        validation_mode,
-        column_names: List[str],
-        transformations: List[str],
-        user_schema: Optional[StructType],
+        table_name: str,
+        path: Optional[str] = None,
+        files: Optional[str] = None,
+        pattern: Optional[str] = None,
+        format_type_options: Optional[Dict[str, Any]] = None,
+        copy_options: Optional[Dict[str, Any]] = None,
+        validation_mode: Optional[str] = None,
+        column_names: Optional[List[str]] = None,
+        transformations: Optional[List[str]] = None,
+        user_schema: Optional[StructType] = None,
     ) -> SnowflakePlan:
         copy_command = self.pkg.copy_into_table(
             table_name=table_name,
