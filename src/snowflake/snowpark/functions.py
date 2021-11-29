@@ -4,8 +4,8 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 """
-Provides utility functions that generate :class:`Column` expressions that you can pass
-to :class:`DataFrame` transformation methods. These functions generate references to
+Provides utility functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass
+to :class:`~snowflake.snowpark.DataFrame` transformation methods. These functions generate references to
 columns, literals, and SQL expressions (e.g. "c + 1").
 
 This object also provides functions that correspond to Snowflake
@@ -34,7 +34,7 @@ The following examples demonstrate the use of some of these functions::
 """
 import functools
 from random import randint
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -45,7 +45,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Avg as SPAverage,
     CaseWhen as SPCaseWhen,
     Count as SPCount,
-    Expression as SPExpression,
+    FunctionExpression as SPFunctionExpression,
     IsNaN as SPIsNan,
     IsNull as SPIsNull,
     Literal as SPLiteral,
@@ -56,7 +56,10 @@ from snowflake.snowpark._internal.sp_expressions import (
     Sum as SPSum,
     TableFunction as SPTableFunction,
     TableFunctionExpression as SPTableFunctionExpression,
-    UnresolvedFunction as SPUnresolvedFunction,
+)
+from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrName,
+    LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import CaseExpr, Column
@@ -65,18 +68,18 @@ from snowflake.snowpark.udf import UserDefinedFunction
 
 
 def col(col_name: str) -> Column:
-    """Returns the :class:`Column` with the specified name."""
+    """Returns the :class:`~snowflake.snowpark.Column` with the specified name."""
     return Column(col_name)
 
 
 def column(col_name: str) -> Column:
-    """Returns a :class:`Column` with the specified name. Alias for col."""
+    """Returns a :class:`~snowflake.snowpark.Column` with the specified name. Alias for col."""
     return Column(col_name)
 
 
-def lit(literal: Any) -> Column:
+def lit(literal: LiteralType) -> Column:
     """
-    Creates a :class:`Column` expression for a literal value.
+    Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
     It only supports basic Python data types, such as: ``int``, ``float``, ``str``,
     ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
     ``datetime.datetime``, ``decimal.Decimal``. Structured data types,
@@ -86,86 +89,117 @@ def lit(literal: Any) -> Column:
 
 
 def sql_expr(sql: str) -> Column:
-    """Creates a :class:`Column` expression from raw SQL text.
+    """Creates a :class:`~snowflake.snowpark.Column` expression from raw SQL text.
     Note that the function does not interpret or check the SQL text."""
     return Column._expr(sql)
 
 
-def avg(e: Union[Column, str]) -> Column:
+def approx_count_distinct(e: ColumnOrName) -> Column:
+    """Returns the average of non-NULL records. If all records inside a group are NULL,
+    the function returns NULL."""
+    c = _to_col_if_str(e, "approx_count_distinct")
+    return builtin("approx_count_distinct")(c)
+
+
+def avg(e: ColumnOrName) -> Column:
     """Returns the average of non-NULL records. If all records inside a group are NULL,
     the function returns NULL."""
     c = _to_col_if_str(e, "avg")
     return __with_aggregate_function(SPAverage(c.expression))
 
 
-def count(e: Union[Column, str]) -> Column:
+def corr(column1: ColumnOrName, column2: ColumnOrName) -> Column:
+    """Returns the correlation coefficient for non-null pairs in a group."""
+    c1 = _to_col_if_str(column1, "corr")
+    c2 = _to_col_if_str(column2, "corr")
+    return builtin("corr")(c1, c2)
+
+
+def count(e: ColumnOrName) -> Column:
     """Returns either the number of non-NULL records for the specified columns, or the
     total number of records."""
     c = _to_col_if_str(e, "count")
-    exp = SPCount(SPLiteral(1)) if isinstance(c, SPStar) else SPCount(c.expression)
+    exp = (
+        SPCount(SPLiteral(1))
+        if isinstance(c.expression, SPStar)
+        else SPCount(c.expression)
+    )
     return __with_aggregate_function(exp)
 
 
-def count_distinct(col: Union[Column, str], *columns: Union[Column, str]) -> Column:
+def count_distinct(*cols: ColumnOrName) -> Column:
     """Returns either the number of non-NULL distinct records for the specified columns,
     or the total number of the distinct records.
     """
-    cols = [_to_col_if_str(col, "count_distinct")]
-    cols.extend([_to_col_if_str(c, "count_distinct") for c in columns])
+    cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
-        SPUnresolvedFunction("count", [c.expression for c in cols], is_distinct=True)
+        SPFunctionExpression("count", [c.expression for c in cs], is_distinct=True)
     )
 
 
-def kurtosis(e: Union[Column, str]) -> Column:
+def covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
+    """Returns the population covariance for non-null pairs in a group."""
+    col1 = _to_col_if_str(column1, "covar_pop")
+    col2 = _to_col_if_str(column2, "covar_pop")
+    return builtin("covar_pop")(col1, col2)
+
+
+def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
+    """Returns the sample covariance for non-null pairs in a group."""
+    col1 = _to_col_if_str(column1, "covar_samp")
+    col2 = _to_col_if_str(column2, "covar_samp")
+    return builtin("covar_samp")(col1, col2)
+
+
+def kurtosis(e: ColumnOrName) -> Column:
     """Returns the population excess kurtosis of non-NULL records. If all records
     inside a group are NULL, the function returns NULL."""
     c = _to_col_if_str(e, "kurtosis")
     return builtin("kurtosis")(c)
 
 
-def max(e: Union[Column, str]) -> Column:
+def max(e: ColumnOrName) -> Column:
     """Returns the maximum value for the records in a group. NULL values are ignored
     unless all the records are NULL, in which case a NULL value is returned."""
     c = _to_col_if_str(e, "max")
     return __with_aggregate_function(SPMax(c.expression))
 
 
-def mean(e: Union[Column, str]) -> Column:
+def mean(e: ColumnOrName) -> Column:
     """Return the average for the specific numeric columns. Alias of :func:`avg`."""
     c = _to_col_if_str(e, "mean")
     return avg(c)
 
 
-def median(e: Union[Column, str]) -> Column:
+def median(e: ColumnOrName) -> Column:
     """Returns the median value for the records in a group. NULL values are ignored
     unless all the records are NULL, in which case a NULL value is returned."""
     c = _to_col_if_str(e, "median")
     return builtin("median")(c)
 
 
-def min(e: Union[Column, str]) -> Column:
+def min(e: ColumnOrName) -> Column:
     """Returns the minimum value for the records in a group. NULL values are ignored
     unless all the records are NULL, in which case a NULL value is returned."""
     c = _to_col_if_str(e, "min")
     return __with_aggregate_function(SPMin(c.expression))
 
 
-def skew(e: Union[Column, str]) -> Column:
+def skew(e: ColumnOrName) -> Column:
     """Returns the sample skewness of non-NULL records. If all records inside a group
     are NULL, the function returns NULL."""
     c = _to_col_if_str(e, "skew")
     return builtin("skew")(c)
 
 
-def stddev(e: Union[Column, str]) -> Column:
+def stddev(e: ColumnOrName) -> Column:
     """Returns the sample standard deviation (square root of sample variance) of
     non-NULL values. If all records inside a group are NULL, returns NULL."""
     c = _to_col_if_str(e, "stddev")
     return builtin("stddev")(c)
 
 
-def stddev_samp(e: Union[Column, str]) -> Column:
+def stddev_samp(e: ColumnOrName) -> Column:
     """Returns the sample standard deviation (square root of sample variance) of
     non-NULL values. If all records inside a group are NULL, returns NULL. Alias of
     :func:`stddev`."""
@@ -173,14 +207,14 @@ def stddev_samp(e: Union[Column, str]) -> Column:
     return builtin("stddev_samp")(c)
 
 
-def stddev_pop(e: Union[Column, str]) -> Column:
+def stddev_pop(e: ColumnOrName) -> Column:
     """Returns the population standard deviation (square root of variance) of non-NULL
     values. If all records inside a group are NULL, returns NULL."""
     c = _to_col_if_str(e, "stddev_pop")
     return builtin("stddev_pop")(c)
 
 
-def sum(e: Union[Column, str]) -> Column:
+def sum(e: ColumnOrName) -> Column:
     """Returns the sum of non-NULL records in a group. You can use the DISTINCT keyword
     to compute the sum of unique non-null values. If all records inside a group are
     NULL, the function returns NULL."""
@@ -188,7 +222,7 @@ def sum(e: Union[Column, str]) -> Column:
     return __with_aggregate_function(SPSum(c.expression))
 
 
-def sum_distinct(e: Union[Column, str]) -> Column:
+def sum_distinct(e: ColumnOrName) -> Column:
     """Returns the sum of non-NULL distinct records in a group. You can use the
     DISTINCT keyword to compute the sum of unique non-null values. If all records
     inside a group are NULL, the function returns NULL."""
@@ -196,53 +230,87 @@ def sum_distinct(e: Union[Column, str]) -> Column:
     return __with_aggregate_function(SPSum(c.expression), is_distinct=True)
 
 
-def variance(e: Union[Column, str]) -> Column:
+def variance(e: ColumnOrName) -> Column:
     """Returns the sample variance of non-NULL records in a group. If all records
     inside a group are NULL, a NULL is returned."""
     c = _to_col_if_str(e, "variance")
     return builtin("variance")(c)
 
 
-def var_samp(e: Union[Column, str]) -> Column:
+def var_samp(e: ColumnOrName) -> Column:
     """Returns the sample variance of non-NULL records in a group. If all records
     inside a group are NULL, a NULL is returned. Alias of :func:`variance`"""
     c = _to_col_if_str(e, "var_samp")
     return variance(e)
 
 
-def var_pop(e: Union[Column, str]) -> Column:
+def var_pop(e: ColumnOrName) -> Column:
     """Returns the population variance of non-NULL records in a group. If all records
     inside a group are NULL, a NULL is returned."""
     c = _to_col_if_str(e, "var_pop")
     return builtin("var_pop")(c)
 
 
-def coalesce(*e: Union[Column, str]) -> Column:
+def approx_percentile(col: ColumnOrName, percentile: float) -> Column:
+    """Returns an approximated value for the desired percentile. This function uses the t-Digest algorithm."""
+    c = _to_col_if_str(col, "approx_percentile")
+    return builtin("approx_percentile")(c, sql_expr(str(percentile)))
+
+
+def approx_percentile_accumulate(col: ColumnOrName) -> Column:
+    """Returns the internal representation of the t-Digest state (as a JSON object) at the end of aggregation.
+    This function uses the t-Digest algorithm.
+    """
+    c = _to_col_if_str(col, "approx_percentile_accumulate")
+    return builtin("approx_percentile_accumulate")(c)
+
+
+def approx_percentile_estimate(state: ColumnOrName, percentile: float) -> Column:
+    """Returns the desired approximated percentile value for the specified t-Digest state.
+    APPROX_PERCENTILE_ESTIMATE(APPROX_PERCENTILE_ACCUMULATE(.)) is equivalent to
+    APPROX_PERCENTILE(.).
+    """
+    c = _to_col_if_str(state, "approx_percentile_estimate")
+    return builtin("approx_percentile_estimate")(c, sql_expr(str(percentile)))
+
+
+def approx_percentile_combine(state: ColumnOrName) -> Column:
+    """Combines (merges) percentile input states into a single output state.
+    This allows scenarios where APPROX_PERCENTILE_ACCUMULATE is run over horizontal partitions
+    of the same table, producing an algorithm state for each table partition. These states can
+    later be combined using APPROX_PERCENTILE_COMBINE, producing the same output state as a
+    single run of APPROX_PERCENTILE_ACCUMULATE over the entire table.
+    """
+    c = _to_col_if_str(state, "approx_percentile_combine")
+    return builtin("approx_percentile_combine")(c)
+
+
+def coalesce(*e: ColumnOrName) -> Column:
     """Returns the first non-NULL expression among its arguments, or NULL if all its
     arguments are NULL."""
     c = [_to_col_if_str(ex, "coalesce") for ex in e]
     return builtin("coalesce")(*c)
 
 
-def equal_nan(e: Union[Column, str]) -> Column:
+def equal_nan(e: ColumnOrName) -> Column:
     """Return true if the value in the column is not a number (NaN)."""
     c = _to_col_if_str(e, "equal_nan")
     return Column(SPIsNan(c.expression))
 
 
-def is_null(e: Union[Column, str]) -> Column:
+def is_null(e: ColumnOrName) -> Column:
     """Return true if the value in the column is null."""
     c = _to_col_if_str(e, "is_null")
     return Column(SPIsNull(c.expression))
 
 
-def negate(e: Union[Column, str]) -> Column:
+def negate(e: ColumnOrName) -> Column:
     """Returns the negation of the value in the column (equivalent to a unary minus)."""
     c = _to_col_if_str(e, "negate")
     return -c
 
 
-def not_(e: Union[Column, str]) -> Column:
+def not_(e: ColumnOrName) -> Column:
     """Returns the inverse of a boolean expression."""
     c = _to_col_if_str(e, "not_")
     return ~c
@@ -254,63 +322,65 @@ def random(seed: Optional[int] = None) -> Column:
     return builtin("random")(SPLiteral(s))
 
 
-def to_decimal(e: Union[Column, str], precision: int, scale: int) -> Column:
+def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal."""
     c = _to_col_if_str(e, "to_decimal")
     return builtin("to_decimal")(c, sql_expr(str(precision)), sql_expr(str(scale)))
 
 
-def sqrt(e: Union[Column, str]) -> Column:
+def sqrt(e: ColumnOrName) -> Column:
     """Returns the square-root of a non-negative numeric expression."""
     c = _to_col_if_str(e, "sqrt")
     return builtin("sqrt")(c)
 
 
-def abs(e: Union[Column, str]) -> Column:
+def abs(e: ColumnOrName) -> Column:
     """Returns the absolute value of a numeric expression."""
     c = _to_col_if_str(e, "abs")
     return builtin("abs")(c)
 
 
-def ceil(e: Union[Column, str]) -> Column:
+def ceil(e: ColumnOrName) -> Column:
     """Returns values from the specified column rounded to the nearest equal or larger
     integer."""
     c = _to_col_if_str(e, "ceil")
     return builtin("ceil")(c)
 
 
-def floor(e: Union[Column, str]) -> Column:
+def floor(e: ColumnOrName) -> Column:
     """Returns values from the specified column rounded to the nearest equal or
     smaller integer."""
     c = _to_col_if_str(e, "floor")
     return builtin("floor")(c)
 
 
-def exp(e: Union[Column, str]) -> Column:
+def exp(e: ColumnOrName) -> Column:
     """Computes Euler's number e raised to a floating-point value."""
     c = _to_col_if_str(e, "exp")
     return builtin("exp")(c)
 
 
 def log(
-    base: Union[Column, str, int, float], x: Union[Column, str, int, float]
+    base: Union[ColumnOrName, int, float], x: Union[ColumnOrName, int, float]
 ) -> Column:
     """Returns the logarithm of a numeric expression."""
-    b = lit(base) if type(base) in [int, float] else _to_col_if_str(base, "log")
-    arg = lit(x) if type(x) in [int, float] else _to_col_if_str(x, "log")
+    b = lit(base) if isinstance(base, (int, float)) else _to_col_if_str(base, "log")
+    arg = lit(x) if isinstance(x, (int, float)) else _to_col_if_str(x, "log")
     return builtin("log")(b, arg)
 
 
-def pow(l: Union[Column, str, int, float], r: Union[Column, str, int, float]) -> Column:
+def pow(
+    l: Union[ColumnOrName, int, float], r: Union[ColumnOrName, int, float]
+) -> Column:
     """Returns a number (l) raised to the specified power (r)."""
-    number = lit(l) if type(l) in [int, float] else _to_col_if_str(l, "pow")
-    power = lit(r) if type(r) in [int, float] else _to_col_if_str(r, "pow")
+    number = lit(l) if isinstance(l, (int, float)) else _to_col_if_str(l, "pow")
+    power = lit(r) if isinstance(r, (int, float)) else _to_col_if_str(r, "pow")
     return builtin("pow")(number, power)
 
 
 def split(
-    str: Union[Column, str],
-    pattern: Union[Column, str],
+    str: ColumnOrName,
+    pattern: ColumnOrName,
 ) -> Column:
     """Splits a given string with a given separator and returns the result in an array
     of strings. To specify a string separator, use the :func:`lit()` function."""
@@ -320,22 +390,22 @@ def split(
 
 
 def substring(
-    str: Union[Column, str], pos: Union[Column, int], len: Union[Column, int]
+    str: ColumnOrName, pos: Union[Column, int], len: Union[Column, int]
 ) -> Column:
     """Returns the portion of the string or binary value str, starting from the
     character/byte specified by pos, with limited length. The length should be greater
     than or equal to zero. If the length is a negative number, the function returns an
     empty string."""
     s = _to_col_if_str(str, "substring")
-    p = pos if type(pos) == Column else lit(pos)
-    l = len if type(len) == Column else lit(len)
+    p = pos if isinstance(pos, Column) else lit(pos)
+    l = len if isinstance(len, Column) else lit(len)
     return builtin("substring")(s, p, l)
 
 
 def translate(
-    src: Union[Column, str],
-    matching_string: Union[Column, str],
-    replace_string: Union[Column, str],
+    src: ColumnOrName,
+    matching_string: ColumnOrName,
+    replace_string: ColumnOrName,
 ) -> Column:
     """Translates src from the characters in matchingString to the characters in
     replaceString."""
@@ -345,59 +415,59 @@ def translate(
     return builtin("translate")(source, match, replace)
 
 
-def trim(e: Union[Column, str], trim_string: Union[Column, str]) -> Column:
+def trim(e: ColumnOrName, trim_string: ColumnOrName) -> Column:
     """Removes leading and trailing characters from a string."""
     c = _to_col_if_str(e, "trim")
     t = _to_col_if_str(trim_string, "trim")
     return builtin("trim")(c, t)
 
 
-def upper(e: Union[Column, str]) -> Column:
+def upper(e: ColumnOrName) -> Column:
     """Returns the input string with all characters converted to uppercase."""
     c = _to_col_if_str(e, "upper")
     return builtin("upper")(c)
 
 
-def contains(col: Union[Column, str], str: Union[Column, str]) -> Column:
+def contains(col: ColumnOrName, string: ColumnOrName) -> Column:
     """Returns true if col contains str."""
     c = _to_col_if_str(col, "contains")
-    s = _to_col_if_str(str, "contains")
+    s = _to_col_if_str(string, "contains")
     return builtin("contains")(c, s)
 
 
-def startswith(col: Union[Column, str], str: Union[Column, str]) -> Column:
+def startswith(col: ColumnOrName, str: ColumnOrName) -> Column:
     """Returns true if col starts with str."""
     c = _to_col_if_str(col, "startswith")
     s = _to_col_if_str(str, "startswith")
     return builtin("startswith")(c, s)
 
 
-def char(col: Union[Column, str]) -> Column:
+def char(col: ColumnOrName) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
     c = _to_col_if_str(col, "char")
     return builtin("char")(c)
 
 
-def to_time(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
+def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into the corresponding time."""
     c = _to_col_if_str(e, "to_time")
     return builtin("to_time")(c, fmt) if fmt else builtin("to_time")(c)
 
 
-def to_timestamp(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
+def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into the corresponding timestamp."""
     c = _to_col_if_str(e, "to_timestamp")
     return builtin("to_timestamp")(c, fmt) if fmt else builtin("to_timestamp")(c)
 
 
-def to_date(e: Union[Column, str], fmt: Optional["Column"] = None) -> Column:
+def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into a date."""
     c = _to_col_if_str(e, "to_date")
     return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
 
 
-def arrays_overlap(array1: Union[Column, str], array2: Union[Column, str]) -> Column:
+def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Compares whether two ARRAYs have at least one element in common. Returns TRUE
     if there is at least one element in common; otherwise returns FALSE. The function
     is NULL-safe, meaning it treats NULLs as known values for comparing equality."""
@@ -406,9 +476,7 @@ def arrays_overlap(array1: Union[Column, str], array2: Union[Column, str]) -> Co
     return Column(SPArraysOverlap(a1.expression, a2.expression))
 
 
-def array_intersection(
-    array1: Union[Column, str], array2: Union[Column, str]
-) -> Column:
+def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Returns an array that contains the matching elements in the two input arrays.
 
     The function is NULL-safe, meaning it treats NULLs as known values for comparing equality.
@@ -421,7 +489,7 @@ def array_intersection(
     return Column(SPArrayIntersect(a1.expression, a2.expression))
 
 
-def datediff(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Column:
+def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Calculates the difference between two date, time, or timestamp columns based on the date or time part requested.
 
     `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
@@ -436,14 +504,14 @@ def datediff(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> C
         col1: The first timestamp column or minuend in the datediff
         col2: The second timestamp column or the subtrahend in the datediff
     """
-    if type(part) != str:
+    if not isinstance(part, str):
         raise ValueError("part must be a string")
     c1 = _to_col_if_str(col1, "datediff")
     c2 = _to_col_if_str(col2, "datediff")
     return builtin("datediff")(part, c1, c2)
 
 
-def dateadd(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Column:
+def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Adds the specified value for the specified date or time art to date or time expr.
 
     `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
@@ -458,123 +526,123 @@ def dateadd(part: str, col1: Union[Column, str], col2: Union[Column, str]) -> Co
         col1: The first timestamp column or addend in the dateadd
         col2: The second timestamp column or the addend in the dateadd
     """
-    if type(part) != str:
+    if not isinstance(part, str):
         raise ValueError("part must be a string")
     c1 = _to_col_if_str(col1, "dateadd")
     c2 = _to_col_if_str(col2, "dateadd")
     return builtin("dateadd")(part, c1, c2)
 
 
-def is_array(col: Union[Column, str]) -> Column:
+def is_array(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains an ARRAY value."""
     c = _to_col_if_str(col, "is_array")
     return builtin("is_array")(c)
 
 
-def is_boolean(col: Union[Column, str]) -> Column:
+def is_boolean(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a boolean value."""
     c = _to_col_if_str(col, "is_boolean")
     return builtin("is_boolean")(c)
 
 
-def is_binary(col: Union[Column, str]) -> Column:
+def is_binary(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a binary value."""
     c = _to_col_if_str(col, "is_binary")
     return builtin("is_binary")(c)
 
 
-def is_char(col: Union[Column, str]) -> Column:
+def is_char(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a string."""
     c = _to_col_if_str(col, "is_char")
     return builtin("is_char")(c)
 
 
-def is_varchar(col: Union[Column, str]) -> Column:
+def is_varchar(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a string."""
     c = _to_col_if_str(col, "is_varchar")
     return builtin("is_varchar")(c)
 
 
-def is_date(col: Union[Column, str]) -> Column:
+def is_date(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a date value."""
     c = _to_col_if_str(col, "is_date")
     return builtin("is_date")(c)
 
 
-def is_date_value(col: Union[Column, str]) -> Column:
+def is_date_value(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a date value."""
     c = _to_col_if_str(col, "is_date_value")
     return builtin("is_date_value")(c)
 
 
-def is_decimal(col: Union[Column, str]) -> Column:
+def is_decimal(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a fixed-point decimal value or integer."""
     c = _to_col_if_str(col, "is_decimal")
     return builtin("is_decimal")(c)
 
 
-def is_double(col: Union[Column, str]) -> Column:
+def is_double(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer."""
     c = _to_col_if_str(col, "is_double")
     return builtin("is_double")(c)
 
 
-def is_real(col: Union[Column, str]) -> Column:
+def is_real(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a floating-point value, fixed-point decimal, or integer."""
     c = _to_col_if_str(col, "is_real")
     return builtin("is_real")(c)
 
 
-def is_integer(col: Union[Column, str]) -> Column:
+def is_integer(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a integer value."""
     c = _to_col_if_str(col, "is_integer")
     return builtin("is_integer")(c)
 
 
-def is_null_value(col: Union[Column, str]) -> Column:
+def is_null_value(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a JSON null value."""
     c = _to_col_if_str(col, "is_null_value")
     return builtin("is_null_value")(c)
 
 
-def is_object(col: Union[Column, str]) -> Column:
+def is_object(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains an OBJECT value."""
     c = _to_col_if_str(col, "is_object")
     return builtin("is_object")(c)
 
 
-def is_time(col: Union[Column, str]) -> Column:
+def is_time(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a TIME value."""
     c = _to_col_if_str(col, "is_time")
     return builtin("is_time")(c)
 
 
-def is_timestamp_ltz(col: Union[Column, str]) -> Column:
+def is_timestamp_ltz(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a TIMESTAMP value to be interpreted using the local time
     zone."""
     c = _to_col_if_str(col, "is_timestamp_ltz")
     return builtin("is_timestamp_ltz")(c)
 
 
-def is_timestamp_ntz(col: Union[Column, str]) -> Column:
+def is_timestamp_ntz(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a TIMESTAMP value with no time zone."""
     c = _to_col_if_str(col, "is_timestamp_ntz")
     return builtin("is_timestamp_ntz")(c)
 
 
-def is_timestamp_tz(col: Union[Column, str]) -> Column:
+def is_timestamp_tz(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a TIMESTAMP value with a time zone."""
     c = _to_col_if_str(col, "is_timestamp_tz")
     return builtin("is_timestamp_tz")(c)
 
 
-def typeof(col: Union[Column, str]) -> Column:
+def typeof(col: ColumnOrName) -> Column:
     """Reports the type of a value stored in a VARIANT column. The type is returned as a string."""
     c = _to_col_if_str(col, "typeof")
     return builtin("typeof")(c)
 
 
-def check_json(col: Union[Column, str]) -> Column:
+def check_json(col: ColumnOrName) -> Column:
     """Checks the validity of a JSON document.
     If the input string is a valid JSON document or a NULL (i.e. no error would occur when
     parsing the input string), the function returns NULL.
@@ -584,7 +652,7 @@ def check_json(col: Union[Column, str]) -> Column:
     return builtin("check_json")(c)
 
 
-def check_xml(col: Union[Column, str]) -> Column:
+def check_xml(col: ColumnOrName) -> Column:
     """Checks the validity of an XML document.
     If the input string is a valid XML document or a NULL (i.e. no error would occur when parsing
     the input string), the function returns NULL.
@@ -593,7 +661,7 @@ def check_xml(col: Union[Column, str]) -> Column:
     return builtin("check_xml")(c)
 
 
-def json_extract_path_text(col: Union[Column, str], path: Union[Column, str]) -> Column:
+def json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
     """Parses a JSON string and returns the value of an element at a specified path in the resulting
     JSON document."""
     c = _to_col_if_str(col, "json_extract_path_text")
@@ -601,35 +669,35 @@ def json_extract_path_text(col: Union[Column, str], path: Union[Column, str]) ->
     return builtin("json_extract_path_text")(c, p)
 
 
-def parse_json(e: Union[Column, str]) -> Column:
+def parse_json(e: ColumnOrName) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
     resulting JSON document."""
     c = _to_col_if_str(e, "parse_json")
     return builtin("parse_json")(c)
 
 
-def parse_xml(e: Union[Column, str]) -> Column:
+def parse_xml(e: ColumnOrName) -> Column:
     """Parse the value of the specified column as a JSON string and returns the
     resulting XML document."""
     c = _to_col_if_str(e, "parse_xml")
     return builtin("parse_xml")(c)
 
 
-def strip_null_value(col: Union[Column, str]) -> Column:
+def strip_null_value(col: ColumnOrName) -> Column:
     """Converts a JSON "null" value in the specified column to a SQL NULL value.
     All other VARIANT values in the column are returned unchanged."""
     c = _to_col_if_str(col, "strip_null_value")
     return builtin("strip_null_value")(c)
 
 
-def array_agg(col: Union[Column, str]) -> Column:
+def array_agg(col: ColumnOrName) -> Column:
     """Returns the input values, pivoted into an ARRAY. If the input is empty, an empty
     ARRAY is returned."""
     c = _to_col_if_str(col, "array_agg")
     return builtin("array_agg")(c)
 
 
-def array_append(array: Union[Column, str], element: Union[Column, str]) -> Column:
+def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
     """Returns an ARRAY containing all elements from the source ARRAY as well as the new element.
     The new element is located at end of the ARRAY.
 
@@ -643,7 +711,7 @@ def array_append(array: Union[Column, str], element: Union[Column, str]) -> Colu
     return builtin("array_append")(a, e)
 
 
-def array_cat(array1: Union[Column, str], array2: Union[Column, str]) -> Column:
+def array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Returns the concatenation of two ARRAYs.
 
     Args:
@@ -654,7 +722,7 @@ def array_cat(array1: Union[Column, str], array2: Union[Column, str]) -> Column:
     return builtin("array_cat")(a1, a2)
 
 
-def array_compact(array: Union[Column, str]) -> Column:
+def array_compact(array: ColumnOrName) -> Column:
     """Returns a compacted ARRAY with missing and null values removed,
     effectively converting sparse arrays into dense arrays.
 
@@ -665,7 +733,7 @@ def array_compact(array: Union[Column, str]) -> Column:
     return builtin("array_compact")(a)
 
 
-def array_construct(*cols: Union[Column, str]) -> Column:
+def array_construct(*cols: ColumnOrName) -> Column:
     """Returns an ARRAY constructed from zero, one, or more inputs.
 
     Args:
@@ -675,7 +743,7 @@ def array_construct(*cols: Union[Column, str]) -> Column:
     return builtin("array_construct")(*cs)
 
 
-def array_construct_compact(*cols: Union[Column, str]) -> Column:
+def array_construct_compact(*cols: ColumnOrName) -> Column:
     """Returns an ARRAY constructed from zero, one, or more inputs.
     The constructed ARRAY omits any NULL input values.
 
@@ -687,7 +755,7 @@ def array_construct_compact(*cols: Union[Column, str]) -> Column:
     return builtin("array_construct_compact")(*cs)
 
 
-def array_contains(variant: Union[Column, str], array: Union[Column, str]) -> Column:
+def array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
     """Returns True if the specified VARIANT is found in the specified ARRAY.
 
     Args:
@@ -699,7 +767,7 @@ def array_contains(variant: Union[Column, str], array: Union[Column, str]) -> Co
 
 
 def array_insert(
-    array: Union[Column, str], pos: Union[Column, str], element: Union[Column, str]
+    array: ColumnOrName, pos: ColumnOrName, element: ColumnOrName
 ) -> Column:
     """Returns an ARRAY containing all elements from the source ARRAY as well as the new element.
 
@@ -721,7 +789,7 @@ def array_insert(
     return builtin("array_insert")(a, p, e)
 
 
-def array_position(variant: Union[Column, str], array: Union[Column, str]) -> Column:
+def array_position(variant: ColumnOrName, array: ColumnOrName) -> Column:
     """Returns the index of the first occurrence of an element in an ARRAY.
 
     Args:
@@ -733,7 +801,7 @@ def array_position(variant: Union[Column, str], array: Union[Column, str]) -> Co
     return builtin("array_position")(v, a)
 
 
-def array_prepend(array: Union[Column, str], element: Union[Column, str]) -> Column:
+def array_prepend(array: ColumnOrName, element: ColumnOrName) -> Column:
     """Returns an ARRAY containing the new element as well as all elements from the source ARRAY.
     The new element is positioned at the beginning of the ARRAY.
 
@@ -745,7 +813,7 @@ def array_prepend(array: Union[Column, str], element: Union[Column, str]) -> Col
     return builtin("array_prepend")(a, e)
 
 
-def array_size(array: Union[Column, str]) -> Column:
+def array_size(array: ColumnOrName) -> Column:
     """Returns the size of the input ARRAY.
 
     If the specified column contains a VARIANT value that contains an ARRAY, the size of the ARRAY
@@ -754,9 +822,7 @@ def array_size(array: Union[Column, str]) -> Column:
     return builtin("array_size")(a)
 
 
-def array_slice(
-    array: Union[Column, str], from_: Union[Column, str], to: Union[Column, str]
-) -> Column:
+def array_slice(array: ColumnOrName, from_: ColumnOrName, to: ColumnOrName) -> Column:
     """Returns an ARRAY constructed from a specified subset of elements of the input ARRAY.
 
     Args:
@@ -772,7 +838,7 @@ def array_slice(
     return builtin("array_slice")(a, f, t)
 
 
-def array_to_string(array: Union[Column, str], separator: Union[Column, str]) -> Column:
+def array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
     """Returns an input ARRAY converted to a string by casting all values to strings (using
     TO_VARCHAR) and concatenating them (using the string from the second argument to separate
     the elements).
@@ -786,7 +852,7 @@ def array_to_string(array: Union[Column, str], separator: Union[Column, str]) ->
     return builtin("array_to_string")(a, s)
 
 
-def object_agg(key: Union[Column, str], value: Union[Column, str]) -> Column:
+def object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
     """Returns one OBJECT per group. For each key-value input pair, where key must be a VARCHAR
     and value must be a VARIANT, the resulting OBJECT contains a key-value field."""
     k = _to_col_if_str(key, "object_agg")
@@ -794,22 +860,20 @@ def object_agg(key: Union[Column, str], value: Union[Column, str]) -> Column:
     return builtin("object_agg")(k, v)
 
 
-def object_construct(*key_values: Union[Column, str]) -> Column:
+def object_construct(*key_values: ColumnOrName) -> Column:
     """Returns an OBJECT constructed from the arguments."""
     kvs = [_to_col_if_str(kv, "object_construct") for kv in key_values]
     return builtin("object_construct")(*kvs)
 
 
-def object_construct_keep_null(*key_values: Union[Column, str]) -> Column:
+def object_construct_keep_null(*key_values: ColumnOrName) -> Column:
     """Returns an object containing the contents of the input (i.e. source) object with one or more
     keys removed."""
     kvs = [_to_col_if_str(kv, "object_construct_keep_null") for kv in key_values]
     return builtin("object_construct_keep_null")(*kvs)
 
 
-def object_delete(
-    obj: Union[Column, str], key1: Union[Column, str], *keys: Union[Column, str]
-) -> Column:
+def object_delete(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> Column:
     """Returns an object consisting of the input object with a new key-value pair inserted.
     The input key must not exist in the object."""
     o = _to_col_if_str(obj, "object_delete")
@@ -819,10 +883,10 @@ def object_delete(
 
 
 def object_insert(
-    obj: Union[Column, str],
-    key: Union[Column, str],
-    value: Union[Column, str],
-    update_flag: Optional[Union[Column, str]] = None,
+    obj: ColumnOrName,
+    key: ColumnOrName,
+    value: ColumnOrName,
+    update_flag: Optional[ColumnOrName] = None,
 ) -> Column:
     """Returns an object consisting of the input object with a new key-value pair inserted (or an
     existing key updated with a new value)."""
@@ -836,9 +900,7 @@ def object_insert(
         return builtin("object_insert")(o, k, v)
 
 
-def object_pick(
-    obj: Union[Column, str], key1: Union[Column, str], *keys: Union[Column, str]
-):
+def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName):
     """Returns a new OBJECT containing some of the key-value pairs from an existing object.
 
     To identify the key-value pairs to include in the new object, pass in the keys as arguments,
@@ -851,31 +913,31 @@ def object_pick(
     return builtin("object_pick")(o, k1, *ks)
 
 
-def as_array(variant: Union[Column, str]) -> Column:
+def as_array(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to an array."""
     c = _to_col_if_str(variant, "as_array")
     return builtin("as_array")(c)
 
 
-def as_binary(variant: Union[Column, str]) -> Column:
+def as_binary(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a binary string."""
     c = _to_col_if_str(variant, "as_binary")
     return builtin("as_binary")(c)
 
 
-def as_char(variant: Union[Column, str]) -> Column:
+def as_char(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a string."""
     c = _to_col_if_str(variant, "as_char")
     return builtin("as_char")(c)
 
 
-def as_varchar(variant: Union[Column, str]) -> Column:
+def as_varchar(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a string."""
     c = _to_col_if_str(variant, "as_varchar")
     return builtin("as_varchar")(c)
 
 
-def as_date(variant: Union[Column, str]) -> Column:
+def as_date(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a date."""
     c = _to_col_if_str(variant, "as_date")
     return builtin("as_date")(c)
@@ -883,7 +945,7 @@ def as_date(variant: Union[Column, str]) -> Column:
 
 def __as_decimal_or_number(
     cast_type: str,
-    variant: Union[Column, str],
+    variant: ColumnOrName,
     precision: Optional[int] = None,
     scale: Optional[int] = None,
 ) -> Column:
@@ -900,7 +962,7 @@ def __as_decimal_or_number(
 
 
 def as_decimal(
-    variant: Union[Column, str],
+    variant: ColumnOrName,
     precision: Optional[int] = None,
     scale: Optional[int] = None,
 ) -> Column:
@@ -909,7 +971,7 @@ def as_decimal(
 
 
 def as_number(
-    variant: Union[Column, str],
+    variant: ColumnOrName,
     precision: Optional[int] = None,
     scale: Optional[int] = None,
 ) -> Column:
@@ -917,94 +979,94 @@ def as_number(
     return __as_decimal_or_number("as_number", variant, precision, scale)
 
 
-def as_double(variant: Union[Column, str]) -> Column:
+def as_double(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a floating-point value."""
     c = _to_col_if_str(variant, "as_double")
     return builtin("as_double")(c)
 
 
-def as_real(variant: Union[Column, str]) -> Column:
+def as_real(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a floating-point value."""
     c = _to_col_if_str(variant, "as_real")
     return builtin("as_real")(c)
 
 
-def as_integer(variant: Union[Column, str]) -> Column:
+def as_integer(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to an integer."""
     c = _to_col_if_str(variant, "as_integer")
     return builtin("as_integer")(c)
 
 
-def as_object(variant: Union[Column, str]) -> Column:
+def as_object(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to an object."""
     c = _to_col_if_str(variant, "as_object")
     return builtin("as_object")(c)
 
 
-def as_time(variant: Union[Column, str]) -> Column:
+def as_time(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a time value."""
     c = _to_col_if_str(variant, "as_time")
     return builtin("as_time")(c)
 
 
-def as_timestamp_ltz(variant: Union[Column, str]) -> Column:
+def as_timestamp_ltz(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a TIMESTAMP with a local timezone."""
     c = _to_col_if_str(variant, "as_timestamp_ltz")
     return builtin("as_timestamp_ltz")(c)
 
 
-def as_timestamp_ntz(variant: Union[Column, str]) -> Column:
+def as_timestamp_ntz(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a TIMESTAMP with no timezone."""
     c = _to_col_if_str(variant, "as_timestamp_ntz")
     return builtin("as_timestamp_ntz")(c)
 
 
-def as_timestamp_tz(variant: Union[Column, str]) -> Column:
+def as_timestamp_tz(variant: ColumnOrName) -> Column:
     """Casts a VARIANT value to a TIMESTAMP with a timezone."""
     c = _to_col_if_str(variant, "as_timestamp_tz")
     return builtin("as_timestamp_tz")(c)
 
 
-def to_binary(e: Union[Column, str], fmt: Optional[str] = None) -> Column:
+def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
     """Converts the input expression to a binary value. For NULL input, the output is
     NULL."""
     c = _to_col_if_str(e, "to_binary")
     return builtin("to_binary")(c, fmt) if fmt else builtin("to_binary")(c)
 
 
-def to_array(e: Union[Column, str]) -> Column:
+def to_array(e: ColumnOrName) -> Column:
     """Converts any value to an ARRAY value or NULL (if input is NULL)."""
     c = _to_col_if_str(e, "to_array")
     return builtin("to_array")(c)
 
 
-def to_json(e: Union[Column, str]) -> Column:
+def to_json(e: ColumnOrName) -> Column:
     """Converts any VARIANT value to a string containing the JSON representation of the
     value. If the input is NULL, the result is also NULL."""
     c = _to_col_if_str(e, "to_json")
     return builtin("to_json")(c)
 
 
-def to_object(e: Union[Column, str]) -> Column:
+def to_object(e: ColumnOrName) -> Column:
     """Converts any value to a OBJECT value or NULL (if input is NULL)."""
     c = _to_col_if_str(e, "to_object")
     return builtin("to_object")(c)
 
 
-def to_variant(e: Union[Column, str]) -> Column:
+def to_variant(e: ColumnOrName) -> Column:
     """Converts any value to a VARIANT value or NULL (if input is NULL)."""
     c = _to_col_if_str(e, "to_variant")
     return builtin("to_variant")(c)
 
 
-def to_xml(e: Union[Column, str]) -> Column:
+def to_xml(e: ColumnOrName) -> Column:
     """Converts any VARIANT value to a string containing the XML representation of the
     value. If the input is NULL, the result is also NULL."""
     c = _to_col_if_str(e, "to_xml")
     return builtin("to_xml")(c)
 
 
-def get_ignore_case(obj: Union[Column, str], field: Union[Column, str]) -> Column:
+def get_ignore_case(obj: ColumnOrName, field: ColumnOrName) -> Column:
     """Extracts a field value from an object. Returns NULL if either of the arguments is NULL.
     This function is similar to :meth:`get` but applies case-insensitive matching to field names.
     """
@@ -1013,41 +1075,45 @@ def get_ignore_case(obj: Union[Column, str], field: Union[Column, str]) -> Colum
     return builtin("get_ignore_case")(c1, c2)
 
 
-def object_keys(obj: Union[Column, str]) -> Column:
+def object_keys(obj: ColumnOrName) -> Column:
     """Returns an array containing the list of keys in the input object."""
     c = _to_col_if_str(obj, "object_keys")
     return builtin("object_keys")(c)
 
 
 def xmlget(
-    xml: Union[Column, str],
-    tag: Union[Column, str],
-    instance_num: Union[Column, str] = lit(0),
+    xml: ColumnOrName,
+    tag: ColumnOrName,
+    instance_num: Union[ColumnOrName, int] = 0,
 ) -> Column:
     """Extracts an XML element object (often referred to as simply a tag) from a content of outer
     XML element object by the name of the tag and its instance number (counting from 0).
     """
     c1 = _to_col_if_str(xml, "xmlget")
     c2 = _to_col_if_str(tag, "xmlget")
-    c3 = _to_col_if_str(instance_num, "xmlget") if instance_num is not None else lit(0)
+    c3 = (
+        instance_num
+        if isinstance(instance_num, int)
+        else _to_col_if_str(instance_num, "xmlget")
+    )
     return builtin("xmlget")(c1, c2, c3)
 
 
-def get_path(col: Union[Column, str], path: Union[Column, str]) -> Column:
+def get_path(col: ColumnOrName, path: ColumnOrName) -> Column:
     """Extracts a value from semi-structured data using a path name."""
     c1 = _to_col_if_str(col, "get_path")
     c2 = _to_col_if_str(path, "get_path")
     return builtin("get_path")(c1, c2)
 
 
-def get(col1: Union[Column, str], col2: Union[Column, str]) -> Column:
+def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     """Extracts a value from an object or array; returns NULL if either of the arguments is NULL."""
     c1 = _to_col_if_str(col1, "get")
     c2 = _to_col_if_str(col2, "get")
     return builtin("get")(c1, c2)
 
 
-def when(condition: Column, value: Column) -> CaseExpr:
+def when(condition: Column, value: Union[Column, LiteralType]) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
     When a condition evaluates to TRUE, the evaluation stops and the associated
@@ -1055,10 +1121,14 @@ def when(condition: Column, value: Column) -> CaseExpr:
     then the result after the optional OTHERWISE is returned, if present;
     otherwise NULL is returned.
     """
-    return CaseExpr(SPCaseWhen([(condition.expression, value.expression)]))
+    return CaseExpr(SPCaseWhen([(condition.expression, Column._to_expr(value))]))
 
 
-def iff(condition: Column, expr1: Any, expr2: Any) -> Column:
+def iff(
+    condition: Column,
+    expr1: Union[Column, LiteralType],
+    expr2: Union[Column, LiteralType],
+) -> Column:
     """
     Returns one of two specified expressions, depending on a condition.
     This is equivalent to an ``if-then-else`` expression. If ``condition``
@@ -1066,6 +1136,90 @@ def iff(condition: Column, expr1: Any, expr2: Any) -> Column:
     function returns ``expr2``.
     """
     return builtin("iff")(condition, expr1, expr2)
+
+
+def cume_dist() -> Column:
+    """
+    Finds the cumulative distribution of a value with regard to other values
+    within the same window partition.
+    """
+    return builtin("cume_dist")()
+
+
+def rank() -> Column:
+    """
+    Returns the rank of a value within an ordered group of values.
+    The rank value starts at 1 and continues up.
+    """
+    return builtin("rank")()
+
+
+def percent_rank() -> Column:
+    """
+    Returns the relative rank of a value within a group of values, specified as a percentage
+    ranging from 0.0 to 1.0.
+    """
+    return builtin("percent_rank")()
+
+
+def dense_rank() -> Column:
+    """
+    Returns the rank of a value within a group of values, without gaps in the ranks.
+    The rank value starts at 1 and continues up sequentially.
+    If two values are the same, they will have the same rank.
+    """
+    return builtin("dense_rank")()
+
+
+def row_number() -> Column:
+    """
+    Returns a unique row number for each row within a window partition.
+    The row number starts at 1 and continues up sequentially.
+    """
+    return builtin("row_number")()
+
+
+def lag(
+    e: ColumnOrName,
+    offset: int = 1,
+    default_value: Optional[Union[Column, LiteralType]] = None,
+) -> Column:
+    """
+    Accesses data in a previous row in the same result set without having to
+    join the table to itself.
+    """
+    c = _to_col_if_str(e, "lag")
+    return builtin("lag")(
+        c,
+        SPLiteral(offset),
+        SPLiteral(None) if default_value is None else default_value,
+    )
+
+
+def lead(
+    e: ColumnOrName,
+    offset: int = 1,
+    default_value: Optional[Union[Column, LiteralType]] = None,
+) -> Column:
+    """
+    Accesses data in a subsequent row in the same result set without having to
+    join the table to itself.
+    """
+    c = _to_col_if_str(e, "lead")
+    return builtin("lead")(
+        c,
+        SPLiteral(offset),
+        SPLiteral(None) if default_value is None else default_value,
+    )
+
+
+def ntile(e: ColumnOrName) -> Column:
+    """
+    Divides an ordered data set equally into the number of buckets specified by n.
+    Buckets are sequentially numbered 1 through n.
+    """
+    c = _to_col_if_str(e, "ntile")
+    return builtin("ntile")(c)
 
 
 def udf(
@@ -1077,6 +1231,7 @@ def udf(
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
     replace: bool = False,
+    parallel: int = 4,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -1100,8 +1255,13 @@ def udf(
             stages and external stages.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown.
-            If it is ``True``, an existing UDF with the same name is overwritten.
+            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            an existing UDF with the same name is overwritten.
+        parallel: The number of threads to use for uploading UDF files with the
+            `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
+            command. The default value is 4 and supported values are from 1 to 99.
+            Increasing the number of threads can improve performance when uploading
+            large UDF files.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -1130,6 +1290,10 @@ def udf(
         2. This function registers a UDF using the last created session.
         If you want to register a UDF with a specific session, use
         :func:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+
+        3. By default, UDF registration fails if a function with the same name is already
+        registered. Invoking :func:`udf` with ``replace`` set to `True` will overwrite the
+        previously registered function.
     """
     session = snowflake.snowpark.Session._get_active_session()
     if not session:
@@ -1144,6 +1308,7 @@ def udf(
             is_permanent=is_permanent,
             stage_location=stage_location,
             replace=replace,
+            parallel=parallel,
         )
     else:
         return session.udf.register(
@@ -1154,6 +1319,7 @@ def udf(
             is_permanent=is_permanent,
             stage_location=stage_location,
             replace=replace,
+            parallel=parallel,
         )
 
 
@@ -1165,17 +1331,14 @@ def __with_aggregate_function(
 
 def call_udf(
     udf_name: str,
-    *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+    *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName]],
 ) -> Column:
     """Calls a user-defined function (UDF) by name.
 
     Args:
         udf_name: The name of UDF in Snowflake.
         cols: Columns that the UDF will be applied to, as :class:`str`,
-            :class:`Column` or a list of those.
-
-    Returns:
-        :class:`Column`.
+            :class:`~snowflake.snowpark.Column` or a list of those.
 
     Example::
 
@@ -1185,47 +1348,35 @@ def call_udf(
     Utils.validate_object_name(udf_name)
     exprs = Utils.parse_positional_args_to_list(*cols)
     return Column(
-        SPUnresolvedFunction(
+        SPFunctionExpression(
             udf_name,
-            [
-                e.expression if type(e) == Column else Column(e).expression
-                for e in exprs
-            ],
+            [_to_col_if_str(e, "call_udf").expression for e in exprs],
             is_distinct=False,
         )
     )
 
 
-def call_builtin(function_name: str, *args: Any) -> Column:
+def call_builtin(function_name: str, *args: Union[Column, LiteralType]) -> Column:
     """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
     and arguments.
 
     Args:
         function_name: The name of built-in function in Snowflake
         args: Arguments can be in two types:
-            a. :class:`Column`, or
-            b. Basic Python types such as int, float, str, which are converted to Snowpark literals.
 
-    Returns:
-        :class:`Column`.
+            - :class:`~snowflake.snowpark.Column`, or
+            - Basic Python types, which are converted to Snowpark literals.
 
     Example::
 
         df.select(call_builtin("avg", col("a")))
     """
 
-    sp_expressions = []
-    for arg in Utils.parse_positional_args_to_list(*args):
-        if type(arg) == Column:
-            sp_expressions.append(arg.expression)
-        elif isinstance(arg, SPExpression):
-            sp_expressions.append(arg)
-        else:
-            sp_expressions.append(SPLiteral(arg))
+    expressions = [
+        Column._to_expr(arg) for arg in Utils.parse_positional_args_to_list(*args)
+    ]
 
-    return Column(
-        SPUnresolvedFunction(function_name, sp_expressions, is_distinct=False)
-    )
+    return Column(SPFunctionExpression(function_name, expressions, is_distinct=False))
 
 
 def builtin(function_name: str) -> Callable:
@@ -1247,7 +1398,7 @@ def builtin(function_name: str) -> Callable:
     return lambda *args: call_builtin(function_name, *args)
 
 
-def _to_col_if_str(e: Union[Column, str], func_name: str) -> Column:
+def _to_col_if_str(e: ColumnOrName, func_name: str) -> Column:
     if isinstance(e, Column):
         return e
     elif isinstance(e, str):
@@ -1256,29 +1407,16 @@ def _to_col_if_str(e: Union[Column, str], func_name: str) -> Column:
         raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
 
 
-def _to_col_if_str_or_int(e: Union[Column, str, int], func_name: str) -> Column:
-    if isinstance(e, Column):
-        return e
-    elif isinstance(e, str):
-        return col(e)
-    elif isinstance(e, int):
-        return lit(e)
-    else:
-        raise TypeError(
-            f"'{func_name.upper()}' expected Column, str, or int, got: {type(e)}"
-        )
-
-
 def _create_table_function_expression(
     func_name: Union[str, List[str]],
-    *args: Union["Column", str],
-    **named_args: Union["Column", str],
+    *args: ColumnOrName,
+    **named_args: ColumnOrName,
 ) -> SPTableFunctionExpression:
     if args and named_args:
         raise ValueError("A table function shouldn't have both args and named args")
-    if type(func_name) == str:
+    if isinstance(func_name, str):
         fqdn = func_name
-    elif type(func_name) == list:
+    elif isinstance(func_name, list):
         for n in func_name:
             Utils.validate_object_name(n)
         fqdn = ".".join(func_name)

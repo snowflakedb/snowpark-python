@@ -11,6 +11,11 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     abs,
+    approx_count_distinct,
+    approx_percentile,
+    approx_percentile_accumulate,
+    approx_percentile_combine,
+    approx_percentile_estimate,
     array_agg,
     array_append,
     array_cat,
@@ -50,16 +55,22 @@ from snowflake.snowpark.functions import (
     coalesce,
     col,
     contains,
+    corr,
     count,
     count_distinct,
+    covar_pop,
+    covar_samp,
+    cume_dist,
     dateadd,
     datediff,
+    dense_rank,
     equal_nan,
     exp,
     floor,
     get,
     get_ignore_case,
     get_path,
+    iff,
     is_array,
     is_binary,
     is_boolean,
@@ -80,6 +91,8 @@ from snowflake.snowpark.functions import (
     is_varchar,
     json_extract_path_text,
     kurtosis,
+    lag,
+    lead,
     lit,
     log,
     max,
@@ -87,6 +100,7 @@ from snowflake.snowpark.functions import (
     min,
     negate,
     not_,
+    ntile,
     object_agg,
     object_construct,
     object_construct_keep_null,
@@ -96,8 +110,11 @@ from snowflake.snowpark.functions import (
     object_pick,
     parse_json,
     parse_xml,
+    percent_rank,
     pow,
     random,
+    rank,
+    row_number,
     skew,
     split,
     sql_expr,
@@ -124,6 +141,7 @@ from snowflake.snowpark.functions import (
     variance,
     xmlget,
 )
+from snowflake.snowpark.window import Window
 from tests.utils import TestData, Utils
 
 
@@ -151,6 +169,16 @@ def test_avg(session):
     assert res == [Row(Decimal("2.2"))]
 
 
+@pytest.mark.parametrize(
+    "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
+)
+def test_corr(session, k, v1, v2):
+    Utils.check_answer(
+        TestData.number1(session).groupBy(k).agg(corr(v1, v2)),
+        [Row(1, None), Row(2, 0.40367115665231024)],
+    )
+
+
 def test_count(session):
     res = TestData.duplicated_numbers(session).select(count(col("A"))).collect()
     assert res == [Row(5)]
@@ -164,6 +192,21 @@ def test_count(session):
 
     df = TestData.duplicated_numbers(session).select(count_distinct("A"))
     assert df.collect() == [Row(3)]
+
+
+@pytest.mark.parametrize(
+    "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
+)
+def test_covariance(session, k, v1, v2):
+    Utils.check_answer(
+        TestData.number1(session).groupBy(k).agg(covar_pop(v1, v2)),
+        [Row(1, 0.0), Row(2, 38.75)],
+    )
+
+    Utils.check_answer(
+        TestData.number1(session).groupBy("K").agg(covar_samp("V1", col("V2"))),
+        [Row(1, None), Row(2, 51.666666666666664)],
+    )
 
 
 def test_kurtosis(session):
@@ -2261,12 +2304,23 @@ def test_object_keys(session, column):
 
 
 @pytest.mark.parametrize(
-    "v, t2, t3, instance",
-    [("v", "t2", "t3", "instance"), (col("v"), col("t2"), col("t3"), col("instance"))],
+    "v, t2, t3, instance, zero",
+    [
+        ("v", "t2", "t3", "instance", 0),
+        (col("v"), col("t2"), col("t3"), col("instance"), lit(0)),
+    ],
 )
-def test_xmlget(session, v, t2, t3, instance):
+def test_xmlget(session, v, t2, t3, instance, zero):
     Utils.check_answer(
         TestData.valid_xml1(session).select(get_ignore_case(xmlget(v, t2), lit("$"))),
+        [Row('"bar"'), Row(None), Row('"foo"')],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.valid_xml1(session).select(
+            get_ignore_case(xmlget(v, t2, zero), lit("$"))
+        ),
         [Row('"bar"'), Row(None), Row('"foo"')],
         sort=False,
     )
@@ -2321,5 +2375,213 @@ def test_get(session):
     Utils.check_answer(
         [Row(None), Row(None)],
         TestData.object2(session).select(get("obj", lit("AGE"))),
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_a", ["A", col("A")])
+def test_approx_count_distinct(session, col_a):
+    Utils.check_answer(
+        TestData.duplicated_numbers(session).select(approx_count_distinct(col_a)),
+        [Row(3)],
+    )
+
+
+@pytest.mark.parametrize("col_a", ["A", col("A")])
+def test_approx_percentile(session, col_a):
+    Utils.check_answer(
+        TestData.approx_numbers(session).select(approx_percentile(col_a, 0.5)),
+        [Row(4.5)],
+    )
+
+
+@pytest.mark.parametrize("col_a", ["A", col("A")])
+def test_approx_percentile_accumulate(session, col_a):
+    Utils.check_answer(
+        TestData.approx_numbers(session).select(approx_percentile_accumulate(col_a)),
+        [
+            Row(
+                '{\n  "state": [\n    0.000000000000000e+00,\n    1.000000000000000e+00,\n    '
+                + "1.000000000000000e+00,\n    1.000000000000000e+00,\n    2.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    3.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "4.000000000000000e+00,\n    1.000000000000000e+00,\n    5.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    6.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "7.000000000000000e+00,\n    1.000000000000000e+00,\n    8.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    9.000000000000000e+00,\n    1.000000000000000e+00\n  ],\n  "
+                + '"type": "tdigest",\n  "version": 1\n}'
+            )
+        ],
+    )
+
+
+@pytest.mark.parametrize("col_a", ["A", col("A")])
+def test_approx_percentile_estimate(session, col_a):
+    Utils.check_answer(
+        TestData.approx_numbers(session).select(
+            approx_percentile_estimate(approx_percentile_accumulate(col_a), 0.5)
+        ),
+        TestData.approx_numbers(session).select(approx_percentile(col_a, 0.5)),
+    )
+
+
+@pytest.mark.parametrize("col_a, col_b", [("A", "B"), (col("A"), col("B"))])
+def test_approx_percentile_combine(session, col_a, col_b):
+    df1 = (
+        TestData.approx_numbers(session)
+        .select(col_a)
+        .where(col("a") >= lit(3))
+        .select(approx_percentile_accumulate(col_a).as_("b"))
+    )
+    df2 = TestData.approx_numbers(session).select(
+        approx_percentile_accumulate(col_a).as_("b")
+    )
+    df = df1.union(df2)
+    Utils.check_answer(
+        df.select(approx_percentile_combine(col_b)),
+        [
+            Row(
+                '{\n  "state": [\n    0.000000000000000e+00,\n    1.000000000000000e+00,\n    '
+                + "1.000000000000000e+00,\n    1.000000000000000e+00,\n    2.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    3.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "3.000000000000000e+00,\n    1.000000000000000e+00,\n    4.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    4.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "5.000000000000000e+00,\n    1.000000000000000e+00,\n    5.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    6.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "6.000000000000000e+00,\n    1.000000000000000e+00,\n    7.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    7.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + "8.000000000000000e+00,\n    1.000000000000000e+00,\n    8.000000000000000e+00,\n    "
+                + "1.000000000000000e+00,\n    9.000000000000000e+00,\n    1.000000000000000e+00,\n    "
+                + '9.000000000000000e+00,\n    1.000000000000000e+00\n  ],\n  "type": "tdigest",\n  '
+                + '"version": 1\n}'
+            )
+        ],
+    )
+
+
+def test_iff(session):
+    df = session.createDataFrame(
+        [(True, 2, 2, 4), (False, 12, 12, 14), (True, 22, 23, 24)],
+        schema=["a", "b", "c", "d"],
+    )
+    Utils.check_answer(
+        df.select("a", "b", "d", iff(col("a"), col("b"), col("d"))),
+        [Row(True, 2, 4, 2), Row(False, 12, 14, 14), Row(True, 22, 24, 22)],
+        sort=False,
+    )
+    Utils.check_answer(
+        df.select("b", "c", "d", iff(col("b") == col("c"), col("b"), col("d"))),
+        [Row(2, 2, 4, 2), Row(12, 12, 14, 12), Row(22, 23, 24, 24)],
+        sort=False,
+    )
+
+
+def test_cume_dist(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            cume_dist().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+        ),
+        [Row(0.3333333333333333), Row(1.0), Row(1.0), Row(1.0), Row(1.0)],
+        sort=False,
+    )
+
+
+def test_dense_rank(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(dense_rank().over(Window.orderBy(col("X")))),
+        [Row(1), Row(1), Row(2), Row(2), Row(2)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_z", ["Z", col("Z")])
+def test_lag(session, col_z):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lag(col_z, 1, 0).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(0), Row(10), Row(1), Row(0), Row(1)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lag(col_z, 1).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(None), Row(10), Row(1), Row(None), Row(1)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lag(col_z).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(None), Row(10), Row(1), Row(None), Row(1)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_z", ["Z", col("Z")])
+def test_lead(session, col_z):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lead(col_z, 1, 0).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(1), Row(3), Row(0), Row(3), Row(0)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lead(col_z, 1).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(1), Row(3), Row(None), Row(3), Row(None)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lead(col_z).over(Window.partitionBy(col("X")).orderBy(col("X")))
+        ),
+        [Row(1), Row(3), Row(None), Row(3), Row(None)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_n", ["n", col("n")])
+def test_ntile(session, col_n):
+    df = TestData.xyz(session).withColumn("n", lit(4))
+    Utils.check_answer(
+        df.select(ntile(col_n).over(Window.partitionBy(col("X")).orderBy(col("Y")))),
+        [Row(1), Row(2), Row(3), Row(1), Row(2)],
+        sort=False,
+    )
+
+
+def test_percent_rank(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            percent_rank().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+        ),
+        [Row(0.0), Row(0.5), Row(0.5), Row(0.0), Row(0.0)],
+        sort=False,
+    )
+
+
+def test_rank(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            rank().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+        ),
+        [Row(1), Row(2), Row(2), Row(1), Row(1)],
+        sort=False,
+    )
+
+
+def test_row_number(session):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            row_number().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+        ),
+        [Row(1), Row(2), Row(3), Row(1), Row(2)],
         sort=False,
     )

@@ -4,14 +4,11 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import re
-import string
 from collections import Counter
-from random import choice
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
-from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
@@ -59,9 +56,14 @@ from snowflake.snowpark._internal.sp_types.sp_join_types import (
     NaturalJoin as SPNaturalJoin,
     UsingJoin as SPUsingJoin,
 )
+from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrName,
+    LiteralType,
+)
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
+from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.functions import _create_table_function_expression
 from snowflake.snowpark.row import Row
@@ -195,8 +197,17 @@ class DataFrame:
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
         self.__placeholder_output = None
+        self._stat = DataFrameStatFunctions(self)
+        self.approxQuantile = self._stat.approxQuantile
+        self.corr = self._stat.corr
+        self.cov = self._stat.cov
+        self.crosstab = self._stat.crosstab
+        self.sampleBy = self._stat.sampleBy
 
-        self.__na = None
+        self._na = DataFrameNaFunctions(self)
+        self.dropna = self._na.drop
+        self.fillna = self._na.fill
+        self.replace = self._na.replace
 
     @staticmethod
     def get_unaliased(col_name: str) -> List[str]:
@@ -214,8 +225,11 @@ class DataFrame:
 
     @staticmethod
     def __generate_prefix(prefix: str) -> str:
-        alphanumeric = string.ascii_lowercase + string.digits
-        return f"{prefix}_{''.join(choice(alphanumeric) for _ in range(DataFrame.__NUM_PREFIX_DIGITS))}_"
+        return f"{prefix}_{Utils.generate_random_alphanumeric(DataFrame.__NUM_PREFIX_DIGITS)}_"
+
+    @property
+    def stat(self) -> DataFrameStatFunctions:
+        return self._stat
 
     def collect(self) -> List["Row"]:
         """Executes the query representing this DataFrame and returns the result as a
@@ -264,7 +278,7 @@ class DataFrame:
 
         return result
 
-    def toDF(self, *names: Union[str, List[str]]) -> "DataFrame":
+    def toDF(self, *names: Union[str, List[str], Tuple[str, ...]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -280,8 +294,10 @@ class DataFrame:
             names: list of new column names
         """
         col_names = Utils.parse_positional_args_to_list(*names)
-        if not all(type(n) == str for n in col_names):
-            raise TypeError(f"Invalid input type in toDF(), expected str or list[str].")
+        if not all(isinstance(n, str) for n in col_names):
+            raise TypeError(
+                f"Invalid input type in toDF(), expected str or a list of strs."
+            )
 
         if len(self.__output()) != len(col_names):
             raise ValueError(
@@ -297,13 +313,13 @@ class DataFrame:
         return self.select(new_cols)
 
     def __getitem__(self, item):
-        if type(item) == str:
+        if isinstance(item, str):
             return self.col(item)
         elif isinstance(item, Column):
             return self.filter(item)
-        elif type(item) in [list, tuple]:
+        elif isinstance(item, (list, tuple)):
             return self.select(item)
-        elif type(item) == int:
+        elif isinstance(item, int):
             return self.__getitem__(self.columns[item])
         else:
             raise TypeError(f"Unexpected item type: {type(item)}")
@@ -330,9 +346,7 @@ class DataFrame:
 
     def select(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -358,19 +372,24 @@ class DataFrame:
         """
         exprs = Utils.parse_positional_args_to_list(*cols)
         if not exprs:
-            raise TypeError("The select() input cannot be empty")
+            raise ValueError("The input of select() cannot be empty")
 
-        if not all(type(e) in [Column, str] for e in exprs):
-            raise TypeError("The select() input must be Column, str, or list")
+        names = []
+        for e in exprs:
+            if isinstance(e, Column):
+                names.append(e._named())
+            elif isinstance(e, str):
+                names.append(Column(e)._named())
+            else:
+                raise TypeError(
+                    "The input of select() must be Column, column name, or a list of them"
+                )
 
-        names = [e._named() if type(e) == Column else Column(e)._named() for e in exprs]
         return self.__with_plan(SPProject(names, self.__plan))
 
     def drop(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
@@ -387,28 +406,29 @@ class DataFrame:
             :class:`SnowparkClientException`: if the resulting :class:`DataFrame`
                 contains no output columns.
         """
+        # an empty list should be accept, as dropping nothing
         if not cols:
-            raise TypeError("drop() input cannot be empty")
+            raise ValueError("The input of drop() cannot be empty")
         exprs = Utils.parse_positional_args_to_list(*cols)
 
         names = []
         for c in exprs:
-            if type(c) is str:
+            if isinstance(c, str):
                 names.append(c)
-            elif type(c) is Column and isinstance(c.expression, SPAttribute):
+            elif isinstance(c, Column) and isinstance(c.expression, SPAttribute):
                 names.append(
                     self.__plan.expr_to_alias.get(
                         c.expression.expr_id, c.expression.name
                     )
                 )
-            elif type(c) is Column and isinstance(c.expression, SPNamedExpression):
+            elif isinstance(c, Column) and isinstance(c.expression, SPNamedExpression):
                 names.append(c.expression.name)
             else:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
 
-        normalized = {AnalyzerPackage.quote_name(n) for n in names}
-        existing = [attr.name for attr in self.__output()]
-        keep_col_names = [c for c in existing if c not in normalized]
+        normalized_names = {AnalyzerPackage.quote_name(n) for n in names}
+        existing_names = [attr.name for attr in self.__output()]
+        keep_col_names = [c for c in existing_names if c not in normalized_names]
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
         else:
@@ -418,25 +438,9 @@ class DataFrame:
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
-        Example::
+        Examples::
 
             df_filtered = df.filter(col("A") > 1 && col("B") < 100)
-
-        Args:
-            expr: a :class:`Column` expression.
-        """
-        if type(expr) != Column:
-            raise TypeError(
-                f"DataFrame.filter() input type must be Column. Got: {type(expr)}"
-            )
-
-        return self.__with_plan(SPFilter(expr.expression, self.__plan))
-
-    def where(self, expr: Column) -> "DataFrame":
-        """Filters rows based on the specified conditional expression (similar to WHERE
-        in SQL). This is equivalent to calling :func:`filter()`.
-
-        Examples::
 
             # The following two result in the same SQL query:
             prices_df.filter(col("price") > 100)
@@ -445,13 +449,18 @@ class DataFrame:
         Args:
             expr: a :class:`Column` expression.
         """
-        return self.filter(expr)
+        if not isinstance(expr, Column):
+            raise TypeError(
+                f"The input type of filter() must be Column. Got: {type(expr)}"
+            )
+
+        return self.__with_plan(SPFilter(expr.expression, self.__plan))
+
+    where = filter
 
     def sort(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[str, Column, List[ColumnOrName], Tuple[ColumnOrName, ...]],
         ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
@@ -479,9 +488,9 @@ class DataFrame:
             raise ValueError("sort() needs at least one sort expression.")
         orders = []
         if ascending is not None:
-            if type(ascending) in [list, tuple]:
+            if isinstance(ascending, (list, tuple)):
                 orders = [SPAscending() if asc else SPDescending() for asc in ascending]
-            elif type(ascending) in [bool, int]:
+            elif isinstance(ascending, (bool, int)):
                 orders = [SPAscending() if ascending else SPDescending()]
             else:
                 raise TypeError(
@@ -499,7 +508,7 @@ class DataFrame:
             expr = exprs[idx]
             # orders will overwrite current orders in expression (but will not overwrite null ordering)
             # if no order is provided, use ascending order
-            if type(exprs[idx]) == SPSortOrder:
+            if isinstance(exprs[idx], SPSortOrder):
                 sort_exprs.append(
                     SPSortOrder(expr.child, orders[idx], expr.null_ordering)
                     if orders
@@ -541,31 +550,32 @@ class DataFrame:
             df.agg({"customers": "count", "amount": "sum"})
         """
         grouping_exprs = None
-        if type(exprs) == Column:
+        if isinstance(exprs, Column):
             grouping_exprs = [exprs]
-        elif type(exprs) in [list, tuple]:
+        elif isinstance(exprs, (list, tuple)):
             # the first if-statement also handles the case of empty list
-            if all(type(e) == Column for e in exprs):
+            if all(isinstance(e, Column) for e in exprs):
                 grouping_exprs = [e for e in exprs]
             elif all(
-                type(e) in [list, tuple]
+                isinstance(e, (list, tuple))
                 and len(e) == 2
-                and type(e[0]) == type(e[1]) == str
+                and isinstance(e[0], str)
+                and isinstance(e[1], str)
                 for e in exprs
             ):
                 grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
             # case for just a single pair passed as input
             elif len(exprs) == 2:
-                if type(exprs[0]) == type(exprs[1]) == str:
+                if isinstance(exprs[0], str) and isinstance(exprs[1], str):
                     grouping_exprs = [(self.col(exprs[0]), exprs[1])]
             else:
                 raise TypeError(
                     "Lists passed to DataFrame.agg() should only contain Column-objects, or pairs of strings."
                 )
-        elif type(exprs) == dict:
+        elif isinstance(exprs, dict):
             grouping_exprs = []
             for k, v in exprs.items():
-                if not type(k) == type(v) == str:
+                if not (isinstance(k, str) and isinstance(v, str)):
                     raise TypeError(
                         f"Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types {type(k), type(v)}"
                     )
@@ -578,9 +588,7 @@ class DataFrame:
 
     def rollup(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
         `GROUP BY ROLLUP <https://docs.snowflake.com/en/sql-reference/constructs/group-by-rollup.html>`_.
@@ -598,9 +606,7 @@ class DataFrame:
 
     def groupBy(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -625,11 +631,53 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
+    def groupByGroupingSets(
+        self,
+        *grouping_sets: Union[
+            "snowflake.snowpark.GroupingSets",
+            List["snowflake.snowpark.GroupingSets"],
+            Tuple["snowflake.snowpark.GroupingSets", ...],
+        ],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Performs a SQL
+        `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_.
+        on the DataFrame.
+
+        GROUP BY GROUPING SETS is an extension of the GROUP BY clause
+        that allows computing multiple GROUP BY clauses in a single statement.
+        The group set is a set of dimension columns.
+
+        GROUP BY GROUPING SETS is equivalent to the UNION of two or
+        more GROUP BY operations in the same result set.
+
+
+        Examples::
+
+            df.groupByGroupingSets(GroupingSets([col("a")])).count().collect()  # is equivalent to
+            df.groupByGroupingSets(GroupingSets(col("a"))).count().collect()  # is equivalent to
+            df.groupBy("a").count().collect()
+
+            df.groupByGroupingSets(GroupingSets([col("a")], [col("b")])).count().collect()  # is equivalent to
+            df.groupBy("a").count().unionAll(df.groupBy("b").count()).collect()
+
+            df.groupByGroupingSets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()  # is equivalent to
+            df.groupBy("a", "b").count().unionAll(df.groupBy("c").count()).collect()
+
+        Args:
+            grouping_sets: The list of :class:`GroupingSets` to group by.
+        """
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            [
+                gs.to_expression
+                for gs in Utils.parse_positional_args_to_list(*grouping_sets)
+            ],
+            snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+        )
+
     def cube(
         self,
-        *cols: Union[
-            str, Column, List[Union[str, Column]], Tuple[Union[str, Column], ...]
-        ],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
         `GROUP BY CUBE <https://docs.snowflake.com/en/sql-reference/constructs/group-by-cube.html>`_.
@@ -657,8 +705,8 @@ class DataFrame:
 
     def pivot(
         self,
-        pivot_col: Union[str, Column],
-        values: Union[List[Any], Tuple[Any]],
+        pivot_col: ColumnOrName,
+        values: Union[List[LiteralType], Tuple[LiteralType, ...]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -668,11 +716,11 @@ class DataFrame:
 
         Example::
 
-            val dfPivoted = df.pivot("col_1", [1,2,3]).agg(sum(col("col_2")))
+            df_pivoted = df.pivot("col_1", [1,2,3]).agg(sum(col("col_2")))
 
         Args:
-            pivot_col: The column or name of the column to use
-            values: A list of values in the column
+            pivot_col: The column or name of the column to use.
+            values: A list of values in the column.
         """
         pc = self.__convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
@@ -852,7 +900,7 @@ class DataFrame:
     def join(
         self,
         right: "DataFrame",
-        using_columns: Optional[Union[str, Column, List[Union[str, Column]]]] = None,
+        using_columns: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
         join_type: Optional[str] = None,
     ) -> "DataFrame":
         """Performs a join of the specified type (``join_type``) with the current
@@ -877,8 +925,8 @@ class DataFrame:
             if self is right or self.__plan is right._DataFrame__plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
 
-            if type(join_type) == SPCrossJoin or (
-                type(join_type) == str
+            if isinstance(join_type, SPCrossJoin) or (
+                isinstance(join_type, str)
                 and join_type.strip().lower().replace("_", "").startswith("cross")
             ):
                 if using_columns:
@@ -909,8 +957,8 @@ class DataFrame:
     def joinTableFunction(
         self,
         func_name: Union[str, List[str]],
-        *func_arguments: Union[Column, str],
-        **func_named_arguments: Union[Column, str],
+        *func_arguments: ColumnOrName,
+        **func_named_arguments: ColumnOrName,
     ) -> "DataFrame":
         """Lateral joins the current DataFrame with the output of the specified table function.
 
@@ -965,12 +1013,12 @@ class DataFrame:
         using_columns: Union[Column, List[str]],
         join_type: SPJoinType,
     ) -> "DataFrame":
-        if type(using_columns) == Column:
+        if isinstance(using_columns, Column):
             return self.__join_dataframes_internal(
                 right, join_type, join_exprs=using_columns
             )
 
-        if type(join_type) in [SPLeftSemi, SPLeftAnti]:
+        if isinstance(join_type, (SPLeftSemi, SPLeftAnti)):
             # Create a Column with expression 'true AND <expr> AND <expr> .."
             join_cond = Column(SPLiteral(True))
             for c in using_columns:
@@ -1113,7 +1161,7 @@ class DataFrame:
 
     def flatten(
         self,
-        input: Union[str, Column],
+        input: ColumnOrName,
         path: Optional[str] = None,
         outer: bool = False,
         recursive: bool = False,
@@ -1261,7 +1309,9 @@ class DataFrame:
             + line
         )
 
-    def createOrReplaceView(self, name: Union[str, List[str]]) -> List[Row]:
+    def createOrReplaceView(
+        self, name: Union[str, List[str], Tuple[str, ...]]
+    ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
 
         For ``name``, you can include the database and schema name (i.e. specify a
@@ -1274,17 +1324,13 @@ class DataFrame:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
         """
-        if type(name) == str:
+        if isinstance(name, str):
             formatted_name = name
-        elif isinstance(name, (list, tuple)):
-            if not all(type(i) == str for i in name):
-                raise ValueError(
-                    f"createOrReplaceView takes as input a string or list of strings."
-                )
+        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
             formatted_name = ".".join(name)
         else:
-            raise ValueError(
-                f"createOrReplaceView takes as input a string or list of strings."
+            raise TypeError(
+                f"The input of createOrReplaceView() can only a str or list of strs."
             )
 
         return self.__do_create_or_replace_view(
@@ -1295,7 +1341,9 @@ class DataFrame:
             else None,
         )
 
-    def createOrReplaceTempView(self, name: Union[str, List[str]]) -> List[Row]:
+    def createOrReplaceTempView(
+        self, name: Union[str, List[str], Tuple[str, ...]]
+    ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
 
         You can use the view in subsequent SQL queries and statements during the
@@ -1312,17 +1360,13 @@ class DataFrame:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
         """
-        if type(name) == str:
+        if isinstance(name, str):
             formatted_name = name
-        elif isinstance(name, (list, tuple)):
-            if not all(type(i) == str for i in name):
-                raise ValueError(
-                    f"createOrReplaceTempView() takes as input a string or list of strings."
-                )
+        elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
             formatted_name = ".".join(name)
         else:
-            raise ValueError(
-                f"createOrReplaceTempView() takes as input a string or list of strings."
+            raise TypeError(
+                f"The input of createOrReplaceTempView() can only a str or list of strs."
             )
 
         return self.__do_create_or_replace_view(
@@ -1365,7 +1409,7 @@ class DataFrame:
         if n is None:
             result = self.limit(1)._collect_with_tag()
             return result[0] if result else None
-        elif not type(n) == int:
+        elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
             return self._collect_with_tag()
@@ -1409,57 +1453,7 @@ class DataFrame:
         Returns a :class:`DataFrameNaFunctions` object that provides functions for
         handling missing values in the DataFrame.
         """
-        if not self.__na:
-            self.__na = DataFrameNaFunctions(self)
-        return self.__na
-
-    def dropna(
-        self,
-        how: str = "any",
-        thresh: Optional[int] = None,
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> "DataFrame":
-        """
-        Returns a new DataFrame that excludes all rows containing fewer than
-        a specified number of non-null and non-NaN values in the specified
-        columns. The usage, input arguments, and return value of this method
-        are the same as they are for :meth:`DataFrameNaFunctions.drop`.
-
-        See Also:
-            :meth:`DataFrameNaFunctions.drop`
-        """
-        return self.na.drop(how, thresh, subset)
-
-    def fillna(
-        self,
-        value: Union[Any, Dict[str, Any]],
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> "DataFrame":
-        """
-        Returns a new DataFrame that replaces all null and NaN values in the specified
-        columns with the values provided. The usage, input arguments, and return value
-        of this method are the same as they are for :meth:`DataFrameNaFunctions.fill`.
-
-        See Also:
-            :meth:`DataFrameNaFunctions.fill`
-        """
-        return self.na.fill(value, subset)
-
-    def replace(
-        self,
-        to_replace: Union[Any, List[Any], Tuple[Any, ...], Dict[Any, Any]],
-        value: Optional[Union[Any, List[Any], Tuple[Any, ...]]] = None,
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> "DataFrame":
-        """
-        Returns a new DataFrame that replaces values in the specified columns.
-        The usage, input arguments, and return value of this method are the same as
-        they are for :meth:`DataFrameNaFunctions.replace`.
-
-        See Also:
-            :meth:`DataFrameNaFunctions.replace`
-        """
-        return self.na.replace(to_replace, value, subset)
+        return self._na
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:
@@ -1518,7 +1512,7 @@ class DataFrame:
                     name,
                     lhs_prefix,
                     []
-                    if type(join_type) in [SPLeftSemi, SPLeftAnti]
+                    if isinstance(join_type, (SPLeftSemi, SPLeftAnti))
                     else common_col_names,
                 )
                 for name in lhs_names
@@ -1555,14 +1549,14 @@ class DataFrame:
     def __convert_cols_to_exprs(
         self,
         calling_method: str,
-        *cols: Union[str, Column, List[Union[str, Column]], Tuple[Union[str, Column]]],
+        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName]],
     ) -> List["SPExpression"]:
         """Convert a string or a Column, or a list of string and Column objects to expression(s)."""
 
-        def convert(col: Union[str, Column]):
-            if type(col) == str:
+        def convert(col: ColumnOrName):
+            if isinstance(col, str):
                 return self.__resolve(col)
-            elif type(col) == Column:
+            elif isinstance(col, Column):
                 return col.expression
             else:
                 raise TypeError(

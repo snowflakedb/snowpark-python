@@ -18,7 +18,7 @@ from snowflake.snowpark._internal.sp_types.sp_join_types import (
     UsingJoin as SPUsingJoin,
 )
 from snowflake.snowpark._internal.sp_types.types_package import convert_to_sf_type
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
 
@@ -197,6 +197,18 @@ class AnalyzerPackage:
     def limit_expression(self, num: int) -> str:
         return self._Limit + str(num)
 
+    def grouping_set_expression(self, args: List[List[str]]) -> str:
+        flat_args = [
+            self._LeftParenthesis + self._Comma.join(arg) + self._RightParenthesis
+            for arg in args
+        ]
+        return (
+            self._GroupingSets
+            + self._LeftParenthesis
+            + self._Comma.join(flat_args)
+            + self._RightParenthesis
+        )
+
     def like_expression(self, expr: str, pattern: str) -> str:
         return expr + self._Like + pattern
 
@@ -212,7 +224,7 @@ class AnalyzerPackage:
             + self._LeftBracket
             + (
                 self._SingleQuote + field + self._SingleQuote
-                if type(field) == str
+                if isinstance(field, str)
                 else str(field)
             )
             + self._RightBracket
@@ -387,7 +399,7 @@ class AnalyzerPackage:
         )
 
     def values_statement(self, output: List["SPAttribute"], data: List["Row"]) -> str:
-        table_name = AnalyzerPackage.random_name_for_temp_object()
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         data_types = [attr.datatype for attr in output]
         names = [AnalyzerPackage.quote_name(attr.name) for attr in output]
         rows = []
@@ -430,8 +442,8 @@ class AnalyzerPackage:
     def left_semi_or_anti_join_statement(
         self, left: str, right: str, join_type: type, condition: str
     ) -> str:
-        left_alias = self.random_name_for_temp_object()
-        right_alias = self.random_name_for_temp_object()
+        left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
         if join_type == SPLeftSemi:
             where_condition = self._Where + self._Exists
@@ -467,19 +479,19 @@ class AnalyzerPackage:
     def snowflake_supported_join_statement(
         self, left: str, right: str, join_type: SPJoinType, condition: str
     ) -> str:
-        left_alias = self.random_name_for_temp_object()
-        right_alias = self.random_name_for_temp_object()
+        left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
-        if type(join_type) == SPUsingJoin:
+        if isinstance(join_type, SPUsingJoin):
             join_sql = join_type.tpe.sql
-        elif type(join_type) == SPNaturalJoin:
+        elif isinstance(join_type, SPNaturalJoin):
             join_sql = self._Natural + join_type.tpe.sql
         else:
             join_sql = join_type.sql
 
         # This generates sql like "USING(a, b)"
         using_condition = None
-        if type(join_type) == SPUsingJoin:
+        if isinstance(join_type, SPUsingJoin):
             if len(join_type.using_columns) != 0:
                 using_condition = (
                     self._Using
@@ -521,20 +533,20 @@ class AnalyzerPackage:
     def join_statement(
         self, left: str, right: str, join_type: SPJoinType, condition: str
     ) -> str:
-        if type(join_type) == SPLeftSemi:
+        if isinstance(join_type, SPLeftSemi):
             return self.left_semi_or_anti_join_statement(
                 left, right, SPLeftSemi, condition
             )
-        if type(join_type) == SPLeftAnti:
+        if isinstance(join_type, SPLeftAnti):
             return self.left_semi_or_anti_join_statement(
                 left, right, SPLeftAnti, condition
             )
-        if type(join_type) == SPUsingJoin:
-            if type(join_type.tpe) == SPLeftSemi:
+        if isinstance(join_type, SPUsingJoin):
+            if isinstance(join_type.tpe, SPLeftSemi):
                 raise Exception(
                     "Internal error: Unexpected Using clause in left semi join"
                 )
-            if type(join_type.tpe) == SPLeftAnti:
+            if isinstance(join_type.tpe, SPLeftAnti):
                 raise Exception(
                     "Internal error: Unexpected Using clause in left anti join"
                 )
@@ -915,17 +927,13 @@ class AnalyzerPackage:
     # Most integer types map to number(38,0)
     # https://docs.snowflake.com/en/sql-reference/
     # data-types-numeric.html#int-integer-bigint-smallint-tinyint-byteint
-    # TODO static
-    def number(self, precision: int = 38, scale: int = 0) -> str:
+    @classmethod
+    def number(cls, precision: int = 38, scale: int = 0) -> str:
         return (
-            self._Number
-            + self._LeftParenthesis
+            cls._Number
+            + cls._LeftParenthesis
             + str(precision)
-            + self._Comma
+            + cls._Comma
             + str(scale)
-            + self._RightParenthesis
+            + cls._RightParenthesis
         )
-
-    @staticmethod
-    def random_name_for_temp_object() -> str:
-        return f"SN_TEMP_OBJECT_{Utils.random_number()}"

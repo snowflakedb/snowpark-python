@@ -56,6 +56,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Expression as SPExpression,
     FlattenFunction as SPFlattenFunction,
     FunctionExpression as SPFunctionExpression,
+    GroupingSetsExpression as SPGroupingSetsExpression,
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
@@ -78,16 +79,12 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnaryMinus as SPUnaryMinus,
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
-    UnresolvedFunction as SPUnresolvedFunction,
     UnspecifiedFrame as SPUnspecifiedFrame,
     WindowExpression as SPWindowExpression,
     WindowSpecDefinition as SPWindowSpecDefinition,
 )
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    ByteType as SPByteType,
-    IntegerType as SPIntegerType,
-    LongType as SPLongType,
-    ShortType as SPShortType,
+    IntegralType as SPIntegralType,
 )
 
 ARRAY_BIND_THRESHOLD = 512
@@ -104,6 +101,11 @@ class Analyzer:
         self.alias_maps_to_use = None
 
     def analyze(self, expr) -> str:
+        if isinstance(expr, SPGroupingSetsExpression):
+            return self.package.grouping_set_expression(
+                [[self.analyze(a) for a in arg] for arg in expr.args]
+            )
+
         if isinstance(expr, SPLike):
             return self.package.like_expression(
                 self.analyze(expr.expr), self.analyze(expr.pattern)
@@ -153,8 +155,8 @@ class Analyzer:
         if isinstance(expr, SPSpecifiedWindowFrame):
             return self.package.specified_window_frame_expression(
                 expr.frame_type.sql,
-                self.window_frame_boundary(self.__to_sql_avoid_offset(expr.lower)),
-                self.window_frame_boundary(self.__to_sql_avoid_offset(expr.upper)),
+                self.window_frame_boundary(self.to_sql_avoid_offset(expr.lower)),
+                self.window_frame_boundary(self.to_sql_avoid_offset(expr.upper)),
             )
         if isinstance(expr, SPUnspecifiedFrame):
             return ""
@@ -176,11 +178,6 @@ class Analyzer:
                 raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(
                     ".".join(expr.name_parts)
                 )
-        if isinstance(expr, SPUnresolvedFunction):
-            # TODO expr.name should return FunctionIdentifier, and we should pass expr.name.funcName
-            return self.package.function_expression(
-                expr.name, list(map(self.analyze, expr.children)), expr.is_distinct
-            )
 
         if isinstance(expr, SPAlias):
             quoted_name = self.package.quote_name(expr.name)
@@ -194,7 +191,7 @@ class Analyzer:
         if isinstance(expr, SPFunctionExpression):
             return self.package.function_expression(
                 expr.name,
-                [self.__to_sql_avoid_offset(c) for c in expr.children],
+                [self.to_sql_avoid_offset(c) for c in expr.children],
                 expr.is_distinct,
             )
 
@@ -334,14 +331,11 @@ class Analyzer:
         except:
             return offset
 
-    def __to_sql_avoid_offset(self, expr: SPExpression) -> str:
-        # if expression is integral literal, return the number without casting,
+    def to_sql_avoid_offset(self, expr: SPExpression) -> str:
+        # if expression is an integral literal, return the number without casting,
         # otherwise process as normal
-        if isinstance(expr, SPLiteral):
-            if isinstance(
-                expr.datatype, (SPIntegerType, SPLongType, SPShortType, SPByteType)
-            ):
-                return DataTypeMapper.to_sql_without_cast(expr.value, expr.datatype)
+        if isinstance(expr, SPLiteral) and isinstance(expr.datatype, SPIntegralType):
+            return DataTypeMapper.to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(expr)
 
@@ -405,9 +399,7 @@ class Analyzer:
 
         if isinstance(logical_plan, SPAggregate):
             return self.plan_builder.aggregate(
-                list(
-                    map(self.__to_sql_avoid_offset, logical_plan.grouping_expressions)
-                ),
+                list(map(self.to_sql_avoid_offset, logical_plan.grouping_expressions)),
                 list(map(self.analyze, logical_plan.aggregate_expressions)),
                 resolved_children[logical_plan.child],
                 logical_plan,
@@ -516,7 +508,7 @@ class Analyzer:
                 on_top_of_order_by = False
 
             return self.plan_builder.limit(
-                self.__to_sql_avoid_offset(logical_plan.limit_expr),
+                self.to_sql_avoid_offset(logical_plan.limit_expr),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
                 logical_plan,
@@ -535,9 +527,9 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, SPCreateViewCommand):
-            if type(logical_plan.view_type) == SPPersistedView:
+            if isinstance(logical_plan.view_type, SPPersistedView):
                 is_temp = False
-            elif type(logical_plan.view_type) == SPLocalTempView:
+            elif isinstance(logical_plan.view_type, SPLocalTempView):
                 is_temp = True
             else:
                 raise SnowparkClientExceptionMessages.PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(

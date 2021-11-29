@@ -18,8 +18,9 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
     LongType,
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
+    _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
     _infer_type,
-    _type_mappings,
 )
 
 
@@ -110,24 +111,6 @@ class BinaryExpression(Expression):
 
     def __repr__(self):
         return "{} {} {}".format(self.left, self.sql_operator, self.right)
-
-
-class UnresolvedFunction(Expression):
-    def __init__(self, name, arguments, is_distinct=False):
-        super().__init__()
-        self.name = name
-        self.children = arguments
-        self.is_distinct = is_distinct
-
-    def pretty_name(self) -> str:
-        return self.name.strip('"')
-
-    def sql(self) -> str:
-        distinct = "DISTINCT " if self.is_distinct else ""
-        return f"{self.pretty_name()}({distinct}{', '.join(c.sql() for c in self.children)})"
-
-    def __repr__(self):
-        return f"{self.name}({', '.join((str(c) for c in self.children))})"
 
 
 # ##### AggregateModes
@@ -309,21 +292,13 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self._name = alias_func
 
 
-ALLOWED_PYTHON_DATA_TYPES_IN_LITERAL = tuple(_type_mappings.keys())
-ALLOWED_SNOWPARK_DATA_TYPES_IN_LITERAL = (
-    *_type_mappings.values(),
-    IntegralType,
-    DoubleType,
-)
-
-
 # Leaf Expressions
 class Literal(LeafExpression):
     def __init__(self, value: Any, datatype: Optional[DataType] = None):
         super().__init__()
 
         # check value
-        if not isinstance(value, ALLOWED_PYTHON_DATA_TYPES_IN_LITERAL):
+        if not isinstance(value, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
             raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                 type(value)
             )
@@ -331,7 +306,7 @@ class Literal(LeafExpression):
 
         # check datatype
         if datatype:
-            if not isinstance(datatype, ALLOWED_SNOWPARK_DATA_TYPES_IN_LITERAL):
+            if not isinstance(datatype, _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE):
                 raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                     str(datatype)
                 )
@@ -514,6 +489,12 @@ class UnresolvedAttribute(Attribute):
     def __str__(self):
         return ".".join(self.name_parts)
 
+    def __eq__(self, other):
+        return type(other) is type(self) and str(self) == str(other)
+
+    def __hash__(self):
+        return hash(str(self))
+
     def sql(self):
         return self.__str__()
 
@@ -565,7 +546,7 @@ class FunctionExpression(Expression):
 
     def sql(self) -> str:
         distinct = "DISTINCT " if self.is_distinct else ""
-        return f"{self.pretty_name()}({distinct}{', '.join([c.sql() for c in self.children()])})"
+        return f"{self.pretty_name()}({distinct}{', '.join([c.sql() for c in self.children])})"
 
 
 class TableFunctionExpression(Expression):
@@ -600,8 +581,8 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
 
-class GroupingSets(Expression):
-    def __init__(self, args: List[Expression]):
+class GroupingSetsExpression(Expression):
+    def __init__(self, args: List[List[Expression]]):
         super().__init__()
         self.args = args
         self.datatype = None

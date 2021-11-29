@@ -224,7 +224,7 @@ def test_annotation_syntax_udf(session):
     # so it can't be simply called
     with pytest.raises(TypeError) as ex_info:
         add_udf(1, 2)
-    assert "input must be Column, str, or list" in str(ex_info)
+    assert "must be Column, column name, or a list of them" in str(ex_info)
 
 
 def test_session_register_udf(session):
@@ -742,3 +742,31 @@ def test_udf_replace(session):
         Row(3),
         Row(7),
     ]
+
+
+def test_udf_parallel(session):
+    for i in [1, 50, 99]:
+        udf(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            parallel=i,
+        )
+
+    with pytest.raises(ValueError) as ex_info:
+        udf(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            parallel=0,
+        )
+    assert "Supported values of parallel are from 1 to 99" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        udf(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            parallel=100,
+        )
+    assert "Supported values of parallel are from 1 to 99" in str(ex_info)
