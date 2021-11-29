@@ -96,7 +96,7 @@ class SnowparkClientExceptionMessages:
         table_name: str,
     ) -> SnowparkDataframeReaderException:
         return SnowparkDataframeReaderException(
-            f"Cannot create the target table {table_name} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()"
+            f"Cannot create the target table {table_name} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()."
         )
 
     @staticmethod

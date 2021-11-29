@@ -1193,7 +1193,7 @@ class DataFrame:
             files: Specific files to load from the stage location.
             pattern: The regular expression that is used to match file names of the stage location.
             validation_mode: A ``str`` that instructs the ``COPY INTO <table>`` command to validate the data files instead of loading them into the specified table.
-                Values can be "RETURN_n_ROWS", "RETURN_ERRORS", or "RETURN_ALL_ERRORS". Refer to the above mentioned ``COPY INTO <table>`` command optioanl parameters for more details.
+                Values can be "RETURN_n_ROWS", "RETURN_ERRORS", or "RETURN_ALL_ERRORS". Refer to the above mentioned ``COPY INTO <table>`` command optional parameters for more details.
             target_columns: Name of the columns in the table where the data should be saved.
             transformations: A list of column transformations.
             format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
