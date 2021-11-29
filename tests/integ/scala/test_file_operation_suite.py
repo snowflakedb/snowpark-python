@@ -101,7 +101,7 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     assert third_result["source"] == os.path.basename(path3)
     assert third_result["target"] == os.path.basename(path3) + ".gz"
     assert third_result["source_size"] in (10, 11)
-    assert third_result["target_size"] in (96, 97)
+    assert third_result["target_size"] in (96, 112)
     assert third_result["source_compression"] == "NONE"
     assert third_result["target_compression"] == "GZIP"
     assert third_result["status"] == "UPLOADED"
@@ -139,7 +139,7 @@ def test_put_with_one_relative_path_file(session, temp_stage, path1):
         assert first_result["source"] == os.path.basename(path1)
         assert first_result["target"] == os.path.basename(path1) + ".gz"
         assert first_result["source_size"] in (10, 11)
-        assert first_result["target_size"] in (96, 97)
+        assert first_result["target_size"] in (96, 112)
         assert first_result["source_compression"] == "NONE"
         assert first_result["target_compression"] == "GZIP"
         assert first_result["status"] == "UPLOADED"
@@ -323,17 +323,17 @@ def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
         special_path2 = special_directory.joinpath("file_.txt")
         special_path2.write_text("bbb")
         put1 = session.file.put(
-            f"'file://{Utils.escape_path(special_path1)}'", stage_with_prefix
+            f"'file://{Utils.escape_path(str(special_path1))}'", stage_with_prefix
         )
         assert len(put1) == 1
         put2 = session.file.put(
-            f"'file://{Utils.escape_path(special_path2)}'", stage_with_prefix
+            f"'file://{Utils.escape_path(str(special_path2))}'", stage_with_prefix
         )
         assert len(put2) == 1
 
         dest_directory = tmp_path_factory.mktemp("dir !_")
         get1 = session.file.get(
-            stage_with_prefix, f"'file://{Utils.escape_path(dest_directory)}'"
+            stage_with_prefix, f"'file://{Utils.escape_path(str(dest_directory))}'"
         )
         assert len(get1) == 2
         assert len(list(dest_directory.iterdir())) == 2
