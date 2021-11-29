@@ -1162,7 +1162,10 @@ class DataFrame:
         format_type_options: Optional[Dict[str, Any]] = None,
         **copy_options: Any,
     ) -> List[Row]:
-        """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`_ command to load data from files in a stage location into a specified table.
+        """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
+
+        It returns the load result described in `OUTPUT section of the COPY INTO <table> command <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#output>`__.
+        The returned result also depends on the value of ``validation_mode``.
 
         It's slightly different from the ``COPY INTO`` command in that this method will automatically create a table if the table doesn't exist and the input files are CSV files whereas the ``COPY INTO <table>`` doesn't.
 
@@ -1172,8 +1175,9 @@ class DataFrame:
 
             # user_schema is used to read from CSV files. For other files it's not needed.
             user_schema = StructType(StructField("A", StringType()), StructField("A_LEN", IntegerType())
+            stage_location = "@somestage/somefiles.csv"
             # Use the DataFrameReader (session.read below) to read from CSV files.
-            df = session.read.schema(user_schema).csv(stage_location_that_has_csv_files)
+            df = session.read.schema(user_schema).csv(stage_location)
             # specify transformations and target column names. It's optional for the `copy into` command
             transformations = [col("$1"), length(col("$1"))]
             target_column_names = ["A", "A_LEN"]
@@ -1181,26 +1185,19 @@ class DataFrame:
             csv_file_format_options = {"skip_header": 2}
             df.copy_into_table("T", target_column_names, transformations, format_type_options=csv_file_format_options, force=True)
 
-        The arguments of this function match the optional parameters of the `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#optional-parameters>`_
+        The arguments of this function match the optional parameters of the `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#optional-parameters>`__.
 
         Args:
             table_name: A string or list of strings that specify the table name or fully-qualified object identifier
                 (database name, schema name, and table name).
             files: Specific files to load from the stage location.
             pattern: The regular expression that is used to match file names of the stage location.
-            validation_mode: A ``str`` that instructs the ``COPY INTO`` command to validate the data files instead of loading them into the specified table.
-                Values can be:
-                    - "RETURN_n_ROWS".
-                    - "RETURN_ERRORS",
-                    - "RETURN_ALL_ERRORS"
-                Refer to the above mentioned ``COPY INTO`` command optioanl parameters for more details.
+            validation_mode: A ``str`` that instructs the ``COPY INTO <table>`` command to validate the data files instead of loading them into the specified table.
+                Values can be "RETURN_n_ROWS", "RETURN_ERRORS", or "RETURN_ALL_ERRORS". Refer to the above mentioned ``COPY INTO <table>`` command optioanl parameters for more details.
             target_columns: Name of the columns in the table where the data should be saved.
             transformations: A list of column transformations.
-            format_type_options: A dict that contains the ``formatTypeOptions`` of the ``copy into`` command.
-            copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``copy into`` command.
-
-        Returns: The load result described in `COPY INTO OUTPUT <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#output>`_
-            It will return other data depending on ``validation_mode`` value.
+            format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
+            copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
