@@ -5,10 +5,11 @@
 #
 import re
 from functools import reduce
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import snowflake.connector
 import snowflake.snowpark.dataframe
+from snowflake.snowpark import Column
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -30,6 +31,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils, _SaveMode
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import StructType
 
 
 class SnowflakePlan(LogicalPlan):
@@ -603,6 +605,53 @@ class SnowflakePlanBuilder:
                 None,
             )
 
+    def copy_into_table(
+        self,
+        file_format: str,
+        table_name: str,
+        path: Optional[str] = None,
+        files: Optional[str] = None,
+        pattern: Optional[str] = None,
+        format_type_options: Optional[Dict[str, Any]] = None,
+        copy_options: Optional[Dict[str, Any]] = None,
+        validation_mode: Optional[str] = None,
+        column_names: Optional[List[str]] = None,
+        transformations: Optional[List[str]] = None,
+        user_schema: Optional[StructType] = None,
+    ) -> SnowflakePlan:
+        copy_command = self.pkg.copy_into_table(
+            table_name=table_name,
+            file_path=path,
+            files=files,
+            file_format=file_format,
+            format_type_options=format_type_options,
+            copy_options=copy_options,
+            pattern=pattern,
+            validation_mode=validation_mode,
+            column_names=column_names,
+            transformations=transformations,
+        )
+        if self.__session._table_exists(table_name):
+            queries = [Query(copy_command)]
+        elif user_schema and not transformations:
+            attributes = user_schema._to_attributes()
+            queries = [
+                Query(
+                    self.pkg.create_table_statement(
+                        table_name,
+                        self.pkg.attribute_to_schema_string(attributes),
+                        False,
+                        False,
+                    )
+                ),
+                Query(copy_command),
+            ]
+        else:
+            raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
+                table_name
+            )
+        return SnowflakePlan(queries, copy_command, [], {}, self.__session, None)
+
     def lateral(
         self,
         table_function: str,
@@ -686,3 +735,35 @@ class SnowflakeCreateTable(LogicalPlan):
         self.table_name = table_name
         self.mode = mode
         self.children.append(query)
+
+
+class CopyIntoNode(LeafNode):
+    def __init__(
+        self,
+        table_name: str,
+        *,
+        file_path: Optional[str] = None,
+        files: Optional[str] = None,
+        pattern: Optional[str] = None,
+        file_format: Optional[str] = None,
+        format_type_options: Optional[Dict[str, Any]],
+        column_names: Optional[List[str]] = None,
+        transformations: Optional[List[Column]] = None,
+        copy_options: Optional[Dict[str, Any]] = None,
+        validation_mode: Optional[str] = None,
+        user_schema: Optional[StructType] = None,
+        cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
+    ):
+        super().__init__()
+        self.table_name = table_name
+        self.file_path = file_path
+        self.files = files
+        self.pattern = pattern
+        self.file_format = file_format
+        self.column_names = column_names
+        self.transformations = transformations
+        self.copy_options = copy_options
+        self.format_type_options = format_type_options
+        self.validation_mode = validation_mode
+        self.user_schema = user_schema
+        self.cur_options = cur_options
