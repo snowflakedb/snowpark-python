@@ -75,7 +75,7 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     assert first_result["source"] == os.path.basename(path1)
     assert first_result["target"] == os.path.basename(path1) + ".gz"
     assert first_result["source_size"] in (10, 11)
-    assert first_result["target_size"] in (96, 97)
+    assert first_result["target_size"] in (96, 112)
     assert first_result["source_compression"] == "NONE"
     assert first_result["target_compression"] == "GZIP"
     assert first_result["status"] == "UPLOADED"
@@ -121,7 +121,7 @@ def test_put_with_one_file_twice(session, temp_stage, path1):
     assert second_result["target"] == os.path.basename(path1) + ".gz"
     assert second_result["source_size"] in (10, 11)
     # On GCP, the files are not skipped if target file already exists
-    assert second_result["target_size"] in (0, 96)
+    assert second_result["target_size"] in (0, 96, 112)
     assert second_result["source_compression"] == "NONE"
     assert second_result["target_compression"] == "GZIP"
     assert second_result["status"] in ("SKIPPED", "UPLOADED")
