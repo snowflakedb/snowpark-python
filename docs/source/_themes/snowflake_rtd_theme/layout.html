@@ -30,7 +30,6 @@
     <script src="{{ pathto('_static/js/vendor/modernizr-2.8.3.min.js', 1) }}"></script>
 
     {% block htmltitle %}
-    <meta name="snowflake-release" content="{{ release }}">
     <!-- Built with Sphinx (http://sphinx-doc.org) using a theme based on the Read the Docs (http://readthedocs.org) theme (https://github.com/snide/sphinx_rtd_theme). -->
     <!-- License for Read the Docs theme for Sphinx: https://docs.snowflake.com/en/sphinx_rtd_theme_license.html -->
     <title>{{ title|striptags|e }}{{ titlesuffix }}</title>
@@ -115,7 +114,7 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-  
+
     gtag('config', 'G-00K70YK8HQ');
   </script>
 
@@ -138,7 +137,7 @@
   <script type="text/javascript" src="{{ pathto('_static/js/sftoggle.js', 1) }}"></script> <!-- SF custom JQuery: Toggle mobile TOC -->
   <script type="text/javascript" src="{{ pathto('_static/js/sftable.js', 1) }}"></script> <!-- SF custom JQuery: Add table attributes -->
 
-  <!-- Read the docs JS (required for toggleable sections in Cloud theme) 
+  <!-- Read the docs JS (required for toggleable sections in Cloud theme)
   <script type="text/javascript" src="https://media.readthedocs.org/javascript/jquery/jquery-2.0.3.min.js"></script>
   <script type="text/javascript" src="https://media.readthedocs.org/javascript/jquery/jquery-migrate-1.2.1.min.js"></script>
   <script type="text/javascript" src="https://media.readthedocs.org/javascript/underscore.js"></script>
@@ -182,7 +181,7 @@
   </script>
 
 
-  <!-- Cloud theme CSS (required for toggleable sections) 
+  <!-- Cloud theme CSS (required for toggleable sections)
   <script src="{{ pathto('_static/js/cloud.base.js', 1) }}"></script>
   <script src="{{ pathto('_static/js/cloud.js', 1) }}"></script> -->
 
@@ -223,9 +222,9 @@
         <a href="https://docs.snowflake.com/en/" class="logo-doc">
 
         <span>DOCUMENTATION</span>
-        
+
        </a>
-        
+
       </div>
 
       <i class="hamburger icon-hamburger"></i>
@@ -244,13 +243,13 @@
           <div class="site-flex-container">
 
           {# SIDE NAV, TOGGLES ON MOBILE #}
-       
+
             <div class="left-sidebar">
                 <div class="wy-menu-vertical-scrollbar-container">
                 <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-                  
-                  <p><a style="color: white" href="{{ pathto(master_doc) }}">{{ project }}</a></p>
-                  
+
+                  <p><a style="color: white" href="{{ pathto(master_doc) }}">{{ project }} {{ release }}</a></p>
+
                 {% block menu %}
                   {% set toctree = toctree(maxdepth=5, collapse=theme_collapse_navigation, includehidden=True) %}
                   {% if toctree %}
@@ -260,7 +259,6 @@
                       <div class="local-toc">{{ toc }}</div>
                   {% endif %}
                 {% endblock %}
-
               </div>
               </div>
             </div><!-- end left sidebar -->
@@ -272,7 +270,7 @@
             {% include "breadcrumbs.html" %}
 
           <!-- END BREADCRUMBS -->
-          
+
           <!-- skona -->
           <div class="main-content-inner">
 
@@ -280,7 +278,7 @@
 
           <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
 
-        
+
             <div class="wy-nav-content">
               <div class="rst-content">
                 <div role="main" class="document">
@@ -342,12 +340,12 @@
   <!-- skona -->
   </div><!-- #page -->
 
-  <!-- Ignore. Conflicts with TOC expand/contract icons. Seems superfluous <script src="https://code.jquery.com/jquery-1.12.0.min.js"></script> 
+  <!-- Ignore. Conflicts with TOC expand/contract icons. Seems superfluous <script src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
   <script>window.jQuery || document.write('<script src="{{ pathto('_static/js/vendor/jquery-1.12.0.min.js', 1) }}"><\/script>')</script>-->
   <script src="{{ pathto('_static/js/main.js', 1) }}"></script>
   <!-- /skona -->
 
-  <!-- Fancybox JS 
+  <!-- Fancybox JS
   <script src="//code.jquery.com/jquery-3.2.1.min.js"></script> -->
   <script type="text/javascript" src="{{ pathto('_static/fancybox/jquery.fancybox.min.js', 1) }}"></script>
 
