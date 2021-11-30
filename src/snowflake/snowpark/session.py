@@ -17,6 +17,8 @@ import cloudpickle
 
 import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.connector.options import pandas
+from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark import Column, DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
@@ -576,10 +578,41 @@ class Session:
             self.__stage_created = True
         return f"@{qualified_stage_name}"
 
+    def write_pandas(
+        self,
+        pd: "pandas.DataFrame",
+        table_name: str,
+        database: Optional[str] = None,
+        schema: Optional[str] = None,
+        chunk_size: Optional[int] = None,
+        compression: str = "gzip",
+        on_error: str = "abort_statement",
+        parallel: int = 4,
+        quote_identifiers: bool = True,
+    ) -> DataFrame:
+        success, nchunks, nrows, _ = write_pandas(
+            self._conn._conn,
+            pd,
+            table_name,
+            database=database,
+            schema=schema,
+            chunk_size=chunk_size,
+            compression=compression,
+            on_error=on_error,
+            parallel=parallel,
+            quote_identifiers=quote_identifiers,
+        )
+
+        if success:
+            return self.table(table_name)
+        else:
+            raise SnowparkClientExceptionMessages.DF_WRITE_PANDAS_EXCEPTION()
+
     def createDataFrame(
         self,
-        data: Union[List, Tuple],
+        data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, List[str]]] = None,
+        table_name: str = None,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -610,6 +643,13 @@ class Session:
         """
         if data is None:
             raise ValueError("data cannot be None.")
+
+        # check to see if it is a Pandas DataFrame and if so, write that to a temp
+        # table and return as a DataFrame
+        if isinstance(data, pandas.DataFrame):
+            if not table_name:
+                table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+            return self.write_pandas(data, table_name)
 
         # check the type of data
         if isinstance(data, Row):
