@@ -144,8 +144,33 @@ class SnowparkClientExceptionMessages:
         return SnowparkJoinException(f"Unsupported using join type '{tpe}'.", "1112")
 
     @staticmethod
-    def DF_WRITE_PANDAS_EXCEPTION() -> SnowparkPandasException:
-        return SnowparkPandasException("Unable to write pandas dataframe to Snowflake")
+    def DF_PANDAS_GENERAL_EXCEPTION() -> SnowparkPandasException:
+        return SnowparkPandasException(
+            "Unable to write pandas dataframe to Snowflake", "1113"
+        )
+
+    @staticmethod
+    def DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
+        table_name: str, database: str, schema: str, quote_identifiers: bool
+    ) -> SnowparkPandasException:
+        if quote_identifiers:
+            location = (
+                (('"' + database + '".') if database else "")
+                + (('"' + schema + '".') if schema else "")
+                + ('"' + table_name + '"')
+            )
+        else:
+            location = (
+                (database + "." if database else "")
+                + (schema + "." if schema else "")
+                + (table_name)
+            )
+        return SnowparkPandasException(
+            f"Cannot write pandas DataFrame to table {location} "
+            f"because it does not exist. Create table before "
+            f"trying to write a pandas DataFrame",
+            "1114",
+        )
 
     # Plan Analysis error codes 02XX
 

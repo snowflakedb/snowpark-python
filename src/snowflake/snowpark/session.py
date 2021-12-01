@@ -45,6 +45,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
     _infer_schema_from_list,
     _merge_type,
+    _pandas_type_mappings,
     snow_type_to_sp_type,
 )
 from snowflake.snowpark._internal.utils import (
@@ -590,36 +591,88 @@ class Session:
         parallel: int = 4,
         quote_identifiers: bool = True,
     ) -> DataFrame:
-        success, nchunks, nrows, _ = write_pandas(
-            self._conn._conn,
-            pd,
-            table_name,
-            database=database,
-            schema=schema,
-            chunk_size=chunk_size,
-            compression=compression,
-            on_error=on_error,
-            parallel=parallel,
-            quote_identifiers=quote_identifiers,
-        )
+        """Writes a pandas DataFrame to a table in Snowflake and returns a
+        Snowpark :class:DataFrame object referring to the table where the
+        pandas DataFrame was written to.
+
+        Note: You must first create a table in Snowflake that can the passed
+        in pandas DataFrame can be written to. If your pandas DataFrame cannot
+        be written to the specified table, an exception will be raised.
+
+        Args:
+            df: Dataframe we'd like to write back.
+            table_name: Table name where we want to insert into.
+            database: Database schema and table is in, if not provided the default one will be used (Default value = None).
+            schema: Schema table is in, if not provided the default one will be used (Default value = None).
+            chunk_size: Number of elements to be inserted once, if not provided all elements will be dumped once
+                (Default value = None).
+            compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives supposedly a
+                better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
+            on_error: Action to take when COPY INTO statements fail, default follows documentation at:
+                https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
+                (Default value = 'abort_statement').
+            parallel: Number of threads to be used when uploading chunks, default follows documentation at:
+                https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+            quote_identifiers: By default, identifiers, specifically database, schema, table and column names
+                (from df.columns) will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
+                I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
+
+        Example::
+
+            import pandas as pd
+
+            pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
+            # "write_pandas_table" is a table that was pre-created with two columns,
+            # id and name which are an integer and varchar respectively
+            snowpark_df = session.write_pandas(pandas_df, "write_pandas_table")
+            snowpark_pandas_df = snowpark_df.toPandas()
+            # These two pandas DataFrames have the same data
+            snowpark_pandas_df.eq(snowpark_df)
+        """
+        success = None
+        try:
+            success, nchunks, nrows, _ = write_pandas(
+                self._conn._conn,
+                pd,
+                table_name,
+                database=database,
+                schema=schema,
+                chunk_size=chunk_size,
+                compression=compression,
+                on_error=on_error,
+                parallel=parallel,
+                quote_identifiers=quote_identifiers,
+            )
+        except ProgrammingError as pe:
+            if pe.msg.endswith("does not exist"):
+                raise SnowparkClientExceptionMessages.DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
+                    table_name, database, schema, quote_identifiers
+                ) from pe
+            else:
+                raise pe
 
         if success:
             return self.table(table_name)
         else:
-            raise SnowparkClientExceptionMessages.DF_WRITE_PANDAS_EXCEPTION()
+            raise SnowparkClientExceptionMessages.DF_PANDAS_GENERAL_EXCEPTION()
 
     def createDataFrame(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, List[str]]] = None,
-        table_name: str = None,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
+        If creating a new DataFrame from a pandas Dataframe, we will store the pandas
+        DataFrame in a temporary table and return a DataFrame pointing to that temporary
+        table for you to then do further transformations on. This temporary table will be
+        dropped at the end of your session. If you would like to save the pandas DataFrame,
+        use the :meth:`write_pandas` method instead.
+
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
-                be a :class:`list` or a :class:`tuple`. Every element in ``data`` will
-                constitute a row in the DataFrame.
+                be a :class:`list`, :class:`tuple` or pandas DataFrame. Every element in
+                ``data`` will constitute a row in the DataFrame.
             schema: A :class:`~snowflake.snowpark.types.StructType` containing names and
                 data types of columns, or a list of column names, or ``None``.
                 When ``schema`` is a list of column names or ``None``, the schema of the
@@ -629,12 +682,15 @@ class Session:
 
         Examples::
 
+            import pandas as pd
+
             # infer schema
             session.createDataFrame([1, 2, 3, 4]).toDF("a")  # one single column
             session.createDataFrame([[1, 2, 3, 4]]).toDF("a", "b", "c", "d")
             session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
             session.createDataFrame([Row(a=1, b=2, c=3, d=4)])
             session.createDataFrame([{"a": "snow", "b": "flake"}])
+            session.createDataFrame(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])
 
             # given a schema
             from snowflake.snowpark.types import IntegerType, StringType
@@ -644,25 +700,44 @@ class Session:
         if data is None:
             raise ValueError("data cannot be None.")
 
-        # check to see if it is a Pandas DataFrame and if so, write that to a temp
-        # table and return as a DataFrame
-        if isinstance(data, pandas.DataFrame):
-            if not table_name:
-                table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-            return self.write_pandas(data, table_name)
-
         # check the type of data
         if isinstance(data, Row):
             raise TypeError("createDataFrame() function does not accept a Row object.")
 
-        if not isinstance(data, (list, tuple)):
+        if not isinstance(data, (list, tuple, pandas.DataFrame)):
             raise TypeError(
-                "createDataFrame() function only accepts data as a list or a tuple."
+                "createDataFrame() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
         # check whether data is empty
         if len(data) == 0:
             return DataFrame(self)
+
+        # check to see if it is a Pandas DataFrame and if so, write that to a temp
+        # table and return as a DataFrame
+        if isinstance(data, pandas.DataFrame):
+            table_name = AnalyzerPackage.quote_name_without_upper_casing(
+                Utils.random_name_for_temp_object(TempObjectType.TABLE)
+            )
+            database = self.getCurrentDatabase()
+            schema = self.getCurrentSchema()
+            columns = ", ".join(
+                [
+                    f"{col_name} {_pandas_type_mappings.get(str(col_type).lower(), 'VARCHAR')}"
+                    for col_name, col_type in zip(data.columns, data.dtypes)
+                ]
+            )
+            self._run_query(
+                f"create temporary table {database}.{schema}.{table_name} ({columns})"
+            )
+
+            return self.write_pandas(
+                data,
+                table_name,
+                database=database,
+                schema=schema,
+                quote_identifiers=False,
+            )
 
         # convert data to be a list of Rows
         # also checks the type of every row, which should be same across data

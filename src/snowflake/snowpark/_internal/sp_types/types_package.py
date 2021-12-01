@@ -257,6 +257,26 @@ _type_mappings = {
     bytes: SPBinaryType,
 }
 
+_pandas_type_mappings = {
+    "int8": "INTEGER",
+    "int16": "INTEGER",
+    "int32": "INTEGER",
+    "int64": "INTEGER",
+    "uint8": "INTEGER",
+    "uint16": "INTEGER",
+    "uint32": "INTEGER",
+    "uint64": "INTEGER",
+    "int": "INTEGER",
+    "float32": "FLOAT",
+    "float64": "FLOAT",
+    "object": "VARCHAR",
+    "string": "VARCHAR",
+    "datetime64[ns]": "TIMESTAMP_NTZ",
+    "datetime64": "TIMESTAMP_NTZ",
+    "bool": "BOOLEAN",
+    "boolean": "BOOLEAN",
+}
+
 _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = tuple(_type_mappings.keys())
 _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     *_type_mappings.values(),
