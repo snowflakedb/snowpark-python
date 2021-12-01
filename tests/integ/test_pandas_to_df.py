@@ -13,6 +13,15 @@ from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
 
 
+@pytest.fixture(scope="module", autouse=True)
+def setup(session):
+    session._run_query(
+        "alter session set ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE=true"
+    )
+    yield
+    session._run_query("alter session unset ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE")
+
+
 @pytest.fixture(scope="module")
 def tmp_table_basic(session):
     table_name = Utils.random_name()
@@ -65,15 +74,16 @@ def test_write_pandas(session, tmp_table_basic):
 def test_create_dataframe_from_pandas(session):
     pd = PandasDF(
         [
-            (1, 4.5, "t1", True),
-            (2, 7.5, "t2", False),
-            (3, 10.5, "t3", True),
+            (1, 4.5, "t1", True, datetime.now()),
+            (2, 7.5, "t2", False, datetime.now()),
+            (3, 10.5, "t3", True, datetime.now()),
         ],
         columns=[
             "id".upper(),
             "foot_size".upper(),
             "shoe_model".upper(),
             "received".upper(),
+            "date_ordered".upper(),
         ],
     )
 
