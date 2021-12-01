@@ -583,6 +583,7 @@ class Session:
         self,
         pd: "pandas.DataFrame",
         table_name: str,
+        *,
         database: Optional[str] = None,
         schema: Optional[str] = None,
         chunk_size: Optional[int] = None,
@@ -600,7 +601,7 @@ class Session:
         be written to the specified table, an exception will be raised.
 
         Args:
-            df: Dataframe we'd like to write back.
+            pd: The pandas DataFrame we'd like to write back.
             table_name: Table name where we want to insert into.
             database: Database schema and table is in, if not provided the default one will be used (Default value = None).
             schema: Schema table is in, if not provided the default one will be used (Default value = None).
