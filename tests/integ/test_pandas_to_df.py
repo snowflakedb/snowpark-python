@@ -63,12 +63,49 @@ def test_write_pandas(session, tmp_table_basic):
     results = df.toPandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
+    # Auto create a new table
+    session._run_query('drop table if exists "tmp_table_basic"')
+    df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
+    results = df.toPandas()
+    assert_frame_equal(results, pd, check_dtype=False)
+
+    # Try to auto create a table that already exists (should NOT throw an error)
+    # and upload data again. We use distinct to compare results since we are
+    # uploading data twice
+    df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
+    results = df.distinct().toPandas()
+    assert_frame_equal(results, pd, check_dtype=False)
+
+    # Do a more complex case where we create the table
+    pd = PandasDF(
+        [
+            (1, 4.5, "t1", True, datetime.now()),
+            (2, 7.5, "t2", False, datetime.now()),
+            (3, 10.5, "t3", True, datetime.now()),
+        ],
+        columns=[
+            "id".upper(),
+            "foot_size".upper(),
+            "shoe_model".upper(),
+            "received".upper(),
+            "date_ordered".upper(),
+        ],
+    )
+    session._run_query('drop table if exists "tmp_table_complex"')
+    df = session.write_pandas(pd, "tmp_table_complex", auto_create_table=True)
+    results = df.distinct().toPandas()
+    assert_frame_equal(results, pd, check_dtype=False)
+
     with pytest.raises(SnowparkPandasException) as ex_info:
         df = session.write_pandas(pd, "tmp_table")
     assert (
         'Cannot write pandas DataFrame to table "tmp_table" because it does not exist. '
         "Create table before trying to write a pandas DataFrame" in str(ex_info)
     )
+
+    # Drop tables that were created for this test
+    session._run_query('drop table if exists "tmp_table_basic"')
+    session._run_query('drop table if exists "tmp_table_complex"')
 
 
 def test_create_dataframe_from_pandas(session):

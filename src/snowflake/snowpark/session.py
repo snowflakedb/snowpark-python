@@ -579,6 +579,15 @@ class Session:
             self.__stage_created = True
         return f"@{qualified_stage_name}"
 
+    def __columns_for_pandas_table(self, pd: "pandas.DataFrame"):
+        columns = ", ".join(
+            [
+                f"{col_name} {_pandas_type_mappings.get(str(col_type).lower(), 'VARCHAR')}"
+                for col_name, col_type in zip(pd.columns, pd.dtypes)
+            ]
+        )
+        return columns
+
     def write_pandas(
         self,
         pd: "pandas.DataFrame",
@@ -591,14 +600,16 @@ class Session:
         on_error: str = "abort_statement",
         parallel: int = 4,
         quote_identifiers: bool = True,
+        auto_create_table: bool = False,
     ) -> DataFrame:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
         Snowpark :class:DataFrame object referring to the table where the
         pandas DataFrame was written to.
 
-        Note: You must first create a table in Snowflake that can the passed
-        in pandas DataFrame can be written to. If your pandas DataFrame cannot
-        be written to the specified table, an exception will be raised.
+        Note: Unless auto_create_table is true, you must first create a table in
+        Snowflake that can the passed in pandas DataFrame can be written to. If
+        your pandas DataFrame cannot be written to the specified table, an
+        exception will be raised.
 
         Args:
             pd: The pandas DataFrame we'd like to write back.
@@ -617,6 +628,11 @@ class Session:
             quote_identifiers: By default, identifiers, specifically database, schema, table and column names
                 (from df.columns) will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
                 I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
+            auto_create_table: When true, automatically creates a table to store the passed in pandas DataFrame using the
+                passed in database, schema, and table_name. Note: there are usually multiple table configurations that
+                would allow you to upload a particular pandas DataFrame successfully. If you don't like the auto created
+                table, you can always create your own table before calling this function. For example, Auto-created
+                tables will store :class:`list`, :class:`tuple`, :class:`dict` as strings in a VARCHAR column.
 
         Example::
 
@@ -632,7 +648,24 @@ class Session:
         """
         success = None
         try:
-            success, nchunks, nrows, _ = write_pandas(
+            if quote_identifiers:
+                location = (
+                    (('"' + database + '".') if database else "")
+                    + (('"' + schema + '".') if schema else "")
+                    + ('"' + table_name + '"')
+                )
+            else:
+                location = (
+                    (database + "." if database else "")
+                    + (schema + "." if schema else "")
+                    + (table_name)
+                )
+            if auto_create_table:
+                columns = self.__columns_for_pandas_table(pd)
+                # if the table already exists we should assume it is of the right shape
+                # and continue the upload
+                self._run_query(f"create table if not exists {location} ({columns})")
+            success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
                 pd,
                 table_name,
@@ -647,15 +680,17 @@ class Session:
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
                 raise SnowparkClientExceptionMessages.DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
-                    table_name, database, schema, quote_identifiers
+                    location
                 ) from pe
             else:
                 raise pe
 
         if success:
-            return self.table(table_name)
+            return self.table(location)
         else:
-            raise SnowparkClientExceptionMessages.DF_PANDAS_GENERAL_EXCEPTION()
+            raise SnowparkClientExceptionMessages.DF_PANDAS_GENERAL_EXCEPTION(
+                str(ci_output)
+            )
 
     def createDataFrame(
         self,
@@ -722,12 +757,7 @@ class Session:
             )
             database = self.getCurrentDatabase()
             schema = self.getCurrentSchema()
-            columns = ", ".join(
-                [
-                    f"{col_name} {_pandas_type_mappings.get(str(col_type).lower(), 'VARCHAR')}"
-                    for col_name, col_type in zip(data.columns, data.dtypes)
-                ]
-            )
+            columns = self.__columns_for_pandas_table(data)
             self._run_query(
                 f"create temporary table {database}.{schema}.{table_name} ({columns})"
             )

@@ -144,27 +144,16 @@ class SnowparkClientExceptionMessages:
         return SnowparkJoinException(f"Unsupported using join type '{tpe}'.", "1112")
 
     @staticmethod
-    def DF_PANDAS_GENERAL_EXCEPTION() -> SnowparkPandasException:
+    def DF_PANDAS_GENERAL_EXCEPTION(msg: str) -> SnowparkPandasException:
         return SnowparkPandasException(
-            "Unable to write pandas dataframe to Snowflake", "1113"
+            f"Unable to write pandas dataframe to Snowflake. COPY INTO command output {msg}",
+            "1113",
         )
 
     @staticmethod
     def DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
-        table_name: str, database: str, schema: str, quote_identifiers: bool
+        location: str,
     ) -> SnowparkPandasException:
-        if quote_identifiers:
-            location = (
-                (('"' + database + '".') if database else "")
-                + (('"' + schema + '".') if schema else "")
-                + ('"' + table_name + '"')
-            )
-        else:
-            location = (
-                (database + "." if database else "")
-                + (schema + "." if schema else "")
-                + (table_name)
-            )
         return SnowparkPandasException(
             f"Cannot write pandas DataFrame to table {location} "
             f"because it does not exist. Create table before "
