@@ -588,6 +588,7 @@ class Session:
         )
         return columns
 
+    # TODO make the table input consistent with session.table
     def write_pandas(
         self,
         pd: "pandas.DataFrame",
@@ -607,18 +608,18 @@ class Session:
         pandas DataFrame was written to.
 
         Note: Unless auto_create_table is true, you must first create a table in
-        Snowflake that can the passed in pandas DataFrame can be written to. If
+        Snowflake that the passed in pandas DataFrame can be written to. If
         your pandas DataFrame cannot be written to the specified table, an
         exception will be raised.
 
         Args:
             pd: The pandas DataFrame we'd like to write back.
-            table_name: Table name where we want to insert into.
-            database: Database schema and table is in, if not provided the default one will be used (Default value = None).
-            schema: Schema table is in, if not provided the default one will be used (Default value = None).
-            chunk_size: Number of elements to be inserted once, if not provided all elements will be dumped once
+            table_name: Name of the table we want to insert into.
+            database: Database that the table is in. If not provided, the default one will be used (Default value = None).
+            schema: Schema that the table is in. If not provided, the default one will be used (Default value = None).
+            chunk_size: Number of elements to be inserted once. If not provided, all elements will be dumped once
                 (Default value = None).
-            compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives supposedly a
+            compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
                 better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
             on_error: Action to take when COPY INTO statements fail, default follows documentation at:
                 https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions

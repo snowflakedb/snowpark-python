@@ -12,14 +12,14 @@ from pandas.testing import assert_frame_equal
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
 
-
-@pytest.fixture(scope="module", autouse=True)
-def setup(session):
-    session._run_query(
-        "alter session set ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE=true"
-    )
-    yield
-    session._run_query("alter session unset ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE")
+# TODO enable this when SNOW-507647 is fixed and ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE is out
+# @pytest.fixture(scope="module", autouse=True)
+# def setup(session):
+#     session._run_query(
+#         "alter session set ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE=true"
+#     )
+#     yield
+#     session._run_query("alter session unset ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE")
 
 
 @pytest.fixture(scope="module")
@@ -76,25 +76,26 @@ def test_write_pandas(session, tmp_table_basic):
     results = df.distinct().toPandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
-    # Do a more complex case where we create the table
-    pd = PandasDF(
-        [
-            (1, 4.5, "t1", True, datetime.now()),
-            (2, 7.5, "t2", False, datetime.now()),
-            (3, 10.5, "t3", True, datetime.now()),
-        ],
-        columns=[
-            "id".upper(),
-            "foot_size".upper(),
-            "shoe_model".upper(),
-            "received".upper(),
-            "date_ordered".upper(),
-        ],
-    )
-    session._run_query('drop table if exists "tmp_table_complex"')
-    df = session.write_pandas(pd, "tmp_table_complex", auto_create_table=True)
-    results = df.distinct().toPandas()
-    assert_frame_equal(results, pd, check_dtype=False)
+    # TODO enable this when SNOW-507647 is fixed and ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE is out
+    # # Do a more complex case where we create the table
+    # pd = PandasDF(
+    #     [
+    #         (1, 4.5, "t1", True, datetime.now()),
+    #         (2, 7.5, "t2", False, datetime.now()),
+    #         (3, 10.5, "t3", True, datetime.now()),
+    #     ],
+    #     columns=[
+    #         "id".upper(),
+    #         "foot_size".upper(),
+    #         "shoe_model".upper(),
+    #         "received".upper(),
+    #         "date_ordered".upper(),
+    #     ],
+    # )
+    # session._run_query('drop table if exists "tmp_table_complex"')
+    # df = session.write_pandas(pd, "tmp_table_complex", auto_create_table=True)
+    # results = df.distinct().toPandas()
+    # assert_frame_equal(results, pd, check_dtype=False)
 
     with pytest.raises(SnowparkPandasException) as ex_info:
         df = session.write_pandas(pd, "tmp_table")
@@ -111,19 +112,38 @@ def test_write_pandas(session, tmp_table_basic):
 def test_create_dataframe_from_pandas(session):
     pd = PandasDF(
         [
-            (1, 4.5, "t1", True, datetime.now()),
-            (2, 7.5, "t2", False, datetime.now()),
-            (3, 10.5, "t3", True, datetime.now()),
+            (1, 4.5, "t1", True),
+            (2, 7.5, "t2", False),
+            (3, 10.5, "t3", True),
         ],
         columns=[
             "id".upper(),
             "foot_size".upper(),
             "shoe_model".upper(),
             "received".upper(),
-            "date_ordered".upper(),
         ],
     )
 
     df = session.createDataFrame(pd)
     results = df.toPandas()
     assert_frame_equal(results, pd, check_dtype=False)
+
+    # TODO enable this when SNOW-507647 is fixed and ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE is out
+    # pd = PandasDF(
+    #     [
+    #         (1, 4.5, "t1", True, datetime.now()),
+    #         (2, 7.5, "t2", False, datetime.now()),
+    #         (3, 10.5, "t3", True, datetime.now()),
+    #     ],
+    #     columns=[
+    #         "id".upper(),
+    #         "foot_size".upper(),
+    #         "shoe_model".upper(),
+    #         "received".upper(),
+    #         "date_ordered".upper(),
+    #     ],
+    # )
+    #
+    # df = session.createDataFrame(pd)
+    # results = df.toPandas()
+    # assert_frame_equal(results, pd, check_dtype=False)
