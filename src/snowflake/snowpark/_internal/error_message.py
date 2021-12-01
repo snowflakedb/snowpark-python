@@ -12,6 +12,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkJoinException,
     SnowparkMissingDbOrSchemaException,
+    SnowparkPandasException,
     SnowparkPlanException,
     SnowparkQueryCancelledException,
     SnowparkSessionException,
@@ -141,6 +142,24 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def DF_JOIN_INVALID_USING_JOIN_TYPE(tpe: str) -> SnowparkJoinException:
         return SnowparkJoinException(f"Unsupported using join type '{tpe}'.", "1112")
+
+    @staticmethod
+    def DF_PANDAS_GENERAL_EXCEPTION(msg: str) -> SnowparkPandasException:
+        return SnowparkPandasException(
+            f"Unable to write pandas dataframe to Snowflake. COPY INTO command output {msg}",
+            "1113",
+        )
+
+    @staticmethod
+    def DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(
+        location: str,
+    ) -> SnowparkPandasException:
+        return SnowparkPandasException(
+            f"Cannot write pandas DataFrame to table {location} "
+            f"because it does not exist. Create table before "
+            f"trying to write a pandas DataFrame",
+            "1114",
+        )
 
     # Plan Analysis error codes 02XX
 

@@ -106,6 +106,15 @@ class SnowparkDataframeReaderException(SnowparkDataframeException):
     pass
 
 
+class SnowparkPandasException(SnowparkDataframeException):
+    """Exception for pandas related errors.
+
+    Includes error codes: 1106.
+    """
+
+    pass
+
+
 class SnowparkCreateViewException(SnowparkPlanException):
     """Exception for errors while trying to create a view.
 

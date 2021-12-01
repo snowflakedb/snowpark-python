@@ -960,13 +960,19 @@ def test_create_dataframe_with_invalid_data(session_cnx):
         # input other than list and tuple
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame(1)
-        assert "only accepts data as a list or a tuple" in str(ex_info)
+        assert "only accepts data as a list, tuple or a pandas DataFrame" in str(
+            ex_info
+        )
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame({1, 2})
-        assert "only accepts data as a list or a tuple" in str(ex_info)
+        assert "only accepts data as a list, tuple or a pandas DataFrame" in str(
+            ex_info
+        )
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame({"a": 1, "b": 2})
-        assert "only accepts data as a list or a tuple" in str(ex_info)
+        assert "only accepts data as a list, tuple or a pandas DataFrame" in str(
+            ex_info
+        )
         with pytest.raises(TypeError) as ex_info:
             session.createDataFrame(Row(a=1, b=2))
         assert "createDataFrame() function does not accept a Row object" in str(ex_info)
