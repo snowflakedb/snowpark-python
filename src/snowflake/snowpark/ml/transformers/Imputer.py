@@ -11,6 +11,7 @@ class Imputer:
     __DATABASE = "hayu"
     __SCHEMA = "imputer"
     __BUNDLE = f"{__DATABASE}.{__SCHEMA}"
+    __SESSION_SCHEMA = "imputer_clone"
 
     def __init__(self, session, input_col):
         self.session = session
@@ -27,9 +28,14 @@ class Imputer:
                 f"Imputer.fit() input is_numerical type must be bool. Got: {is_numerical.__class__}"
             )
 
+        # clone a imputer schema
+        # self.session.sql(
+        #     f"create or replace schema {self.__SESSION_SCHEMA} clone {self.__BUNDLE}"
+        # ).collect()
+
         query = input_df.select(self.input_col)._DataFrame__plan.queries[-1].sql
         res = self.session.sql(
-            f"call {self.__BUNDLE}.fit($${query}$$, {is_numerical})"
+            f"call {self.__SESSION_SCHEMA}.fit($${query}$$, {is_numerical})"
         ).collect()
         return res[0][0]
 
@@ -39,4 +45,4 @@ class Imputer:
                 f"Imputer.transform() input type must be Column. Got: {col.__class__}"
             )
 
-        return builtin(f"{self.__BUNDLE}.transform")(col)
+        return builtin(f"{self.__SESSION_SCHEMA}.transform")(col)
