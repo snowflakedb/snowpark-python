@@ -715,7 +715,7 @@ class DataFrame:
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
 
-    def dropDuplicates(self, subset: Iterable[str] = None):
+    def dropDuplicates(self, subset: Iterable[str] = None) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
         If no subset of columns specified, this function is same as :meth:`distinct` function.
