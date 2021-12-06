@@ -1584,6 +1584,57 @@ class DataFrame:
         """
         return self._na
 
+    def withColumnRenamed(self, existing: Union[str, Column], new: str) -> "DataFrame":
+        """Returns a DataFrame with the specified column `col` renamed as `newName`.
+
+        This example renames the column `A` as `NEW_A` in the DataFrame.
+
+        Example::
+
+            df = session.sql("select 1 as A, 2 as B")
+            df_renamed = df.withColumnRenamed(col("A"), "NEW_A")
+
+        Args:
+            existing: The old column name to be renamed.
+            new: The new column.
+
+        ``withColumnRenamed`` and ``rename`` are aliases.
+        """
+        new_quoted_name = self.session._analyzer.package.quote_name(new)
+        if isinstance(existing, str):
+            old_name = self.session._analyzer.package.quote_name(existing)
+        elif isinstance(existing, Column):
+            if isinstance(existing.expression, SPAttribute):
+                att = existing.expression
+                old_name = self.__plan.expr_to_alias.get(att.expr_id, att.name)
+            elif isinstance(existing.expression, SPNamedExpression):
+                old_name = existing.expression.name
+            else:
+                raise ValueError(
+                    f"Unable to rename column {existing} because it doesn't exist."
+                )
+        else:
+            raise TypeError("'exisitng' must be a column name or Column object.")
+
+        to_be_renamed = [
+            x for x in self.__output() if x.name.upper() == old_name.upper()
+        ]
+        if not to_be_renamed:
+            raise ValueError(
+                f'Unable to rename column "{existing}" because it doesn\'t exist.'
+            )
+        elif len(to_be_renamed) > 1:
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RENAME_COLUMN_BECAUSE_MULTIPLE_EXIST(
+                old_name, new_quoted_name, len(to_be_renamed)
+            )
+        new_columns = [
+            Column(att).as_(new_quoted_name) if old_name == att.name else Column(att)
+            for att in self.__output()
+        ]
+        return self.select(new_columns)
+
+    rename = withColumnRenamed
+
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:
         normalized_col_name = AnalyzerPackage.quote_name(col_name)

@@ -1901,6 +1901,75 @@ def test_groupby_string_with_array_args(session):
     )
 
 
+def test_rename_basic(session):
+    df = session.createDataFrame([[1, 2]], schema=["a", "b"])
+    df2 = df.withColumnRenamed("b", "b1")
+    assert df2.schema.names[1] == "B1"
+    Utils.check_answer(df2, [Row(1, 2)])
+
+
+def test_rename_join_dataframe(session):
+    df_left = session.createDataFrame([[1, 2]], schema=["a", "b"])
+    df_right = session.createDataFrame([[3, 4]], schema=["a", "c"])
+    df_join = df_left.join(df_right)
+
+    # rename left df columns including ambiguous columns
+    df1 = df_join.rename(df_left.a, "left_a").rename(df_left.b, "left_b")
+    assert df1.schema.names[0] == "LEFT_A" and df1.schema.names[1] == "LEFT_B"
+    Utils.check_answer(df1, [Row(1, 2, 3, 4)])
+
+    df2 = df1.rename(df_right.a, "right_a").rename(df_right.c, "right_c")
+    assert df2.schema.names == ["LEFT_A", "LEFT_B", "RIGHT_A", "RIGHT_C"]
+    Utils.check_answer(df2, [Row(1, 2, 3, 4)])
+
+    # Get columns for right DF's columns
+    df3 = df2.select(df_right["a"], df_right["c"])
+    assert df3.schema.names == ["RIGHT_A", "RIGHT_C"]
+    Utils.check_answer(df3, [Row(3, 4)])
+
+
+def test_rename_to_df_and_joined_dataframe(session):
+    df1 = session.createDataFrame([[1, 2]]).toDF("a", "b")
+    df2 = session.createDataFrame([[1, 2]]).toDF("a", "b")
+    df3 = df1.toDF("a1", "b1")
+    df4 = df3.join(df2)
+    df5 = df4.rename(df1.a, "a2")
+    assert df5.schema.names == ["A2", "B1", "A", "B"]
+    Utils.check_answer(df5, [Row(1, 2, 1, 2)])
+
+
+def test_rename_negative_test(session):
+    df = session.createDataFrame([[1, 2]], schema=["a", "b"])
+
+    # rename un-qualified column
+    with pytest.raises(ValueError) as exec_info:
+        df.rename(lit("c"), "c")
+    assert f"Unable to rename column {lit('c')} because it doesn't exist." in str(
+        exec_info
+    )
+
+    # rename non-existent column
+    with pytest.raises(ValueError) as exec_info:
+        df.rename("not_exist_column", "c")
+    assert (
+        'Unable to rename column "not_exist_column" because it doesn\\\'t exist.'
+        in str(exec_info)
+    )
+
+    df2 = session.sql("select 1 as A, 2 as A, 3 as A")
+    with pytest.raises(SnowparkColumnException) as col_exec_info:
+        df2.rename("A", "B")
+    assert (
+        f'Unable to rename the column "A" as "B" because this DataFrame has 3 columns named "A".'
+        in str(col_exec_info)
+    )
+
+
+def test_rename_alias(session):
+    df = session.createDataFrame([[1, 2]], schema=["a", "b"])
+    assert df.rename == df.withColumnRenamed
+
+
 def test_with_columns_keep_order(session):
     data = {
         "STARTTIME": 0,
