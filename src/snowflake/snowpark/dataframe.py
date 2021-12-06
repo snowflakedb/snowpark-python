@@ -73,6 +73,8 @@ from snowflake.snowpark.exceptions import (
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
     _to_col_if_str,
+    col,
+    row_number,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -712,6 +714,40 @@ class DataFrame:
         return self.groupBy(
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
+
+    def dropDuplicates(self, subset: Iterable[str] = None):
+        """Creates a new DataFrame by removing duplicated rows on given subset of columns.
+
+        If no subset of columns specified, this function is same as :meth:`distinct` function.
+        The result is non-deterministic when removing duplicated rows from the subset of columns but not all columns.
+
+        For example, if we have a DataFrame `df`, which has columns ("a", "b", "c") and contains three rows (1, 1, 1), (1, 1, 2), (1, 2, 3),
+        The result of df.dropDuplicates("a", "b") can be either
+        (1, 1, 1), (1, 2, 3)
+        or
+        (1, 1, 2), (1, 2, 3)
+
+        Args:
+            subset: The column names on which duplicates are dropped.
+
+        ``dropDuplicates`` and ``drop_duplicates`` are aliases.
+        """
+        if not subset:
+            return self.distinct()
+
+        filter_cols = [self.col(x) for x in subset]
+        output_cols = [self.col(att.name) for att in self.__output()]
+        rownum = row_number().over(
+            snowflake.snowpark.Window.partitionBy(*filter_cols).orderBy(*filter_cols)
+        )
+        rownum_name = Utils.generate_random_alphanumeric(10)
+        return (
+            self.select(*output_cols, rownum.as_(rownum_name))
+            .where(col(rownum_name) == 1)
+            .select(output_cols)
+        )
+
+    drop_duplicates = dropDuplicates
 
     def pivot(
         self,
