@@ -397,6 +397,7 @@ def {_DEFAULT_HANDLER_NAME}({args}):
         sql_func_args = ",".join(
             [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
         )
+        imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
         inline_python_code_in_sql = (
             f"""
 AS $$
@@ -413,7 +414,7 @@ CREATE {"OR REPLACE " if replace else ""}
 RETURNS {return_sql_type}
 LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
-IMPORTS=({all_imports})
+{imports_in_sql}
 HANDLER='{handler}'
 {inline_python_code_in_sql}
 """
