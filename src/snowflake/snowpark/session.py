@@ -281,7 +281,7 @@ class Session:
                 from my_module import g
                 return g()
 
-            # import a local file with `import_path`
+            # import a local file with "import_path"
             session.addImport(“/tmp/my_dir/my_module.py”, import_path="my_dir.my_module")
             @udf
             def f():
@@ -567,7 +567,7 @@ class Session:
         Returns the name of the temporary stage created by the Snowpark library
         for uploading and storing temporary artifacts for this session.
         These artifacts include libraries and packages for UDFs that you define
-        in this session via func:`addImport`.
+        in this session via :func:`addImport`.
         """
         qualified_stage_name = (
             f"{self.getFullyQualifiedCurrentSchema()}.{self.__session_stage}"
@@ -727,7 +727,7 @@ class Session:
             session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
             session.createDataFrame([Row(a=1, b=2, c=3, d=4)])
             session.createDataFrame([{"a": "snow", "b": "flake"}])
-            session.createDataFrame(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])
+            session.createDataFrame(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"]))
 
             # given a schema
             from snowflake.snowpark.types import IntegerType, StringType

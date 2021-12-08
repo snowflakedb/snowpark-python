@@ -1292,7 +1292,7 @@ def udf(
         :func:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
 
         3. By default, UDF registration fails if a function with the same name is already
-        registered. Invoking :func:`udf` with ``replace`` set to `True` will overwrite the
+        registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
     """
     session = snowflake.snowpark.Session._get_active_session()
