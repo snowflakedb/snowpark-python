@@ -39,7 +39,7 @@ class Row(tuple):
     >>> row == named_row
     True
 
-    A `Row` object is callable. You can use it to create other `Row` objects:
+    A ``Row`` object is callable. You can use it to create other ``Row`` objects:
 
     >>> Employee = Row("name", "salary")
     >>> emp1 = Employee("John", 10000)

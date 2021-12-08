@@ -128,7 +128,7 @@ class DataFrame:
 
     Example 5
         Using the :func:`select()` method to select the columns that should be in the
-        DataFrame (similar to adding a `SELECT` clause)::
+        DataFrame (similar to adding a ``SELECT`` clause)::
 
             # Return a new DataFrame containing the ID and amount columns of the prices table.
             # This is equivalent to: SELECT ID, AMOUNT FROM PRICES;
@@ -136,14 +136,14 @@ class DataFrame:
 
     Example 6
         Using the :func:`Column.as_` method to rename a column in a DataFrame (similar
-        to using `SELECT col AS alias`)::
+        to using ``SELECT col AS alias``)::
 
             # Return a new DataFrame containing the ID column of the prices table as a column named
             # itemId. This is equivalent to: SELECT ID AS itemId FROM PRICES;
             df_price_item_ids = df_prices.select(col("ID").as_("itemId"))
 
     Example 7
-        Using the :func:`filter` method to filter data (similar to adding a `WHERE` clause)::
+        Using the :func:`filter` method to filter data (similar to adding a ``WHERE`` clause)::
 
             # Return a new DataFrame containing the row from the prices table with the ID 1.
             # This is equivalent to:
@@ -151,7 +151,7 @@ class DataFrame:
             df_price1 = df_prices.filter((col("ID") === 1))
 
     Example 8
-        Using the :func:`sort()` method to specify the sort order of the data (similar to adding an `ORDER BY` clause)::
+        Using the :func:`sort()` method to specify the sort order of the data (similar to adding an ``ORDER BY`` clause)::
 
             # Return a new DataFrame for the prices table with the rows sorted by ID.
             # This is equivalent to: SELECT FROM PRICES ORDER BY ID;
@@ -160,7 +160,7 @@ class DataFrame:
     Example 9
         Using the :func:`groupBy()` method to return a
         :class:`RelationalGroupedDataFrame` that you can use to group and aggregate
-        results (similar to adding a `GROUP BY` clause).
+        results (similar to adding a ``GROUP BY`` clause).
 
         :class:`RelationalGroupedDataFrame` provides methods for aggregating results, including:
 
@@ -855,7 +855,7 @@ class DataFrame:
 
     def intersect(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the
-        current DataFrame and another DataFrame (`other`). Duplicate rows are
+        current DataFrame and another DataFrame (``other``). Duplicate rows are
         eliminated.
 
         Example::
@@ -870,7 +870,7 @@ class DataFrame:
 
     def except_(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
-        except for the rows that also appear in `other` DataFrame. Duplicate rows are eliminated.
+        except for the rows that also appear in the ``other`` DataFrame. Duplicate rows are eliminated.
 
         Example::
 
@@ -1140,7 +1140,7 @@ class DataFrame:
 
     @property
     def write(self) -> DataFrameWriter:
-        """Returns a new :class:`DataFrameWriter` object that you can use to write the data in the `DataFrame` to
+        """Returns a new :class:`DataFrameWriter` object that you can use to write the data in the :class:`DataFrame` to
         a Snowflake database.
 
         Example::
@@ -1178,7 +1178,7 @@ class DataFrame:
             stage_location = "@somestage/somefiles.csv"
             # Use the DataFrameReader (session.read below) to read from CSV files.
             df = session.read.schema(user_schema).csv(stage_location)
-            # specify transformations and target column names. It's optional for the `copy into` command
+            # specify transformations and target column names. It's optional for the "copy into" command
             transformations = [col("$1"), length(col("$1"))]
             target_column_names = ["A", "A_LEN"]
             # Use format type options and copy options
