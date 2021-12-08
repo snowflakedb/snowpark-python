@@ -24,8 +24,8 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
-from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark._internal.sp_types.types_package import ColumnOrName
+from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 
@@ -186,7 +186,7 @@ class RelationalGroupedDataFrame:
 
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> "DataFrame":
         """Returns a :class:`DataFrame` with computed aggregates. The first element of
-        the `expr` pair is the column to aggregate and the second element is the
+        the ``exprs`` pair is the column to aggregate and the second element is the
         aggregate function to compute. The following example computes the mean of the
         price column and the sum of the sales column. The name of the aggregate
         function to compute must be a valid Snowflake `aggregate function
