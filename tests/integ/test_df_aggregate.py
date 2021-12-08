@@ -3,11 +3,23 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+import math
 
 import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import col
+
+
+def assert_rows(res, expected):
+    for row_index in range(0, len(res)):
+        for tuple_index in range(0, len(res[row_index])):
+            if isinstance(res[row_index][tuple_index], float):
+                assert math.isclose(
+                    res[row_index][tuple_index], expected[row_index][tuple_index]
+                )
+            else:
+                assert res[row_index][tuple_index] == expected[row_index][tuple_index]
 
 
 def test_df_agg_tuples_basic(session_cnx):
@@ -18,19 +30,19 @@ def test_df_agg_tuples_basic(session_cnx):
 
         # Aggregations on 'first' column
         res = df.agg([("first", "min")]).collect()
-        assert res == [Row(1)]
+        assert_rows(res, [Row(1)])
 
         res = df.agg([("first", "count")]).collect()
-        assert res == [Row(4)]
+        assert_rows(res, [Row(4)])
 
         res = df.agg([("first", "max")]).collect()
-        assert res == [Row(2)]
+        assert_rows(res, [Row(2)])
 
         res = df.agg([("first", "avg")]).collect()
-        assert res == [Row(1.5)]
+        assert_rows(res, [Row(1.5)])
 
         res = df.agg([("first", "std")]).collect()
-        assert res == [Row(0.577349980514419)]
+        assert_rows(res, [Row(0.577349980514419)])
 
         # combine those together
         res = df.agg(
@@ -42,26 +54,23 @@ def test_df_agg_tuples_basic(session_cnx):
                 ("first", "std"),
             ]
         ).collect()
-        assert res == [Row(1, 4, 2, 1.5, 0.577349980514419)]
+        assert_rows(res, [Row(1, 4, 2, 1.5, 0.577349980514419)])
 
         # Aggregations on 'second' column
         res = df.agg([("second", "min")]).collect()
-        assert res == [Row(4)]
+        assert_rows(res, [Row(4)])
 
         res = df.agg([("second", "count")]).collect()
-        assert res == [Row(4)]
+        assert_rows(res, [Row(4)])
 
         res = df.agg([("second", "max")]).collect()
-        assert res == [Row(6)]
+        assert_rows(res, [Row(6)])
 
         res = df.agg([("second", "avg")]).collect()
-        assert res == [Row(4.75)]
+        assert_rows(res, [Row(4.75)])
 
         res = df.agg([("second", "std")]).collect()
-        assert res == [Row(0.9574272818339783)]
-
-        res = df.agg((("second", "std"),)).collect()
-        assert res == [Row(0.9574272818339783)]
+        assert_rows(res, [Row(0.9574272818339783)])
 
         # combine those together
         res = df.agg(
@@ -73,7 +82,7 @@ def test_df_agg_tuples_basic(session_cnx):
                 ("second", "std"),
             ]
         ).collect()
-        assert res == [Row(4, 4, 6, 4.75, 0.9574272818339783)]
+        assert_rows(res, [Row(4, 4, 6, 4.75, 0.9574272818339783)])
 
         # Get aggregations for both columns
         res = df.agg(
@@ -85,7 +94,7 @@ def test_df_agg_tuples_basic(session_cnx):
                 ("first", "std"),
             ]
         ).collect()
-        assert res == [Row(1, 4, 2, 4.75, 0.577349980514419)]
+        assert_rows(res, [Row(1, 4, 2, 4.75, 0.577349980514419)])
 
 
 def test_df_agg_tuples_avg_basic(session_cnx):
@@ -96,13 +105,13 @@ def test_df_agg_tuples_avg_basic(session_cnx):
         )
         # Aggregations on 'first' column
         res = df.agg([("first", "avg")]).collect()
-        assert res == [Row(1.5)]
+        assert_rows(res, [Row(1.5)])
 
         res = df.agg([("first", "average")]).collect()
-        assert res == [Row(1.5)]
+        assert_rows(res, [Row(1.5)])
 
         res = df.agg([("first", "mean")]).collect()
-        assert res == [Row(1.5)]
+        assert_rows(res, [Row(1.5)])
 
 
 def test_df_agg_tuples_std_basic(session_cnx):
@@ -113,10 +122,10 @@ def test_df_agg_tuples_std_basic(session_cnx):
         )
         # Aggregations on 'first' column
         res = df.agg([("first", "stddev")]).collect()
-        assert res == [Row(0.577349980514419)]
+        assert_rows(res, [Row(0.577349980514419)])
 
         res = df.agg([("first", "std")]).collect()
-        assert res == [Row(0.577349980514419)]
+        assert_rows(res, [Row(0.577349980514419)])
 
 
 def test_df_agg_tuples_count_basic(session_cnx):
@@ -127,10 +136,10 @@ def test_df_agg_tuples_count_basic(session_cnx):
         )
         # Aggregations on 'first' column
         res = df.agg([("first", "count")]).collect()
-        assert res == [Row(4)]
+        assert_rows(res, [Row(4)])
 
         res = df.agg([("second", "size")]).collect()
-        assert res == [Row(4)]
+        assert_rows(res, [Row(4)])
 
 
 def test_df_groupBy_invalid_input(session_cnx):
@@ -161,22 +170,22 @@ def test_df_agg_tuples_sum_basic(session_cnx):
         )
         # Aggregations on 'first' column
         res = df.agg([("first", "sum")]).collect()
-        assert res == [Row(6)]
+        assert_rows(res, [Row(6)])
 
         res = df.agg([("second", "sum")]).collect()
-        assert res == [Row(19)]
+        assert_rows(res, [Row(19)])
 
         res = df.agg([("second", "sum"), ("first", "sum")]).collect()
-        assert res == [Row(19, 6)]
+        assert_rows(res, [Row(19, 6)])
 
         res = df.groupBy("first").sum("second").collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row(1, 8), Row(2, 11)]
+        assert_rows(res, [Row(1, 8), Row(2, 11)])
 
         # same as above, but pass Column object to groupBy() and sum()
         res = df.groupBy(col("first")).sum(col("second")).collect()
         res.sort(key=lambda x: x[0])
-        assert res == [Row(1, 8), Row(2, 11)]
+        assert_rows(res, [Row(1, 8), Row(2, 11)])
 
 
 def test_df_agg_dict_arg(session_cnx):
@@ -186,16 +195,16 @@ def test_df_agg_dict_arg(session_cnx):
             ["first", "second"]
         )
         res = df.agg({"first": "sum"}).collect()
-        assert res == [Row(6)]
+        assert_rows(res, [Row(6)])
 
         res = df.agg({"second": "sum"}).collect()
-        assert res == [Row(19)]
+        assert_rows(res, [Row(19)])
 
         res = df.agg({"second": "sum", "first": "sum"}).collect()
-        assert res == [Row(19, 6)]
+        assert_rows(res, [Row(19, 6)])
 
         res = df.agg({"first": "count", "second": "size"}).collect()
-        assert res == [Row(4, 4)]
+        assert_rows(res, [Row(4, 4)])
 
         # negative tests
         with pytest.raises(TypeError) as ex_info:
@@ -260,5 +269,4 @@ def test_df_agg_empty_args(session_cnx):
             ["first", "second"]
         )
 
-        assert df.agg({}).collect() == [Row(1, 4)]
-        assert df.agg([]).collect() == [Row(1, 4)]
+        assert_rows(df.agg({}).collect(), [Row(1, 4)])
