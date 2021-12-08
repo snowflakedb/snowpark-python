@@ -55,9 +55,10 @@ class DataFrameStatFunctions:
             col: The name of the numeric column.
             percentile: A list of float values greater than or equal to 0.0 and less than 1.0.
 
-        Return:
-            A list of approximate percentile values if ``col`` is a single column name, or a matrix with the dimensions `(len(col) * len(percentile)` containing the
-                approximate percentile values if ``col`` is a list of column names.
+        Returns:
+             A list of approximate percentile values if ``col`` is a single column name, or a matrix
+             with the dimensions ``(len(col) * len(percentile)`` containing the
+             approximate percentile values if ``col`` is a list of column names.
         """
         temp_col_name = "t"
         if not percentile or not col:
