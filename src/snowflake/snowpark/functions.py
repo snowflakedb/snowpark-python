@@ -512,7 +512,7 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
 
 def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
-    """Adds the specified value for the specified date or time art to date or time expr.
+    """Adds the specified value for the specified date or time part to date or time expr.
 
     `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
 
