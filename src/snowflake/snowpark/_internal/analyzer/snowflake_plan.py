@@ -142,6 +142,35 @@ class SnowflakePlan(LogicalPlan):
     def analyze_if_needed(self):
         pass
 
+    def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
+        pre_queries = self.queries[:-1]
+        new_schema_query = self._schema_query.sql
+        new_post_actions = [*self.post_actions]
+
+        for plan in subquery_plans:
+            [
+                pre_queries.append(query)
+                for query in plan.queries[:-1]
+                if query not in pre_queries
+            ]
+            new_schema_query = new_schema_query.replace(
+                plan.queries[-1].sql, plan._schema_query.sql
+            )
+            [
+                new_post_actions.append(action)
+                for action in plan.post_actions
+                if action not in new_post_actions
+            ]
+
+        return SnowflakePlan(
+            pre_queries + [self.queries[-1]],
+            new_schema_query,
+            post_actions=new_post_actions,
+            expr_to_alias=self.expr_to_alias,
+            session=self.session,
+            source_plan=self.source_plan,
+        )
+
     def attributes(self) -> List["Attribute"]:
         if not self.__placeholder_for_attributes:
             output = SchemaUtils.analyze_attributes(self._schema_query, self.session)

@@ -59,15 +59,18 @@ from snowflake.snowpark._internal.sp_expressions import (
     FlattenFunction as SPFlattenFunction,
     FunctionExpression as SPFunctionExpression,
     GroupingSetsExpression as SPGroupingSetsExpression,
+    InExpression as SPInExpression,
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
     LeafExpression as SPLeafExpression,
     Like as SPLike,
     Literal as SPLiteral,
+    MultipleExpression as SPMultipleExpression,
     NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
     Not as SPNot,
     RegExp as SPRegExp,
+    ScalarSubquery,
     SnowflakeUDF as SPSnowflakeUDF,
     SortOrder as SPSortOrder,
     SpecialFrameBoundary as SPSpecialFrameBoundary,
@@ -100,7 +103,7 @@ class Analyzer:
         self.package = AnalyzerPackage()
 
         self.generated_alias_maps = {}
-        self.subquery_plans = {}
+        self.subquery_plans = []
         self.alias_maps_to_use = None
 
     def analyze(self, expr) -> str:
@@ -134,6 +137,17 @@ class Analyzer:
                     for condition, value in expr.branches
                 ],
                 self.analyze(expr.else_value) if expr.else_value else "NULL",
+            )
+
+        if isinstance(expr, SPMultipleExpression):
+            return self.package.block_expression(
+                [self.analyze(expression) for expression in expr.expressions]
+            )
+
+        if isinstance(expr, SPInExpression):
+            return self.package.in_expression(
+                self.analyze(expr.columns),
+                [self.analyze(expression) for expression in expr.values],
             )
 
         # aggregate
@@ -215,6 +229,10 @@ class Analyzer:
 
         if isinstance(expr, SPUnaryExpression):
             return self.unary_expression_extractor(expr)
+
+        if isinstance(expr, ScalarSubquery):
+            self.subquery_plans.append(expr.plan)
+            return self.package.subquery_expression(expr.plan.queries[-1].sql)
 
         if isinstance(expr, SPBinaryExpression):
             return self.binary_operator_extractor(expr)
@@ -350,6 +368,8 @@ class Analyzer:
         result.add_aliases(self.generated_alias_maps)
 
         # TODO add subquery plans
+        if self.subquery_plans:
+            result = result.with_subqueries(self.subquery_plans)
 
         result.analyze_if_needed()
         return result

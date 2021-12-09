@@ -1760,6 +1760,10 @@ class DataFrame:
             )
         return self.__placeholder_schema
 
+    @property
+    def plan(self) -> SnowflakePlan:
+        return self.__plan
+
     def __with_plan(self, plan):
         return DataFrame(self.session, plan)
 
