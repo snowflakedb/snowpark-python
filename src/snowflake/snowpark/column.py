@@ -5,6 +5,7 @@
 #
 from typing import Optional, Union
 
+import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.sp_expressions import (
     Add as SPAdd,
@@ -24,6 +25,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Expression as SPExpression,
     GreaterThan as SPGreaterThan,
     GreaterThanOrEqual as SPGreaterThanOrEqual,
+    InExpression as SPInExpression,
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
@@ -31,6 +33,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     LessThanOrEqual as SPLessThanOrEqual,
     Like as SPLike,
     Literal as SPLiteral,
+    MultipleExpression as SPMultipleExpression,
     Multiply as SPMultiply,
     NamedExpression as SPNamedExpression,
     Not as SPNot,
@@ -41,6 +44,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Pow as SPPow,
     RegExp as SPRegExp,
     Remainder as SPRemainder,
+    ScalarSubquery as SPScalarSubquery,
     SortOrder as SPSortOrder,
     Star as SPStar,
     SubfieldInt as SPSubfieldInt,
@@ -191,6 +195,83 @@ class Column:
 
     def __rpow__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
         return Column(SPPow(Column._to_expr(other), self.expression))
+
+    def in_(self, *cols: "Column") -> "Column":
+        """Returns a conditional expression that you can pass to the :meth:`DataFrame.filter`
+        or where :meth:`DataFrame.method` to perform the equivalent of a WHERE ... IN query
+        with a specified list of values. You can also pass this to a
+        :meth:`DataFrame.select` call.
+
+        The expression evaluates to true if the value in the column is one of the values in
+        a specified sequence.
+
+        For example, the following code returns a DataFrame that contains the rows where
+        the column "a" contains the value 1, 2, or 3. This is equivalent to
+        SELECT * FROM table WHERE a IN (1, 2, 3).
+
+        :meth:`isin` is an alias for :meth:`in_`
+
+        Examples::
+            # Basic example
+            df.filter(df("a").in_(lit(1), lit(2), lit(3)))
+
+            # Check in membership for a DataFrame
+            df1 = session.table(table1)
+            df2 = session.table(table2)
+            df2.filter(col("a").in_(df1))
+
+            # Use in with a select method call
+            df.select(df("a").in_(lit(1), lit(2), lit(3)))
+
+        Args:
+            *cols: The columns to use to check for membership against this column.
+        """
+        column_count = (
+            len(self.expression.expressions)
+            if isinstance(self.expression, SPMultipleExpression)
+            else 1
+        )
+
+        def value_mapper(value):
+            if isinstance(value, (tuple, set, list)):
+                if len(value) == column_count:
+                    return SPMultipleExpression([Column._to_expr(v) for v in value])
+                else:
+                    raise ValueError(
+                        f"The number of values {len(value)} does not match the number of columns {column_count}."
+                    )
+            elif isinstance(value, snowflake.snowpark.DataFrame):
+                if len(value.schema.fields) == column_count:
+                    return SPScalarSubquery(value.plan)
+                else:
+                    raise ValueError(
+                        f"The number of values {len(value.schema.fields)} does not match the number of columns {column_count}."
+                    )
+            else:
+                return Column._to_expr(value)
+
+        value_expressions = [value_mapper(col) for col in cols]
+
+        if len(cols) != 1 or not isinstance(value_expressions[0], SPScalarSubquery):
+
+            def validate_value(value_expr: SPExpression):
+                if isinstance(value_expr, SPLiteral):
+                    return
+                elif isinstance(value_expr, SPMultipleExpression):
+                    return map(validate_value, value_expr.expressions)
+                else:
+                    raise TypeError(
+                        f"'{type(value_expr)}' is not supported for the values parameter of the function "
+                        f"in(). You must either specify a sequence of literals or a DataFrame that "
+                        f"represents a subquery."
+                    )
+
+            map(validate_value, value_expressions)
+
+        return Column(SPInExpression(self.expression, value_expressions))
+
+    # Alias
+    isin = in_
 
     def between(
         self,

@@ -601,3 +601,21 @@ def test_when_case(session):
 def test_lit_contains_single_quote(session):
     df = session.createDataFrame([[1, "'"], [2, "''"]]).toDF(["a", "b"])
     assert df.where(col("b") == "'").collect() == [Row(1, "'")]
+
+
+def test_in_expression_1_in_with_constant_value_list(session):
+    df = session.createDataFrame(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+    ).toDF(["a", "b", "c", "d"])
+
+    df1 = df.filter(col("a").in_(lit(1), lit(2)))
+    Utils.check_answer([Row(1, "a", 1, 1), Row(2, "b", 2, 2)], df1, sort=False)
+
+    df2 = df.filter(~col("a").in_(lit(1), lit(2)))
+    Utils.check_answer([Row(3, "b", 33, 33)], df2, sort=False)
+
+    df3 = df.select(col("a").in_(lit(1), lit(2)).as_("in_result"))
+    Utils.check_answer([Row(True), Row(True), Row(False)], df3, sort=False)
+
+    df4 = df.select(~col("a").in_(lit(1), lit(2)).as_("in_result"))
+    Utils.check_answer([Row(False), Row(False), Row(True)], df4, sort=False)
