@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import functools
+import math
 import os
 import platform
 import random
@@ -93,6 +94,29 @@ class Utils:
         return f"{session.getCurrentDatabase()}.{cls.random_temp_schema()}"
 
     @staticmethod
+    def assert_rows(expected_rows, actual_rows):
+        assert len(expected_rows) == len(
+            actual_rows
+        ), f"row count is different. Expected {len(expected_rows)}. Actual {len(actual_rows)}"
+        for row_index in range(0, len(expected_rows)):
+            expected_row = expected_rows[row_index]
+            actual_row = actual_rows[row_index]
+            assert len(expected_row) == len(
+                actual_row
+            ), f"column count for row {row_index + 1} is different. Expected {len(expected_row)}. Actual {len(actual_row)}"
+            for column_index in range(0, len(expected_row)):
+                expected_value = expected_row[column_index]
+                actual_value = actual_row[column_index]
+                if isinstance(expected_value, float):
+                    assert math.isclose(
+                        expected_value, actual_value
+                    ), f"Expected {expected_value}. Actual {actual_value}"
+                else:
+                    assert (
+                        expected_value == actual_value
+                    ), f"Expected {expected_value}. Actual {actual_value}"
+
+    @staticmethod
     def check_answer(
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
@@ -135,13 +159,9 @@ class Utils:
             sort_key = functools.cmp_to_key(compare_rows)
             sorted_expected_rows = sorted(expected_rows, key=sort_key)
             sorted_actual_rows = sorted(actual_rows, key=sort_key)
-            assert (
-                sorted_expected_rows == sorted_actual_rows
-            ), f"expected: '{sorted_expected_rows}', actual: '{sorted_actual_rows}'"
+            Utils.assert_rows(sorted_expected_rows, sorted_actual_rows)
         else:
-            assert (
-                expected_rows == actual_rows
-            ), f"expected: '{expected_rows}', actual: '{actual_rows}'"
+            Utils.assert_rows(expected_rows, actual_rows)
 
 
 class TestData:
