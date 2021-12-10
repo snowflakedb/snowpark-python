@@ -1241,3 +1241,15 @@ def test_select_case_expr(session):
     Utils.check_answer(
         df.select(when(col("a") == 1, 4).otherwise(col("a"))), [Row(4), Row(2), Row(3)]
     )
+
+
+def test_select_expr(session):
+    df = session.createDataFrame([-1, 2, 3], schema=["a"])
+    Utils.check_answer(
+        df.select_expr("abs(a)", "a + 2", "cast(a as string)"),
+        [Row(1, 1, "-1"), Row(2, 4, "2"), Row(3, 5, "3")],
+    )
+    Utils.check_answer(
+        df.select_expr(["abs(a)", "a + 2", "cast(a as string)"]),
+        [Row(1, 1, "-1"), Row(2, 4, "2"), Row(3, 5, "3")],
+    )
