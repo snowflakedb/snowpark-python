@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
@@ -54,9 +54,24 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
-from snowflake.snowpark._internal.sp_types.types_package import LiteralType
+from snowflake.snowpark._internal.sp_types.types_package import (
+    _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    ColumnOrLiteral,
+    LiteralType,
+)
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.window import Window, WindowSpec
+
+
+def _to_col_if_lit(col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"]):
+    if isinstance(col, Column):
+        return col
+    elif isinstance(col, snowflake.snowpark.DataFrame):
+        return col
+    elif isinstance(col, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+        return Column(SPLiteral(col))
+    else:
+        raise TypeError(f"Expected Column, DataFrame or LiteralType, got: {type(col)}")
 
 
 class Column:
@@ -196,7 +211,12 @@ class Column:
     def __rpow__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
         return Column(SPPow(Column._to_expr(other), self.expression))
 
-    def in_(self, *cols: "Column") -> "Column":
+    def in_(
+        self,
+        *cols: Union[
+            ColumnOrLiteral, "snowflake.snowpark.DataFrame", List[ColumnOrLiteral]
+        ],
+    ) -> "Column":
         """Returns a conditional expression that you can pass to the :meth:`DataFrame.filter`
         or where :meth:`DataFrame.method` to perform the equivalent of a WHERE ... IN query
         with a specified list of values. You can also pass this to a
@@ -209,9 +229,10 @@ class Column:
         the column "a" contains the value 1, 2, or 3. This is equivalent to
         SELECT * FROM table WHERE a IN (1, 2, 3).
 
-        :meth:`isin` is an alias for :meth:`in_`
+        :meth:`isin` is an alias for :meth:`in_`.
 
         Examples::
+
             # Basic example
             df.filter(df("a").in_(lit(1), lit(2), lit(3)))
 
@@ -226,6 +247,10 @@ class Column:
         Args:
             *cols: The columns to use to check for membership against this column.
         """
+        if len(cols) == 1 and isinstance(cols[0], (list, set, tuple)):
+            cols = cols[0]
+        cols = [_to_col_if_lit(col) for col in cols]
+
         column_count = (
             len(self.expression.expressions)
             if isinstance(self.expression, SPMultipleExpression)
@@ -242,7 +267,7 @@ class Column:
                     )
             elif isinstance(value, snowflake.snowpark.DataFrame):
                 if len(value.schema.fields) == column_count:
-                    return SPScalarSubquery(value.plan)
+                    return SPScalarSubquery(value._plan)
                 else:
                     raise ValueError(
                         f"The number of values {len(value.schema.fields)} does not match the number of columns {column_count}."
@@ -266,7 +291,8 @@ class Column:
                         f"represents a subquery."
                     )
 
-            map(validate_value, value_expressions)
+            for ve in value_expressions:
+                validate_value(ve)
 
         return Column(SPInExpression(self.expression, value_expressions))
 
