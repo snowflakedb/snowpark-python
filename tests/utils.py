@@ -94,26 +94,26 @@ class Utils:
         return f"{session.getCurrentDatabase()}.{cls.random_temp_schema()}"
 
     @staticmethod
-    def assert_rows(expected_rows, actual_rows):
-        assert len(expected_rows) == len(
-            actual_rows
+    def assert_rows(actual_rows, expected_rows):
+        assert len(actual_rows) == len(
+            expected_rows
         ), f"row count is different. Expected {len(expected_rows)}. Actual {len(actual_rows)}"
         for row_index in range(0, len(expected_rows)):
             expected_row = expected_rows[row_index]
             actual_row = actual_rows[row_index]
-            assert len(expected_row) == len(
-                actual_row
+            assert len(actual_row) == len(
+                expected_row
             ), f"column count for row {row_index + 1} is different. Expected {len(expected_row)}. Actual {len(actual_row)}"
             for column_index in range(0, len(expected_row)):
                 expected_value = expected_row[column_index]
                 actual_value = actual_row[column_index]
                 if isinstance(expected_value, float):
                     assert math.isclose(
-                        expected_value, actual_value
+                        actual_value, expected_value
                     ), f"Expected {expected_value}. Actual {actual_value}"
                 else:
                     assert (
-                        expected_value == actual_value
+                        actual_value == expected_value
                     ), f"Expected {expected_value}. Actual {actual_value}"
 
     @staticmethod
@@ -159,9 +159,9 @@ class Utils:
             sort_key = functools.cmp_to_key(compare_rows)
             sorted_expected_rows = sorted(expected_rows, key=sort_key)
             sorted_actual_rows = sorted(actual_rows, key=sort_key)
-            Utils.assert_rows(sorted_expected_rows, sorted_actual_rows)
+            Utils.assert_rows(sorted_actual_rows, sorted_expected_rows)
         else:
-            Utils.assert_rows(expected_rows, actual_rows)
+            Utils.assert_rows(actual_rows, expected_rows)
 
 
 class TestData:
