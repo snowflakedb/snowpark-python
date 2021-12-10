@@ -783,9 +783,7 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
-        return self.__with_plan(
-            SPUnion(self._plan, other._DataFrame__plan, is_all=True)
-        )
+        return self.__with_plan(SPUnion(self._plan, other._plan, is_all=True))
 
     def unionByName(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -866,7 +864,7 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
         """
-        return self.__with_plan(SPIntersect(self._plan, other._DataFrame__plan))
+        return self.__with_plan(SPIntersect(self._plan, other._plan))
 
     def except_(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
@@ -879,7 +877,7 @@ class DataFrame:
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
-        return self.__with_plan(SPExcept(self._plan, other._DataFrame__plan))
+        return self.__with_plan(SPExcept(self._plan, other._plan))
 
     def naturalJoin(
         self, right: "DataFrame", join_type: Optional[str] = None
@@ -900,7 +898,7 @@ class DataFrame:
         return self.__with_plan(
             SPJoin(
                 self._plan,
-                right._DataFrame__plan,
+                right._plan,
                 SPNaturalJoin(SPJoinType.from_string(join_type)),
                 None,
                 SPJoinHint.none(),
@@ -932,7 +930,7 @@ class DataFrame:
             join_type: The type of join (e.g. "right", "outer", etc.).
         """
         if isinstance(right, DataFrame):
-            if self is right or self._plan is right._DataFrame__plan:
+            if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
 
             if isinstance(join_type, SPCrossJoin) or (
@@ -1040,8 +1038,8 @@ class DataFrame:
             lhs, rhs = self.__disambiguate(self, right, join_type, using_columns)
             return self.__with_plan(
                 SPJoin(
-                    lhs._DataFrame__plan,
-                    rhs._DataFrame__plan,
+                    lhs._plan,
+                    rhs._plan,
                     SPUsingJoin(join_type, using_columns),
                     None,
                     SPJoinHint.none(),
@@ -1055,8 +1053,8 @@ class DataFrame:
         expression = join_exprs.expression if join_exprs else None
         return self.__with_plan(
             SPJoin(
-                lhs._DataFrame__plan,
-                rhs._DataFrame__plan,
+                lhs._plan,
+                rhs._plan,
                 join_type,
                 expression,
                 SPJoinHint.none(),
@@ -1371,7 +1369,7 @@ class DataFrame:
 
         if query.startswith("select"):
             result, meta = self.session._conn.get_result_and_metadata(
-                self.limit(n)._DataFrame__plan, **kwargs
+                self.limit(n)._plan, **kwargs
             )
         else:
             res, meta = self.session._conn.get_result_and_metadata(self._plan, **kwargs)
