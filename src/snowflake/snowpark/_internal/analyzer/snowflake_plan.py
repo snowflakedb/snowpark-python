@@ -148,19 +148,15 @@ class SnowflakePlan(LogicalPlan):
         new_post_actions = [*self.post_actions]
 
         for plan in subquery_plans:
-            [
-                pre_queries.append(query)
-                for query in plan.queries[:-1]
-                if query not in pre_queries
-            ]
+            for query in plan.queries[:-1]:
+                if query not in pre_queries:
+                    pre_queries.append(query)
             new_schema_query = new_schema_query.replace(
                 plan.queries[-1].sql, plan._schema_query.sql
             )
-            [
-                new_post_actions.append(action)
-                for action in plan.post_actions
-                if action not in new_post_actions
-            ]
+            for action in plan.post_actions:
+                if action not in new_post_actions:
+                    new_post_actions.append(action)
 
         return SnowflakePlan(
             pre_queries + [self.queries[-1]],

@@ -70,7 +70,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
     Not as SPNot,
     RegExp as SPRegExp,
-    ScalarSubquery,
+    ScalarSubquery as SPScalarSubquery,
     SnowflakeUDF as SPSnowflakeUDF,
     SortOrder as SPSortOrder,
     SpecialFrameBoundary as SPSpecialFrameBoundary,
@@ -230,7 +230,7 @@ class Analyzer:
         if isinstance(expr, SPUnaryExpression):
             return self.unary_expression_extractor(expr)
 
-        if isinstance(expr, ScalarSubquery):
+        if isinstance(expr, SPScalarSubquery):
             self.subquery_plans.append(expr.plan)
             return self.package.subquery_expression(expr.plan.queries[-1].sql)
 
@@ -367,7 +367,6 @@ class Analyzer:
 
         result.add_aliases(self.generated_alias_maps)
 
-        # TODO add subquery plans
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
 

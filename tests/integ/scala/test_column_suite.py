@@ -608,14 +608,59 @@ def test_in_expression_1_in_with_constant_value_list(session):
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
     ).toDF(["a", "b", "c", "d"])
 
-    df1 = df.filter(col("a").in_(lit(1), lit(2)))
+    df1 = df.filter(col("a").in_(1, 2))
     Utils.check_answer([Row(1, "a", 1, 1), Row(2, "b", 2, 2)], df1, sort=False)
 
     df2 = df.filter(~col("a").in_(lit(1), lit(2)))
     Utils.check_answer([Row(3, "b", 33, 33)], df2, sort=False)
 
-    df3 = df.select(col("a").in_(lit(1), lit(2)).as_("in_result"))
+    df3 = df.select(col("a").in_(1, 2).as_("in_result"))
     Utils.check_answer([Row(True), Row(True), Row(False)], df3, sort=False)
 
     df4 = df.select(~col("a").in_(lit(1), lit(2)).as_("in_result"))
     Utils.check_answer([Row(False), Row(False), Row(True)], df4, sort=False)
+
+    # Redo tests with list inputs
+    df1 = df.filter(col("a").in_([1, 2]))
+    Utils.check_answer([Row(1, "a", 1, 1), Row(2, "b", 2, 2)], df1, sort=False)
+
+    df2 = df.filter(~col("a").in_([lit(1), lit(2)]))
+    Utils.check_answer([Row(3, "b", 33, 33)], df2, sort=False)
+
+    df3 = df.select(col("a").in_([1, 2]).as_("in_result"))
+    Utils.check_answer([Row(True), Row(True), Row(False)], df3, sort=False)
+
+    df4 = df.select(~col("a").in_([lit(1), lit(2)]).as_("in_result"))
+    Utils.check_answer([Row(False), Row(False), Row(True)], df4, sort=False)
+
+
+def test_in_expression_2_in_with_subquery(session):
+    pass
+
+
+def test_in_expression_3_in_with_all_types(session):
+    pass
+
+
+def test_in_expression_4_negative_test_to_input_column_in_value_list(session):
+    pass
+
+
+def test_in_expression_5_(session):
+    pass
+
+
+def test_in_expression_6(session):
+    pass
+
+
+def test_in_expression_7(session):
+    pass
+
+
+def test_in_expression_8(session):
+    pass
+
+
+def test_in_expression_9(session):
+    pass

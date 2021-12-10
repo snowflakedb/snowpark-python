@@ -518,3 +518,4 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
 # Type hints
 ColumnOrName = Union["snowflake.snowpark.column.Column", str]
 LiteralType = Union[_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
+ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]
