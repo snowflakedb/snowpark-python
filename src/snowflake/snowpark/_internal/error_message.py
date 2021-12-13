@@ -63,6 +63,14 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
+    def DF_CANNOT_RENAME_COLUMN_BECAUSE_MULTIPLE_EXIST(
+        old_name: str, new_name: str, times: int
+    ) -> SnowparkColumnException:
+        return SnowparkColumnException(
+            f"Unable to rename the column {old_name} as {new_name} because this DataFrame has {times} columns named {old_name}."
+        )
+
+    @staticmethod
     def DF_SELF_JOIN_NOT_SUPPORTED() -> SnowparkJoinException:
         return SnowparkJoinException(
             "You cannot join a DataFrame with itself because the column references cannot "

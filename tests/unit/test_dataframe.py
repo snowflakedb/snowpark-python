@@ -6,6 +6,7 @@
 from unittest.mock import MagicMock
 
 from snowflake.snowpark import DataFrame
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
 
 def test_get_unaliased():
@@ -34,4 +35,5 @@ def test_get_unaliased():
 
 def test_dataframe_method_alias():
     df = DataFrame(session=MagicMock(), plan=MagicMock())
+    assert df.rename == df.withColumnRenamed
     assert df.drop_duplicates == df.dropDuplicates
