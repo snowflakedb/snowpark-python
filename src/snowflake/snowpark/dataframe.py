@@ -202,7 +202,7 @@ class DataFrame:
 
     def __init__(self, session=None, plan=None):
         self.session = session
-        self._plan = session._analyzer.resolve(plan)
+        self.__plan = session._analyzer.resolve(plan)
 
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
@@ -251,7 +251,7 @@ class DataFrame:
 
     def _collect_with_tag(self) -> List["Row"]:
         return self.session._conn.execute(
-            self._plan,
+            self.__plan,
             _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
             if not self.session.query_tag
             else None,
@@ -259,7 +259,7 @@ class DataFrame:
 
     def clone(self) -> "DataFrame":
         """Returns a clone of this :class:`DataFrame`."""
-        return DataFrame(self.session, self._plan.clone())
+        return DataFrame(self.session, self.__plan.clone())
 
     def toPandas(self, **kwargs) -> "pandas.DataFrame":
         """
@@ -274,7 +274,7 @@ class DataFrame:
             kwargs["_statement_params"] = {
                 "QUERY_TAG": Utils.create_statement_query_tag(2)
             }
-        result = self.session._conn.execute(self._plan, to_pandas=True, **kwargs)
+        result = self.session._conn.execute(self.__plan, to_pandas=True, **kwargs)
 
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
@@ -352,7 +352,7 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
-            return Column(SPStar(self._plan.output()))
+            return Column(SPStar(self.__plan.output()))
         else:
             return Column(self.__resolve(col_name))
 
@@ -397,7 +397,7 @@ class DataFrame:
                     "The input of select() must be Column, column name, or a list of them"
                 )
 
-        return self.__with_plan(SPProject(names, self._plan))
+        return self.__with_plan(SPProject(names, self.__plan))
 
     def drop(
         self,
@@ -429,7 +429,7 @@ class DataFrame:
                 names.append(c)
             elif isinstance(c, Column) and isinstance(c.expression, SPAttribute):
                 names.append(
-                    self._plan.expr_to_alias.get(
+                    self.__plan.expr_to_alias.get(
                         c.expression.expr_id, c.expression.name
                     )
                 )
@@ -466,7 +466,7 @@ class DataFrame:
                 f"The input type of filter() must be Column. Got: {type(expr)}"
             )
 
-        return self.__with_plan(SPFilter(expr.expression, self._plan))
+        return self.__with_plan(SPFilter(expr.expression, self.__plan))
 
     where = filter
 
@@ -531,7 +531,7 @@ class DataFrame:
                     SPSortOrder(expr, orders[idx] if orders else SPAscending())
                 )
 
-        return self.__with_plan(SPSort(sort_exprs, True, self._plan))
+        return self.__with_plan(SPSort(sort_exprs, True, self.__plan))
 
     def agg(
         self,
@@ -790,7 +790,7 @@ class DataFrame:
         Args:
             n: Number of rows to return.
         """
-        return self.__with_plan(SPLimit(SPLiteral(n), self._plan))
+        return self.__with_plan(SPLimit(SPLiteral(n), self.__plan))
 
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -805,7 +805,7 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
         return self.__with_plan(
-            SPUnion(self._plan, other._DataFrame__plan, is_all=False)
+            SPUnion(self.__plan, other._DataFrame__plan, is_all=False)
         )
 
     def unionAll(self, other: "DataFrame") -> "DataFrame":
@@ -820,7 +820,9 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
-        return self.__with_plan(SPUnion(self._plan, other._plan, is_all=True))
+        return self.__with_plan(
+            SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
+        )
 
     def unionByName(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -883,10 +885,10 @@ class DataFrame:
         ]
 
         right_child = self.__with_plan(
-            SPProject(right_project_list + not_found_attrs, other._plan)
+            SPProject(right_project_list + not_found_attrs, other.__plan)
         )
 
-        return self.__with_plan(SPUnion(self._plan, right_child._plan, is_all))
+        return self.__with_plan(SPUnion(self.__plan, right_child.__plan, is_all))
 
     def intersect(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the
@@ -901,7 +903,7 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
         """
-        return self.__with_plan(SPIntersect(self._plan, other._plan))
+        return self.__with_plan(SPIntersect(self.__plan, other._DataFrame__plan))
 
     def except_(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
@@ -914,7 +916,7 @@ class DataFrame:
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
-        return self.__with_plan(SPExcept(self._plan, other._plan))
+        return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
 
     def naturalJoin(
         self, right: "DataFrame", join_type: Optional[str] = None
@@ -934,8 +936,8 @@ class DataFrame:
         join_type = join_type if join_type else "inner"
         return self.__with_plan(
             SPJoin(
-                self._plan,
-                right._plan,
+                self.__plan,
+                right._DataFrame__plan,
                 SPNaturalJoin(SPJoinType.from_string(join_type)),
                 None,
                 SPJoinHint.none(),
@@ -967,7 +969,7 @@ class DataFrame:
             join_type: The type of join (e.g. "right", "outer", etc.).
         """
         if isinstance(right, DataFrame):
-            if self is right or self._plan is right._plan:
+            if self is right or self.__plan is right._DataFrame__plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
 
             if isinstance(join_type, SPCrossJoin) or (
@@ -1030,7 +1032,7 @@ class DataFrame:
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
-        return DataFrame(self.session, SPTableFunctionJoin(self._plan, func_expr))
+        return DataFrame(self.session, SPTableFunctionJoin(self.__plan, func_expr))
 
     def crossJoin(self, right: "DataFrame") -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
@@ -1075,8 +1077,8 @@ class DataFrame:
             lhs, rhs = self.__disambiguate(self, right, join_type, using_columns)
             return self.__with_plan(
                 SPJoin(
-                    lhs._plan,
-                    rhs._plan,
+                    lhs._DataFrame__plan,
+                    rhs._DataFrame__plan,
                     SPUsingJoin(join_type, using_columns),
                     None,
                     SPJoinHint.none(),
@@ -1090,8 +1092,8 @@ class DataFrame:
         expression = join_exprs.expression if join_exprs else None
         return self.__with_plan(
             SPJoin(
-                lhs._plan,
-                rhs._plan,
+                lhs._DataFrame__plan,
+                rhs._DataFrame__plan,
                 join_type,
                 expression,
                 SPJoinHint.none(),
@@ -1386,12 +1388,12 @@ class DataFrame:
         result_columns = [
             attr.name
             for attr in self.session._analyzer.resolve(
-                SPLateral(self._plan, table_function)
+                SPLateral(self.__plan, table_function)
             ).attributes()
         ]
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
-            return DataFrame(self.session, SPLateral(self._plan, table_function))
+            return DataFrame(self.session, SPLateral(self.__plan, table_function))
         prefix = DataFrame.__generate_prefix("a")
         child = self.select(
             [
@@ -1399,17 +1401,19 @@ class DataFrame:
                 for attr in self.__output()
             ]
         )
-        return DataFrame(self.session, SPLateral(child._plan, table_function))
+        return DataFrame(self.session, SPLateral(child.__plan, table_function))
 
     def __show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
-        query = self._plan.queries[-1].sql.strip().lower()
+        query = self.__plan.queries[-1].sql.strip().lower()
 
         if query.startswith("select"):
             result, meta = self.session._conn.get_result_and_metadata(
-                self.limit(n)._plan, **kwargs
+                self.limit(n)._DataFrame__plan, **kwargs
             )
         else:
-            res, meta = self.session._conn.get_result_and_metadata(self._plan, **kwargs)
+            res, meta = self.session._conn.get_result_and_metadata(
+                self.__plan, **kwargs
+            )
             result = res[:n]
 
         # The query has been executed
@@ -1550,7 +1554,7 @@ class DataFrame:
             comment=None,
             properties={},
             original_text="",
-            child=self._plan,
+            child=self.__plan,
             allow_existing=False,
             replace=True,
             view_type=view_type,
@@ -1606,7 +1610,7 @@ class DataFrame:
             raise ValueError(f"row_count value {n} must be greater than 0")
 
         return self.__with_plan(
-            SPSample(self._plan, probability_fraction=frac, row_count=n)
+            SPSample(self.__plan, probability_fraction=frac, row_count=n)
         )
 
     @property
@@ -1739,7 +1743,7 @@ class DataFrame:
 
     def __output(self) -> List[SPAttribute]:
         if not self.__placeholder_output:
-            self.__placeholder_output = self._plan.output()
+            self.__placeholder_output = self.__plan.output()
         return self.__placeholder_output
 
     @property
@@ -1749,7 +1753,7 @@ class DataFrame:
         """
         if not self.__placeholder_schema:
             self.__placeholder_schema = StructType._from_attributes(
-                self._plan.attributes()
+                self.__plan.attributes()
             )
         return self.__placeholder_schema
 
