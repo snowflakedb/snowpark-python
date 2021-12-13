@@ -1967,6 +1967,68 @@ def test_with_columns_replace_existing(session):
     )
 
 
+def test_drop_duplicates(session):
+    df = session.createDataFrame(
+        [[1, 1, 1, 1], [1, 1, 1, 2], [1, 1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4]],
+        schema=["a", "b", "c", "d"],
+    )
+    Utils.check_answer(
+        df.dropDuplicates(),
+        [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3), Row(1, 2, 3, 4)],
+    )
+
+    result1 = df.dropDuplicates(["a"])
+    assert result1.count() == 1
+    row1 = result1.collect()[0]
+    # result is non-deterministic.
+    assert row1 in [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3), Row(1, 2, 3, 4)]
+
+    result2 = df.dropDuplicates(["a", "b"])
+    assert result2.count() == 2
+    Utils.check_answer(result2.where(col("b") == lit(2)), [Row(1, 2, 3, 4)])
+    row2 = result2.where(col("b") == lit(1)).collect()[0]
+    # result is non-deterministic.
+    assert row2 in [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3)]
+
+    result3 = df.dropDuplicates(["a", "b", "c"])
+    assert result3.count() == 3
+    Utils.check_answer(result3.where(col("c") == lit(2)), [Row(1, 1, 2, 3)])
+    Utils.check_answer(result3.where(col("c") == lit(3)), [Row(1, 2, 3, 4)])
+    row3 = result3.where(col("c") == lit(1)).collect()[0]
+    # result is non-deterministic.
+    assert row2 in [Row(1, 1, 1, 1), Row(1, 1, 1, 2)]
+
+    Utils.check_answer(
+        df.dropDuplicates(["a", "b", "c", "d"]),
+        [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3), Row(1, 2, 3, 4)],
+    )
+    Utils.check_answer(
+        df.dropDuplicates("a", "b", "c", "d", "d"),
+        [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3), Row(1, 2, 3, 4)],
+    )
+
+    with pytest.raises(SnowparkColumnException) as exec_info:
+        df.dropDuplicates("e").collect()
+    assert "The DataFrame does not contain the column named e." in str(exec_info)
+
+
+def test_consecutively_drop_duplicates(session):
+    df = session.createDataFrame(
+        [[1, 1, 1, 1], [1, 1, 1, 2], [1, 1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4]],
+        schema=["a", "b", "c", "d"],
+    )
+    df1 = (
+        df.drop_duplicates()
+        .drop_duplicates(["a", "b", "c"])
+        .drop_duplicates(["a", "b"])
+        .drop_duplicates(["a"])
+    )
+    assert df1.count() == 1
+    row1 = df1.collect()[0]
+    # result is non-deterministic.
+    assert row1 in [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3), Row(1, 2, 3, 4)]
+
+
 def test_dropna(session):
     Utils.check_answer(
         TestData.double3(session).na.drop(thresh=1, subset=["a"]),
