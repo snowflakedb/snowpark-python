@@ -320,7 +320,7 @@ class Column:
         )
 
     def collate(self, collation_spec: str) -> "Column":
-        """Returns a copy of the original :class:`Column` with the specified `collation_spec`
+        """Returns a copy of the original :class:`Column` with the specified ``collation_spec``
         property, rather than the original collation specification property.
 
         For details, see the Snowflake documentation on

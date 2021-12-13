@@ -33,9 +33,9 @@ Pycharm.
 
 You can run a test on a terminal using `pytest`, as the example below:
 ``` bash
-pytest test/integ
-pytest test/integ/test_dataframe.py
-pytest test/integ/test_dataframe.py -k "test_filter"
+pytest tests/integ
+pytest tests/integ/test_dataframe.py
+pytest tests/integ/test_dataframe.py -k "test_filter"
 ```
 
 ### Running tests with tox

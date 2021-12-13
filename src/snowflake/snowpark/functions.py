@@ -512,7 +512,7 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
 
 def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
-    """Adds the specified value for the specified date or time art to date or time expr.
+    """Adds the specified value for the specified date or time part to date or time expr.
 
     `Supported date and time parts <https://docs.snowflake.com/en/sql-reference/functions-date-time.html#label-supported-date-time-parts>`_
 
@@ -1292,7 +1292,7 @@ def udf(
         :func:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
 
         3. By default, UDF registration fails if a function with the same name is already
-        registered. Invoking :func:`udf` with ``replace`` set to `True` will overwrite the
+        registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
     """
     session = snowflake.snowpark.Session._get_active_session()

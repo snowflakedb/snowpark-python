@@ -168,7 +168,7 @@ class DataFrameNaFunctions:
         columns with the values provided.
 
         Args:
-            value: A scalar value or a `dict`` that associates the names of columns with the
+            value: A scalar value or a ``dict`` that associates the names of columns with the
                 values that should be used to replace null and NaN values in those
                 columns. If ``value`` is a ``dict``, ``subset`` is ignored. If ``value``
                 is an empty ``dict``, the method returns the original DataFrame.
@@ -302,7 +302,7 @@ class DataFrameNaFunctions:
             value: A scalar value, or a list of values for the replacement. If
                 ``value`` is a list, ``value`` should be of the same length as
                 ``to_replace``. If ``value`` is a scalar and ``to_replace`` is a list,
-                then `value`` is used as a replacement for each item in ``to_replace``.
+                then ``value`` is used as a replacement for each item in ``to_replace``.
             subset: A list of the names of columns in which the values should be
                 replaced. If ``cols`` is not provided or ``None``, the replacement
                 will be applied to all columns. If ``cols`` is empty, the method

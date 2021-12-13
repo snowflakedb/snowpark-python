@@ -165,6 +165,7 @@ class FileOperation:
         References: `Snowflake GET command <https://docs.snowflake.com/en/sql-reference/sql/get.html>`_.
 
         Examples::
+
             # Upload files to a stage.
             session.file.put("/tmp/file_1.csv", "@myStage/prefix")
             session.file.put("/tmp/file_2.csv", "@myStage/prefix")

@@ -306,7 +306,7 @@ class StructType(DataType):
 
     @property
     def names(self):
-        """Returns the list of names of the 'class':`StructField`"""
+        """Returns the list of names of the :class:`StructField`"""
         return [f.name for f in self.fields]
 
 
