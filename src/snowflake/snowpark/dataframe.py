@@ -1597,7 +1597,7 @@ class DataFrame:
             existing: The old column instance or column name to be renamed.
             new: The new column name.
 
-        :meth:``withColumnRenamed`` is an alias of :meth:``rename``.
+        :meth:`withColumnRenamed` is an alias of :meth:`rename`.
         """
         new_quoted_name = AnalyzerPackage.quote_name(new)
         if isinstance(existing, str):
