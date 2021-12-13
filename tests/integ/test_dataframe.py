@@ -914,10 +914,11 @@ def test_create_dataframe_with_single_value(session_cnx):
 
 def test_create_dataframe_empty(session_cnx):
     with session_cnx() as session:
-        data = [[]]
-        df = session.createDataFrame(data)
-        expected_rows = [Row(None)]
-        assert df.collect() == expected_rows
+        assert session.createDataFrame([[]]).collect() == [Row(None)]
+
+        with pytest.raises(ValueError) as ex_info:
+            assert session.createDataFrame([])
+        assert "data cannot be empty" in str(ex_info)
 
 
 def test_create_dataframe_from_none_data(session_cnx):
