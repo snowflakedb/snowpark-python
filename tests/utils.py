@@ -108,9 +108,14 @@ class Utils:
                 expected_value = expected_row[column_index]
                 actual_value = actual_row[column_index]
                 if isinstance(expected_value, float):
-                    assert math.isclose(
-                        actual_value, expected_value
-                    ), f"Expected {expected_value}. Actual {actual_value}"
+                    if math.isnan(expected_value):
+                        assert math.isnan(
+                            actual_value
+                        ), f"Expected NaN. Actual {actual_value}"
+                    else:
+                        assert math.isclose(
+                            actual_value, expected_value
+                        ), f"Expected {expected_value}. Actual {actual_value}"
                 else:
                     assert (
                         actual_value == expected_value
