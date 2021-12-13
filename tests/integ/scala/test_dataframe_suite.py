@@ -2003,7 +2003,7 @@ def test_drop_duplicates(session):
         [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3), Row(1, 2, 3, 4)],
     )
     Utils.check_answer(
-        df.dropDuplicates(["a", "b", "c", "d", "d"]),
+        df.dropDuplicates("a", "b", "c", "d", "d"),
         [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3), Row(1, 2, 3, 4)],
     )
 
@@ -2027,11 +2027,6 @@ def test_consecutively_drop_duplicates(session):
     row1 = df1.collect()[0]
     # result is non-deterministic.
     assert row1 in [Row(1, 1, 1, 1), Row(1, 1, 1, 2), Row(1, 1, 2, 3), Row(1, 2, 3, 4)]
-
-
-def test_dropDuplicates_drop_duplicates_identical(session):
-    df = session.createDataFrame([[1]])
-    assert df.dropDuplicates == df.drop_duplicates
 
 
 def test_dropna(session):

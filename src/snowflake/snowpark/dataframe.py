@@ -715,28 +715,29 @@ class DataFrame:
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
 
-    def dropDuplicates(self, subset: Iterable[str] = None) -> "DataFrame":
+    def dropDuplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
-        If no subset of columns specified, this function is same as :meth:`distinct` function.
+        If no subset of columns is specified, this function is the same as the :meth:`distinct` function.
         The result is non-deterministic when removing duplicated rows from the subset of columns but not all columns.
 
-        For example, if we have a DataFrame `df`, which has columns ("a", "b", "c") and contains three rows (1, 1, 1), (1, 1, 2), (1, 2, 3),
-        The result of df.dropDuplicates("a", "b") can be either
-        (1, 1, 1), (1, 2, 3)
+        For example, if we have a DataFrame ``df``, which has columns ("a", "b", "c") and contains three rows ``(1, 1, 1), (1, 1, 2), (1, 2, 3)``,
+        the result of ``df.dropDuplicates("a", "b")`` can be either
+        ``(1, 1, 1), (1, 2, 3)``
         or
-        (1, 1, 2), (1, 2, 3)
+        ``(1, 1, 2), (1, 2, 3)``
 
         Args:
             subset: The column names on which duplicates are dropped.
 
-        ``dropDuplicates`` and ``drop_duplicates`` are aliases.
+        ``dropDuplicates`` is an alias of ``drop_duplicates``.
         """
         if not subset:
             return self.distinct()
+        subset = Utils.parse_positional_args_to_list(*subset)
 
         filter_cols = [self.col(x) for x in subset]
-        output_cols = [self.col(att.name) for att in self.__output()]
+        output_cols = [self.col(col_name) for col_name in self.columns]
         rownum = row_number().over(
             snowflake.snowpark.Window.partitionBy(*filter_cols).orderBy(*filter_cols)
         )
