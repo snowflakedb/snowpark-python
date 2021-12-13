@@ -730,7 +730,7 @@ class DataFrame:
         Args:
             subset: The column names on which duplicates are dropped.
 
-        ``dropDuplicates`` is an alias of ``drop_duplicates``.
+        :meth:`dropDuplicates` is an alias of :meth:`drop_duplicates`.
         """
         if not subset:
             return self.distinct()
