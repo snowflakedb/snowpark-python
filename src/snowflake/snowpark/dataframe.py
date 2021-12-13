@@ -12,7 +12,10 @@ from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
-from snowflake.snowpark._internal.analyzer.snowflake_plan import CopyIntoNode
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CopyIntoNode,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
 from snowflake.snowpark._internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
@@ -1780,3 +1783,11 @@ class DataFrame:
 
         exprs = [convert(col) for col in Utils.parse_positional_args_to_list(*cols)]
         return exprs
+
+    def sqls(self) -> List[str]:
+        plan = self.__plan  # type: SnowflakePlan
+        return [x.sql for x in plan.queries]
+
+    def post_action_sqls(self) -> List[str]:
+        plan = self.__plan  # type: SnowflakePlan
+        return plan.post_actions
