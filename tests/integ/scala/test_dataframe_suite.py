@@ -1965,11 +1965,6 @@ def test_rename_negative_test(session):
     )
 
 
-def test_rename_alias(session):
-    df = session.createDataFrame([[1, 2]], schema=["a", "b"])
-    assert df.rename == df.withColumnRenamed
-
-
 def test_with_columns_keep_order(session):
     data = {
         "STARTTIME": 0,

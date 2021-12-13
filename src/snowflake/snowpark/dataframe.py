@@ -1584,25 +1584,24 @@ class DataFrame:
         """
         return self._na
 
-    def withColumnRenamed(self, existing: Union[str, Column], new: str) -> "DataFrame":
-        """Returns a DataFrame with the specified column `col` renamed as `newName`.
-
-        This example renames the column `A` as `NEW_A` in the DataFrame.
+    def withColumnRenamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
+        """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
         Example::
 
+            # This example renames the column `A` as `NEW_A` in the DataFrame.
             df = session.sql("select 1 as A, 2 as B")
             df_renamed = df.withColumnRenamed(col("A"), "NEW_A")
 
         Args:
-            existing: The old column name to be renamed.
-            new: The new column.
+            existing: The old column instance or column name to be renamed.
+            new: The new column name.
 
-        ``withColumnRenamed`` and ``rename`` are aliases.
+        ``withColumnRenamed`` is an alias of ``rename``.
         """
-        new_quoted_name = self.session._analyzer.package.quote_name(new)
+        new_quoted_name = AnalyzerPackage.quote_name(new)
         if isinstance(existing, str):
-            old_name = self.session._analyzer.package.quote_name(existing)
+            old_name = AnalyzerPackage.quote_name(existing)
         elif isinstance(existing, Column):
             if isinstance(existing.expression, SPAttribute):
                 att = existing.expression
@@ -1616,9 +1615,7 @@ class DataFrame:
         else:
             raise TypeError("'exisitng' must be a column name or Column object.")
 
-        to_be_renamed = [
-            x for x in self.__output() if x.name.upper() == old_name.upper()
-        ]
+        to_be_renamed = [x for x in self.columns if x.upper() == old_name.upper()]
         if not to_be_renamed:
             raise ValueError(
                 f'Unable to rename column "{existing}" because it doesn\'t exist.'
