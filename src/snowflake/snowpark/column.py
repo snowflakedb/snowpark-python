@@ -267,7 +267,7 @@ class Column:
                     )
             elif isinstance(value, snowflake.snowpark.DataFrame):
                 if len(value.schema.fields) == column_count:
-                    return SPScalarSubquery(value._plan)
+                    return SPScalarSubquery(value._DataFrame__plan)
                 else:
                     raise ValueError(
                         f"The number of values {len(value.schema.fields)} does not match the number of columns {column_count}."
