@@ -510,7 +510,7 @@ def test_udf_negative(session):
     udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ProgrammingError) as ex_info:
         df1.select(udf2("x")).collect()
-    assert "Numeric value 'a' is not recognized" in str(ex_info)
+    assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
     df2 = session.createDataFrame([1, None]).toDF("x")
     with pytest.raises(ProgrammingError) as ex_info:
         df2.select(udf2("x")).collect()
