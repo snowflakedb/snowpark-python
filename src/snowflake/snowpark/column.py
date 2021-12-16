@@ -117,7 +117,7 @@ class Column:
           .select((col("b") * 10).as_("c"))
     """
 
-    def __init__(self, expr: Union[str, SPExpression, snowflake.snowpark.DataFrame]):
+    def __init__(self, expr: Union[str, SPExpression, "snowflake.snowpark.DataFrame"]):
         if isinstance(expr, str):
             if expr == "*":
                 self.expression = SPStar([])
@@ -479,7 +479,9 @@ class Column:
     @classmethod
     def _to_expr(
         cls,
-        expr: Union["Column", SPExpression, LiteralType, snowflake.snowpark.DataFrame],
+        expr: Union[
+            "Column", SPExpression, LiteralType, "snowflake.snowpark.DataFrame"
+        ],
     ) -> SPExpression:
         """
         Convert a Column object, or an literal value to an expression.

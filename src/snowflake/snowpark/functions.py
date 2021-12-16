@@ -1236,6 +1236,10 @@ def ntile(e: ColumnOrName) -> Column:
     return builtin("ntile")(c)
 
 
+def current_timestamp() -> Column:
+    return builtin("current_timestamp")()
+
+
 def udf(
     func: Optional[Callable] = None,
     *,
