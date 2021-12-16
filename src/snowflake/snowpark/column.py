@@ -117,7 +117,7 @@ class Column:
           .select((col("b") * 10).as_("c"))
     """
 
-    def __init__(self, expr: Union[str, SPExpression]):
+    def __init__(self, expr: Union[str, SPExpression, snowflake.snowpark.DataFrame]):
         if isinstance(expr, str):
             if expr == "*":
                 self.expression = SPStar([])
@@ -127,6 +127,8 @@ class Column:
                 )
         elif isinstance(expr, SPExpression):
             self.expression = expr
+        elif isinstance(expr, snowflake.snowpark.DataFrame):
+            self.expression = SPScalarSubquery(expr._DataFrame__plan)
         else:
             raise TypeError("Column constructor only accepts str or expression.")
 
@@ -475,7 +477,10 @@ class Column:
             return SPUnresolvedAlias(self.expression, None)
 
     @classmethod
-    def _to_expr(cls, expr: Union["Column", SPExpression, LiteralType]) -> SPExpression:
+    def _to_expr(
+        cls,
+        expr: Union["Column", SPExpression, LiteralType, snowflake.snowpark.DataFrame],
+    ) -> SPExpression:
         """
         Convert a Column object, or an literal value to an expression.
         If it's a Column, get its expression.
@@ -487,6 +492,8 @@ class Column:
             return expr.expression
         elif isinstance(expr, SPExpression):
             return expr
+        elif isinstance(expr, snowflake.snowpark.DataFrame):
+            return SPScalarSubquery(expr._DataFrame__plan)
         else:
             return SPLiteral(expr)
 
