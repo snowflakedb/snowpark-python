@@ -1146,6 +1146,38 @@ def in_(
         "snowflake.snowpark.DataFrame", ColumnOrLiteral, List[ColumnOrLiteral]
     ],
 ) -> Column:
+    """Returns a conditional expression that you can pass to the filter or where methods to
+    perform the equivalent of a WHERE ... IN query that matches rows containing a sequence of
+    values.
+
+    The expression evaluates to true if the values in a row matches the values in one of
+    the specified sequences.
+
+    The following code returns a DataFrame that contains the rows in which
+    the columns `c1` and `c2` contain the values:
+    - `1` and `"a"`, or
+    - `2` and `"b"`
+    This is equivalent to `SELECT * FROM table WHERE (c1, c2) IN ((1, 'a'), (2, 'b'))`.
+
+    Example::
+
+        df1 = df.filter(in_([col("c1"), col("c2")], [[1, "a"], [2, "b"]]))
+
+    The following code returns a DataFrame that contains the rows where
+    the values of the columns `c1` and `c2` in `df2` match the values of the columns
+    `a` and `b` in `df1`. This is equivalent to
+    SELECT * FROM table2 WHERE (c1, c2) IN (SELECT a, b FROM table1).
+
+    Example::
+
+        val df1 = session.sql("select a, b from table1").
+        val df2 = session.table(table2)
+        val dfFilter = df2.filter(in_([col("c1"), col("c2")], df1))
+
+    Args::
+        cols: A list of the columns to compare for the IN operation.
+        *vals: A list containing the values to compare for the IN operation.
+    """
     if len(vals) == 1 and isinstance(vals[0], (list, set, tuple)):
         vals = vals[0]
     columns = [_to_col_if_str(c, "in_") for c in cols]

@@ -657,10 +657,6 @@ def test_in_expression_2_in_with_subquery(session):
     Utils.check_answer(df4, [Row(False), Row(True), Row(True)])
 
 
-def test_in_expression_3_in_with_all_types(session):
-    pass
-
-
 def test_in_expression_4_negative_test_to_input_column_in_value_list(session):
     df = session.createDataFrame(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
