@@ -127,7 +127,7 @@ class SnowflakePlan(LogicalPlan):
     ):
         super().__init__()
         self.queries: List[Query] = queries
-        self._schema_query: Query = schema_query
+        self._schema_query: str = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
         self.session = session
@@ -144,7 +144,7 @@ class SnowflakePlan(LogicalPlan):
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
-        new_schema_query = self._schema_query.sql
+        new_schema_query = self._schema_query
         new_post_actions = [*self.post_actions]
 
         for plan in subquery_plans:
@@ -152,7 +152,7 @@ class SnowflakePlan(LogicalPlan):
                 if query not in pre_queries:
                     pre_queries.append(query)
             new_schema_query = new_schema_query.replace(
-                plan.queries[-1].sql, plan._schema_query.sql
+                plan.queries[-1].sql, plan._schema_query
             )
             for action in plan.post_actions:
                 if action not in new_post_actions:
