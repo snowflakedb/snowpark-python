@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Literal as SPLiteral,
     Max as SPMax,
     Min as SPMin,
+    MultipleExpression as SPMultipleExpression,
     NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
     Star as SPStar,
     Sum as SPSum,
@@ -58,11 +59,12 @@ from snowflake.snowpark._internal.sp_expressions import (
     TableFunctionExpression as SPTableFunctionExpression,
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrLiteral,
     ColumnOrName,
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.column import CaseExpr, Column
+from snowflake.snowpark.column import CaseExpr, Column, _to_col_if_lit
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UserDefinedFunction
 
@@ -1136,6 +1138,18 @@ def iff(
     function returns ``expr2``.
     """
     return builtin("iff")(condition, expr1, expr2)
+
+
+def in_(
+    cols: List[ColumnOrName],
+    *vals: Union[
+        "snowflake.snowpark.DataFrame", ColumnOrLiteral, List[ColumnOrLiteral]
+    ],
+) -> Column:
+    if len(vals) == 1 and isinstance(vals[0], (list, set, tuple)):
+        vals = vals[0]
+    columns = [_to_col_if_str(c, "in_") for c in cols]
+    return Column(SPMultipleExpression([c.expression for c in columns])).in_(vals)
 
 
 def cume_dist() -> Column:

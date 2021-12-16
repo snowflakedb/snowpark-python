@@ -64,14 +64,14 @@ from snowflake.snowpark.window import Window, WindowSpec
 
 
 def _to_col_if_lit(col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"]):
-    if isinstance(col, Column):
-        return col
-    elif isinstance(col, snowflake.snowpark.DataFrame):
+    if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
         return col
     elif isinstance(col, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
         return Column(SPLiteral(col))
     else:
-        raise TypeError(f"Expected Column, DataFrame or LiteralType, got: {type(col)}")
+        raise TypeError(
+            f"Expected Column, DataFrame, Iterable or LiteralType, got: {type(col)}"
+        )
 
 
 class Column:
@@ -283,7 +283,9 @@ class Column:
                 if isinstance(value_expr, SPLiteral):
                     return
                 elif isinstance(value_expr, SPMultipleExpression):
-                    return map(validate_value, value_expr.expressions)
+                    for expr in value_expr.expressions:
+                        validate_value(expr)
+                    return
                 else:
                     raise TypeError(
                         f"'{type(value_expr)}' is not supported for the values parameter of the function "

@@ -14,7 +14,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkPlanException,
     SnowparkSQLUnexpectedAliasException,
 )
-from snowflake.snowpark.functions import avg, col, lit, parse_json, sql_expr, when
+from snowflake.snowpark.functions import avg, col, in_, lit, parse_json, sql_expr, when
 from snowflake.snowpark.types import StringType
 from tests.utils import TestData, Utils
 
@@ -635,7 +635,26 @@ def test_in_expression_1_in_with_constant_value_list(session):
 
 
 def test_in_expression_2_in_with_subquery(session):
-    pass
+    df0 = session.createDataFrame([[1], [2], [5]]).toDF(["a"])
+    df = session.createDataFrame(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+    ).toDF(["a", "b", "c", "d"])
+
+    # filter without NOT
+    df1 = df.filter(col("a").in_(df0.filter(col("a") < 3)))
+    Utils.check_answer(df1, [Row(1, "a", 1, 1), Row(2, "b", 2, 2)])
+
+    # filter with NOT
+    df2 = df.filter(~df["a"].in_(df0.filter(col("a") < 3)))
+    Utils.check_answer(df2, [Row(3, "b", 33, 33)])
+
+    # select without NOT
+    df3 = df.select(col("a").in_(df0.filter(col("a") < 2)).as_("in_result"))
+    Utils.check_answer(df3, [Row(True), Row(False), Row(False)])
+
+    # select with NOT
+    df4 = df.select(~df["a"].in_(df0.filter(col("a") < 2)).as_("in_result"))
+    Utils.check_answer(df4, [Row(False), Row(True), Row(True)])
 
 
 def test_in_expression_3_in_with_all_types(session):
@@ -643,24 +662,126 @@ def test_in_expression_3_in_with_all_types(session):
 
 
 def test_in_expression_4_negative_test_to_input_column_in_value_list(session):
-    pass
+    df = session.createDataFrame(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+    ).toDF(["a", "b", "c", "d"])
+
+    with pytest.raises(TypeError) as ex_info:
+        df.filter(col("a").in_([col("c")]))
+
+    assert (
+        "is not supported for the values parameter of the function in(). You must either "
+        "specify a sequence of literals or a DataFrame that represents a subquery."
+        in str(ex_info.value)
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.filter(col("a").in_([1, df["c"]]))
+
+    assert (
+        "is not supported for the values parameter of the function in(). You must either "
+        "specify a sequence of literals or a DataFrame that represents a subquery."
+        in str(ex_info.value)
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.filter(col("a").in_([1, df.select("c").limit(1)]))
+
+    assert (
+        "is not supported for the values parameter of the function in(). You must either "
+        "specify a sequence of literals or a DataFrame that represents a subquery."
+        in str(ex_info.value)
+    )
 
 
-def test_in_expression_5_(session):
-    pass
+def test_in_expression_5_negative_test_that_sub_query_has_multiple_columns(session):
+    df = session.createDataFrame(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+    ).toDF("a", "b", "c", "d")
+
+    with pytest.raises(ValueError) as ex_info:
+        df.filter(col("a").in_(df.select("c", "d")))
+
+    assert "does not match the number of columns" in str(ex_info)
 
 
-def test_in_expression_6(session):
-    pass
+def test_in_expression_6_multiple_columns_with_const_values(session):
+    df = session.createDataFrame(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+    ).toDF("a", "b", "c", "d")
+
+    # filter without NOT
+    df1 = df.filter(in_([col("a"), col("b")], [[1, "a"], [2, "b"], [3, "c"]]))
+    Utils.check_answer(df1, [Row(1, "a", 1, 1), Row(2, "b", 2, 2)])
+
+    # filter with NOT
+    df2 = df.filter(~in_([col("a"), col("b")], [[1, "a"], [2, "b"], [3, "c"]]))
+    Utils.check_answer(df2, [Row(3, "b", 33, 33)])
+
+    # select without NOT
+    df3 = df.select(
+        in_([col("a"), col("c")], [[1, 1], [2, 2], [3, 3]]).as_("in_result")
+    )
+    Utils.check_answer(df3, [Row(True), Row(True), Row(False)])
+
+    # select with NOT
+    df4 = df.select(
+        ~in_([col("a"), col("c")], [[1, 1], [2, 2], [3, 3]]).as_("in_result")
+    )
+    Utils.check_answer(df4, [Row(False), Row(False), Row(True)])
 
 
-def test_in_expression_7(session):
-    pass
+def test_in_expression_7_multiple_columns_with_sub_query(session):
+    df0 = session.createDataFrame([[1, "a"], [2, "b"], [3, "c"]]).toDF("a", "b")
+    df = session.createDataFrame(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+    ).toDF("a", "b", "c", "d")
+
+    # filter without NOT
+    df1 = df.filter(in_([col("a"), col("b")], df0))
+    Utils.check_answer(df1, [Row(1, "a", 1, 1), Row(2, "b", 2, 2)])
+
+    # filter with NOT
+    df2 = df.filter(~in_([col("a"), col("b")], df0))
+    Utils.check_answer(df2, [Row(3, "b", 33, 33)])
+
+    # select without NOT
+    df3 = df.select(in_([col("a"), col("b")], df0).as_("in_result"))
+    Utils.check_answer(df3, [Row(True), Row(True), Row(False)])
+
+    # select with NOT
+    df4 = df.select(~in_([col("a"), col("b")], df0).as_("in_result"))
+    Utils.check_answer(df4, [Row(False), Row(False), Row(True)])
 
 
-def test_in_expression_8(session):
-    pass
+def test_in_expression_8_negative_test_to_input_column_in_value_list(session):
+    df = session.createDataFrame(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+    ).toDF("a", "b", "c", "d")
+
+    with pytest.raises(TypeError) as ex_info:
+        df.filter(in_([col("a"), col("b")], [[1, "a"], [col("c"), "b"]]))
+
+    assert (
+        "is not supported for the values parameter of the function in(). You must either "
+        "specify a sequence of literals or a DataFrame that represents a subquery."
+        in str(ex_info.value)
+    )
 
 
-def test_in_expression_9(session):
-    pass
+def test_in_expression_9_negative_test_for_the_column_count_doesnt_match_the_value_list(
+    session,
+):
+    df = session.createDataFrame(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+    ).toDF("a", "b", "c", "d")
+
+    with pytest.raises(ValueError) as ex_info:
+        df.filter(in_([col("a"), col("b")], [[1, "a", 2]]))
+
+    assert "does not match the number of columns" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.filter(in_([col("a"), col("b")], df.select("a", "b", "c")))
+
+    assert "does not match the number of columns" in str(ex_info)
