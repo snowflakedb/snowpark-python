@@ -284,6 +284,17 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> None:
+        if self._is_stored_proc:
+            qualified_stage_name = Utils.normalize_stage_location(stage_location)
+            dest_prefix_name = (
+                dest_prefix
+                if not dest_prefix or dest_prefix.startswith("/")
+                else f"/{dest_prefix}"
+            )
+            dest_path = f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}/{dest_filename}"
+            self._conn.upload_stream(input_stream=input_stream, dest_path=dest_path)
+            return
+
         uri = f"file:///tmp/placeholder/{dest_filename}"
         try:
             self.run_query(
