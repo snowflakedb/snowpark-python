@@ -746,10 +746,6 @@ class Session:
                 "createDataFrame() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
-        # check whether data is empty
-        if len(data) == 0:
-            return DataFrame(self)
-
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         if isinstance(data, pandas.DataFrame):
@@ -770,6 +766,9 @@ class Session:
                 schema=schema,
                 quote_identifiers=False,
             )
+
+        if not data:
+            raise ValueError("data cannot be empty.")
 
         # convert data to be a list of Rows
         # also checks the type of every row, which should be same across data
