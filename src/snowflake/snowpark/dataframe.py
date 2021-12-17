@@ -66,15 +66,13 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
-from snowflake.snowpark.exceptions import (
-    SnowparkClientException,
-    SnowparkDataframeException,
-)
+from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
     _to_col_if_str,
     col,
     row_number,
+    sql_expr,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -398,6 +396,28 @@ class DataFrame:
                 )
 
         return self.__with_plan(SPProject(names, self.__plan))
+
+    def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
+        """
+        Projects a set of SQL expressions and returns a new :class:`DataFrame`.
+        This method is equivalent to ``select(sql_expr(...))`` with :func:`select`
+        and :func:`functions.sql_expr`.
+
+        :func:`selectExpr` is an alias of :func:`select_expr`.
+
+        Args:
+            exprs: The SQL expressions.
+
+        Examples::
+
+            df = session.createDataFrame([-1, 2, 3], schema=["a"])
+            df.select_expr("abs(a)", "a + 2", "cast(a as string)")
+        """
+        return self.select(
+            [sql_expr(expr) for expr in Utils.parse_positional_args_to_list(*exprs)]
+        )
+
+    selectExpr = select_expr
 
     def drop(
         self,
