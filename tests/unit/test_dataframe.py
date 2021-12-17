@@ -3,8 +3,10 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+from unittest.mock import MagicMock
 
 from snowflake.snowpark import DataFrame
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
 
 def test_get_unaliased():
@@ -29,3 +31,9 @@ def test_get_unaliased():
     unaliased = "l_hfdjishafud_A"
     values = DataFrame.get_unaliased(aliased)
     assert len(values) == 0
+
+
+def test_dataframe_method_alias():
+    df = DataFrame(session=MagicMock(), plan=MagicMock())
+    assert df.rename == df.withColumnRenamed
+    assert df.drop_duplicates == df.dropDuplicates

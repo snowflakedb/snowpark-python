@@ -70,6 +70,8 @@ from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
     _to_col_if_str,
+    col,
+    row_number,
     sql_expr,
 )
 from snowflake.snowpark.row import Row
@@ -732,6 +734,41 @@ class DataFrame:
         return self.groupBy(
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
+
+    def dropDuplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
+        """Creates a new DataFrame by removing duplicated rows on given subset of columns.
+
+        If no subset of columns is specified, this function is the same as the :meth:`distinct` function.
+        The result is non-deterministic when removing duplicated rows from the subset of columns but not all columns.
+
+        For example, if we have a DataFrame ``df``, which has columns ("a", "b", "c") and contains three rows ``(1, 1, 1), (1, 1, 2), (1, 2, 3)``,
+        the result of ``df.dropDuplicates("a", "b")`` can be either
+        ``(1, 1, 1), (1, 2, 3)``
+        or
+        ``(1, 1, 2), (1, 2, 3)``
+
+        Args:
+            subset: The column names on which duplicates are dropped.
+
+        :meth:`dropDuplicates` is an alias of :meth:`drop_duplicates`.
+        """
+        if not subset:
+            return self.distinct()
+        subset = Utils.parse_positional_args_to_list(*subset)
+
+        filter_cols = [self.col(x) for x in subset]
+        output_cols = [self.col(col_name) for col_name in self.columns]
+        rownum = row_number().over(
+            snowflake.snowpark.Window.partitionBy(*filter_cols).orderBy(*filter_cols)
+        )
+        rownum_name = Utils.generate_random_alphanumeric(10)
+        return (
+            self.select(*output_cols, rownum.as_(rownum_name))
+            .where(col(rownum_name) == 1)
+            .select(output_cols)
+        )
+
+    drop_duplicates = dropDuplicates
 
     def pivot(
         self,
@@ -1603,6 +1640,54 @@ class DataFrame:
         handling missing values in the DataFrame.
         """
         return self._na
+
+    def withColumnRenamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
+        """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
+
+        Example::
+
+            # This example renames the column `A` as `NEW_A` in the DataFrame.
+            df = session.sql("select 1 as A, 2 as B")
+            df_renamed = df.withColumnRenamed(col("A"), "NEW_A")
+
+        Args:
+            existing: The old column instance or column name to be renamed.
+            new: The new column name.
+
+        :meth:`withColumnRenamed` is an alias of :meth:`rename`.
+        """
+        new_quoted_name = AnalyzerPackage.quote_name(new)
+        if isinstance(existing, str):
+            old_name = AnalyzerPackage.quote_name(existing)
+        elif isinstance(existing, Column):
+            if isinstance(existing.expression, SPAttribute):
+                att = existing.expression
+                old_name = self.__plan.expr_to_alias.get(att.expr_id, att.name)
+            elif isinstance(existing.expression, SPNamedExpression):
+                old_name = existing.expression.name
+            else:
+                raise ValueError(
+                    f"Unable to rename column {existing} because it doesn't exist."
+                )
+        else:
+            raise TypeError("'exisitng' must be a column name or Column object.")
+
+        to_be_renamed = [x for x in self.columns if x.upper() == old_name.upper()]
+        if not to_be_renamed:
+            raise ValueError(
+                f'Unable to rename column "{existing}" because it doesn\'t exist.'
+            )
+        elif len(to_be_renamed) > 1:
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RENAME_COLUMN_BECAUSE_MULTIPLE_EXIST(
+                old_name, new_quoted_name, len(to_be_renamed)
+            )
+        new_columns = [
+            Column(att).as_(new_quoted_name) if old_name == att.name else Column(att)
+            for att in self.__output()
+        ]
+        return self.select(new_columns)
+
+    rename = withColumnRenamed
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:
