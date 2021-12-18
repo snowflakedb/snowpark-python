@@ -130,7 +130,7 @@ def test_negative_test_for_missing_required_parameter_schema(db_parameters):
 
 
 def test_select_current_client(session):
-    current_client = session.sql("select current_client()")._DataFrame__show_string(10)
+    current_client = session.sql("select current_client()")._show_string(10)
     assert snowpark_utils.get_application_name() in current_client
     assert snowpark_utils.get_version() in current_client
 
