@@ -1692,7 +1692,7 @@ class DataFrame:
 
     rename = withColumnRenamed
 
-    def explain(self):
+    def explain(self) -> None:
         """
         Prints the list of queries that will be executed to evaluate this DataFrame.
         Prints the query execution plan if only one SELECT/DML/DDL statement will be executed.
@@ -1702,7 +1702,7 @@ class DataFrame:
         """
         print(self._explain_string())
 
-    def _explain_string(self):
+    def _explain_string(self) -> str:
         output_queries = "\n---\n".join(
             f"{i+1}.\n{query.sql.strip()}"
             for i, query in enumerate(self.__plan.queries)
