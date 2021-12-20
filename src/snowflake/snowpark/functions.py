@@ -138,6 +138,9 @@ def count_distinct(*cols: ColumnOrName) -> Column:
     )
 
 
+countDistinct = count_distinct
+
+
 def covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     """Returns the population covariance for non-null pairs in a group."""
     col1 = _to_col_if_str(column1, "covar_pop")
@@ -416,7 +419,10 @@ def regexp_replace(
     position=lit(1),
     occurences=lit(0),
     *parameters: ColumnOrName,
-):
+) -> Column:
+    """Returns the subject with the specified pattern (or all occurrences of the pattern) either removed or replaced by a replacement string.
+    If no matches are found, returns the original subject.
+    """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
     pat = _to_col_if_str(pattern, sql_func_name)
@@ -428,12 +434,16 @@ def regexp_replace(
     return builtin(sql_func_name)(sub, pat, rep, pos, occ, *params)
 
 
-def concat(*cols: ColumnOrName):
+def concat(*cols: ColumnOrName) -> Column:
+    """Concatenates one or more strings, or concatenates one or more binary values. If any of the values is null, the result is also null."""
+
     columns = [_to_col_if_str(c, "concat") for c in cols]
     return builtin("concat")(*columns)
 
 
-def concat_ws(*cols: ColumnOrName):
+def concat_ws(*cols: ColumnOrName) -> Column:
+    """Concatenates two or more strings, or concatenates two or more binary values. If any of the values is null, the result is also null.
+    The CONCAT_WS operator requires at least two arguments, and uses the first argument to separate all following arguments."""
     columns = [_to_col_if_str(c, "concat_ws") for c in cols]
     return builtin("concat_ws")(*columns)
 
@@ -513,11 +523,25 @@ def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
 
 
-def current_timestamp():
+def current_timestamp() -> Column:
+    """Returns the current timestamp for the system."""
     return builtin("current_timestamp")()
 
 
-def months_between(date1: ColumnOrName, date2: ColumnOrName):
+def current_date() -> Column:
+    """Returns the current date for the system."""
+    return builtin("current_date")()
+
+
+def current_time() -> Column:
+    """Returns the current time for the system."""
+    return builtin("current_time")()
+
+
+def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
+    """Returns the number of months between two DATE or TIMESTAMP values.
+    For example, MONTHS_BETWEEN('2020-02-01'::DATE, '2020-01-01'::DATE) returns 1.0.
+    """
     c1 = _to_col_if_str(date1, "to_date")
     c2 = _to_col_if_str(date2, "to_date")
     return builtin("months_between")(c1, c2)
@@ -999,14 +1023,22 @@ def as_date(variant: ColumnOrName) -> Column:
     return builtin("as_date")(c)
 
 
-def cast(column: ColumnOrName, to: DataType) -> Column:
+def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
+    """Converts a value of one data type into another data type.
+    The semantics of CAST are the same as the semantics of the corresponding TO_ datatype conversion functions.
+    If the cast is not possible, an error is raised."""
     c = _to_col_if_str(column, "cast")
-    return Column(SPCast(c.expression, to))
+    return c.cast(to)
 
 
-def try_cast(column: ColumnOrName, to: DataType) -> Column:
+def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
+    """A special version of CAST for a subset of data type conversions.
+    It performs the same operation (i.e. converts a value of one data type into another data type), but returns a NULL value instead of raising an error when the conversion can not be performed.
+
+    The ``column`` to be ``try_cast`` must be a string column.
+    """
     c = _to_col_if_str(column, "try_cast")
-    return Column(SPCast(c.expression, to, True))
+    return c.try_cast(to)
 
 
 def __as_decimal_or_number(
@@ -1289,16 +1321,19 @@ def ntile(e: ColumnOrName) -> Column:
 
 
 def greatest(*columns: ColumnOrName) -> Column:
+    """Returns the largest value from a list of expressions. If any of the argument values is NULL, the result is NULL. GREATEST supports all data types, including VARIANT."""
     c = [_to_col_if_str(ex, "greatest") for ex in columns]
     return builtin("greatest")(*c)
 
 
 def least(*columns: ColumnOrName) -> Column:
+    """Returns the smallest value from a list of expressions. LEAST supports all data types, including VARIANT."""
     c = [_to_col_if_str(ex, "least") for ex in columns]
     return builtin("least")(*c)
 
 
 def hash(e: ColumnOrName) -> Column:
+    """Returns a signed 64-bit hash value. Note that HASH never returns NULL, even for NULL inputs."""
     c = _to_col_if_str(e, "hash")
     return builtin("hash")(c)
 

@@ -752,9 +752,7 @@ class AnalyzerPackage:
         self, child: str, datatype: DataType, try_: bool = False
     ) -> str:
         return (
-            self._TryCast
-            if try_
-            else self._Cast
+            (self._TryCast if try_ else self._Cast)
             + self._LeftParenthesis
             + child
             + self._As

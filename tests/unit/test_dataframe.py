@@ -37,3 +37,4 @@ def test_dataframe_method_alias():
     df = DataFrame(session=MagicMock(), plan=MagicMock())
     assert df.rename == df.withColumnRenamed
     assert df.drop_duplicates == df.dropDuplicates
+    assert df.minus == df.subtract == df.except_

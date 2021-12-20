@@ -5,7 +5,7 @@
 #
 from typing import Optional, Union
 
-import snowflake.snowpark.functions as functions
+import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.sp_expressions import (
     Add as SPAdd,
@@ -55,7 +55,11 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
     LiteralType,
 )
-from snowflake.snowpark.types import _DATA_TYPE_MAPPINGS, DataType
+from snowflake.snowpark.types import (
+    _DATA_TYPE_MAPPINGS,
+    DataType,
+    _type_string_to_type_object,
+)
 from snowflake.snowpark.window import Window, WindowSpec
 
 
@@ -259,19 +263,18 @@ class Column:
 
     def _cast(self, to: Union[str, DataType], try_=False) -> "Column":
         if isinstance(to, str):
-            try:
-                to = _DATA_TYPE_MAPPINGS[to]
-            except KeyError:
-                raise ValueError("'to' is not a supported type")
+            to = _type_string_to_type_object(to)
         return Column(SPCast(self.expression, to, try_))
 
     def cast(self, to: Union[str, DataType]) -> "Column":
-        """Casts the value of the Column to the specified data type."""
+        """Casts the value of the Column to the specified data type.
+        It raises an error when  the conversion can not be performed.
+        """
         return self._cast(to, False)
 
     def try_cast(self, to: DataType) -> "Column":
-        """Casts the value of the Column to the specified data type.
-        The different from :meth:`cast` is this method doesn't have a SQL error if this column can't be cast to the ``to`` data type.
+        """Tries to cast the value of the Column to the specified data type.
+        It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
         return self._cast(to, True)
 
@@ -348,9 +351,9 @@ class Column:
         Args:
             other: The other column.
         """
-        return functions.startswith(self, other)
+        return snowflake.snowpark.functions.startswith(self, other)
 
-    def substr(self, start_pos, length):
+    def substr(self, start_pos, length) -> "Column":
         """Returns a substring of this string column.
 
         Args:
@@ -359,7 +362,7 @@ class Column:
 
         :meth:`substring` is an alias of :meth:`substr`.
         """
-        return functions.substring(self, start_pos, length)
+        return snowflake.snowpark.functions.substring(self, start_pos, length)
 
     substring = substr
 
