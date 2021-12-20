@@ -5,6 +5,7 @@
 #
 from typing import Optional, Union
 
+import snowflake.snowpark.functions as functions
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.sp_expressions import (
     Add as SPAdd,
@@ -50,8 +51,11 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
-from snowflake.snowpark._internal.sp_types.types_package import LiteralType
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrName,
+    LiteralType,
+)
+from snowflake.snowpark.types import _DATA_TYPE_MAPPINGS, DataType
 from snowflake.snowpark.window import Window, WindowSpec
 
 
@@ -253,9 +257,23 @@ class Column:
         """Unary not."""
         return Column(SPNot(self.expression))
 
-    def cast(self, to: DataType) -> "Column":
+    def _cast(self, to: Union[str, DataType], try_=False) -> "Column":
+        if isinstance(to, str):
+            try:
+                to = _DATA_TYPE_MAPPINGS[to]
+            except KeyError:
+                raise ValueError("'to' is not a supported type")
+        return Column(SPCast(self.expression, to, try_))
+
+    def cast(self, to: Union[str, DataType]) -> "Column":
         """Casts the value of the Column to the specified data type."""
-        return Column(SPCast(self.expression, to))
+        return self._cast(to, False)
+
+    def try_cast(self, to: DataType) -> "Column":
+        """Casts the value of the Column to the specified data type.
+        The different from :meth:`cast` is this method doesn't have a SQL error if this column can't be cast to the ``to`` data type.
+        """
+        return self._cast(to, True)
 
     def desc(self) -> "Column":
         """Returns a Column expression with values sorted in descending order."""
@@ -311,6 +329,9 @@ class Column:
 
         For details, see the Snowflake documentation on
         `regular expressions <https://docs.snowflake.com/en/sql-reference/functions-regexp.html#label-regexp-general-usage-notes>`_.
+
+        :meth:`rlike` is an alias of :meth`regexp`
+
         """
         return Column(
             SPRegExp(
@@ -318,6 +339,29 @@ class Column:
                 Column._to_expr(pattern),
             )
         )
+
+    rlike = regexp
+
+    def startswith(self, other: ColumnOrName) -> "Column":
+        """Returns true if this Column starts with another string.
+
+        Args:
+            other: The other column.
+        """
+        return functions.startswith(self, other)
+
+    def substr(self, start_pos, length):
+        """Returns a substring of this string column.
+
+        Args:
+            start_pos: The starting position of the substring.
+            length: The length of the substring.
+
+        :meth:`substring` is an alias of :meth:`substr`.
+        """
+        return functions.substring(self, start_pos, length)
+
+    substring = substr
 
     def collate(self, collation_spec: str) -> "Column":
         """Returns a copy of the original :class:`Column` with the specified ``collation_spec``

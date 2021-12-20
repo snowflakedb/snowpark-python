@@ -5,7 +5,7 @@
 #
 """This package contains all Snowpark logical types."""
 import re
-from typing import List, Union
+from typing import Dict, List, Optional, Type, Union
 
 
 class DataType:
@@ -321,3 +321,21 @@ class _GeographyType(_AtomicType):
     def type_name(self):
         """Returns GeographyType Info. GeographyType."""
         return self.__repr__()
+
+
+def _get_data_type_mappings(
+    to_fill_dict: Optional[Dict[str, Type[DataType]]] = None,
+    data_type: Optional[Type[DataType]] = None,
+) -> None:
+    if data_type is None:
+        if to_fill_dict is None:
+            to_fill_dict = dict()
+        return _get_data_type_mappings(to_fill_dict, DataType)
+    for child in data_type.__subclasses__():
+        if not child.__name__.startswith("_"):
+            to_fill_dict[child.__name__[:-4].lower()] = child
+        _get_data_type_mappings(to_fill_dict, child)
+    return to_fill_dict
+
+
+_DATA_TYPE_MAPPINGS = _get_data_type_mappings()

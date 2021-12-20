@@ -434,10 +434,11 @@ class IsNotNull(UnaryExpression):
 
 
 class Cast(UnaryExpression):
-    def __init__(self, child: Expression, to: DataType):
+    def __init__(self, child: Expression, to: DataType, try_: bool = False):
         super().__init__(child)
         self.child = child
         self.to = to
+        self.try_ = try_
         self.datatype = child.datatype
         self.nullable = child.nullable
 

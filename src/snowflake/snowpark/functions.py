@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     ArraysOverlap as SPArraysOverlap,
     Avg as SPAverage,
     CaseWhen as SPCaseWhen,
+    Cast as SPCast,
     Count as SPCount,
     FunctionExpression as SPFunctionExpression,
     IsNaN as SPIsNan,
@@ -395,11 +396,46 @@ def substring(
     """Returns the portion of the string or binary value str, starting from the
     character/byte specified by pos, with limited length. The length should be greater
     than or equal to zero. If the length is a negative number, the function returns an
-    empty string."""
+    empty string.
+
+    :func:`substr` is an alias of :func:`substring`.
+    """
     s = _to_col_if_str(str, "substring")
     p = pos if isinstance(pos, Column) else lit(pos)
     l = len if isinstance(len, Column) else lit(len)
     return builtin("substring")(s, p, l)
+
+
+substr = substring
+
+
+def regexp_replace(
+    subject: ColumnOrName,
+    pattern: ColumnOrName,
+    replacement=lit(""),
+    position=lit(1),
+    occurences=lit(0),
+    *parameters: ColumnOrName,
+):
+    sql_func_name = "regexp_replace"
+    sub = _to_col_if_str(subject, sql_func_name)
+    pat = _to_col_if_str(pattern, sql_func_name)
+    rep = _to_col_if_str(replacement, sql_func_name)
+    pos = _to_col_if_str(position, sql_func_name)
+    occ = _to_col_if_str(occurences, sql_func_name)
+
+    params = [_to_col_if_str(p, sql_func_name) for p in parameters]
+    return builtin(sql_func_name)(sub, pat, rep, pos, occ, *params)
+
+
+def concat(*cols: ColumnOrName):
+    columns = [_to_col_if_str(c, "concat") for c in cols]
+    return builtin("concat")(*columns)
+
+
+def concat_ws(*cols: ColumnOrName):
+    columns = [_to_col_if_str(c, "concat_ws") for c in cols]
+    return builtin("concat_ws")(*columns)
 
 
 def translate(
@@ -449,6 +485,16 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
+def to_char(c: ColumnOrName) -> Column:
+    """Converts a Unicode code point (including 7-bit ASCII) into the character that
+    matches the input Unicode."""
+    c = _to_col_if_str(c, "to_char")
+    return builtin("to_char")(c)
+
+
+to_varchar = to_char
+
+
 def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into the corresponding time."""
     c = _to_col_if_str(e, "to_time")
@@ -465,6 +511,16 @@ def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into a date."""
     c = _to_col_if_str(e, "to_date")
     return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
+
+
+def current_timestamp():
+    return builtin("current_timestamp")()
+
+
+def months_between(date1: ColumnOrName, date2: ColumnOrName):
+    c1 = _to_col_if_str(date1, "to_date")
+    c2 = _to_col_if_str(date2, "to_date")
+    return builtin("months_between")(c1, c2)
 
 
 def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
@@ -943,6 +999,16 @@ def as_date(variant: ColumnOrName) -> Column:
     return builtin("as_date")(c)
 
 
+def cast(column: ColumnOrName, to: DataType) -> Column:
+    c = _to_col_if_str(column, "cast")
+    return Column(SPCast(c.expression, to))
+
+
+def try_cast(column: ColumnOrName, to: DataType) -> Column:
+    c = _to_col_if_str(column, "try_cast")
+    return Column(SPCast(c.expression, to, True))
+
+
 def __as_decimal_or_number(
     cast_type: str,
     variant: ColumnOrName,
@@ -1220,6 +1286,21 @@ def ntile(e: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(e, "ntile")
     return builtin("ntile")(c)
+
+
+def greatest(*columns: ColumnOrName) -> Column:
+    c = [_to_col_if_str(ex, "greatest") for ex in columns]
+    return builtin("greatest")(*c)
+
+
+def least(*columns: ColumnOrName) -> Column:
+    c = [_to_col_if_str(ex, "least") for ex in columns]
+    return builtin("least")(*c)
+
+
+def hash(e: ColumnOrName) -> Column:
+    c = _to_col_if_str(e, "hash")
+    return builtin("hash")(c)
 
 
 def udf(

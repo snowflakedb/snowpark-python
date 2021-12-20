@@ -913,10 +913,14 @@ class DataFrame:
 
             df1_except_df2 = df1.except_(df2)
 
+        :meth:`minus` and :meth:`subtract` are aliases of :meth:`except_`.
+
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
         return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
+
+    minus = subtract = except_
 
     def naturalJoin(
         self, right: "DataFrame", join_type: Optional[str] = None
