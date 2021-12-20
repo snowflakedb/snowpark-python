@@ -349,27 +349,23 @@ _DATA_TYPE_MAPPINGS["object"] = MapType
 
 
 def _type_string_to_type_object(type_str: str) -> DataType:
-    type_str = type_str.strip()
+    type_str = type_str.replace(" ", "")
     type_str = type_str.lower()
     if type_str.startswith("decimal"):
         datatype = DecimalType
-        precission_str = type_str.lstrip("decimal")
+        precission_str = type_str.lstrip("decimal(")
         precission_str = precission_str.rstrip(")")
-        precission_str = precission_str.strip()
-        precission_str = precission_str.lstrip("(")
         precissions = precission_str.split(",")
         precissions = [int(x.strip()) for x in precissions]
         return datatype(*precissions)
     elif type_str.startswith("object") or type_str.startswith("map"):
         datatype = MapType
         kv_str = (
-            type_str.lstrip("object")
+            type_str.lstrip("object(")
             if type_str.startswith("object")
-            else type_str.lstrip("map")
+            else type_str.lstrip("map(")
         )
         kv_str = kv_str.rstrip(")")
-        kv_str = kv_str.strip()
-        kv_str = kv_str.lstrip("(")
         kv_str = kv_str.split(",")
         kv_types = [x.strip() for x in kv_str]
         return datatype(*kv_types)
