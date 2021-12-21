@@ -71,6 +71,7 @@ from snowflake.snowpark.functions import (
     _create_table_function_expression,
     _to_col_if_str,
     col,
+    lit,
     row_number,
     sql_expr,
 )
@@ -1640,6 +1641,34 @@ class DataFrame:
         handling missing values in the DataFrame.
         """
         return self._na
+
+    def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
+        """
+        Computes basic statistics for numeric columns, which includes
+        ``count``, ``mean``, ``stddev``, ``min``, and ``max``. If no columns
+        are provided, this function computes statistics for all numerical or
+        string columns. Calling this method on non-numeric columns will
+        raise an exception.
+
+        Args:
+            cols: The names of columns whose basic statistics are computed.
+        """
+        cols = Utils.parse_positional_args_to_list(*cols)
+        if len(cols) == 0:
+            cols = self.columns
+
+        # These are five stats that pyspark's describe() outputs
+        stats = ["count", "mean", "stddev", "min", "max"]
+        res_df = None
+        for stat in stats:
+            agg_stat_df = (
+                self.agg({c: stat for c in cols})
+                .toDF(cols)
+                .select(lit(stat).as_("summary"), *cols)
+            )
+            res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
+
+        return res_df
 
     def withColumnRenamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
