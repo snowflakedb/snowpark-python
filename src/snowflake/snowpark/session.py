@@ -1075,6 +1075,7 @@ class Session:
             return self._run_query(f"explain using text {query}")[0][0]
         # return None for queries which can't be explained
         except ProgrammingError:
+            logger.warning("query '%s' cannot be explained")
             return None
 
     @staticmethod
