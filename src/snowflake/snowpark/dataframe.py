@@ -1716,7 +1716,7 @@ Query List:
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                # skip the query which can't be explained, like SHOW command
+                # skip the query which can't be explained
                 logger.info("%s can't be explained", self.__plan.queries[0].sql)
 
         return f"{msg}\n--------------------------------------------"

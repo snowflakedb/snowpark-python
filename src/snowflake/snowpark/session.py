@@ -1071,10 +1071,10 @@ class Session:
             return False
 
     def _explain_query(self, query: str) -> Optional[str]:
-        # return None for queries which can't be explained, like SHOW command
         try:
             return self._run_query(f"explain using text {query}")[0][0]
-        except:
+        # return None for queries which can't be explained
+        except ProgrammingError:
             return None
 
     @staticmethod
