@@ -261,7 +261,7 @@ class Column:
         """Unary not."""
         return Column(SPNot(self.expression))
 
-    def _cast(self, to: Union[str, DataType], try_=False) -> "Column":
+    def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
         if isinstance(to, str):
             to = _type_string_to_type_object(to)
         return Column(SPCast(self.expression, to, try_))
@@ -333,7 +333,7 @@ class Column:
         For details, see the Snowflake documentation on
         `regular expressions <https://docs.snowflake.com/en/sql-reference/functions-regexp.html#label-regexp-general-usage-notes>`_.
 
-        :meth:`rlike` is an alias of :meth`regexp`
+        :meth:`rlike` is an alias of :meth`regexp`.
 
         """
         return Column(
@@ -345,15 +345,21 @@ class Column:
 
     rlike = regexp
 
-    def startswith(self, other: ColumnOrName) -> "Column":
+    def startswith(self, other: Union["Column", str]) -> "Column":
         """Returns true if this Column starts with another string.
 
         Args:
-            other: The other column.
+            other: A :class:`Column` or a ``str`` that is used to check if this column starts with it.
+                A ``str`` will be interpreted as a literal value instead of a column name.
         """
+        other = snowflake.snowpark.functions.lit(other)
         return snowflake.snowpark.functions.startswith(self, other)
 
-    def substr(self, start_pos, length) -> "Column":
+    def substr(
+        self,
+        start_pos: Union["Column", int] = 1,
+        length: Union["Column", int] = 10 ** 11,
+    ) -> "Column":
         """Returns a substring of this string column.
 
         Args:
@@ -362,6 +368,8 @@ class Column:
 
         :meth:`substring` is an alias of :meth:`substr`.
         """
+        # When length == 10**12, snowflake returns null.
+        # So the default value is set to 10*11, large enough for any string.
         return snowflake.snowpark.functions.substring(self, start_pos, length)
 
     substring = substr

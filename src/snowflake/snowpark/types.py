@@ -43,27 +43,6 @@ class _AtomicType(DataType):
     pass
 
 
-class MapType(DataType):
-    """Map data type. This maps to the OBJECT data type in Snowflake."""
-
-    def __init__(self, key_type, value_type):
-        self.key_type = key_type
-        self.value_type = value_type
-
-    def __repr__(self):
-        return f"MapType[{str(self.key_type)}, {str(self.value_type)}]"
-
-    @property
-    def type_name(self):
-        return self.__repr__()
-
-
-class VariantType(DataType):
-    """Variant data type. This maps to the VARIANT data type in Snowflake."""
-
-    pass
-
-
 # See also StructType in the end of this file.
 
 # Atomic types
@@ -176,7 +155,7 @@ class DecimalType(_FractionalType):
 class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
 
-    def __init__(self, element_type: DataType):
+    def __init__(self, element_type: DataType = StringType()):
         self.element_type = element_type
 
     def __repr__(self):
@@ -186,6 +165,29 @@ class ArrayType(DataType):
     def type_name(self):
         """Returns Array Info. ArrayType(DataType)."""
         return self.__repr__()
+
+
+class MapType(DataType):
+    """Map data type. This maps to the OBJECT data type in Snowflake."""
+
+    def __init__(
+        self, key_type: DataType = StringType(), value_type: DataType = StringType()
+    ):
+        self.key_type = key_type
+        self.value_type = value_type
+
+    def __repr__(self):
+        return f"MapType[{str(self.key_type)}, {str(self.value_type)}]"
+
+    @property
+    def type_name(self):
+        return self.__repr__()
+
+
+class VariantType(DataType):
+    """Variant data type. This maps to the VARIANT data type in Snowflake."""
+
+    pass
 
 
 class ColumnIdentifier:
@@ -345,30 +347,27 @@ _DATA_TYPE_MAPPINGS["int"] = IntegerType
 _DATA_TYPE_MAPPINGS["smallint"] = ShortType
 _DATA_TYPE_MAPPINGS["byteint"] = ByteType
 _DATA_TYPE_MAPPINGS["bigint"] = LongType
+_DATA_TYPE_MAPPINGS["number"] = DecimalType
 _DATA_TYPE_MAPPINGS["object"] = MapType
+_DATA_TYPE_MAPPINGS["array"] = MapType
 
 
 def _type_string_to_type_object(type_str: str) -> DataType:
     type_str = type_str.replace(" ", "")
     type_str = type_str.lower()
-    if type_str.startswith("decimal"):
+    if type_str.startswith("decimal") or type_str.startswith(
+        "number"
+    ):  # TODO: add numeric, number
         datatype = DecimalType
-        precission_str = type_str.lstrip("decimal(")
+        precission_str = (
+            type_str.lstrip("decimal(")
+            if type_str.startswith("decimal")
+            else type_str.lstrip("number(")
+        )
         precission_str = precission_str.rstrip(")")
         precissions = precission_str.split(",")
         precissions = [int(x.strip()) for x in precissions]
         return datatype(*precissions)
-    elif type_str.startswith("object") or type_str.startswith("map"):
-        datatype = MapType
-        kv_str = (
-            type_str.lstrip("object(")
-            if type_str.startswith("object")
-            else type_str.lstrip("map(")
-        )
-        kv_str = kv_str.rstrip(")")
-        kv_str = kv_str.split(",")
-        kv_types = [x.strip() for x in kv_str]
-        return datatype(*kv_types)
     else:
         try:
             return _DATA_TYPE_MAPPINGS[type_str]()

@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import json
 
 import pytest
 
@@ -143,9 +144,7 @@ def test_regexp_replace(session, col_a):
     df2 = session.createDataFrame(
         [["It was the best of times, it was the worst of times"]], schema=["a"]
     )
-    res = df2.select(
-        regexp_replace(col_a, lit("times"), lit("days"), lit(1), lit(2))
-    ).collect()
+    res = df2.select(regexp_replace(col_a, "times", "days", 1, 2, "i")).collect()
     assert res[0][0] == "It was the best of times, it was the worst of days"
 
     df3 = session.createDataFrame([["firstname middlename lastname"]], schema=["a"])
@@ -195,6 +194,36 @@ def test_cast(session, col_a):
     cast_res = df.select(cast(col_a, "date")).collect()
     try_cast_res = df.select(try_cast(col_a, "date")).collect()
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
+
+
+def test_cast_decimal(session):
+    df = session.createDataFrame([[5.2354]], schema=["a"])
+    Utils.check_answer(df.select(cast(df["a"], " decimal ( 3, 2 ) ")), [Row(5.24)])
+
+
+def test_cast_number(session):
+    df = session.createDataFrame([[5.2354]], schema=["a"])
+    Utils.check_answer(df.select(cast(df["a"], " number ( 3, 2 ) ")), [Row(5.24)])
+
+
+def test_cast_map_type(session):
+    df = session.createDataFrame([['{"key": "1"}']], schema=["a"])
+    result = df.select(cast(parse_json(df["a"]), "object")).collect()
+    assert json.loads(result[0][0]) == {"key": "1"}
+
+
+def test_cast_array_type(session):
+    df = session.createDataFrame([["[1,2,3]"]], schema=["a"])
+    result = df.select(cast(parse_json(df["a"]), "array")).collect()
+    assert json.loads(result[0][0]) == [1, 2, 3]
+
+
+def test_startswith(session):
+    Utils.check_answer(
+        TestData.string4(session).select(col("a").startswith(lit("a"))),
+        [Row(True), Row(False), Row(False)],
+        sort=False,
+    )
 
 
 @pytest.mark.parametrize(

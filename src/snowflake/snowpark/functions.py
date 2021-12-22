@@ -414,23 +414,23 @@ substr = substring
 
 def regexp_replace(
     subject: ColumnOrName,
-    pattern: ColumnOrName,
-    replacement=lit(""),
-    position=lit(1),
-    occurences=lit(0),
-    *parameters: ColumnOrName,
+    pattern: Union[Column, str],
+    replacement: Union[Column, str] = lit(""),
+    position: Union[Column, int] = lit(1),
+    occurences: Union[Column, int] = lit(0),
+    *parameters: Union[Column, LiteralType],
 ) -> Column:
     """Returns the subject with the specified pattern (or all occurrences of the pattern) either removed or replaced by a replacement string.
     If no matches are found, returns the original subject.
     """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
-    pat = _to_col_if_str(pattern, sql_func_name)
-    rep = _to_col_if_str(replacement, sql_func_name)
-    pos = _to_col_if_str(position, sql_func_name)
-    occ = _to_col_if_str(occurences, sql_func_name)
+    pat = lit(pattern)
+    rep = lit(replacement)
+    pos = lit(position)
+    occ = lit(occurences)
 
-    params = [_to_col_if_str(p, sql_func_name) for p in parameters]
+    params = [lit(p) for p in parameters]
     return builtin(sql_func_name)(sub, pat, rep, pos, occ, *params)
 
 
@@ -495,11 +495,12 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName) -> Column:
+def to_char(c: ColumnOrName, format: Union[Column, str] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
     c = _to_col_if_str(c, "to_char")
-    return builtin("to_char")(c)
+    format = Column._to_expr(format) if format else None
+    return builtin("to_char")(c, format) if format else builtin("to_char")(c)
 
 
 to_varchar = to_char
@@ -542,8 +543,8 @@ def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
     """Returns the number of months between two DATE or TIMESTAMP values.
     For example, MONTHS_BETWEEN('2020-02-01'::DATE, '2020-01-01'::DATE) returns 1.0.
     """
-    c1 = _to_col_if_str(date1, "to_date")
-    c2 = _to_col_if_str(date2, "to_date")
+    c1 = _to_col_if_str(date1, "months_between")
+    c2 = _to_col_if_str(date2, "months_between")
     return builtin("months_between")(c1, c2)
 
 
@@ -1025,7 +1026,7 @@ def as_date(variant: ColumnOrName) -> Column:
 
 def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     """Converts a value of one data type into another data type.
-    The semantics of CAST are the same as the semantics of the corresponding TO_ datatype conversion functions.
+    The semantics of CAST are the same as the semantics of the corresponding to datatype conversion functions.
     If the cast is not possible, an error is raised."""
     c = _to_col_if_str(column, "cast")
     return c.cast(to)
@@ -1035,7 +1036,7 @@ def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     """A special version of CAST for a subset of data type conversions.
     It performs the same operation (i.e. converts a value of one data type into another data type), but returns a NULL value instead of raising an error when the conversion can not be performed.
 
-    The ``column`` to be ``try_cast`` must be a string column.
+    The ``column`` argument must be a string column in Snowflake.
     """
     c = _to_col_if_str(column, "try_cast")
     return c.try_cast(to)
