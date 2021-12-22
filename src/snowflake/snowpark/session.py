@@ -396,8 +396,12 @@ class Session:
         stage_file_list = self._list_files_in_stage(stage_location)
         normalized_stage_location = Utils.normalize_stage_location(stage_location)
 
-        # always import cloudpickle
-        import_paths = {**self.__import_paths, **self.__cloudpickle_path}
+        # always import cloudpickle for non-stored-proc mode
+        # TODO(SNOW-500845): Remove importing cloudpickle after it is installed on the server side by default
+        import_paths = {**self.__import_paths}
+        if not self._conn._is_stored_proc:
+            import_paths.update(self.__cloudpickle_path)
+
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
             if path.startswith(self.__STAGE_PREFIX):
