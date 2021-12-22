@@ -971,7 +971,7 @@ def test_select_all_on_join_result(session):
     df = df_left.join(df_right)
 
     assert (
-        df.select("*")._DataFrame__show_string(10)
+        df.select("*")._show_string(10)
         == """-------------------------
 |"A"  |"B"  |"C"  |"D"  |
 -------------------------
@@ -980,7 +980,7 @@ def test_select_all_on_join_result(session):
 """
     )
     assert (
-        df.select(df["*"])._DataFrame__show_string(10)
+        df.select(df["*"])._show_string(10)
         == """-------------------------
 |"A"  |"B"  |"C"  |"D"  |
 -------------------------
@@ -989,7 +989,7 @@ def test_select_all_on_join_result(session):
 """
     )
     assert (
-        df.select(df_left["*"], df_right["*"])._DataFrame__show_string(10)
+        df.select(df_left["*"], df_right["*"])._show_string(10)
         == """-------------------------
 |"A"  |"B"  |"C"  |"D"  |
 -------------------------
@@ -999,7 +999,7 @@ def test_select_all_on_join_result(session):
     )
 
     assert (
-        df.select(df_right["*"], df_left["*"])._DataFrame__show_string(10)
+        df.select(df_right["*"], df_left["*"])._show_string(10)
         == """-------------------------
 |"C"  |"D"  |"A"  |"B"  |
 -------------------------
@@ -1017,7 +1017,7 @@ def test_select_left_right_on_join_result(session):
     df = df_left.join(df_right)
     # Select left or right
     assert (
-        df.select(df_left["*"])._DataFrame__show_string(10)
+        df.select(df_left["*"])._show_string(10)
         == """-------------
 |"A"  |"B"  |
 -------------
@@ -1026,7 +1026,7 @@ def test_select_left_right_on_join_result(session):
 """
     )
     assert (
-        df.select(df_right["*"])._DataFrame__show_string(10)
+        df.select(df_right["*"])._show_string(10)
         == """-------------
 |"C"  |"D"  |
 -------------
@@ -1044,7 +1044,7 @@ def test_select_left_right_combination_on_join_result(session):
     df = df_left.join(df_right)
     # Select left["*"] and right['c']
     assert (
-        df.select(df_left["*"], df_right["c"])._DataFrame__show_string(10)
+        df.select(df_left["*"], df_right["c"])._show_string(10)
         == """-------------------
 |"A"  |"B"  |"C"  |
 -------------------
@@ -1053,7 +1053,7 @@ def test_select_left_right_combination_on_join_result(session):
 """
     )
     assert (
-        df.select(df_left["*"], df_right.c)._DataFrame__show_string(10)
+        df.select(df_left["*"], df_right.c)._show_string(10)
         == """-------------------
 |"A"  |"B"  |"C"  |
 -------------------
@@ -1063,7 +1063,7 @@ def test_select_left_right_combination_on_join_result(session):
     )
     # select left["*"] and left["a"]
     assert (
-        df.select(df_left["*"], df_left["a"].as_("l_a"))._DataFrame__show_string(10)
+        df.select(df_left["*"], df_left["a"].as_("l_a"))._show_string(10)
         == """---------------------
 |"A"  |"B"  |"L_A"  |
 ---------------------
@@ -1073,7 +1073,7 @@ def test_select_left_right_combination_on_join_result(session):
     )
     # select right["*"] and right["c"]
     assert (
-        df.select(df_right["*"], df_right["c"].as_("R_C"))._DataFrame__show_string(10)
+        df.select(df_right["*"], df_right["c"].as_("R_C"))._show_string(10)
         == """---------------------
 |"C"  |"D"  |"R_C"  |
 ---------------------
@@ -1084,7 +1084,7 @@ def test_select_left_right_combination_on_join_result(session):
 
     # select right["*"] and left["a"]
     assert (
-        df.select(df_right["*"], df_left["a"])._DataFrame__show_string(10)
+        df.select(df_right["*"], df_left["a"])._show_string(10)
         == """-------------------
 |"C"  |"D"  |"A"  |
 -------------------

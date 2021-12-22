@@ -5,6 +5,7 @@
 #
 import re
 from collections import Counter
+from logging import getLogger
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
@@ -77,6 +78,8 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
+
+logger = getLogger(__name__)
 
 
 class DataFrame:
@@ -1337,7 +1340,7 @@ class DataFrame:
                 an ellipsis (...) at the end of the column.
         """
         print(
-            self.__show_string(
+            self._show_string(
                 n,
                 max_width,
                 _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
@@ -1424,7 +1427,7 @@ class DataFrame:
         )
         return DataFrame(self.session, SPLateral(child.__plan, table_function))
 
-    def __show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
+    def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self.__plan.queries[-1].sql.strip().lower()
 
         if query.startswith("select"):
@@ -1717,6 +1720,35 @@ class DataFrame:
         return self.select(new_columns)
 
     rename = withColumnRenamed
+
+    def explain(self) -> None:
+        """
+        Prints the list of queries that will be executed to evaluate this DataFrame.
+        Prints the query execution plan if only one SELECT/DML/DDL statement will be executed.
+
+        For more information about the query execution plan, see the
+        `EXPLAIN <https://docs.snowflake.com/en/sql-reference/sql/explain.html>`_ command.
+        """
+        print(self._explain_string())
+
+    def _explain_string(self) -> str:
+        output_queries = "\n---\n".join(
+            f"{i+1}.\n{query.sql.strip()}"
+            for i, query in enumerate(self.__plan.queries)
+        )
+        msg = f"""---------DATAFRAME EXECUTION PLAN----------
+Query List:
+{output_queries}"""
+        # if query list contains more then one queries, skip execution plan
+        if len(self.__plan.queries) == 1:
+            exec_plan = self.session._explain_query(self.__plan.queries[0].sql)
+            if exec_plan:
+                msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
+            else:
+                # skip the query which can't be explained
+                logger.info("%s can't be explained", self.__plan.queries[0].sql)
+
+        return f"{msg}\n--------------------------------------------"
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:
