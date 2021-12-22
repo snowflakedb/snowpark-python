@@ -5,7 +5,7 @@
 #
 """This package contains all Snowpark logical types."""
 import re
-from typing import Dict, List, Optional, Type, Union
+from typing import Dict, List, Optional, Tuple, Type, Union
 
 
 class DataType:
@@ -352,24 +352,24 @@ _DATA_TYPE_MAPPINGS["numeric"] = DecimalType
 _DATA_TYPE_MAPPINGS["object"] = MapType
 _DATA_TYPE_MAPPINGS["array"] = ArrayType
 
+_DECIMAL_RE = re.compile(
+    r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
+)
+
+
+def _get_number_precissions(type_str) -> Optional[Tuple[int, int]]:
+    decimal_matches = _DECIMAL_RE.match(type_str)
+    if decimal_matches:
+        return (int(decimal_matches.group(3)), int(decimal_matches.group(4)))
+
 
 def _type_string_to_type_object(type_str: str) -> DataType:
+    precissions = _get_number_precissions(type_str)
+    if precissions:
+        return DecimalType(*precissions)
     type_str = type_str.replace(" ", "")
     type_str = type_str.lower()
-    if (
-        type_str.startswith("decimal")
-        or type_str.startswith("number")
-        or type_str.startswith("numeric")
-    ):
-        precission_str = type_str.lstrip("decimal(")
-        precission_str = precission_str.lstrip("number(")
-        precission_str = precission_str.lstrip("numeric(")
-        precission_str = precission_str.rstrip(")")
-        precissions = precission_str.split(",")
-        precissions = [int(x.strip()) for x in precissions]
-        return DecimalType(*precissions)
-    else:
-        try:
-            return _DATA_TYPE_MAPPINGS[type_str]()
-        except KeyError:
-            raise ValueError(f"'{type_str}' is not a supported type")
+    try:
+        return _DATA_TYPE_MAPPINGS[type_str]()
+    except KeyError:
+        raise ValueError(f"'{type_str}' is not a supported type")
