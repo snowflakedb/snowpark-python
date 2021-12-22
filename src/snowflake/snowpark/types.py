@@ -355,6 +355,7 @@ _DATA_TYPE_MAPPINGS["array"] = ArrayType
 _DECIMAL_RE = re.compile(
     r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
 )
+# support type string format like "  decimal  (  2  ,  1  )  "
 
 
 def _get_number_precissions(type_str) -> Optional[Tuple[int, int]]:
