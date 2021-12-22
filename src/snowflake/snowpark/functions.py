@@ -402,7 +402,7 @@ def substring(
     empty string.
 
     Note:
-        ``pos`` 1 is the first character of the string in Snowflake database.
+        For ``pos``, 1 is the first character of the string in Snowflake database.
 
     :func:`substr` is an alias of :func:`substring`.
     """
