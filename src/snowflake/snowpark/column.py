@@ -248,7 +248,7 @@ class Column:
             df.select(df("a").in_(lit(1), lit(2), lit(3)))
 
         Args:
-            *vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
+            vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
         """
         cols = Utils.parse_positional_args_to_list(*vals)
         cols = [_to_col_if_lit(col) for col in cols]
