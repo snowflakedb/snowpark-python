@@ -11,7 +11,7 @@ import os
 from array import array
 from functools import reduce
 from logging import getLogger
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 
@@ -556,7 +556,7 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
-    def _run_query(self, query: str):
+    def _run_query(self, query: str) -> List[Any]:
         return self._conn.run_query(query)["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
@@ -1069,6 +1069,14 @@ class Session:
             return True
         except ProgrammingError:
             return False
+
+    def _explain_query(self, query: str) -> Optional[str]:
+        try:
+            return self._run_query(f"explain using text {query}")[0][0]
+        # return None for queries which can't be explained
+        except ProgrammingError:
+            logger.warning("query '%s' cannot be explained")
+            return None
 
     @staticmethod
     def _get_active_session() -> Optional["Session"]:
