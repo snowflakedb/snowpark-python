@@ -348,26 +348,26 @@ _DATA_TYPE_MAPPINGS["smallint"] = ShortType
 _DATA_TYPE_MAPPINGS["byteint"] = ByteType
 _DATA_TYPE_MAPPINGS["bigint"] = LongType
 _DATA_TYPE_MAPPINGS["number"] = DecimalType
+_DATA_TYPE_MAPPINGS["numeric"] = DecimalType
 _DATA_TYPE_MAPPINGS["object"] = MapType
-_DATA_TYPE_MAPPINGS["array"] = MapType
+_DATA_TYPE_MAPPINGS["array"] = ArrayType
 
 
 def _type_string_to_type_object(type_str: str) -> DataType:
     type_str = type_str.replace(" ", "")
     type_str = type_str.lower()
-    if type_str.startswith("decimal") or type_str.startswith(
-        "number"
-    ):  # TODO: add numeric, number
-        datatype = DecimalType
-        precission_str = (
-            type_str.lstrip("decimal(")
-            if type_str.startswith("decimal")
-            else type_str.lstrip("number(")
-        )
+    if (
+        type_str.startswith("decimal")
+        or type_str.startswith("number")
+        or type_str.startswith("numeric")
+    ):
+        precission_str = type_str.lstrip("decimal(")
+        precission_str = precission_str.lstrip("number(")
+        precission_str = precission_str.lstrip("numeric(")
         precission_str = precission_str.rstrip(")")
         precissions = precission_str.split(",")
         precissions = [int(x.strip()) for x in precissions]
-        return datatype(*precissions)
+        return DecimalType(*precissions)
     else:
         try:
             return _DATA_TYPE_MAPPINGS[type_str]()

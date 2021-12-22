@@ -179,6 +179,12 @@ def test_to_char(session, col_a):
     assert df[0][0] == "1"
 
 
+def test_date_to_char(session):
+    df = session.createDataFrame([[datetime.date(2021, 12, 21)]], schema=["a"])
+    df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
+    assert df[0][0] == "12-21-2021"
+
+
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_months_between(session, col_a, col_b):
     df = session.createDataFrame(
@@ -196,14 +202,12 @@ def test_cast(session, col_a):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
-def test_cast_decimal(session):
+@pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
+def test_cast_decimal(session, number_word):
     df = session.createDataFrame([[5.2354]], schema=["a"])
-    Utils.check_answer(df.select(cast(df["a"], " decimal ( 3, 2 ) ")), [Row(5.24)])
-
-
-def test_cast_number(session):
-    df = session.createDataFrame([[5.2354]], schema=["a"])
-    Utils.check_answer(df.select(cast(df["a"], " number ( 3, 2 ) ")), [Row(5.24)])
+    Utils.check_answer(
+        df.select(cast(df["a"], f" {number_word} ( 3, 2 ) ")), [Row(5.24)]
+    )
 
 
 def test_cast_map_type(session):

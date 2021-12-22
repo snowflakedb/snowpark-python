@@ -82,14 +82,12 @@ def test_cast_try_cast_negative(session):
     assert "'wrong_type' is not a supported type" in str(execinfo)
 
 
-def test_cast_decimal(session):
+@pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
+def test_cast_decimal(session, number_word):
     df = session.createDataFrame([[5.2354]], schema=["a"])
-    Utils.check_answer(df.select(df["a"].cast(" decimal ( 3, 2 ) ")), [Row(5.24)])
-
-
-def test_cast_number(session):
-    df = session.createDataFrame([[5.2354]], schema=["a"])
-    Utils.check_answer(df.select(df["a"].cast(" number ( 3, 2 ) ")), [Row(5.24)])
+    Utils.check_answer(
+        df.select(df["a"].cast(f" {number_word} ( 3, 2 ) ")), [Row(5.24)]
+    )
 
 
 def test_cast_map_type(session):
@@ -115,7 +113,7 @@ def test_startswith(session):
 def test_substring(session):
     Utils.check_answer(
         TestData.string4(session).select(
-            col("a").substring(1, 3), col("a").substring(2)
+            col("a").substring(1, 3), col("a").substring(2, 100)
         ),
         [Row("app", "pple"), Row("ban", "anana"), Row("pea", "each")],
         sort=False,

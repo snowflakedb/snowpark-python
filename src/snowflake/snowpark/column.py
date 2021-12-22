@@ -357,19 +357,17 @@ class Column:
 
     def substr(
         self,
-        start_pos: Union["Column", int] = 1,
-        length: Union["Column", int] = 10 ** 11,
+        start_pos: Union["Column", int],
+        length: Union["Column", int],
     ) -> "Column":
         """Returns a substring of this string column.
 
         Args:
-            start_pos: The starting position of the substring.
+            start_pos: The starting position of the substring. Please note that the first character has position 1 instead of 0 in Snowflake database.
             length: The length of the substring.
 
         :meth:`substring` is an alias of :meth:`substr`.
         """
-        # When length == 10**12, snowflake returns null.
-        # So the default value is set to 10*11, large enough for any string.
         return snowflake.snowpark.functions.substring(self, start_pos, length)
 
     substring = substr

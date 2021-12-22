@@ -401,6 +401,9 @@ def substring(
     than or equal to zero. If the length is a negative number, the function returns an
     empty string.
 
+    Note:
+        ``pos`` 1 is the first character of the string in Snowflake database.
+
     :func:`substr` is an alias of :func:`substring`.
     """
     s = _to_col_if_str(str, "substring")
@@ -495,12 +498,11 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName, format: Union[Column, str] = None) -> Column:
+def to_char(c: ColumnOrName, format: Optional[Union[Column, str]] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
     c = _to_col_if_str(c, "to_char")
-    format = Column._to_expr(format) if format else None
-    return builtin("to_char")(c, format) if format else builtin("to_char")(c)
+    return builtin("to_char")(c, lit(format)) if format else builtin("to_char")(c)
 
 
 to_varchar = to_char
