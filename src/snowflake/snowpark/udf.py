@@ -22,7 +22,6 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
     _python_type_to_snow_type,
     convert_to_sf_type,
-    snow_type_to_sp_type,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.column import Column
@@ -111,7 +110,7 @@ class UserDefinedFunction:
         return SnowflakeUDF(
             self.name,
             exprs,
-            snow_type_to_sp_type(self._return_type),
+            self._return_type,
             nullable=self._is_return_nullable,
         )
 
