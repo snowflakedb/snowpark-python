@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
-from typing import List, Optional, Union
+from typing import Iterable, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
@@ -59,6 +59,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrLiteral,
     LiteralType,
 )
+from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.window import Window, WindowSpec
 
@@ -213,12 +214,14 @@ class Column:
 
     def in_(
         self,
-        *cols: Union[
-            ColumnOrLiteral, "snowflake.snowpark.DataFrame", List[ColumnOrLiteral]
+        *vals: Union[
+            ColumnOrLiteral,
+            Iterable[ColumnOrLiteral],
+            "snowflake.snowpark.DataFrame",
         ],
     ) -> "Column":
         """Returns a conditional expression that you can pass to the :meth:`DataFrame.filter`
-        or where :meth:`DataFrame.method` to perform the equivalent of a WHERE ... IN query
+        or where :meth:`DataFrame.where` to perform the equivalent of a WHERE ... IN query
         with a specified list of values. You can also pass this to a
         :meth:`DataFrame.select` call.
 
@@ -227,7 +230,7 @@ class Column:
 
         For example, the following code returns a DataFrame that contains the rows where
         the column "a" contains the value 1, 2, or 3. This is equivalent to
-        SELECT * FROM table WHERE a IN (1, 2, 3).
+        ``SELECT * FROM table WHERE a IN (1, 2, 3)``.
 
         :meth:`isin` is an alias for :meth:`in_`.
 
@@ -245,10 +248,9 @@ class Column:
             df.select(df("a").in_(lit(1), lit(2), lit(3)))
 
         Args:
-            *cols: The columns to use to check for membership against this column.
+            *vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
         """
-        if len(cols) == 1 and isinstance(cols[0], (list, set, tuple)):
-            cols = cols[0]
+        cols = Utils.parse_positional_args_to_list(*vals)
         cols = [_to_col_if_lit(col) for col in cols]
 
         column_count = (

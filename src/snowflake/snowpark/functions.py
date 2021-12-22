@@ -1157,7 +1157,7 @@ def in_(
     the columns `c1` and `c2` contain the values:
     - `1` and `"a"`, or
     - `2` and `"b"`
-    This is equivalent to `SELECT * FROM table WHERE (c1, c2) IN ((1, 'a'), (2, 'b'))`.
+    This is equivalent to ``SELECT * FROM table WHERE (c1, c2) IN ((1, 'a'), (2, 'b'))``.
 
     Example::
 
@@ -1166,20 +1166,19 @@ def in_(
     The following code returns a DataFrame that contains the rows where
     the values of the columns `c1` and `c2` in `df2` match the values of the columns
     `a` and `b` in `df1`. This is equivalent to
-    SELECT * FROM table2 WHERE (c1, c2) IN (SELECT a, b FROM table1).
+    ``SELECT * FROM table2 WHERE (c1, c2) IN (SELECT a, b FROM table1)``.
 
     Example::
 
-        val df1 = session.sql("select a, b from table1").
-        val df2 = session.table(table2)
-        val dfFilter = df2.filter(in_([col("c1"), col("c2")], df1))
+        df1 = session.sql("select a, b from table1")
+        df2 = session.table(table2)
+        df = df2.filter(in_([col("c1"), col("c2")], df1))
 
     Args::
         cols: A list of the columns to compare for the IN operation.
-        *vals: A list containing the values to compare for the IN operation.
+        vals: A list containing the values to compare for the IN operation.
     """
-    if len(vals) == 1 and isinstance(vals[0], (list, set, tuple)):
-        vals = vals[0]
+    vals = Utils.parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
     return Column(SPMultipleExpression([c.expression for c in columns])).in_(vals)
 
