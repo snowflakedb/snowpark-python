@@ -62,7 +62,7 @@ def test_read_stage_file_show(session, resources_path):
             session.read.option("purge", False)
             .schema(user_schema)
             .csv(test_file_on_stage)
-            ._DataFrame__show_string()
+            ._show_string()
         )
         assert (
             result_str

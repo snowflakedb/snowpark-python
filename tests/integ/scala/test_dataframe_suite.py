@@ -130,7 +130,7 @@ def test_adjust_column_width_of_show(session):
     # run show(), make sure no error is reported
     df.show(10, 4)
 
-    res = df._DataFrame__show_string(10, 4)
+    res = df._show_string(10, 4)
     assert (
         res
         == """
@@ -148,7 +148,7 @@ def test_show_with_null_data(session):
     # run show(), make sure no error is reported
     df.show(10)
 
-    res = df._DataFrame__show_string(10)
+    res = df._show_string(10)
     assert (
         res
         == """
@@ -169,7 +169,7 @@ def test_show_multi_lines_row(session):
         ]
     ).toDF("a", "b")
 
-    res = df._DataFrame__show_string(2)
+    res = df._show_string(2)
     assert (
         res
         == """
@@ -188,7 +188,7 @@ def test_show_multi_lines_row(session):
 def test_show(session):
     TestData.test_data1(session).show()
 
-    res = TestData.test_data1(session)._DataFrame__show_string(10)
+    res = TestData.test_data1(session)._show_string(10)
     assert (
         res
         == """
@@ -206,7 +206,7 @@ def test_show(session):
     session.sql("drop table if exists test_table_123").show()
 
     # truncate result, no more than 50 characters
-    res = session.sql("drop table if exists test_table_123")._DataFrame__show_string(1)
+    res = session.sql("drop table if exists test_table_123")._show_string(1)
 
     assert (
         res
@@ -1676,7 +1676,7 @@ def test_dataframe_show_with_new_line(session):
         ["line1\nline1.1\n", "line2", "\n", "line4", "\n\n", None]
     ).toDF("a")
     assert (
-        df._DataFrame__show_string(10)
+        df._show_string(10)
         == """
 -----------
 |"A"      |
@@ -1706,7 +1706,7 @@ def test_dataframe_show_with_new_line(session):
         ]
     ).toDF("a", "b")
     assert (
-        df2._DataFrame__show_string(10)
+        df2._show_string(10)
         == """
 -----------------
 |"A"      |"B"  |
@@ -2240,3 +2240,19 @@ def test_replace(session):
         ],
         sort=False,
     )
+
+
+def test_explain(session):
+    df = TestData.column_has_special_char(session)
+    df.explain()
+    explain_string = df._explain_string()
+    assert "Query List" in explain_string
+    assert df._DataFrame__plan.queries[0].sql.strip() in explain_string
+    assert "Logical Execution Plan" in explain_string
+
+    # can't analyze multiple queries
+    explain_string = session.createDataFrame([1] * 20000)._explain_string()
+    assert "CREATE" in explain_string
+    assert "\n---\n" in explain_string
+    assert "SELECT" in explain_string
+    assert "Logical Execution Plan" not in explain_string
