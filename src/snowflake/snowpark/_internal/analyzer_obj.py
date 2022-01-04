@@ -281,7 +281,9 @@ class Analyzer:
         if isinstance(expr, SPUnresolvedAlias):
             return self.analyze(expr.child)
         elif isinstance(expr, SPCast):
-            return self.package.cast_expression(self.analyze(expr.child), expr.to)
+            return self.package.cast_expression(
+                self.analyze(expr.child), expr.to, expr.try_
+            )
         elif isinstance(expr, SPSortOrder):
             return self.package.order_expression(
                 self.analyze(expr.child), expr.direction.sql, expr.null_ordering.sql

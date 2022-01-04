@@ -54,6 +54,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     _FractionalType,
+    _get_number_precissions,
     _IntegralType,
     _NumericType,
 )
@@ -397,3 +398,19 @@ def test_python_type_to_snow_type():
         _python_type_to_snow_type(typing.Union[None, str])
     with pytest.raises(TypeError):
         _python_type_to_snow_type(StringType)
+
+
+@pytest.mark.parametrize("decimal_word", ["number", "numeric", "decimal"])
+def test_decimal_regular_expression(decimal_word):
+    assert _get_number_precissions(f"{decimal_word}") is None
+    assert _get_number_precissions(f" {decimal_word}") is None
+    assert _get_number_precissions(f"{decimal_word} ") is None
+    assert _get_number_precissions(f"{decimal_word}") is None
+    assert _get_number_precissions(f"{decimal_word}(2) ") is None
+    assert _get_number_precissions(f"a{decimal_word}(2,1)") is None
+    assert _get_number_precissions(f"{decimal_word}(2,1) a") is None
+
+    assert _get_number_precissions(f"{decimal_word}(2,1)") == (2, 1)
+    assert _get_number_precissions(f" {decimal_word}(2,1)") == (2, 1)
+    assert _get_number_precissions(f"{decimal_word}(2,1) ") == (2, 1)
+    assert _get_number_precissions(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)

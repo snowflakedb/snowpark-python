@@ -3,6 +3,9 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
+import json
+
 import pytest
 
 from snowflake.connector import ProgrammingError
@@ -41,19 +44,26 @@ from snowflake.snowpark.functions import (
     as_varchar,
     builtin,
     call_builtin,
+    cast,
     ceil,
     char,
     check_json,
     check_xml,
     coalesce,
     col,
+    concat,
+    concat_ws,
     contains,
     count_distinct,
+    current_date,
+    current_time,
+    current_timestamp,
     dateadd,
     datediff,
     exp,
     floor,
     get,
+    greatest,
     is_array,
     is_binary,
     is_char,
@@ -70,8 +80,10 @@ from snowflake.snowpark.functions import (
     is_timestamp_tz,
     is_varchar,
     json_extract_path_text,
+    least,
     lit,
     log,
+    months_between,
     negate,
     not_,
     object_agg,
@@ -84,6 +96,7 @@ from snowflake.snowpark.functions import (
     parse_xml,
     pow,
     random,
+    regexp_replace,
     split,
     sqrt,
     startswith,
@@ -91,6 +104,7 @@ from snowflake.snowpark.functions import (
     substring,
     to_array,
     to_binary,
+    to_char,
     to_date,
     to_json,
     to_object,
@@ -98,6 +112,7 @@ from snowflake.snowpark.functions import (
     to_xml,
     translate,
     trim,
+    try_cast,
     upper,
 )
 from snowflake.snowpark.types import (
@@ -108,6 +123,139 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import TestData, Utils
+
+
+def test_current_date_and_time(session):
+    df1 = session.sql("select current_date(), current_time(), current_timestamp()")
+    df2 = session.createDataFrame([1]).select(
+        current_date(), current_time(), current_timestamp()
+    )
+    assert len(df1.union(df2).collect()) == 1
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_regexp_replace(session, col_a):
+    df = session.createDataFrame(
+        [["It was the best of times, it was the worst of times"]], schema=["a"]
+    )
+    res = df.select(regexp_replace(col_a, lit("( ){1,}"), lit(""))).collect()
+    assert res[0][0] == "Itwasthebestoftimes,itwastheworstoftimes"
+
+    df2 = session.createDataFrame(
+        [["It was the best of times, it was the worst of times"]], schema=["a"]
+    )
+    res = df2.select(regexp_replace(col_a, "times", "days", 1, 2, "i")).collect()
+    assert res[0][0] == "It was the best of times, it was the worst of days"
+
+    df3 = session.createDataFrame([["firstname middlename lastname"]], schema=["a"])
+    res = df3.select(
+        regexp_replace(col_a, lit("(.*) (.*) (.*)"), lit("\\3, \\1 \\2"))
+    ).collect()
+    assert res[0][0] == "lastname, firstname middlename"
+
+
+@pytest.mark.parametrize(
+    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+)
+def test_concat(session, col_a, col_b, col_c):
+    df = session.createDataFrame([["1", "2", "3"]], schema=["a", "b", "c"])
+    res = df.select(concat(col_a, col_b, col_c)).collect()
+    assert res[0][0] == "123"
+
+
+@pytest.mark.parametrize(
+    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+)
+def test_concat_ws(session, col_a, col_b, col_c):
+    df = session.createDataFrame([["1", "2", "3"]], schema=["a", "b", "c"])
+    res = df.select(concat_ws(lit(","), col("a"), col("b"), col("c"))).collect()
+    assert res[0][0] == "1,2,3"
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_to_char(session, col_a):
+    df = session.createDataFrame([[1]], schema=["a"])
+    df.select(to_char(col_a)).collect()
+    assert df[0][0] == "1"
+
+
+def test_date_to_char(session):
+    df = session.createDataFrame([[datetime.date(2021, 12, 21)]], schema=["a"])
+    df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
+    assert df[0][0] == "12-21-2021"
+
+
+@pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
+def test_months_between(session, col_a, col_b):
+    df = session.createDataFrame(
+        [[datetime.date(2021, 12, 20), datetime.date(2021, 11, 20)]], schema=["a", "b"]
+    )
+    res = df.select(months_between(col_a, col_b)).collect()
+    assert res[0][0] == 1.0
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_cast(session, col_a):
+    df = session.createDataFrame([["2018-01-01"]], schema=["a"])
+    cast_res = df.select(cast(col_a, "date")).collect()
+    try_cast_res = df.select(try_cast(col_a, "date")).collect()
+    assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
+
+
+@pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
+def test_cast_decimal(session, number_word):
+    df = session.createDataFrame([[5.2354]], schema=["a"])
+    Utils.check_answer(
+        df.select(cast(df["a"], f" {number_word} ( 3, 2 ) ")), [Row(5.24)]
+    )
+
+
+def test_cast_map_type(session):
+    df = session.createDataFrame([['{"key": "1"}']], schema=["a"])
+    result = df.select(cast(parse_json(df["a"]), "object")).collect()
+    assert json.loads(result[0][0]) == {"key": "1"}
+
+
+def test_cast_array_type(session):
+    df = session.createDataFrame([["[1,2,3]"]], schema=["a"])
+    result = df.select(cast(parse_json(df["a"]), "array")).collect()
+    assert json.loads(result[0][0]) == [1, 2, 3]
+
+
+def test_startswith(session):
+    Utils.check_answer(
+        TestData.string4(session).select(col("a").startswith(lit("a"))),
+        [Row(True), Row(False), Row(False)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+)
+def test_greatest(session, col_a, col_b, col_c):
+    df = session.createDataFrame([[1, 2, 3]], schema=["a", "b", "c"])
+    res = df.select(greatest(col_a, col_b, col_c)).collect()
+    assert res[0][0] == 3
+
+
+@pytest.mark.parametrize(
+    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+)
+def test_least(session, col_a, col_b, col_c):
+    df = session.createDataFrame([[1, 2, 3]], schema=["a", "b", "c"])
+    res = df.select(least(col_a, col_b, col_c)).collect()
+    assert res[0][0] == 1
+
+
+@pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
+def test_hash(session, col_a, col_b):
+    df = session.createDataFrame([[10, "10"]], schema=["a", "b"])
+    from snowflake.snowpark.functions import hash as snow_hash
+
+    res = df.select(snow_hash(col_a), snow_hash(col_b)).collect()
+    assert res[0][0] == 1599627706822963068
+    assert res[0][1] == 3622494980440108984
 
 
 def test_basic_numerical_operations_negative(session):
