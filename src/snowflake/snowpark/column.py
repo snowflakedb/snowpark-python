@@ -60,7 +60,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, _type_string_to_type_object
 from snowflake.snowpark.window import Window, WindowSpec
 
 
@@ -364,9 +364,22 @@ class Column:
         """Unary not."""
         return Column(SPNot(self.expression))
 
-    def cast(self, to: DataType) -> "Column":
-        """Casts the value of the Column to the specified data type."""
-        return Column(SPCast(self.expression, to))
+    def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
+        if isinstance(to, str):
+            to = _type_string_to_type_object(to)
+        return Column(SPCast(self.expression, to, try_))
+
+    def cast(self, to: Union[str, DataType]) -> "Column":
+        """Casts the value of the Column to the specified data type.
+        It raises an error when  the conversion can not be performed.
+        """
+        return self._cast(to, False)
+
+    def try_cast(self, to: DataType) -> "Column":
+        """Tries to cast the value of the Column to the specified data type.
+        It returns a NULL value instead of raising an error when the conversion can not be performed.
+        """
+        return self._cast(to, True)
 
     def desc(self) -> "Column":
         """Returns a Column expression with values sorted in descending order."""
@@ -422,6 +435,9 @@ class Column:
 
         For details, see the Snowflake documentation on
         `regular expressions <https://docs.snowflake.com/en/sql-reference/functions-regexp.html#label-regexp-general-usage-notes>`_.
+
+        :meth:`rlike` is an alias of :meth`regexp`.
+
         """
         return Column(
             SPRegExp(
@@ -429,6 +445,35 @@ class Column:
                 Column._to_expr(pattern),
             )
         )
+
+    rlike = regexp
+
+    def startswith(self, other: Union["Column", str]) -> "Column":
+        """Returns true if this Column starts with another string.
+
+        Args:
+            other: A :class:`Column` or a ``str`` that is used to check if this column starts with it.
+                A ``str`` will be interpreted as a literal value instead of a column name.
+        """
+        other = snowflake.snowpark.functions.lit(other)
+        return snowflake.snowpark.functions.startswith(self, other)
+
+    def substr(
+        self,
+        start_pos: Union["Column", int],
+        length: Union["Column", int],
+    ) -> "Column":
+        """Returns a substring of this string column.
+
+        Args:
+            start_pos: The starting position of the substring. Please note that the first character has position 1 instead of 0 in Snowflake database.
+            length: The length of the substring.
+
+        :meth:`substring` is an alias of :meth:`substr`.
+        """
+        return snowflake.snowpark.functions.substring(self, start_pos, length)
+
+    substring = substr
 
     def collate(self, collation_spec: str) -> "Column":
         """Returns a copy of the original :class:`Column` with the specified ``collation_spec``

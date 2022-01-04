@@ -107,3 +107,11 @@ def test_create_table_function_expression_named_wrong_table_name():
     assert (
         "The table function name should be a str or a list of strs." == ve.value.args[0]
     )
+
+
+def test_functions_alias():
+    import snowflake.snowpark.functions as functions
+
+    assert functions.substr == functions.substring
+    assert functions.count_distinct == functions.countDistinct
+    assert functions.to_char == functions.to_varchar
