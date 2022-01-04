@@ -52,6 +52,7 @@ class AnalyzerPackage:
     _BitShiftRight = " BITSHIFTRIGHT "
     _Like = " LIKE "
     _Cast = " CAST "
+    _TryCast = " TRY_CAST "
     _Iff = " IFF "
     _In = " IN "
     _ToDecimal = " TO_DECIMAL "
@@ -760,9 +761,11 @@ class AnalyzerPackage:
     def window_frame_boundary_expression(self, offset: str, is_following: bool) -> str:
         return offset + (self._Following if is_following else self._Preceding)
 
-    def cast_expression(self, child: str, datatype: DataType) -> str:
+    def cast_expression(
+        self, child: str, datatype: DataType, try_: bool = False
+    ) -> str:
         return (
-            self._Cast
+            (self._TryCast if try_ else self._Cast)
             + self._LeftParenthesis
             + child
             + self._As

@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
+from snowflake.snowpark import Column
 from snowflake.snowpark._internal.sp_expressions import (
     LeafExpression as SPLeafExpression,
 )
@@ -17,3 +18,8 @@ def test_getName():
     # LeafExpression is not named Expression, so should not return a name
     name = col(SPLeafExpression()).getName()
     assert not name
+
+
+def test_aliases():
+    assert Column.substring == Column.substr
+    assert Column.rlike == Column.regexp
