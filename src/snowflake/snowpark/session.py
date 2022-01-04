@@ -586,7 +586,7 @@ class Session:
     def __columns_for_pandas_table(self, pd: "pandas.DataFrame"):
         columns = ", ".join(
             [
-                f"\"{Utils.escape_double_quote(col_name)}\" {_pandas_type_mappings.get(str(col_type).lower(), 'VARCHAR')}"
+                f"{Utils.double_quote_identifier(col_name)} {_pandas_type_mappings.get(str(col_type).lower(), 'VARCHAR')}"
                 for col_name, col_type in zip(pd.columns, pd.dtypes)
             ]
         )

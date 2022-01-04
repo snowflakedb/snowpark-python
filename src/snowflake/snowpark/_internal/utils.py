@@ -332,8 +332,9 @@ class Utils:
         return "".join(choice(ALPHANUMERIC) for _ in range(length))
 
     @staticmethod
-    def escape_double_quote(name: str) -> str:
-        return name.replace('"', '""')
+    def double_quote_identifier(name: str) -> str:
+        name = name.replace('"', '""')
+        return f'"{name}"'
 
 
 class PythonObjJSONEncoder(JSONEncoder):
