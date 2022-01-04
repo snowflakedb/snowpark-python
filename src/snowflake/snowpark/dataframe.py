@@ -5,6 +5,7 @@
 #
 import re
 from collections import Counter
+from logging import getLogger
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
@@ -66,18 +67,19 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
-from snowflake.snowpark.exceptions import (
-    SnowparkClientException,
-    SnowparkDataframeException,
-)
+from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
     _to_col_if_str,
     col,
+    lit,
     row_number,
+    sql_expr,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
+
+logger = getLogger(__name__)
 
 
 class DataFrame:
@@ -398,6 +400,28 @@ class DataFrame:
                 )
 
         return self.__with_plan(SPProject(names, self.__plan))
+
+    def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
+        """
+        Projects a set of SQL expressions and returns a new :class:`DataFrame`.
+        This method is equivalent to ``select(sql_expr(...))`` with :func:`select`
+        and :func:`functions.sql_expr`.
+
+        :func:`selectExpr` is an alias of :func:`select_expr`.
+
+        Args:
+            exprs: The SQL expressions.
+
+        Examples::
+
+            df = session.createDataFrame([-1, 2, 3], schema=["a"])
+            df.select_expr("abs(a)", "a + 2", "cast(a as string)")
+        """
+        return self.select(
+            [sql_expr(expr) for expr in Utils.parse_positional_args_to_list(*exprs)]
+        )
+
+    selectExpr = select_expr
 
     def drop(
         self,
@@ -1320,7 +1344,7 @@ class DataFrame:
                 an ellipsis (...) at the end of the column.
         """
         print(
-            self.__show_string(
+            self._show_string(
                 n,
                 max_width,
                 _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
@@ -1407,7 +1431,7 @@ class DataFrame:
         )
         return DataFrame(self.session, SPLateral(child.__plan, table_function))
 
-    def __show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
+    def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self.__plan.queries[-1].sql.strip().lower()
 
         if query.startswith("select"):
@@ -1625,6 +1649,34 @@ class DataFrame:
         """
         return self._na
 
+    def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
+        """
+        Computes basic statistics for numeric columns, which includes
+        ``count``, ``mean``, ``stddev``, ``min``, and ``max``. If no columns
+        are provided, this function computes statistics for all numerical or
+        string columns. Calling this method on non-numeric columns will
+        raise an exception.
+
+        Args:
+            cols: The names of columns whose basic statistics are computed.
+        """
+        cols = Utils.parse_positional_args_to_list(*cols)
+        if len(cols) == 0:
+            cols = self.columns
+
+        # These are five stats that pyspark's describe() outputs
+        stats = ["count", "mean", "stddev", "min", "max"]
+        res_df = None
+        for stat in stats:
+            agg_stat_df = (
+                self.agg({c: stat for c in cols})
+                .toDF(cols)
+                .select(lit(stat).as_("summary"), *cols)
+            )
+            res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
+
+        return res_df
+
     def withColumnRenamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
@@ -1672,6 +1724,35 @@ class DataFrame:
         return self.select(new_columns)
 
     rename = withColumnRenamed
+
+    def explain(self) -> None:
+        """
+        Prints the list of queries that will be executed to evaluate this DataFrame.
+        Prints the query execution plan if only one SELECT/DML/DDL statement will be executed.
+
+        For more information about the query execution plan, see the
+        `EXPLAIN <https://docs.snowflake.com/en/sql-reference/sql/explain.html>`_ command.
+        """
+        print(self._explain_string())
+
+    def _explain_string(self) -> str:
+        output_queries = "\n---\n".join(
+            f"{i+1}.\n{query.sql.strip()}"
+            for i, query in enumerate(self.__plan.queries)
+        )
+        msg = f"""---------DATAFRAME EXECUTION PLAN----------
+Query List:
+{output_queries}"""
+        # if query list contains more then one queries, skip execution plan
+        if len(self.__plan.queries) == 1:
+            exec_plan = self.session._explain_query(self.__plan.queries[0].sql)
+            if exec_plan:
+                msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
+            else:
+                # skip the query which can't be explained
+                logger.info("%s can't be explained", self.__plan.queries[0].sql)
+
+        return f"{msg}\n--------------------------------------------"
 
     # Utils
     def __resolve(self, col_name: str) -> SPNamedExpression:

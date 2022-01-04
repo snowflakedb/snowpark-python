@@ -40,7 +40,7 @@ def test_literal_basic_types(session):
         "StructField(DECIMAL, Decimal(38, 18), Nullable=False)]"
     )
 
-    show_str = df._DataFrame__show_string(10)
+    show_str = df._show_string(10)
     assert (
         show_str
         == """------------------------------------------------------------------------------------------------------------
@@ -77,7 +77,7 @@ def test_literal_timestamp_and_instant(session):
         "StructField(AWARE_TIME, Time, Nullable=False)]"
     )
 
-    show_str = df._DataFrame__show_string(10)
+    show_str = df._show_string(10)
     assert (
         show_str
         == """------------------------------------------------------------------------------------------------------
@@ -102,7 +102,7 @@ def test_date(session):
         "StructField(DATE, Date, Nullable=False)]"
     )
 
-    show_str = df._DataFrame__show_string(10)
+    show_str = df._show_string(10)
     assert (
         show_str
         == """---------------------
@@ -130,7 +130,7 @@ def test_special_literals(session):
     )
 
     assert (
-        df._DataFrame__show_string(10)
+        df._show_string(10)
         == """
 -----------------------------
 |"ID"  |"NULL"  |"LITERAL"  |
@@ -149,7 +149,7 @@ def test_special_decimal_literals(session):
 
     df = session.range(2).select(normal_scale, small_scale)
 
-    show_str = df._DataFrame__show_string(10)
+    show_str = df._show_string(10)
     assert (
         show_str
         == """-----------------------------------------------------------

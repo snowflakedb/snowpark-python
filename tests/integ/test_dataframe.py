@@ -62,7 +62,7 @@ def test_read_stage_file_show(session, resources_path):
             session.read.option("purge", False)
             .schema(user_schema)
             .csv(test_file_on_stage)
-            ._DataFrame__show_string()
+            ._show_string()
         )
         assert (
             result_str
@@ -914,10 +914,11 @@ def test_create_dataframe_with_single_value(session_cnx):
 
 def test_create_dataframe_empty(session_cnx):
     with session_cnx() as session:
-        data = [[]]
-        df = session.createDataFrame(data)
-        expected_rows = [Row(None)]
-        assert df.collect() == expected_rows
+        assert session.createDataFrame([[]]).collect() == [Row(None)]
+
+        with pytest.raises(ValueError) as ex_info:
+            assert session.createDataFrame([])
+        assert "data cannot be empty" in str(ex_info)
 
 
 def test_create_dataframe_from_none_data(session_cnx):
@@ -1241,3 +1242,53 @@ def test_select_case_expr(session):
     Utils.check_answer(
         df.select(when(col("a") == 1, 4).otherwise(col("a"))), [Row(4), Row(2), Row(3)]
     )
+
+
+def test_select_expr(session):
+    df = session.createDataFrame([-1, 2, 3], schema=["a"])
+    Utils.check_answer(
+        df.select_expr("abs(a)", "a + 2", "cast(a as string)"),
+        [Row(1, 1, "-1"), Row(2, 4, "2"), Row(3, 5, "3")],
+    )
+    Utils.check_answer(
+        df.select_expr(["abs(a)", "a + 2", "cast(a as string)"]),
+        [Row(1, 1, "-1"), Row(2, 4, "2"), Row(3, 5, "3")],
+    )
+
+
+def test_describe(session):
+    assert TestData.test_data2(session).describe().columns == [
+        '"SUMMARY"',
+        '"A"',
+        '"B"',
+    ]
+    Utils.check_answer(
+        TestData.test_data2(session).describe().collect(),
+        [
+            Row("count", 6, 6),
+            Row("mean", 2.0, 1.5),
+            Row("stddev", 0.8944271909999159, 0.5477225575051661),
+            Row("min", 1, 1),
+            Row("max", 3, 2),
+        ],
+    )
+    Utils.check_answer(
+        TestData.test_data3(session).describe().collect(),
+        [
+            Row("count", 2, 1),
+            Row("mean", 1.5, 2.0),
+            Row("stddev", 0.7071067811865476, None),
+            Row("min", 1, 2),
+            Row("max", 2, 2),
+        ],
+    )
+
+    # describe() on the string column
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.lower_case_data(session).describe().collect()
+    assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
+
+    # describe() on the boolean column
+    with pytest.raises(ProgrammingError) as ex_info:
+        TestData.test_data1(session).describe().collect()
+    assert "Invalid argument types for function 'SUM': (BOOLEAN)" in str(ex_info)

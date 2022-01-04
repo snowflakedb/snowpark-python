@@ -11,7 +11,7 @@ import os
 from array import array
 from functools import reduce
 from logging import getLogger
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 
@@ -396,8 +396,12 @@ class Session:
         stage_file_list = self._list_files_in_stage(stage_location)
         normalized_stage_location = Utils.normalize_stage_location(stage_location)
 
-        # always import cloudpickle
-        import_paths = {**self.__import_paths, **self.__cloudpickle_path}
+        # always import cloudpickle for non-stored-proc mode
+        # TODO(SNOW-500845): Remove importing cloudpickle after it is installed on the server side by default
+        import_paths = {**self.__import_paths}
+        if not self._conn._is_stored_proc:
+            import_paths.update(self.__cloudpickle_path)
+
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
             if path.startswith(self.__STAGE_PREFIX):
@@ -556,7 +560,7 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
-    def _run_query(self, query: str):
+    def _run_query(self, query: str) -> List[Any]:
         return self._conn.run_query(query)["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
@@ -746,10 +750,6 @@ class Session:
                 "createDataFrame() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
-        # check whether data is empty
-        if len(data) == 0:
-            return DataFrame(self)
-
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         if isinstance(data, pandas.DataFrame):
@@ -770,6 +770,9 @@ class Session:
                 schema=schema,
                 quote_identifiers=False,
             )
+
+        if not data:
+            raise ValueError("data cannot be empty.")
 
         # convert data to be a list of Rows
         # also checks the type of every row, which should be same across data
@@ -1070,6 +1073,14 @@ class Session:
             return True
         except ProgrammingError:
             return False
+
+    def _explain_query(self, query: str) -> Optional[str]:
+        try:
+            return self._run_query(f"explain using text {query}")[0][0]
+        # return None for queries which can't be explained
+        except ProgrammingError:
+            logger.warning("query '%s' cannot be explained")
+            return None
 
     @staticmethod
     def _get_active_session() -> Optional["Session"]:

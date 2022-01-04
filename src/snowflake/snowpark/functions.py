@@ -52,6 +52,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Literal as SPLiteral,
     Max as SPMax,
     Min as SPMin,
+    MultipleExpression as SPMultipleExpression,
     NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
     Star as SPStar,
     Sum as SPSum,
@@ -59,11 +60,12 @@ from snowflake.snowpark._internal.sp_expressions import (
     TableFunctionExpression as SPTableFunctionExpression,
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
+    ColumnOrLiteral,
     ColumnOrName,
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.column import CaseExpr, Column
+from snowflake.snowpark.column import CaseExpr, Column, _to_col_if_lit
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UserDefinedFunction
 
@@ -1237,6 +1239,49 @@ def iff(
     function returns ``expr2``.
     """
     return builtin("iff")(condition, expr1, expr2)
+
+
+def in_(
+    cols: List[ColumnOrName],
+    *vals: Union[
+        "snowflake.snowpark.DataFrame", ColumnOrLiteral, List[ColumnOrLiteral]
+    ],
+) -> Column:
+    """Returns a conditional expression that you can pass to the filter or where methods to
+    perform the equivalent of a WHERE ... IN query that matches rows containing a sequence of
+    values.
+
+    The expression evaluates to true if the values in a row matches the values in one of
+    the specified sequences.
+
+    The following code returns a DataFrame that contains the rows in which
+    the columns `c1` and `c2` contain the values:
+    - `1` and `"a"`, or
+    - `2` and `"b"`
+    This is equivalent to ``SELECT * FROM table WHERE (c1, c2) IN ((1, 'a'), (2, 'b'))``.
+
+    Example::
+
+        df1 = df.filter(in_([col("c1"), col("c2")], [[1, "a"], [2, "b"]]))
+
+    The following code returns a DataFrame that contains the rows where
+    the values of the columns `c1` and `c2` in `df2` match the values of the columns
+    `a` and `b` in `df1`. This is equivalent to
+    ``SELECT * FROM table2 WHERE (c1, c2) IN (SELECT a, b FROM table1)``.
+
+    Example::
+
+        df1 = session.sql("select a, b from table1")
+        df2 = session.table(table2)
+        df = df2.filter(in_([col("c1"), col("c2")], df1))
+
+    Args::
+        cols: A list of the columns to compare for the IN operation.
+        vals: A list containing the values to compare for the IN operation.
+    """
+    vals = Utils.parse_positional_args_to_list(*vals)
+    columns = [_to_col_if_str(c, "in_") for c in cols]
+    return Column(SPMultipleExpression([c.expression for c in columns])).in_(vals)
 
 
 def cume_dist() -> Column:

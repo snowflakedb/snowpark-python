@@ -7,7 +7,10 @@
 #
 #  File containing the Expression definitions for ASTs (Spark).
 import uuid
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_types.sp_data_types import (
@@ -78,6 +81,25 @@ class NamedExpression:
 
 class LeafExpression(Expression):
     pass
+
+
+class ScalarSubquery(Expression):
+    def __init__(self, plan: "SnowflakePlan"):
+        super().__init__()
+        self.plan = plan
+
+
+class MultipleExpression(Expression):
+    def __init__(self, expressions: List[Expression]):
+        super().__init__()
+        self.expressions = expressions
+
+
+class InExpression(Expression):
+    def __init__(self, columns: Expression, values: List[Expression]):
+        super().__init__()
+        self.columns = columns
+        self.values = values
 
 
 class Star(LeafExpression, NamedExpression):
