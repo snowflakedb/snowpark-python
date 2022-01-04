@@ -56,27 +56,52 @@ class DataFrameWriter:
         )
         return self
 
-    def saveAsTable(self, table_name: Union[str, Iterable[str]]) -> None:
+    def saveAsTable(
+        self,
+        table_name: Union[str, Iterable[str]],
+        *,
+        mode: Optional[str] = None,
+        create_temp_table: bool = False
+    ) -> None:
         """Writes the data to the specified table in a Snowflake database.
 
         Args:
             table_name: A string or list of strings that specify the table name or fully-qualified object identifier
                 (database name, schema name, and table name).
+            mode: One of the following values. When it's ``None``, the save mode set by calling ``df.write.mode(save_mode)`` is used.
+
+                "append": Append data of this DataFrame to existing data.
+
+                "overwrite": Overwrite existing data.
+
+                "errorifexists": Throw an exception if data already exists.
+
+                "ignore": Ignore this operation if data already exists.
+
+            create_temp_table: The to-be-created table will be temporary if this is set to ``True``. Default is ``False``.
 
         Example::
 
             df.write.mode("overwrite").saveAsTable("table1")
+            df.write.saveAsTable("table2", mode="overwrite", create_temp_table=True)
 
         """
         # Snowpark scala doesn't have mode as a param but pyspark has it.
         # They both have mode()
+        save_mode = (
+            Utils.str_to_enum(mode.lower(), _SaveMode, "'mode'")
+            if mode
+            else self.__save_mode
+        )
         full_table_name = (
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
-        # TODO: Should we validate this in the client or allow the server to throw the error?
         Utils.validate_object_name(full_table_name)
         create_table_logic_plan = SnowflakeCreateTable(
-            full_table_name, self.__save_mode, self.__dataframe._DataFrame__plan
+            full_table_name,
+            save_mode,
+            self.__dataframe._DataFrame__plan,
+            create_temp_table,
         )
         session = self.__dataframe.session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
