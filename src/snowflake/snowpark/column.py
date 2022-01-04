@@ -56,15 +56,11 @@ from snowflake.snowpark._internal.sp_expressions import (
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
-    ColumnOrName,
+    ColumnOrLiteral,
     LiteralType,
 )
-from snowflake.snowpark.types import (
-    _DATA_TYPE_MAPPINGS,
-    DataType,
-    _type_string_to_type_object,
-)
 from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark.types import DataType, _type_string_to_type_object
 from snowflake.snowpark.window import Window, WindowSpec
 
 
