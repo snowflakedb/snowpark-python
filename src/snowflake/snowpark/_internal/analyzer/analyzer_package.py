@@ -182,6 +182,9 @@ class AnalyzerPackage:
     def binary_comparison(self, left: str, right: str, symbol: str) -> str:
         return left + self._Space + symbol + self._Space + right
 
+    def subquery_expression(self, child: str) -> str:
+        return self._LeftParenthesis + child + self._RightParenthesis
+
     def binary_arithmetic_expression(self, op: str, left: str, right: str) -> str:
         return (
             self._LeftParenthesis
@@ -213,6 +216,16 @@ class AnalyzerPackage:
 
     def like_expression(self, expr: str, pattern: str) -> str:
         return expr + self._Like + pattern
+
+    def block_expression(self, expressions: List[str]) -> str:
+        return (
+            self._LeftParenthesis
+            + self._Comma.join(expressions)
+            + self._RightParenthesis
+        )
+
+    def in_expression(self, column: str, values: List[str]) -> str:
+        return column + self._In + self.block_expression(values)
 
     def regexp_expression(self, expr: str, pattern: str) -> str:
         return expr + self._RegExp + pattern
