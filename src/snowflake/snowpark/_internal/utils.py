@@ -205,7 +205,11 @@ class Utils:
     def parse_positional_args_to_list(*inputs) -> List:
         """Convert the positional arguments to a list."""
         if len(inputs) == 1:
-            return [*inputs[0]] if isinstance(inputs[0], (list, tuple)) else [inputs[0]]
+            return (
+                [*inputs[0]]
+                if isinstance(inputs[0], (list, tuple, set))
+                else [inputs[0]]
+            )
         else:
             return [*inputs]
 
