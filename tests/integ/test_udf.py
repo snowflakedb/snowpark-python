@@ -74,17 +74,23 @@ def test_basic_udf(session):
     )
 
     df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
-    assert df.select(return1_udf()).collect() == [Row("1"), Row("1")]
-    assert df.select(plus1_udf(col("a")), "a").collect() == [
-        Row(2, 1),
-        Row(4, 3),
-    ]
-    assert df.select(add_udf("a", "b")).collect() == [Row(3), Row(7)]
-    assert df.select(int2str_udf("a")).collect() == [Row("1"), Row("3")]
-    assert df.select(pow_udf(col("a"), "b"), "b").collect() == [
-        Row(1.0, 2),
-        Row(81.0, 4),
-    ]
+    Utils.check_answer(df.select(return1_udf()).collect(), [Row("1"), Row("1")])
+    Utils.check_answer(
+        df.select(plus1_udf(col("a")), "a").collect(),
+        [
+            Row(2, 1),
+            Row(4, 3),
+        ],
+    )
+    Utils.check_answer(df.select(add_udf("a", "b")).collect(), [Row(3), Row(7)])
+    Utils.check_answer(df.select(int2str_udf("a")).collect(), [Row("1"), Row("3")])
+    Utils.check_answer(
+        df.select(pow_udf(col("a"), "b"), "b"),
+        [
+            Row(1.0, 2),
+            Row(81.0, 4),
+        ],
+    )
 
 
 def test_call_named_udf(session):
@@ -95,16 +101,22 @@ def test_call_named_udf(session):
         input_types=[IntegerType(), IntegerType()],
         name="mul",
     )
-    assert session.sql("select mul(13, 19)").collect() == [Row(13 * 19)]
+    Utils.check_answer(session.sql("select mul(13, 19)").collect(), [Row(13 * 19)])
 
     df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
-    assert df.select(call_udf("mul", col("a"), col("b"))).collect() == [
-        Row(2),
-        Row(12),
-    ]
-    assert df.select(
-        call_udf(f"{session.getFullyQualifiedCurrentSchema()}.mul", "a", "b")
-    ).collect() == [Row(2), Row(12)]
+    Utils.check_answer(
+        df.select(call_udf("mul", col("a"), col("b"))).collect(),
+        [
+            Row(2),
+            Row(12),
+        ],
+    )
+    Utils.check_answer(
+        df.select(
+            call_udf(f"{session.getFullyQualifiedCurrentSchema()}.mul", "a", "b")
+        ).collect(),
+        [Row(2), Row(12)],
+    )
 
 
 def test_recursive_udf(session):
@@ -115,9 +127,9 @@ def test_recursive_udf(session):
         factorial, return_type=IntegerType(), input_types=[IntegerType()]
     )
     df = session.range(10).toDF("a")
-    assert df.select(factorial_udf("a")).collect() == [
-        Row(factorial(i)) for i in range(10)
-    ]
+    Utils.check_answer(
+        df.select(factorial_udf("a")).collect(), [Row(factorial(i)) for i in range(10)]
+    )
 
 
 def test_nested_udf(session):
@@ -135,21 +147,27 @@ def test_nested_udf(session):
 
     df = session.createDataFrame([1, 2]).toDF("a")
     outer_func_udf = udf(outer_func, return_type=StringType())
-    assert df.select(outer_func_udf()).collect() == [
-        Row("snow-snow"),
-        Row("snow-snow"),
-    ]
+    Utils.check_answer(
+        df.select(outer_func_udf()).collect(),
+        [
+            Row("snow-snow"),
+            Row("snow-snow"),
+        ],
+    )
 
     # we don't need to register function square()
     cube_udf = udf(cube, return_type=IntegerType(), input_types=[IntegerType()])
-    assert df.select(cube_udf("a")).collect() == [Row(1), Row(8)]
+    Utils.check_answer(df.select(cube_udf("a")).collect(), [Row(1), Row(8)])
 
     # but we can still register function square()
     square_udf = udf(square, return_type=IntegerType(), input_types=[IntegerType()])
-    assert df.select(cube_udf("a"), square_udf("a")).collect() == [
-        Row(1, 1),
-        Row(8, 4),
-    ]
+    Utils.check_answer(
+        df.select(cube_udf("a"), square_udf("a")).collect(),
+        [
+            Row(1, 1),
+            Row(8, 4),
+        ],
+    )
 
 
 def test_python_builtin_udf(session):
@@ -161,13 +179,17 @@ def test_python_builtin_udf(session):
     my_sqrt_udf = udf(my_sqrt, return_type=DoubleType(), input_types=[DoubleType()])
 
     df = session.range(-5, 5).toDF("a")
-    assert df.select(abs_udf("a")).collect() == [Row(abs(i)) for i in range(-5, 5)]
-    assert df.select(sqrt_udf(abs_udf("a"))).collect() == [
-        Row(math.sqrt(abs(i))) for i in range(-5, 5)
-    ]
-    assert df.select(my_sqrt_udf(abs_udf("a"))).collect() == [
-        Row(my_sqrt(abs(i))) for i in range(-5, 5)
-    ]
+    Utils.check_answer(
+        df.select(abs_udf("a")).collect(), [Row(abs(i)) for i in range(-5, 5)]
+    )
+    Utils.check_answer(
+        df.select(sqrt_udf(abs_udf("a"))).collect(),
+        [Row(math.sqrt(abs(i))) for i in range(-5, 5)],
+    )
+    Utils.check_answer(
+        df.select(my_sqrt_udf(abs_udf("a"))).collect(),
+        [Row(my_sqrt(abs(i))) for i in range(-5, 5)],
+    )
 
 
 def test_decorator_udf(session):
@@ -193,16 +215,19 @@ def test_decorator_udf(session):
     res = df.select(
         duplicate_list_elements_udf("a"), duplicate_list_elements_udf("b")
     ).collect()
-    assert res == [
-        Row(
-            "[\n  1,\n  2,\n  1,\n  2,\n  1,\n  2,\n  1,\n  2\n]",
-            "[\n  2,\n  3,\n  2,\n  3,\n  2,\n  3,\n  2,\n  3\n]",
-        ),
-        Row(
-            "[\n  3,\n  4,\n  3,\n  4,\n  3,\n  4,\n  3,\n  4\n]",
-            "[\n  4,\n  5,\n  4,\n  5,\n  4,\n  5,\n  4,\n  5\n]",
-        ),
-    ]
+    Utils.check_answer(
+        res,
+        [
+            Row(
+                "[\n  1,\n  2,\n  1,\n  2,\n  1,\n  2,\n  1,\n  2\n]",
+                "[\n  2,\n  3,\n  2,\n  3,\n  2,\n  3,\n  2,\n  3\n]",
+            ),
+            Row(
+                "[\n  3,\n  4,\n  3,\n  4,\n  3,\n  4,\n  3,\n  4\n]",
+                "[\n  4,\n  5,\n  4,\n  5,\n  4,\n  5,\n  4,\n  5\n]",
+            ),
+        ],
+    )
 
 
 def test_annotation_syntax_udf(session):
@@ -215,10 +240,13 @@ def test_annotation_syntax_udf(session):
         return "snow"
 
     df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
-    assert df.select(add_udf("a", "b"), snow()).collect() == [
-        Row(3, "snow"),
-        Row(7, "snow"),
-    ]
+    Utils.check_answer(
+        df.select(add_udf("a", "b"), snow()).collect(),
+        [
+            Row(3, "snow"),
+            Row(7, "snow"),
+        ],
+    )
 
     # add_udf is a UDF instead of a normal python function,
     # so it can't be simply called
@@ -234,10 +262,13 @@ def test_session_register_udf(session):
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
     )
-    assert df.select(add_udf("a", "b")).collect() == [
-        Row(3),
-        Row(7),
-    ]
+    Utils.check_answer(
+        df.select(add_udf("a", "b")).collect(),
+        [
+            Row(3),
+            Row(7),
+        ],
+    )
 
 
 def test_add_imports_local_file(session, resources_path):
@@ -267,9 +298,10 @@ def test_add_imports_local_file(session, resources_path):
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
-        assert df.select(plus4_then_mod5_udf("a")).collect() == [
-            Row(plus4_then_mod5(i)) for i in range(-5, 5)
-        ]
+        Utils.check_answer(
+            df.select(plus4_then_mod5_udf("a")).collect(),
+            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
+        )
 
         # if import_as argument changes, the checksum of the file will also change
         # and we will overwrite the file in the stage
@@ -279,9 +311,10 @@ def test_add_imports_local_file(session, resources_path):
             return_type=IntegerType(),
             input_types=[IntegerType()],
         )
-        assert df.select(plus4_then_mod5_direct_import_udf("a")).collect() == [
-            Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)
-        ]
+        Utils.check_answer(
+            df.select(plus4_then_mod5_direct_import_udf("a")).collect(),
+            [Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)],
+        )
 
         # clean
         session.clearImports()
@@ -311,9 +344,10 @@ def test_add_imports_local_directory(session, resources_path):
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
-        assert df.select(plus4_then_mod5_udf("a")).collect() == [
-            Row(plus4_then_mod5(i)) for i in range(-5, 5)
-        ]
+        Utils.check_answer(
+            df.select(plus4_then_mod5_udf("a")).collect(),
+            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
+        )
 
         session.addImport(test_files.test_udf_directory)
         plus4_then_mod5_direct_import_udf = udf(
@@ -321,9 +355,10 @@ def test_add_imports_local_directory(session, resources_path):
             return_type=IntegerType(),
             input_types=[IntegerType()],
         )
-        assert df.select(plus4_then_mod5_direct_import_udf("a")).collect() == [
-            Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)
-        ]
+        Utils.check_answer(
+            df.select(plus4_then_mod5_direct_import_udf("a")).collect(),
+            [Row(plus4_then_mod5_direct_import(i)) for i in range(-5, 5)],
+        )
 
         # clean
         session.clearImports()
@@ -350,9 +385,10 @@ def test_add_imports_stage_file(session, resources_path):
         )
 
         df = session.range(-5, 5).toDF("a")
-        assert df.select(plus4_then_mod5_udf("a")).collect() == [
-            Row(plus4_then_mod5(i)) for i in range(-5, 5)
-        ]
+        Utils.check_answer(
+            df.select(plus4_then_mod5_udf("a")).collect(),
+            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
+        )
 
         # clean
         session.clearImports()
@@ -370,7 +406,9 @@ def test_add_imports_package(session):
     plus_one_month_udf = udf(
         plus_one_month, return_type=DateType(), input_types=[DateType()]
     )
-    assert df.select(plus_one_month_udf("a")).collect() == [Row(plus_one_month(d))]
+    Utils.check_answer(
+        df.select(plus_one_month_udf("a")).collect(), [Row(plus_one_month(d))]
+    )
 
     # clean
     session.clearImports()
@@ -424,19 +462,23 @@ def test_type_hints(session):
         return {str(k): f"{str(k)} {str(v)}" for k, v in v.items()}
 
     df = session.createDataFrame([[1, 4], [2, 3]]).toDF("a", "b")
-    assert df.select(
-        add_udf("a", "b"),
-        snow_udf("a"),
-        double_str_list_udf(snow_udf("b")),
-        return_datetime_udf(),
-    ).collect() == [
-        Row(5, "snow", "[\n  null,\n  null\n]", dt),
-        Row(5, None, '[\n  "snow",\n  "snow"\n]', dt),
-    ]
+    Utils.check_answer(
+        df.select(
+            add_udf("a", "b"),
+            snow_udf("a"),
+            double_str_list_udf(snow_udf("b")),
+            return_datetime_udf(),
+        ).collect(),
+        [
+            Row(5, "snow", "[\n  null,\n  null\n]", dt),
+            Row(5, None, '[\n  "snow",\n  "snow"\n]', dt),
+        ],
+    )
 
-    assert TestData.variant1(session).select(
-        return_variant_dict_udf("obj1")
-    ).collect() == [Row('{\n  "Tree": "Tree Pine"\n}')]
+    Utils.check_answer(
+        TestData.variant1(session).select(return_variant_dict_udf("obj1")).collect(),
+        [Row('{\n  "Tree": "Tree Pine"\n}')],
+    )
 
 
 def test_permanent_udf(session, db_parameters):
@@ -453,8 +495,10 @@ def test_permanent_udf(session, db_parameters):
             is_permanent=True,
             stage_location=stage_name,
         )
-        assert session.sql(f"select {udf_name}(8, 9)").collect() == [Row(17)]
-        assert new_session.sql(f"select {udf_name}(8, 9)").collect() == [Row(17)]
+        Utils.check_answer(session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)])
+        Utils.check_answer(
+            new_session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
+        )
     finally:
         session._run_query(f"drop function if exists {udf_name}(int, int)")
         Utils.drop_stage(session, stage_name)
@@ -616,57 +660,70 @@ def test_udf_variant_type(session):
 
     # TODO: SNOW-447601 change to the correct types after the server side has
     #  the complete mapping, for binary and time-related data
-    assert TestData.variant1(session).select(variant_udf("bin1")).collect() == [
-        Row("<class 'str'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("bin1")).collect(),
+        [Row("<class 'str'>")],
+    )
 
-    assert TestData.variant1(session).select(variant_udf("bool1")).collect() == [
-        Row("<class 'bool'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("bool1")).collect(),
+        [Row("<class 'bool'>")],
+    )
 
-    assert TestData.variant1(session).select(variant_udf("str1")).collect() == [
-        Row("<class 'str'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("str1")).collect(),
+        [Row("<class 'str'>")],
+    )
 
-    assert TestData.variant1(session).select(variant_udf("num1")).collect() == [
-        Row("<class 'int'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("num1")).collect(),
+        [Row("<class 'int'>")],
+    )
 
-    assert TestData.variant1(session).select(variant_udf("double1")).collect() == [
-        Row("<class 'float'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("double1")).collect(),
+        [Row("<class 'float'>")],
+    )
 
-    assert TestData.variant1(session).select(variant_udf("decimal1")).collect() == [
-        Row("<class 'float'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("decimal1")).collect(),
+        [Row("<class 'float'>")],
+    )
 
-    assert TestData.variant1(session).select(variant_udf("date1")).collect() == [
-        Row("<class 'str'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("date1")).collect(),
+        [Row("<class 'str'>")],
+    )
 
-    assert TestData.variant1(session).select(variant_udf("time1")).collect() == [
-        Row("<class 'str'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("time1")).collect(),
+        [Row("<class 'str'>")],
+    )
 
-    assert TestData.variant1(session).select(
-        variant_udf("timestamp_ntz1")
-    ).collect() == [Row("<class 'str'>")]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("timestamp_ntz1")).collect(),
+        [Row("<class 'str'>")],
+    )
 
-    assert TestData.variant1(session).select(
-        variant_udf("timestamp_ltz1")
-    ).collect() == [Row("<class 'str'>")]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("timestamp_ltz1")).collect(),
+        [Row("<class 'str'>")],
+    )
 
-    assert TestData.variant1(session).select(
-        variant_udf("timestamp_tz1")
-    ).collect() == [Row("<class 'str'>")]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("timestamp_tz1")).collect(),
+        [Row("<class 'str'>")],
+    )
 
-    assert TestData.variant1(session).select(variant_udf("arr1")).collect() == [
-        Row("<class 'list'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("arr1")).collect(),
+        [Row("<class 'list'>")],
+    )
 
-    assert TestData.variant1(session).select(variant_udf("obj1")).collect() == [
-        Row("<class 'dict'>")
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("obj1")).collect(),
+        [Row("<class 'dict'>")],
+    )
 
     # dynamic typing on one single column
     df = session.sql(
@@ -674,14 +731,17 @@ def test_udf_variant_type(session):
         "('1'), ('1.1'), ('\"2\"'), ('true'), ('[1, 2, 3]'),"
         ' (\'{"a": "foo"}\')'
     )
-    assert df.select(variant_udf("a")).collect() == [
-        Row("<class 'int'>"),
-        Row("<class 'float'>"),
-        Row("<class 'str'>"),
-        Row("<class 'bool'>"),
-        Row("<class 'list'>"),
-        Row("<class 'dict'>"),
-    ]
+    Utils.check_answer(
+        df.select(variant_udf("a")).collect(),
+        [
+            Row("<class 'int'>"),
+            Row("<class 'float'>"),
+            Row("<class 'str'>"),
+            Row("<class 'bool'>"),
+            Row("<class 'list'>"),
+            Row("<class 'dict'>"),
+        ],
+    )
 
 
 def test_udf_replace(session):
@@ -695,10 +755,13 @@ def test_udf_replace(session):
         input_types=[IntegerType(), IntegerType()],
         replace=True,
     )
-    assert df.select(add_udf("a", "b")).collect() == [
-        Row(3),
-        Row(7),
-    ]
+    Utils.check_answer(
+        df.select(add_udf("a", "b")).collect(),
+        [
+            Row(3),
+            Row(7),
+        ],
+    )
 
     # Replace named UDF with different one and expect that data is changed.
     add_udf = session.udf.register(
@@ -708,10 +771,13 @@ def test_udf_replace(session):
         input_types=[IntegerType(), IntegerType()],
         replace=True,
     )
-    assert df.select(add_udf("a", "b")).collect() == [
-        Row(4),
-        Row(8),
-    ]
+    Utils.check_answer(
+        df.select(add_udf("a", "b")).collect(),
+        [
+            Row(4),
+            Row(8),
+        ],
+    )
 
     # Try to register UDF without replacing and expect failure.
     with pytest.raises(ProgrammingError) as ex_info:
@@ -725,10 +791,13 @@ def test_udf_replace(session):
     assert "SQL compilation error" in str(ex_info)
 
     # Expect second UDF version to still be there.
-    assert df.select(add_udf("a", "b")).collect() == [
-        Row(4),
-        Row(8),
-    ]
+    Utils.check_answer(
+        df.select(add_udf("a", "b")).collect(),
+        [
+            Row(4),
+            Row(8),
+        ],
+    )
 
     # Register via udf() in functions.py and expect that it works.
     add_udf = udf(
@@ -738,10 +807,13 @@ def test_udf_replace(session):
         input_types=[IntegerType(), IntegerType()],
         replace=True,
     )
-    assert df.select(add_udf("a", "b")).collect() == [
-        Row(3),
-        Row(7),
-    ]
+    Utils.check_answer(
+        df.select(add_udf("a", "b")).collect(),
+        [
+            Row(3),
+            Row(7),
+        ],
+    )
 
 
 def test_udf_parallel(session):
