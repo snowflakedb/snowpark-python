@@ -335,6 +335,11 @@ class Utils:
     def generate_random_alphanumeric(length: int) -> str:
         return "".join(choice(ALPHANUMERIC) for _ in range(length))
 
+    @staticmethod
+    def double_quote_identifier(name: str) -> str:
+        name = name.replace('"', '""')
+        return f'"{name}"'
+
 
 class PythonObjJSONEncoder(JSONEncoder):
     """Converts common Python objects to json serializable objects."""

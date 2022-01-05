@@ -420,13 +420,18 @@ class SnowflakePlanBuilder:
         )
 
     def save_as_table(
-        self, table_name: str, mode: _SaveMode, child: SnowflakePlan
+        self,
+        table_name: str,
+        mode: _SaveMode,
+        create_temp_table: bool,
+        child: SnowflakePlan,
     ) -> SnowflakePlan:
         if mode == _SaveMode.APPEND:
             create_table = self.pkg.create_table_statement(
                 table_name,
                 self.pkg.attribute_to_schema_string(child.attributes()),
                 error=False,
+                temp=create_temp_table,
             )
             return SnowflakePlan(
                 [
@@ -447,7 +452,7 @@ class SnowflakePlanBuilder:
         elif mode == _SaveMode.OVERWRITE:
             return self.build(
                 lambda x: self.pkg.create_table_as_select_statement(
-                    table_name, x, replace=True
+                    table_name, x, replace=True, temp=create_temp_table
                 ),
                 child,
                 None,
@@ -455,14 +460,16 @@ class SnowflakePlanBuilder:
         elif mode == _SaveMode.IGNORE:
             return self.build(
                 lambda x: self.pkg.create_table_as_select_statement(
-                    table_name, x, error=False
+                    table_name, x, error=False, temp=create_temp_table
                 ),
                 child,
                 None,
             )
         elif mode == _SaveMode.ERROR_IF_EXISTS:
             return self.build(
-                lambda x: self.pkg.create_table_as_select_statement(table_name, x),
+                lambda x: self.pkg.create_table_as_select_statement(
+                    table_name, x, temp=create_temp_table
+                ),
                 child,
                 None,
             )
@@ -754,11 +761,16 @@ class SnowflakeValues(LeafNode):
 # TODO: Similar to the above SnowflakeValues, this should be moved to a different file
 class SnowflakeCreateTable(LogicalPlan):
     def __init__(
-        self, table_name: str, mode: "_SaveMode", query: Optional[LogicalPlan]
+        self,
+        table_name: str,
+        mode: "_SaveMode",
+        query: Optional[LogicalPlan],
+        create_temp_table: bool = False,
     ):
         super().__init__()
         self.table_name = table_name
         self.mode = mode
+        self.create_temp_table = create_temp_table
         self.children.append(query)
 
 

@@ -517,6 +517,7 @@ class Analyzer:
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.mode,
+                logical_plan.create_temp_table,
                 resolved_children[logical_plan.children[0]],
             )
 

@@ -586,7 +586,7 @@ class Session:
     def __columns_for_pandas_table(self, pd: "pandas.DataFrame"):
         columns = ", ".join(
             [
-                f"{col_name} {_pandas_type_mappings.get(str(col_type).lower(), 'VARCHAR')}"
+                f"{Utils.double_quote_identifier(col_name)} {_pandas_type_mappings.get(str(col_type).lower(), 'VARCHAR')}"
                 for col_name, col_type in zip(pd.columns, pd.dtypes)
             ]
         )
@@ -606,6 +606,7 @@ class Session:
         parallel: int = 4,
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
+        create_temp_table: bool = False,
     ) -> DataFrame:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
         Snowpark :class:DataFrame object referring to the table where the
@@ -669,7 +670,9 @@ class Session:
                 columns = self.__columns_for_pandas_table(pd)
                 # if the table already exists we should assume it is of the right shape
                 # and continue the upload
-                self._run_query(f"create table if not exists {location} ({columns})")
+                self._run_query(
+                    f"create {'temporary' if create_temp_table else ''} table if not exists {location} ({columns})"
+                )
             success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
                 pd,
