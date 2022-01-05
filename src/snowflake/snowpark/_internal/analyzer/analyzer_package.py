@@ -571,10 +571,16 @@ class AnalyzerPackage:
         )
 
     def create_table_statement(
-        self, table_name: str, schema: str, replace: bool = False, error: bool = True
+        self,
+        table_name: str,
+        schema: str,
+        replace: bool = False,
+        error: bool = True,
+        temp: bool = False,
     ) -> str:
         return (
             f"{self._Create}{(self._Or + self._Replace) if replace else self._EmptyString} "
+            f"{self._Temporary if temp else self._EmptyString}"
             f"{self._Table}{table_name}{(self._If + self._Not + self._Exists) if not replace and not error else ''}"
             f"{self._LeftParenthesis}{schema}{self._RightParenthesis}"
         )
@@ -593,10 +599,15 @@ class AnalyzerPackage:
         )
 
     def create_table_as_select_statement(
-        self, table_name: str, child: str, replace: bool = False, error: bool = True
+        self,
+        table_name: str,
+        child: str,
+        replace: bool = False,
+        error: bool = True,
+        temp: bool = False,
     ) -> str:
         return (
-            f"{self._Create}{self._Or + self._Replace if replace else self._EmptyString}{self._Table}"
+            f"{self._Create}{self._Or + self._Replace if replace else self._EmptyString}{self._Temporary if temp else self._EmptyString}{self._Table}"
             f"{self._If + self._Not + self._Exists if not replace and not error else self._EmptyString}"
             f" {table_name}{self._As}{self.project_statement([], child)}"
         )

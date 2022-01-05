@@ -66,6 +66,8 @@ def test_write_pandas(session, tmp_table_basic):
     # Auto create a new table
     session._run_query('drop table if exists "tmp_table_basic"')
     df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
+    table_info = session.sql(f"show tables like 'tmp_table_basic'").collect()
+    assert table_info[0]["kind"] == "TABLE"
     results = df.toPandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
@@ -147,3 +149,24 @@ def test_create_dataframe_from_pandas(session):
     # df = session.createDataFrame(pd)
     # results = df.toPandas()
     # assert_frame_equal(results, pd, check_dtype=False)
+
+
+def test_write_pandas_temp_table_and_irregular_column_names(session):
+    pd = PandasDF(
+        [
+            (1, 4.5, "t1"),
+            (2, 7.5, "t2"),
+            (3, 10.5, "t3"),
+        ],
+        columns=["id".upper(), "foot size".upper(), "shoe model".upper()],
+        # TODO: connector's write_pandas doesn't support double quote in column name. It should support column name "foot\"size".
+    )
+    table_name = Utils.random_name()
+    try:
+        session.write_pandas(
+            pd, table_name, auto_create_table=True, create_temp_table=True
+        )
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        assert table_info[0]["kind"] == "TEMPORARY"
+    finally:
+        Utils.drop_table(session, table_name)
