@@ -1292,3 +1292,18 @@ def test_describe(session):
     with pytest.raises(ProgrammingError) as ex_info:
         TestData.test_data1(session).describe().collect()
     assert "Invalid argument types for function 'SUM': (BOOLEAN)" in str(ex_info)
+
+
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_write_temp_table(session, save_mode):
+    table_name = Utils.random_name()
+    df = session.createDataFrame([(1, 2), (3, 4)]).toDF("a", "b")
+    try:
+        df.write.saveAsTable(table_name, mode=save_mode, create_temp_table=True)
+        Utils.check_answer(session.table(table_name), df, True)
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        assert table_info[0]["kind"] == "TEMPORARY"
+    finally:
+        Utils.drop_table(session, table_name)
