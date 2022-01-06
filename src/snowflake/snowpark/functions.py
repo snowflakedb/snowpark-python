@@ -1394,6 +1394,7 @@ def udf(
     name: Optional[str] = None,
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     replace: bool = False,
     parallel: int = 4,
 ) -> Union[UserDefinedFunction, functools.partial]:
@@ -1417,6 +1418,13 @@ def udf(
             when ``is_permanent`` is ``True``, and it will be ignored when
             ``is_permanent`` is ``False``. It can be any stage other than temporary
             stages and external stages.
+        imports: A list of imports that only apply to this UDF. You can use a string to
+            represent a file path (similar with the ``path`` argument in
+            :meth:`~snowflake.snowpark.Session.addImport`) in this list, or a tuple of two
+            strings to represent a file path and an import path (similar with the ``import_path``
+            argument in :meth:`~snowflake.snowpark.Session.addImport`). These UDF-level imports
+            will overwrite the session-level imports added by
+            :meth:`~snowflake.snowpark.Session.addImport`.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
@@ -1441,8 +1449,14 @@ def udf(
         def minus_one(x: int) -> int:
             return x-1
 
+        # use udf-level imports
+        from my_math import sqrt
+        @udf(name="my_sqrt", is_permanent=True, stage_location="@mystage", imports=["my_math.py"])
+        def my_sqrt(x: float) -> float:
+            return sqrt(x)
+
         df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
-        df.select(add_one("a"), minus_one("b"))
+        df.select(add_one("a"), minus_one("b"), my_sqrt("b"))
         session.sql("select minus_one(1)")
 
     Note:
@@ -1471,6 +1485,7 @@ def udf(
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,
+            imports=imports,
             replace=replace,
             parallel=parallel,
         )
@@ -1482,6 +1497,7 @@ def udf(
             name=name,
             is_permanent=is_permanent,
             stage_location=stage_location,
+            imports=imports,
             replace=replace,
             parallel=parallel,
         )
