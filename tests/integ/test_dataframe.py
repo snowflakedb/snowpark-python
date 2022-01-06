@@ -325,6 +325,15 @@ def test_filter(session):
     )
     assert df.filter(col("id") <= 0).collect() == df.filter("id <= 0").collect() == []
 
+    df = session.createDataFrame(["aa", "bb"], schema=["a"])
+    # In SQL expression, we need to use the upper case here when put double quotes
+    # around an identifier, as the case in double quotes will be preserved.
+    assert (
+        df.filter("\"A\" = 'aa'").collect()
+        == df.filter("a = 'aa'").collect()
+        == [Row("aa")]
+    )
+
 
 def test_filter_incorrect_type(session):
     """Tests for incorrect type passed to DataFrame.filter()."""
