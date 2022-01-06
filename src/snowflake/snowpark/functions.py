@@ -1419,9 +1419,9 @@ def udf(
             ``is_permanent`` is ``False``. It can be any stage other than temporary
             stages and external stages.
         imports: A list of imports that only apply to this UDF. You can use a string to
-            represent a file path (similar with the ``path`` argument in
+            represent a file path (similar to the ``path`` argument in
             :meth:`~snowflake.snowpark.Session.addImport`) in this list, or a tuple of two
-            strings to represent a file path and an import path (similar with the ``import_path``
+            strings to represent a file path and an import path (similar to the ``import_path``
             argument in :meth:`~snowflake.snowpark.Session.addImport`). These UDF-level imports
             will overwrite the session-level imports added by
             :meth:`~snowflake.snowpark.Session.addImport`.

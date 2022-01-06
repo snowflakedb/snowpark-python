@@ -448,6 +448,8 @@ def test_udf_level_import(session, resources_path):
             return mod5(x + 4)
 
         df = session.range(-5, 5).toDF("a")
+
+        # with udf-level imports
         plus4_then_mod5_udf = udf(
             plus4_then_mod5,
             return_type=IntegerType(),
@@ -458,6 +460,16 @@ def test_udf_level_import(session, resources_path):
             df.select(plus4_then_mod5_udf("a")).collect(),
             [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
         )
+
+        # without udf-level imports
+        plus4_then_mod5_udf = udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+        )
+        with pytest.raises(ProgrammingError) as ex_info:
+            df.select(plus4_then_mod5_udf("a")).collect(),
+        assert "No module named" in str(ex_info)
 
 
 def test_type_hints(session):
@@ -673,7 +685,7 @@ def test_add_imports_negative(session, resources_path):
     session.clearImports()
 
     with pytest.raises(TypeError) as ex_info:
-        plus4_then_mod5_udf = udf(
+        udf(
             plus4_then_mod5,
             return_type=IntegerType(),
             input_types=[IntegerType()],

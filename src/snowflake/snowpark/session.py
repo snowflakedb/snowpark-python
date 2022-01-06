@@ -316,7 +316,7 @@ class Session:
 
     def removeImport(self, path: str) -> None:
         """
-        Removes a file in stage or local file from imports of a user-defined function (UDF).
+        Removes a file in stage or local file from the imports of a user-defined function (UDF).
 
         Args:
             path: a path pointing to a local file or a remote file in the stage
@@ -340,7 +340,7 @@ class Session:
 
     def clearImports(self) -> None:
         """
-        Clears all files in stage or local files from imports of a user-defined function (UDF).
+        Clears all files in a stage or local files from the imports of a user-defined function (UDF).
 
         Example::
 
