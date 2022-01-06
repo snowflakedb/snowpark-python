@@ -470,27 +470,36 @@ class DataFrame:
         else:
             return self.select(list(keep_col_names))
 
-    def filter(self, expr: Column) -> "DataFrame":
+    def filter(self, expr: Union[Column, str]) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
         Examples::
 
-            df_filtered = df.filter(col("A") > 1 & col("B") < 100)
+            df_filtered = df.filter((col("A") > 1) & (col("B") < 100))
 
             # The following two result in the same SQL query:
             prices_df.filter(col("price") > 100)
-            prices_df.where(col("price") > 100)
+            prices_df.filter("price > 100")
 
         Args:
-            expr: a :class:`Column` expression.
+            expr: a :class:`Column` expression or SQL text.
+
+        :meth:`where` is an alias of :meth:`filter`.
         """
-        if not isinstance(expr, Column):
+        if not isinstance(expr, (Column, str)):
             raise TypeError(
-                f"The input type of filter() must be Column. Got: {type(expr)}"
+                f"The input type of filter() must be Column or str. Got: {type(expr)}"
             )
 
-        return self.__with_plan(SPFilter(expr.expression, self.__plan))
+        return self.__with_plan(
+            SPFilter(
+                expr.expression
+                if isinstance(expr, Column)
+                else sql_expr(expr).expression,
+                self.__plan,
+            )
+        )
 
     where = filter
 
