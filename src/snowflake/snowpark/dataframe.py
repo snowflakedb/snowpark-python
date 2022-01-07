@@ -209,6 +209,8 @@ class DataFrame:
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
         self.__placeholder_output = None
+        self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
+
         self._stat = DataFrameStatFunctions(self)
         self.approxQuantile = self._stat.approxQuantile
         self.corr = self._stat.corr
@@ -221,7 +223,16 @@ class DataFrame:
         self.fillna = self._na.fill
         self.replace = self._na.replace
 
-        self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
+    # Add the following lines so API docs have them
+    approxQuantile = DataFrameStatFunctions.approxQuantile
+    corr = DataFrameStatFunctions.corr
+    cov = DataFrameStatFunctions.cov
+    crosstab = DataFrameStatFunctions.crosstab
+    sampleBy = DataFrameStatFunctions.sampleBy
+
+    dropna = DataFrameNaFunctions.drop
+    fillna = DataFrameNaFunctions.fill
+    replace = DataFrameNaFunctions.replace
 
     @staticmethod
     def get_unaliased(col_name: str) -> List[str]:
