@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
 #
 import functools
+import os
 import time
 from logging import getLogger
 from typing import IO, Any, Dict, List, Optional, Union
@@ -259,18 +260,25 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> None:
-        uri = f"file://{path}"
-        self.run_query(
-            self.__build_put_statement(
-                uri,
-                stage_location,
-                dest_prefix,
-                parallel,
-                compress_data,
-                source_compression,
-                overwrite,
+        if self._is_stored_proc:
+            file_name = os.path.basename(path)
+            target_path = self.__build_target_path(stage_location, dest_prefix)
+            self._conn.cursor().upload_stream(
+                open(path, "rb"), f"{target_path}/{file_name}"
             )
-        )
+        else:
+            uri = f"file://{path}"
+            self.run_query(
+                self.__build_put_statement(
+                    uri,
+                    stage_location,
+                    dest_prefix,
+                    parallel,
+                    compress_data,
+                    source_compression,
+                    overwrite,
+                )
+            )
 
     @_Decorator.log_msg_and_telemetry("Uploading stream to stage")
     def upload_stream(
@@ -286,18 +294,25 @@ class ServerConnection:
     ) -> None:
         uri = f"file:///tmp/placeholder/{dest_filename}"
         try:
-            self.run_query(
-                self.__build_put_statement(
-                    uri,
-                    stage_location,
-                    dest_prefix,
-                    parallel,
-                    compress_data,
-                    source_compression,
-                    overwrite,
-                ),
-                file_stream=input_stream,
-            )
+            if self._is_stored_proc:
+                input_stream.seek(0)
+                target_path = self.__build_target_path(stage_location, dest_prefix)
+                self._conn.cursor().upload_stream(
+                    input_stream, f"{target_path}/{dest_filename}"
+                )
+            else:
+                self.run_query(
+                    self.__build_put_statement(
+                        uri,
+                        stage_location,
+                        dest_prefix,
+                        parallel,
+                        compress_data,
+                        source_compression,
+                        overwrite,
+                    ),
+                    file_stream=input_stream,
+                )
         # If ValueError is raised and the stream is closed, we throw the error.
         # https://docs.python.org/3/library/io.html#io.IOBase.close
         except ValueError as ex:
@@ -307,6 +322,15 @@ class ServerConnection:
                 )
             else:
                 raise ex
+
+    def __build_target_path(self, stage_location: str, dest_prefix: str = ""):
+        qualified_stage_name = Utils.normalize_stage_location(stage_location)
+        dest_prefix_name = (
+            dest_prefix
+            if not dest_prefix or dest_prefix.startswith("/")
+            else f"/{dest_prefix}"
+        )
+        return f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
 
     def __build_put_statement(
         self,
@@ -318,15 +342,7 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> str:
-        qualified_stage_name = Utils.normalize_stage_location(stage_location)
-        dest_prefix_name = (
-            dest_prefix
-            if not dest_prefix or dest_prefix.startswith("/")
-            else f"/{dest_prefix}"
-        )
-        target_path = (
-            f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
-        )
+        target_path = self.__build_target_path(stage_location, dest_prefix)
         parallel_str = f"PARALLEL = {parallel}"
         compress_str = f"AUTO_COMPRESS = {str(compress_data).upper()}"
         source_compression_str = f"SOURCE_COMPRESSION = {source_compression.upper()}"
