@@ -15,6 +15,7 @@ VERSION = (1, 1, 1, None)  # Default, needed so code will compile
 with open(os.path.join(SNOWPARK_SRC_DIR, "version.py"), encoding="utf-8") as f:
     exec(f.read())
 version = ".".join([str(v) for v in VERSION if v is not None])
+snowflake_connector_python_version = "2.7.2"
 
 setup(
     name="snowflake-snowpark-python",
@@ -36,7 +37,7 @@ setup(
         "setuptools>=40.6.0",
         "wheel",
         "cloudpickle>=1.6.0",
-        "snowflake-connector-python>=2.6.2",
+        f"snowflake-connector-python>={snowflake_connector_python_version}",
     ],
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here
@@ -55,7 +56,7 @@ setup(
         "snowflake.snowpark": ["*.pem", "*.json", "*.rst", "LICENSE.txt"],
     },
     extras_require={
-        "pandas": "snowflake-connector-python[pandas]>=2.6.2",
+        "pandas": f"snowflake-connector-python[pandas]>={snowflake_connector_python_version}",
         "development": [
             "pytest",
             "pytest-cov",
