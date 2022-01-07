@@ -1071,11 +1071,8 @@ class Session:
         )
 
     def _table_exists(self, table_name: str):
-        try:
-            self._run_query(f"DESCRIBE TABLE {table_name}")
-            return True
-        except ProgrammingError:
-            return False
+        tables = self._run_query(f"show tables like '{table_name}'")
+        return tables is not None and len(tables) > 0
 
     def _explain_query(self, query: str) -> Optional[str]:
         try:
