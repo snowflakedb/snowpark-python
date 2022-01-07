@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import array_agg, col, lit, parse_json
