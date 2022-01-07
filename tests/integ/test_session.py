@@ -82,3 +82,10 @@ def test_list_files_in_stage(session, resources_path):
     finally:
         Utils.drop_stage(session, stage_name)
         Utils.drop_stage(session, special_name)
+
+
+def test_table_exists(session):
+    table_name = Utils.random_name()
+    assert session._table_exists(table_name) is False
+    session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
+    assert session._table_exists(table_name) is True
