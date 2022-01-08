@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
 from snowflake.snowpark._internal.utils import Utils as InternalUtils
