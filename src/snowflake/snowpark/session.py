@@ -43,6 +43,7 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
+    _get_snowflake_type_from_pandas_type,
     _infer_schema_from_list,
     _merge_type,
     _pandas_type_mappings,
@@ -586,7 +587,7 @@ class Session:
     def __columns_for_pandas_table(self, pd: "pandas.DataFrame"):
         columns = ", ".join(
             [
-                f"{Utils.double_quote_identifier(col_name)} {_pandas_type_mappings.get(str(col_type).lower(), 'VARCHAR')}"
+                f"{Utils.double_quote_identifier(col_name)} {_get_snowflake_type_from_pandas_type(str(col_type))}"
                 for col_name, col_type in zip(pd.columns, pd.dtypes)
             ]
         )

@@ -277,6 +277,15 @@ _pandas_type_mappings = {
     "boolean": "BOOLEAN",
 }
 
+
+def _get_snowflake_type_from_pandas_type(pandas_type: str) -> str:
+    pandas_type = pandas_type.lower()
+    return _pandas_type_mappings.get(
+        pandas_type,
+        "TIMESTAMP_TZ" if pandas_type.startswith("datetime64[ns,") else "VARCHAR",
+    )
+
+
 _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = tuple(_type_mappings.keys())
 _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     *_type_mappings.values(),
