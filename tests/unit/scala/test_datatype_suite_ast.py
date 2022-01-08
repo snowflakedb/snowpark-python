@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2021 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
 from snowflake.snowpark._internal.sp_types.sp_data_types import (

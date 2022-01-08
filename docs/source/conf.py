@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath("../../src"))
 # -- Project information -----------------------------------------------------
 
 project = "Snowpark API Reference (Python)"
-copyright = "2021, Snowflake Inc"
+copyright = "2022, Snowflake Inc"
 author = "Snowflake Inc."
 
 # The full version, including alpha/beta/rc tags
