@@ -146,9 +146,11 @@ class ServerConnection:
             "SELECT CURRENT_DATABASE()"
         )
         return (
-            AnalyzerPackage.quote_name_without_upper_casing(database_name)
-            if not unquoted
-            else AnalyzerPackage._escape_quotes(database_name)
+            (
+                AnalyzerPackage.quote_name_without_upper_casing(database_name)
+                if not unquoted
+                else AnalyzerPackage._escape_quotes(database_name)
+            )
             if database_name
             else None
         )
@@ -159,9 +161,11 @@ class ServerConnection:
             "SELECT CURRENT_SCHEMA()"
         )
         return (
-            AnalyzerPackage.quote_name_without_upper_casing(schema_name)
-            if not unquoted
-            else AnalyzerPackage._escape_quotes(schema_name)
+            (
+                AnalyzerPackage.quote_name_without_upper_casing(schema_name)
+                if not unquoted
+                else AnalyzerPackage._escape_quotes(schema_name)
+            )
             if schema_name
             else None
         )
