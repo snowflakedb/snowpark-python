@@ -18,7 +18,6 @@ import cloudpickle
 import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
-from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark import Column, DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
@@ -43,10 +42,8 @@ from snowflake.snowpark._internal.sp_types.sp_data_types import (
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
-    _get_snowflake_type_from_pandas_type,
     _infer_schema_from_list,
     _merge_type,
-    _pandas_type_mappings,
     snow_type_to_sp_type,
 )
 from snowflake.snowpark._internal.utils import (
@@ -54,6 +51,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     Utils,
 )
+from snowflake.snowpark._internal.write_pandas import write_pandas
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
@@ -584,15 +582,6 @@ class Session:
             self.__stage_created = True
         return f"@{qualified_stage_name}"
 
-    def __columns_for_pandas_table(self, pd: "pandas.DataFrame"):
-        columns = ", ".join(
-            [
-                f"{Utils.double_quote_identifier(col_name)} {_get_snowflake_type_from_pandas_type(str(col_type))}"
-                for col_name, col_type in zip(pd.columns, pd.dtypes)
-            ]
-        )
-        return columns
-
     # TODO make the table input consistent with session.table
     def write_pandas(
         self,
@@ -653,7 +642,7 @@ class Session:
             # These two pandas DataFrames have the same data
             snowpark_pandas_df.eq(snowpark_df)
         """
-        success = None
+        success = None  # forward declaration
         try:
             if quote_identifiers:
                 location = (
@@ -667,13 +656,6 @@ class Session:
                     + (schema + "." if schema else "")
                     + (table_name)
                 )
-            if auto_create_table:
-                columns = self.__columns_for_pandas_table(pd)
-                # if the table already exists we should assume it is of the right shape
-                # and continue the upload
-                self._run_query(
-                    f"create {'temporary' if create_temp_table else ''} table if not exists {location} ({columns})"
-                )
             success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
                 pd,
@@ -685,6 +667,8 @@ class Session:
                 on_error=on_error,
                 parallel=parallel,
                 quote_identifiers=quote_identifiers,
+                auto_create_table=auto_create_table,
+                create_temp_table=create_temp_table,
             )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
@@ -757,22 +741,20 @@ class Session:
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         if isinstance(data, pandas.DataFrame):
-            table_name = AnalyzerPackage.quote_name_without_upper_casing(
+            table_name = AnalyzerPackage._escape_quotes(
                 Utils.random_name_for_temp_object(TempObjectType.TABLE)
             )
-            database = self.getCurrentDatabase()
-            schema = self.getCurrentSchema()
-            columns = self.__columns_for_pandas_table(data)
-            self._run_query(
-                f"create temporary table {database}.{schema}.{table_name} ({columns})"
-            )
+            database = self.getCurrentDatabase(unquoted=True)
+            schema = self.getCurrentSchema(unquoted=True)
 
             return self.write_pandas(
                 data,
                 table_name,
                 database=database,
                 schema=schema,
-                quote_identifiers=False,
+                quote_identifiers=True,
+                auto_create_table=True,
+                create_temp_table=True,
             )
 
         if not data:
@@ -953,7 +935,7 @@ class Session:
         """
         return self._conn.get_default_schema()
 
-    def getCurrentDatabase(self) -> Optional[str]:
+    def getCurrentDatabase(self, unquoted: bool = False) -> Optional[str]:
         """
         Returns the name of the current database for the Python connector session attached
         to this session.
@@ -964,9 +946,9 @@ class Session:
             # return "newDB"
             session.getCurrentDatabase()
         """
-        return self._conn.get_current_database()
+        return self._conn.get_current_database(unquoted=unquoted)
 
-    def getCurrentSchema(self) -> Optional[str]:
+    def getCurrentSchema(self, unquoted: bool = False) -> Optional[str]:
         """
         Returns the name of the current schema for the Python connector session attached
         to this session.
@@ -977,7 +959,7 @@ class Session:
             # return "newSchema"
             session.getCurrentSchema()
         """
-        return self._conn.get_current_schema()
+        return self._conn.get_current_schema(unquoted=unquoted)
 
     def getFullyQualifiedCurrentSchema(self) -> str:
         """Returns the fully qualified name of the current schema for the session."""
