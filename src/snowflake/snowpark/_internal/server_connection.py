@@ -263,9 +263,7 @@ class ServerConnection:
         if self._is_stored_proc:
             file_name = os.path.basename(path)
             target_path = self.__build_target_path(stage_location, dest_prefix)
-            self._conn.cursor().upload_stream(
-                open(path, "rb"), f"{target_path}/{file_name}"
-            )
+            self._cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
         else:
             uri = f"file://{path}"
             self.run_query(
@@ -297,7 +295,7 @@ class ServerConnection:
             if self._is_stored_proc:
                 input_stream.seek(0)
                 target_path = self.__build_target_path(stage_location, dest_prefix)
-                self._conn.cursor().upload_stream(
+                self._cursor.upload_stream(
                     input_stream, f"{target_path}/{dest_filename}"
                 )
             else:
