@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from pandas import DataFrame as PandasDF, to_datetime
@@ -168,5 +168,30 @@ def test_write_pandas_temp_table_and_irregular_column_names(session):
         )
         table_info = session.sql(f"show tables like '{table_name}'").collect()
         assert table_info[0]["kind"] == "TEMPORARY"
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+def test_write_pandas_with_timestamp_timezone(session):
+    datetime_with_tz = datetime(
+        1997, 6, 3, 14, 21, 32, 00, tzinfo=timezone(timedelta(hours=+10))
+    )
+    pd = PandasDF(
+        [
+            [datetime_with_tz],
+        ],
+        columns=["tm_tz"],
+    )
+    table_name = Utils.random_name()
+    try:
+        session.write_pandas(
+            pd, table_name, auto_create_table=True, create_temp_table=True
+        )
+        data = session.sql(f'select * from "{table_name}"').collect()
+        assert data[0]["tm_tz"] is not None
+        # TODO: connector's write_pandas has bugs dealing with timestamp_ntz and timestamp_tz.
+        #  After the bugs are fixed, change the assertion to `data[0]["tm_tz"] == datetime_with_tz`,
+        #  and add a column of datetime with no timezone in the pandas dataframe.
+        #  JIRA https://snowflakecomputing.atlassian.net/browse/SNOW-524865
     finally:
         Utils.drop_table(session, table_name)
