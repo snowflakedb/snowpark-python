@@ -182,7 +182,6 @@ def test_write_pandas_with_timestamp_timezone(session):
         ],
         columns=["tm_tz"],
     )
-    print(pd["tm_tz"].dtype)
     table_name = Utils.random_name()
     try:
         session.write_pandas(
