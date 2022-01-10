@@ -199,3 +199,67 @@ def test_write_pandas_with_timestamps(session):
         #  JIRA https://snowflakecomputing.atlassian.net/browse/SNOW-507644
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_auto_create_table_similar_column_names(session):
+    """Tests whether similar names cause issues when auto-creating a table as expected."""
+    table_name = "numbas"
+    df_data = [(10, 11), (20, 21)]
+
+    df = PandasDF(df_data, columns=["number", "Number"])
+    select_sql = f'SELECT * FROM "{table_name}"'
+    drop_sql = f'DROP TABLE IF EXISTS "{table_name}"'
+    try:
+        session.write_pandas(
+            df, table_name, quote_identifiers=True, auto_create_table=True
+        )
+
+        # Check table's contents
+        data = session.sql(select_sql).collect()
+        for row in data:
+            # The auto create table functionality does not auto-create an incrementing ID
+            assert (
+                row["number"],
+                row["Number"],
+            ) in df_data
+    finally:
+        session.sql(drop_sql).collect()
+
+
+@pytest.mark.parametrize("auto_create_table", [True, False])
+def test_special_name_quoting(
+    session,
+    auto_create_table: bool,
+):
+    """Tests whether special column names get quoted as expected."""
+    table_name = "users"
+    df_data = [("Mark", 10), ("Luke", 20)]
+
+    df = PandasDF(df_data, columns=["00name", "bAl ance"])
+    create_sql = (
+        f'CREATE OR REPLACE TABLE "{table_name}"'
+        '("00name" STRING, "bAl ance" INT, "id" INT AUTOINCREMENT)'
+    )
+    select_sql = f'SELECT * FROM "{table_name}"'
+    drop_sql = f'DROP TABLE IF EXISTS "{table_name}"'
+    if not auto_create_table:
+        session.sql(create_sql).collect()
+    try:
+        session.write_pandas(
+            df,
+            table_name,
+            quote_identifiers=True,
+            auto_create_table=auto_create_table,
+        )
+        # Check table's contents
+        data = session.sql(select_sql).collect()
+        for row in data:
+            # The auto create table functionality does not auto-create an incrementing ID
+            if not auto_create_table:
+                assert row["id"] in (1, 2)
+            assert (
+                row["00name"],
+                row["bAl ance"],
+            ) in df_data
+    finally:
+        session.sql(drop_sql).collect()
