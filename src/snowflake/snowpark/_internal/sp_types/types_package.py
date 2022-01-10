@@ -257,34 +257,6 @@ _type_mappings = {
     bytes: SPBinaryType,
 }
 
-_pandas_type_mappings = {
-    "int8": "INTEGER",
-    "int16": "INTEGER",
-    "int32": "INTEGER",
-    "int64": "INTEGER",
-    "uint8": "INTEGER",
-    "uint16": "INTEGER",
-    "uint32": "INTEGER",
-    "uint64": "INTEGER",
-    "int": "INTEGER",
-    "float32": "FLOAT",
-    "float64": "FLOAT",
-    "object": "VARCHAR",
-    "string": "VARCHAR",
-    "datetime64[ns]": "TIMESTAMP_NTZ",
-    "datetime64": "TIMESTAMP_NTZ",
-    "bool": "BOOLEAN",
-    "boolean": "BOOLEAN",
-}
-
-
-def _get_snowflake_type_from_pandas_type(pandas_type: str) -> str:
-    pandas_type = pandas_type.lower()
-    return _pandas_type_mappings.get(
-        pandas_type,
-        "TIMESTAMP_TZ" if pandas_type.startswith("datetime64[ns,") else "VARCHAR",
-    )
-
 
 _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = tuple(_type_mappings.keys())
 _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
