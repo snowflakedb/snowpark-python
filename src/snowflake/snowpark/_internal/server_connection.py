@@ -141,23 +141,31 @@ class ServerConnection:
         )
 
     @_Decorator.wrap_exception
-    def get_current_database(self) -> Optional[str]:
+    def get_current_database(self, unquoted: bool = False) -> Optional[str]:
         database_name = self._conn.database or self._get_string_datum(
             "SELECT CURRENT_DATABASE()"
         )
         return (
-            AnalyzerPackage.quote_name_without_upper_casing(database_name)
+            (
+                AnalyzerPackage.quote_name_without_upper_casing(database_name)
+                if not unquoted
+                else AnalyzerPackage._escape_quotes(database_name)
+            )
             if database_name
             else None
         )
 
     @_Decorator.wrap_exception
-    def get_current_schema(self) -> Optional[str]:
+    def get_current_schema(self, unquoted: bool = False) -> Optional[str]:
         schema_name = self._conn.schema or self._get_string_datum(
             "SELECT CURRENT_SCHEMA()"
         )
         return (
-            AnalyzerPackage.quote_name_without_upper_casing(schema_name)
+            (
+                AnalyzerPackage.quote_name_without_upper_casing(schema_name)
+                if not unquoted
+                else AnalyzerPackage._escape_quotes(schema_name)
+            )
             if schema_name
             else None
         )
