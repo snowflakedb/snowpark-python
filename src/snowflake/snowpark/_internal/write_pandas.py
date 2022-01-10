@@ -15,6 +15,7 @@ from snowflake.connector.pandas_tools import chunk_helper
 logger = getLogger(__name__)
 
 
+# TODO: Remove when SNOW-347580 is merged in the Python Connector and released
 def write_pandas(
     conn: "SnowflakeConnection",
     df: "pandas.DataFrame",
