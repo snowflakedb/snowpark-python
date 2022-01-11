@@ -2,11 +2,11 @@
 
 ## 0.3.0 (2021-01-09)
 ### New Features
-- Methods `DataFrame.filter()` and `DataFrame.select_expr()` now accepts a sql expression.
-- `Column.cast()` now also accepts a `str` value to indicate the cast type in addition to a `DataType` instance.
 - Added `Column.isin()`, with an alias `Column.in_()`.
 - Added `Column.try_cast()`, which is a special version of `cast()`. It tries to cast a string expression to other types and returns `null` if the cast is not possible.
 - Added `Column.startswith()` and `Column.substr()` to process string columns.
+- `Column.cast()` now also accepts a `str` value to indicate the cast type in addition to a `DataType` instance.
+- Methods `DataFrame.filter()` and `DataFrame.select_expr()` now accepts a sql expression.
 - Added `DataFrame.describe()` to summarize stats of a `DataFrame`.
 - Added `DataFrame.explain()` to print the query plan of a `DataFrame`.
 - Added a new `bool` parameter `create_temp_table` to methods `DataFrame.saveAsTable()` and `Session.write_pandas()` to optionally create a temp table.
@@ -14,9 +14,8 @@
 - Added `regexp_replace()`, `concat()`, `concat_ws()`, `to_char()`, `current_timestamp()`, `current_date()`, `current_time()`, `months_between()`, `cast()`, `try_cast()`, `greatest()`, `least()`, and `hash()` to module `snowflake.snowpark.functions`.
 
 ### Bug Fixes
-- `DataFrame.copy_into_table()` sometimes prints an `error` level log entry while it actually works. It's fixed now.
-- `Session.createDataFrame()` raises an exception when input is empty. It now returns a `DataFrame` instance.
 - Fixed an issue where `Session.createDataFrame(pandas_df)` and `Session.write_pandas(pandas_df)` raise an exception when the pandas DataFrame has spaces in the column name.
+- `DataFrame.copy_into_table()` sometimes prints an `error` level log entry while it actually works. It's fixed now.
 - Fixed an API docs issue where some `DataFrame` APIs are missing from the docs.
 
 ### Dependency updates
