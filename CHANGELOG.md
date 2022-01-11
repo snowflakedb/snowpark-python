@@ -6,9 +6,9 @@
 - Added `Column.try_cast()`, which is a special version of `cast()`. It tries to cast a string expression to other types and returns `null` if the cast is not possible.
 - Added `Column.startswith()` and `Column.substr()` to process string columns.
 - `Column.cast()` now also accepts a `str` value to indicate the cast type in addition to a `DataType` instance.
-- Methods `DataFrame.filter()` and `DataFrame.select_expr()` now accepts a sql expression.
 - Added `DataFrame.describe()` to summarize stats of a `DataFrame`.
 - Added `DataFrame.explain()` to print the query plan of a `DataFrame`.
+- `DataFrame.filter()` and `DataFrame.select_expr()` now accepts a sql expression.
 - Added a new `bool` parameter `create_temp_table` to methods `DataFrame.saveAsTable()` and `Session.write_pandas()` to optionally create a temp table.
 - Added `DataFrame.minus()` and `DataFrame.subtract()` as aliases to `DataFrame.except_()`.
 - Added `regexp_replace()`, `concat()`, `concat_ws()`, `to_char()`, `current_timestamp()`, `current_date()`, `current_time()`, `months_between()`, `cast()`, `try_cast()`, `greatest()`, `least()`, and `hash()` to module `snowflake.snowpark.functions`.
