@@ -14,7 +14,7 @@
 - Added `regexp_replace()`, `concat()`, `concat_ws()`, `to_char()`, `current_timestamp()`, `current_date()`, `current_time()`, `months_between()`, `cast()`, `try_cast()`, `greatest()`, `least()`, and `hash()` to module `snowflake.snowpark.functions`.
 
 ### Bug Fixes
-- Fixed an issue where `Session.createDataFrame(pandas_df)` and `Session.write_pandas(pandas_df)` raise an exception when the pandas DataFrame has spaces in the column name.
+- Fixed an issue where `Session.createDataFrame(pandas_df)` and `Session.write_pandas(pandas_df)` raise an exception when the `Pandas DataFrame` has spaces in the column name.
 - `DataFrame.copy_into_table()` sometimes prints an `error` level log entry while it actually works. It's fixed now.
 - Fixed an API docs issue where some `DataFrame` APIs are missing from the docs.
 
