@@ -404,7 +404,9 @@ class Session:
     def _resolve_imports(
         self,
         stage_location: str,
-        import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
+        udf_level_import_paths: Optional[
+            Dict[str, Tuple[Optional[str], Optional[str]]]
+        ] = None,
     ) -> List[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
@@ -413,7 +415,9 @@ class Session:
 
         # always import cloudpickle for non-stored-proc mode
         # TODO(SNOW-500845): Remove importing cloudpickle after it is installed on the server side by default
-        import_paths = {**import_paths} if import_paths else {**self.__import_paths}
+        import_paths = (
+            udf_level_import_paths if udf_level_import_paths else self.__import_paths
+        )
         if not self._conn._is_stored_proc:
             import_paths.update(self.__cloudpickle_path)
 
