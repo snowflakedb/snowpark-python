@@ -13,8 +13,13 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../../src"))
-from snowflake.snowpark.version import VERSION
+SRC_DIR = "../../src"
+sys.path.insert(0, os.path.abspath(SRC_DIR))
+SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
+VERSION = (1, 1, 1, None)  # Default, needed so code will compile
+with open(os.path.join(SNOWPARK_SRC_DIR, "version.py"), encoding="utf-8") as f:
+    exec(f.read())
+version = ".".join([str(v) for v in VERSION if v is not None])
 
 
 # -- Project information -----------------------------------------------------
