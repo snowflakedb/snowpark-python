@@ -13,17 +13,17 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    DataType,
-    DecimalType,
-    DoubleType,
-    IntegralType,
-    LongType,
-)
 from snowflake.snowpark._internal.sp_types.types_package import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
     _infer_type,
+)
+from snowflake.snowpark.types import (
+    DataType,
+    DecimalType,
+    DoubleType,
+    LongType,
+    _IntegralType,
 )
 
 
@@ -258,9 +258,9 @@ class Sum(DeclarativeAggregate):
 
     @staticmethod
     def __get_type(child: Expression) -> DataType:
-        if type(child) == DecimalType:
-            return DecimalType(DecimalType.MAX_PRECISION, DecimalType.MAX_SCALE)
-        elif type(child) == IntegralType:
+        if isinstance(child, DecimalType):
+            return DecimalType(DecimalType._MAX_PRECISION, DecimalType._MAX_SCALE)
+        elif isinstance(child, _IntegralType):
             return LongType()
         else:
             return DoubleType()
@@ -467,7 +467,7 @@ class Cast(UnaryExpression):
 
 # Attributes
 class AttributeReference(Attribute):
-    def __init__(self, name: str, datatype, nullable: bool):
+    def __init__(self, name: str, datatype: DataType, nullable: bool):
         super().__init__(name)
         self.datatype = datatype
         self.nullable = nullable

@@ -25,10 +25,6 @@ from snowflake.snowpark._internal.sp_expressions import (
     Attribute as SPAttribute,
     AttributeReference as SPAttributeReference,
 )
-from snowflake.snowpark._internal.sp_types.types_package import (
-    snow_type_to_sp_type,
-    sp_type_to_snow_type,
-)
 from snowflake.snowpark._internal.utils import TempObjectType, Utils, _SaveMode
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -179,9 +175,7 @@ class SnowflakePlan(LogicalPlan):
     def output(self) -> List[SPAttributeReference]:
         if not self.__placeholder_for_output:
             self.__placeholder_for_output = [
-                SPAttributeReference(
-                    a.name, snow_type_to_sp_type(a.datatype), a.nullable
-                )
+                SPAttributeReference(a.name, a.datatype, a.nullable)
                 for a in self.attributes()
             ]
         return self.__placeholder_for_output
@@ -303,10 +297,7 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         attributes = [
-            Attribute(
-                sp_attr.name, sp_type_to_snow_type(sp_attr.datatype), sp_attr.nullable
-            )
-            for sp_attr in output
+            Attribute(attr.name, attr.datatype, attr.nullable) for attr in output
         ]
         create_table_stmt = self.pkg.create_temp_table_statement(
             temp_table_name, self.pkg.attribute_to_schema_string(attributes)

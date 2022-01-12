@@ -11,23 +11,6 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    ArrayType as SPArrayType,
-    BinaryType as SPBinaryType,
-    ByteType as SPByteType,
-    DateType as SPDateType,
-    DecimalType as SPDecimalType,
-    DoubleType as SPDoubleType,
-    FloatType as SPFloatType,
-    IntegerType as SPIntegerType,
-    LongType as SPLongType,
-    MapType as SPMapType,
-    NullType as SPNullType,
-    ShortType as SPShortType,
-    StringType as SPStringType,
-    TimestampType as SPTimestampType,
-    TimeType as SPTimeType,
-)
 from snowflake.snowpark._internal.sp_types.types_package import (
     _infer_type,
     _python_type_to_snow_type,
@@ -62,106 +45,104 @@ from tests.utils import IS_WINDOWS
 
 
 # TODO complete for schema case
-def test_py_to_sp_type():
-    assert type(_infer_type(None)) == SPNullType
-    assert type(_infer_type(1)) == SPLongType
-    assert type(_infer_type(3.14)) == SPFloatType
-    assert type(_infer_type("a")) == SPStringType
-    assert type(_infer_type(bytearray("a", "utf-8"))) == SPBinaryType
+def test_py_to_type():
+    assert type(_infer_type(None)) == NullType
+    assert type(_infer_type(1)) == LongType
+    assert type(_infer_type(3.14)) == FloatType
+    assert type(_infer_type("a")) == StringType
+    assert type(_infer_type(bytearray("a", "utf-8"))) == BinaryType
     assert (
         type(_infer_type(Decimal(0.00000000000000000000000000000000000000233)))
-        == SPDecimalType
+        == DecimalType
     )
-    assert type(_infer_type(date(2021, 5, 25))) == SPDateType
-    assert type(_infer_type(datetime(2021, 5, 25, 0, 47, 41))) == SPTimestampType
-    assert type(_infer_type(time(17, 57, 10))) == SPTimeType
+    assert type(_infer_type(date(2021, 5, 25))) == DateType
+    assert type(_infer_type(datetime(2021, 5, 25, 0, 47, 41))) == TimestampType
+    assert type(_infer_type(time(17, 57, 10))) == TimeType
     assert type(_infer_type((1024).to_bytes(2, byteorder="big")))
 
     res = _infer_type({1: "abc"})
-    assert type(res) == SPMapType
-    assert type(res.key_type) == SPLongType
-    assert type(res.value_type) == SPStringType
+    assert type(res) == MapType
+    assert type(res.key_type) == LongType
+    assert type(res.value_type) == StringType
 
     res = _infer_type({None: None})
-    assert type(res) == SPMapType
-    assert type(res.key_type) == SPNullType
-    assert type(res.value_type) == SPNullType
+    assert type(res) == MapType
+    assert type(res.key_type) == NullType
+    assert type(res.value_type) == NullType
 
     res = _infer_type({None: 1})
-    assert type(res) == SPMapType
-    assert type(res.key_type) == SPNullType
-    assert type(res.value_type) == SPNullType
+    assert type(res) == MapType
+    assert type(res.key_type) == NullType
+    assert type(res.value_type) == NullType
 
     res = _infer_type({1: None})
-    assert type(res) == SPMapType
-    assert type(res.key_type) == SPNullType
-    assert type(res.value_type) == SPNullType
+    assert type(res) == MapType
+    assert type(res.key_type) == NullType
+    assert type(res.value_type) == NullType
 
     res = _infer_type([1, 2, 3])
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPLongType
-    assert type(res.contains_null)
+    assert type(res) == ArrayType
+    assert type(res.element_type) == LongType
 
     res = _infer_type([None])
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPNullType
-    assert type(res.contains_null)
+    assert type(res) == ArrayType
+    assert type(res.element_type) == NullType
 
     # Arrays
     res = _infer_type(array("f"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPFloatType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == FloatType
 
     res = _infer_type(array("d"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPDoubleType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == DoubleType
 
     res = _infer_type(array("l"))
-    assert type(res) == SPArrayType
+    assert type(res) == ArrayType
     if IS_WINDOWS:
-        assert type(res.element_type) == SPIntegerType
+        assert type(res.element_type) == IntegerType
     else:
-        assert type(res.element_type) == SPLongType
+        assert type(res.element_type) == LongType
 
     if IS_WINDOWS:
         res = _infer_type(array("L"))
-        assert type(res) == SPArrayType
-        assert type(res.element_type) == SPLongType
+        assert type(res) == ArrayType
+        assert type(res.element_type) == LongType
     else:
         with pytest.raises(TypeError):
             _infer_type(array("L"))
 
     res = _infer_type(array("b"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPByteType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == ByteType
 
     res = _infer_type(array("B"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPShortType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == ShortType
 
     res = _infer_type(array("u"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPStringType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == StringType
 
     res = _infer_type(array("h"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPShortType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == ShortType
 
     res = _infer_type(array("H"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPIntegerType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == IntegerType
 
     res = _infer_type(array("i"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPIntegerType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == IntegerType
 
     res = _infer_type(array("I"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPLongType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == LongType
 
     res = _infer_type(array("q"))
-    assert type(res) == SPArrayType
-    assert type(res.element_type) == SPLongType
+    assert type(res) == ArrayType
+    assert type(res.element_type) == LongType
 
     with pytest.raises(TypeError):
         _infer_type(array("Q"))
@@ -339,15 +320,14 @@ def test_python_type_to_snow_type():
         MapType(StringType(), StringType()),
         False,
     )
-    # TODO: add typing.OrderedDict after upgrading to Python 3.8
-    # assert _python_type_to_snowpark_type(typing.OrderedDict[str, int]) == (
-    #     MapType(StringType(), LongType()),
-    #     False,
-    # )
-    # assert _python_type_to_snowpark_type(typing.OrderedDict) == (
-    #     MapType(StringType(), StringType()),
-    #     False,
-    # )
+    assert _python_type_to_snow_type(typing.OrderedDict[str, int]) == (
+        MapType(StringType(), LongType()),
+        False,
+    )
+    assert _python_type_to_snow_type(typing.OrderedDict) == (
+        MapType(StringType(), StringType()),
+        False,
+    )
     assert _python_type_to_snow_type(OrderedDict) == (
         MapType(StringType(), StringType()),
         False,

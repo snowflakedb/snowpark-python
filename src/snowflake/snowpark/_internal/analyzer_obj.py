@@ -88,10 +88,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     WindowExpression as SPWindowExpression,
     WindowSpecDefinition as SPWindowSpecDefinition,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    IntegralType as SPIntegralType,
-    VariantType as SPVariantType,
-)
+from snowflake.snowpark.types import VariantType, _IntegralType
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -357,7 +354,7 @@ class Analyzer:
     def to_sql_avoid_offset(self, expr: SPExpression) -> str:
         # if expression is an integral literal, return the number without casting,
         # otherwise process as normal
-        if isinstance(expr, SPLiteral) and isinstance(expr.datatype, SPIntegralType):
+        if isinstance(expr, SPLiteral) and isinstance(expr.datatype, _IntegralType):
             return DataTypeMapper.to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(expr)
@@ -601,5 +598,5 @@ class Analyzer:
                     logical_plan.file_format,
                     logical_plan.cur_options,
                     self.session.getFullyQualifiedCurrentSchema(),
-                    [Attribute('"$1"', SPVariantType())],
+                    [Attribute('"$1"', VariantType())],
                 )
