@@ -18,7 +18,8 @@ import cloudpickle
 import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
-from snowflake.snowpark import Column, DataFrame
+from snowflake.connector.pandas_tools import write_pandas
+from snowflake.snowpark import DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -37,14 +38,10 @@ from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     FlattenFunction as SPFlattenFunction,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    StringType as SPStringType,
-)
 from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
     _infer_schema_from_list,
     _merge_type,
-    snow_type_to_sp_type,
 )
 from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
@@ -73,6 +70,7 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     MapType,
+    StringType,
     StructType,
     TimestampType,
     TimeType,
@@ -798,10 +796,10 @@ class Session:
             )
 
         # get spark attributes and data types
-        sp_attrs, data_types = [], []
+        attrs, data_types = [], []
         for field in new_schema.fields:
-            sp_type = (
-                SPStringType()
+            sf_type = (
+                StringType()
                 if isinstance(
                     field.datatype,
                     (
@@ -813,11 +811,11 @@ class Session:
                         TimestampType,
                     ),
                 )
-                else snow_type_to_sp_type(field.datatype)
+                else field.datatype
             )
-            sp_attrs.append(
+            attrs.append(
                 SPAttributeReference(
-                    AnalyzerPackage.quote_name(field.name), sp_type, field.nullable
+                    AnalyzerPackage.quote_name(field.name), sf_type, field.nullable
                 )
             )
             data_types.append(field.datatype)
@@ -895,7 +893,7 @@ class Session:
             else:
                 project_columns.append(column(field.name))
 
-        return DataFrame(self, SnowflakeValues(sp_attrs, converted)).select(
+        return DataFrame(self, SnowflakeValues(attrs, converted)).select(
             project_columns
         )
 

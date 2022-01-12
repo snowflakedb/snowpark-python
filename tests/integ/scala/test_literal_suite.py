@@ -7,10 +7,8 @@ from decimal import Decimal
 
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.sp_expressions import Literal
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    DecimalType as SPDecimalType,
-)
 from snowflake.snowpark.functions import lit
+from snowflake.snowpark.types import DecimalType
 
 
 def test_literal_basic_types(session):
@@ -145,7 +143,7 @@ def test_special_literals(session):
 # This test was originall party of scala-integ tests, but was removed.
 def test_special_decimal_literals(session):
     normal_scale = lit(Decimal("0.1"))
-    small_scale = Column(Literal(Decimal("0.00001"), SPDecimalType(5, 5)))
+    small_scale = Column(Literal(Decimal("0.00001"), DecimalType(5, 5)))
 
     df = session.range(2).select(normal_scale, small_scale)
 
