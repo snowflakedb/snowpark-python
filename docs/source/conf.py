@@ -13,8 +13,6 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../../src"))
-
 
 # -- Project information -----------------------------------------------------
 
@@ -23,7 +21,13 @@ copyright = "2022, Snowflake Inc"
 author = "Snowflake Inc."
 
 # The full version, including alpha/beta/rc tags
-release = "0.2.0"
+SRC_DIR = "../../src"
+sys.path.insert(0, os.path.abspath(SRC_DIR))
+SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
+VERSION = (1, 1, 1, None)  # Default, needed so code will compile
+with open(os.path.join(SNOWPARK_SRC_DIR, "version.py"), encoding="utf-8") as f:
+    exec(f.read())
+release = ".".join([str(v) for v in VERSION if v is not None])
 
 
 # -- General configuration ---------------------------------------------------
