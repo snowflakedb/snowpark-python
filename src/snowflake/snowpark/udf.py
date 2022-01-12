@@ -9,7 +9,16 @@ import os
 import pickle
 import zipfile
 from logging import getLogger
-from typing import Callable, List, NamedTuple, Optional, Tuple, Union, get_type_hints
+from typing import (
+    Callable,
+    Iterable,
+    List,
+    NamedTuple,
+    Optional,
+    Tuple,
+    Union,
+    get_type_hints,
+)
 
 import cloudpickle
 
@@ -192,7 +201,7 @@ class UDFRegistration:
         func: Callable,
         return_type: Optional[DataType] = None,
         input_types: Optional[List[DataType]] = None,
-        name: Optional[str] = None,
+        name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
         stage_location: Optional[str] = None,
         replace: bool = False,
@@ -225,10 +234,10 @@ class UDFRegistration:
             )
 
         # get the udf name
-        udf_name = (
-            name
-            or f"{self.session.getFullyQualifiedCurrentSchema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
-        )
+        if name:
+            udf_name = name if isinstance(name, str) else ".".join(name)
+        else:
+            udf_name = f"{self.session.getFullyQualifiedCurrentSchema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
         Utils.validate_object_name(udf_name)
 
         # get return and input types

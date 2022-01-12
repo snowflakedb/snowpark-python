@@ -93,19 +93,19 @@ def test_basic_udf(session):
     )
 
 
-def test_call_named_udf(session):
-    session._run_query("drop function if exists mul(int, int)")
+def test_call_named_udf(session, temp_schema):
+    session._run_query("drop function if exists test_mul(int, int)")
     udf(
         lambda x, y: x * y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        name="mul",
+        name="test_mul",
     )
-    Utils.check_answer(session.sql("select mul(13, 19)").collect(), [Row(13 * 19)])
+    Utils.check_answer(session.sql("select test_mul(13, 19)").collect(), [Row(13 * 19)])
 
     df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
     Utils.check_answer(
-        df.select(call_udf("mul", col("a"), col("b"))).collect(),
+        df.select(call_udf("test_mul", col("a"), col("b"))).collect(),
         [
             Row(2),
             Row(12),
@@ -113,9 +113,33 @@ def test_call_named_udf(session):
     )
     Utils.check_answer(
         df.select(
-            call_udf(f"{session.getFullyQualifiedCurrentSchema()}.mul", "a", "b")
+            call_udf(f"{session.getFullyQualifiedCurrentSchema()}.test_mul", "a", "b")
         ).collect(),
         [Row(2), Row(12)],
+    )
+
+    # create a UDF in another schema
+    full_udf_name = f"{temp_schema}.test_add"
+    session._run_query(f"drop function if exists {full_udf_name}(int, int)")
+    udf(
+        lambda x, y: x + y,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        name=[*temp_schema.split("."), "test_add"],
+    )
+    Utils.check_answer(
+        session.sql(f"select {full_udf_name}(13, 19)").collect(), [Row(13 + 19)]
+    )
+    # no result in the current schema
+    assert len(session.sql("show functions like '%test_add%'").collect()) == 0
+    # oen result in the temp schema
+    assert (
+        len(
+            session.sql(
+                f"show functions like '%test_add%' in schema {temp_schema}"
+            ).collect()
+        )
+        == 1
     )
 
 
