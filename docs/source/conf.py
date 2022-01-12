@@ -14,6 +14,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath("../../src"))
+from snowflake.snowpark.version import VERSION
 
 
 # -- Project information -----------------------------------------------------
@@ -23,7 +24,7 @@ copyright = "2022, Snowflake Inc"
 author = "Snowflake Inc."
 
 # The full version, including alpha/beta/rc tags
-release = "0.2.0"
+release = ".".join([str(v) for v in VERSION if v is not None])
 
 
 # -- General configuration ---------------------------------------------------
