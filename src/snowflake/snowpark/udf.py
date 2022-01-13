@@ -203,6 +203,7 @@ class UDFRegistration:
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
         stage_location: Optional[str] = None,
+        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         replace: bool = False,
         parallel: int = 4,
     ) -> UserDefinedFunction:
@@ -264,6 +265,7 @@ class UDFRegistration:
                 udf_name,
                 udf_file_name,
                 stage_location,
+                imports,
                 replace,
                 parallel,
             )
@@ -323,6 +325,7 @@ class UDFRegistration:
         udf_name: str,
         udf_file_name: str,
         stage_location: Optional[str] = None,
+        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         replace: bool = False,
         parallel: int = 4,
     ) -> None:
@@ -336,8 +339,28 @@ class UDFRegistration:
             if stage_location
             else self.session.getSessionStage()
         )
-        all_urls = self.session._resolve_imports(upload_stage)
-        handler = _DEFAULT_HANDLER_NAME
+
+        # resolve imports
+        if imports:
+            udf_level_imports = {}
+            for udf_import in imports:
+                if isinstance(udf_import, str):
+                    resolved_import_tuple = self.session._resolve_import_path(
+                        udf_import
+                    )
+                elif isinstance(udf_import, tuple) and len(udf_import) == 2:
+                    resolved_import_tuple = self.session._resolve_import_path(
+                        udf_import[0], udf_import[1]
+                    )
+                else:
+                    raise TypeError(
+                        "UDF-level import can only be a file path (str) "
+                        "or a tuple of the file path (str) and the import path (str)."
+                    )
+                udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
+            all_urls = self.session._resolve_imports(upload_stage, udf_level_imports)
+        else:
+            all_urls = self.session._resolve_imports(upload_stage)
 
         # Upload closure to stage if it is beyond inline closure size limit
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
@@ -362,6 +385,8 @@ class UDFRegistration:
             all_urls.append(upload_file_stage_location)
             code = None
             handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
+        else:
+            handler = _DEFAULT_HANDLER_NAME
 
         # build imports string
         all_imports = ",".join([f"'{url}'" for url in all_urls])
