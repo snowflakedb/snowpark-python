@@ -416,7 +416,9 @@ class Session:
         # always import cloudpickle for non-stored-proc mode
         # TODO(SNOW-500845): Remove importing cloudpickle after it is installed on the server side by default
         import_paths = (
-            udf_level_import_paths if udf_level_import_paths else self.__import_paths
+            udf_level_import_paths.copy()
+            if udf_level_import_paths
+            else self.__import_paths.copy()
         )
         if not self._conn._is_stored_proc:
             import_paths.update(self.__cloudpickle_path)
