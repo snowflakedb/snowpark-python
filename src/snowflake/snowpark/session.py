@@ -303,7 +303,52 @@ class Session:
 
             3. Adding two files with the same file name is not allowed, because UDFs
             can't be created with two imports with the same name.
+
+            4. This method will register the file for all UDFs created later in the current
+            session. If you only want to import a file for a specific UDF, you can use
+            ``imports`` argument in :func:`functions.udf` or
+            :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
+        path, checksum, leading_path = self._resolve_import_path(path, import_path)
+        self.__import_paths[path] = (checksum, leading_path)
+
+    def removeImport(self, path: str) -> None:
+        """
+        Removes a file in stage or local file from the imports of a user-defined function (UDF).
+
+        Args:
+            path: a path pointing to a local file or a remote file in the stage
+
+        Examples::
+
+            session.removeImport(“/tmp/dir1/test.py”)
+            session.removeImport(“/tmp/dir1”)
+            session.removeImport(“@stage/test.py”)
+        """
+        trimmed_path = path.strip()
+        abs_path = (
+            os.path.abspath(trimmed_path)
+            if not trimmed_path.startswith(self.__STAGE_PREFIX)
+            else trimmed_path
+        )
+        if abs_path not in self.__import_paths:
+            raise KeyError(f"{abs_path} is not found in the existing imports")
+        else:
+            self.__import_paths.pop(abs_path)
+
+    def clearImports(self) -> None:
+        """
+        Clears all files in a stage or local files from the imports of a user-defined function (UDF).
+
+        Example::
+
+            session.clearImports()
+        """
+        self.__import_paths.clear()
+
+    def _resolve_import_path(
+        self, path: str, import_path: Optional[str] = None
+    ) -> Tuple[str, Optional[str], Optional[str]]:
         trimmed_path = path.strip()
         trimmed_import_path = import_path.strip() if import_path else None
 
@@ -343,51 +388,24 @@ class Session:
             else:
                 leading_path = None
 
-            self.__import_paths[abs_path] = (
-                # Include the information about import path to the checksum
-                # calculation, so if the import path changes, the checksum
-                # will change and the file in the stage will be overwritten.
+            # Include the information about import path to the checksum
+            # calculation, so if the import path changes, the checksum
+            # will change and the file in the stage will be overwritten.
+            return (
+                abs_path,
                 Utils.calculate_md5(abs_path, additional_info=leading_path),
                 leading_path,
             )
         else:
-            self.__import_paths[trimmed_path] = (None, None)
+            return trimmed_path, None, None
 
-    def removeImport(self, path: str) -> None:
-        """
-        Removes a file in stage or local file from imports of a user-defined function (UDF).
-
-        Args:
-            path: a path pointing to a local file or a remote file in the stage
-
-        Examples::
-
-            session.removeImport(“/tmp/dir1/test.py”)
-            session.removeImport(“/tmp/dir1”)
-            session.removeImport(“@stage/test.py”)
-        """
-        trimmed_path = path.strip()
-        abs_path = (
-            os.path.abspath(trimmed_path)
-            if not trimmed_path.startswith(self.__STAGE_PREFIX)
-            else trimmed_path
-        )
-        if abs_path not in self.__import_paths:
-            raise KeyError(f"{abs_path} is not found in the existing imports")
-        else:
-            self.__import_paths.pop(abs_path)
-
-    def clearImports(self) -> None:
-        """
-        Clears all files in stage or local files from imports of a user-defined function (UDF).
-
-        Example::
-
-            session.clearImports()
-        """
-        self.__import_paths.clear()
-
-    def _resolve_imports(self, stage_location: str) -> List[str]:
+    def _resolve_imports(
+        self,
+        stage_location: str,
+        udf_level_import_paths: Optional[
+            Dict[str, Tuple[Optional[str], Optional[str]]]
+        ] = None,
+    ) -> List[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(stage_location)
@@ -395,7 +413,11 @@ class Session:
 
         # always import cloudpickle for non-stored-proc mode
         # TODO(SNOW-500845): Remove importing cloudpickle after it is installed on the server side by default
-        import_paths = {**self.__import_paths}
+        import_paths = (
+            udf_level_import_paths.copy()
+            if udf_level_import_paths
+            else self.__import_paths.copy()
+        )
         if not self._conn._is_stored_proc:
             import_paths.update(self.__cloudpickle_path)
 

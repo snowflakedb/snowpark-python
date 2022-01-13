@@ -475,6 +475,40 @@ def test_add_imports_duplicate(session, resources_path, caplog):
     assert len(session.getImports()) == 0
 
 
+def test_udf_level_import(session, resources_path):
+    test_files = TestFiles(resources_path)
+    with patch.object(sys, "path", [*sys.path, resources_path]):
+
+        def plus4_then_mod5(x):
+            from test_udf_dir.test_udf_file import mod5
+
+            return mod5(x + 4)
+
+        df = session.range(-5, 5).toDF("a")
+
+        # with udf-level imports
+        plus4_then_mod5_udf = udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")],
+        )
+        Utils.check_answer(
+            df.select(plus4_then_mod5_udf("a")).collect(),
+            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
+        )
+
+        # without udf-level imports
+        plus4_then_mod5_udf = udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+        )
+        with pytest.raises(ProgrammingError) as ex_info:
+            df.select(plus4_then_mod5_udf("a")).collect(),
+        assert "No module named" in str(ex_info)
+
+
 def test_type_hints(session):
     @udf
     def add_udf(x: int, y: int) -> int:
@@ -685,6 +719,19 @@ def test_add_imports_negative(session, resources_path):
         with pytest.raises(ProgrammingError) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect()
         assert "No module named 'test.resources'" in str(ex_info)
+    session.clearImports()
+
+    with pytest.raises(TypeError) as ex_info:
+        udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[1],
+        )
+    assert (
+        "UDF-level import can only be a file path (str) "
+        "or a tuple of the file path (str) and the import path (str)" in str(ex_info)
+    )
 
 
 def test_udf_variant_type(session):
