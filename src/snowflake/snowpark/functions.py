@@ -34,7 +34,7 @@ The following examples demonstrate the use of some of these functions::
 """
 import functools
 from random import randint
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -1391,7 +1391,7 @@ def udf(
     *,
     return_type: Optional[DataType] = None,
     input_types: Optional[List[DataType]] = None,
-    name: Optional[str] = None,
+    name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
     replace: bool = False,
@@ -1406,10 +1406,12 @@ def udf(
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the UDF. Optional if
             type hints are provided.
-        name: The name to use for the UDF in Snowflake, which allows you to call this UDF
-            in a SQL command or via :func:`call_udf()`. If it is not provided,
-            a name will be automatically generated for the UDF. A name must be
-            specified when ``is_permanent`` is ``True``.
+        name: A string or list of strings that specify the name or fully-qualified
+            object identifier (database name, schema name, and function name) for
+            the UDF in Snowflake, which allows you to call this UDF in a SQL
+            command or via :func:`call_udf()`. If it is not provided, a name will
+            be automatically generated for the UDF. A name must be specified when
+            ``is_permanent`` is ``True``.
         is_permanent: Whether to create a permanent UDF. The default is ``False``.
             If it is ``True``, a valid ``stage_location`` must be provided.
         stage_location: The stage location where the Python file for the UDF

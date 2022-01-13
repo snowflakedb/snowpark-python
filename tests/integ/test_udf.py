@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.utils import Utils as InternalUtils
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.functions import call_udf, col, udf
 from snowflake.snowpark.types import (
@@ -93,19 +94,19 @@ def test_basic_udf(session):
     )
 
 
-def test_call_named_udf(session):
-    session._run_query("drop function if exists mul(int, int)")
+def test_call_named_udf(session, temp_schema, db_parameters):
+    session._run_query("drop function if exists test_mul(int, int)")
     udf(
         lambda x, y: x * y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        name="mul",
+        name="test_mul",
     )
-    Utils.check_answer(session.sql("select mul(13, 19)").collect(), [Row(13 * 19)])
+    Utils.check_answer(session.sql("select test_mul(13, 19)").collect(), [Row(13 * 19)])
 
     df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
     Utils.check_answer(
-        df.select(call_udf("mul", col("a"), col("b"))).collect(),
+        df.select(call_udf("test_mul", col("a"), col("b"))).collect(),
         [
             Row(2),
             Row(12),
@@ -113,10 +114,46 @@ def test_call_named_udf(session):
     )
     Utils.check_answer(
         df.select(
-            call_udf(f"{session.getFullyQualifiedCurrentSchema()}.mul", "a", "b")
+            call_udf(f"{session.getFullyQualifiedCurrentSchema()}.test_mul", "a", "b")
         ).collect(),
         [Row(2), Row(12)],
     )
+
+    # create a UDF when the session doesn't have a schema
+    new_session = (
+        Session.builder.configs(db_parameters)._remove_config("schema").create()
+    )
+    try:
+        assert not new_session.getDefaultSchema()
+        tmp_stage_name_in_temp_schema = f"{temp_schema}.{Utils.random_name()}"
+        new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
+        full_udf_name = f"{temp_schema}.test_add"
+        new_session._run_query(f"drop function if exists {full_udf_name}(int, int)")
+        new_session.udf.register(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            name=[*temp_schema.split("."), "test_add"],
+            stage_location=InternalUtils.normalize_stage_location(
+                tmp_stage_name_in_temp_schema
+            ),
+        )
+        Utils.check_answer(
+            new_session.sql(f"select {full_udf_name}(13, 19)").collect(), [Row(13 + 19)]
+        )
+        # oen result in the temp schema
+        assert (
+            len(
+                new_session.sql(
+                    f"show functions like '%test_add%' in schema {temp_schema}"
+                ).collect()
+            )
+            == 1
+        )
+    finally:
+        new_session.close()
+        # restore active session
+        Session._set_active_session(session)
 
 
 def test_recursive_udf(session):
