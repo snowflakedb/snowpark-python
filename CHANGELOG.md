@@ -4,7 +4,7 @@
 ### New Features
 - Added `Table` class, with `update` and `delete` method to alter a table in Snowflake.
 
-## 0.3.0 (2021-01-09)
+## 0.3.0 (2022-01-09)
 ### New Features
 - Added `Column.isin()`, with an alias `Column.in_()`.
 - Added `Column.try_cast()`, which is a special version of `cast()`. It tries to cast a string expression to other types and returns `null` if the cast is not possible.
