@@ -110,9 +110,9 @@ class Table(DataFrame):
                 self.table_name,
                 assignments_expr,
                 condition.expression if condition else None,
-                DataFrame._disambiguate(self, source_data, SPJoinType("left"), [])[
-                    1
-                ]._plan
+                DataFrame._disambiguate(
+                    self, source_data, SPJoinType.from_string("left"), []
+                )[1]._plan
                 if source_data
                 else None,
             )
