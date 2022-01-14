@@ -122,7 +122,7 @@ class RelationalGroupedDataFrame:
         if isinstance(self.group_type, _GroupByType):
             return DataFrame(
                 self.df.session,
-                SPAggregate(self.grouping_exprs, aliased_agg, self.df._DataFrame__plan),
+                SPAggregate(self.grouping_exprs, aliased_agg, self.df._plan),
             )
         if isinstance(self.group_type, _RollupType):
             return DataFrame(
@@ -130,15 +130,13 @@ class RelationalGroupedDataFrame:
                 SPAggregate(
                     [SPRollup(self.grouping_exprs)],
                     aliased_agg,
-                    self.df._DataFrame__plan,
+                    self.df._plan,
                 ),
             )
         if isinstance(self.group_type, _CubeType):
             return DataFrame(
                 self.df.session,
-                SPAggregate(
-                    [SPCube(self.grouping_exprs)], aliased_agg, self.df._DataFrame__plan
-                ),
+                SPAggregate([SPCube(self.grouping_exprs)], aliased_agg, self.df._plan),
             )
         if isinstance(self.group_type, _PivotType):
             if len(agg_exprs) != 1:
@@ -149,7 +147,7 @@ class RelationalGroupedDataFrame:
                     self.group_type.pivot_col,
                     self.group_type.values,
                     agg_exprs,
-                    self.df._DataFrame__plan,
+                    self.df._plan,
                 ),
             )
 

@@ -284,7 +284,7 @@ def test_non_select_query_composition_self_union(session):
         union = df.union(df).select('"name"').filter(col('"name"') == table_name)
 
         assert len(union.collect()) == 1
-        assert len(union._DataFrame__plan.queries) == 3
+        assert len(union._plan.queries) == 3
     finally:
         Utils.drop_table(session, table_name)
 
@@ -300,19 +300,19 @@ def test_non_select_query_composition_self_unionall(session):
         union = df.unionAll(df).select('"name"').filter(col('"name"') == table_name)
 
         assert len(union.collect()) == 2
-        assert len(union._DataFrame__plan.queries) == 3
+        assert len(union._plan.queries) == 3
     finally:
         Utils.drop_table(session, table_name)
 
 
 def test_only_use_result_scan_when_composing_queries(session):
     df = session.sql("show tables")
-    assert len(df._DataFrame__plan.queries) == 1
-    assert df._DataFrame__plan.queries[0].sql == "show tables"
+    assert len(df._plan.queries) == 1
+    assert df._plan.queries[0].sql == "show tables"
 
     df2 = df.select('"name"')
-    assert len(df2._DataFrame__plan.queries) == 2
-    assert "RESULT_SCAN" in df2._DataFrame__plan.queries[-1].sql
+    assert len(df2._plan.queries) == 2
+    assert "RESULT_SCAN" in df2._plan.queries[-1].sql
 
 
 def test_joins_on_result_scan(session):
@@ -1354,9 +1354,7 @@ def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
 
     # Misc commands with session._conn.getResultAndMetadata
     for command in misc_commands:
-        rows, meta = session._conn.get_result_and_metadata(
-            session.sql(command)._DataFrame__plan
-        )
+        rows, meta = session._conn.get_result_and_metadata(session.sql(command)._plan)
         assert len(rows) == 0 or len(rows[0]) == len(meta)
 
 
@@ -2247,7 +2245,7 @@ def test_explain(session):
     df.explain()
     explain_string = df._explain_string()
     assert "Query List" in explain_string
-    assert df._DataFrame__plan.queries[0].sql.strip() in explain_string
+    assert df._plan.queries[0].sql.strip() in explain_string
     assert "Logical Execution Plan" in explain_string
 
     # can't analyze multiple queries

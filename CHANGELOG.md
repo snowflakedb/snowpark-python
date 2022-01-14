@@ -1,5 +1,9 @@
 # Release History
 
+## 0.4.0
+### New Features
+- Added `Table` class, with `update` and `delete` method to alter a table in Snowflake.
+
 ## 0.3.0 (2021-01-09)
 ### New Features
 - Added `Column.isin()`, with an alias `Column.in_()`.

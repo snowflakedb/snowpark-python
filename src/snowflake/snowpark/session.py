@@ -11,15 +11,13 @@ import os
 from array import array
 from functools import reduce
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 
 import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
-from snowflake.connector.pandas_tools import write_pandas
-from snowflake.snowpark import DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -32,7 +30,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
-from snowflake.snowpark._internal.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
@@ -49,6 +46,7 @@ from snowflake.snowpark._internal.utils import (
     Utils,
 )
 from snowflake.snowpark._internal.write_pandas import write_pandas
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
@@ -65,6 +63,7 @@ from snowflake.snowpark.functions import (
     to_variant,
 )
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
@@ -499,7 +498,7 @@ class Session:
             self._conn.run_query("alter session unset query_tag")
         self.__query_tag = tag
 
-    def table(self, name: Union[str, List[str], Tuple[str, ...]]) -> DataFrame:
+    def table(self, name: Union[str, Iterable[str]]) -> Table:
         """
         Returns a DataFrame that points the specified table.
 
@@ -507,19 +506,16 @@ class Session:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
 
-        Example::
+        Examples::
 
-            df = session.table("mytable")
+            df1 = session.table("mytable")
+            df2 = session.table(["mydb", "myschema", "mytable"])
         """
-        if isinstance(name, str):
-            fqdn = [name]
-        elif isinstance(name, (list, tuple)):
-            fqdn = name
-        else:
-            raise TypeError("The input of table() should be a str or a list of strs.")
-        for n in fqdn:
-            Utils.validate_object_name(n)
-        return DataFrame(self, UnresolvedRelation(fqdn))
+
+        if not isinstance(name, str) and isinstance(name, Iterable):
+            name = ".".join(name)
+        Utils.validate_object_name(name)
+        return Table(name, self)
 
     def table_function(
         self,
