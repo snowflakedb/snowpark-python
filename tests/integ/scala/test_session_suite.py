@@ -16,6 +16,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkMissingDbOrSchemaException,
     SnowparkSessionException,
 )
+from snowflake.snowpark.session import _get_active_session
 from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
 from tests.utils import Utils
 
@@ -33,8 +34,6 @@ def test_invalid_configs(session, db_parameters):
             assert "Incorrect username or password was specified" in str(ex_info)
         finally:
             new_session.close()
-            # restore active session
-            Session._set_active_session(session)
 
 
 def test_no_default_database_and_schema(session, db_parameters):
@@ -49,8 +48,6 @@ def test_no_default_database_and_schema(session, db_parameters):
         assert not new_session.getDefaultSchema()
     finally:
         new_session.close()
-        # restore active session
-        Session._set_active_session(session)
 
 
 def test_default_and_current_database_and_schema(session):
@@ -185,9 +182,6 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
         read.json("@mystage/prefix")
     assert ex_info.value.error_code == "1404"
 
-    # restore active session
-    Session._set_active_session(session)
-
 
 def test_load_table_from_array_multipart_identifier(session):
     name = Utils.random_name()
@@ -214,7 +208,9 @@ def test_dataframe_close_session(
     db_parameters,
 ):
     new_session = Session.builder.configs(db_parameters).create()
-    assert Session._get_active_session() is not None
+    with pytest.raises(SnowparkSessionException) as ex_info:
+        _get_active_session()
+    assert ex_info.value.error_code == "1409"
     new_session.close()
 
     # TODO: currently we need to call collect() to trigger error (scala doesn't)
@@ -225,6 +221,3 @@ def test_dataframe_close_session(
     with pytest.raises(SnowparkSessionException) as ex_info:
         new_session.range(10).collect()
     assert ex_info.value.error_code == "1404"
-
-    # restore active session
-    Session._set_active_session(session)

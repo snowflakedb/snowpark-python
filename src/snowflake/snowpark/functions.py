@@ -1396,6 +1396,7 @@ def udf(
     stage_location: Optional[str] = None,
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     replace: bool = False,
+    session: Optional[DataType] = None,
     parallel: int = 4,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
@@ -1431,6 +1432,8 @@ def udf(
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
             an existing UDF with the same name is overwritten.
+        session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
+            You need to specify this parameter if you have created multiple sessions before calling this method.
         parallel: The number of threads to use for uploading UDF files with the
             `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
             command. The default value is 4 and supported values are from 1 to 99.
@@ -1475,10 +1478,7 @@ def udf(
         registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
     """
-    session = snowflake.snowpark.Session._get_active_session()
-    if not session:
-        raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
-
+    session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
         return functools.partial(
             session.udf.register,
