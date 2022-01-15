@@ -799,11 +799,10 @@ class Session:
         def convert_row_to_list(
             row: Union[Dict, List, Tuple], names: List[str]
         ) -> List:
-            if not row:
-                return [None]
-
             row_dict = None
-            if isinstance(row, (tuple, list)):
+            if not row:
+                row = [None]
+            elif isinstance(row, (tuple, list)):
                 if getattr(row, "_fields", None):  # Row or namedtuple
                     row_dict = row.asDict() if isinstance(row, Row) else row._asdict()
             elif isinstance(row, dict):
