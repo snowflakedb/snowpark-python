@@ -37,7 +37,6 @@ from random import randint
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     ArrayIntersect as SPArrayIntersect,
@@ -1396,7 +1395,7 @@ def udf(
     stage_location: Optional[str] = None,
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     replace: bool = False,
-    session: Optional[DataType] = None,
+    session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.

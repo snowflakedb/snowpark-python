@@ -1432,16 +1432,15 @@ def test_create_or_replace_temporary_view(session, db_parameters):
 
         # Get a second session object
         session2 = Session.builder.configs(db_parameters).create()
-        assert session is not session2
-        with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
-            session2.table(view_name).collect()
-        assert "does not exist or not authorized" in str(ex_info)
+        with session2:
+            assert session is not session2
+            with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+                session2.table(view_name).collect()
+            assert "does not exist or not authorized" in str(ex_info)
     finally:
-        Session._set_active_session(session)
         Utils.drop_view(session, view_name)
         Utils.drop_view(session, view_name1)
         Utils.drop_view(session, view_name2)
-        session2.close()
 
 
 def test_createDataFrame_with_schema_inference(session):

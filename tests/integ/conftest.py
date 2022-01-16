@@ -12,6 +12,7 @@ import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
+from snowflake.snowpark.session import _get_active_session
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
 
@@ -123,9 +124,5 @@ def session_cnx(session) -> Callable[..., "Session"]:
 
 
 @contextmanager
-def get_session(conn_params=None):
-    if conn_params or not Session._get_active_session():
-        session = Session.builder.configs(conn_params or CONNECTION_PARAMETERS).create()
-    else:
-        session = Session._get_active_session()
-    yield session
+def get_session():
+    yield _get_active_session()
