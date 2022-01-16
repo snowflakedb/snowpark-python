@@ -957,7 +957,9 @@ def test_rollup(session):
     with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
         df.rollup(list()).agg(sum(col("value"))).show()
 
-    assert "001003 (42000): SQL compilation error" in str(ex_info)
+    assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
+        ex_info
+    )
 
     # rollup() on 1 column
     expected_result = [
@@ -1073,7 +1075,9 @@ def test_cube(session):
     with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
         df.cube(list()).agg(sum(col("value"))).show()
 
-    assert "001003 (42000): SQL compilation error" in str(ex_info)
+    assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
+        ex_info
+    )
 
     # cube() on 1 column
     expected_result = [
