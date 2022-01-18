@@ -8,7 +8,8 @@
     .. autosummary::
         {% for item in ['CaseExpr', 'Column', 'DataFrame', 'DataFrameNaFunctions', 'DataFrameReader',
             'DataFrameStatFunctions', 'DataFrameWriter', 'GroupingSets', 'RelationalGroupedDataFrame',
-            'Row', 'Session', 'FileOperation', 'PutResult', 'GetResult', 'Window', 'WindowSpec']
+            'Row', 'Session', 'FileOperation', 'PutResult', 'GetResult', 'Window', 'WindowSpec',
+            'Table', 'UpdateResult', 'DeleteResult']
         %}
             {{ item }}
         {% endfor %}

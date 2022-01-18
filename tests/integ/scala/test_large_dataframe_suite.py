@@ -58,14 +58,10 @@ def test_limit_on_order_by(session, is_sample_data_available):
 
 def test_create_dataframe_for_large_values_check_plan(session):
     def check_plan(df, data):
-        assert (
-            df._DataFrame__plan.queries[0]
-            .sql.strip()
-            .startswith("CREATE  TEMPORARY  TABLE")
-        )
-        assert df._DataFrame__plan.queries[1].sql.strip().startswith("INSERT  INTO")
-        assert df._DataFrame__plan.queries[2].sql.strip().startswith("SELECT")
-        assert len(df._DataFrame__plan.post_actions) == 1
+        assert df._plan.queries[0].sql.strip().startswith("CREATE  TEMPORARY  TABLE")
+        assert df._plan.queries[1].sql.strip().startswith("INSERT  INTO")
+        assert df._plan.queries[2].sql.strip().startswith("SELECT")
+        assert len(df._plan.post_actions) == 1
         assert df.sort("id").collect() == data
 
     large_data = [Row(i) for i in range(1025)]
