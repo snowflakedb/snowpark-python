@@ -58,8 +58,8 @@ def test_to_pandas_non_select(session):
     # toPandas should work for the large dataframe
     # batch insertion will run "create" and "insert" first
     df = session.createDataFrame([1] * 2000)
-    assert len(df._DataFrame__plan.queries) > 1
-    assert df._DataFrame__plan.queries[0].sql.strip().startswith("CREATE")
-    assert df._DataFrame__plan.queries[1].sql.strip().startswith("INSERT")
-    assert df._DataFrame__plan.queries[2].sql.strip().startswith("SELECT")
+    assert len(df._plan.queries) > 1
+    assert df._plan.queries[0].sql.strip().startswith("CREATE")
+    assert df._plan.queries[1].sql.strip().startswith("INSERT")
+    assert df._plan.queries[2].sql.strip().startswith("SELECT")
     isinstance(df.toPandas(), PandasDF)

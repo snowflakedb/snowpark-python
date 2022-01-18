@@ -17,6 +17,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
     SnowflakePlanBuilder,
     SnowflakeValues,
+    TableDelete,
+    TableUpdate,
 )
 from snowflake.snowpark._internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
@@ -508,7 +510,7 @@ class Analyzer:
                 )
 
         if isinstance(logical_plan, SPUnresolvedRelation):
-            return self.plan_builder.table(".".join(logical_plan.multipart_identifier))
+            return self.plan_builder.table(logical_plan.name)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
             return self.plan_builder.save_as_table(
@@ -600,3 +602,25 @@ class Analyzer:
                     self.session.getFullyQualifiedCurrentSchema(),
                     [Attribute('"$1"', VariantType())],
                 )
+
+        if isinstance(logical_plan, TableUpdate):
+            return self.plan_builder.update(
+                logical_plan.table_name,
+                {
+                    self.analyze(k): self.analyze(v)
+                    for k, v in logical_plan.assignments.items()
+                },
+                self.analyze(logical_plan.condition)
+                if logical_plan.condition
+                else None,
+                resolved_children.get(logical_plan.source_data, None),
+            )
+
+        if isinstance(logical_plan, TableDelete):
+            return self.plan_builder.delete(
+                logical_plan.table_name,
+                self.analyze(logical_plan.condition)
+                if logical_plan.condition
+                else None,
+                resolved_children.get(logical_plan.source_data, None),
+            )

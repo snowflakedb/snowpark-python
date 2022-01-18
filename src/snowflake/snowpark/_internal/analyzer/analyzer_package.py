@@ -142,6 +142,9 @@ class AnalyzerPackage:
     _Pattern = " PATTERN "
     _WithinGroup = " WITHIN GROUP "
     _ValidationMode = " VALIDATION_MODE "
+    _Update = " UPDATE "
+    _Delete = " DELETE "
+    _Set = " SET "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (
@@ -930,6 +933,51 @@ class AnalyzerPackage:
             + ftostr
             + costr
             + validation_str
+        )
+
+    def update_statement(
+        self,
+        table_name: str,
+        assignments: Dict[str, str],
+        condition: Optional[str],
+        source_data: Optional[str],
+    ):
+        return (
+            self._Update
+            + table_name
+            + self._Set
+            + self._Comma.join([k + self._Equals + v for k, v in assignments.items()])
+            + (
+                (
+                    self._From
+                    + self._LeftParenthesis
+                    + source_data
+                    + self._RightParenthesis
+                )
+                if source_data
+                else self._EmptyString
+            )
+            + ((self._Where + condition) if condition else self._EmptyString)
+        )
+
+    def delete_statement(
+        self, table_name: str, condition: Optional[str], source_data: Optional[str]
+    ):
+        return (
+            self._Delete
+            + self._From
+            + table_name
+            + (
+                (
+                    self._Using
+                    + self._LeftParenthesis
+                    + source_data
+                    + self._RightParenthesis
+                )
+                if source_data
+                else self._EmptyString
+            )
+            + ((self._Where + condition) if condition else self._EmptyString)
         )
 
     def create_temp_table_statement(self, table_name: str, schema: str) -> str:

@@ -128,11 +128,11 @@ class Utils:
         sort=True,
     ):
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
-            if type(input_data) == list:
+            if isinstance(input_data, list):
                 rows = input_data
-            elif type(input_data) == DataFrame:
+            elif isinstance(input_data, DataFrame):
                 rows = input_data.collect()
-            elif type(input_data) == Row:
+            elif isinstance(input_data, Row):
                 rows = [input_data]
             else:
                 raise TypeError(
@@ -212,12 +212,26 @@ class TestData:
 
     @classmethod
     def lower_case_data(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame([[1, "a"], [2, "b"], [3, "c"], [4, "d"]])
+        return session.createDataFrame(
+            [
+                cls.LowerCaseData(1, "a"),
+                cls.LowerCaseData(2, "b"),
+                cls.LowerCaseData(3, "c"),
+                cls.LowerCaseData(4, "d"),
+            ]
+        )
 
     @classmethod
     def upper_case_data(cls, session: "Session") -> DataFrame:
         return session.createDataFrame(
-            [[1, "A"], [2, "B"], [3, "C"], [4, "D"], [5, "E"], [6, "F"]]
+            [
+                cls.UpperCaseData(1, "A"),
+                cls.UpperCaseData(2, "B"),
+                cls.UpperCaseData(3, "C"),
+                cls.UpperCaseData(4, "D"),
+                cls.UpperCaseData(5, "E"),
+                cls.UpperCaseData(6, "F"),
+            ]
         )
 
     @classmethod
