@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.schema_utils import SchemaUtils
 from snowflake.snowpark._internal.sp_expressions import (
     Attribute as SPAttribute,
     AttributeReference as SPAttributeReference,
+    Expression as SPExpression,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils, _SaveMode
 from snowflake.snowpark.row import Row
@@ -675,6 +676,42 @@ class SnowflakePlanBuilder:
             )
         return SnowflakePlan(queries, copy_command, [], {}, self.__session, None)
 
+    def update(
+        self,
+        table_name: str,
+        assignments: Dict[str, str],
+        condition: Optional[str],
+        source_data: Optional[SnowflakePlan],
+    ) -> SnowflakePlan:
+        return self.query(
+            self.pkg.update_statement(
+                table_name,
+                assignments,
+                condition,
+                source_data.queries[-1].sql
+                if source_data and source_data.queries
+                else None,
+            ),
+            None,
+        )
+
+    def delete(
+        self,
+        table_name: str,
+        condition: Optional[str],
+        source_data: Optional[SnowflakePlan],
+    ) -> SnowflakePlan:
+        return self.query(
+            self.pkg.delete_statement(
+                table_name,
+                condition,
+                source_data.queries[-1].sql
+                if source_data and source_data.queries
+                else None,
+            ),
+            None,
+        )
+
     def lateral(
         self,
         table_function: str,
@@ -795,3 +832,33 @@ class CopyIntoNode(LeafNode):
         self.validation_mode = validation_mode
         self.user_schema = user_schema
         self.cur_options = cur_options
+
+
+class TableUpdate(LogicalPlan):
+    def __init__(
+        self,
+        table_name: str,
+        assignments: Dict[SPExpression, SPExpression],
+        condition: Optional[SPExpression],
+        source_data: Optional[LogicalPlan],
+    ):
+        super().__init__()
+        self.table_name = table_name
+        self.assignments = assignments
+        self.condition = condition
+        self.source_data = source_data
+        self.children = [source_data] if source_data else []
+
+
+class TableDelete(LogicalPlan):
+    def __init__(
+        self,
+        table_name: str,
+        condition: Optional[SPExpression],
+        source_data: Optional[LogicalPlan],
+    ):
+        super().__init__()
+        self.table_name = table_name
+        self.condition = condition
+        self.source_data = source_data
+        self.children = [source_data] if source_data else []

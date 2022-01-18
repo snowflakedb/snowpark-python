@@ -24,14 +24,10 @@ class BinaryNode(LogicalPlan):
     right: LogicalPlan
 
 
-class NamedRelation(LogicalPlan):
-    pass
-
-
-class UnresolvedRelation(LeafNode, NamedRelation):
-    def __init__(self, multipart_identifier):
+class UnresolvedRelation(LeafNode):
+    def __init__(self, name: str):
         super().__init__()
-        self.multipart_identifier = multipart_identifier
+        self.name = name
 
 
 class UnaryNode(LogicalPlan):
