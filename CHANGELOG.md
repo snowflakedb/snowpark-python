@@ -2,7 +2,7 @@
 
 ## 0.4.0
 ### New Features
-- Added `Table` class, with `update` and `delete` method to alter a table in Snowflake.
+- Added `Table` class, with `update` and `delete` method to update and delete a table in Snowflake.
 
 ## 0.3.0 (2022-01-09)
 ### New Features
