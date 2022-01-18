@@ -134,7 +134,7 @@ class Session:
     :class:`Session` contains functions to construct a :class:`DataFrame` like :func:`table`,
     :func:`sql` and :func:`read`.
 
-    A session object is not thread-safe.
+    A ``Session`` object is not thread-safe.
     """
 
     class SessionBuilder:

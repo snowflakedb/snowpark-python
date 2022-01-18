@@ -1,4 +1,8 @@
 # Release History
+## 0.4.0 (Unknown)
+
+### New Features
+- Added a parameter `session` to function `udf` so you can specify which session to use to create a UDF if you have multiple sessions.
 
 ## 0.3.0 (2021-01-09)
 ### New Features
