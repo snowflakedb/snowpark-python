@@ -72,40 +72,40 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
     first_result = session.file.put(f"file://{path1}", stage_with_prefix)[0]
-    assert first_result["source"] == os.path.basename(path1)
-    assert first_result["target"] == os.path.basename(path1) + ".gz"
-    assert first_result["source_size"] in (10, 11)
-    assert first_result["target_size"] in (96, 112)
-    assert first_result["source_compression"] == "NONE"
-    assert first_result["target_compression"] == "GZIP"
-    assert first_result["status"] == "UPLOADED"
-    assert first_result["message"] == ""
+    assert first_result.source == os.path.basename(path1)
+    assert first_result.target == os.path.basename(path1) + ".gz"
+    assert first_result.source_size in (10, 11)
+    assert first_result.target_size in (96, 112)
+    assert first_result.source_compression == "NONE"
+    assert first_result.target_compression == "GZIP"
+    assert first_result.status == "UPLOADED"
+    assert first_result.message == ""
     # Scala has encryption but python doesn't
-    # assert first_result["encryption"] == "DECRYPTED"
+    # assert first_result.encryption == "DECRYPTED"
 
     second_result = session.file.put(
         f"file://{path2}", stage_with_prefix, auto_compress=False
     )[0]
-    assert second_result["source"] == os.path.basename(path2)
-    assert second_result["target"] == os.path.basename(path2)
-    assert second_result["source_size"] in (10, 11)
-    assert second_result["target_size"] in (16, 17)
-    assert second_result["source_compression"] == "NONE"
-    assert second_result["target_compression"] == "NONE"
-    assert second_result["status"] == "UPLOADED"
-    assert second_result["message"] == ""
+    assert second_result.source == os.path.basename(path2)
+    assert second_result.target == os.path.basename(path2)
+    assert second_result.source_size in (10, 11)
+    assert second_result.target_size in (16, 17)
+    assert second_result.source_compression == "NONE"
+    assert second_result.target_compression == "NONE"
+    assert second_result.status == "UPLOADED"
+    assert second_result.message == ""
 
     # PUT another file: without "file://" and "@" for localFileName and stageLocation
     # put() will add "file://" for localFileName, add "@" for stageLocation
     third_result = session.file.put(path3, f"{temp_stage}/{stage_prefix}/")[0]
-    assert third_result["source"] == os.path.basename(path3)
-    assert third_result["target"] == os.path.basename(path3) + ".gz"
-    assert third_result["source_size"] in (10, 11)
-    assert third_result["target_size"] in (96, 112)
-    assert third_result["source_compression"] == "NONE"
-    assert third_result["target_compression"] == "GZIP"
-    assert third_result["status"] == "UPLOADED"
-    assert third_result["message"] == ""
+    assert third_result.source == os.path.basename(path3)
+    assert third_result.target == os.path.basename(path3) + ".gz"
+    assert third_result.source_size in (10, 11)
+    assert third_result.target_size in (96, 112)
+    assert third_result.source_compression == "NONE"
+    assert third_result.target_compression == "GZIP"
+    assert third_result.status == "UPLOADED"
+    assert third_result.message == ""
 
 
 def test_put_with_one_file_twice(session, temp_stage, path1):
@@ -117,16 +117,16 @@ def test_put_with_one_file_twice(session, temp_stage, path1):
     second_result = session.file.put(
         f"file://{path1}", stage_with_prefix, overwrite=False
     )[0]
-    assert second_result["source"] == os.path.basename(path1)
-    assert second_result["target"] == os.path.basename(path1) + ".gz"
-    assert second_result["source_size"] in (10, 11)
+    assert second_result.source == os.path.basename(path1)
+    assert second_result.target == os.path.basename(path1) + ".gz"
+    assert second_result.source_size in (10, 11)
     # On GCP, the files are not skipped if target file already exists
-    assert second_result["target_size"] in (0, 96, 112)
-    assert second_result["source_compression"] == "NONE"
-    assert second_result["target_compression"] == "GZIP"
-    assert second_result["status"] in ("SKIPPED", "UPLOADED")
+    assert second_result.target_size in (0, 96, 112)
+    assert second_result.source_compression == "NONE"
+    assert second_result.target_compression == "GZIP"
+    assert second_result.status in ("SKIPPED", "UPLOADED")
     # Scala has "message" field. Python has an empty "message"
-    # assert "File with same destination name and checksum already exists" in second_result["message"]
+    # assert "File with same destination name and checksum already exists" in second_result.message
 
 
 def test_put_with_one_relative_path_file(session, temp_stage, path1):
@@ -136,14 +136,14 @@ def test_put_with_one_relative_path_file(session, temp_stage, path1):
     shutil.copyfile(path1, file_name)
     try:
         first_result = session.file.put(f"file://{file_name}", stage_with_prefix)[0]
-        assert first_result["source"] == os.path.basename(path1)
-        assert first_result["target"] == os.path.basename(path1) + ".gz"
-        assert first_result["source_size"] in (10, 11)
-        assert first_result["target_size"] in (96, 112)
-        assert first_result["source_compression"] == "NONE"
-        assert first_result["target_compression"] == "GZIP"
-        assert first_result["status"] == "UPLOADED"
-        assert first_result["message"] == ""
+        assert first_result.source == os.path.basename(path1)
+        assert first_result.target == os.path.basename(path1) + ".gz"
+        assert first_result.source_size in (10, 11)
+        assert first_result.target_size in (96, 112)
+        assert first_result.source_compression == "NONE"
+        assert first_result.target_compression == "GZIP"
+        assert first_result.status == "UPLOADED"
+        assert first_result.message == ""
     finally:
         os.remove(file_name)
 
@@ -157,7 +157,7 @@ def test_put_with_multiple_files(
         f"file://{temp_source_directory}/*", stage_with_prefix
     )
     assert len(first_result) == 3
-    assert all(row["status"] == "UPLOADED" for row in first_result)
+    assert all(row.status == "UPLOADED" for row in first_result)
 
     # Upload again.
     second_result = session.file.put(
@@ -165,7 +165,7 @@ def test_put_with_multiple_files(
     )
     assert len(second_result) == 3
     # On GCP, the files are not skipped if target file already exists
-    assert all(row["status"] in ("UPLOADED", "SKIPPED") for row in second_result)
+    assert all(row.status in ("UPLOADED", "SKIPPED") for row in second_result)
 
 
 def test_put_negative(session, temp_stage, temp_source_directory, path1):
@@ -200,12 +200,12 @@ def test_get_one_file(
     )  # temp_target_directory
     try:
         assert len(results) == 1
-        assert results[0]["file"] == f"{os.path.basename(path1)}.gz"
-        assert results[0]["size"] in (95, 96)
-        assert results[0]["status"] == "DOWNLOADED"
+        assert results[0].file == f"{os.path.basename(path1)}.gz"
+        assert results[0].size in (95, 96)
+        assert results[0].status == "DOWNLOADED"
         # Scala has encryption but python doesn't
-        # assert results[0]["encryption"] == "DECRYPTED"
-        assert results[0]["message"] == ""
+        # assert results[0].encryption == "DECRYPTED"
+        assert results[0].message == ""
     finally:
         os.remove(f"{temp_target_directory}/{os.path.basename(path1)}.gz")
 
@@ -223,13 +223,13 @@ def test_get_multiple_files(
     results = session.file.get(stage_with_prefix, str(temp_target_directory))
     try:
         assert len(results) == 3
-        assert results[0]["file"] == os.path.basename(f"{path1}.gz")
-        assert results[1]["file"] == os.path.basename(f"{path2}.gz")
-        assert results[2]["file"] == os.path.basename(f"{path3}")
+        assert results[0].file == os.path.basename(f"{path1}.gz")
+        assert results[1].file == os.path.basename(f"{path2}.gz")
+        assert results[2].file == os.path.basename(f"{path3}")
 
-        assert results[0]["size"] in (95, 96)
-        assert results[1]["size"] in (95, 96)
-        assert results[2]["size"] in (10, 11)
+        assert results[0].size in (95, 96)
+        assert results[1].size in (95, 96)
+        assert results[2].size in (10, 11)
     finally:
         os.remove(f"{temp_target_directory}/{os.path.basename(path1)}.gz")
         os.remove(f"{temp_target_directory}/{os.path.basename(path2)}.gz")
@@ -252,8 +252,8 @@ def test_get_with_pattern_and_relative_target_directory(
 
     try:
         assert len(results) == 2
-        assert results[0]["file"] == os.path.basename(f"{path1}.gz")
-        assert results[1]["file"] == os.path.basename(f"{path2}.gz")
+        assert results[0].file == os.path.basename(f"{path1}.gz")
+        assert results[1].file == os.path.basename(f"{path2}.gz")
     finally:
         os.remove(f"{temp_target_directory}/{os.path.basename(path1)}.gz")
         os.remove(f"{temp_target_directory}/{os.path.basename(path2)}.gz")
@@ -277,11 +277,11 @@ def test_get_negative_test(session, temp_stage, temp_target_directory, path1):
 
     put_results = session.file.put(path1, stage_with_prefix)
     assert len(put_results) == 1
-    assert put_results[0]["status"] == "UPLOADED"
+    assert put_results[0].status == "UPLOADED"
     get_results = session.file.get(stage_with_prefix, "not_exist_target_test/test2")
     try:
         assert len(get_results) == 1
-        assert get_results[0]["status"] == "DOWNLOADED"
+        assert get_results[0].status == "DOWNLOADED"
     finally:
         shutil.rmtree("not_exist_target_test")
 
@@ -303,12 +303,12 @@ def test_get_negative_test_file_name_collision(
     try:
         results = session.file.get(stage_with_prefix, f"file://{str(target_directory)}")
         assert len(results) == 2
-        assert results[0]["status"] == "DOWNLOADED"
+        assert results[0].status == "DOWNLOADED"
         # GCP doesn't detect download collision
         assert (
-            results[1]["status"] == "COLLISION"
-            and "has same name as" in results[1]["message"]
-        ) or (results[1]["status"] == "DOWNLOADED" and results[1]["message"] == "")
+            results[1].status == "COLLISION"
+            and "has same name as" in results[1].message
+        ) or (results[1].status == "DOWNLOADED" and results[1].message == "")
     finally:
         shutil.rmtree(target_directory)
 
