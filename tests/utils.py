@@ -14,7 +14,9 @@ from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
 from snowflake.snowpark import DataFrame, Row, Session
+from snowflake.snowpark._internal import utils
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.utils import TempObjectType
 
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
@@ -33,6 +35,10 @@ class Utils:
     @staticmethod
     def random_name() -> str:
         return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_")).upper()
+
+    @staticmethod
+    def random_name_for_temp_object(object_type: "TempObjectType") -> str:
+        return utils.Utils.random_name_for_temp_object(object_type)
 
     @staticmethod
     def random_alphanumeric_str(n: int):

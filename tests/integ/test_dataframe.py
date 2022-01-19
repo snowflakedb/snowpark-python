@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     Star as SPStar,
 )
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkColumnException
 from snowflake.snowpark.functions import col, when
 from snowflake.snowpark.types import (
@@ -1306,7 +1307,7 @@ def test_describe(session):
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
 def test_write_temp_table(session, save_mode):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.createDataFrame([(1, 2), (3, 4)]).toDF("a", "b")
     try:
         df.write.saveAsTable(table_name, mode=save_mode, create_temp_table=True)
