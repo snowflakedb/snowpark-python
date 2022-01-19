@@ -817,9 +817,10 @@ class Session:
                 # check the length of every row, which should be same across data
                 if len(row) != len(names):
                     raise ValueError(
-                        "data consists of rows with different lengths. "
                         f"{len(names)} fields are required by schema "
-                        f"but {len(row)} values are provided"
+                        f"but {len(row)} values are provided. This might be because "
+                        f"data consists of rows with different lengths, or mixed rows "
+                        f"with column names or without column names"
                     )
                 return list(row)
 

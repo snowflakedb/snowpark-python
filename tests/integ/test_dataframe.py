@@ -838,13 +838,13 @@ def test_create_dataframe_with_dict(session):
     Utils.check_answer(df, [Row(1, None), Row(None, 2)])
 
     df = session.createDataFrame([{"a": 1}, {"d": 2, "e": 3}, {"c": 4, "b": 5}])
-    assert [field.name for field in df.schema.fields] == ["A", "D", "E", "B", "C"]
+    assert [field.name for field in df.schema.fields] == ["A", "D", "E", "C", "B"]
     Utils.check_answer(
         df,
         [
             Row(1, None, None, None, None),
             Row(None, 2, 3, None, None),
-            Row(None, None, None, 5, 4),
+            Row(None, None, None, 4, 5),
         ],
     )
 
@@ -925,7 +925,6 @@ def test_create_dataframe_with_mixed_dict_namedtuple_row(session):
 def test_create_dataframe_with_schema_col_names(session):
     col_names = ["a", "b", "c", "d"]
     df = session.createDataFrame([[1, 2, 3, 4]], schema=col_names)
-    f = df.schema.fields
     for field, expected_name in zip(df.schema.fields, col_names):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
@@ -986,7 +985,7 @@ def test_create_dataframe_with_variant(session_cnx):
 def test_create_dataframe_with_single_value(session_cnx):
     with session_cnx() as session:
         data = [1, 2, 3]
-        expected_names = ["VALUES"]
+        expected_names = ["_1"]
         expected_rows = [Row(d) for d in data]
         df = session.createDataFrame(data)
         assert [field.name for field in df.schema.fields] == expected_names
