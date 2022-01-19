@@ -21,14 +21,14 @@ from snowflake.snowpark.row import Row
 class UpdateResult(NamedTuple):
     """Result of updating rows in a :class:`Table`."""
 
-    rows_updated: int
-    multi_joined_rows_updated: int
+    rows_updated: int  #: The number of rows modified.
+    multi_joined_rows_updated: int  #: The number of multi-joined rows modified.
 
 
 class DeleteResult(NamedTuple):
     """Result of deleting rows in a :class:`Table`."""
 
-    rows_deleted: int
+    rows_deleted: int  #: The number of rows deleted.
 
 
 def _get_update_result(rows: List[Row]) -> UpdateResult:
