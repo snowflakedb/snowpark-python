@@ -37,7 +37,7 @@ class Utils:
         return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_")).upper()
 
     @staticmethod
-    def random_name_for_temp_object(object_type: "TempObjectType") -> str:
+    def random_name_for_temp_object(object_type: TempObjectType) -> str:
         return utils.Utils.random_name_for_temp_object(object_type)
 
     @staticmethod
