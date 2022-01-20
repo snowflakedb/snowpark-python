@@ -93,11 +93,11 @@ def test_create_dataframe_sequence(session):
     assert df.collect() == [Row(1, "one", 1.0), Row(2, "two", 2.0)]
 
     df = session.createDataFrame([1, 2])
-    assert [field.name for field in df.schema.fields] == ["VALUES"]
+    assert [field.name for field in df.schema.fields] == ["_1"]
     assert df.collect() == [Row(1), Row(2)]
 
     df = session.createDataFrame(["one", "two"])
-    assert [field.name for field in df.schema.fields] == ["VALUES"]
+    assert [field.name for field in df.schema.fields] == ["_1"]
     assert df.collect() == [Row("one"), Row("two")]
 
 
