@@ -6,6 +6,7 @@ from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import IntegerType, LongType
 from tests.utils import Utils
@@ -37,7 +38,7 @@ def test_single_query(session_cnx):
 def test_multiple_queries(session_cnx):
     with session_cnx() as session:
         # unary query
-        table_name1 = Utils.random_name()
+        table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         queries = [
             Query(
                 f"create or replace temporary table {table_name1} as select * from values(1::INT, 'a'::STRING),(2::INT, 'b'::STRING) as T(A,B)"
@@ -67,7 +68,7 @@ def test_multiple_queries(session_cnx):
             Utils.drop_table(session, table_name1)
 
         # binary query
-        table_name2 = Utils.random_name()
+        table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         queries2 = [
             Query(
                 f"create or replace temporary table {table_name2} as select * from values(3::INT),(4::INT) as T(A)"

@@ -7,6 +7,7 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import LongType, StructField, StructType
 from tests.utils import TestFiles, Utils
@@ -14,7 +15,7 @@ from tests.utils import TestFiles, Utils
 
 def test_non_select_queries(session):
     try:
-        stage_name = Utils.random_name()
+        stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
         Utils.create_stage(session, stage_name)
         res = session.sql(f"show stages like '{stage_name}'").collect()
         assert len(res) == 1
@@ -45,7 +46,7 @@ def test_put_get_should_not_be_performed_when_preparing(
     path = test_files.test_file_csv
     file_name = "testCSV.csv"
 
-    tmp_stage_name = Utils.random_stage_name()
+    tmp_stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
 
     # add spaces to the query
     put_query = f"put file:///{path} @{tmp_stage_name}"
@@ -111,7 +112,7 @@ def test_create_table(session):
 
         # assert the table is not created before collect
         with pytest.raises(ProgrammingError) as ex_info:
-            session.sql(f"select from {table_name}").collect()
+            session.sql(f"select * from {table_name}").collect()
 
         table.collect()
 
