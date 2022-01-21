@@ -611,5 +611,5 @@ class CaseExpr(Column):
         """Sets the default result for this CASE expression."""
         return CaseExpr(SPCaseWhen(self.__branches, Column._to_expr(value)))
 
-    # This alias is to sync with scala
+    # This alias is to sync with snowpark scala
     else_ = otherwise

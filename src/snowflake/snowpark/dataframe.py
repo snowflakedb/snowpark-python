@@ -24,7 +24,6 @@ from snowflake.snowpark._internal.analyzer.sp_views import (
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin as SPTableFunctionJoin,
 )
-from snowflake.snowpark._internal.deprecation import deprecate
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Except as SPExcept,
@@ -64,7 +63,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
     LiteralType,
 )
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import Utils, deprecate
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions

@@ -28,7 +28,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation as SPTableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer_obj import Analyzer
-from snowflake.snowpark._internal.deprecation import deprecate
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
 from snowflake.snowpark._internal.server_connection import ServerConnection
@@ -45,6 +44,7 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     Utils,
+    deprecate,
 )
 from snowflake.snowpark._internal.write_pandas import write_pandas
 from snowflake.snowpark.dataframe import DataFrame
