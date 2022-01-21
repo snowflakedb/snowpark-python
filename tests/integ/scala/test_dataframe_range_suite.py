@@ -52,13 +52,13 @@ def test_range_api(session):
     res13 = session.range(-n, n, n / 9).select("id")
     assert res13.count() == 18
 
-    res14 = session.range(0, 100, 2).toDF(["id"]).filter(col("id") >= 50)
+    res14 = session.range(0, 100, 2).to_df(["id"]).filter(col("id") >= 50)
     assert res14.count() == 25
 
-    res15 = session.range(100, -100, -2).toDF(["id"]).filter(col("id") <= 0)
+    res15 = session.range(100, -100, -2).to_df(["id"]).filter(col("id") <= 0)
     assert res15.count() == 50
 
-    res16 = session.range(-1500, 1500, 3).toDF(["id"]).filter(col("id") >= 0)
+    res16 = session.range(-1500, 1500, 3).to_df(["id"]).filter(col("id") >= 0)
     assert res16.count() == 500
 
 

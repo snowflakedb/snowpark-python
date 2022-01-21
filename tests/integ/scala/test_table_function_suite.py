@@ -8,16 +8,16 @@ from tests.utils import Utils
 
 
 def test_dataframe_join_table_function(session):
-    df = session.createDataFrame(["[1,2]", "[3,4]"], schema=["a"])
+    df = session.create_data_frame(["[1,2]", "[3,4]"], schema=["a"])
     Utils.check_answer(
-        df.joinTableFunction("flatten", input=parse_json(df["a"])).select("value"),
+        df.join_table_function("flatten", input=parse_json(df["a"])).select("value"),
         [Row("1"), Row("2"), Row("3"), Row("4")],
         sort=False,
     )
 
     Utils.check_answer(
         [Row("[1"), Row("2]"), Row("[3"), Row("4]")],
-        df.joinTableFunction("split_to_table", df["a"], lit(",")).select("value"),
+        df.join_table_function("split_to_table", df["a"], lit(",")).select("value"),
         sort=False,
     )
 
@@ -43,9 +43,9 @@ def test_session_table_function(session):
 def test_schema_string_lateral_join_flatten_function_array(session):
     table_name = Utils.random_name()
     try:
-        df = session.createDataFrame(["a", "b"], schema=["values"])
+        df = session.create_data_frame(["a", "b"], schema=["values"])
         agg_df = df.agg(array_agg(col("values")).alias("value"))
-        agg_df.write.mode("Overwrite").saveAsTable(table_name)
+        agg_df.write.mode("Overwrite").save_as_table(table_name)
         table = session.table(table_name)
         flattened = table.flatten(table["value"])
         Utils.check_answer(
@@ -59,8 +59,8 @@ def test_schema_string_lateral_join_flatten_function_array(session):
 def test_schema_string_lateral_join_flatten_function_object(session):
     table_name = Utils.random_name()
     try:
-        df = session.createDataFrame([Row(value={"a": "b"})])
-        df.write.mode("Overwrite").saveAsTable(table_name)
+        df = session.create_data_frame([Row(value={"a": "b"})])
+        df.write.mode("Overwrite").save_as_table(table_name)
         table = session.table(table_name)
         flattened = table.flatten(table["value"])
         Utils.check_answer(
@@ -74,11 +74,11 @@ def test_schema_string_lateral_join_flatten_function_object(session):
 def test_schema_string_lateral_join_flatten_function_variant(session):
     table_name = Utils.random_name()
     try:
-        df = session.createDataFrame(
+        df = session.create_data_frame(
             [Row(value={"a": "b"})],
             schema=StructType([StructField("value", VariantType())]),
         )
-        df.write.mode("Overwrite").saveAsTable(table_name)
+        df.write.mode("Overwrite").save_as_table(table_name)
         table = session.table(table_name)
         flattened = table.flatten(table["value"])
         Utils.check_answer(

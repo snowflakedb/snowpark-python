@@ -39,18 +39,18 @@ def test_limit_on_order_by(session, is_sample_data_available):
         session.table("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.LINEITEM")
         .select("L_RETURNFLAG", "L_SHIPMODE")
         .filter(col("L_RETURNFLAG") == "A")
-        .groupBy("L_RETURNFLAG", "L_SHIPMODE")
+        .group_by("L_RETURNFLAG", "L_SHIPMODE")
         .count()
     )
     n = (
         session.table("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.LINEITEM")
         .select("L_RETURNFLAG", "L_SHIPMODE")
         .filter(col("L_RETURNFLAG") == "N")
-        .groupBy("L_RETURNFLAG", "L_SHIPMODE")
+        .group_by("L_RETURNFLAG", "L_SHIPMODE")
         .count()
     )
 
-    union = a.unionAll(n)
+    union = a.union_all(n)
     result = union.select(col("COUNT")).sort(col("COUNT")).limit(10).collect()
     for e1, e2 in zip(result[:-1], result[1:]):
         assert int(e1[0]) < int(e2[0])
@@ -70,8 +70,8 @@ def test_create_dataframe_for_large_values_check_plan(session):
 
     large_data = [Row(i) for i in range(1025)]
     schema = StructType([StructField("ID", LongType())])
-    df1 = session.createDataFrame(large_data, schema)
-    df2 = session.createDataFrame(large_data).toDF("id")
+    df1 = session.create_data_frame(large_data, schema)
+    df2 = session.create_data_frame(large_data).to_df("id")
     check_plan(df1, large_data)
     check_plan(df2, large_data)
 
@@ -118,7 +118,7 @@ def test_create_dataframe_for_large_values_basic_types(session):
         for i in range(row_count)
     ]
     large_data.append(Row(row_count, *([None] * (len(large_data[0]) - 1))))
-    df = session.createDataFrame(large_data, schema)
+    df = session.create_data_frame(large_data, schema)
     assert [type(field.datatype) for field in df.schema.fields] == [
         LongType,
         StringType,
@@ -151,7 +151,7 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
     row_count = 350
     large_data = [Row(i, ["'", 2], {"'": 1}, {"a": "foo"}) for i in range(row_count)]
     large_data.append(Row(row_count, None, None, None))
-    df = session.createDataFrame(large_data, schema)
+    df = session.create_data_frame(large_data, schema)
     assert [type(field.datatype) for field in df.schema.fields] == [
         LongType,
         ArrayType,

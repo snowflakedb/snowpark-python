@@ -19,10 +19,10 @@ from tests.utils import Utils
 
 
 def test_join_using(session):
-    df = session.createDataFrame([[i, str(i)] for i in range(1, 4)]).toDF(
+    df = session.create_data_frame([[i, str(i)] for i in range(1, 4)]).to_df(
         ["int", "str"]
     )
-    df2 = session.createDataFrame([[i, str(i + 1)] for i in range(1, 4)]).toDF(
+    df2 = session.create_data_frame([[i, str(i + 1)] for i in range(1, 4)]).to_df(
         ["int", "str"]
     )
     assert df.join(df2, "int").collect() == [
@@ -33,12 +33,12 @@ def test_join_using(session):
 
 
 def test_join_using_multiple_columns(session):
-    df = session.createDataFrame([[i, i + 1, str(i)] for i in range(1, 4)]).toDF(
+    df = session.create_data_frame([[i, i + 1, str(i)] for i in range(1, 4)]).to_df(
         ["int", "int2", "str"]
     )
-    df2 = session.createDataFrame([[i, i + 1, str(i + 1)] for i in range(1, 4)]).toDF(
-        ["int", "int2", "str"]
-    )
+    df2 = session.create_data_frame(
+        [[i, i + 1, str(i + 1)] for i in range(1, 4)]
+    ).to_df(["int", "int2", "str"])
 
     res = df.join(df2, ["int", "int2"]).collect()
     assert sorted(res, key=lambda x: x[0]) == [
@@ -50,9 +50,9 @@ def test_join_using_multiple_columns(session):
 
 def test_full_outer_join_followed_by_inner_join(session):
 
-    a = session.createDataFrame([[1, 2], [2, 3]]).toDF(["a", "b"])
-    b = session.createDataFrame([[2, 5], [3, 4]]).toDF(["a", "c"])
-    c = session.createDataFrame([[3, 1]]).toDF(["a", "d"])
+    a = session.create_data_frame([[1, 2], [2, 3]]).to_df(["a", "b"])
+    b = session.create_data_frame([[2, 5], [3, 4]]).to_df(["a", "c"])
+    c = session.create_data_frame([[3, 1]]).to_df(["a", "d"])
 
     ab = a.join(b, ["a"], "fullouter")
     abc = ab.join(c, "a")
@@ -60,10 +60,10 @@ def test_full_outer_join_followed_by_inner_join(session):
 
 
 def test_limit_with_join(session):
-    df = session.createDataFrame([[1, 1, "1"], [2, 2, "3"]]).toDF(
+    df = session.create_data_frame([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
     )
-    df2 = session.createDataFrame([[1, 1, "1"], [2, 3, "5"]]).toDF(
+    df2 = session.create_data_frame([[1, 1, "1"], [2, 3, "5"]]).to_df(
         ["int", "int2", "str"]
     )
     limit = 1310721
@@ -76,8 +76,8 @@ def test_limit_with_join(session):
 
 
 def test_default_inner_join(session):
-    df = session.createDataFrame([1, 2]).toDF(["a"])
-    df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
+    df = session.create_data_frame([1, 2]).to_df(["a"])
+    df2 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
     )
 
@@ -93,8 +93,8 @@ def test_default_inner_join(session):
 
 def test_default_inner_join_using_column(session):
 
-    df = session.createDataFrame([1, 2]).toDF(["a"])
-    df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
+    df = session.create_data_frame([1, 2]).to_df(["a"])
+    df2 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
     )
 
@@ -104,25 +104,25 @@ def test_default_inner_join_using_column(session):
 
 def test_3_way_joins(session):
 
-    df1 = session.createDataFrame([1, 2]).toDF(["a"])
-    df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
+    df1 = session.create_data_frame([1, 2]).to_df(["a"])
+    df2 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
     )
-    df3 = session.createDataFrame(
+    df3 = session.create_data_frame(
         [[f"test{i}", f"hello{i}"] for i in range(1, 3)]
-    ).toDF(["key", "val"])
+    ).to_df(["key", "val"])
 
     # 3 way join with column renaming
-    res = df1.join(df2, "a").toDF(["num", "key"]).join(df3, ["key"]).collect()
+    res = df1.join(df2, "a").to_df(["num", "key"]).join(df3, ["key"]).collect()
     assert res == [Row("test1", 1, "hello1"), Row("test2", 2, "hello2")]
 
 
 def test_default_inner_join_with_join_conditions(session):
 
-    df1 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
+    df1 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
     )
-    df2 = session.createDataFrame([[i, f"num{i}"] for i in range(1, 3)]).toDF(
+    df2 = session.create_data_frame([[i, f"num{i}"] for i in range(1, 3)]).to_df(
         ["num", "val"]
     )
 
@@ -135,10 +135,10 @@ def test_default_inner_join_with_join_conditions(session):
 
 def test_join_with_multiple_conditions(session):
 
-    df1 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
+    df1 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
     )
-    df2 = session.createDataFrame([[i, f"num{i}"] for i in range(1, 3)]).toDF(
+    df2 = session.create_data_frame([[i, f"num{i}"] for i in range(1, 3)]).to_df(
         ["num", "val"]
     )
 
@@ -148,8 +148,8 @@ def test_join_with_multiple_conditions(session):
 
 def test_join_with_ambiguous_column_in_condidtion(session_cnx):
     with session_cnx() as session:
-        df = session.createDataFrame([1, 2]).toDF(["a"])
-        df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
+        df = session.create_data_frame([1, 2]).to_df(["a"])
+        df2 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 3)]).to_df(
             ["a", "b"]
         )
 
@@ -235,31 +235,33 @@ def test_join_using_conditions_and_specifying_join_type(session):
 
 
 def test_natural_join(session):
-    df = session.createDataFrame([1, 2]).toDF("a")
-    df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF("a", "b")
-    Utils.check_answer(df.naturalJoin(df2), [Row(1, "test1"), Row(2, "test2")])
+    df = session.create_data_frame([1, 2]).to_df("a")
+    df2 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 3)]).to_df(
+        "a", "b"
+    )
+    Utils.check_answer(df.natural_join(df2), [Row(1, "test1"), Row(2, "test2")])
 
 
 def test_natural_outer_join(session):
-    df1 = session.createDataFrame([[1, "1"], [3, "3"]]).toDF("a", "b")
-    df2 = session.createDataFrame([[1, "1"], [4, "4"]]).toDF("a", "c")
+    df1 = session.create_data_frame([[1, "1"], [3, "3"]]).to_df("a", "b")
+    df2 = session.create_data_frame([[1, "1"], [4, "4"]]).to_df("a", "c")
     Utils.check_answer(
-        df1.naturalJoin(df2, "left"), [Row(1, "1", "1"), Row(3, "3", None)]
+        df1.natural_join(df2, "left"), [Row(1, "1", "1"), Row(3, "3", None)]
     )
     Utils.check_answer(
-        df1.naturalJoin(df2, "right"), [Row(1, "1", "1"), Row(4, None, "4")]
+        df1.natural_join(df2, "right"), [Row(1, "1", "1"), Row(4, None, "4")]
     )
     Utils.check_answer(
-        df1.naturalJoin(df2, "outer"),
+        df1.natural_join(df2, "outer"),
         [Row(1, "1", "1"), Row(3, "3", None), Row(4, None, "4")],
     )
 
 
 def test_cross_join(session):
-    df1 = session.createDataFrame([[1, "1"], [3, "3"]]).toDF(["int", "str"])
-    df2 = session.createDataFrame([[2, "2"], [4, "4"]]).toDF(["int", "str"])
+    df1 = session.create_data_frame([[1, "1"], [3, "3"]]).to_df(["int", "str"])
+    df2 = session.create_data_frame([[2, "2"], [4, "4"]]).to_df(["int", "str"])
 
-    res = df1.crossJoin(df2).collect()
+    res = df1.cross_join(df2).collect()
     res.sort(key=lambda x: x[0])
     assert res == [
         Row(1, "1", 2, "2"),
@@ -268,7 +270,7 @@ def test_cross_join(session):
         Row(3, "3", 4, "4"),
     ]
 
-    res = df2.crossJoin(df1).collect()
+    res = df2.cross_join(df1).collect()
     res.sort(key=lambda x: (x[0], x[2]))
     assert res == [
         Row(2, "2", 1, "1"),
@@ -280,8 +282,8 @@ def test_cross_join(session):
 
 def test_join_ambiguous_columns_with_specified_sources(session):
 
-    df = session.createDataFrame([1, 2]).toDF(["a"])
-    df2 = session.createDataFrame([[i, f"test{i}"] for i in range(1, 3)]).toDF(
+    df = session.create_data_frame([1, 2]).to_df(["a"])
+    df2 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
     )
 
@@ -297,10 +299,10 @@ def test_join_ambiguous_columns_with_specified_sources(session):
 
 def test_join_ambiguous_columns_without_specified_sources(session_cnx):
     with session_cnx() as session:
-        df = session.createDataFrame([[1, "one"], [2, "two"]]).toDF(
+        df = session.create_data_frame([[1, "one"], [2, "two"]]).to_df(
             ["intcol", " stringcol"]
         )
-        df2 = session.createDataFrame([[1, "one"], [3, "three"]]).toDF(
+        df2 = session.create_data_frame([[1, "one"], [3, "three"]]).to_df(
             ["intcol", " bcol"]
         )
 
@@ -321,10 +323,10 @@ def test_join_ambiguous_columns_without_specified_sources(session_cnx):
 
 
 def test_join_expression_ambiguous_columns(session):
-    lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
+    lhs = session.create_data_frame([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
-    rhs = session.createDataFrame([[1, -10, "one"], [2, -20, "two"]]).toDF(
+    rhs = session.create_data_frame([[1, -10, "one"], [2, -20, "two"]]).to_df(
         ["intcol", "negcol", "rhscol"]
     )
 
@@ -343,10 +345,10 @@ def test_join_expression_ambiguous_columns(session):
 @pytest.mark.skip(message="Ignored in Scala tests since this only produces a warning")
 def test_semi_join_expression_ambiguous_columns(session_cnx):
     with session_cnx() as session:
-        lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
+        lhs = session.create_data_frame([[1, -1, "one"], [2, -2, "two"]]).to_df(
             ["intcol", "negcol", "lhscol"]
         )
-        rhs = session.createDataFrame([[1, -10, "one"], [2, -20, "two"]]).toDF(
+        rhs = session.create_data_frame([[1, -10, "one"], [2, -20, "two"]]).to_df(
             ["intcol", "negcol", "rhscol"]
         )
 
@@ -366,10 +368,10 @@ def test_semi_join_expression_ambiguous_columns(session_cnx):
 
 
 def test_semi_join_with_columns_from_LHS(session):
-    lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
+    lhs = session.create_data_frame([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
-    rhs = session.createDataFrame([[1, -10, "one"], [2, -20, "two"]]).toDF(
+    rhs = session.create_data_frame([[1, -10, "one"], [2, -20, "two"]]).to_df(
         ["intcol", "negcol", "rhscol"]
     )
 
@@ -425,10 +427,10 @@ def test_semi_join_with_columns_from_LHS(session):
 
 
 def test_using_joins(session):
-    lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
+    lhs = session.create_data_frame([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
-    rhs = session.createDataFrame([[1, -10, "one"], [2, -20, "two"]]).toDF(
+    rhs = session.create_data_frame([[1, -10, "one"], [2, -20, "two"]]).to_df(
         ["intcol", "negcol", "rhscol"]
     )
 
@@ -461,8 +463,8 @@ def test_using_joins(session):
 
 def test_columns_with_and_without_quotes(session):
 
-    lhs = session.createDataFrame([[1, 1.0]]).toDF(["intcol", "doublecol"])
-    rhs = session.createDataFrame([[1, 2.0]]).toDF(['"INTCOL"', '"DoubleCol"'])
+    lhs = session.create_data_frame([[1, 1.0]]).to_df(["intcol", "doublecol"])
+    rhs = session.create_data_frame([[1, 2.0]]).to_df(['"INTCOL"', '"DoubleCol"'])
 
     res = (
         lhs.join(rhs, lhs["intcol"] == rhs["intcol"])
@@ -493,10 +495,10 @@ def test_columns_with_and_without_quotes(session):
 
 def test_aliases_multiple_levels_deep(session):
 
-    lhs = session.createDataFrame([[1, -1, "one"], [2, -2, "two"]]).toDF(
+    lhs = session.create_data_frame([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
-    rhs = session.createDataFrame([[1, -10, "one"], [2, -20, "two"]]).toDF(
+    rhs = session.create_data_frame([[1, -10, "one"], [2, -20, "two"]]).to_df(
         ["intcol", "negcol", "rhscol"]
     )
 
@@ -632,11 +634,11 @@ def test_natural_cross_joins(session):
         cloned_df = df.clone()
 
         # "natural join" supports self join
-        assert df.naturalJoin(df2).collect() == [Row(1, 2), Row(2, 3)]
-        assert df.naturalJoin(cloned_df).collect() == [Row(1, 2), Row(2, 3)]
+        assert df.natural_join(df2).collect() == [Row(1, 2), Row(2, 3)]
+        assert df.natural_join(cloned_df).collect() == [Row(1, 2), Row(2, 3)]
 
         # "cross join" supports self join
-        res = df.crossJoin(df2).collect()
+        res = df.cross_join(df2).collect()
         res.sort(key=lambda x: x[0])
         assert res == [
             Row(1, 2, 1, 2),
@@ -645,7 +647,7 @@ def test_natural_cross_joins(session):
             Row(2, 3, 2, 3),
         ]
 
-        res = df.crossJoin(df2).collect()
+        res = df.cross_join(df2).collect()
         res.sort(key=lambda x: x[0])
         assert res == [
             Row(1, 2, 1, 2),
@@ -730,12 +732,12 @@ def test_drop_on_join(session):
     table_name_1 = Utils.random_name()
     table_name_2 = Utils.random_name()
     try:
-        session.createDataFrame([[1, "a", True], [2, "b", False]]).toDF(
+        session.create_data_frame([[1, "a", True], [2, "b", False]]).to_df(
             "a", "b", "c"
-        ).write.saveAsTable(table_name_1)
-        session.createDataFrame([[3, "a", True], [4, "b", False]]).toDF(
+        ).write.save_as_table(table_name_1)
+        session.create_data_frame([[3, "a", True], [4, "b", False]]).to_df(
             "a", "b", "c"
-        ).write.saveAsTable(table_name_2)
+        ).write.save_as_table(table_name_2)
         df1 = session.table(table_name_1)
         df2 = session.table(table_name_2)
         df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
@@ -750,9 +752,9 @@ def test_drop_on_join(session):
 def test_drop_on_self_join(session):
     table_name_1 = Utils.random_name()
     try:
-        session.createDataFrame([[1, "a", True], [2, "b", False]]).toDF(
+        session.create_data_frame([[1, "a", True], [2, "b", False]]).to_df(
             "a", "b", "c"
-        ).write.saveAsTable(table_name_1)
+        ).write.save_as_table(table_name_1)
         df1 = session.table(table_name_1)
         df2 = df1.clone()
         df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
@@ -767,18 +769,18 @@ def test_with_column_on_join(session):
     table_name_1 = Utils.random_name()
     table_name_2 = Utils.random_name()
     try:
-        session.createDataFrame([[1, "a", True], [2, "b", False]]).toDF(
+        session.create_data_frame([[1, "a", True], [2, "b", False]]).to_df(
             "a", "b", "c"
-        ).write.saveAsTable(table_name_1)
-        session.createDataFrame([[3, "a", True], [4, "b", False]]).toDF(
+        ).write.save_as_table(table_name_1)
+        session.create_data_frame([[3, "a", True], [4, "b", False]]).to_df(
             "a", "b", "c"
-        ).write.saveAsTable(table_name_2)
+        ).write.save_as_table(table_name_2)
         df1 = session.table(table_name_1)
         df2 = session.table(table_name_2)
         Utils.check_answer(
             df1.join(df2, df1["c"] == df2["c"])
             .drop(df1["b"], df2["b"], df1["c"])
-            .withColumn("newColumn", df1["a"] + df2["a"]),
+            .with_column("newColumn", df1["a"] + df2["a"]),
             [Row(1, 3, True, 4), Row(2, 4, False, 6)],
         )
     finally:
@@ -789,10 +791,10 @@ def test_with_column_on_join(session):
 def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_outpu(
     session,
 ):
-    df1 = session.createDataFrame([(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]).toDF(
+    df1 = session.create_data_frame([(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]).to_df(
         "id", "count"
     )
-    df2 = session.createDataFrame([[0], [1]]).toDF("id").groupBy("id").count()
+    df2 = session.create_data_frame([[0], [1]]).to_df("id").group_by("id").count()
 
     Utils.check_answer(
         df1.join(df2, df1["id"] == df2["id"], "left_outer").filter(
@@ -802,8 +804,8 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
     )
 
     # Coallesce data using non-nullable columns in input tables
-    df3 = session.createDataFrame([[1, 1]]).toDF("a", "b")
-    df4 = session.createDataFrame([[2, 2]]).toDF("a", "b")
+    df3 = session.create_data_frame([[1, 1]]).to_df("a", "b")
+    df4 = session.create_data_frame([[2, 2]]).to_df("a", "b")
     Utils.check_answer(
         df3.join(df4, df3["a"] == df4["a"], "outer").select(
             coalesce(df3["a"], df3["b"]), coalesce(df4["a"], df4["b"])
@@ -814,10 +816,10 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
 
 def test_outer_join_conversion(session):
 
-    df = session.createDataFrame([(1, 2, "1"), (3, 4, "3")]).toDF(
+    df = session.create_data_frame([(1, 2, "1"), (3, 4, "3")]).to_df(
         ["int", "int2", "str"]
     )
-    df2 = session.createDataFrame([(1, 3, "1"), (5, 6, "5")]).toDF(
+    df2 = session.create_data_frame([(1, 3, "1"), (5, 6, "5")]).to_df(
         ["int", "int2", "str"]
     )
 
@@ -856,7 +858,7 @@ def test_outer_join_conversion(session):
 
 def test_dont_throw_analysis_exception_in_check_cartesian(session):
     """Don't throw Analysis Exception in CheckCartesianProduct when join condition is false or null"""
-    df = session.range(10).toDF(["id"])
+    df = session.range(10).to_df(["id"])
     dfNull = session.range(10).select(lit(None).as_("b"))
     df.join(dfNull, col("id") == col("b"), "left").collect()
 
@@ -950,9 +952,9 @@ def test_name_alias_on_multiple_join_unnormalized_name(session):
 
 def test_report_error_when_refer_common_col(session_cnx):
     with session_cnx() as session:
-        df1 = session.createDataFrame([[1, 2]]).toDF(["a", "b"])
-        df2 = session.createDataFrame([[1, 2]]).toDF(["c", "d"])
-        df3 = session.createDataFrame([[1, 2]]).toDF(["e", "f"])
+        df1 = session.create_data_frame([[1, 2]]).to_df(["a", "b"])
+        df2 = session.create_data_frame([[1, 2]]).to_df(["c", "d"])
+        df3 = session.create_data_frame([[1, 2]]).to_df(["e", "f"])
 
         df4 = df1.join(df2, df1["a"] == df2["c"])
         df5 = df3.join(df2, df2["c"] == df3["e"])
@@ -965,8 +967,8 @@ def test_report_error_when_refer_common_col(session_cnx):
 
 def test_select_all_on_join_result(session):
 
-    df_left = session.createDataFrame([[1, 2]]).toDF("a", "b")
-    df_right = session.createDataFrame([[3, 4]]).toDF("c", "d")
+    df_left = session.create_data_frame([[1, 2]]).to_df("a", "b")
+    df_right = session.create_data_frame([[3, 4]]).to_df("c", "d")
 
     df = df_left.join(df_right)
 
@@ -1011,8 +1013,8 @@ def test_select_all_on_join_result(session):
 
 def test_select_left_right_on_join_result(session):
 
-    df_left = session.createDataFrame([[1, 2]]).toDF("a", "b")
-    df_right = session.createDataFrame([[3, 4]]).toDF("c", "d")
+    df_left = session.create_data_frame([[1, 2]]).to_df("a", "b")
+    df_right = session.create_data_frame([[3, 4]]).to_df("c", "d")
 
     df = df_left.join(df_right)
     # Select left or right
@@ -1038,8 +1040,8 @@ def test_select_left_right_on_join_result(session):
 
 def test_select_left_right_combination_on_join_result(session):
 
-    df_left = session.createDataFrame([[1, 2]]).toDF("a", "b")
-    df_right = session.createDataFrame([[3, 4]]).toDF("c", "d")
+    df_left = session.create_data_frame([[1, 2]]).to_df("a", "b")
+    df_right = session.create_data_frame([[3, 4]]).to_df("c", "d")
 
     df = df_left.join(df_right)
     # Select left["*"] and right['c']
@@ -1095,8 +1097,8 @@ def test_select_left_right_combination_on_join_result(session):
 
 
 def test_select_columns_on_join_result_with_conflict_name(session):
-    df_left = session.createDataFrame([[1, 2]]).toDF("a", "b")
-    df_right = session.createDataFrame([[3, 4]]).toDF("a", "d")
+    df_left = session.create_data_frame([[1, 2]]).to_df("a", "b")
+    df_right = session.create_data_frame([[3, 4]]).to_df("a", "d")
     df = df_left.join(df_right)
 
     df1 = df.select(df_left["*"], df_right["*"])

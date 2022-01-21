@@ -23,10 +23,10 @@ from tests.utils import Utils
 
 
 def test_lead_lag_with_positive_offset(session):
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
     )
-    window = Window.partitionBy("key").orderBy("value")
+    window = Window.partition_by("key").order_by("value")
     Utils.check_answer(
         df.select("key", lead("value", 1).over(window), lag("value", 1).over(window)),
         [Row(1, "3", None), Row(1, None, "1"), Row(2, "4", None), Row(2, None, "2")],
@@ -34,10 +34,10 @@ def test_lead_lag_with_positive_offset(session):
 
 
 def test_reverse_lead_lag_with_positive_offset(session):
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
     )
-    window = Window.partitionBy("key").orderBy(col("value").desc())
+    window = Window.partition_by("key").order_by(col("value").desc())
     Utils.check_answer(
         df.select("key", lead("value", 1).over(window), lag("value", 1).over(window)),
         [Row(1, "1", None), Row(1, None, "3"), Row(2, "2", None), Row(2, None, "4")],
@@ -45,10 +45,10 @@ def test_reverse_lead_lag_with_positive_offset(session):
 
 
 def test_lead_lag_with_negative_offset(session):
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
     )
-    window = Window.partitionBy("key").orderBy("value")
+    window = Window.partition_by("key").order_by("value")
     Utils.check_answer(
         df.select("key", lead("value", -1).over(window), lag("value", -1).over(window)),
         [Row(1, "1", None), Row(1, None, "3"), Row(2, "2", None), Row(2, None, "4")],
@@ -56,10 +56,10 @@ def test_lead_lag_with_negative_offset(session):
 
 
 def test_reverse_lead_lag_with_negative_offset(session):
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
     )
-    window = Window.partitionBy("key").orderBy(col("value").desc())
+    window = Window.partition_by("key").order_by(col("value").desc())
     Utils.check_answer(
         df.select("key", lead("value", -1).over(window), lag("value", -1).over(window)),
         [Row(1, "3", None), Row(1, None, "1"), Row(2, "4", None), Row(2, None, "2")],
@@ -68,10 +68,10 @@ def test_reverse_lead_lag_with_negative_offset(session):
 
 def test_lead_lag_with_default_value(session):
     default = None
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4"), (2, "5")], schema=["key", "value"]
     )
-    window = Window.partitionBy("key").orderBy("value")
+    window = Window.partition_by("key").order_by("value")
     Utils.check_answer(
         df.select(
             "key",
@@ -91,18 +91,20 @@ def test_lead_lag_with_default_value(session):
 
 
 def test_unbounded_rows_range_between_with_aggregation(session):
-    df = session.createDataFrame([("one", 1), ("two", 2), ("one", 3), ("two", 4)]).toDF(
-        "key", "value"
-    )
-    window = Window.partitionBy("key").orderBy("value")
+    df = session.create_data_frame(
+        [("one", 1), ("two", 2), ("one", 3), ("two", 4)]
+    ).to_df("key", "value")
+    window = Window.partition_by("key").order_by("value")
     Utils.check_answer(
         df.select(
             "key",
             sum_("value").over(
-                window.rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+                window.rows_between(
+                    Window.unboundedPreceding, Window.unboundedFollowing
+                )
             ),
             sum_("value").over(
-                window.rangeBetween(
+                window.range_between(
                     Window.unboundedPreceding, Window.unboundedFollowing
                 )
             ),
@@ -113,14 +115,14 @@ def test_unbounded_rows_range_between_with_aggregation(session):
 
 def test_rows_between_boundary(session):
     # This test is different from scala as `int` in Python is unbounded
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [(1, "1"), (1, "1"), (sys.maxsize, "1"), (3, "2"), (2, "1"), (sys.maxsize, "2")]
-    ).toDF("key", "value")
+    ).to_df("key", "value")
     Utils.check_answer(
         df.select(
             "key",
             count("key").over(
-                Window.partitionBy("value").orderBy("key").rowsBetween(0, 100)
+                Window.partition_by("value").order_by("key").rows_between(0, 100)
             ),
         ),
         [
@@ -136,7 +138,9 @@ def test_rows_between_boundary(session):
         df.select(
             "key",
             count("key").over(
-                Window.partitionBy("value").orderBy("key").rowsBetween(0, sys.maxsize)
+                Window.partition_by("value")
+                .order_by("key")
+                .rows_between(0, sys.maxsize)
             ),
         ),
         [
@@ -152,7 +156,9 @@ def test_rows_between_boundary(session):
         df.select(
             "key",
             count("key").over(
-                Window.partitionBy("value").orderBy("key").rowsBetween(-sys.maxsize, 0)
+                Window.partition_by("value")
+                .order_by("key")
+                .rows_between(-sys.maxsize, 0)
             ),
         ),
         [
@@ -169,13 +175,13 @@ def test_rows_between_boundary(session):
 def test_range_between_should_accept_at_most_one_order_by_expression_when_unbounded(
     session,
 ):
-    df = session.createDataFrame([(1, 1)]).toDF("key", "value")
-    window = Window.orderBy("key", "value")
+    df = session.create_data_frame([(1, 1)]).to_df("key", "value")
+    window = Window.order_by("key", "value")
     Utils.check_answer(
         df.select(
             "key",
             min_("key").over(
-                window.rangeBetween(
+                window.range_between(
                     Window.unboundedPreceding, Window.unboundedFollowing
                 )
             ),
@@ -185,29 +191,29 @@ def test_range_between_should_accept_at_most_one_order_by_expression_when_unboun
 
     with pytest.raises(ProgrammingError) as ex_info:
         df.select(
-            min_("key").over(window.rangeBetween(Window.unboundedPreceding, 1))
+            min_("key").over(window.range_between(Window.unboundedPreceding, 1))
         ).collect()
     assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
         df.select(
-            min_("key").over(window.rangeBetween(-1, Window.unboundedFollowing))
+            min_("key").over(window.range_between(-1, Window.unboundedFollowing))
         ).collect()
     assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
-        df.select(min_("key").over(window.rangeBetween(-1, 1))).collect()
+        df.select(min_("key").over(window.range_between(-1, 1))).collect()
     assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 
 
 def test_range_between_should_accept_numeric_values_only_when_bounded(session):
-    df = session.createDataFrame(["non_numeric"]).toDF("value")
-    window = Window.orderBy("value")
+    df = session.create_data_frame(["non_numeric"]).to_df("value")
+    window = Window.order_by("value")
     Utils.check_answer(
         df.select(
             "value",
             min_("value").over(
-                window.rangeBetween(
+                window.range_between(
                     Window.unboundedPreceding, Window.unboundedFollowing
                 )
             ),
@@ -217,26 +223,26 @@ def test_range_between_should_accept_numeric_values_only_when_bounded(session):
 
     with pytest.raises(ProgrammingError) as ex_info:
         df.select(
-            min_("value").over(window.rangeBetween(Window.unboundedPreceding, 1))
+            min_("value").over(window.range_between(Window.unboundedPreceding, 1))
         ).collect()
     assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
         df.select(
-            min_("value").over(window.rangeBetween(-1, Window.unboundedFollowing))
+            min_("value").over(window.range_between(-1, Window.unboundedFollowing))
         ).collect()
     assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
 
     with pytest.raises(ProgrammingError) as ex_info:
-        df.select(min_("value").over(window.rangeBetween(-1, 1))).collect()
+        df.select(min_("value").over(window.range_between(-1, 1))).collect()
     assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 
 
 def test_sliding_rows_between_with_aggregation(session):
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
-    ).toDF("key", "value")
-    window = Window.partitionBy("value").orderBy(col("key")).rowsBetween(-1, 2)
+    ).to_df("key", "value")
+    window = Window.partition_by("value").order_by(col("key")).rows_between(-1, 2)
     Utils.check_answer(
         df.select("key", avg("key").over(window)),
         [
@@ -250,10 +256,12 @@ def test_sliding_rows_between_with_aggregation(session):
 
 
 def test_reverse_sliding_rows_between_with_aggregation(session):
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
-    ).toDF("key", "value")
-    window = Window.partitionBy("value").orderBy(col("key").desc()).rowsBetween(-1, 2)
+    ).to_df("key", "value")
+    window = (
+        Window.partition_by("value").order_by(col("key").desc()).rows_between(-1, 2)
+    )
     Utils.check_answer(
         df.select("key", avg("key").over(window)),
         [

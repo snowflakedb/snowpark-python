@@ -91,7 +91,7 @@ class Utils:
 
     @classmethod
     def get_fully_qualified_temp_schema(cls, session: Session):
-        return f"{session.getCurrentDatabase()}.{cls.random_temp_schema()}"
+        return f"{session.get_current_database()}.{cls.random_temp_schema()}"
 
     @staticmethod
     def assert_rows(actual_rows, expected_rows):
@@ -185,13 +185,13 @@ class TestData:
 
     @classmethod
     def test_data1(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [cls.Data(1, True, "a"), cls.Data(2, False, "b")]
         )
 
     @classmethod
     def test_data2(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [
                 cls.Data2(1, 1),
                 cls.Data2(1, 2),
@@ -204,31 +204,31 @@ class TestData:
 
     @classmethod
     def test_data3(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame([cls.Data3(1, None), cls.Data3(2, 2)])
+        return session.create_data_frame([cls.Data3(1, None), cls.Data3(2, 2)])
 
     @classmethod
     def test_data4(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame([cls.Data4(i, str(i)) for i in range(1, 101)])
+        return session.create_data_frame([cls.Data4(i, str(i)) for i in range(1, 101)])
 
     @classmethod
     def lower_case_data(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame([[1, "a"], [2, "b"], [3, "c"], [4, "d"]])
+        return session.create_data_frame([[1, "a"], [2, "b"], [3, "c"], [4, "d"]])
 
     @classmethod
     def upper_case_data(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [[1, "A"], [2, "B"], [3, "C"], [4, "D"], [5, "E"], [6, "F"]]
         )
 
     @classmethod
     def null_ints(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [cls.NullInt(1), cls.NullInt(2), cls.NullInt(3), cls.NullInt(None)]
         )
 
     @classmethod
     def all_nulls(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [cls.NullInt(None), cls.NullInt(None), cls.NullInt(None), cls.NullInt(None)]
         )
 
@@ -474,7 +474,7 @@ class TestData:
 
     @classmethod
     def decimal_data(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [
                 [Decimal(1), Decimal(1)],
                 [Decimal(1), Decimal(2)],
@@ -483,11 +483,11 @@ class TestData:
                 [Decimal(3), Decimal(1)],
                 [Decimal(3), Decimal(2)],
             ]
-        ).toDF(["a", "b"])
+        ).to_df(["a", "b"])
 
     @classmethod
     def number1(cls, session) -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [
                 cls.Number1(1, 10.0, 0.0),
                 cls.Number1(2, 10.0, 11.0),
@@ -499,7 +499,7 @@ class TestData:
 
     @classmethod
     def number2(cls, session):
-        return session.createDataFrame(
+        return session.create_data_frame(
             [cls.Number2(1, 2, 3), cls.Number2(0, -1, 4), cls.Number2(-5, 0, -9)]
         )
 
@@ -512,7 +512,7 @@ class TestData:
 
     @classmethod
     def xyz(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [
                 cls.Number2(1, 2, 1),
                 cls.Number2(1, 2, 3),
@@ -530,7 +530,7 @@ class TestData:
 
     @classmethod
     def monthly_sales(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [
                 cls.MonthlySales(1, 10000, "JAN"),
                 cls.MonthlySales(1, 400, "JAN"),
@@ -553,11 +553,11 @@ class TestData:
 
     @classmethod
     def column_has_special_char(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame([[1, 2], [3, 4]]).toDF(['"col %"', '"col *"'])
+        return session.create_data_frame([[1, 2], [3, 4]]).to_df(['"col %"', '"col *"'])
 
     @classmethod
     def nurse(cls, session: "Session") -> DataFrame:
-        return session.createDataFrame(
+        return session.create_data_frame(
             [
                 [201, "Thomas Leonard Vicente", "LVN", "Technician"],
                 [202, "Tamara Lolita VanZant", "LVN", "Technician"],
@@ -567,7 +567,7 @@ class TestData:
                 [102, "Larry Vancouver", "LVN", None],
                 [172, "Rhonda Nova", "RN", None],
             ]
-        ).toDF(["id", "full_name", "medical_license", "radio_license"])
+        ).to_df(["id", "full_name", "medical_license", "radio_license"])
 
 
 class TestFiles:

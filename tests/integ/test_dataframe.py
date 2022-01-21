@@ -82,7 +82,7 @@ def test_read_stage_file_show(session, resources_path):
 def test_distinct(session_cnx):
     """Tests df.distinct()."""
     with session_cnx() as session:
-        df = session.createDataFrame(
+        df = session.create_data_frame(
             [
                 [1, 1],
                 [1, 1],
@@ -94,7 +94,7 @@ def test_distinct(session_cnx):
                 [1, None],
                 [None, None],
             ]
-        ).toDF("id", "v")
+        ).to_df("id", "v")
 
         res = df.distinct().sort(["id", "v"]).collect()
         assert res == [
@@ -118,7 +118,7 @@ def test_distinct(session_cnx):
 def test_first(session_cnx):
     """Tests df.first()."""
     with session_cnx() as session:
-        df = session.createDataFrame([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).toDF(
+        df = session.create_data_frame([[1, "a"], [2, "b"], [3, "c"], [4, "d"]]).to_df(
             "id", "v"
         )
 
@@ -325,7 +325,7 @@ def test_filter(session):
     )
     assert df.filter(col("id") <= 0).collect() == df.filter("id <= 0").collect() == []
 
-    df = session.createDataFrame(["aa", "bb"], schema=["a"])
+    df = session.create_data_frame(["aa", "bb"], schema=["a"])
     # In SQL expression, we need to use the upper case here when put double quotes
     # around an identifier, as the case in double quotes will be preserved.
     assert (
@@ -621,14 +621,14 @@ def test_join_cross(session_cnx):
     with session_cnx() as session:
         df1 = session.range(3, 8)
         df2 = session.range(5, 10)
-        res = df1.crossJoin(df2).collect()
+        res = df1.cross_join(df2).collect()
         expected = [Row(x, y) for x, y in product(range(3, 8), range(5, 10))]
         assert sorted(res, key=lambda r: (r[0], r[1])) == expected
 
         # Join on same-name column, other columns have same name
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime")])
-        res = df1.crossJoin(df2).collect()
+        res = df1.cross_join(df2).collect()
         expected = [Row(x, x, y, y) for x, y in product(range(3, 8), range(5, 10))]
         assert sorted(res, key=lambda r: (r[0], r[1])) == expected
 
@@ -636,7 +636,7 @@ def test_join_cross(session_cnx):
         df1 = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
         df2 = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
         expected = [Row(x, x, y, y) for x, y in product(range(3, 8), range(5, 10))]
-        res = df1.crossJoin(df2).collect()
+        res = df1.cross_join(df2).collect()
         assert sorted(res, key=lambda r: (r[0], r[2])) == expected
 
         with pytest.raises(Exception) as ex:
@@ -646,7 +646,7 @@ def test_join_cross(session_cnx):
         # Case, join on same-name column, other columns have different name, select common column.
         this = session.range(3, 8).select([col("id"), col("id").alias("id_prime1")])
         other = session.range(5, 10).select([col("id"), col("id").alias("id_prime2")])
-        df_cross = this.crossJoin(other).select([this.col("id"), other.col("id")])
+        df_cross = this.cross_join(other).select([this.col("id"), other.col("id")])
         res = df_cross.collect()
         expected = [Row(x, y) for x, y in product(range(3, 8), range(5, 10))]
         assert sorted(res, key=lambda r: (r[0], r[1])) == expected
@@ -701,29 +701,29 @@ def test_join_outer(session_cnx):
 
 
 def test_toDF(session_cnx):
-    """Test df.toDF()."""
+    """Test df.to_df()."""
     with session_cnx() as session:
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
 
-        # calling toDF() with fewer new names than columns should fail
+        # calling to_df() with fewer new names than columns should fail
         with pytest.raises(Exception) as ex:
-            df.toDF(["new_name"])
+            df.to_df(["new_name"])
         assert "The number of columns doesn't match. Old column names (2):" in str(
             ex.value
         )
 
         res = (
-            df.toDF(["rename1", "rename2"])
+            df.to_df(["rename1", "rename2"])
             .select([col("rename1"), col("rename2")])
             .collect()
         )
         expected = [Row(3, 3), Row(4, 4), Row(5, 5), Row(6, 6), Row(7, 7)]
         assert sorted(res, key=lambda r: r[0]) == expected
 
-        res = df.toDF(["rename1", "rename2"]).columns
+        res = df.to_df(["rename1", "rename2"]).columns
         assert res == ['"RENAME1"', '"RENAME2"']
 
-        df_prime = df.toDF(["rename1", "rename2"])
+        df_prime = df.to_df(["rename1", "rename2"])
         res = df_prime.select(df_prime.RENAME1).collect()
         expected = [Row(3), Row(4), Row(5), Row(6), Row(7)]
         assert sorted(res, key=lambda r: r[0]) == expected
@@ -770,7 +770,7 @@ def test_create_dataframe_with_basic_data_types(session_cnx):
         ]
         expected_names = ["_{}".format(idx + 1) for idx in range(len(data1))]
         expected_rows = [Row(*data1), Row(*data2)]
-        df = session.createDataFrame([data1, data2])
+        df = session.create_data_frame([data1, data2])
         assert [field.name for field in df.schema.fields] == expected_names
         assert [type(field.datatype) for field in df.schema.fields] == [
             LongType,
@@ -799,7 +799,7 @@ def test_create_dataframe_with_semi_structured_data_types(session_cnx):
             array("I", [1, 2, 3]),
             {"'": 1},
         ]
-        df = session.createDataFrame([data])
+        df = session.create_data_frame([data])
         assert [type(field.datatype) for field in df.schema.fields] == [
             ArrayType,
             ArrayType,
@@ -823,7 +823,7 @@ def test_create_dataframe_with_dict(session_cnx):
         data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
         expected_names = [name.upper() for name in data.keys()]
         expected_rows = [Row(*data.values())]
-        df = session.createDataFrame([data])
+        df = session.create_data_frame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
             assert Utils.equals_ignore_case(field.name, expected_name)
         result = df.collect()
@@ -840,7 +840,7 @@ def test_create_dataframe_with_namedtuple(session_cnx):
         data = Data(*[idx ** 3 for idx in range(5)])
         expected_names = [name.upper() for name in data._fields]
         expected_rows = [Row(*data)]
-        df = session.createDataFrame([data])
+        df = session.create_data_frame([data])
         for field, expected_name in zip(df.schema.fields, expected_names):
             assert Utils.equals_ignore_case(field.name, expected_name)
         result = df.collect()
@@ -851,18 +851,18 @@ def test_create_dataframe_with_namedtuple(session_cnx):
 
 def test_create_dataframe_with_schema_col_names(session):
     col_names = ["a", "b", "c", "d"]
-    df = session.createDataFrame([[1, 2, 3, 4]], schema=col_names)
+    df = session.create_data_frame([[1, 2, 3, 4]], schema=col_names)
     for field, expected_name in zip(df.schema.fields, col_names):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
     # only give first two column names,
     # and the rest will be populated as "_#num"
-    df = session.createDataFrame([[1, 2, 3, 4]], schema=col_names[:2])
+    df = session.create_data_frame([[1, 2, 3, 4]], schema=col_names[:2])
     for field, expected_name in zip(df.schema.fields, col_names[:2] + ["_3", "_4"]):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
     # the column names provided via schema keyword will overwrite other column names
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [{"aa": 1, "bb": 2, "cc": 3, "dd": 4}], schema=col_names
     )
     for field, expected_name in zip(df.schema.fields, col_names):
@@ -886,7 +886,7 @@ def test_create_dataframe_with_variant(session_cnx):
             [1, 2, 3],
             {"a": "foo"},
         ]
-        df = session.createDataFrame(
+        df = session.create_data_frame(
             [data],
             schema=StructType(
                 [StructField(f"col_{i+1}", VariantType()) for i in range(len(data))]
@@ -914,7 +914,7 @@ def test_create_dataframe_with_single_value(session_cnx):
         data = [1, 2, 3]
         expected_names = ["VALUES"]
         expected_rows = [Row(d) for d in data]
-        df = session.createDataFrame(data)
+        df = session.create_data_frame(data)
         assert [field.name for field in df.schema.fields] == expected_names
         assert df.collect() == expected_rows
         assert df.select(expected_names).collect() == expected_rows
@@ -922,27 +922,32 @@ def test_create_dataframe_with_single_value(session_cnx):
 
 def test_create_dataframe_empty(session_cnx):
     with session_cnx() as session:
-        assert session.createDataFrame([[]]).collect() == [Row(None)]
+        assert session.create_data_frame([[]]).collect() == [Row(None)]
 
         with pytest.raises(ValueError) as ex_info:
-            assert session.createDataFrame([])
+            assert session.create_data_frame([])
         assert "data cannot be empty" in str(ex_info)
 
 
 def test_create_dataframe_from_none_data(session_cnx):
     with session_cnx() as session:
-        assert session.createDataFrame([None, None]).collect() == [Row(None), Row(None)]
-        assert session.createDataFrame([[None, None], [1, "1"]]).collect() == [
+        assert session.create_data_frame([None, None]).collect() == [
+            Row(None),
+            Row(None),
+        ]
+        assert session.create_data_frame([[None, None], [1, "1"]]).collect() == [
             Row(None, None),
             Row(1, "1"),
         ]
-        assert session.createDataFrame([[1, "1"], [None, None]]).collect() == [
+        assert session.create_data_frame([[1, "1"], [None, None]]).collect() == [
             Row(1, "1"),
             Row(None, None),
         ]
 
         # large None data
-        assert session.createDataFrame([None] * 20000).collect() == [Row(None)] * 20000
+        assert (
+            session.create_data_frame([None] * 20000).collect() == [Row(None)] * 20000
+        )
 
 
 def test_create_dataframe_large_without_batch_insert(session):
@@ -952,7 +957,7 @@ def test_create_dataframe_large_without_batch_insert(session):
     try:
         analyzer_obj.ARRAY_BIND_THRESHOLD = 40000
         with pytest.raises(ProgrammingError) as ex_info:
-            session.createDataFrame([1] * 20000).collect()
+            session.create_data_frame([1] * 20000).collect()
         assert "SQL compilation error" in str(ex_info)
         assert "maximum number of expressions in a list exceeded" in str(ex_info)
     finally:
@@ -963,65 +968,69 @@ def test_create_dataframe_with_invalid_data(session_cnx):
     with session_cnx() as session:
         # None input
         with pytest.raises(ValueError) as ex_info:
-            session.createDataFrame(None)
+            session.create_data_frame(None)
         assert "data cannot be None" in str(ex_info)
 
         # input other than list and tuple
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame(1)
+            session.create_data_frame(1)
         assert "only accepts data as a list, tuple or a pandas DataFrame" in str(
             ex_info
         )
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame({1, 2})
+            session.create_data_frame({1, 2})
         assert "only accepts data as a list, tuple or a pandas DataFrame" in str(
             ex_info
         )
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame({"a": 1, "b": 2})
+            session.create_data_frame({"a": 1, "b": 2})
         assert "only accepts data as a list, tuple or a pandas DataFrame" in str(
             ex_info
         )
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame(Row(a=1, b=2))
-        assert "createDataFrame() function does not accept a Row object" in str(ex_info)
+            session.create_data_frame(Row(a=1, b=2))
+        assert "create_data_frame() function does not accept a Row object" in str(
+            ex_info
+        )
 
         # inconsistent type
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame([1, "1"])
+            session.create_data_frame([1, "1"])
         assert "Cannot merge type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame([1, 1.0])
+            session.create_data_frame([1, 1.0])
         assert "Cannot merge type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame([1.0, Decimal(1.0)])
+            session.create_data_frame([1.0, Decimal(1.0)])
         assert "Cannot merge type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame(["1", bytearray("1", "utf-8")])
+            session.create_data_frame(["1", bytearray("1", "utf-8")])
         assert "Cannot merge type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame([datetime.datetime.now(), datetime.date.today()])
+            session.create_data_frame([datetime.datetime.now(), datetime.date.today()])
         assert "Cannot merge type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame([datetime.datetime.now(), datetime.time()])
+            session.create_data_frame([datetime.datetime.now(), datetime.time()])
         assert "Cannot merge type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame([[[1, 2, 3], 1], [1, 1]])
+            session.create_data_frame([[[1, 2, 3], 1], [1, 1]])
         assert "Cannot merge type" in str(ex_info)
         with pytest.raises(TypeError) as ex_info:
-            session.createDataFrame([[[1, 2, 3], 1], [{1: 2}, 1]])
+            session.create_data_frame([[[1, 2, 3], 1], [{1: 2}, 1]])
         assert "Cannot merge type" in str(ex_info)
 
         # inconsistent length
         with pytest.raises(ValueError) as ex_info:
-            session.createDataFrame([[1], [1, 2]])
+            session.create_data_frame([[1], [1, 2]])
         assert "Data consists of rows with different lengths" in str(ex_info)
 
 
 def test_attribute_reference_to_sql(session):
     from snowflake.snowpark.functions import sum as sum_
 
-    df = session.createDataFrame([(3, 1), (None, 2), (1, None), (4, 5)]).toDF("a", "b")
+    df = session.create_data_frame([(3, 1), (None, 2), (1, None), (4, 5)]).to_df(
+        "a", "b"
+    )
     agg_results = (
         df.agg(
             [
@@ -1029,7 +1038,7 @@ def test_attribute_reference_to_sql(session):
                 sum_(df["b"].is_null().cast(IntegerType())),
             ]
         )
-        .toDF("a", "b")
+        .to_df("a", "b")
         .collect()
     )
 
@@ -1047,7 +1056,7 @@ def test_dataframe_duplicated_column_names(session):
     # however, create a table/view doesn't work because
     # Snowflake doesn't allow duplicated column names
     with pytest.raises(ProgrammingError) as ex_info:
-        df.createOrReplaceView(Utils.random_name())
+        df.create_or_replace_view(Utils.random_name())
     assert "duplicate column name 'A'" in str(ex_info)
 
 
@@ -1146,20 +1155,20 @@ def test_fillna(session):
         )
         for col_name, value in zip(col_names, data)
     }
-    df = session.createDataFrame([data, none_data], schema=col_names)
+    df = session.create_data_frame([data, none_data], schema=col_names)
     Utils.check_answer(df.fillna(value_dict), [Row(*data), Row(*data)])
 
     # Python `int` can be filled into FloatType/DoubleType,
     # but Python `float` can't be filled into IntegerType/LongType (will be ignored)
     Utils.check_answer(
-        session.createDataFrame(
+        session.create_data_frame(
             [[1, 1.1], [None, None]], schema=["col1", "col2"]
         ).fillna({"col1": 1.1, "col2": 1}),
         [Row(1, 1.1), Row(None, 1)],
     )
 
     # negative case
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [[[1, 2], (1, 3)], [None, None]], schema=["col1", "col2"]
     )
     with pytest.raises(TypeError) as ex_info:
@@ -1177,7 +1186,7 @@ def test_fillna(session):
 
 
 def test_replace(session):
-    df = session.createDataFrame(
+    df = session.create_data_frame(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
     )
 
@@ -1246,14 +1255,14 @@ def test_replace(session):
 
 
 def test_select_case_expr(session):
-    df = session.createDataFrame([1, 2, 3], schema=["a"])
+    df = session.create_data_frame([1, 2, 3], schema=["a"])
     Utils.check_answer(
         df.select(when(col("a") == 1, 4).otherwise(col("a"))), [Row(4), Row(2), Row(3)]
     )
 
 
 def test_select_expr(session):
-    df = session.createDataFrame([-1, 2, 3], schema=["a"])
+    df = session.create_data_frame([-1, 2, 3], schema=["a"])
     Utils.check_answer(
         df.select_expr("abs(a)", "a + 2", "cast(a as string)"),
         [Row(1, 1, "-1"), Row(2, 4, "2"), Row(3, 5, "3")],
@@ -1307,9 +1316,9 @@ def test_describe(session):
 )
 def test_write_temp_table(session, save_mode):
     table_name = Utils.random_name()
-    df = session.createDataFrame([(1, 2), (3, 4)]).toDF("a", "b")
+    df = session.create_data_frame([(1, 2), (3, 4)]).to_df("a", "b")
     try:
-        df.write.saveAsTable(table_name, mode=save_mode, create_temp_table=True)
+        df.write.save_as_table(table_name, mode=save_mode, create_temp_table=True)
         Utils.check_answer(session.table(table_name), df, True)
         table_info = session.sql(f"show tables like '{table_name}'").collect()
         assert table_info[0]["kind"] == "TEMPORARY"

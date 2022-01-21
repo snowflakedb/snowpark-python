@@ -60,7 +60,7 @@ def test_write_pandas(session, tmp_table_basic):
     )
 
     df = session.write_pandas(pd, tmp_table_basic)
-    results = df.toPandas()
+    results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
     # Auto create a new table
@@ -68,14 +68,14 @@ def test_write_pandas(session, tmp_table_basic):
     df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
     table_info = session.sql(f"show tables like 'tmp_table_basic'").collect()
     assert table_info[0]["kind"] == "TABLE"
-    results = df.toPandas()
+    results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
     # Try to auto create a table that already exists (should NOT throw an error)
     # and upload data again. We use distinct to compare results since we are
     # uploading data twice
     df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
-    results = df.distinct().toPandas()
+    results = df.distinct().to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
     # TODO enable this when SNOW-507647 is fixed and ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE is out
@@ -96,7 +96,7 @@ def test_write_pandas(session, tmp_table_basic):
     # )
     # session._run_query('drop table if exists "tmp_table_complex"')
     # df = session.write_pandas(pd, "tmp_table_complex", auto_create_table=True)
-    # results = df.distinct().toPandas()
+    # results = df.distinct().to_pandas()
     # assert_frame_equal(results, pd, check_dtype=False)
 
     with pytest.raises(SnowparkPandasException) as ex_info:
@@ -126,8 +126,8 @@ def test_create_dataframe_from_pandas(session):
         ],
     )
 
-    df = session.createDataFrame(pd)
-    results = df.toPandas()
+    df = session.create_data_frame(pd)
+    results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
     # TODO enable this when SNOW-507647 is fixed and ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE is out
@@ -146,8 +146,8 @@ def test_create_dataframe_from_pandas(session):
     #     ],
     # )
     #
-    # df = session.createDataFrame(pd)
-    # results = df.toPandas()
+    # df = session.create_data_frame(pd)
+    # results = df.to_pandas()
     # assert_frame_equal(results, pd, check_dtype=False)
 
 

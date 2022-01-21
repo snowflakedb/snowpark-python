@@ -39,12 +39,12 @@ def test_mix_temporary_and_permanent_udf(session, new_session):
         session.udf.register(
             add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
         )
-        df = session.createDataFrame([1, 2], schema=["a"])
+        df = session.create_data_frame([1, 2], schema=["a"])
         Utils.check_answer(df.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)])
         Utils.check_answer(df.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
 
         # another session
-        df2 = new_session.createDataFrame([1, 2], schema=["a"])
+        df2 = new_session.create_data_frame([1, 2], schema=["a"])
         Utils.check_answer(df2.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
         with pytest.raises(ProgrammingError) as ex_info:
             Utils.check_answer(
@@ -67,7 +67,7 @@ def test_valid_quoted_function_name(session):
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
-        df = session.createDataFrame([1, 2], schema=["a"])
+        df = session.create_data_frame([1, 2], schema=["a"])
         session.udf.register(add_one, name=temp_func_name, is_permanent=False)
         session.udf.register(
             add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
@@ -84,8 +84,12 @@ def test_support_fully_qualified_udf_name(session, new_session):
     def add_one(x: int) -> int:
         return x + 1
 
-    temp_func_name = f"{session.getFullyQualifiedCurrentSchema()}.{Utils.random_name()}"
-    perm_func_name = f"{session.getFullyQualifiedCurrentSchema()}.{Utils.random_name()}"
+    temp_func_name = (
+        f"{session.get_fully_qualified_current_schema()}.{Utils.random_name()}"
+    )
+    perm_func_name = (
+        f"{session.get_fully_qualified_current_schema()}.{Utils.random_name()}"
+    )
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
@@ -93,7 +97,7 @@ def test_support_fully_qualified_udf_name(session, new_session):
         session.udf.register(
             add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
         )
-        df = session.createDataFrame([1, 2], schema=["a"])
+        df = session.create_data_frame([1, 2], schema=["a"])
         Utils.check_answer(df.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)])
         Utils.check_answer(df.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
         Utils.check_answer(
@@ -104,7 +108,7 @@ def test_support_fully_qualified_udf_name(session, new_session):
         )
 
         # another session
-        df2 = new_session.createDataFrame([1, 2], schema=["a"])
+        df2 = new_session.create_data_frame([1, 2], schema=["a"])
         Utils.check_answer(df2.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
         with pytest.raises(ProgrammingError) as ex_info:
             Utils.check_answer(
@@ -181,8 +185,8 @@ def test_udf_read_file_with_snowflake_import_directory_basic(session, resources_
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
-        session.addImport(test_csv_file)
-        df = session.createDataFrame([filename]).toDF("a")
+        session.add_import(test_csv_file)
+        df = session.create_data_frame([filename]).to_df("a")
         session.udf.register(
             read_file, name=func_name, is_permanent=True, stage_location=stage_name
         )
@@ -190,7 +194,7 @@ def test_udf_read_file_with_snowflake_import_directory_basic(session, resources_
     finally:
         session._run_query(f"drop function if exists {func_name}(string)")
         Utils.drop_stage(session, stage_name)
-        session.clearImports()
+        session.clear_imports()
 
 
 def test_udf_read_file_with_snowflake_import_directory_complex(
@@ -223,10 +227,10 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
-        session.addImport(temp_file_path1.strpath)
-        new_session.addImport(temp_file_path2.strpath)
-        df1 = session.createDataFrame([filename]).toDF("a")
-        df2 = new_session.createDataFrame([filename]).toDF("a")
+        session.add_import(temp_file_path1.strpath)
+        new_session.add_import(temp_file_path2.strpath)
+        df1 = session.create_data_frame([filename]).to_df("a")
+        df2 = new_session.create_data_frame([filename]).to_df("a")
         session.udf.register(
             read_file, name=func_name1, is_permanent=True, stage_location=stage_name
         )
@@ -238,8 +242,8 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
     finally:
         session._run_query(f"drop function if exists {func_name1}(string)")
         Utils.drop_stage(session, stage_name)
-        session.clearImports()
-        new_session.clearImports()
+        session.clear_imports()
+        new_session.clear_imports()
 
 
 def test_udf_read_file_with_staged_file(session, resources_path):
@@ -263,8 +267,8 @@ def test_udf_read_file_with_staged_file(session, resources_path):
         session._conn.upload_file(
             test_csv_file, stage_location=stage_name, compress_data=False
         )
-        session.addImport(f"@{stage_name}/{filename}")
-        df = session.createDataFrame([filename]).toDF("a")
+        session.add_import(f"@{stage_name}/{filename}")
+        df = session.create_data_frame([filename]).to_df("a")
         session.udf.register(
             read_file, name=func_name, is_permanent=True, stage_location=stage_name
         )
@@ -272,4 +276,4 @@ def test_udf_read_file_with_staged_file(session, resources_path):
     finally:
         session._run_query(f"drop function if exists {func_name}(string)")
         Utils.drop_stage(session, stage_name)
-        session.clearImports()
+        session.clear_imports()

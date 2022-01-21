@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.analyzer.sp_views import (
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin as SPTableFunctionJoin,
 )
+from snowflake.snowpark._internal.deprecation import deprecate
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Except as SPExcept,
@@ -109,7 +110,7 @@ class DataFrame:
     Example 3
         Creating a DataFrame by specifying a sequence or a range::
 
-            df = session.createDataFrame([(1, "one"), (2, "two")])
+            df = session.create_data_frame([(1, "one"), (2, "two")])
             df = session.range(1, 10, 2)
 
 
@@ -162,7 +163,7 @@ class DataFrame:
             df_sorted_prices = df_prices.sort(col("ID"))
 
     Example 9
-        Using the :func:`groupBy()` method to return a
+        Using the :func:`group_by()` method to return a
         :class:`RelationalGroupedDataFrame` that you can use to group and aggregate
         results (similar to adding a ``GROUP BY`` clause).
 
@@ -180,7 +181,7 @@ class DataFrame:
             # Return a new DataFrame for the prices table that computes the sum of the prices by
             # category. This is equivalent to:
             #  SELECT CATEGORY, SUM(AMOUNT) FROM PRICES GROUP BY CATEGORY
-            df_total_price_per_category = df_prices.groupBy(col("category")).sum(col("amount"))
+            df_total_price_per_category = df_prices.group_by(col("category")).sum(col("amount"))
 
     **Performing an action on a DataFrame**
 
@@ -212,27 +213,16 @@ class DataFrame:
         self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
 
         self._stat = DataFrameStatFunctions(self)
-        self.approxQuantile = self._stat.approxQuantile
+        self.approxQuantile = self.approx_quantile = self._stat.approx_quantile
         self.corr = self._stat.corr
         self.cov = self._stat.cov
         self.crosstab = self._stat.crosstab
-        self.sampleBy = self._stat.sampleBy
+        self.sampleBy = self.sample_by = self._stat.sample_by
 
         self._na = DataFrameNaFunctions(self)
         self.dropna = self._na.drop
         self.fillna = self._na.fill
         self.replace = self._na.replace
-
-    # Add the following lines so API docs have them
-    approxQuantile = DataFrameStatFunctions.approxQuantile
-    corr = DataFrameStatFunctions.corr
-    cov = DataFrameStatFunctions.cov
-    crosstab = DataFrameStatFunctions.crosstab
-    sampleBy = DataFrameStatFunctions.sampleBy
-
-    dropna = DataFrameNaFunctions.drop
-    fillna = DataFrameNaFunctions.fill
-    replace = DataFrameNaFunctions.replace
 
     @staticmethod
     def get_unaliased(col_name: str) -> List[str]:
@@ -274,7 +264,7 @@ class DataFrame:
         """Returns a clone of this :class:`DataFrame`."""
         return DataFrame(self.session, self.__plan.clone())
 
-    def toPandas(self, **kwargs) -> "pandas.DataFrame":
+    def to_pandas(self, **kwargs) -> "pandas.DataFrame":
         """
         Returns the contents of this DataFrame as a `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__.
 
@@ -291,11 +281,11 @@ class DataFrame:
 
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
-        # e.g., session.sql("create ...").toPandas()
+        # e.g., session.sql("create ...").to_pandas()
         if not isinstance(result, pandas.DataFrame):
             raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-                "toPandas() did not return a Pandas DataFrame. "
-                "If you use session.sql(...).toPandas(), the input query can only be a "
+                "to_pandas() did not return a Pandas DataFrame. "
+                "If you use session.sql(...).to_pandas(), the input query can only be a "
                 "SELECT statement. Or you can use session.sql(...).collect() to get a "
                 "list of Row objects for a non-SELECT statement, then convert it to a "
                 "Pandas DataFrame."
@@ -303,7 +293,7 @@ class DataFrame:
 
         return result
 
-    def toDF(self, *names: Union[str, List[str], Tuple[str, ...]]) -> "DataFrame":
+    def to_df(self, *names: Union[str, List[str], Tuple[str, ...]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -312,8 +302,8 @@ class DataFrame:
 
         Examples::
 
-            df = session.range(1, 10, 2).toDF("col1")
-            df = session.range(1, 10, 2).toDF(["col1"])
+            df = session.range(1, 10, 2).to_df("col1")
+            df = session.range(1, 10, 2).to_df(["col1"])
 
         Args:
             names: list of new column names
@@ -321,7 +311,7 @@ class DataFrame:
         col_names = Utils.parse_positional_args_to_list(*names)
         if not all(isinstance(n, str) for n in col_names):
             raise TypeError(
-                f"Invalid input type in toDF(), expected str or a list of strs."
+                f"Invalid input type in to_df(), expected str or a list of strs."
             )
 
         if len(self.__output()) != len(col_names):
@@ -425,7 +415,7 @@ class DataFrame:
 
         Examples::
 
-            df = session.createDataFrame([-1, 2, 3], schema=["a"])
+            df = session.create_data_frame([-1, 2, 3], schema=["a"])
             df.select_expr("abs(a)", "a + 2", "cast(a as string)")
         """
         return self.select(
@@ -512,8 +502,6 @@ class DataFrame:
             )
         )
 
-    where = filter
-
     def sort(
         self,
         *cols: Union[str, Column, List[ColumnOrName], Tuple[ColumnOrName, ...]],
@@ -584,7 +572,7 @@ class DataFrame:
         ],
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
-        group the data (:func:`groupBy`).
+        group the data (:func:`group_by`).
 
         For the input value, pass in a list of expressions that apply aggregation
         functions to columns (functions that are defined in the
@@ -640,7 +628,7 @@ class DataFrame:
         if grouping_exprs is None:
             raise TypeError(f"Invalid type passed to agg(): {type(exprs)}")
 
-        return self.groupBy().agg(grouping_exprs)
+        return self.group_by().agg(grouping_exprs)
 
     def rollup(
         self,
@@ -660,7 +648,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
         )
 
-    def groupBy(
+    def group_by(
         self,
         *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
@@ -680,14 +668,30 @@ class DataFrame:
             - A list of :class:`Column` objects or column names (:class:`str`)
 
         """
-        grouping_exprs = self.__convert_cols_to_exprs("groupBy()", *cols)
+        grouping_exprs = self.__convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
+    @deprecate(
+        deprecate_version="0.4.0",
+        remove_version="0.5.0",
+        extra_warning_text="Use group_by_grouping_sets",
+        extra_doc_string="Use :meth:`group_by_grouping_sets`",
+    )
     def groupByGroupingSets(
+        self,
+        *grouping_sets: Union[
+            "snowflake.snowpark.GroupingSets",
+            List["snowflake.snowpark.GroupingSets"],
+            Tuple["snowflake.snowpark.GroupingSets", ...],
+        ],
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        return self.group_by_grouping_sets(*grouping_sets)
+
+    def group_by_grouping_sets(
         self,
         *grouping_sets: Union[
             "snowflake.snowpark.GroupingSets",
@@ -709,15 +713,15 @@ class DataFrame:
 
         Examples::
 
-            df.groupByGroupingSets(GroupingSets([col("a")])).count().collect()  # is equivalent to
-            df.groupByGroupingSets(GroupingSets(col("a"))).count().collect()  # is equivalent to
-            df.groupBy("a").count().collect()
+            df.group_by_grouping_sets(GroupingSets([col("a")])).count().collect()  # is equivalent to
+            df.group_by_grouping_sets(GroupingSets(col("a"))).count().collect()  # is equivalent to
+            df.group_by("a").count().collect()
 
-            df.groupByGroupingSets(GroupingSets([col("a")], [col("b")])).count().collect()  # is equivalent to
-            df.groupBy("a").count().unionAll(df.groupBy("b").count()).collect()
+            df.group_by_grouping_sets(GroupingSets([col("a")], [col("b")])).count().collect()  # is equivalent to
+            df.group_by("a").count().union_all(df.group_by("b").count()).collect()
 
-            df.groupByGroupingSets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()  # is equivalent to
-            df.groupBy("a", "b").count().unionAll(df.groupBy("c").count()).collect()
+            df.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()  # is equivalent to
+            df.group_by("a", "b").count().union_all(df.group_by("c").count()).collect()
 
         Args:
             grouping_sets: The list of :class:`GroupingSets` to group by.
@@ -755,11 +759,11 @@ class DataFrame:
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
         """
-        return self.groupBy(
+        return self.group_by(
             [self.col(AnalyzerPackage.quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
 
-    def dropDuplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
+    def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
         If no subset of columns is specified, this function is the same as the :meth:`distinct` function.
@@ -783,7 +787,7 @@ class DataFrame:
         filter_cols = [self.col(x) for x in subset]
         output_cols = [self.col(col_name) for col_name in self.columns]
         rownum = row_number().over(
-            snowflake.snowpark.Window.partitionBy(*filter_cols).orderBy(*filter_cols)
+            snowflake.snowpark.Window.partition_by(*filter_cols).order_by(*filter_cols)
         )
         rownum_name = Utils.generate_random_alphanumeric(10)
         return (
@@ -791,8 +795,6 @@ class DataFrame:
             .where(col(rownum_name) == 1)
             .select(output_cols)
         )
-
-    drop_duplicates = dropDuplicates
 
     def pivot(
         self,
@@ -852,14 +854,14 @@ class DataFrame:
             SPUnion(self.__plan, other._DataFrame__plan, is_all=False)
         )
 
-    def unionAll(self, other: "DataFrame") -> "DataFrame":
+    def union_all(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows. Both input
         DataFrames must contain the same number of columns.
 
         Example::
 
-             df1_and_2 = df1.unionAll(df2)
+             df1_and_2 = df1.union_all(df2)
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
@@ -868,7 +870,7 @@ class DataFrame:
             SPUnion(self.__plan, other._DataFrame__plan, is_all=True)
         )
 
-    def unionByName(self, other: "DataFrame") -> "DataFrame":
+    def union_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows.
 
@@ -878,14 +880,14 @@ class DataFrame:
 
         Example::
 
-             df1_and_2 = df1.unionByName(df2)
+             df1_and_2 = df1.union_by_name(df2)
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
         return self.__union_by_name_internal(other, is_all=False)
 
-    def unionAllByName(self, other: "DataFrame") -> "DataFrame":
+    def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows.
 
@@ -895,7 +897,7 @@ class DataFrame:
 
         Example::
 
-             df1_and_2 = df1.unionAllByName(df2)
+             df1_and_2 = df1.union_all_by_name(df2)
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
@@ -964,9 +966,18 @@ class DataFrame:
         """
         return self.__with_plan(SPExcept(self.__plan, other._DataFrame__plan))
 
-    minus = subtract = except_
-
+    @deprecate(
+        deprecate_version="0.4.0",
+        remove_version="0.5.0",
+        extra_warning_text="Use natural_join",
+        extra_doc_string="Use :meth:`natural_join`",
+    )
     def naturalJoin(
+        self, right: "DataFrame", join_type: Optional[str] = None
+    ) -> "DataFrame":
+        return self.natural_join(right, join_type)
+
+    def natural_join(
         self, right: "DataFrame", join_type: Optional[str] = None
     ) -> "DataFrame":
         """Performs a natural join of the specified type (``joinType``) with the
@@ -974,8 +985,8 @@ class DataFrame:
 
         Examples::
 
-            df_natural_join = df.naturalJoin(df2)
-            df_natural_join = df.naturalJoin(df2, "left")
+            df_natural_join = df.natural_join(df2)
+            df_natural_join = df.natural_join(df2, "left")
 
         Args:
             right: the other :class:`DataFrame` to join
@@ -1049,7 +1060,23 @@ class DataFrame:
 
         raise TypeError("Invalid type for join. Must be Dataframe")
 
+    @deprecate(
+        deprecate_version="0.4.0",
+        remove_version="0.5.0",
+        extra_warning_text="Use join_table_function",
+        extra_doc_string="Use :meth:`join_table_function`",
+    )
     def joinTableFunction(
+        self,
+        func_name: Union[str, List[str]],
+        *func_arguments: ColumnOrName,
+        **func_named_arguments: ColumnOrName,
+    ) -> "DataFrame":
+        return self.join_table_function(
+            func_name, *func_arguments, **func_named_arguments
+        )
+
+    def join_table_function(
         self,
         func_name: Union[str, List[str]],
         *func_arguments: ColumnOrName,
@@ -1062,7 +1089,7 @@ class DataFrame:
         Example::
 
             df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
-            name_address_list = df.joinTableFunction("split_to_table", df["addresses"], lit(" ")).collect()
+            name_address_list = df.join_table_function("split_to_table", df["addresses"], lit(" ")).collect()
 
         Args:
 
@@ -1082,7 +1109,7 @@ class DataFrame:
         )
         return DataFrame(self.session, SPTableFunctionJoin(self.__plan, func_expr))
 
-    def crossJoin(self, right: "DataFrame") -> "DataFrame":
+    def cross_join(self, right: "DataFrame") -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
         :class:`DataFrame` and another :class:`DataFrame` (``right``).
 
@@ -1093,7 +1120,7 @@ class DataFrame:
 
         Example::
 
-            df_cross = this.crossJoin(right)
+            df_cross = this.cross_join(right)
             project = df_cross.select([this(["common_col"]), right(["common_col"])])
 
         Args:
@@ -1152,7 +1179,7 @@ class DataFrame:
     def __join_dataframe_table_function(self, table_function, columns) -> "DataFrame":
         pass
 
-    def withColumn(self, col_name: str, col: Column) -> "DataFrame":
+    def with_column(self, col_name: str, col: Column) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
         ``col_name``. The column is computed by using the specified expression ``col``.
@@ -1163,15 +1190,24 @@ class DataFrame:
         This example adds a new column named ``mean_price`` that contains the mean of
         the existing ``price`` column in the DataFrame::
 
-            df_with_mean_price_col = df.withColumn("mean_price", mean(col("price")))
+            df_with_mean_price_col = df.with_column("mean_price", mean(col("price")))
 
         Args:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` to add or replace.
         """
-        return self.withColumns([col_name], [col])
+        return self.with_columns([col_name], [col])
 
+    @deprecate(
+        deprecate_version="0.4.0",
+        remove_version="0.5.0",
+        extra_warning_text="Use with_columns",
+        extra_doc_string="Use :meth:`with_columns`",
+    )
     def withColumns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
+        return self.with_columns(col_names, values)
+
+    def with_columns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
         ``values``.
@@ -1182,7 +1218,7 @@ class DataFrame:
         This example adds new columns named ``mean_price`` and ``avg_price`` that
         contain the mean and average of the existing ``price`` column::
 
-            df_with_added_columns = df.withColumns(["mean_price", "avg_price"],
+            df_with_added_columns = df.with_columns(["mean_price", "avg_price"],
                                                    [mean(col("price")),
                                                    avg(col("price"))])
 
@@ -1230,7 +1266,7 @@ class DataFrame:
 
         Example::
 
-            df.write.mode("overwrite").saveAsTable("table1")
+            df.write.mode("overwrite").save_as_table("table1")
         """
 
         return DataFrameWriter(self)
@@ -1523,7 +1559,7 @@ class DataFrame:
             + line
         )
 
-    def createOrReplaceView(
+    def create_or_replace_view(
         self, name: Union[str, List[str], Tuple[str, ...]]
     ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
@@ -1544,7 +1580,7 @@ class DataFrame:
             formatted_name = ".".join(name)
         else:
             raise TypeError(
-                f"The input of createOrReplaceView() can only a str or list of strs."
+                f"The input of create_or_replace_view() can only a str or list of strs."
             )
 
         return self.__do_create_or_replace_view(
@@ -1555,7 +1591,7 @@ class DataFrame:
             else None,
         )
 
-    def createOrReplaceTempView(
+    def create_or_replace_temp_view(
         self, name: Union[str, List[str], Tuple[str, ...]]
     ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
@@ -1580,7 +1616,7 @@ class DataFrame:
             formatted_name = ".".join(name)
         else:
             raise TypeError(
-                f"The input of createOrReplaceTempView() can only a str or list of strs."
+                f"The input of create_or_replace_temp_view() can only a str or list of strs."
             )
 
         return self.__do_create_or_replace_view(
@@ -1690,27 +1726,27 @@ class DataFrame:
         for stat in stats:
             agg_stat_df = (
                 self.agg({c: stat for c in cols})
-                .toDF(cols)
+                .to_df(cols)
                 .select(lit(stat).as_("summary"), *cols)
             )
             res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
 
         return res_df
 
-    def withColumnRenamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
+    def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
         Example::
 
             # This example renames the column `A` as `NEW_A` in the DataFrame.
             df = session.sql("select 1 as A, 2 as B")
-            df_renamed = df.withColumnRenamed(col("A"), "NEW_A")
+            df_renamed = df.with_column_renamed(col("A"), "NEW_A")
 
         Args:
             existing: The old column instance or column name to be renamed.
             new: The new column name.
 
-        :meth:`withColumnRenamed` is an alias of :meth:`rename`.
+        :meth:`with_column_renamed` is an alias of :meth:`rename`.
         """
         new_quoted_name = AnalyzerPackage.quote_name(new)
         if isinstance(existing, str):
@@ -1742,8 +1778,6 @@ class DataFrame:
             for att in self.__output()
         ]
         return self.select(new_columns)
-
-    rename = withColumnRenamed
 
     def explain(self) -> None:
         """
@@ -1885,3 +1919,40 @@ Query List:
 
         exprs = [convert(col) for col in Utils.parse_positional_args_to_list(*cols)]
         return exprs
+
+    where = filter
+
+    # Add the following lines so API docs have them
+    approxQuantile = approx_quantile = DataFrameStatFunctions.approx_quantile
+    corr = DataFrameStatFunctions.corr
+    cov = DataFrameStatFunctions.cov
+    crosstab = DataFrameStatFunctions.crosstab
+    sampleBy = sample_by = DataFrameStatFunctions.sample_by
+
+    dropna = DataFrameNaFunctions.drop
+    fillna = DataFrameNaFunctions.fill
+    replace = DataFrameNaFunctions.replace
+
+    # Add aliases for user code migration
+    createOrReplaceTempView = create_or_replace_temp_view
+    createOrReplaceView = create_or_replace_view
+    crossJoin = cross_join
+    dropDuplicates = drop_duplicates
+    groupBy = group_by
+    minus = subtract = except_
+    toDF = to_df
+    toPandas = to_pandas
+    unionAll = union_all
+    unionAllByName = union_all_by_name
+    unionByName = union_by_name
+    withColumn = with_column
+    withColumnRenamed = with_column_renamed
+
+    # These methods are not needed for code migration. So no aliases for them.
+    # groupByGrouping_sets = group_by_grouping_sets
+    # joinTableFunction = join_table_function
+    # naturalJoin = natural_join
+    # withColumns = with_columns
+
+    # Add this alias because snowpark scala has rename
+    rename = with_column_renamed

@@ -11,9 +11,9 @@ from snowflake.snowpark import Column
 
 def test_sort_different_inputs(session_cnx):
     with session_cnx() as session:
-        df = session.createDataFrame(
+        df = session.create_data_frame(
             [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
-        ).toDF(["a", "b"])
+        ).to_df(["a", "b"])
 
         # str and asc
         sorted_rows = df.sort("a", ascending=True).collect()
@@ -52,9 +52,9 @@ def test_sort_different_inputs(session_cnx):
 
 def test_sort_invalid_inputs(session_cnx):
     with session_cnx() as session:
-        df = session.createDataFrame(
+        df = session.create_data_frame(
             [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
-        ).toDF(["a", "b"])
+        ).to_df(["a", "b"])
         # empty
         with pytest.raises(ValueError) as ex_info:
             df.sort()

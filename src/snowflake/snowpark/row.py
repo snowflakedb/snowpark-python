@@ -188,16 +188,16 @@ class Row(tuple):
             (tuple(self), self._named_values, self._fields),
         )
 
-    def asDict(self, recursive: bool = False) -> Dict:
+    def as_dict(self, recursive: bool = False) -> Dict:
         """Convert to a dict if this row object has both keys and values.
 
         Args:
             recursive: Recursively convert child :class:`Row` objects to dicts. Default is False.
 
         >>> row = Row(name1=1, name2=2, name3=Row(childname=3))
-        >>> row.asDict()
+        >>> row.as_dict()
         {'name1': 1, 'name2': 2, 'name3': Row(childname=3)}
-        >>> row.asDict(True)
+        >>> row.as_dict(True)
         {'name1': 1, 'name2': 2, 'name3': {'childname': 3}}
         """
         self._populate_named_values_from_fields()
@@ -238,3 +238,6 @@ class Row(tuple):
                 len(set(self._fields)) != len(self._fields)
             )
         return self._has_duplicates
+
+    # Add aliases for user code migration
+    asDict = as_dict
