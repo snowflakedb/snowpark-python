@@ -59,9 +59,11 @@ class Row(tuple):
             # If we support 3.6 or older someday, this implementation needs changing.
             row = tuple.__new__(cls, tuple(named_values.values()))
             row.__dict__["_named_values"] = named_values
+            row.__dict__["_fields"] = tuple(named_values.keys())
         else:
             row = tuple.__new__(cls, values)
             row.__dict__["_named_values"] = None
+            row.__dict__["_fields"] = None
 
         # _fields is for internal use only. Users shouldn't set this attribute.
         # It contains a list of str representing column names. It also allows duplicates.
@@ -69,7 +71,6 @@ class Row(tuple):
         # When return a DataFrame from a sql, duplicate column names can happen.
         # But using duplicate column names is obviously a bad practice even though we allow it.
         # It's value is assigned in __setattr__ if internal code assign value explicitly.
-        row.__dict__["_fields"] = None
         row.__dict__["_has_duplicates"] = None
         return row
 

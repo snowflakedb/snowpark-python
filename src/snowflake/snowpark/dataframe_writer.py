@@ -100,7 +100,7 @@ class DataFrameWriter:
         create_table_logic_plan = SnowflakeCreateTable(
             full_table_name,
             save_mode,
-            self.__dataframe._DataFrame__plan,
+            self.__dataframe._plan,
             create_temp_table,
         )
         session = self.__dataframe.session

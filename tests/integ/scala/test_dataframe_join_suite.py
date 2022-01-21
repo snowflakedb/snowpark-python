@@ -566,7 +566,7 @@ def test_negative_test_for_self_join_with_conditions(session):
         Utils.create_table(session, table_name1, "c1 int, c2 int")
         session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
         df = session.table(table_name1)
-        self_dfs = [df, DataFrame(df.session, df._DataFrame__plan)]
+        self_dfs = [df, DataFrame(df.session, df._plan)]
 
         msg = (
             "You cannot join a DataFrame with itself because the column references cannot be resolved "

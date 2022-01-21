@@ -559,9 +559,9 @@ def test_copy(session):
     )
 
     # use copy
-    assert len(df._DataFrame__plan.queries) == 3
-    assert df._DataFrame__plan.queries[1].sql.find("COPY") >= 0
-    assert len(df._DataFrame__plan.post_actions) == 1
+    assert len(df._plan.queries) == 3
+    assert df._plan.queries[1].sql.find("COPY") >= 0
+    assert len(df._plan.post_actions) == 1
 
     df1 = (
         session.read.schema(user_schema)
@@ -570,7 +570,7 @@ def test_copy(session):
     )
 
     # no copy
-    assert len(df1._DataFrame__plan.queries) == 2
+    assert len(df1._plan.queries) == 2
 
     res = df.collect()
     res.sort(key=lambda x: x[0])

@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     Star as SPStar,
 )
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkColumnException
 from snowflake.snowpark.functions import col, when
 from snowflake.snowpark.types import (
@@ -818,35 +819,108 @@ def test_create_dataframe_with_semi_structured_data_types(session_cnx):
         ]
 
 
-def test_create_dataframe_with_dict(session_cnx):
-    with session_cnx() as session:
-        data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
-        expected_names = [name.upper() for name in data.keys()]
-        expected_rows = [Row(*data.values())]
-        df = session.create_data_frame([data])
-        for field, expected_name in zip(df.schema.fields, expected_names):
-            assert Utils.equals_ignore_case(field.name, expected_name)
-        result = df.collect()
-        assert result == expected_rows
-        assert result[0].asDict(True) == {
-            k: v for k, v in zip(expected_names, data.values())
-        }
-        assert df.select(expected_names).collect() == expected_rows
+def test_create_dataframe_with_dict(session):
+    data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
+    expected_names = [name.upper() for name in data.keys()]
+    expected_rows = [Row(*data.values())]
+    df = session.create_data_frame([data])
+    for field, expected_name in zip(df.schema.fields, expected_names):
+        assert Utils.equals_ignore_case(field.name, expected_name)
+    result = df.collect()
+    assert result == expected_rows
+    assert result[0].asDict(True) == {
+        k: v for k, v in zip(expected_names, data.values())
+    }
+    assert df.select(expected_names).collect() == expected_rows
+
+    # dicts with different keys
+    df = session.createDataFrame([{"a": 1}, {"b": 2}])
+    assert [field.name for field in df.schema.fields] == ["A", "B"]
+    Utils.check_answer(df, [Row(1, None), Row(None, 2)])
+
+    df = session.createDataFrame([{"a": 1}, {"d": 2, "e": 3}, {"c": 4, "b": 5}])
+    assert [field.name for field in df.schema.fields] == ["A", "D", "E", "C", "B"]
+    Utils.check_answer(
+        df,
+        [
+            Row(1, None, None, None, None),
+            Row(None, 2, 3, None, None),
+            Row(None, None, None, 4, 5),
+        ],
+    )
 
 
-def test_create_dataframe_with_namedtuple(session_cnx):
+def test_create_dataframe_with_namedtuple(session):
     Data = namedtuple("Data", ["snow_{}".format(idx + 1) for idx in range(5)])
-    with session_cnx() as session:
-        data = Data(*[idx ** 3 for idx in range(5)])
-        expected_names = [name.upper() for name in data._fields]
-        expected_rows = [Row(*data)]
-        df = session.create_data_frame([data])
-        for field, expected_name in zip(df.schema.fields, expected_names):
-            assert Utils.equals_ignore_case(field.name, expected_name)
-        result = df.collect()
-        assert result == expected_rows
-        assert result[0].asDict(True) == {k: v for k, v in zip(expected_names, data)}
-        assert df.select(expected_names).collect() == expected_rows
+    data = Data(*[idx ** 3 for idx in range(5)])
+    expected_names = [name.upper() for name in data._fields]
+    expected_rows = [Row(*data)]
+    df = session.createDataFrame([data])
+    for field, expected_name in zip(df.schema.fields, expected_names):
+        assert Utils.equals_ignore_case(field.name, expected_name)
+    result = df.collect()
+    assert result == expected_rows
+    assert result[0].asDict(True) == {k: v for k, v in zip(expected_names, data)}
+    assert df.select(expected_names).collect() == expected_rows
+
+    # dicts with different namedtuples
+    Data1 = namedtuple("Data", ["a", "b"])
+    Data2 = namedtuple("Data", ["d", "c"])
+    df = session.createDataFrame([Data1(1, 2), Data2(3, 4)])
+    assert [field.name for field in df.schema.fields] == ["A", "B", "D", "C"]
+    Utils.check_answer(df, [Row(1, 2, None, None), Row(None, None, 3, 4)])
+
+
+def test_create_dataframe_with_row(session):
+    row1 = Row(a=1, b=2)
+    row2 = Row(a=3, b=4)
+    row3 = Row(d=5, c=6, e=7)
+    row4 = Row(7, 8)
+    row5 = Row(9, 10)
+
+    df = session.createDataFrame([row1, row2])
+    assert [field.name for field in df.schema.fields] == ["A", "B"]
+    Utils.check_answer(df, [row1, row2])
+
+    df = session.createDataFrame([row4, row5])
+    assert [field.name for field in df.schema.fields] == ["_1", "_2"]
+    Utils.check_answer(df, [row4, row5])
+
+    df = session.createDataFrame([row3])
+    assert [field.name for field in df.schema.fields] == ["D", "C", "E"]
+    Utils.check_answer(df, [row3])
+
+    df = session.createDataFrame([row1, row2, row3])
+    assert [field.name for field in df.schema.fields] == ["A", "B", "D", "C", "E"]
+    Utils.check_answer(
+        df,
+        [
+            Row(1, 2, None, None, None),
+            Row(3, 4, None, None, None),
+            Row(None, None, 5, 6, 7),
+        ],
+    )
+
+    with pytest.raises(ValueError) as ex_info:
+        session.createDataFrame([row1, row4])
+    assert "4 fields are required by schema but 2 values are provided" in str(ex_info)
+
+
+def test_create_dataframe_with_mixed_dict_namedtuple_row(session):
+    d = {"a": 1, "b": 2}
+    Data = namedtuple("Data", ["a", "b"])
+    t = Data(3, 4)
+    r = Row(a=5, b=6)
+    df = session.createDataFrame([d, t, r])
+    assert [field.name for field in df.schema.fields] == ["A", "B"]
+    Utils.check_answer(df, [Row(1, 2), Row(3, 4), Row(5, 6)])
+
+    r2 = Row(c=7, d=8)
+    df = session.createDataFrame([d, t, r2])
+    assert [field.name for field in df.schema.fields] == ["A", "B", "C", "D"]
+    Utils.check_answer(
+        df, [Row(1, 2, None, None), Row(3, 4, None, None), Row(None, None, 7, 8)]
+    )
 
 
 def test_create_dataframe_with_schema_col_names(session):
@@ -912,7 +986,7 @@ def test_create_dataframe_with_variant(session_cnx):
 def test_create_dataframe_with_single_value(session_cnx):
     with session_cnx() as session:
         data = [1, 2, 3]
-        expected_names = ["VALUES"]
+        expected_names = ["_1"]
         expected_rows = [Row(d) for d in data]
         df = session.create_data_frame(data)
         assert [field.name for field in df.schema.fields] == expected_names
@@ -920,13 +994,13 @@ def test_create_dataframe_with_single_value(session_cnx):
         assert df.select(expected_names).collect() == expected_rows
 
 
-def test_create_dataframe_empty(session_cnx):
-    with session_cnx() as session:
-        assert session.create_data_frame([[]]).collect() == [Row(None)]
+def test_create_dataframe_empty(session):
+    Utils.check_answer(session.create_data_frame([[]]), [Row(None)])
+    Utils.check_answer(session.create_data_frame([[], []]), [Row(None), Row(None)])
 
-        with pytest.raises(ValueError) as ex_info:
-            assert session.create_data_frame([])
-        assert "data cannot be empty" in str(ex_info)
+    with pytest.raises(ValueError) as ex_info:
+        session.createDataFrame([])
+    assert "data cannot be empty" in str(ex_info)
 
 
 def test_create_dataframe_from_none_data(session_cnx):
@@ -1022,7 +1096,7 @@ def test_create_dataframe_with_invalid_data(session_cnx):
         # inconsistent length
         with pytest.raises(ValueError) as ex_info:
             session.create_data_frame([[1], [1, 2]])
-        assert "Data consists of rows with different lengths" in str(ex_info)
+        assert "data consists of rows with different lengths" in str(ex_info)
 
 
 def test_attribute_reference_to_sql(session):
@@ -1315,8 +1389,8 @@ def test_describe(session):
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
 def test_write_temp_table(session, save_mode):
-    table_name = Utils.random_name()
-    df = session.create_data_frame([(1, 2), (3, 4)]).to_df("a", "b")
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_data_frame([(1, 2), (3, 4)]).toDF("a", "b")
     try:
         df.write.save_as_table(table_name, mode=save_mode, create_temp_table=True)
         Utils.check_answer(session.table(table_name), df, True)

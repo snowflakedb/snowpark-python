@@ -11,15 +11,13 @@ import os
 from array import array
 from functools import reduce
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 
 import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
-from snowflake.connector.pandas_tools import write_pandas
-from snowflake.snowpark import DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -33,7 +31,6 @@ from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.deprecation import deprecate
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
-from snowflake.snowpark._internal.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
@@ -41,7 +38,7 @@ from snowflake.snowpark._internal.sp_expressions import (
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
-    _infer_schema_from_list,
+    _infer_schema,
     _merge_type,
 )
 from snowflake.snowpark._internal.utils import (
@@ -50,6 +47,7 @@ from snowflake.snowpark._internal.utils import (
     Utils,
 )
 from snowflake.snowpark._internal.write_pandas import write_pandas
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
@@ -66,6 +64,7 @@ from snowflake.snowpark.functions import (
     to_variant,
 )
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
@@ -536,7 +535,7 @@ class Session:
             self._conn.run_query("alter session unset query_tag")
         self.__query_tag = tag
 
-    def table(self, name: Union[str, List[str], Tuple[str, ...]]) -> DataFrame:
+    def table(self, name: Union[str, Iterable[str]]) -> Table:
         """
         Returns a DataFrame that points the specified table.
 
@@ -544,19 +543,16 @@ class Session:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
 
-        Example::
+        Examples::
 
-            df = session.table("mytable")
+            df1 = session.table("mytable")
+            df2 = session.table(["mydb", "myschema", "mytable"])
         """
-        if isinstance(name, str):
-            fqdn = [name]
-        elif isinstance(name, (list, tuple)):
-            fqdn = name
-        else:
-            raise TypeError("The input of table() should be a str or a list of strs.")
-        for n in fqdn:
-            Utils.validate_object_name(n)
-        return DataFrame(self, UnresolvedRelation(fqdn))
+
+        if not isinstance(name, str) and isinstance(name, Iterable):
+            name = ".".join(name)
+        Utils.validate_object_name(name)
+        return Table(name, self)
 
     def table_function(
         self,
@@ -827,33 +823,8 @@ class Session:
         if not data:
             raise ValueError("data cannot be empty.")
 
-        # convert data to be a list of Rows
-        # also checks the type of every row, which should be same across data
-        rows = []
-        names = None
-        for row in data:
-            if not row:
-                rows.append(Row(None))
-            elif isinstance(row, Row):
-                if row._named_values and not names:
-                    names = list(row._named_values.keys())
-                rows.append(row)
-            elif isinstance(row, dict):
-                if not names:
-                    names = list(row.keys())
-                rows.append(Row(**row))
-            elif isinstance(row, (tuple, list)):
-                if hasattr(row, "_fields") and not names:  # namedtuple
-                    names = list(row._fields)
-                rows.append(Row(*row))
-            else:
-                rows.append(Row(row))
-
-        # check the length of every row, which should be same across data
-        if len({len(row) for row in rows}) != 1:
-            raise ValueError("Data consists of rows with different lengths.")
-
         # infer the schema based on the data
+        names = None
         if isinstance(schema, StructType):
             new_schema = schema
         else:
@@ -861,8 +832,48 @@ class Session:
                 names = schema
             new_schema = reduce(
                 _merge_type,
-                (_infer_schema_from_list(list(row), names) for row in rows),
+                (_infer_schema(row, names) for row in data),
             )
+        if len(new_schema.fields) == 0:
+            raise ValueError(
+                "The provided schema or inferred schema cannot be None or empty"
+            )
+
+        def convert_row_to_list(
+            row: Union[Dict, List, Tuple], names: List[str]
+        ) -> List:
+            row_dict = None
+            if not row:
+                row = [None]
+            elif isinstance(row, (tuple, list)):
+                if getattr(row, "_fields", None):  # Row or namedtuple
+                    row_dict = row.asDict() if isinstance(row, Row) else row._asdict()
+            elif isinstance(row, dict):
+                row_dict = row.copy()
+            else:
+                row = [row]
+
+            if row_dict:
+                # fill None if the key doesn't exist
+                return [row_dict.get(name) for name in names]
+            else:
+                # check the length of every row, which should be same across data
+                if len(row) != len(names):
+                    raise ValueError(
+                        f"{len(names)} fields are required by schema "
+                        f"but {len(row)} values are provided. This might be because "
+                        f"data consists of rows with different lengths, or mixed rows "
+                        f"with column names or without column names"
+                    )
+                return list(row)
+
+        # always overwrite the column names if they are provided via schema
+        if names:
+            for i, name in enumerate(names):
+                new_schema.fields[i].name = name
+        else:
+            names = [f.name for f in new_schema.fields]
+        rows = [convert_row_to_list(row, names) for row in data]
 
         # get spark attributes and data types
         attrs, data_types = [], []
