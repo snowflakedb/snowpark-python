@@ -66,8 +66,8 @@ def test_create_dataframe_for_large_values_check_plan(session):
 
     large_data = [Row(i) for i in range(1025)]
     schema = StructType([StructField("ID", LongType())])
-    df1 = session.create_data_frame(large_data, schema)
-    df2 = session.create_data_frame(large_data).to_df("id")
+    df1 = session.create_dataframe(large_data, schema)
+    df2 = session.create_dataframe(large_data).to_df("id")
     check_plan(df1, large_data)
     check_plan(df2, large_data)
 
@@ -114,7 +114,7 @@ def test_create_dataframe_for_large_values_basic_types(session):
         for i in range(row_count)
     ]
     large_data.append(Row(row_count, *([None] * (len(large_data[0]) - 1))))
-    df = session.create_data_frame(large_data, schema)
+    df = session.create_dataframe(large_data, schema)
     assert [type(field.datatype) for field in df.schema.fields] == [
         LongType,
         StringType,
@@ -147,7 +147,7 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
     row_count = 350
     large_data = [Row(i, ["'", 2], {"'": 1}, {"a": "foo"}) for i in range(row_count)]
     large_data.append(Row(row_count, None, None, None))
-    df = session.create_data_frame(large_data, schema)
+    df = session.create_dataframe(large_data, schema)
     assert [type(field.datatype) for field in df.schema.fields] == [
         LongType,
         ArrayType,

@@ -90,15 +90,15 @@ def test_quote_all_database_and_schema_names(session):
 
 
 def test_create_dataframe_sequence(session):
-    df = session.create_data_frame([[1, "one", 1.0], [2, "two", 2.0]])
+    df = session.create_dataframe([[1, "one", 1.0], [2, "two", 2.0]])
     assert [field.name for field in df.schema.fields] == ["_1", "_2", "_3"]
     assert df.collect() == [Row(1, "one", 1.0), Row(2, "two", 2.0)]
 
-    df = session.create_data_frame([1, 2])
+    df = session.create_dataframe([1, 2])
     assert [field.name for field in df.schema.fields] == ["_1"]
     assert df.collect() == [Row(1), Row(2)]
 
-    df = session.create_data_frame(["one", "two"])
+    df = session.create_dataframe(["one", "two"])
     assert [field.name for field in df.schema.fields] == ["_1"]
 
     assert df.collect() == [Row("one"), Row("two")]
@@ -106,7 +106,7 @@ def test_create_dataframe_sequence(session):
 
 def test_create_dataframe_namedtuple(session):
     P1 = NamedTuple("P1", [("a", int), ("b", str), ("c", float)])
-    df = session.create_data_frame([P1(1, "one", 1.0), P1(2, "two", 2.0)])
+    df = session.create_dataframe([P1(1, "one", 1.0), P1(2, "two", 2.0)])
     assert [field.name for field in df.schema.fields] == ["A", "B", "C"]
 
 
@@ -147,11 +147,11 @@ def test_negative_test_to_invalid_table_name(session):
 
 
 def test_create_dataframe_from_seq_none(session):
-    assert session.create_data_frame([None, 1]).to_df("int").collect() == [
+    assert session.create_dataframe([None, 1]).to_df("int").collect() == [
         Row(None),
         Row(1),
     ]
-    assert session.create_data_frame([None, [[1, 2]]]).to_df("arr").collect() == [
+    assert session.create_dataframe([None, [[1, 2]]]).to_df("arr").collect() == [
         Row(None),
         Row("[\n  1,\n  2\n]"),
     ]
@@ -162,13 +162,13 @@ def test_create_dataframe_from_array(session):
     schema = StructType(
         [StructField("num", IntegerType()), StructField("str", StringType())]
     )
-    df = session.create_data_frame(data, schema)
+    df = session.create_dataframe(data, schema)
     assert df.collect() == data
 
     # negative
     data1 = [Row("a", 1), Row(2, "b")]
     with pytest.raises(TypeError) as ex_info:
-        session.create_data_frame(data1, schema)
+        session.create_dataframe(data1, schema)
     assert "Unsupported datatype" in str(ex_info)
 
 

@@ -203,7 +203,7 @@ def test_consistent_table_name_behaviors(session):
     table_name = Utils.random_name()
     db = session.get_current_database()
     sc = session.get_current_schema()
-    df = session.create_data_frame([[1], [2], [3]]).to_df("a")
+    df = session.create_dataframe([[1], [2], [3]]).to_df("a")
     df.write.mode("overwrite").save_as_table(table_name)
     table_names = [
         table_name,

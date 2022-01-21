@@ -74,7 +74,7 @@ def test_basic_udf(session):
         input_types=[IntegerType(), IntegerType()],
     )
 
-    df = session.create_data_frame([[1, 2], [3, 4]]).to_df("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     Utils.check_answer(df.select(return1_udf()).collect(), [Row("1"), Row("1")])
     Utils.check_answer(
         df.select(plus1_udf(col("a")), "a").collect(),
@@ -104,7 +104,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     )
     Utils.check_answer(session.sql("select test_mul(13, 19)").collect(), [Row(13 * 19)])
 
-    df = session.create_data_frame([[1, 2], [3, 4]]).to_df("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     Utils.check_answer(
         df.select(call_udf("test_mul", col("a"), col("b"))).collect(),
         [
@@ -184,7 +184,7 @@ def test_nested_udf(session):
     def cube(x):
         return square(x) * x
 
-    df = session.create_data_frame([1, 2]).to_df("a")
+    df = session.create_dataframe([1, 2]).to_df("a")
     outer_func_udf = udf(outer_func, return_type=StringType())
     Utils.check_answer(
         df.select(outer_func_udf()).collect(),
@@ -250,7 +250,7 @@ def test_decorator_udf(session):
         return_type=ArrayType(IntegerType()),
         input_types=[ArrayType(IntegerType())],
     )
-    df = session.create_data_frame([[[1, 2], [2, 3]], [[3, 4], [4, 5]]]).to_df("a", "b")
+    df = session.create_dataframe([[[1, 2], [2, 3]], [[3, 4], [4, 5]]]).to_df("a", "b")
     res = df.select(
         duplicate_list_elements_udf("a"), duplicate_list_elements_udf("b")
     ).collect()
@@ -278,7 +278,7 @@ def test_annotation_syntax_udf(session):
     def snow():
         return "snow"
 
-    df = session.create_data_frame([[1, 2], [3, 4]]).to_df("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     Utils.check_answer(
         df.select(add_udf("a", "b"), snow()).collect(),
         [
@@ -295,7 +295,7 @@ def test_annotation_syntax_udf(session):
 
 
 def test_session_register_udf(session):
-    df = session.create_data_frame([[1, 2], [3, 4]]).to_df("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     add_udf = session.udf.register(
         lambda x, y: x + y,
         return_type=IntegerType(),
@@ -441,7 +441,7 @@ def test_add_imports_package(session):
     d = datetime.date.today()
     session.add_import(os.path.dirname(dateutil.__file__))
     session.add_import(six.__file__)
-    df = session.create_data_frame([d]).to_df("a")
+    df = session.create_dataframe([d]).to_df("a")
     plus_one_month_udf = udf(
         plus_one_month, return_type=DateType(), input_types=[DateType()]
     )
@@ -534,7 +534,7 @@ def test_type_hints(session):
     def return_variant_dict_udf(v: Any) -> Dict[str, str]:
         return {str(k): f"{str(k)} {str(v)}" for k, v in v.items()}
 
-    df = session.create_data_frame([[1, 4], [2, 3]]).to_df("a", "b")
+    df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     Utils.check_answer(
         df.select(
             add_udf("a", "b"),
@@ -583,7 +583,7 @@ def test_udf_negative(session):
     def f(x):
         return x
 
-    df1 = session.create_data_frame(["a", "b"]).to_df("x")
+    df1 = session.create_dataframe(["a", "b"]).to_df("x")
 
     udf0 = udf()
     with pytest.raises(TypeError) as ex_info:
@@ -628,7 +628,7 @@ def test_udf_negative(session):
     with pytest.raises(ProgrammingError) as ex_info:
         df1.select(udf2("x")).collect()
     assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
-    df2 = session.create_data_frame([1, None]).to_df("x")
+    df2 = session.create_dataframe([1, None]).to_df("x")
     with pytest.raises(ProgrammingError) as ex_info:
         df2.select(udf2("x")).collect()
     assert "Python Interpreter Error" in str(ex_info)
@@ -831,7 +831,7 @@ def test_udf_variant_type(session):
 
 
 def test_udf_replace(session):
-    df = session.create_data_frame([[1, 2], [3, 4]]).to_df("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
 
     # Register named UDF and expect that it works.
     add_udf = session.udf.register(

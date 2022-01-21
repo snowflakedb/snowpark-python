@@ -126,7 +126,7 @@ def test_create_dataframe_from_pandas(session):
         ],
     )
 
-    df = session.create_data_frame(pd)
+    df = session.create_dataframe(pd)
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
@@ -146,7 +146,7 @@ def test_create_dataframe_from_pandas(session):
     #     ],
     # )
     #
-    # df = session.create_data_frame(pd)
+    # df = session.create_dataframe(pd)
     # results = df.to_pandas()
     # assert_frame_equal(results, pd, check_dtype=False)
 

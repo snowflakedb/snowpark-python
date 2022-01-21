@@ -64,7 +64,7 @@ def test_consistent_view_name_behaviors(session):
 
     name_parts = [db, sc, view_name]
 
-    df = session.create_data_frame([1, 2, 3]).to_df("a")
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
 
     try:
         df.create_or_replace_view(view_name)

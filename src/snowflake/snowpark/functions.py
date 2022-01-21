@@ -1457,7 +1457,7 @@ def udf(
         def my_sqrt(x: float) -> float:
             return sqrt(x)
 
-        df = session.create_data_frame([[1, 2], [3, 4]]).to_df("a", "b")
+        df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
         df.select(add_one("a"), minus_one("b"), my_sqrt("b"))
         session.sql("select minus_one(1)")
 

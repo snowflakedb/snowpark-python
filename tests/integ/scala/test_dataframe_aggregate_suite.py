@@ -65,7 +65,7 @@ def test_join_on_pivot(session):
         .sort(col("empid"))
     )
 
-    df2 = session.create_data_frame([[1, 12345], [2, 67890]]).to_df("empid", "may")
+    df2 = session.create_dataframe([[1, 12345], [2, 67890]]).to_df("empid", "may")
 
     Utils.check_answer(
         df1.join(df2, "empid"),
@@ -78,7 +78,7 @@ def test_join_on_pivot(session):
 
 
 def test_pivot_on_join(session):
-    df = session.create_data_frame([[1, "One"], [2, "Two"]]).to_df("empid", "name")
+    df = session.create_dataframe([[1, "One"], [2, "Two"]]).to_df("empid", "name")
 
     Utils.check_answer(
         TestData.monthly_sales(session)
@@ -96,7 +96,7 @@ def test_pivot_on_join(session):
 
 def test_rel_grouped_dataframe_agg(session):
     df = (
-        session.create_data_frame([[1, "One"], [2, "Two"], [3, "Three"]])
+        session.create_dataframe([[1, "One"], [2, "Two"], [3, "Three"]])
         .to_df(["empid", "name"])
         .group_by()
     )
@@ -220,7 +220,7 @@ def test_group_by_grouping_sets(session):
 
 
 def test_rel_grouped_dataframe_max(session):
-    df1 = session.create_data_frame(
+    df1 = session.create_dataframe(
         [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]
     ).to_df(["key", "value1", "value2", "rest"])
 
@@ -238,7 +238,7 @@ def test_rel_grouped_dataframe_max(session):
 
 
 def test_rel_grouped_dataframe_avg_mean(session):
-    df1 = session.create_data_frame(
+    df1 = session.create_dataframe(
         [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]
     ).to_df(["key", "value1", "value2", "rest"])
 
@@ -266,7 +266,7 @@ def test_rel_grouped_dataframe_avg_mean(session):
 
 
 def test_rel_grouped_dataframe_median(session):
-    df1 = session.create_data_frame(
+    df1 = session.create_dataframe(
         [
             ("a", 1, 11, "b"),
             ("b", 2, 22, "c"),
@@ -300,7 +300,7 @@ def test_rel_grouped_dataframe_median(session):
 
 
 def test_builtin_functions(session):
-    df = session.create_data_frame([(1, 11), (2, 12), (1, 13)]).to_df(["a", "b"])
+    df = session.create_dataframe([(1, 11), (2, 12), (1, 13)]).to_df(["a", "b"])
 
     assert df.group_by("a").builtin("max")(col("a"), col("b")).collect() == [
         Row(1, 1, 13),
@@ -387,7 +387,7 @@ def test_null_count(session):
 
 
 def test_distinct(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "one", 1.0), (2, "one", 2.0), (2, "two", 1.0)]
     ).to_df("i", "s", '"i"')
 
@@ -411,10 +411,10 @@ def test_distinct(session):
 
 
 def test_distinct_and_joins(session):
-    lhs = session.create_data_frame([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
+    lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
     )
-    rhs = session.create_data_frame([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
+    rhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
     )
 
@@ -466,7 +466,7 @@ def test_groupBy(session):
         [(col("b"), "sum")]
     ).collect() == [Row(1, 3), Row(2, 3), Row(3, 3)]
 
-    df1 = session.create_data_frame(
+    df1 = session.create_dataframe(
         [("a", 1, 0, "b"), ("b", 2, 4, "c"), ("a", 2, 3, "d")]
     ).to_df(["key", "value1", "value2", "rest"])
 
@@ -558,7 +558,7 @@ def test_sn_moments(session):
 
 
 def test_sn_zero_moments(session):
-    input = session.create_data_frame([[1, 2]]).to_df("a", "b")
+    input = session.create_dataframe([[1, 2]]).to_df("a", "b")
     Utils.check_answer(
         input.agg(
             [
@@ -593,7 +593,7 @@ def test_sn_zero_moments(session):
 
 
 def test_sn_null_moments(session):
-    empty_table_data = session.create_data_frame([[]]).to_df("a")
+    empty_table_data = session.create_dataframe([[]]).to_df("a")
 
     Utils.check_answer(
         empty_table_data.agg(
@@ -659,10 +659,10 @@ def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_ordinal(
 
 
 def test_distinct_and_unions(session):
-    lhs = session.create_data_frame([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
+    lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
     )
-    rhs = session.create_data_frame([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
+    rhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
     )
 
@@ -686,10 +686,10 @@ def test_distinct_and_unions(session):
 
 
 def test_distinct_and_unionall(session):
-    lhs = session.create_data_frame([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
+    lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
     )
-    rhs = session.create_data_frame([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
+    rhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
     )
 
@@ -713,7 +713,7 @@ def test_distinct_and_unionall(session):
 
 
 def test_count_if(session):
-    session.create_data_frame(
+    session.create_dataframe(
         [
             ["a", None],
             ["a", 1],
@@ -783,7 +783,7 @@ def test_null_average(session):
 
 
 def test_zero_average(session):
-    df = session.create_data_frame([[]]).to_df(["a"])
+    df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg(avg(col("a"))).collect() == [Row(None)]
 
     assert df.agg([avg(col("a")), sum_distinct(col("a"))]).collect() == [
@@ -792,7 +792,7 @@ def test_zero_average(session):
 
 
 def test_multiple_column_distinct_count(session):
-    df1 = session.create_data_frame(
+    df1 = session.create_dataframe(
         [
             ("a", "b", "c"),
             ("a", "b", "c"),
@@ -818,31 +818,31 @@ def test_multiple_column_distinct_count(session):
 
 
 def test_zero_count(session):
-    empty_table = session.create_data_frame([[]]).to_df(["a"])
+    empty_table = session.create_dataframe([[]]).to_df(["a"])
     assert empty_table.agg([count(col("a")), sum_distinct(col("a"))]).collect() == [
         Row(0, None)
     ]
 
 
 def test_zero_stddev(session):
-    df = session.create_data_frame([[]]).to_df(["a"])
+    df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg(
         [stddev(col("a")), stddev_pop(col("a")), stddev_samp(col("a"))]
     ).collect() == [Row(None, None, None)]
 
 
 def test_zero_sum(session):
-    df = session.create_data_frame([[]]).to_df(["a"])
+    df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg([sum(col("a"))]).collect() == [Row(None)]
 
 
 def test_zero_sum_distinct(session):
-    df = session.create_data_frame([[]]).to_df(["a"])
+    df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg([sum_distinct(col("a"))]).collect() == [Row(None)]
 
 
 def test_limit_and_aggregates(session):
-    df = session.create_data_frame([("a", 1), ("b", 2), ("c", 1), ("d", 5)]).to_df(
+    df = session.create_dataframe([("a", 1), ("b", 2), ("c", 1), ("d", 5)]).to_df(
         "id", "value"
     )
     limit_2df = df.limit(2)

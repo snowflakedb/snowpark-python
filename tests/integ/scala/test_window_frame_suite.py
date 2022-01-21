@@ -23,7 +23,7 @@ from tests.utils import Utils
 
 
 def test_lead_lag_with_positive_offset(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
     )
     window = Window.partition_by("key").order_by("value")
@@ -34,7 +34,7 @@ def test_lead_lag_with_positive_offset(session):
 
 
 def test_reverse_lead_lag_with_positive_offset(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
     )
     window = Window.partition_by("key").order_by(col("value").desc())
@@ -45,7 +45,7 @@ def test_reverse_lead_lag_with_positive_offset(session):
 
 
 def test_lead_lag_with_negative_offset(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
     )
     window = Window.partition_by("key").order_by("value")
@@ -56,7 +56,7 @@ def test_lead_lag_with_negative_offset(session):
 
 
 def test_reverse_lead_lag_with_negative_offset(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
     )
     window = Window.partition_by("key").order_by(col("value").desc())
@@ -68,7 +68,7 @@ def test_reverse_lead_lag_with_negative_offset(session):
 
 def test_lead_lag_with_default_value(session):
     default = None
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4"), (2, "5")], schema=["key", "value"]
     )
     window = Window.partition_by("key").order_by("value")
@@ -91,7 +91,7 @@ def test_lead_lag_with_default_value(session):
 
 
 def test_unbounded_rows_range_between_with_aggregation(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [("one", 1), ("two", 2), ("one", 3), ("two", 4)]
     ).to_df("key", "value")
     window = Window.partition_by("key").order_by("value")
@@ -115,7 +115,7 @@ def test_unbounded_rows_range_between_with_aggregation(session):
 
 def test_rows_between_boundary(session):
     # This test is different from scala as `int` in Python is unbounded
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "1"), (1, "1"), (sys.maxsize, "1"), (3, "2"), (2, "1"), (sys.maxsize, "2")]
     ).to_df("key", "value")
     Utils.check_answer(
@@ -175,7 +175,7 @@ def test_rows_between_boundary(session):
 def test_range_between_should_accept_at_most_one_order_by_expression_when_unbounded(
     session,
 ):
-    df = session.create_data_frame([(1, 1)]).to_df("key", "value")
+    df = session.create_dataframe([(1, 1)]).to_df("key", "value")
     window = Window.order_by("key", "value")
     Utils.check_answer(
         df.select(
@@ -207,7 +207,7 @@ def test_range_between_should_accept_at_most_one_order_by_expression_when_unboun
 
 
 def test_range_between_should_accept_numeric_values_only_when_bounded(session):
-    df = session.create_data_frame(["non_numeric"]).to_df("value")
+    df = session.create_dataframe(["non_numeric"]).to_df("value")
     window = Window.order_by("value")
     Utils.check_answer(
         df.select(
@@ -239,7 +239,7 @@ def test_range_between_should_accept_numeric_values_only_when_bounded(session):
 
 
 def test_sliding_rows_between_with_aggregation(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
     ).to_df("key", "value")
     window = Window.partition_by("value").order_by(col("key")).rows_between(-1, 2)
@@ -256,7 +256,7 @@ def test_sliding_rows_between_with_aggregation(session):
 
 
 def test_reverse_sliding_rows_between_with_aggregation(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
     ).to_df("key", "value")
     window = (

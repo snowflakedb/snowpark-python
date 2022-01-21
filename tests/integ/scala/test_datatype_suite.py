@@ -52,7 +52,7 @@ def test_verify_datatypes_reference(session):
         ]
     )
 
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             [
                 None,

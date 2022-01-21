@@ -746,7 +746,7 @@ class Session:
                 str(ci_output)
             )
 
-    def create_data_frame(
+    def create_dataframe(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, List[str]]] = None,
@@ -775,30 +775,28 @@ class Session:
             import pandas as pd
 
             # infer schema
-            session.create_data_frame([1, 2, 3, 4]).to_df("a")  # one single column
-            session.create_data_frame([[1, 2, 3, 4]]).to_df("a", "b", "c", "d")
-            session.create_data_frame([[1, 2], [3, 4]]).to_df("a", "b")
-            session.create_data_frame([Row(a=1, b=2, c=3, d=4)])
-            session.create_data_frame([{"a": "snow", "b": "flake"}])
-            session.create_data_frame(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"]))
+            session.create_dataframe([1, 2, 3, 4]).to_df("a")  # one single column
+            session.create_dataframe([[1, 2, 3, 4]]).to_df("a", "b", "c", "d")
+            session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+            session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
+            session.create_dataframe([{"a": "snow", "b": "flake"}])
+            session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"]))
 
             # given a schema
             from snowflake.snowpark.types import IntegerType, StringType
             schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
-            session.create_data_frame([[1, "snow"], [3, "flake"]], schema)
+            session.create_dataframe([[1, "snow"], [3, "flake"]], schema)
         """
         if data is None:
             raise ValueError("data cannot be None.")
 
         # check the type of data
         if isinstance(data, Row):
-            raise TypeError(
-                "create_data_frame() function does not accept a Row object."
-            )
+            raise TypeError("create_dataframe() function does not accept a Row object.")
 
         if not isinstance(data, (list, tuple, pandas.DataFrame)):
             raise TypeError(
-                "create_data_frame() function only accepts data as a list, tuple or a pandas DataFrame."
+                "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
@@ -1193,4 +1191,4 @@ class Session:
         _active_session = session
         return session
 
-    createDataFrame = create_data_frame
+    createDataFrame = create_dataframe

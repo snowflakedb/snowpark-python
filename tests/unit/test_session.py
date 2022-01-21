@@ -6,4 +6,4 @@ from snowflake.snowpark import Session
 
 
 def test_aliases():
-    assert Session.createDataFrame == Session.create_data_frame
+    assert Session.createDataFrame == Session.create_dataframe

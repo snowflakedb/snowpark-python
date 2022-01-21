@@ -293,7 +293,7 @@ def test_call_udf_api(session):
 
 
 def test_long_type(session):
-    df = session.create_data_frame([1, 2, 3]).to_df("a")
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
     long_udf = udf(lambda x: x + x, return_type=LongType(), input_types=[LongType()])
     assert df.select("a", long_udf("a")).collect() == [
         Row(1, 2),
@@ -303,7 +303,7 @@ def test_long_type(session):
 
 
 def test_short_type(session):
-    df = session.create_data_frame([1, 2, 3]).to_df("a")
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
     short_udf = udf(lambda x: x + x, return_type=ShortType(), input_types=[ShortType()])
     assert df.select("a", short_udf("a")).collect() == [
         Row(1, 2),
@@ -313,7 +313,7 @@ def test_short_type(session):
 
 
 def test_float_type(session):
-    df = session.create_data_frame([1.1, 2.2, 3.3]).to_df("a")
+    df = session.create_dataframe([1.1, 2.2, 3.3]).to_df("a")
     float_udf = udf(lambda x: x + x, return_type=FloatType(), input_types=[FloatType()])
     assert df.select("a", float_udf("a")).collect() == [
         Row(1.1, 2.2),
@@ -323,7 +323,7 @@ def test_float_type(session):
 
 
 def test_double_type(session):
-    df = session.create_data_frame([1.01, 2.01, 3.01]).to_df("a")
+    df = session.create_dataframe([1.01, 2.01, 3.01]).to_df("a")
     double_udf = udf(
         lambda x: x + x, return_type=DoubleType(), input_types=[DoubleType()]
     )
@@ -335,7 +335,7 @@ def test_double_type(session):
 
 
 def test_boolean_type(session):
-    df = session.create_data_frame([[1, 1], [2, 2], [3, 4]]).to_df("a", "b")
+    df = session.create_dataframe([[1, 1], [2, 2], [3, 4]]).to_df("a", "b")
     boolean_udf = udf(
         lambda x, y: x == y,
         return_type=BooleanType(),
@@ -351,8 +351,8 @@ def test_boolean_type(session):
 def test_binary_type(session):
     data = ["Hello", "World"]
     bytes_data = [bytes(s, "utf8") for s in data]
-    df1 = session.create_data_frame(data).to_df("a")
-    df2 = session.create_data_frame(bytes_data).to_df("a")
+    df1 = session.create_dataframe(data).to_df("a")
+    df2 = session.create_dataframe(bytes_data).to_df("a")
     to_binary = udf(
         lambda x: bytes(x, "utf8"),
         return_type=BinaryType(),
@@ -381,7 +381,7 @@ def test_date_and_timestamp_type(session):
         return t.date() if t else None
 
     out = [Row(to_timestamp(d), to_date(t)) for d, t in data]
-    df = session.create_data_frame(data).to_df("date", "timestamp")
+    df = session.create_dataframe(data).to_df("date", "timestamp")
     to_timestamp_udf = udf(
         to_timestamp, return_type=TimestampType(), input_types=[DateType()]
     )
@@ -795,7 +795,7 @@ def test_negative_test_to_input_invalid_func_name(session):
 
 def test_empty_argument_function(session):
     udf1 = udf(lambda: 100, return_type=IntegerType())
-    df = session.create_data_frame([1]).to_df("col")
+    df = session.create_dataframe([1]).to_df("col")
     assert df.select(udf1()).collect() == [Row(100)]
 
 

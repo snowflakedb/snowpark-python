@@ -24,7 +24,7 @@ from tests.utils import TestData, Utils
 
 
 def test_column_constructors_subscriptable(session):
-    df = session.create_data_frame([[1, 2, 3]]).to_df("col", '"col"', "col .")
+    df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select(df["col"]).collect() == [Row(1)]
     assert df.select(df['"col"']).collect() == [Row(2)]
     assert df.select(df["col ."]).collect() == [Row(3)]
@@ -41,7 +41,7 @@ def test_column_constructors_subscriptable(session):
 
 
 def test_between(session):
-    df = session.create_data_frame([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
         ["a", "b"]
     )
 
@@ -56,14 +56,14 @@ def test_between(session):
 
 
 def test_try_cast(session):
-    df = session.create_data_frame([["2018-01-01"]], schema=["a"])
+    df = session.create_dataframe([["2018-01-01"]], schema=["a"])
     cast_res = df.select(df["a"].cast("date")).collect()
     try_cast_res = df.select(df["a"].try_cast("date")).collect()
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
 def test_try_cast_work_cast_not_work(session):
-    df = session.create_data_frame([["aaa"]], schema=["a"])
+    df = session.create_dataframe([["aaa"]], schema=["a"])
     with pytest.raises(ProgrammingError) as execinfo:
         df.select(df["a"].cast("date")).collect()
     assert "Date 'aaa' is not recognized" in str(execinfo)
@@ -73,7 +73,7 @@ def test_try_cast_work_cast_not_work(session):
 
 
 def test_cast_try_cast_negative(session):
-    df = session.create_data_frame([["aaa"]], schema=["a"])
+    df = session.create_dataframe([["aaa"]], schema=["a"])
     with pytest.raises(ValueError) as execinfo:
         df.select(df["a"].cast("wrong_type"))
     assert "'wrong_type' is not a supported type" in str(execinfo)
@@ -84,20 +84,20 @@ def test_cast_try_cast_negative(session):
 
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
-    df = session.create_data_frame([[5.2354]], schema=["a"])
+    df = session.create_dataframe([[5.2354]], schema=["a"])
     Utils.check_answer(
         df.select(df["a"].cast(f" {number_word} ( 3, 2 ) ")), [Row(5.24)]
     )
 
 
 def test_cast_map_type(session):
-    df = session.create_data_frame([['{"key": "1"}']], schema=["a"])
+    df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(parse_json(df["a"]).cast("object")).collect()
     assert json.loads(result[0][0]) == {"key": "1"}
 
 
 def test_cast_array_type(session):
-    df = session.create_data_frame([["[1,2,3]"]], schema=["a"])
+    df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(parse_json(df["a"]).cast("array")).collect()
     assert json.loads(result[0][0]) == [1, 2, 3]
 

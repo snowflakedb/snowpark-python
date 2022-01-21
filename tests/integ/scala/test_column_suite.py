@@ -22,7 +22,7 @@ from tests.utils import TestData, Utils
 def test_column_names_with_space(session):
     c1 = '"name with space"'
     c2 = '"name.with.dot"'
-    df = session.create_data_frame([[1, "a"]]).to_df([c1, c2])
+    df = session.create_dataframe([[1, "a"]]).to_df([c1, c2])
     assert df.select(c1).collect() == [Row(1)]
     assert df.select(col(c1)).collect() == [Row(1)]
     assert df.select(df[c1]).collect() == [Row(1)]
@@ -33,14 +33,14 @@ def test_column_names_with_space(session):
 
 
 def test_column_alias_and_case_insensitive_name(session):
-    df = session.create_data_frame([1, 2]).to_df(["a"])
+    df = session.create_dataframe([1, 2]).to_df(["a"])
     assert df.select(df["a"].as_("b")).schema.fields[0].name == "B"
     assert df.select(df["a"].alias("b")).schema.fields[0].name == "B"
     assert df.select(df["a"].name("b")).schema.fields[0].name == "B"
 
 
 def test_column_alias_and_case_sensitive_name(session):
-    df = session.create_data_frame([1, 2]).to_df(["a"])
+    df = session.create_dataframe([1, 2]).to_df(["a"])
     assert df.select(df["a"].as_('"b"')).schema.fields[0].name == '"b"'
     assert df.select(df["a"].alias('"b"')).schema.fields[0].name == '"b"'
     assert df.select(df["a"].name('"b"')).schema.fields[0].name == '"b"'
@@ -246,47 +246,39 @@ def test_bitwise_operator(session):
 def test_withcolumn_with_special_column_names(session):
     # Ensure that One and "One" are different column names
     Utils.check_answer(
-        session.create_data_frame([[1]])
-        .to_df(['"One"'])
-        .with_column("Two", lit("two")),
+        session.create_dataframe([[1]]).to_df(['"One"']).with_column("Two", lit("two")),
         Row(1, "two"),
     )
     Utils.check_answer(
-        session.create_data_frame([[1]])
-        .to_df(['"One"'])
-        .with_column("One", lit("two")),
+        session.create_dataframe([[1]]).to_df(['"One"']).with_column("One", lit("two")),
         Row(1, "two"),
     )
     Utils.check_answer(
-        session.create_data_frame([[1]])
-        .to_df(["One"])
-        .with_column('"One"', lit("two")),
+        session.create_dataframe([[1]]).to_df(["One"]).with_column('"One"', lit("two")),
         Row(1, "two"),
     )
 
     # Ensure that One and ONE are the same
     Utils.check_answer(
-        session.create_data_frame([[1]])
-        .to_df(["one"])
-        .with_column('"ONE"', lit("two")),
+        session.create_dataframe([[1]]).to_df(["one"]).with_column('"ONE"', lit("two")),
         Row("two"),
     )
     Utils.check_answer(
-        session.create_data_frame([[1]]).to_df(["One"]).with_column("One", lit("two")),
+        session.create_dataframe([[1]]).to_df(["One"]).with_column("One", lit("two")),
         Row("two"),
     )
     Utils.check_answer(
-        session.create_data_frame([[1]]).to_df(["one"]).with_column("ONE", lit("two")),
+        session.create_dataframe([[1]]).to_df(["one"]).with_column("ONE", lit("two")),
         Row("two"),
     )
     Utils.check_answer(
-        session.create_data_frame([[1]]).to_df(["OnE"]).with_column("oNe", lit("two")),
+        session.create_dataframe([[1]]).to_df(["OnE"]).with_column("oNe", lit("two")),
         Row("two"),
     )
 
     # Ensure that One and ONE are the same
     Utils.check_answer(
-        session.create_data_frame([[1]])
+        session.create_dataframe([[1]])
         .to_df(['"OnE"'])
         .with_column('"OnE"', lit("two")),
         Row("two"),
@@ -295,40 +287,40 @@ def test_withcolumn_with_special_column_names(session):
 
 def test_toDF_with_special_column_names(session):
     assert (
-        session.create_data_frame([[1]]).to_df(["ONE"]).schema
-        == session.create_data_frame([[1]]).to_df(["one"]).schema
+        session.create_dataframe([[1]]).to_df(["ONE"]).schema
+        == session.create_dataframe([[1]]).to_df(["one"]).schema
     )
     assert (
-        session.create_data_frame([[1]]).to_df(["OnE"]).schema
-        == session.create_data_frame([[1]]).to_df(["oNe"]).schema
+        session.create_dataframe([[1]]).to_df(["OnE"]).schema
+        == session.create_dataframe([[1]]).to_df(["oNe"]).schema
     )
     assert (
-        session.create_data_frame([[1]]).to_df(["OnE"]).schema
-        == session.create_data_frame([[1]]).to_df(['"ONE"']).schema
+        session.create_dataframe([[1]]).to_df(["OnE"]).schema
+        == session.create_dataframe([[1]]).to_df(['"ONE"']).schema
     )
     assert (
-        session.create_data_frame([[1]]).to_df(["ONE"]).schema
-        != session.create_data_frame([[1]]).to_df(['"oNe"']).schema
+        session.create_dataframe([[1]]).to_df(["ONE"]).schema
+        != session.create_dataframe([[1]]).to_df(['"oNe"']).schema
     )
     assert (
-        session.create_data_frame([[1]]).to_df(['"ONe"']).schema
-        != session.create_data_frame([[1]]).to_df(['"oNe"']).schema
+        session.create_dataframe([[1]]).to_df(['"ONe"']).schema
+        != session.create_dataframe([[1]]).to_df(['"oNe"']).schema
     )
     assert (
-        session.create_data_frame([[1]]).to_df(['"ONe"']).schema
-        != session.create_data_frame([[1]]).to_df(["ONe"]).schema
+        session.create_dataframe([[1]]).to_df(['"ONe"']).schema
+        != session.create_dataframe([[1]]).to_df(["ONe"]).schema
     )
 
 
 def test_column_resolution_with_different_kins_of_names(session):
-    df = session.create_data_frame([[1]]).to_df(["One"])
+    df = session.create_dataframe([[1]]).to_df(["One"])
     assert df.select(df["one"]).collect() == [Row(1)]
     assert df.select(df["oNe"]).collect() == [Row(1)]
     assert df.select(df['"ONE"']).collect() == [Row(1)]
     with pytest.raises(SnowparkColumnException):
         df.col('"One"')
 
-    df = session.create_data_frame([[1]]).to_df(["One One"])
+    df = session.create_dataframe([[1]]).to_df(["One One"])
     assert df.select(df["One One"]).collect() == [Row(1)]
     assert df.select(df['"One One"']).collect() == [Row(1)]
     with pytest.raises(SnowparkColumnException):
@@ -338,14 +330,14 @@ def test_column_resolution_with_different_kins_of_names(session):
     with pytest.raises(SnowparkColumnException):
         df.col('"ONE ONE"')
 
-    df = session.create_data_frame([[1]]).to_df(['"One One"'])
+    df = session.create_dataframe([[1]]).to_df(['"One One"'])
     assert df.select(df['"One One"']).collect() == [Row(1)]
     with pytest.raises(SnowparkColumnException):
         df.col('"ONE ONE"')
 
 
 def test_drop_columns_by_string(session):
-    df = session.create_data_frame([[1, 2]]).to_df(["One", '"One"'])
+    df = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
     assert df.drop("one").schema.fields[0].name == '"One"'
     assert df.drop('"One"').schema.fields[0].name == "ONE"
     assert [field.name for field in df.drop([]).schema.fields] == ["ONE", '"One"']
@@ -360,7 +352,7 @@ def test_drop_columns_by_string(session):
 
 
 def test_drop_columns_by_column(session):
-    df = session.create_data_frame([[1, 2]]).to_df(["One", '"One"'])
+    df = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
     assert df.drop(col("one")).schema.fields[0].name == '"One"'
     assert df.drop(df['"One"']).schema.fields[0].name == "ONE"
     assert [field.name for field in df.drop(col('"one"')).schema.fields] == [
@@ -377,7 +369,7 @@ def test_drop_columns_by_column(session):
     assert "You must specify the column by name" in str(ex_info)
 
     # Note below should arguably not work, but does because the semantics is to drop by name.
-    df2 = session.create_data_frame([[1, 2]]).to_df(["One", '"One"'])
+    df2 = session.create_dataframe([[1, 2]]).to_df(["One", '"One"'])
     assert df.drop(df2["one"]).schema.fields[0].name == '"One"'
 
 
@@ -412,7 +404,7 @@ def test_fully_qualified_column_name(session):
 
 
 def test_column_names_with_quotes(session):
-    df = session.create_data_frame([[1, 2, 3]]).to_df('col"', '"col"', '"""col"')
+    df = session.create_dataframe([[1, 2, 3]]).to_df('col"', '"col"', '"""col"')
     assert df.select(col('col"')).collect() == [Row(1)]
     assert df.select(col('"col"""')).collect() == [Row(1)]
     assert df.select(col('"col"')).collect() == [Row(2)]
@@ -430,7 +422,7 @@ def test_column_names_with_quotes(session):
 
 
 def test_column_constructors_col(session):
-    df = session.create_data_frame([[1, 2, 3]]).to_df("col", '"col"', "col .")
+    df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select(col("col")).collect() == [Row(1)]
     assert df.select(col('"col"')).collect() == [Row(2)]
     assert df.select(col("col .")).collect() == [Row(3)]
@@ -450,7 +442,7 @@ def test_column_constructors_col(session):
 
 
 def test_column_constructors_select(session):
-    df = session.create_data_frame([[1, 2, 3]]).to_df("col", '"col"', "col .")
+    df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select("col").collect() == [Row(1)]
     assert df.select('"col"').collect() == [Row(2)]
     assert df.select("col .").collect() == [Row(3)]
@@ -467,7 +459,7 @@ def test_column_constructors_select(session):
 
 
 def test_sql_expr_column(session):
-    df = session.create_data_frame([[1, 2, 3]]).to_df("col", '"col"', "col .")
+    df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select(sql_expr("col")).collect() == [Row(1)]
     assert df.select(sql_expr('"col"')).collect() == [Row(2)]
     assert df.select(sql_expr("COL")).collect() == [Row(1)]
@@ -493,7 +485,7 @@ def test_sql_expr_column(session):
 
 
 def test_errors_for_aliased_columns(session):
-    df = session.create_data_frame([[1]]).to_df("c")
+    df = session.create_dataframe([[1]]).to_df("c")
     with pytest.raises(SnowparkSQLUnexpectedAliasException) as ex_info:
         df.select(col("a").as_("b") + 10).collect()
     assert "You can only define aliases for the root" in str(ex_info)
@@ -611,12 +603,12 @@ def test_when_case(session):
 
 
 def test_lit_contains_single_quote(session):
-    df = session.create_data_frame([[1, "'"], [2, "''"]]).to_df(["a", "b"])
+    df = session.create_dataframe([[1, "'"], [2, "''"]]).to_df(["a", "b"])
     assert df.where(col("b") == "'").collect() == [Row(1, "'")]
 
 
 def test_in_expression_1_in_with_constant_value_list(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
     ).to_df(["a", "b", "c", "d"])
 
@@ -647,8 +639,8 @@ def test_in_expression_1_in_with_constant_value_list(session):
 
 
 def test_in_expression_2_in_with_subquery(session):
-    df0 = session.create_data_frame([[1], [2], [5]]).to_df(["a"])
-    df = session.create_data_frame(
+    df0 = session.create_dataframe([[1], [2], [5]]).to_df(["a"])
+    df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
     ).to_df(["a", "b", "c", "d"])
 
@@ -675,7 +667,7 @@ def test_in_expression_3_in_with_all_types(session):
 
 
 def test_in_expression_4_negative_test_to_input_column_in_value_list(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
     ).to_df(["a", "b", "c", "d"])
 
@@ -708,7 +700,7 @@ def test_in_expression_4_negative_test_to_input_column_in_value_list(session):
 
 
 def test_in_expression_5_negative_test_that_sub_query_has_multiple_columns(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
     ).to_df("a", "b", "c", "d")
 
@@ -719,7 +711,7 @@ def test_in_expression_5_negative_test_that_sub_query_has_multiple_columns(sessi
 
 
 def test_in_expression_6_multiple_columns_with_const_values(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
     ).to_df("a", "b", "c", "d")
 
@@ -745,8 +737,8 @@ def test_in_expression_6_multiple_columns_with_const_values(session):
 
 
 def test_in_expression_7_multiple_columns_with_sub_query(session):
-    df0 = session.create_data_frame([[1, "a"], [2, "b"], [3, "c"]]).to_df("a", "b")
-    df = session.create_data_frame(
+    df0 = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"]]).to_df("a", "b")
+    df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
     ).to_df("a", "b", "c", "d")
 
@@ -768,7 +760,7 @@ def test_in_expression_7_multiple_columns_with_sub_query(session):
 
 
 def test_in_expression_8_negative_test_to_input_column_in_value_list(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
     ).to_df("a", "b", "c", "d")
 
@@ -785,7 +777,7 @@ def test_in_expression_8_negative_test_to_input_column_in_value_list(session):
 def test_in_expression_9_negative_test_for_the_column_count_doesnt_match_the_value_list(
     session,
 ):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
     ).to_df("a", "b", "c", "d")
 

@@ -41,7 +41,7 @@ from tests.utils import TestData, Utils
 
 
 def test_partition_by_order_by_rows_between(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
     ).to_df("key", "value")
     window = Window.partition_by("value").order_by("key").rows_between(-1, 2)
@@ -71,7 +71,7 @@ def test_partition_by_order_by_rows_between(session):
 
 
 def test_range_between(session):
-    df = session.create_data_frame(["non_numeric"]).to_df("value")
+    df = session.create_dataframe(["non_numeric"]).to_df("value")
     window = Window.order_by("value")
     Utils.check_answer(
         df.select(
@@ -94,7 +94,7 @@ def test_range_between(session):
 
 
 def test_window_function_with_aggregates(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
     ).to_df("key", "value")
     window = Window.order_by()
@@ -139,7 +139,7 @@ def test_window_function_inside_where_and_having_clauses(session):
 
 
 def test_reuse_window_partition_by(session):
-    df = session.create_data_frame([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).to_df(
+    df = session.create_dataframe([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).to_df(
         "key", "value"
     )
     w = Window.partition_by("key").order_by("value")
@@ -151,7 +151,7 @@ def test_reuse_window_partition_by(session):
 
 
 def test_reuse_window_order_by(session):
-    df = session.create_data_frame([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).to_df(
+    df = session.create_dataframe([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).to_df(
         "key", "value"
     )
     w = Window.order_by("value").partition_by("key")
@@ -163,7 +163,7 @@ def test_reuse_window_order_by(session):
 
 
 def test_rank_functions_in_unspecific_window(session):
-    df = session.create_data_frame([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
+    df = session.create_dataframe([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
         "key", "value"
     )
     Utils.check_answer(
@@ -191,7 +191,7 @@ def test_rank_functions_in_unspecific_window(session):
 
 
 def test_empty_over_spec(session):
-    df = session.create_data_frame([("a", 1), ("a", 1), ("a", 2), ("b", 2)]).to_df(
+    df = session.create_dataframe([("a", 1), ("a", 1), ("a", 2), ("b", 2)]).to_df(
         "key", "value"
     )
     df.create_or_replace_temp_view("window_table")
@@ -218,7 +218,7 @@ def test_empty_over_spec(session):
 
 
 def test_null_inputs(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
     ).to_df("key", "value")
     window = Window.order_by()
@@ -240,7 +240,7 @@ def test_null_inputs(session):
 
 
 def test_window_function_should_fail_if_order_by_clause_is_not_specified(session):
-    df = session.create_data_frame([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
+    df = session.create_dataframe([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
         "key", "value"
     )
     # Here we missed .order_by("key")!
@@ -250,7 +250,7 @@ def test_window_function_should_fail_if_order_by_clause_is_not_specified(session
 
 
 def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("a", "p1", 10.0, 20.0),
             ("b", "p1", 20.0, 10.0),
@@ -312,7 +312,7 @@ def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
 
 
 def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("a", "p1", 10.0, 20.0),
             ("b", "p1", 20.0, 10.0),
@@ -369,14 +369,14 @@ def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
 
 
 def test_aggregation_function_on_invalid_column(session):
-    df = session.create_data_frame([(1, "1")]).to_df("key", "value")
+    df = session.create_dataframe([(1, "1")]).to_df("key", "value")
     with pytest.raises(ProgrammingError) as ex_info:
         df.select("key", count("invalid").over()).collect()
     assert "invalid identifier" in str(ex_info)
 
 
 def test_skewness_and_kurtosis_functions_in_window(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("a", "p1", 1.0),
             ("b", "p1", 1.0),
@@ -421,7 +421,7 @@ def test_skewness_and_kurtosis_functions_in_window(session):
 
 
 def test_window_functions_in_multiple_selects(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [("S1", "P1", 100), ("S1", "P1", 700), ("S2", "P1", 200), ("S2", "P2", 300)]
     ).to_df("sno", "pno", "qty")
     w1 = Window.partition_by("sno")

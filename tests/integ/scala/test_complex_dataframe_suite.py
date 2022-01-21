@@ -15,8 +15,8 @@ from tests.utils import TestFiles, Utils
 
 
 def test_combination_of_multiple_operators(session):
-    df1 = session.create_data_frame([1, 2]).to_df("a")
-    df2 = session.create_data_frame([[i, f"test{i}"] for i in [1, 2]]).to_df("a", "b")
+    df1 = session.create_dataframe([1, 2]).to_df("a")
+    df2 = session.create_dataframe([[i, f"test{i}"] for i in [1, 2]]).to_df("a", "b")
 
     assert df1.join(df2, "a").except_(df2).collect() == []
 
@@ -45,8 +45,8 @@ def test_combination_of_multiple_operators(session):
 
 
 def test_combination_of_multiple_operators_with_filters(session):
-    df1 = session.create_data_frame([i for i in range(1, 11)]).to_df("a")
-    df2 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 11)]).to_df(
+    df1 = session.create_dataframe([i for i in range(1, 11)]).to_df("a")
+    df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 11)]).to_df(
         "a", "b"
     )
 
@@ -72,12 +72,12 @@ def test_combination_of_multiple_operators_with_filters(session):
 
 
 def test_join_on_top_of_unions(session):
-    df1 = session.create_data_frame([i for i in range(1, 6)]).to_df("a")
-    df2 = session.create_data_frame([i for i in range(6, 11)]).to_df("a")
-    df3 = session.create_data_frame([[i, f"test{i}"] for i in range(1, 6)]).to_df(
+    df1 = session.create_dataframe([i for i in range(1, 6)]).to_df("a")
+    df2 = session.create_dataframe([i for i in range(6, 11)]).to_df("a")
+    df3 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 6)]).to_df(
         "a", "b"
     )
-    df4 = session.create_data_frame([[i, f"test{i}"] for i in range(6, 11)]).to_df(
+    df4 = session.create_dataframe([[i, f"test{i}"] for i in range(6, 11)]).to_df(
         "a", "b"
     )
 

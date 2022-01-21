@@ -21,7 +21,7 @@ def test_union_with_filters(session):
 
     def check(new_col: Column, cfilter: Column, result: List[Row]):
         df1 = (
-            session.create_data_frame([[1, 1]])
+            session.create_dataframe([[1, 1]])
             .to_df(["a", "b"])
             .with_column("c", new_col)
         )
@@ -54,7 +54,7 @@ def test_union_all_with_filters(session):
 
     def check(new_col: Column, cfilter: Column, result: List[Row]):
         df1 = (
-            session.create_data_frame([[1, 1]])
+            session.create_dataframe([[1, 1]])
             .to_df(["a", "b"])
             .with_column("c", new_col)
         )
@@ -110,7 +110,7 @@ def test_except(session):
     Utils.check_answer(all_nulls.except_(all_nulls), [])
 
     # check if values are de-duplicated
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         (("id1", 1), ("id1", 1), ("id", 1), ("id1", 2))
     ).to_df("id", "value")
     Utils.check_answer(
@@ -123,7 +123,7 @@ def test_except(session):
 
 
 def test_except_between_two_projects_without_references_used_in_filter(session):
-    df = session.create_data_frame(((1, 2, 4), (1, 3, 5), (2, 2, 3), (2, 4, 5))).to_df(
+    df = session.create_dataframe(((1, 2, 4), (1, 3, 5), (2, 2, 3), (2, 4, 5))).to_df(
         "a", "b", "c"
     )
     df1 = df.filter(col("a") == 1)
@@ -133,9 +133,9 @@ def test_except_between_two_projects_without_references_used_in_filter(session):
 
 
 def test_union_unionall_unionbyname_unionallbyname_in_one_case(session):
-    df1 = session.create_data_frame([(1, 2, 3)]).to_df("a", "b", "c")
-    df2 = session.create_data_frame([(3, 1, 2)]).to_df("c", "a", "b")
-    df3 = session.create_data_frame([(1, 2, 3)]).to_df("b", "c", "a")
+    df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
+    df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
+    df3 = session.create_dataframe([(1, 2, 3)]).to_df("b", "c", "a")
 
     Utils.check_answer(df1.union(df2), [Row(1, 2, 3), Row(3, 1, 2)])
     Utils.check_answer(df1.union_all(df2), [Row(1, 2, 3), Row(3, 1, 2)])
@@ -149,8 +149,8 @@ def test_union_unionall_unionbyname_unionallbyname_in_one_case(session):
 
 
 def test_nondeterministic_expressions_should_not_be_pushed_down(session):
-    df1 = session.create_data_frame([(i,) for i in range(1, 21)]).to_df("i")
-    df2 = session.create_data_frame([(i,) for i in range(1, 11)]).to_df("i")
+    df1 = session.create_dataframe([(i,) for i in range(1, 21)]).to_df("i")
+    df2 = session.create_dataframe([(i,) for i in range(1, 11)]).to_df("i")
 
     # Checks that the random filter is not pushed down and
     # so will return the same result when run again
@@ -178,77 +178,77 @@ def test_union_all(session):
 
 
 def test_union_by_name(session):
-    df1 = session.create_data_frame([(1, 2, 3)]).to_df("a", "b", "c")
-    df2 = session.create_data_frame([(3, 1, 2)]).to_df("c", "a", "b")
-    df3 = session.create_data_frame([(2, 3, 1)]).to_df("b", "c", "a")
+    df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
+    df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
+    df3 = session.create_dataframe([(2, 3, 1)]).to_df("b", "c", "a")
 
     union_df = df1.union_by_name(df2.union_by_name(df3))
     Utils.check_answer(union_df, Row(1, 2, 3))
 
     # Check failure cases
-    df1 = session.create_data_frame([(1, 2)]).to_df("a", "c")
-    df2 = session.create_data_frame([(3, 4, 5)]).to_df("a", "b", "c")
+    df1 = session.create_dataframe([(1, 2)]).to_df("a", "c")
+    df2 = session.create_dataframe([(3, 4, 5)]).to_df("a", "b", "c")
     with pytest.raises(ProgrammingError):
         df1.union_by_name(df2).collect()
 
-    df1 = session.create_data_frame([(1, 2, 3)]).to_df("a", "b", "c")
-    df2 = session.create_data_frame([(4, 5, 6)]).to_df("a", "c", "d")
+    df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
+    df2 = session.create_dataframe([(4, 5, 6)]).to_df("a", "c", "d")
     with pytest.raises(SnowparkClientException):
         df1.union_by_name(df2)
 
 
 def test_unionall_by_name(session):
-    df1 = session.create_data_frame([(1, 2, 3)]).to_df("a", "b", "c")
-    df2 = session.create_data_frame([(3, 1, 2)]).to_df("c", "a", "b")
-    df3 = session.create_data_frame([(2, 3, 1)]).to_df("b", "c", "a")
+    df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
+    df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
+    df3 = session.create_dataframe([(2, 3, 1)]).to_df("b", "c", "a")
 
     union_df = df1.union_all_by_name(df2.union_all_by_name(df3))
     Utils.check_answer(union_df, [Row(1, 2, 3), Row(1, 2, 3), Row(1, 2, 3)])
 
     # Check failure cases
-    df1 = session.create_data_frame([(1, 2)]).to_df("a", "c")
-    df2 = session.create_data_frame([(3, 4, 5)]).to_df("a", "b", "c")
+    df1 = session.create_dataframe([(1, 2)]).to_df("a", "c")
+    df2 = session.create_dataframe([(3, 4, 5)]).to_df("a", "b", "c")
     with pytest.raises(ProgrammingError):
         df1.union_all_by_name(df2).collect()
 
-    df1 = session.create_data_frame([(1, 2, 3)]).to_df("a", "b", "c")
-    df2 = session.create_data_frame([(4, 5, 6)]).to_df("a", "c", "d")
+    df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
+    df2 = session.create_dataframe([(4, 5, 6)]).to_df("a", "c", "d")
     with pytest.raises(SnowparkClientException):
         df1.union_all_by_name(df2)
 
 
 def test_union_by_quoted_name(session):
-    df1 = session.create_data_frame([(1, 2, 3)]).to_df('"a"', "a", "c")
-    df2 = session.create_data_frame([(3, 1, 2)]).to_df("c", '"a"', "a")
-    df3 = session.create_data_frame([(2, 3, 1)]).to_df("a", "c", '"a"')
+    df1 = session.create_dataframe([(1, 2, 3)]).to_df('"a"', "a", "c")
+    df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", '"a"', "a")
+    df3 = session.create_dataframe([(2, 3, 1)]).to_df("a", "c", '"a"')
 
     union_df = df1.union_by_name(df2.union_by_name(df3))
     Utils.check_answer(union_df, Row(1, 2, 3))
 
     # Check failure case
-    df1 = session.create_data_frame([(1, 2, 3)]).to_df('"a"', "b", "c")
-    df2 = session.create_data_frame([(4, 5, 6)]).to_df("a", "c", "b")
+    df1 = session.create_dataframe([(1, 2, 3)]).to_df('"a"', "b", "c")
+    df2 = session.create_dataframe([(4, 5, 6)]).to_df("a", "c", "b")
     with pytest.raises(SnowparkClientException):
         df1.union_by_name(df2)
 
 
 def test_unionall_by_quoted_name(session):
-    df1 = session.create_data_frame([(1, 2, 3)]).to_df('"a"', "a", "c")
-    df2 = session.create_data_frame([(3, 1, 2)]).to_df("c", '"a"', "a")
-    df3 = session.create_data_frame([(2, 3, 1)]).to_df("a", "c", '"a"')
+    df1 = session.create_dataframe([(1, 2, 3)]).to_df('"a"', "a", "c")
+    df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", '"a"', "a")
+    df3 = session.create_dataframe([(2, 3, 1)]).to_df("a", "c", '"a"')
 
     union_df = df1.union_all_by_name(df2.union_all_by_name(df3))
     Utils.check_answer(union_df, [Row(1, 2, 3), Row(1, 2, 3), Row(1, 2, 3)])
 
     # Check failure case
-    df1 = session.create_data_frame([(1, 2, 3)]).to_df('"a"', "b", "c")
-    df2 = session.create_data_frame([(4, 5, 6)]).to_df("a", "c", "b")
+    df1 = session.create_dataframe([(1, 2, 3)]).to_df('"a"', "b", "c")
+    df2 = session.create_dataframe([(4, 5, 6)]).to_df("a", "c", "b")
     with pytest.raises(SnowparkClientException):
         df1.union_by_name(df2)
 
 
 def test_intersect_nullability(session):
-    non_nullable_ints = session.create_data_frame([[1], [3]]).to_df("a")
+    non_nullable_ints = session.create_dataframe([[1], [3]]).to_df("a")
     null_ints = TestData.null_ints(session)
 
     assert all(not i.nullable for i in non_nullable_ints.schema.fields)
@@ -281,14 +281,14 @@ def test_intersect_nullability(session):
 
 
 def test_spark_17123_performing_set_ops_on_non_native_types(session):
-    dates = session.create_data_frame(
+    dates = session.create_dataframe(
         [
             [date(1, 1, 1), Decimal(1), datetime(1, 1, 1, microsecond=2000)],
             [date(1, 1, 3), Decimal(4), datetime(1, 1, 1, microsecond=5000)],
         ]
     ).to_df("date", "decimal", "timestamp")
 
-    widen_typed_rows = session.create_data_frame(
+    widen_typed_rows = session.create_dataframe(
         [
             [
                 datetime(1, 1, 1, microsecond=5000),
@@ -306,14 +306,14 @@ def test_spark_17123_performing_set_ops_on_non_native_types(session):
 def test_union_by_name_check_name_duplication(session):
     c0 = "ab"
     c1 = "AB"
-    df1 = session.create_data_frame([(1, 1)]).to_df(c0, c1)
-    df2 = session.create_data_frame([(1, 1)]).to_df("c0", "c1")
+    df1 = session.create_dataframe([(1, 1)]).to_df(c0, c1)
+    df2 = session.create_dataframe([(1, 1)]).to_df("c0", "c1")
 
     with pytest.raises(SnowparkClientException):
         df1.union_by_name(df2)
 
-    df1 = session.create_data_frame([(1, 1)]).to_df("c0", "c1")
-    df2 = session.create_data_frame([(1, 1)]).to_df(c0, c1)
+    df1 = session.create_dataframe([(1, 1)]).to_df("c0", "c1")
+    df2 = session.create_dataframe([(1, 1)]).to_df(c0, c1)
 
     with pytest.raises(SnowparkClientException):
         df1.union_by_name(df2)
@@ -322,14 +322,14 @@ def test_union_by_name_check_name_duplication(session):
 def test_unionall_by_name_check_name_duplication(session):
     c0 = "ab"
     c1 = "AB"
-    df1 = session.create_data_frame([(1, 1)]).to_df(c0, c1)
-    df2 = session.create_data_frame([(1, 1)]).to_df("c0", "c1")
+    df1 = session.create_dataframe([(1, 1)]).to_df(c0, c1)
+    df2 = session.create_dataframe([(1, 1)]).to_df("c0", "c1")
 
     with pytest.raises(SnowparkClientException):
         df1.union_all_by_name(df2)
 
-    df1 = session.create_data_frame([(1, 1)]).to_df("c0", "c1")
-    df2 = session.create_data_frame([(1, 1)]).to_df(c0, c1)
+    df1 = session.create_dataframe([(1, 1)]).to_df("c0", "c1")
+    df2 = session.create_dataframe([(1, 1)]).to_df(c0, c1)
 
     with pytest.raises(SnowparkClientException):
         df1.union_all_by_name(df2)
@@ -354,7 +354,7 @@ def test_intersect(session):
     assert df.collect() == [Row(None)]
 
     # check if values are de-duplicated
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [("id1", 1), ("id1", 1), ("id", 1), ("id1", 2)]
     ).to_df("id", "value")
     res = df.intersect(df).collect()
@@ -363,15 +363,15 @@ def test_intersect(session):
 
 
 def test_project_should_not_be_pushed_down_through_intersect_or_except(session):
-    df1 = session.create_data_frame([[i] for i in range(1, 101)]).to_df("i")
-    df2 = session.create_data_frame([[i] for i in range(1, 31)]).to_df("i")
+    df1 = session.create_dataframe([[i] for i in range(1, 101)]).to_df("i")
+    df2 = session.create_dataframe([[i] for i in range(1, 31)]).to_df("i")
 
     assert df1.intersect(df2).count() == 30
     assert df1.except_(df2).count() == 70
 
 
 def test_except_nullability(session):
-    non_nullable_ints = session.create_data_frame(((11,), (3,))).to_df("a")
+    non_nullable_ints = session.create_dataframe(((11,), (3,))).to_df("a")
     for attribute in non_nullable_ints.schema._to_attributes():
         assert not attribute.nullable
 
@@ -398,17 +398,15 @@ def test_except_nullability(session):
 
 
 def test_except_distinct_sql_compliance(session):
-    df_left = session.create_data_frame([(1,), (2,), (2,), (3,), (3,), (4,)]).to_df(
-        "id"
-    )
-    df_right = session.create_data_frame([(1,), (3,)]).to_df("id")
+    df_left = session.create_dataframe([(1,), (2,), (2,), (3,), (3,), (4,)]).to_df("id")
+    df_right = session.create_dataframe([(1,), (3,)]).to_df("id")
     Utils.check_answer(df_left.except_(df_right), [Row(2), Row(4)])
 
 
 def test_mix_set_operator(session):
-    df1 = session.create_data_frame([1]).to_df("a")
-    df2 = session.create_data_frame([2]).to_df("a")
-    df3 = session.create_data_frame([3]).to_df("a")
+    df1 = session.create_dataframe([1]).to_df("a")
+    df2 = session.create_dataframe([2]).to_df("a")
+    df3 = session.create_dataframe([3]).to_df("a")
 
     res = df1.union(df2).intersect(df2.union(df3)).collect()
     expected = df2.collect()

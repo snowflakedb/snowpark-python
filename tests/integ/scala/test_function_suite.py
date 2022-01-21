@@ -1000,7 +1000,7 @@ def test_startswith(session):
 
 
 def test_char(session):
-    df = session.create_data_frame([(84, 85), (96, 97)]).to_df("A", "B")
+    df = session.create_dataframe([(84, 85), (96, 97)]).to_df("A", "B")
 
     Utils.check_answer(
         df.select(char(col("A")), char(col("B"))),
@@ -2459,7 +2459,7 @@ def test_approx_percentile_combine(session, col_a, col_b):
 
 
 def test_iff(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(True, 2, 2, 4), (False, 12, 12, 14), (True, 22, 23, 24)],
         schema=["a", "b", "c", "d"],
     )

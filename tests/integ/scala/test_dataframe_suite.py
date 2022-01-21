@@ -68,11 +68,11 @@ def test_null_data_in_tables(session):
 
 
 def test_null_data_in_local_relation_with_filters(session):
-    df = session.create_data_frame([[1, None], [2, "NotNull"], [3, None]]).to_df(
+    df = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]]).to_df(
         ["a", "b"]
     )
     assert df.collect() == [Row(1, None), Row(2, "NotNull"), Row(3, None)]
-    df2 = session.create_data_frame([[1, None], [2, "NotNull"], [3, None]]).to_df(
+    df2 = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]]).to_df(
         ["a", "b"]
     )
     assert df.collect() == df2.collect()
@@ -91,10 +91,10 @@ def test_null_data_in_local_relation_with_filters(session):
 
 def test_project_null_values(session):
     """Tests projecting null values onto different columns in a dataframe"""
-    df = session.create_data_frame([1, 2]).to_df("a").with_column("b", lit(None))
+    df = session.create_dataframe([1, 2]).to_df("a").with_column("b", lit(None))
     assert df.collect() == [Row(1, None), Row(2, None)]
 
-    df2 = session.create_data_frame([1, 2]).to_df("a").select(lit(None))
+    df2 = session.create_dataframe([1, 2]).to_df("a").select(lit(None))
     assert len(df2.schema.fields) == 1
     assert df2.schema.fields[0].datatype == StringType()
     assert df2.collect() == [Row(None), Row(None)]
@@ -102,7 +102,7 @@ def test_project_null_values(session):
 
 def test_write_null_data_to_table(session):
     table_name = Utils.random_name()
-    df = session.create_data_frame([(1, None), (2, None), (3, None)]).to_df("a", "b")
+    df = session.create_dataframe([(1, None), (2, None), (3, None)]).to_df("a", "b")
     try:
         df.write.save_as_table(table_name)
         Utils.check_answer(session.table(table_name), df, True)
@@ -111,7 +111,7 @@ def test_write_null_data_to_table(session):
 
 
 def test_createOrReplaceView_with_null_data(session):
-    df = session.create_data_frame([[1, None], [2, "NotNull"], [3, None]]).to_df(
+    df = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]]).to_df(
         ["a", "b"]
     )
     view_name = Utils.random_name()
@@ -126,7 +126,7 @@ def test_createOrReplaceView_with_null_data(session):
 
 
 def test_adjust_column_width_of_show(session):
-    df = session.create_data_frame([[1, None], [2, "NotNull"]]).to_df("a", "b")
+    df = session.create_dataframe([[1, None], [2, "NotNull"]]).to_df("a", "b")
     # run show(), make sure no error is reported
     df.show(10, 4)
 
@@ -144,7 +144,7 @@ def test_adjust_column_width_of_show(session):
 
 
 def test_show_with_null_data(session):
-    df = session.create_data_frame([[1, None], [2, "NotNull"]]).to_df("a", "b")
+    df = session.create_dataframe([[1, None], [2, "NotNull"]]).to_df("a", "b")
     # run show(), make sure no error is reported
     df.show(10)
 
@@ -162,7 +162,7 @@ def test_show_with_null_data(session):
 
 
 def test_show_multi_lines_row(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("line1\nline2", None),
             ("single line", "NotNull\none more line\nlast line"),
@@ -533,7 +533,7 @@ def test_df_stat_sampleBy(session):
 
 
 def test_df_stat_crosstab_max_column_test(session):
-    df1 = session.create_data_frame(
+    df1 = session.create_dataframe(
         [
             [Utils.random_alphanumeric_str(230), Utils.random_alphanumeric_str(230)]
             for _ in range(1000)
@@ -542,7 +542,7 @@ def test_df_stat_crosstab_max_column_test(session):
     )
     assert df1.stat.crosstab("a", "b").count() == 1000
 
-    df2 = session.create_data_frame(
+    df2 = session.create_dataframe(
         [
             [Utils.random_alphanumeric_str(230), Utils.random_alphanumeric_str(230)]
             for _ in range(1001)
@@ -556,12 +556,12 @@ def test_df_stat_crosstab_max_column_test(session):
         in str(exec_info)
     )
 
-    df3 = session.create_data_frame([[1, 1] for _ in range(1000)], schema=["a", "b"])
+    df3 = session.create_dataframe([[1, 1] for _ in range(1000)], schema=["a", "b"])
     res_3 = df3.stat.crosstab("a", "b").collect()
     assert len(res_3) == 1
     assert res_3[0]["A"] == 1 and res_3[0]["CAST(1 AS NUMBER(38,0))"] == 1000
 
-    df4 = session.create_data_frame([[1, 1] for _ in range(1001)], schema=["a", "b"])
+    df4 = session.create_dataframe([[1, 1] for _ in range(1001)], schema=["a", "b"])
     res_4 = df4.stat.crosstab("a", "b").collect()
     assert len(res_4) == 1
     assert res_4[0]["A"] == 1 and res_4[0]["CAST(1 AS NUMBER(38,0))"] == 1001
@@ -684,7 +684,7 @@ def test_sample_on_union(session):
 
 def test_toDf(session):
     # to_df(*str) with 1 column
-    df1 = session.create_data_frame([1, 2, 3]).to_df("a")
+    df1 = session.create_dataframe([1, 2, 3]).to_df("a")
     assert (
         df1.count() == 3
         and len(df1.schema.fields) == 1
@@ -692,7 +692,7 @@ def test_toDf(session):
     )
     df1.show()
     # to_df([str]) with 1 column
-    df2 = session.create_data_frame([1, 2, 3]).to_df(["a"])
+    df2 = session.create_dataframe([1, 2, 3]).to_df(["a"])
     assert (
         df2.count() == 3
         and len(df2.schema.fields) == 1
@@ -701,26 +701,26 @@ def test_toDf(session):
     df2.show()
 
     # to_df(*str) with 2 columns
-    df3 = session.create_data_frame([(1, None), (2, "NotNull"), (3, None)]).to_df(
+    df3 = session.create_dataframe([(1, None), (2, "NotNull"), (3, None)]).to_df(
         "a", "b"
     )
     assert df3.count() == 3 and len(df3.schema.fields) == 2
     assert df3.schema.fields[0].name == "A" and df3.schema.fields[-1].name == "B"
     # to_df([str]) with 2 columns
-    df4 = session.create_data_frame([(1, None), (2, "NotNull"), (3, None)]).to_df(
+    df4 = session.create_dataframe([(1, None), (2, "NotNull"), (3, None)]).to_df(
         ["a", "b"]
     )
     assert df4.count() == 3 and len(df4.schema.fields) == 2
     assert df4.schema.fields[0].name == "A" and df4.schema.fields[-1].name == "B"
 
     # to_df(*str) with 3 columns
-    df5 = session.create_data_frame(
+    df5 = session.create_dataframe(
         [(1, None, "a"), (2, "NotNull", "a"), (3, None, "a")]
     ).to_df("a", "b", "c")
     assert df5.count() == 3 and len(df5.schema.fields) == 3
     assert df5.schema.fields[0].name == "A" and df5.schema.fields[-1].name == "C"
     # to_df([str]) with 3 columns
-    df6 = session.create_data_frame(
+    df6 = session.create_dataframe(
         [(1, None, "a"), (2, "NotNull", "a"), (3, None, "a")]
     ).to_df(["a", "b", "c"])
     assert df6.count() == 3 and len(df6.schema.fields) == 3
@@ -728,7 +728,7 @@ def test_toDf(session):
 
 
 def test_toDF_negative_test(session):
-    values = session.create_data_frame([[1, None], [2, "NotNull"], [3, None]])
+    values = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]])
 
     # to_df(*str) with invalid args count
     with pytest.raises(ValueError) as ex_info:
@@ -754,7 +754,7 @@ def test_toDF_negative_test(session):
 
 
 def test_sort(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
     ).to_df("a", "b")
 
@@ -799,7 +799,7 @@ def test_sort(session):
 
 
 def test_select(session):
-    df = session.create_data_frame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
+    df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
         ["a", "b", "c"]
     )
 
@@ -832,7 +832,7 @@ def test_select(session):
 
 
 def test_select_negative_select(session):
-    df = session.create_data_frame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
+    df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
         ["a", "b", "c"]
     )
 
@@ -864,7 +864,7 @@ def test_select_negative_select(session):
 
 
 def test_drop_and_dropcolumns(session):
-    df = session.create_data_frame([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
+    df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
         ["a", "b", "c"]
     )
 
@@ -916,7 +916,7 @@ def test_drop_and_dropcolumns(session):
 
 
 def test_dataframe_agg(session):
-    df = session.create_data_frame([(1, "One"), (2, "Two"), (3, "Three")]).to_df(
+    df = session.create_dataframe([(1, "One"), (2, "Two"), (3, "Three")]).to_df(
         "empid", "name"
     )
 
@@ -942,7 +942,7 @@ def test_dataframe_agg(session):
 
 
 def test_rollup(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("country A", "state A", 50),
             ("country A", "state A", 50),
@@ -1017,7 +1017,7 @@ def test_rollup(session):
 
 
 def test_groupby(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("country A", "state A", 50),
             ("country A", "state A", 50),
@@ -1060,7 +1060,7 @@ def test_groupby(session):
 
 
 def test_cube(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("country A", "state A", 50),
             ("country A", "state A", 50),
@@ -1290,7 +1290,7 @@ def test_createDataFrame_with_given_schema(session):
         Row(None, None, None, None, None, None, None, None, None, None, None, None),
     ]
 
-    result = session.create_data_frame(data, schema)
+    result = session.create_dataframe(data, schema)
     schema_str = str(result.schema)
     assert (
         schema_str == "StructType[StructField(STRING, String, Nullable=True), "
@@ -1317,7 +1317,7 @@ def test_createDataFrame_with_given_schema_time(session):
     )
 
     data = [Row(datetime.strptime("20:57:06", "%H:%M:%S").time()), Row(None)]
-    df = session.create_data_frame(data, schema)
+    df = session.create_dataframe(data, schema)
     schema_str = str(df.schema)
     assert schema_str == "StructType[StructField(TIME, Time, Nullable=True)]"
     assert df.collect() == data
@@ -1372,7 +1372,7 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
         ]
     )
     data = [Row(["'", 2], {"'": 1}, 1), Row(None, None, None)]
-    df = session.create_data_frame(data, schema)
+    df = session.create_dataframe(data, schema)
     assert (
         str(df.schema)
         == "StructType[StructField(ARRAY, ArrayType[String], Nullable=True), "
@@ -1392,12 +1392,12 @@ def test_variant_in_array_and_map(session):
         [StructField("array", ArrayType(None)), StructField("map", MapType(None, None))]
     )
     data = [Row([1, "\"'"], {"a": "\"'"})]
-    df = session.create_data_frame(data, schema)
+    df = session.create_dataframe(data, schema)
     Utils.check_answer(df, [Row('[\n  1,\n  "\\"\'"\n]', '{\n  "a": "\\"\'"\n}')])
 
 
 def test_escaped_character(session):
-    df = session.create_data_frame(["'", "\\", "\n"]).to_df("a")
+    df = session.create_dataframe(["'", "\\", "\n"]).to_df("a")
     res = df.collect()
     assert res == [Row("'"), Row("\\"), Row("\n")]
 
@@ -1408,14 +1408,14 @@ def test_create_or_replace_temporary_view(session, db_parameters):
     view_name2 = f'"{view_name}"'
 
     try:
-        df = session.create_data_frame([1, 2, 3]).to_df("a")
+        df = session.create_dataframe([1, 2, 3]).to_df("a")
         df.create_or_replace_temp_view(view_name)
         res = session.table(view_name).collect()
         res.sort(key=lambda x: x[0])
         assert res == [Row(1), Row(2), Row(3)]
 
         # test replace
-        df2 = session.create_data_frame(["a", "b", "c"]).to_df("b")
+        df2 = session.create_dataframe(["a", "b", "c"]).to_df("b")
         df2.create_or_replace_temp_view(view_name)
         res = session.table(view_name).collect()
         assert res == [Row("a"), Row("b"), Row("c")]
@@ -1447,7 +1447,7 @@ def test_create_or_replace_temporary_view(session, db_parameters):
 
 
 def test_createDataFrame_with_schema_inference(session):
-    df1 = session.create_data_frame([1, 2, 3]).to_df("int")
+    df1 = session.create_dataframe([1, 2, 3]).to_df("int")
     Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
     schema1 = df1.schema
     assert len(schema1.fields) == 1
@@ -1455,7 +1455,7 @@ def test_createDataFrame_with_schema_inference(session):
     assert schema1.fields[0].datatype == LongType()
 
     # tuple
-    df2 = session.create_data_frame([(True, "a"), (False, "b")]).to_df(
+    df2 = session.create_dataframe([(True, "a"), (False, "b")]).to_df(
         "boolean", "string"
     )
     Utils.check_answer(df2, [Row(True, "a"), Row(False, "b")], False)
@@ -1465,7 +1465,7 @@ def test_createDataFrame_with_schema_inference(session):
 
 
 def test_create_nullable_dataframe_with_schema_inference(session):
-    df = session.create_data_frame([(1, 1, None), (2, 3, True)]).to_df("a", "b", "c")
+    df = session.create_dataframe([(1, 1, None), (2, 3, True)]).to_df("a", "b", "c")
     assert (
         str(df.schema) == "StructType[StructField(A, Long, Nullable=False), "
         "StructField(B, Long, Nullable=False), "
@@ -1475,7 +1475,7 @@ def test_create_nullable_dataframe_with_schema_inference(session):
 
 
 def test_schema_inference_binary_type(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             [(1).to_bytes(1, byteorder="big"), (2).to_bytes(1, byteorder="big")],
             [(3).to_bytes(1, byteorder="big"), (4).to_bytes(1, byteorder="big")],
@@ -1490,7 +1490,7 @@ def test_schema_inference_binary_type(session):
 
 def test_primitive_array(session):
     schema = StructType([StructField("arr", ArrayType(None))])
-    df = session.create_data_frame([Row([1])], schema)
+    df = session.create_dataframe([Row([1])], schema)
     Utils.check_answer(df, Row("[\n  1\n]"))
 
 
@@ -1635,7 +1635,7 @@ def test_column_names_without_surrounding_quote(session):
 
 
 def test_negative_test_for_user_input_invalid_quoted_name(session):
-    df = session.create_data_frame([1, 2, 3]).to_df("a")
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
     with pytest.raises(SnowparkPlanException) as ex_info:
         df.where(col('"A" = "A" --"') == 2).collect()
     assert "Invalid identifier" in str(ex_info)
@@ -1676,7 +1676,7 @@ def test_clone_with_unionall_dataframe(session):
 
 
 def test_dataframe_show_with_new_line(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         ["line1\nline1.1\n", "line2", "\n", "line4", "\n\n", None]
     ).to_df("a")
     assert (
@@ -1699,7 +1699,7 @@ def test_dataframe_show_with_new_line(session):
 -----------\n""".lstrip()
     )
 
-    df2 = session.create_data_frame(
+    df2 = session.create_dataframe(
         [
             ("line1\nline1.1\n", 1),
             ("line2", 2),
@@ -1731,7 +1731,7 @@ def test_dataframe_show_with_new_line(session):
 
 
 def test_negative_test_to_input_invalid_table_name_for_saveAsTable(session):
-    df = session.create_data_frame([(1, None), (2, "NotNull"), (3, None)]).to_df(
+    df = session.create_dataframe([(1, None), (2, "NotNull"), (3, None)]).to_df(
         "a", "b"
     )
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
@@ -1740,14 +1740,14 @@ def test_negative_test_to_input_invalid_table_name_for_saveAsTable(session):
 
 
 def test_negative_test_to_input_invalid_view_name_for_createOrReplaceView(session):
-    df = session.create_data_frame([[2, "NotNull"]]).to_df(["a", "b"])
+    df = session.create_dataframe([[2, "NotNull"]]).to_df(["a", "b"])
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         df.create_or_replace_view("negative test invalid table name")
     assert re.compile("The object name .* is invalid.").match(ex_info.value.message)
 
 
 def test_toDF_with_array_schema(session):
-    df = session.create_data_frame([[1, "a"]]).to_df("a", "b")
+    df = session.create_dataframe([[1, "a"]]).to_df("a", "b")
     schema = df.schema
     assert len(schema.fields) == 2
     assert schema.fields[0].name == "A"
@@ -1755,7 +1755,7 @@ def test_toDF_with_array_schema(session):
 
 
 def test_sort_with_array_arg(session):
-    df = session.create_data_frame([(1, 1, 1), (2, 0, 4), (1, 2, 3)]).to_df(
+    df = session.create_dataframe([(1, 1, 1), (2, 0, 4), (1, 2, 3)]).to_df(
         "col1", "col2", "col3"
     )
     df_sorted = df.sort([col("col1").asc(), col("col2").desc(), col("col3")])
@@ -1763,34 +1763,34 @@ def test_sort_with_array_arg(session):
 
 
 def test_select_with_array_args(session):
-    df = session.create_data_frame([[1, 2]]).to_df("col1", "col2")
+    df = session.create_dataframe([[1, 2]]).to_df("col1", "col2")
     df_selected = df.select(df.col("col1"), lit("abc"), df.col("col1") + df.col("col2"))
     Utils.check_answer(df_selected, Row(1, "abc", 3))
 
 
 def test_select_string_with_array_args(session):
-    df = session.create_data_frame([[1, 2, 3]]).to_df("col1", "col2", "col3")
+    df = session.create_dataframe([[1, 2, 3]]).to_df("col1", "col2", "col3")
     df_selected = df.select(["col1", "col2"])
     Utils.check_answer(df_selected, [Row(1, 2)])
 
 
 def test_drop_string_with_array_args(session):
-    df = session.create_data_frame([[1, 2, 3]]).to_df("col1", "col2", "col3")
+    df = session.create_dataframe([[1, 2, 3]]).to_df("col1", "col2", "col3")
     Utils.check_answer(df.drop(["col3"]), [Row(1, 2)])
 
 
 def test_drop_with_array_args(session):
-    df = session.create_data_frame([[1, 2, 3]]).to_df("col1", "col2", "col3")
+    df = session.create_dataframe([[1, 2, 3]]).to_df("col1", "col2", "col3")
     Utils.check_answer(df.drop([df["col3"]]), [Row(1, 2)])
 
 
 def test_agg_with_array_args(session):
-    df = session.create_data_frame([[1, 2], [4, 5]]).to_df("col1", "col2")
+    df = session.create_dataframe([[1, 2], [4, 5]]).to_df("col1", "col2")
     Utils.check_answer(df.agg([max(col("col1")), mean(col("col2"))]), [Row(4, 3.5)])
 
 
 def test_rollup_with_array_args(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("country A", "state A", 50),
             ("country A", "state A", 50),
@@ -1823,7 +1823,7 @@ def test_rollup_with_array_args(session):
 
 
 def test_rollup_string_with_array_args(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("country A", "state A", 50),
             ("country A", "state A", 50),
@@ -1856,7 +1856,7 @@ def test_rollup_string_with_array_args(session):
 
 
 def test_groupby_with_array_args(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("country A", "state A", 50),
             ("country A", "state A", 50),
@@ -1882,7 +1882,7 @@ def test_groupby_with_array_args(session):
 
 
 def test_groupby_string_with_array_args(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [
             ("country A", "state A", 50),
             ("country A", "state A", 50),
@@ -1908,15 +1908,15 @@ def test_groupby_string_with_array_args(session):
 
 
 def test_rename_basic(session):
-    df = session.create_data_frame([[1, 2]], schema=["a", "b"])
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     df2 = df.with_column_renamed("b", "b1")
     assert df2.schema.names[1] == "B1"
     Utils.check_answer(df2, [Row(1, 2)])
 
 
 def test_rename_join_dataframe(session):
-    df_left = session.create_data_frame([[1, 2]], schema=["a", "b"])
-    df_right = session.create_data_frame([[3, 4]], schema=["a", "c"])
+    df_left = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    df_right = session.create_dataframe([[3, 4]], schema=["a", "c"])
     df_join = df_left.join(df_right)
 
     # rename left df columns including ambiguous columns
@@ -1935,8 +1935,8 @@ def test_rename_join_dataframe(session):
 
 
 def test_rename_to_df_and_joined_dataframe(session):
-    df1 = session.create_data_frame([[1, 2]]).to_df("a", "b")
-    df2 = session.create_data_frame([[1, 2]]).to_df("a", "b")
+    df1 = session.create_dataframe([[1, 2]]).to_df("a", "b")
+    df2 = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df3 = df1.to_df("a1", "b1")
     df4 = df3.join(df2)
     df5 = df4.rename(df1.a, "a2")
@@ -1945,7 +1945,7 @@ def test_rename_to_df_and_joined_dataframe(session):
 
 
 def test_rename_negative_test(session):
-    df = session.create_data_frame([[1, 2]], schema=["a", "b"])
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
 
     # rename un-qualified column
     with pytest.raises(ValueError) as exec_info:
@@ -1978,7 +1978,7 @@ def test_with_columns_keep_order(session):
         "START_STATION_ID": 2,
         "END_STATION_ID": 3,
     }
-    df = session.create_data_frame([Row(1, data)]).to_df(["TRIPID", "V"])
+    df = session.create_dataframe([Row(1, data)]).to_df(["TRIPID", "V"])
 
     result = df.with_columns(
         ["starttime", "endtime", "duration", "start_station_id", "end_station_id"],
@@ -2008,7 +2008,7 @@ def test_with_columns_keep_order(session):
 
 
 def test_with_columns_input_doesnt_match_each_other(session):
-    df = session.create_data_frame([Row(1, 2, 3)]).to_df(["a", "b", "c"])
+    df = session.create_dataframe([Row(1, 2, 3)]).to_df(["a", "b", "c"])
     with pytest.raises(ValueError) as ex_info:
         df.with_columns(["e", "f"], [lit(1)])
     assert (
@@ -2018,7 +2018,7 @@ def test_with_columns_input_doesnt_match_each_other(session):
 
 
 def test_with_columns_replace_existing(session):
-    df = session.create_data_frame([Row(1, 2, 3)]).to_df(["a", "b", "c"])
+    df = session.create_dataframe([Row(1, 2, 3)]).to_df(["a", "b", "c"])
     replaced = df.with_columns(["b", "d"], [lit(5), lit(6)])
     Utils.check_answer(replaced, [Row(A=1, C=3, B=5, D=6)])
 
@@ -2038,7 +2038,7 @@ def test_with_columns_replace_existing(session):
 
 
 def test_drop_duplicates(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [[1, 1, 1, 1], [1, 1, 1, 2], [1, 1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4]],
         schema=["a", "b", "c", "d"],
     )
@@ -2083,7 +2083,7 @@ def test_drop_duplicates(session):
 
 
 def test_consecutively_drop_duplicates(session):
-    df = session.create_data_frame(
+    df = session.create_dataframe(
         [[1, 1, 1, 1], [1, 1, 1, 2], [1, 1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4]],
         schema=["a", "b", "c", "d"],
     )
@@ -2257,7 +2257,7 @@ def test_explain(session):
     assert "Logical Execution Plan" in explain_string
 
     # can't analyze multiple queries
-    explain_string = session.create_data_frame([1] * 20000)._explain_string()
+    explain_string = session.create_dataframe([1] * 20000)._explain_string()
     assert "CREATE" in explain_string
     assert "\n---\n" in explain_string
     assert "SELECT" in explain_string

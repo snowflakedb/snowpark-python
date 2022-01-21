@@ -111,7 +111,7 @@ class DataFrame:
     Example 3
         Creating a DataFrame by specifying a sequence or a range::
 
-            df = session.create_data_frame([(1, "one"), (2, "two")])
+            df = session.create_dataframe([(1, "one"), (2, "two")])
             df = session.range(1, 10, 2)
 
 
@@ -420,7 +420,7 @@ class DataFrame:
 
         Examples::
 
-            df = session.create_data_frame([-1, 2, 3], schema=["a"])
+            df = session.create_dataframe([-1, 2, 3], schema=["a"])
             df.select_expr("abs(a)", "a + 2", "cast(a as string)")
         """
         return self.select(
