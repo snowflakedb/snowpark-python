@@ -12,6 +12,7 @@ import pytest
 import snowflake.connector
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkDataframeException,
@@ -220,7 +221,7 @@ def test_show(session):
 
 
 def test_non_select_query_composition(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
             f"create or replace temporary table {table_name} (num int)"
@@ -240,7 +241,7 @@ def test_non_select_query_composition(session):
 
 
 def test_non_select_query_composition_union(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
             f"create or replace temporary table {table_name} (num int)"
@@ -257,7 +258,7 @@ def test_non_select_query_composition_union(session):
 
 
 def test_non_select_query_composition_unionall(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
             f"create or replace temporary table {table_name} (num int)"
@@ -274,7 +275,7 @@ def test_non_select_query_composition_unionall(session):
 
 
 def test_non_select_query_composition_self_union(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
             f"create or replace temporary table {table_name} (num int)"
@@ -290,7 +291,7 @@ def test_non_select_query_composition_self_union(session):
 
 
 def test_non_select_query_composition_self_unionall(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
             f"create or replace temporary table {table_name} (num int)"
@@ -332,7 +333,7 @@ def test_df_stat_corr(session):
     assert TestData.null_data2(session).stat.corr("a", "b") is None
     assert TestData.double4(session).stat.corr("a", "b") is None
     assert math.isnan(TestData.double3(session).stat.corr("a", "b"))
-    assert TestData.double2(session).stat.corr("a", "b") == 0.9999999999999991
+    math.isclose(TestData.double2(session).stat.corr("a", "b"), 0.9999999999999991)
 
 
 def test_df_stat_cov(session):
@@ -343,7 +344,7 @@ def test_df_stat_cov(session):
     assert TestData.null_data2(session).stat.cov("a", "b") == 0
     assert TestData.double4(session).stat.cov("a", "b") is None
     assert math.isnan(TestData.double3(session).stat.cov("a", "b"))
-    assert TestData.double2(session).stat.cov("a", "b") == 0.010000000000000037
+    math.isclose(TestData.double2(session).stat.cov("a", "b"), 0.010000000000000037)
 
 
 def test_df_stat_approxQuantile(session):
@@ -368,8 +369,9 @@ def test_df_stat_approxQuantile(session):
         assert session.table(table_name).stat.approxQuantile("num", [0.5])[0] is None
 
         res = TestData.double2(session).stat.approxQuantile(["a", "b"], [0, 0.1, 0.6])
-        assert res[0] == [0.05, 0.15000000000000002, 0.25]
-        assert res[1] == [0.45, 0.55, 0.6499999999999999]
+        Utils.assert_rows(
+            res, [[0.05, 0.15000000000000002, 0.25], [0.45, 0.55, 0.6499999999999999]]
+        )
 
         # ApproxNumbers2 contains a column called T, which conflicts with tmpColumnName.
         # This test demos that the query still works.
@@ -1321,7 +1323,7 @@ def test_createDataFrame_with_given_schema_time(session):
 
 def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
     object_name = Utils.random_name()
-    stage_name = Utils.random_stage_name()
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     # In scala, they create a temp JAR file, here we just upload an existing CSV file
     filepath = TestFiles(resources_path).test_file_csv
     escaped_filepath = Utils.escape_path(filepath)

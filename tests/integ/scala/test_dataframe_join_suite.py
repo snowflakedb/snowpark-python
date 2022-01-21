@@ -9,6 +9,7 @@ import re
 import pytest
 
 from snowflake.snowpark import DataFrame, Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkJoinException,
     SnowparkSQLAmbiguousJoinException,
@@ -158,7 +159,7 @@ def test_join_with_ambiguous_column_in_condidtion(session_cnx):
         assert "The reference to the column 'A' is ambiguous." in ex_info.value.message
 
 
-def test_join_using_multiple_columns_and_specifying_join_type(session, db_parameters):
+def test_join_using_multiple_columns_and_specifying_join_type(session):
     table_name1 = Utils.random_name()
     table_name2 = Utils.random_name()
     try:
@@ -866,8 +867,8 @@ def test_dont_throw_analysis_exception_in_check_cartesian(session):
 
 
 def test_name_alias_on_multiple_join(session):
-    table_trips = Utils.random_name()
-    table_stations = Utils.random_name()
+    table_trips = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_stations = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
             f"create or replace temp table {table_trips} (starttime timestamp, "
@@ -908,8 +909,8 @@ def test_name_alias_on_multiple_join(session):
 
 def test_name_alias_on_multiple_join_unnormalized_name(session):
 
-    table_trips = Utils.random_name()
-    table_stations = Utils.random_name()
+    table_trips = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_stations = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
             f"create or replace temp table {table_trips} (starttime timestamp, "
