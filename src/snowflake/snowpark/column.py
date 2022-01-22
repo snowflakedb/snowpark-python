@@ -79,11 +79,11 @@ def _to_col_if_lit(
         )
 
 
-def _to_col_if_str(e: ColumnOrName, func_name: str) -> "Column":
-    if isinstance(e, Column):
-        return e
-    elif isinstance(e, str):
-        return Column(e)
+def _to_col_if_str(col: ColumnOrName, func_name: str) -> "Column":
+    if isinstance(col, Column):
+        return col
+    elif isinstance(col, str):
+        return Column(col)
     else:
         raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
 
