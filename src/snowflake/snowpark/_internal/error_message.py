@@ -328,8 +328,10 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def MORE_THAN_ONE_ACTIVE_SESSIONS() -> SnowparkSessionException:
         return SnowparkSessionException(
-            "More than one active sessions are detected. Please specify parameter 'session' "
-            "when you call function 'udf' or use decorator '@udf' if you created multiple sessions.",
+            "More than one active session is detected. "
+            "When you call function 'udf' or use decorator '@udf', "
+            "you must specify the 'session' parameter if you created multiple sessions."
+            "Alternatively, you can use 'session.udf.register' to register UDFs",
             "1409",
         )
 

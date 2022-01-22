@@ -193,7 +193,7 @@ class Session:
     builder: SessionBuilder = SessionBuilder()
 
     def __init__(self, conn: ServerConnection):
-        if len(_active_sessions) >= 1 and next(iter(_active_sessions))._is_stored_proc:
+        if len(_active_sessions) >= 1 and Utils.is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
         self.__query_tag = None
@@ -234,7 +234,7 @@ class Session:
 
     def close(self) -> None:
         """Close this session."""
-        if self._is_stored_proc:
+        if Utils.is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
             if self._conn.is_closed():
@@ -452,7 +452,7 @@ class Session:
             if udf_level_import_paths
             else self.__import_paths.copy()
         )
-        if not self._is_stored_proc:
+        if not Utils.is_in_stored_procedure():
             import_paths.update(self.__cloudpickle_path)
 
         for path, (prefix, leading_path) in import_paths.items():
@@ -1130,7 +1130,3 @@ class Session:
         except ProgrammingError:
             logger.warning("query '%s' cannot be explained")
             return None
-
-    @property
-    def _is_stored_proc(self):
-        return self._conn._is_stored_proc

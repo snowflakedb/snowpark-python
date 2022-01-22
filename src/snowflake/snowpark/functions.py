@@ -1400,6 +1400,11 @@ def udf(
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
+    It can be used as either a function call or a decorator. In most cases you work with a single session.
+    This function uses that session to register the UDF. If you have multiple sessions, you need to
+    explicitly specify the `session` parameter of this function. If you have a function and would like to register it to
+    multiple databases, use ``session.udf.register`` instead.
+
     Args:
         func: A Python function used for creating the UDF.
         return_type: A :class:`types.DataType` representing the return data
