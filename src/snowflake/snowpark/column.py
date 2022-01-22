@@ -85,7 +85,9 @@ def _to_col_if_str(col: ColumnOrName, func_name: str) -> "Column":
     elif isinstance(col, str):
         return Column(col)
     else:
-        raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
+        raise TypeError(
+            f"'{func_name.upper()}' expected Column or str, got: {type(col)}"
+        )
 
 
 class Column:
