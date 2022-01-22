@@ -11,6 +11,7 @@ import pytest
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.session import _active_sessions, _get_active_session
+from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import TestFiles, Utils
 
 
@@ -127,7 +128,7 @@ def test_list_files_in_stage(session, resources_path):
 
 
 def test_table_exists(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     assert session._table_exists(table_name) is False
     session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
     assert session._table_exists(table_name) is True

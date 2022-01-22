@@ -108,18 +108,8 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - if: ${{ false == contains('gcp', matrix.cloud-provider) }}
-        name: Run tests (including UDF Tests)
+      - name: Run tests (including UDF Tests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-udf"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
-          TOX_PARALLEL_NO_SPINNER: 1
-        shell: bash
-      - if: ${{ contains('gcp', matrix.cloud-provider) }}
-        name: Run tests (excluding UDF Tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}

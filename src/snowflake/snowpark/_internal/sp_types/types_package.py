@@ -231,17 +231,31 @@ def _infer_type(obj: Any) -> DataType:
         raise TypeError("not supported type: %s" % type(obj))
 
 
-def _infer_schema_from_list(row: List, names: Optional[List] = None) -> StructType:
-    """Infer the schema from list"""
-    if names is None:
-        names = (
-            ["_%d" % i for i in range(1, len(row) + 1)] if len(row) > 1 else ["VALUES"]
-        )
-    elif len(names) < len(row):
-        names.extend("_%d" % i for i in range(len(names) + 1, len(row) + 1))
+def _infer_schema(
+    row: Union[Dict, List, Tuple], names: Optional[List] = None
+) -> StructType:
+    if row is None or (isinstance(row, (tuple, list, dict)) and not row):
+        items = zip(names if names else ["_1"], [None])
+    else:
+        if isinstance(row, dict):
+            items = row.items()
+        elif isinstance(row, (tuple, list)):
+            row_fields = getattr(row, "_fields", None)
+            if row_fields:  # Row or namedtuple
+                items = zip(row_fields, row)
+            else:
+                if names is None:
+                    names = [f"_{i}" for i in range(1, len(row) + 1)]
+                elif len(names) < len(row):
+                    names.extend(f"_{i}" for i in range(len(names) + 1, len(row) + 1))
+                items = zip(names, row)
+        elif isinstance(row, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+            items = zip(names if names else ["_1"], [row])
+        else:
+            raise TypeError("Can not infer schema for type: %s" % type(row))
 
     fields = []
-    for k, v in zip(names, row):
+    for k, v in items:
         try:
             fields.append(StructField(k, _infer_type(v), True))
         except TypeError as e:

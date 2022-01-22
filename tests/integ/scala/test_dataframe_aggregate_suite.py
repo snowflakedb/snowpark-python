@@ -10,6 +10,7 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import GroupingSets, Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     avg,
@@ -505,14 +506,20 @@ def test_count(session):
 def test_stddev(session):
     test_data_dev = sqrt(4 / 5)
 
-    assert TestData.test_data2(session).agg(
-        [stddev(col("a")), stddev_pop(col("a")), stddev_samp(col("a"))]
-    ).collect() == [Row(test_data_dev, 0.8164967850518458, test_data_dev)]
+    Utils.check_answer(
+        TestData.test_data2(session)
+        .agg([stddev(col("a")), stddev_pop(col("a")), stddev_samp(col("a"))])
+        .collect(),
+        [Row(test_data_dev, 0.8164967850518458, test_data_dev)],
+    )
 
     # same as above, but pass str instead of Column
-    assert TestData.test_data2(session).agg(
-        [stddev("a"), stddev_pop("a"), stddev_samp("a")]
-    ).collect() == [Row(test_data_dev, 0.8164967850518458, test_data_dev)]
+    Utils.check_answer(
+        TestData.test_data2(session)
+        .agg([stddev("a"), stddev_pop("a"), stddev_samp("a")])
+        .collect(),
+        [Row(test_data_dev, 0.8164967850518458, test_data_dev)],
+    )
 
 
 def test_sn_moments(session):
@@ -627,9 +634,7 @@ def test_aggregate_function_in_groupby(session):
     assert "is not a valid group by expression" in str(ex_info)
 
 
-def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_ordinal(
-    session, db_parameters
-):
+def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
     assert TestData.test_data2(session).groupBy(lit(3), lit(4)).agg(
         [lit(6), lit(7), sum(col("b"))]
     ).collect() == [Row(3, 4, 6, 7, 9)]
@@ -703,6 +708,7 @@ def test_distinct_and_unionall(session):
 
 
 def test_count_if(session):
+    temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     session.createDataFrame(
         [
             ["a", None],
@@ -714,42 +720,42 @@ def test_count_if(session):
             ["b", 5],
             ["b", 6],
         ]
-    ).toDF("x", "y").createOrReplaceTempView("tempView")
+    ).toDF("x", "y").createOrReplaceTempView(temp_view_name)
 
     res = session.sql(
-        "SELECT COUNT_IF(NULL), COUNT_IF(y % 2 = 0), COUNT_IF(y % 2 <> 0), COUNT_IF(y IS NULL) FROM tempView"
+        f"SELECT COUNT_IF(NULL), COUNT_IF(y % 2 = 0), COUNT_IF(y % 2 <> 0), COUNT_IF(y IS NULL) FROM {temp_view_name}"
     ).collect()
     assert res == [Row(0, 3, 3, 2)]
 
     res = session.sql(
-        "SELECT x, COUNT_IF(NULL), COUNT_IF(y % 2 = 0), COUNT_IF(y % 2 <> 0), COUNT_IF(y IS NULL) FROM tempView GROUP BY x"
+        f"SELECT x, COUNT_IF(NULL), COUNT_IF(y % 2 = 0), COUNT_IF(y % 2 <> 0), COUNT_IF(y IS NULL) FROM {temp_view_name} GROUP BY x"
     ).collect()
     res.sort(key=lambda x: x[0])
     assert res == [Row("a", 0, 1, 2, 1), Row("b", 0, 2, 1, 1)]
 
     res = session.sql(
-        "SELECT x FROM tempView GROUP BY x HAVING COUNT_IF(y % 2 = 0) = 1"
+        f"SELECT x FROM {temp_view_name} GROUP BY x HAVING COUNT_IF(y % 2 = 0) = 1"
     ).collect()
     assert res == [Row("a")]
 
     res = session.sql(
-        "SELECT x FROM tempView GROUP BY x HAVING COUNT_IF(y % 2 = 0) = 2"
+        f"SELECT x FROM {temp_view_name} GROUP BY x HAVING COUNT_IF(y % 2 = 0) = 2"
     ).collect()
     assert res == [Row("b")]
 
     res = session.sql(
-        "SELECT x FROM tempView GROUP BY x HAVING COUNT_IF(y IS NULL) > 0"
+        f"SELECT x FROM {temp_view_name} GROUP BY x HAVING COUNT_IF(y IS NULL) > 0"
     ).collect()
     res.sort(key=lambda x: x[0])
     assert res == [Row("a"), Row("b")]
 
     res = session.sql(
-        "SELECT x FROM tempView GROUP BY x HAVING COUNT_IF(NULL) > 0"
+        f"SELECT x FROM {temp_view_name} GROUP BY x HAVING COUNT_IF(NULL) > 0"
     ).collect()
     assert res == []
 
     with pytest.raises(ProgrammingError) as ex_info:
-        session.sql("SELECT COUNT_IF(x) FROM tempView").collect()
+        session.sql(f"SELECT COUNT_IF(x) FROM {temp_view_name}").collect()
 
 
 def test_agg_without_groups(session):
