@@ -9,6 +9,7 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkCreateViewException
 from snowflake.snowpark.functions import col, sql_expr, sum
 from snowflake.snowpark.types import LongType
@@ -58,7 +59,7 @@ def test_only_works_on_select(session):
 
 
 def test_consistent_view_name_behaviors(session):
-    view_name = Utils.random_name()
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     sc = session.get_current_schema()
     db = session.get_current_database()
 
@@ -133,8 +134,8 @@ def test_consistent_view_name_behaviors(session):
 
 
 def test_create_temp_view_on_functions(session):
-    table_name = Utils.random_name()
-    view_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
 
     try:
         Utils.create_table(session, table_name, "id int, val int")
