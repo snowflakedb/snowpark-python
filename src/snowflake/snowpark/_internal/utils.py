@@ -10,6 +10,7 @@ import decimal
 import functools
 import hashlib
 import io
+import logging
 import os
 import platform
 import random
@@ -368,6 +369,9 @@ class _SaveMode(Enum):
     IGNORE = "ignore"
 
 
+logger = logging.getLogger("snowflake.snowpark")
+
+
 def deprecate(
     *, deprecate_version, remove_version, extra_warning_text="", extra_doc_string=""
 ):
@@ -379,15 +383,15 @@ def deprecate(
         warning_text = (
             f"{func.__name__} is deprecated. "
             f"{deprecate_text}"
-            f"The current API version is {Utils.get_version()}"
-            f"{extra_warning_text} \n\n"
+            f"The current API version is {Utils.get_version()}. "
+            f"{extra_warning_text}"
         )
         doc_string = f"{deprecate_text} {extra_doc_string} \n\n"
         func.__doc__ = f"{(func.__doc__ or '')}\n\n{' '*8}{doc_string}\n"
 
         @functools.wraps(func)
         def func_call_wrapper(*args, **kwargs):
-            warnings.warn(warning_text, category=DeprecationWarning)
+            logger.warning(warning_text)
             return func(*args, **kwargs)
 
         return func_call_wrapper

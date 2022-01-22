@@ -235,8 +235,8 @@ class Session:
     @deprecate(
         deprecate_version="0.4.0",
         remove_version="0.5.0",
-        extra_warning_text="Use get_imports",
-        extra_doc_string="Use :meth:`get_imports`",
+        extra_warning_text="Use get_imports.",
+        extra_doc_string="Use :meth:`get_imports`.",
     )
     def getImports(self) -> List[str]:
         return self.get_imports()
@@ -256,8 +256,8 @@ class Session:
     @deprecate(
         deprecate_version="0.4.0",
         remove_version="0.5.0",
-        extra_warning_text="Use add_import",
-        extra_doc_string="Use :meth:`add_import`",
+        extra_warning_text="Use add_import.",
+        extra_doc_string="Use :meth:`add_import`.",
     )
     def addImport(self, path: str, import_path: Optional[str] = None) -> None:
         return self.add_import(path, import_path)
@@ -333,8 +333,8 @@ class Session:
     @deprecate(
         deprecate_version="0.4.0",
         remove_version="0.5.0",
-        extra_warning_text="Use remove_import",
-        extra_doc_string="Use :meth:`remove_import`",
+        extra_warning_text="Use remove_import.",
+        extra_doc_string="Use :meth:`remove_import`.",
     )
     def removeImport(self, path: str) -> None:
         return self.remove_import(path)
@@ -366,8 +366,8 @@ class Session:
     @deprecate(
         deprecate_version="0.4.0",
         remove_version="0.5.0",
-        extra_warning_text="Use clear_imports",
-        extra_doc_string="Use :meth:`clear_imports`",
+        extra_warning_text="Use clear_imports.",
+        extra_doc_string="Use :meth:`clear_imports`.",
     )
     def clearImports(self) -> None:
         return self.clear_imports()
@@ -621,7 +621,8 @@ class Session:
     @deprecate(
         deprecate_version="0.4.0",
         remove_version="0.5.0",
-        extra_doc_string="Use :meth:`get_session_stage`",
+        extra_warning_text="Use get_session_stage.",
+        extra_doc_string="Use :meth:`get_session_stage`.",
     )
     def getSessionStage(self) -> str:
         return self.get_session_stage()
@@ -1016,36 +1017,28 @@ class Session:
     @deprecate(
         deprecate_version="0.4.0",
         remove_version="0.5.0",
-        extra_warning_text="Use get_current_database",
-        extra_doc_string="Use :meth:`get_current_database`",
+        extra_warning_text="Use get_current_database.",
+        extra_doc_string="Use :meth:`get_current_database`.",
     )
     def getCurrentDatabase(self, unquoted: bool = False) -> Optional[str]:
-        """Returns the name of the current database for the Python connector session attached
-        to this session.
-        """
         return self.get_current_schema(unquoted)
 
     @deprecate(
         deprecate_version="0.4.0",
         remove_version="0.5.0",
-        extra_warning_text="Use get_current_schema",
+        extra_warning_text="Use get_current_schema.",
         extra_doc_string="Use :meth:`get_current_schema`.",
     )
     def getCurrentSchema(self, unquoted: bool = False) -> Optional[str]:
-        """
-        Returns the name of the current schema for the Python connector session attached
-        to this session.
-        """
         return self.get_current_schema(unquoted)
 
     @deprecate(
         deprecate_version="0.4.0",
         remove_version="0.5.0",
-        extra_warning_text="Use get_fully_qualified_current_schema",
+        extra_warning_text="Use get_fully_qualified_current_schema.",
         extra_doc_string="Use :meth:`get_fully_qualified_current_schema`.",
     )
     def getFullyQualifiedCurrentSchema(self) -> str:
-        """Returns the fully qualified name of the current schema for the session."""
         return self.get_fully_qualified_current_schema()
 
     def get_current_database(self, unquoted: bool = False) -> Optional[str]:
