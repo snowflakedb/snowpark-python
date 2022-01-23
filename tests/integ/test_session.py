@@ -9,9 +9,9 @@ import os
 import pytest
 
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.session import _active_sessions, _get_active_session
-from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import TestFiles, Utils
 
 
@@ -56,23 +56,29 @@ def test_no_default_session():
 
 
 def test_create_session_in_sp(session, db_parameters):
-    session._conn._is_stored_proc = True
+    from snowflake.snowpark._internal.utils import Utils as SourceCodeUtils
+
+    original_is_in_stored_procedure = SourceCodeUtils.is_in_stored_procedure
+    SourceCodeUtils.is_in_stored_procedure = lambda: True
     try:
         with pytest.raises(SnowparkSessionException) as exec_info:
             Session.builder.configs(db_parameters).create()
         assert exec_info.value.error_code == "1410"
     finally:
-        session._conn._is_stored_proc = False
+        SourceCodeUtils.is_in_stored_procedure = original_is_in_stored_procedure
 
 
 def test_close_session_in_sp(session):
-    session._conn._is_stored_proc = True
+    from snowflake.snowpark._internal.utils import Utils as SourceCodeUtils
+
+    original_is_in_stored_procedure = SourceCodeUtils.is_in_stored_procedure
+    SourceCodeUtils.is_in_stored_procedure = lambda: True
     try:
         with pytest.raises(SnowparkSessionException) as exec_info:
             session.close()
         assert exec_info.value.error_code == "1411"
     finally:
-        session._conn._is_stored_proc = False
+        SourceCodeUtils.is_in_stored_procedure = original_is_in_stored_procedure
 
 
 def test_list_files_in_stage(session, resources_path):

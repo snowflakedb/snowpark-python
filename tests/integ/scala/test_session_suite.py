@@ -30,10 +30,8 @@ def test_invalid_configs(session, db_parameters):
             .config("login_timeout", 5)
             .create()
         )
-        try:
+        with new_session:
             assert "Incorrect username or password was specified" in str(ex_info)
-        finally:
-            new_session.close()
 
 
 def test_no_default_database_and_schema(session, db_parameters):

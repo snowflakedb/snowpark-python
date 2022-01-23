@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import functools
 import os
 import uuid
 from contextlib import contextmanager
@@ -120,9 +121,9 @@ def session_cnx(session) -> Callable[..., "Session"]:
     # For back-compatible with test code that uses `with session_cnx() as session:`.
     # Tests should be able to use session directly.
     # This should be removed once all test uses `session` instead of `session_cnx()`
-    return get_session
+    return functools.partial(get_session, session)
 
 
 @contextmanager
-def get_session():
-    yield _get_active_session()
+def get_session(session):
+    yield session
