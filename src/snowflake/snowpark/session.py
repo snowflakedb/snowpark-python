@@ -151,6 +151,8 @@ class Session:
 
         def create(self) -> "Session":
             """Creates a new Session."""
+            if "connection" in self.__options:
+                return self.__create_internal(self.__options["connection"])
             return self.__create_internal(conn=None)
 
         def __create_internal(
