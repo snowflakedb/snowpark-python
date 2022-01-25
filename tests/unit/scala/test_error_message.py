@@ -331,7 +331,7 @@ def test_server_no_default_session():
     ex = SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
     assert type(ex) == SnowparkSessionException
     assert ex.error_code == "1403"
-    assert ex.message == "No default SnowflakeSession found"
+    assert "No default Session is found" in ex.message
 
 
 def test_server_session_has_been_closed():

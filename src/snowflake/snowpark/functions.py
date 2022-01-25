@@ -37,7 +37,6 @@ from random import randint
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     ArrayIntersect as SPArrayIntersect,
@@ -1396,9 +1395,15 @@ def udf(
     stage_location: Optional[str] = None,
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     replace: bool = False,
+    session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
+
+    It can be used as either a function call or a decorator. In most cases you work with a single session.
+    This function uses that session to register the UDF. If you have multiple sessions, you need to
+    explicitly specify the `session` parameter of this function. If you have a function and would like to register it to
+    multiple databases, use ``session.udf.register`` instead.
 
     Args:
         func: A Python function used for creating the UDF.
@@ -1431,6 +1436,8 @@ def udf(
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
             an existing UDF with the same name is overwritten.
+        session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
+            You need to specify this parameter if you have created multiple sessions before calling this method.
         parallel: The number of threads to use for uploading UDF files with the
             `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
             command. The default value is 4 and supported values are from 1 to 99.
@@ -1475,10 +1482,7 @@ def udf(
         registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
     """
-    session = snowflake.snowpark.Session._get_active_session()
-    if not session:
-        raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
-
+    session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
         return functools.partial(
             session.udf.register,

@@ -99,7 +99,6 @@ class ServerConnection:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self.__add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
-        self._is_stored_proc = PLATFORM == "XP"
         self._cursor = self._conn.cursor()
 
     def __add_application_name(self):
@@ -268,7 +267,7 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> None:
-        if self._is_stored_proc:
+        if Utils.is_in_stored_procedure():
             file_name = os.path.basename(path)
             target_path = self.__build_target_path(stage_location, dest_prefix)
             self._cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
@@ -300,7 +299,7 @@ class ServerConnection:
     ) -> None:
         uri = f"file:///tmp/placeholder/{dest_filename}"
         try:
-            if self._is_stored_proc:
+            if Utils.is_in_stored_procedure():
                 input_stream.seek(0)
                 target_path = self.__build_target_path(stage_location, dest_prefix)
                 self._cursor.upload_stream(
@@ -463,7 +462,7 @@ class ServerConnection:
             kwargs["_statement_params"]["QUERY_TAG"]
             if "_statement_params" in kwargs
             and "QUERY_TAG" in kwargs["_statement_params"]
-            and not self._is_stored_proc
+            and not Utils.is_in_stored_procedure()
             else None
         )
         if query_tag:
