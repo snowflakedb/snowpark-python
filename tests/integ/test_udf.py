@@ -153,7 +153,6 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     finally:
         new_session.close()
         # restore active session
-        Session._set_active_session(session)
 
 
 def test_recursive_udf(session):
@@ -555,26 +554,27 @@ def test_type_hints(session):
 def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name()
-    new_session = Session.builder.configs(db_parameters).create()
-    try:
-        Utils.create_stage(session, stage_name, is_temporary=False)
-        udf(
-            lambda x, y: x + y,
-            return_type=IntegerType(),
-            input_types=[IntegerType(), IntegerType()],
-            name=udf_name,
-            is_permanent=True,
-            stage_location=stage_name,
-        )
-        Utils.check_answer(session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)])
-        Utils.check_answer(
-            new_session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
-        )
-    finally:
-        session._run_query(f"drop function if exists {udf_name}(int, int)")
-        Utils.drop_stage(session, stage_name)
-        new_session.close()
-        Session._set_active_session(session)
+    with Session.builder.configs(db_parameters).create() as new_session:
+        try:
+            Utils.create_stage(session, stage_name, is_temporary=False)
+            udf(
+                lambda x, y: x + y,
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+                name=udf_name,
+                is_permanent=True,
+                stage_location=stage_name,
+                session=new_session,
+            )
+            Utils.check_answer(
+                session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
+            )
+            Utils.check_answer(
+                new_session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
+            )
+        finally:
+            session._run_query(f"drop function if exists {udf_name}(int, int)")
+            Utils.drop_stage(session, stage_name)
 
 
 def test_udf_negative(session):
