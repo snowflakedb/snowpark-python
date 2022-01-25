@@ -616,6 +616,7 @@ class WithinGroup(Expression):
         super().__init__(expr)
         self.expr = expr
         self.order_by_cols = order_by_cols
+        self.datatype = expr.datatype
 
 
 # Ordering

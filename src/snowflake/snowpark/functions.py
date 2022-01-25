@@ -64,7 +64,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.column import CaseExpr, Column, _to_col_if_lit
+from snowflake.snowpark.column import CaseExpr, Column, _to_col_if_str
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UserDefinedFunction
 
@@ -1582,15 +1582,6 @@ def builtin(function_name: str) -> Callable:
         df.select(avg(col("col_1")))
     """
     return lambda *args: call_builtin(function_name, *args)
-
-
-def _to_col_if_str(e: ColumnOrName, func_name: str) -> Column:
-    if isinstance(e, Column):
-        return e
-    elif isinstance(e, str):
-        return col(e)
-    else:
-        raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
 
 
 def _create_table_function_expression(
