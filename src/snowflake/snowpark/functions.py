@@ -1389,7 +1389,7 @@ def when_matched(
     condition: Optional[Column] = None,
 ) -> "snowflake.snowpark.table.WhenMatchedClause":
     """
-    Specifies a matched clause for the :meth:`Table.merge` action.
+    Specifies a matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
     See :class:`~snowflake.snowpark.table.WhenMatchedClause` for details.
     """
     return snowflake.snowpark.table.WhenMatchedClause(condition)
@@ -1399,7 +1399,7 @@ def when_not_matched(
     condition: Optional[Column] = None,
 ) -> "snowflake.snowpark.table.WhenNotMatchedClause":
     """
-    Specifies a not-matched clause for the :meth:`Table.merge` action.
+    Specifies a not-matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
     See :class:`~snowflake.snowpark.table.WhenNotMatchedClause` for details.
     """
     return snowflake.snowpark.table.WhenNotMatchedClause(condition)
