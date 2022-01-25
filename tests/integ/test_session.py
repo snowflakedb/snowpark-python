@@ -7,7 +7,11 @@
 import os
 
 import snowflake.connector
+import pytest
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.session import _active_sessions, _get_active_session
 from tests.utils import TestFiles, Utils
 
 
@@ -17,7 +21,7 @@ def test_select_1(session):
 
 
 def test_active_session(session):
-    assert session == Session._get_active_session()
+    assert session == _get_active_session()
 
 
 def test_session_builder(session):
@@ -31,6 +35,50 @@ def test_session_cancel_all(session):
     qid = session._conn._cursor.sfqid
     session._conn._cursor.get_results_from_sfqid(qid)
     assert "cancelled" in session._conn._cursor.fetchall()[0][0]
+
+
+def test_multiple_sessions(session, db_parameters):
+    with Session.builder.configs(db_parameters).create():
+        with pytest.raises(SnowparkSessionException) as exec_info:
+            _get_active_session()
+        assert exec_info.value.error_code == "1409"
+
+
+def test_no_default_session():
+    sessions_backup = list(_active_sessions)
+    _active_sessions.clear()
+    try:
+        with pytest.raises(SnowparkSessionException) as exec_info:
+            _get_active_session()
+        assert exec_info.value.error_code == "1403"
+    finally:
+        _active_sessions.update(sessions_backup)
+
+
+def test_create_session_in_sp(session, db_parameters):
+    from snowflake.snowpark._internal.utils import Utils as SourceCodeUtils
+
+    original_is_in_stored_procedure = SourceCodeUtils.is_in_stored_procedure
+    SourceCodeUtils.is_in_stored_procedure = lambda: True
+    try:
+        with pytest.raises(SnowparkSessionException) as exec_info:
+            Session.builder.configs(db_parameters).create()
+        assert exec_info.value.error_code == "1410"
+    finally:
+        SourceCodeUtils.is_in_stored_procedure = original_is_in_stored_procedure
+
+
+def test_close_session_in_sp(session):
+    from snowflake.snowpark._internal.utils import Utils as SourceCodeUtils
+
+    original_is_in_stored_procedure = SourceCodeUtils.is_in_stored_procedure
+    SourceCodeUtils.is_in_stored_procedure = lambda: True
+    try:
+        with pytest.raises(SnowparkSessionException) as exec_info:
+            session.close()
+        assert exec_info.value.error_code == "1411"
+    finally:
+        SourceCodeUtils.is_in_stored_procedure = original_is_in_stored_procedure
 
 
 def test_list_files_in_stage(session, resources_path):
@@ -109,7 +157,7 @@ def test_create_session_from_connection_with_noise_parameters(db_parameters):
 
 
 def test_table_exists(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     assert session._table_exists(table_name) is False
     session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
     assert session._table_exists(table_name) is True

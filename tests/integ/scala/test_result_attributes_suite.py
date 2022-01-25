@@ -112,9 +112,7 @@ def test_array_type(session):
     assert type(attributes[0].datatype) == ArrayType
 
 
-def test_describe_schema_matches_execute_schema_for_show_queries(
-    session, db_parameters
-):
+def test_describe_schema_matches_execute_schema_for_show_queries(session):
     objs = [
         "tables",
         "transactions",

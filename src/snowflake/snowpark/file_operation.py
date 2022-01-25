@@ -2,87 +2,32 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import os
-from collections import UserDict
-from typing import Dict, List, Optional, Union
+from typing import List, NamedTuple, Optional
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.utils import Utils
 
 
-class PutResult(UserDict):
+class PutResult(NamedTuple):
     """Represents the results of uploading a local file to a stage location."""
 
-    def __init__(self, data: Dict[str, Union[str, int]]):
-        super(PutResult, self).__init__(data)
-
-    @property
-    def source(self) -> str:
-        """The source file path."""
-        return self.get("source")
-
-    @property
-    def target(self) -> str:
-        """The file path in the stage where the source file is uploaded."""
-        return self.get("target")
-
-    @property
-    def source_size(self) -> int:
-        """The size in bytes of the source file."""
-        return self.get("source_size")
-
-    @property
-    def target_size(self) -> int:
-        """The size in bytes of the uploaded file in the stage."""
-        return self.get("target_size")
-
-    @property
-    def source_compression(self) -> str:
-        """The source file compression format."""
-        return self.get("source_compression")
-
-    @property
-    def target_compression(self) -> str:
-        """The target file compression format."""
-        return self.get("target_compression")
-
-    @property
-    def status(self) -> str:
-        """Status indicating whether the file was uploaded to the stage.
-        Values can be 'UPLOADED' or 'SKIPPED'.
-        """
-        return self.get("status")
-
-    @property
-    def message(self) -> str:
-        """The detailed message of the upload status."""
-        return self.get("message")
+    source: str  #: The source file path.
+    target: str  #: The file path in the stage where the source file is uploaded.
+    source_size: int  #: The size in bytes of the source file.
+    target_size: int  #: The size in bytes of the target file.
+    source_compression: str  #: The source file compression format.
+    target_compression: str  #: The target file compression format.
+    status: str  #: Status indicating whether the file was uploaded to the stage. Values can be 'UPLOADED' or 'SKIPPED'.
+    message: str  #: The detailed message of the upload status.
 
 
-class GetResult(UserDict):
+class GetResult(NamedTuple):
     """Represents the results of downloading a file from a stage location to the local file system."""
 
-    def __init__(self, data: Dict[str, Union[str, int]]):
-        super(GetResult, self).__init__(data)
-
-    @property
-    def file(self) -> str:
-        """Downloaded file path."""
-        return self.get("file")
-
-    @property
-    def size(self) -> int:
-        """Size in bytes of the downloaded file."""
-        return self.get("size")
-
-    @property
-    def status(self) -> str:
-        """Indicates whether the download is successful."""
-        return self.get("status")
-
-    @property
-    def message(self) -> str:
-        """Detailed message about the download status."""
-        return self.get("message")
+    file: str  #: The downloaded file path.
+    size: str  #: The size in bytes of the downloaded file.
+    status: str  #: Indicates whether the download is successful.
+    message: str  #: The detailed message about the download status.
 
 
 class FileOperation:
@@ -150,7 +95,7 @@ class FileOperation:
             options,
         )
         put_result = snowflake.snowpark.DataFrame(self._session, plan).collect()
-        return [PutResult(file_result.asDict()) for file_result in put_result]
+        return [PutResult(**file_result.asDict()) for file_result in put_result]
 
     def get(
         self,
@@ -210,7 +155,7 @@ class FileOperation:
             # JDBC auto-creates directory but python-connector doesn't. So create the folder here.
             os.makedirs(Utils.get_local_file_path(target_directory), exist_ok=True)
             get_result = snowflake.snowpark.DataFrame(self._session, plan).collect()
-            return [GetResult(file_result.asDict()) for file_result in get_result]
+            return [GetResult(**file_result.asDict()) for file_result in get_result]
         # connector raises IndexError when no file is downloaded from python connector.
         # TODO: https://snowflakecomputing.atlassian.net/browse/SNOW-499333. Discuss with python connector whether
         #  we need to raise a different error.

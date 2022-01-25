@@ -1,6 +1,14 @@
 # Release History
+## 0.4.0 (Unknown)
 
-## 0.3.0 (2021-01-09)
+### New Features
+- Added a parameter `session` to function `udf` so you can specify which session to use to create a UDF if you have multiple sessions.
+
+## 0.4.0
+### New Features
+- Added `Table` class, with `update` and `delete` method to update and delete rows of a table in Snowflake.
+
+## 0.3.0 (2022-01-09)
 ### New Features
 - Added `Column.isin()`, with an alias `Column.in_()`.
 - Added `Column.try_cast()`, which is a special version of `cast()`. It tries to cast a string expression to other types and returns `null` if the cast is not possible.

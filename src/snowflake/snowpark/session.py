@@ -6,19 +6,18 @@
 import datetime
 import decimal
 import json
-import logging
 import os
 from array import array
 from functools import reduce
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from threading import RLock
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import cloudpickle
 
 import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
-from snowflake.snowpark import Column, DataFrame
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -31,20 +30,15 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
-from snowflake.snowpark._internal.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     FlattenFunction as SPFlattenFunction,
 )
-from snowflake.snowpark._internal.sp_types.sp_data_types import (
-    StringType as SPStringType,
-)
 from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
-    _infer_schema_from_list,
+    _infer_schema,
     _merge_type,
-    snow_type_to_sp_type,
 )
 from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
@@ -52,6 +46,7 @@ from snowflake.snowpark._internal.utils import (
     Utils,
 )
 from snowflake.snowpark._internal.write_pandas import write_pandas
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
@@ -68,11 +63,13 @@ from snowflake.snowpark.functions import (
     to_variant,
 )
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
     DecimalType,
     MapType,
+    StringType,
     StructType,
     TimestampType,
     TimeType,
@@ -82,7 +79,29 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udf import UDFRegistration
 
 logger = getLogger(__name__)
-_active_session = None
+
+_session_management_lock = RLock()
+_active_sessions = set()  # type: Set["Session"]
+
+
+def _get_active_session() -> Optional["Session"]:
+    with _session_management_lock:
+        if len(_active_sessions) == 1:
+            return next(iter(_active_sessions))
+        elif len(_active_sessions) > 1:
+            raise SnowparkClientExceptionMessages.MORE_THAN_ONE_ACTIVE_SESSIONS()
+        else:
+            raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
+
+
+def _add_session(session: "Session"):
+    with _session_management_lock:
+        _active_sessions.add(session)
+
+
+def _remove_session(session: "Session"):
+    with _session_management_lock:
+        _active_sessions.remove(session)
 
 
 class Session:
@@ -113,6 +132,8 @@ class Session:
 
     :class:`Session` contains functions to construct a :class:`DataFrame` like :func:`table`,
     :func:`sql` and :func:`read`.
+
+    A ``Session`` object is not thread-safe.
     """
 
     class SessionBuilder:
@@ -158,15 +179,11 @@ class Session:
         def __create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
-            # set the log level of the conncector logger to ERROR to avoid massive logging
-            logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
-            return Session._set_active_session(
-                Session(
-                    ServerConnection({}, conn)
-                    if conn
-                    else ServerConnection(self.__options)
-                )
+            new_session = Session(
+                ServerConnection({}, conn) if conn else ServerConnection(self.__options)
             )
+            _add_session(new_session)
+            return new_session
 
         def __get__(self, obj, objtype=None):
             return Session.SessionBuilder()
@@ -178,6 +195,8 @@ class Session:
     builder: SessionBuilder = SessionBuilder()
 
     def __init__(self, conn: ServerConnection):
+        if len(_active_sessions) >= 1 and Utils.is_in_stored_procedure():
+            raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
         self.__query_tag = None
         self.__import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
@@ -203,6 +222,13 @@ class Session:
         self.__file = None
 
         self._analyzer = Analyzer(self)
+        logger.info(f"Python Snowpark Session information: %s", self._session_info)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def _generate_new_action_id(self) -> int:
         self.__last_action_id += 1
@@ -210,19 +236,25 @@ class Session:
 
     def close(self) -> None:
         """Close this session."""
-        global _active_session
-        if _active_session == self:
-            _active_session = None
+        if Utils.is_in_stored_procedure():
+            raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
             if self._conn.is_closed():
-                logger.warning("This session has been closed.")
+                logger.debug(
+                    "No-op because session %s had been previously closed.",
+                    self.__session_id,
+                )
             else:
-                logger.info(f"Closing session: {self._session_info}")
+                logger.info(f"Closing session: %s", self.__session_id)
                 self.cancel_all()
         except Exception as ex:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
-            self._conn.close()
+            try:
+                self._conn.close()
+                logger.info(f"Closed session: %s", self.__session_id)
+            finally:
+                _remove_session(self)
 
     def _get_last_canceled_id(self) -> int:
         return self.__last_canceled_id
@@ -307,7 +339,52 @@ class Session:
 
             3. Adding two files with the same file name is not allowed, because UDFs
             can't be created with two imports with the same name.
+
+            4. This method will register the file for all UDFs created later in the current
+            session. If you only want to import a file for a specific UDF, you can use
+            ``imports`` argument in :func:`functions.udf` or
+            :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
+        path, checksum, leading_path = self._resolve_import_path(path, import_path)
+        self.__import_paths[path] = (checksum, leading_path)
+
+    def removeImport(self, path: str) -> None:
+        """
+        Removes a file in stage or local file from the imports of a user-defined function (UDF).
+
+        Args:
+            path: a path pointing to a local file or a remote file in the stage
+
+        Examples::
+
+            session.removeImport(“/tmp/dir1/test.py”)
+            session.removeImport(“/tmp/dir1”)
+            session.removeImport(“@stage/test.py”)
+        """
+        trimmed_path = path.strip()
+        abs_path = (
+            os.path.abspath(trimmed_path)
+            if not trimmed_path.startswith(self.__STAGE_PREFIX)
+            else trimmed_path
+        )
+        if abs_path not in self.__import_paths:
+            raise KeyError(f"{abs_path} is not found in the existing imports")
+        else:
+            self.__import_paths.pop(abs_path)
+
+    def clearImports(self) -> None:
+        """
+        Clears all files in a stage or local files from the imports of a user-defined function (UDF).
+
+        Example::
+
+            session.clearImports()
+        """
+        self.__import_paths.clear()
+
+    def _resolve_import_path(
+        self, path: str, import_path: Optional[str] = None
+    ) -> Tuple[str, Optional[str], Optional[str]]:
         trimmed_path = path.strip()
         trimmed_import_path = import_path.strip() if import_path else None
 
@@ -347,51 +424,24 @@ class Session:
             else:
                 leading_path = None
 
-            self.__import_paths[abs_path] = (
-                # Include the information about import path to the checksum
-                # calculation, so if the import path changes, the checksum
-                # will change and the file in the stage will be overwritten.
+            # Include the information about import path to the checksum
+            # calculation, so if the import path changes, the checksum
+            # will change and the file in the stage will be overwritten.
+            return (
+                abs_path,
                 Utils.calculate_md5(abs_path, additional_info=leading_path),
                 leading_path,
             )
         else:
-            self.__import_paths[trimmed_path] = (None, None)
+            return trimmed_path, None, None
 
-    def removeImport(self, path: str) -> None:
-        """
-        Removes a file in stage or local file from imports of a user-defined function (UDF).
-
-        Args:
-            path: a path pointing to a local file or a remote file in the stage
-
-        Examples::
-
-            session.removeImport(“/tmp/dir1/test.py”)
-            session.removeImport(“/tmp/dir1”)
-            session.removeImport(“@stage/test.py”)
-        """
-        trimmed_path = path.strip()
-        abs_path = (
-            os.path.abspath(trimmed_path)
-            if not trimmed_path.startswith(self.__STAGE_PREFIX)
-            else trimmed_path
-        )
-        if abs_path not in self.__import_paths:
-            raise KeyError(f"{abs_path} is not found in the existing imports")
-        else:
-            self.__import_paths.pop(abs_path)
-
-    def clearImports(self) -> None:
-        """
-        Clears all files in stage or local files from imports of a user-defined function (UDF).
-
-        Example::
-
-            session.clearImports()
-        """
-        self.__import_paths.clear()
-
-    def _resolve_imports(self, stage_location: str) -> List[str]:
+    def _resolve_imports(
+        self,
+        stage_location: str,
+        udf_level_import_paths: Optional[
+            Dict[str, Tuple[Optional[str], Optional[str]]]
+        ] = None,
+    ) -> List[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(stage_location)
@@ -399,8 +449,12 @@ class Session:
 
         # always import cloudpickle for non-stored-proc mode
         # TODO(SNOW-500845): Remove importing cloudpickle after it is installed on the server side by default
-        import_paths = {**self.__import_paths}
-        if not self._conn._is_stored_proc:
+        import_paths = (
+            udf_level_import_paths.copy()
+            if udf_level_import_paths
+            else self.__import_paths.copy()
+        )
+        if not Utils.is_in_stored_procedure():
             import_paths.update(self.__cloudpickle_path)
 
         for path, (prefix, leading_path) in import_paths.items():
@@ -481,7 +535,7 @@ class Session:
             self._conn.run_query("alter session unset query_tag")
         self.__query_tag = tag
 
-    def table(self, name: Union[str, List[str], Tuple[str, ...]]) -> DataFrame:
+    def table(self, name: Union[str, Iterable[str]]) -> Table:
         """
         Returns a DataFrame that points the specified table.
 
@@ -489,19 +543,16 @@ class Session:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
 
-        Example::
+        Examples::
 
-            df = session.table("mytable")
+            df1 = session.table("mytable")
+            df2 = session.table(["mydb", "myschema", "mytable"])
         """
-        if isinstance(name, str):
-            fqdn = [name]
-        elif isinstance(name, (list, tuple)):
-            fqdn = name
-        else:
-            raise TypeError("The input of table() should be a str or a list of strs.")
-        for n in fqdn:
-            Utils.validate_object_name(n)
-        return DataFrame(self, UnresolvedRelation(fqdn))
+
+        if not isinstance(name, str) and isinstance(name, Iterable):
+            name = ".".join(name)
+        Utils.validate_object_name(name)
+        return Table(name, self)
 
     def table_function(
         self,
@@ -762,33 +813,8 @@ class Session:
         if not data:
             raise ValueError("data cannot be empty.")
 
-        # convert data to be a list of Rows
-        # also checks the type of every row, which should be same across data
-        rows = []
-        names = None
-        for row in data:
-            if not row:
-                rows.append(Row(None))
-            elif isinstance(row, Row):
-                if row._named_values and not names:
-                    names = list(row._named_values.keys())
-                rows.append(row)
-            elif isinstance(row, dict):
-                if not names:
-                    names = list(row.keys())
-                rows.append(Row(**row))
-            elif isinstance(row, (tuple, list)):
-                if hasattr(row, "_fields") and not names:  # namedtuple
-                    names = list(row._fields)
-                rows.append(Row(*row))
-            else:
-                rows.append(Row(row))
-
-        # check the length of every row, which should be same across data
-        if len({len(row) for row in rows}) != 1:
-            raise ValueError("Data consists of rows with different lengths.")
-
         # infer the schema based on the data
+        names = None
         if isinstance(schema, StructType):
             new_schema = schema
         else:
@@ -796,14 +822,54 @@ class Session:
                 names = schema
             new_schema = reduce(
                 _merge_type,
-                (_infer_schema_from_list(list(row), names) for row in rows),
+                (_infer_schema(row, names) for row in data),
+            )
+        if len(new_schema.fields) == 0:
+            raise ValueError(
+                "The provided schema or inferred schema cannot be None or empty"
             )
 
+        def convert_row_to_list(
+            row: Union[Dict, List, Tuple], names: List[str]
+        ) -> List:
+            row_dict = None
+            if not row:
+                row = [None]
+            elif isinstance(row, (tuple, list)):
+                if getattr(row, "_fields", None):  # Row or namedtuple
+                    row_dict = row.asDict() if isinstance(row, Row) else row._asdict()
+            elif isinstance(row, dict):
+                row_dict = row.copy()
+            else:
+                row = [row]
+
+            if row_dict:
+                # fill None if the key doesn't exist
+                return [row_dict.get(name) for name in names]
+            else:
+                # check the length of every row, which should be same across data
+                if len(row) != len(names):
+                    raise ValueError(
+                        f"{len(names)} fields are required by schema "
+                        f"but {len(row)} values are provided. This might be because "
+                        f"data consists of rows with different lengths, or mixed rows "
+                        f"with column names or without column names"
+                    )
+                return list(row)
+
+        # always overwrite the column names if they are provided via schema
+        if names:
+            for i, name in enumerate(names):
+                new_schema.fields[i].name = name
+        else:
+            names = [f.name for f in new_schema.fields]
+        rows = [convert_row_to_list(row, names) for row in data]
+
         # get spark attributes and data types
-        sp_attrs, data_types = [], []
+        attrs, data_types = [], []
         for field in new_schema.fields:
-            sp_type = (
-                SPStringType()
+            sf_type = (
+                StringType()
                 if isinstance(
                     field.datatype,
                     (
@@ -815,11 +881,11 @@ class Session:
                         TimestampType,
                     ),
                 )
-                else snow_type_to_sp_type(field.datatype)
+                else field.datatype
             )
-            sp_attrs.append(
+            attrs.append(
                 SPAttributeReference(
-                    AnalyzerPackage.quote_name(field.name), sp_type, field.nullable
+                    AnalyzerPackage.quote_name(field.name), sf_type, field.nullable
                 )
             )
             data_types.append(field.datatype)
@@ -897,7 +963,7 @@ class Session:
             else:
                 project_columns.append(column(field.name))
 
-        return DataFrame(self, SnowflakeValues(sp_attrs, converted)).select(
+        return DataFrame(self, SnowflakeValues(attrs, converted)).select(
             project_columns
         )
 
@@ -1066,16 +1132,3 @@ class Session:
         except ProgrammingError:
             logger.warning("query '%s' cannot be explained")
             return None
-
-    @staticmethod
-    def _get_active_session() -> Optional["Session"]:
-        return _active_session
-
-    @staticmethod
-    def _set_active_session(session: "Session") -> "Session":
-        logger.info(f"Python Snowpark Session information: {session._session_info}")
-        global _active_session
-        if _active_session:
-            logger.info("Overwriting an already active session")
-        _active_session = session
-        return session

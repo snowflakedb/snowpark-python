@@ -16,6 +16,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkMissingDbOrSchemaException,
     SnowparkSessionException,
 )
+from snowflake.snowpark.session import _get_active_session
 from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
 from tests.utils import Utils
 
@@ -29,12 +30,8 @@ def test_invalid_configs(session, db_parameters):
             .config("login_timeout", 5)
             .create()
         )
-        try:
+        with new_session:
             assert "Incorrect username or password was specified" in str(ex_info)
-        finally:
-            new_session.close()
-            # restore active session
-            Session._set_active_session(session)
 
 
 def test_no_default_database_and_schema(session, db_parameters):
@@ -49,8 +46,6 @@ def test_no_default_database_and_schema(session, db_parameters):
         assert not new_session.getDefaultSchema()
     finally:
         new_session.close()
-        # restore active session
-        Session._set_active_session(session)
 
 
 def test_default_and_current_database_and_schema(session):
@@ -93,11 +88,11 @@ def test_create_dataframe_sequence(session):
     assert df.collect() == [Row(1, "one", 1.0), Row(2, "two", 2.0)]
 
     df = session.createDataFrame([1, 2])
-    assert [field.name for field in df.schema.fields] == ["VALUES"]
+    assert [field.name for field in df.schema.fields] == ["_1"]
     assert df.collect() == [Row(1), Row(2)]
 
     df = session.createDataFrame(["one", "two"])
-    assert [field.name for field in df.schema.fields] == ["VALUES"]
+    assert [field.name for field in df.schema.fields] == ["_1"]
     assert df.collect() == [Row("one"), Row("two")]
 
 
@@ -123,10 +118,13 @@ def test_get_schema_database_works_after_use_role(session):
 
 
 def test_negative_test_for_missing_required_parameter_schema(db_parameters):
-    session = Session.builder.configs(db_parameters)._remove_config("schema").create()
-    with pytest.raises(SnowparkMissingDbOrSchemaException) as ex_info:
-        session.getFullyQualifiedCurrentSchema()
-    assert "The SCHEMA is not set for the current session." in str(ex_info)
+    new_session = (
+        Session.builder.configs(db_parameters)._remove_config("schema").create()
+    )
+    with new_session:
+        with pytest.raises(SnowparkMissingDbOrSchemaException) as ex_info:
+            new_session.getFullyQualifiedCurrentSchema()
+        assert "The SCHEMA is not set for the current session." in str(ex_info)
 
 
 def test_select_current_client(session):
@@ -174,9 +172,9 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
     db_parameters,
 ):
     new_session = Session.builder.configs(db_parameters).create()
-    df = new_session.range(10)
-    read = new_session.read
-    new_session.close()
+    with new_session:
+        df = new_session.range(10)
+        read = new_session.read
 
     with pytest.raises(SnowparkSessionException) as ex_info:
         df.collect()
@@ -184,9 +182,6 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
     with pytest.raises(SnowparkSessionException) as ex_info:
         read.json("@mystage/prefix")
     assert ex_info.value.error_code == "1404"
-
-    # restore active session
-    Session._set_active_session(session)
 
 
 def test_load_table_from_array_multipart_identifier(session):
@@ -214,8 +209,12 @@ def test_dataframe_close_session(
     db_parameters,
 ):
     new_session = Session.builder.configs(db_parameters).create()
-    assert Session._get_active_session() is not None
-    new_session.close()
+    try:
+        with pytest.raises(SnowparkSessionException) as ex_info:
+            _get_active_session()
+        assert ex_info.value.error_code == "1409"
+    finally:
+        new_session.close()
 
     # TODO: currently we need to call collect() to trigger error (scala doesn't)
     #  because Python doesn't have to query parameter value for lazy analysis
@@ -225,6 +224,3 @@ def test_dataframe_close_session(
     with pytest.raises(SnowparkSessionException) as ex_info:
         new_session.range(10).collect()
     assert ex_info.value.error_code == "1404"
-
-    # restore active session
-    Session._set_active_session(session)

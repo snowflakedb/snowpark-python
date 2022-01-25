@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.utils import Utils as InternalUtils
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.functions import call_udf, col, udf
 from snowflake.snowpark.types import (
@@ -93,19 +94,19 @@ def test_basic_udf(session):
     )
 
 
-def test_call_named_udf(session):
-    session._run_query("drop function if exists mul(int, int)")
+def test_call_named_udf(session, temp_schema, db_parameters):
+    session._run_query("drop function if exists test_mul(int, int)")
     udf(
         lambda x, y: x * y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        name="mul",
+        name="test_mul",
     )
-    Utils.check_answer(session.sql("select mul(13, 19)").collect(), [Row(13 * 19)])
+    Utils.check_answer(session.sql("select test_mul(13, 19)").collect(), [Row(13 * 19)])
 
     df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
     Utils.check_answer(
-        df.select(call_udf("mul", col("a"), col("b"))).collect(),
+        df.select(call_udf("test_mul", col("a"), col("b"))).collect(),
         [
             Row(2),
             Row(12),
@@ -113,10 +114,45 @@ def test_call_named_udf(session):
     )
     Utils.check_answer(
         df.select(
-            call_udf(f"{session.getFullyQualifiedCurrentSchema()}.mul", "a", "b")
+            call_udf(f"{session.getFullyQualifiedCurrentSchema()}.test_mul", "a", "b")
         ).collect(),
         [Row(2), Row(12)],
     )
+
+    # create a UDF when the session doesn't have a schema
+    new_session = (
+        Session.builder.configs(db_parameters)._remove_config("schema").create()
+    )
+    try:
+        assert not new_session.getDefaultSchema()
+        tmp_stage_name_in_temp_schema = f"{temp_schema}.{Utils.random_name()}"
+        new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
+        full_udf_name = f"{temp_schema}.test_add"
+        new_session._run_query(f"drop function if exists {full_udf_name}(int, int)")
+        new_session.udf.register(
+            lambda x, y: x + y,
+            return_type=IntegerType(),
+            input_types=[IntegerType(), IntegerType()],
+            name=[*temp_schema.split("."), "test_add"],
+            stage_location=InternalUtils.normalize_stage_location(
+                tmp_stage_name_in_temp_schema
+            ),
+        )
+        Utils.check_answer(
+            new_session.sql(f"select {full_udf_name}(13, 19)").collect(), [Row(13 + 19)]
+        )
+        # oen result in the temp schema
+        assert (
+            len(
+                new_session.sql(
+                    f"show functions like '%test_add%' in schema {temp_schema}"
+                ).collect()
+            )
+            == 1
+        )
+    finally:
+        new_session.close()
+        # restore active session
 
 
 def test_recursive_udf(session):
@@ -438,6 +474,40 @@ def test_add_imports_duplicate(session, resources_path, caplog):
     assert len(session.getImports()) == 0
 
 
+def test_udf_level_import(session, resources_path):
+    test_files = TestFiles(resources_path)
+    with patch.object(sys, "path", [*sys.path, resources_path]):
+
+        def plus4_then_mod5(x):
+            from test_udf_dir.test_udf_file import mod5
+
+            return mod5(x + 4)
+
+        df = session.range(-5, 5).toDF("a")
+
+        # with udf-level imports
+        plus4_then_mod5_udf = udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")],
+        )
+        Utils.check_answer(
+            df.select(plus4_then_mod5_udf("a")).collect(),
+            [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
+        )
+
+        # without udf-level imports
+        plus4_then_mod5_udf = udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+        )
+        with pytest.raises(ProgrammingError) as ex_info:
+            df.select(plus4_then_mod5_udf("a")).collect(),
+        assert "No module named" in str(ex_info)
+
+
 def test_type_hints(session):
     @udf
     def add_udf(x: int, y: int) -> int:
@@ -484,26 +554,27 @@ def test_type_hints(session):
 def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name()
-    new_session = Session.builder.configs(db_parameters).create()
-    try:
-        Utils.create_stage(session, stage_name, is_temporary=False)
-        udf(
-            lambda x, y: x + y,
-            return_type=IntegerType(),
-            input_types=[IntegerType(), IntegerType()],
-            name=udf_name,
-            is_permanent=True,
-            stage_location=stage_name,
-        )
-        Utils.check_answer(session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)])
-        Utils.check_answer(
-            new_session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
-        )
-    finally:
-        session._run_query(f"drop function if exists {udf_name}(int, int)")
-        Utils.drop_stage(session, stage_name)
-        new_session.close()
-        Session._set_active_session(session)
+    with Session.builder.configs(db_parameters).create() as new_session:
+        try:
+            Utils.create_stage(session, stage_name, is_temporary=False)
+            udf(
+                lambda x, y: x + y,
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+                name=udf_name,
+                is_permanent=True,
+                stage_location=stage_name,
+                session=new_session,
+            )
+            Utils.check_answer(
+                session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
+            )
+            Utils.check_answer(
+                new_session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
+            )
+        finally:
+            session._run_query(f"drop function if exists {udf_name}(int, int)")
+            Utils.drop_stage(session, stage_name)
 
 
 def test_udf_negative(session):
@@ -648,6 +719,19 @@ def test_add_imports_negative(session, resources_path):
         with pytest.raises(ProgrammingError) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect()
         assert "No module named 'test.resources'" in str(ex_info)
+    session.clearImports()
+
+    with pytest.raises(TypeError) as ex_info:
+        udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[1],
+        )
+    assert (
+        "UDF-level import can only be a file path (str) "
+        "or a tuple of the file path (str) and the import path (str)" in str(ex_info)
+    )
 
 
 def test_udf_variant_type(session):

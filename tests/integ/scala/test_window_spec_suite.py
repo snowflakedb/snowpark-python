@@ -9,6 +9,7 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Window
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import (
     avg,
     col,
@@ -194,7 +195,8 @@ def test_empty_over_spec(session):
     df = session.createDataFrame([("a", 1), ("a", 1), ("a", 2), ("b", 2)]).toDF(
         "key", "value"
     )
-    df.createOrReplaceTempView("window_table")
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    df.createOrReplaceTempView(view_name)
     Utils.check_answer(
         df.select("key", "value", sum_("value").over(), avg("value").over()),
         [
@@ -206,7 +208,7 @@ def test_empty_over_spec(session):
     )
     Utils.check_answer(
         session.sql(
-            "select key, value, sum(value) over(), avg(value) over() from window_table"
+            f"select key, value, sum(value) over(), avg(value) over() from {view_name}"
         ),
         [
             Row("a", 1, 6, 1.5),

@@ -9,7 +9,16 @@ import os
 import pickle
 import zipfile
 from logging import getLogger
-from typing import Callable, List, NamedTuple, Optional, Tuple, Union, get_type_hints
+from typing import (
+    Callable,
+    Iterable,
+    List,
+    NamedTuple,
+    Optional,
+    Tuple,
+    Union,
+    get_type_hints,
+)
 
 import cloudpickle
 
@@ -22,7 +31,6 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
     _python_type_to_snow_type,
     convert_to_sf_type,
-    snow_type_to_sp_type,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.column import Column
@@ -111,7 +119,7 @@ class UserDefinedFunction:
         return SnowflakeUDF(
             self.name,
             exprs,
-            snow_type_to_sp_type(self._return_type),
+            self._return_type,
             nullable=self._is_return_nullable,
         )
 
@@ -192,9 +200,10 @@ class UDFRegistration:
         func: Callable,
         return_type: Optional[DataType] = None,
         input_types: Optional[List[DataType]] = None,
-        name: Optional[str] = None,
+        name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
         stage_location: Optional[str] = None,
+        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         replace: bool = False,
         parallel: int = 4,
     ) -> UserDefinedFunction:
@@ -225,10 +234,10 @@ class UDFRegistration:
             )
 
         # get the udf name
-        udf_name = (
-            name
-            or f"{self.session.getFullyQualifiedCurrentSchema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
-        )
+        if name:
+            udf_name = name if isinstance(name, str) else ".".join(name)
+        else:
+            udf_name = f"{self.session.getFullyQualifiedCurrentSchema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
         Utils.validate_object_name(udf_name)
 
         # get return and input types
@@ -256,6 +265,7 @@ class UDFRegistration:
                 udf_name,
                 udf_file_name,
                 stage_location,
+                imports,
                 replace,
                 parallel,
             )
@@ -315,6 +325,7 @@ class UDFRegistration:
         udf_name: str,
         udf_file_name: str,
         stage_location: Optional[str] = None,
+        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
         replace: bool = False,
         parallel: int = 4,
     ) -> None:
@@ -328,8 +339,28 @@ class UDFRegistration:
             if stage_location
             else self.session.getSessionStage()
         )
-        all_urls = self.session._resolve_imports(upload_stage)
-        handler = _DEFAULT_HANDLER_NAME
+
+        # resolve imports
+        if imports:
+            udf_level_imports = {}
+            for udf_import in imports:
+                if isinstance(udf_import, str):
+                    resolved_import_tuple = self.session._resolve_import_path(
+                        udf_import
+                    )
+                elif isinstance(udf_import, tuple) and len(udf_import) == 2:
+                    resolved_import_tuple = self.session._resolve_import_path(
+                        udf_import[0], udf_import[1]
+                    )
+                else:
+                    raise TypeError(
+                        "UDF-level import can only be a file path (str) "
+                        "or a tuple of the file path (str) and the import path (str)."
+                    )
+                udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
+            all_urls = self.session._resolve_imports(upload_stage, udf_level_imports)
+        else:
+            all_urls = self.session._resolve_imports(upload_stage)
 
         # Upload closure to stage if it is beyond inline closure size limit
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
@@ -354,6 +385,8 @@ class UDFRegistration:
             all_urls.append(upload_file_stage_location)
             code = None
             handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
+        else:
+            handler = _DEFAULT_HANDLER_NAME
 
         # build imports string
         all_imports = ",".join([f"'{url}'" for url in all_urls])
