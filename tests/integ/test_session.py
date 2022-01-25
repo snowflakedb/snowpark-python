@@ -141,33 +141,23 @@ def test_table_exists(session):
 
 
 def test_use_database(session):
-    db_name = Utils.random_name()
-    session.sql(f"create database {db_name}").collect()
+    db_name = "SNOWFLAKE_SAMPLE_DATA"
     original_db = session.getCurrentDatabase(unquoted=True)
     try:
         session.use_database(db_name)
         assert session.getCurrentDatabase(unquoted=True) == db_name
     finally:
-        try:
-            session.use_database(original_db)
-        finally:
-            pass
-        session.sql(f"drop database {db_name}").collect()
+        session.use_database(original_db)
 
 
 def test_use_schema(session):
-    schema_name = Utils.random_name()
-    session.sql(f"create schema {schema_name}").collect()
+    schema_name = "PUBLIC"
     original_schema = session.getCurrentSchema(unquoted=True)
     try:
         session.use_shcema(schema_name)
         assert session.getCurrentSchema(unquoted=True) == schema_name
     finally:
-        try:
-            session.use_shcema(original_schema)
-        finally:
-            pass
-        session.sql(f"drop schema {schema_name}").collect()
+        session.use_shcema(original_schema)
 
 
 def test_use_warehouse(session):
