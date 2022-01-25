@@ -6,6 +6,7 @@
 
 ## 0.4.0
 ### New Features
+- Added `Column.within_group()` for sorting the rows by the specified columns with some aggregation functions.
 - Added `Table` class, with `update` and `delete` method to update and delete rows of a table in Snowflake.
 
 ## 0.3.0 (2022-01-09)

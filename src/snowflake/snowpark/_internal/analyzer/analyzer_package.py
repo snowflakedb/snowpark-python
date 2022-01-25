@@ -203,6 +203,16 @@ class AnalyzerPackage:
     def alias_expression(self, origin: str, alias: str) -> str:
         return origin + self._As + alias
 
+    def within_group_expression(self, column: str, order_by_cols: List[str]) -> str:
+        return (
+            column
+            + self._WithinGroup
+            + self._LeftParenthesis
+            + self._OrderBy
+            + self._Comma.join(order_by_cols)
+            + self._RightParenthesis
+        )
+
     def limit_expression(self, num: int) -> str:
         return self._Limit + str(num)
 
