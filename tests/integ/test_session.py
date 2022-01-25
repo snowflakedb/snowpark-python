@@ -138,3 +138,58 @@ def test_table_exists(session):
     assert session._table_exists(table_name) is False
     session.sql(f'create temp table "{table_name}"(col_a varchar)').collect()
     assert session._table_exists(table_name) is True
+
+
+def test_use_database(session):
+    db_name = Utils.random_name()
+    session.sql(f"create database {db_name}").collect()
+    original_db = session.getCurrentDatabase(unquoted=True)
+    try:
+        session.use_database(db_name)
+        assert session.getCurrentDatabase(unquoted=True) == db_name
+    finally:
+        try:
+            session.use_database(original_db)
+        finally:
+            pass
+        session.sql(f"drop database {db_name}").collect()
+
+
+def test_use_schema(session):
+    schema_name = Utils.random_name()
+    session.sql(f"create schema {schema_name}").collect()
+    original_schema = session.getCurrentSchema(unquoted=True)
+    try:
+        session.use_shcema(schema_name)
+        assert session.getCurrentSchema(unquoted=True) == schema_name
+    finally:
+        try:
+            session.use_shcema(original_schema)
+        finally:
+            pass
+        session.sql(f"drop schema {schema_name}").collect()
+
+
+def test_use_warehouse(session):
+    warehouse_name = Utils.random_name()
+    session.sql(f"create warehouse {warehouse_name}").collect()
+    original_warehouse = session.get_current_warehouse(unquoted=True)
+    try:
+        session.use_warehouse(warehouse_name)
+        assert session.get_current_warehouse(unquoted=True) == warehouse_name
+    finally:
+        try:
+            session.use_warehouse(original_warehouse)
+        finally:
+            pass
+        session.sql(f"drop warehouse {warehouse_name}").collect()
+
+
+def test_use_role(session):
+    role_name = "PUBLIC"
+    original_role = session.get_current_role(unquoted=True)
+    try:
+        session.use_role(role_name)
+        assert session.get_current_role(unquoted=True) == role_name
+    finally:
+        session.use_role(original_role)

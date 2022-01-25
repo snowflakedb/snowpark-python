@@ -171,6 +171,34 @@ class ServerConnection:
         )
 
     @_Decorator.wrap_exception
+    def get_current_warehouse(self, unquoted: bool = False) -> Optional[str]:
+        warehouse_name = self._conn.warehouse or self._get_string_datum(
+            "SELECT CURRENT_WAREHOUSE()"
+        )
+        return (
+            (
+                AnalyzerPackage.quote_name_without_upper_casing(warehouse_name)
+                if not unquoted
+                else AnalyzerPackage._escape_quotes(warehouse_name)
+            )
+            if warehouse_name
+            else None
+        )
+
+    @_Decorator.wrap_exception
+    def get_current_role(self, unquoted: bool = False) -> Optional[str]:
+        role_name = self._conn.role or self._get_string_datum("SELECT CURRENT_ROLE()")
+        return (
+            (
+                AnalyzerPackage.quote_name_without_upper_casing(role_name)
+                if not unquoted
+                else AnalyzerPackage._escape_quotes(role_name)
+            )
+            if role_name
+            else None
+        )
+
+    @_Decorator.wrap_exception
     def get_parameter_value(self, parameter_name: str) -> Optional[str]:
         # TODO: logging and running show command to get the parameter value if it's not present in connector
         return self._conn._session_parameters.get(parameter_name.upper(), None)

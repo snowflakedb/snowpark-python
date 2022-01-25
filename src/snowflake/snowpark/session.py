@@ -1075,7 +1075,7 @@ class Session:
 
         Example::
 
-            session.sql("use database newDB").collect()
+            session.use_database("newDB")
             # return "newDB"
             session.get_current_database()
         """
@@ -1088,7 +1088,7 @@ class Session:
 
         Example::
 
-            session.sql("use schema newSchema").collect()
+            session.use_schema("newSchema")
             # return "newSchema"
             session.get_current_schema()
         """
@@ -1105,6 +1105,42 @@ class Session:
                 missing_item, missing_item, missing_item
             )
         return database + "." + schema
+
+    def get_current_warehouse(self, unquoted=False) -> str:
+        """Returns the name of the warehouse in use for the current session."""
+        return self._conn.get_current_warehouse(unquoted=unquoted)
+
+    def get_current_role(self, unquoted=False) -> str:
+        """Returns the name of the primary role in use for the current session."""
+        return self._conn.get_current_role(unquoted=unquoted)
+
+    def use_database(self, database: str) -> None:
+        """Specifies the active/current database for the session.
+        Args:
+            database: The database name.
+        """
+        self.sql(f"use database {database}").collect()
+
+    def use_shcema(self, schema: str) -> None:
+        """Specifies the active/current schema for the session.
+
+        Args:
+            schema: The schema name. Use "<database>.<schema>" if you want to change both in one command.
+        """
+        self.sql(f"use schema {schema}").collect()
+
+    def use_warehouse(self, warehouse: str) -> None:
+        """Specifies the active/current warehouse for the session.
+
+        A warehouse must be specified for a session and the warehouse must be running before queries and other DML
+        statements can be executed in the session.
+        Args:
+            warehouse: the warehouse name.
+        """
+        self.sql(f"use warehouse {warehouse}").collect()
+
+    def use_role(self, role: str) -> None:
+        self.sql(f"use role {role}").collect()
 
     @property
     def file(self) -> FileOperation:
