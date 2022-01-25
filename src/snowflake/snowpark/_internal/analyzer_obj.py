@@ -89,6 +89,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnspecifiedFrame as SPUnspecifiedFrame,
     WindowExpression as SPWindowExpression,
     WindowSpecDefinition as SPWindowSpecDefinition,
+    WithinGroup as SPWithinGroup,
 )
 from snowflake.snowpark.types import VariantType, _IntegralType
 
@@ -232,6 +233,11 @@ class Analyzer:
         if isinstance(expr, SPScalarSubquery):
             self.subquery_plans.append(expr.plan)
             return self.package.subquery_expression(expr.plan.queries[-1].sql)
+
+        if isinstance(expr, SPWithinGroup):
+            return self.package.within_group_expression(
+                self.analyze(expr.expr), [self.analyze(e) for e in expr.order_by_cols]
+            )
 
         if isinstance(expr, SPBinaryExpression):
             return self.binary_operator_extractor(expr)
