@@ -21,6 +21,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLInvalidIdException,
     SnowparkSQLUnexpectedAliasException,
+    SnowparkTableException,
     SnowparkUploadUdfFileException,
     _SnowparkInternalException,
 )
@@ -175,6 +176,17 @@ def test_df_join_invalid_using_join_type():
     assert type(ex) == SnowparkJoinException
     assert ex.error_code == "1112"
     assert ex.message == f"Unsupported using join type '{tpe}'."
+
+
+def test_merge_table_action_already_specified():
+    action = "action"
+    clause = "clause"
+    ex = SnowparkClientExceptionMessages.MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
+        action, clause
+    )
+    assert type(ex) == SnowparkTableException
+    assert ex.error_code == "1115"
+    assert ex.message == f"{action} has been specified for {clause} to merge table"
 
 
 def test_plan_analyzer_invalid_identifier():
