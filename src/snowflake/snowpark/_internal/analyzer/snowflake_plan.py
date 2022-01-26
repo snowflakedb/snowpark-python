@@ -712,6 +712,16 @@ class SnowflakePlanBuilder:
             None,
         )
 
+    def merge(
+        self, table_name: str, source: SnowflakePlan, join_expr: str, clauses: List[str]
+    ) -> SnowflakePlan:
+        return self.query(
+            self.pkg.merge_statement(
+                table_name, source.queries[-1].sql, join_expr, clauses
+            ),
+            None,
+        )
+
     def lateral(
         self,
         table_function: str,
@@ -862,3 +872,19 @@ class TableDelete(LogicalPlan):
         self.condition = condition
         self.source_data = source_data
         self.children = [source_data] if source_data else []
+
+
+class TableMerge(LogicalPlan):
+    def __init__(
+        self,
+        table_name: str,
+        source: LogicalPlan,
+        join_expr: SPExpression,
+        clauses: List[SPExpression],
+    ):
+        super().__init__()
+        self.table_name = table_name
+        self.source = source
+        self.join_expr = join_expr
+        self.clauses = clauses
+        self.children = [source] if source else []

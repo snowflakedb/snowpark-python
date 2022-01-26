@@ -20,6 +20,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLInvalidIdException,
     SnowparkSQLUnexpectedAliasException,
+    SnowparkTableException,
     SnowparkUploadUdfFileException,
     _SnowparkInternalException,
 )
@@ -169,6 +170,14 @@ class SnowparkClientExceptionMessages:
             "1114",
         )
 
+    @staticmethod
+    def MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
+        action: str, clause: str
+    ) -> SnowparkTableException:
+        return SnowparkTableException(
+            f"{action} has been specified for {clause} to merge table", "1115"
+        )
+
     # Plan Analysis error codes 02XX
 
     @staticmethod
@@ -284,7 +293,11 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def SERVER_NO_DEFAULT_SESSION() -> SnowparkSessionException:
-        return SnowparkSessionException("No default SnowflakeSession found", "1403")
+        return SnowparkSessionException(
+            "No default Session is found. "
+            "Please create a session before you call function 'udf' or use decorator '@udf'.",
+            "1403",
+        )
 
     @staticmethod
     def SERVER_SESSION_HAS_BEEN_CLOSED() -> SnowparkSessionException:
@@ -319,6 +332,30 @@ class SnowparkClientExceptionMessages:
             "UDF can be read it from the stage while also retain a "
             "small size.",
             "1407",
+        )
+
+    @staticmethod
+    def MORE_THAN_ONE_ACTIVE_SESSIONS() -> SnowparkSessionException:
+        return SnowparkSessionException(
+            "More than one active session is detected. "
+            "When you call function 'udf' or use decorator '@udf', "
+            "you must specify the 'session' parameter if you created multiple sessions."
+            "Alternatively, you can use 'session.udf.register' to register UDFs",
+            "1409",
+        )
+
+    @staticmethod
+    def DONT_CREATE_SESSION_IN_SP() -> SnowparkSessionException:
+        return SnowparkSessionException(
+            "In a stored procedure, you shouldn't create a session. The stored procedure provides a session.",
+            "1410",
+        )
+
+    @staticmethod
+    def DONT_CLOSE_SESSION_IN_SP() -> SnowparkSessionException:
+        return SnowparkSessionException(
+            "In a stored procedure, you shouldn't close a session. The stored procedure manages the lifecycle of the provided session.",
+            "1411",
         )
 
     # General Error codes 15XX

@@ -616,6 +616,7 @@ class WithinGroup(Expression):
         super().__init__(expr)
         self.expr = expr
         self.order_by_cols = order_by_cols
+        self.datatype = expr.datatype
 
 
 # Ordering
@@ -764,3 +765,33 @@ class WindowExpression(Expression):
         super().__init__()
         self.window_function = window_function
         self.window_spec = window_spec
+
+
+class MergeExpression(Expression):
+    def __init__(self, condition: Optional[Expression]):
+        super().__init__()
+        self.condition = condition
+
+
+class UpdateMergeExpression(MergeExpression):
+    def __init__(
+        self, condition: Optional[Expression], assignments: Dict[Expression, Expression]
+    ):
+        super().__init__(condition)
+        self.assignments = assignments
+
+
+class DeleteMergeExpression(MergeExpression):
+    pass
+
+
+class InsertMergeExpression(MergeExpression):
+    def __init__(
+        self,
+        condition: Optional[Expression],
+        keys: List[Expression],
+        values: List[Expression],
+    ):
+        super().__init__(condition)
+        self.keys = keys
+        self.values = values

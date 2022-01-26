@@ -37,7 +37,6 @@ from random import randint
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_expressions import (
     AggregateFunction as SPAggregateFunction,
     ArrayIntersect as SPArrayIntersect,
@@ -65,7 +64,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.column import CaseExpr, Column, _to_col_if_lit
+from snowflake.snowpark.column import CaseExpr, Column, _to_col_if_str
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UserDefinedFunction
 
@@ -1386,6 +1385,26 @@ def hash(e: ColumnOrName) -> Column:
     return builtin("hash")(c)
 
 
+def when_matched(
+    condition: Optional[Column] = None,
+) -> "snowflake.snowpark.table.WhenMatchedClause":
+    """
+    Specifies a matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
+    See :class:`~snowflake.snowpark.table.WhenMatchedClause` for details.
+    """
+    return snowflake.snowpark.table.WhenMatchedClause(condition)
+
+
+def when_not_matched(
+    condition: Optional[Column] = None,
+) -> "snowflake.snowpark.table.WhenNotMatchedClause":
+    """
+    Specifies a not-matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
+    See :class:`~snowflake.snowpark.table.WhenNotMatchedClause` for details.
+    """
+    return snowflake.snowpark.table.WhenNotMatchedClause(condition)
+
+
 def udf(
     func: Optional[Callable] = None,
     *,
@@ -1396,9 +1415,15 @@ def udf(
     stage_location: Optional[str] = None,
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     replace: bool = False,
+    session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
+
+    It can be used as either a function call or a decorator. In most cases you work with a single session.
+    This function uses that session to register the UDF. If you have multiple sessions, you need to
+    explicitly specify the `session` parameter of this function. If you have a function and would like to register it to
+    multiple databases, use ``session.udf.register`` instead.
 
     Args:
         func: A Python function used for creating the UDF.
@@ -1431,6 +1456,8 @@ def udf(
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
             an existing UDF with the same name is overwritten.
+        session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
+            You need to specify this parameter if you have created multiple sessions before calling this method.
         parallel: The number of threads to use for uploading UDF files with the
             `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
             command. The default value is 4 and supported values are from 1 to 99.
@@ -1475,10 +1502,7 @@ def udf(
         registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
     """
-    session = snowflake.snowpark.Session._get_active_session()
-    if not session:
-        raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
-
+    session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
         return functools.partial(
             session.udf.register,
@@ -1578,15 +1602,6 @@ def builtin(function_name: str) -> Callable:
         df.select(avg(col("col_1")))
     """
     return lambda *args: call_builtin(function_name, *args)
-
-
-def _to_col_if_str(e: ColumnOrName, func_name: str) -> Column:
-    if isinstance(e, Column):
-        return e
-    elif isinstance(e, str):
-        return col(e)
-    else:
-        raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
 
 
 def _create_table_function_expression(

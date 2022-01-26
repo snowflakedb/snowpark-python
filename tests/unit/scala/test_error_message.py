@@ -21,6 +21,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLInvalidIdException,
     SnowparkSQLUnexpectedAliasException,
+    SnowparkTableException,
     SnowparkUploadUdfFileException,
     _SnowparkInternalException,
 )
@@ -177,6 +178,17 @@ def test_df_join_invalid_using_join_type():
     assert ex.message == f"Unsupported using join type '{tpe}'."
 
 
+def test_merge_table_action_already_specified():
+    action = "action"
+    clause = "clause"
+    ex = SnowparkClientExceptionMessages.MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
+        action, clause
+    )
+    assert type(ex) == SnowparkTableException
+    assert ex.error_code == "1115"
+    assert ex.message == f"{action} has been specified for {clause} to merge table"
+
+
 def test_plan_analyzer_invalid_identifier():
     name = "c1"
     ex = SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
@@ -331,7 +343,7 @@ def test_server_no_default_session():
     ex = SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
     assert type(ex) == SnowparkSessionException
     assert ex.error_code == "1403"
-    assert ex.message == "No default SnowflakeSession found"
+    assert "No default Session is found" in ex.message
 
 
 def test_server_session_has_been_closed():

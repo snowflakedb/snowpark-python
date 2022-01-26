@@ -53,10 +53,12 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnaryMinus as SPUnaryMinus,
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
+    WithinGroup as SPWithinGroup,
 )
 from snowflake.snowpark._internal.sp_types.types_package import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
+    ColumnOrName,
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
@@ -64,7 +66,9 @@ from snowflake.snowpark.types import DataType, _type_string_to_type_object
 from snowflake.snowpark.window import Window, WindowSpec
 
 
-def _to_col_if_lit(col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"]):
+def _to_col_if_lit(
+    col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"]
+) -> "Column":
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
         return col
     elif isinstance(col, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
@@ -72,6 +76,17 @@ def _to_col_if_lit(col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"]):
     else:
         raise TypeError(
             f"Expected Column, DataFrame, Iterable or LiteralType, got: {type(col)}"
+        )
+
+
+def _to_col_if_str(col: ColumnOrName, func_name: str) -> "Column":
+    if isinstance(col, Column):
+        return col
+    elif isinstance(col, str):
+        return Column(col)
+    else:
+        raise TypeError(
+            f"'{func_name.upper()}' expected Column or str, got: {type(col)}"
         )
 
 
@@ -140,76 +155,72 @@ class Column:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
     # overload operators
-    def __eq__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __eq__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Equal to."""
         right = Column._to_expr(other)
         return Column(SPEqualTo(self.expression, right))
 
-    def __ne__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __ne__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Not equal to."""
         right = Column._to_expr(other)
         return Column(SPNotEqualTo(self.expression, right))
 
-    def __gt__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __gt__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Greater than."""
         return Column(SPGreaterThan(self.expression, Column._to_expr(other)))
 
-    def __lt__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __lt__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Less than."""
         return Column(SPLessThan(self.expression, Column._to_expr(other)))
 
-    def __ge__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __ge__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Greater than or equal to."""
         return Column(SPGreaterThanOrEqual(self.expression, Column._to_expr(other)))
 
-    def __le__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __le__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Less than or equal to."""
         return Column(SPLessThanOrEqual(self.expression, Column._to_expr(other)))
 
-    def __add__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __add__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Plus."""
         return Column(SPAdd(self.expression, Column._to_expr(other)))
 
-    def __radd__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __radd__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         return Column(SPAdd(Column._to_expr(other), self.expression))
 
-    def __sub__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __sub__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Minus."""
         return Column(SPSubtract(self.expression, Column._to_expr(other)))
 
-    def __rsub__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __rsub__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         return Column(SPSubtract(Column._to_expr(other), self.expression))
 
-    def __mul__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __mul__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Multiply."""
         return Column(SPMultiply(self.expression, Column._to_expr(other)))
 
-    def __rmul__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __rmul__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         return Column(SPMultiply(Column._to_expr(other), self.expression))
 
-    def __truediv__(
-        self, other: Union["Column", SPExpression, LiteralType]
-    ) -> "Column":
+    def __truediv__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Divide."""
         return Column(SPDivide(self.expression, Column._to_expr(other)))
 
-    def __rtruediv__(
-        self, other: Union["Column", SPExpression, LiteralType]
-    ) -> "Column":
+    def __rtruediv__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         return Column(SPDivide(Column._to_expr(other), self.expression))
 
-    def __mod__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __mod__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Reminder."""
         return Column(SPRemainder(self.expression, Column._to_expr(other)))
 
-    def __rmod__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __rmod__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         return Column(SPRemainder(Column._to_expr(other), self.expression))
 
-    def __pow__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __pow__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Power."""
         return Column(SPPow(self.expression, Column._to_expr(other)))
 
-    def __rpow__(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def __rpow__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         return Column(SPPow(Column._to_expr(other), self.expression))
 
     def in_(
@@ -302,23 +313,23 @@ class Column:
 
     def between(
         self,
-        lower_bound: Union["Column", SPExpression, LiteralType],
-        upper_bound: Union["Column", SPExpression, LiteralType],
+        lower_bound: Union[ColumnOrLiteral, SPExpression],
+        upper_bound: Union[ColumnOrLiteral, SPExpression],
     ) -> "Column":
         """Between lower bound and upper bound."""
         return (Column._to_expr(lower_bound) <= self) & (
             self <= Column._to_expr(upper_bound)
         )
 
-    def bitand(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def bitand(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Bitwise and."""
         return Column(SPBitwiseAnd(Column._to_expr(other), self.expression))
 
-    def bitor(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def bitor(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Bitwise or."""
         return Column(SPBitwiseOr(Column._to_expr(other), self.expression))
 
-    def bitxor(self, other: Union["Column", SPExpression, LiteralType]) -> "Column":
+    def bitxor(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         """Bitwise xor."""
         return Column(SPBitwiseXor(Column._to_expr(other), self.expression))
 
@@ -527,6 +538,41 @@ class Column:
             window = Window._spec()
         return window._with_aggregate(self.expression)
 
+    def within_group(
+        self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]]
+    ) -> "Column":
+        """
+        Returns a Column expression that adds a WITHIN GROUP clause
+        to sort the rows by the specified columns.
+
+        This method is supported on Column expressions returned by some
+        of the aggregate functions, including :func:`functions.array_agg`,
+        :func:`functions.listagg`, PERCENTILE_CONT(), and PERCENTILE_DISC().
+        For details, see the Snowflake documentation for the aggregate function
+        that you are using (e.g. `ARRAY_AGG <https://docs.snowflake.com/en/sql-reference/functions/array_agg.html>`_).
+
+        Examples::
+
+            from snowflake.snowpark.functions import array_agg, col
+            from snowflake.snowpark import Window
+
+            df = session.createDataFrame([(3, "v1"), (1, "v3"), (2, "v2")], schema=["a", "b"])
+            # create a DataFrame containing the values in "a" sorted by "b"
+            df_array_agg = df.select(array_agg("a").within_group("b"))
+            # create a DataFrame containing the values in "a" grouped by "b"
+            # and sorted by "a" in descending order.
+            df_array_agg_window = df.select(array_agg("a").within_group(col("a").desc())).over(Window.partitionBy(col("b")))
+        """
+        return Column(
+            SPWithinGroup(
+                self.expression,
+                [
+                    _to_col_if_str(col, "within_group").expression
+                    for col in Utils.parse_positional_args_to_list(*cols)
+                ],
+            )
+        )
+
     def _named(self) -> SPNamedExpression:
         if isinstance(self.expression, SPNamedExpression):
             return self.expression
@@ -534,7 +580,7 @@ class Column:
             return SPUnresolvedAlias(self.expression, None)
 
     @classmethod
-    def _to_expr(cls, expr: Union["Column", SPExpression, LiteralType]) -> SPExpression:
+    def _to_expr(cls, expr: Union[ColumnOrLiteral, SPExpression]) -> SPExpression:
         """
         Convert a Column object, or an literal value to an expression.
         If it's a Column, get its expression.

@@ -1176,6 +1176,57 @@ def test_array_agg(session):
     )
 
 
+def test_array_agg_within_group(session):
+    assert (
+        str(
+            TestData.monthly_sales(session)
+            .select(array_agg(col("amount")).within_group("amount"))
+            .collect()[0][0]
+        )
+        == "[\n  200,\n  400,\n  800,\n  2500,\n  3000,\n  4500,\n  4500,\n  5000,\n  5000,\n  "
+        + "6000,\n  8000,\n  9500,\n  10000,\n  10000,\n  35000,\n  90500\n]"
+    )
+
+
+def test_array_agg_within_group_order_by_desc(session):
+    assert (
+        str(
+            TestData.monthly_sales(session)
+            .select(array_agg(col("amount")).within_group(col("amount").desc()))
+            .collect()[0][0]
+        )
+        == "[\n  90500,\n  35000,\n  10000,\n  10000,\n  9500,\n  8000,\n  6000,\n  5000,\n"
+        + "  5000,\n  4500,\n  4500,\n  3000,\n  2500,\n  800,\n  400,\n  200\n]"
+    )
+
+
+def test_array_agg_within_group_order_by_multiple_columns(session):
+    sort_columns = [col("month").asc(), col("empid").desc(), col("amount")]
+    amount_values = (
+        TestData.monthly_sales(session).sort(sort_columns).select("amount").collect()
+    )
+    expected = "[\n  " + ",\n  ".join([str(a[0]) for a in amount_values]) + "\n]"
+    assert (
+        str(
+            TestData.monthly_sales(session)
+            .select(array_agg(col("amount")).within_group(sort_columns))
+            .collect()[0][0]
+        )
+        == expected
+    )
+
+
+def test_window_function_array_agg_within_group(session):
+    value1 = "[\n  1,\n  3\n]"
+    value2 = "[\n  1,\n  3,\n  10\n]"
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            array_agg("Z").within_group(["Z", "Y"]).over(Window.partitionBy("X"))
+        ),
+        [Row(value1), Row(value1), Row(value2), Row(value2), Row(value2)],
+    )
+
+
 def test_array_append(session):
     Utils.check_answer(
         [

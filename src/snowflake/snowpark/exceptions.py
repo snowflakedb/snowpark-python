@@ -115,6 +115,15 @@ class SnowparkPandasException(SnowparkDataframeException):
     pass
 
 
+class SnowparkTableException(SnowparkDataframeException):
+    """Exception for table related errors.
+
+    Includes error codes: 1115.
+    """
+
+    pass
+
+
 class SnowparkCreateViewException(SnowparkPlanException):
     """Exception for errors while trying to create a view.
 

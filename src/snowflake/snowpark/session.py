@@ -6,11 +6,11 @@
 import datetime
 import decimal
 import json
-import logging
 import os
 from array import array
 from functools import reduce
 from logging import getLogger
+from threading import RLock
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import cloudpickle
@@ -80,7 +80,29 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udf import UDFRegistration
 
 logger = getLogger(__name__)
-_active_session = None
+
+_session_management_lock = RLock()
+_active_sessions = set()  # type: Set["Session"]
+
+
+def _get_active_session() -> Optional["Session"]:
+    with _session_management_lock:
+        if len(_active_sessions) == 1:
+            return next(iter(_active_sessions))
+        elif len(_active_sessions) > 1:
+            raise SnowparkClientExceptionMessages.MORE_THAN_ONE_ACTIVE_SESSIONS()
+        else:
+            raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
+
+
+def _add_session(session: "Session"):
+    with _session_management_lock:
+        _active_sessions.add(session)
+
+
+def _remove_session(session: "Session"):
+    with _session_management_lock:
+        _active_sessions.remove(session)
 
 
 class Session:
@@ -111,6 +133,8 @@ class Session:
 
     :class:`Session` contains functions to construct a :class:`DataFrame` like :func:`table`,
     :func:`sql` and :func:`read`.
+
+    A ``Session`` object is not thread-safe.
     """
 
     class SessionBuilder:
@@ -154,15 +178,11 @@ class Session:
         def __create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
-            # set the log level of the conncector logger to ERROR to avoid massive logging
-            logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
-            return Session._set_active_session(
-                Session(
-                    ServerConnection({}, conn)
-                    if conn
-                    else ServerConnection(self.__options)
-                )
+            new_session = Session(
+                ServerConnection({}, conn) if conn else ServerConnection(self.__options)
             )
+            _add_session(new_session)
+            return new_session
 
         def __get__(self, obj, objtype=None):
             return Session.SessionBuilder()
@@ -174,6 +194,8 @@ class Session:
     builder: SessionBuilder = SessionBuilder()
 
     def __init__(self, conn: ServerConnection):
+        if len(_active_sessions) >= 1 and Utils.is_in_stored_procedure():
+            raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
         self.__query_tag = None
         self.__import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
@@ -199,6 +221,13 @@ class Session:
         self.__file = None
 
         self._analyzer = Analyzer(self)
+        logger.info(f"Python Snowpark Session information: %s", self._session_info)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def _generate_new_action_id(self) -> int:
         self.__last_action_id += 1
@@ -206,19 +235,25 @@ class Session:
 
     def close(self) -> None:
         """Close this session."""
-        global _active_session
-        if _active_session == self:
-            _active_session = None
+        if Utils.is_in_stored_procedure():
+            raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
             if self._conn.is_closed():
-                logger.warning("This session has been closed.")
+                logger.debug(
+                    "No-op because session %s had been previously closed.",
+                    self.__session_id,
+                )
             else:
-                logger.info(f"Closing session: {self._session_info}")
+                logger.info(f"Closing session: %s", self.__session_id)
                 self.cancel_all()
         except Exception as ex:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
-            self._conn.close()
+            try:
+                self._conn.close()
+                logger.info(f"Closed session: %s", self.__session_id)
+            finally:
+                _remove_session(self)
 
     def _get_last_canceled_id(self) -> int:
         return self.__last_canceled_id
@@ -454,7 +489,7 @@ class Session:
             if udf_level_import_paths
             else self.__import_paths.copy()
         )
-        if not self._conn._is_stored_proc:
+        if not Utils.is_in_stored_procedure():
             import_paths.update(self.__cloudpickle_path)
 
         for path, (prefix, leading_path) in import_paths.items():
@@ -1170,18 +1205,5 @@ class Session:
         except ProgrammingError:
             logger.warning("query '%s' cannot be explained")
             return None
-
-    @staticmethod
-    def _get_active_session() -> Optional["Session"]:
-        return _active_session
-
-    @staticmethod
-    def _set_active_session(session: "Session") -> "Session":
-        logger.info(f"Python Snowpark Session information: {session._session_info}")
-        global _active_session
-        if _active_session:
-            logger.info("Overwriting an already active session")
-        _active_session = session
-        return session
 
     createDataFrame = create_dataframe
