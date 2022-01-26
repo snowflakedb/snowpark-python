@@ -148,7 +148,7 @@ def test_use_database(db_parameters):
     with Session.builder.configs(parameters).create() as session:
         db_name = db_parameters["database"]
         session.use_database(db_name)
-        assert session.getCurrentDatabase(unquoted=True) == db_name.upper()
+        assert session.get_current_database(unquoted=True) == db_name.upper()
 
 
 def test_use_schema(db_parameters):
@@ -158,7 +158,7 @@ def test_use_schema(db_parameters):
     with Session.builder.configs(parameters).create() as session:
         schema_name = db_parameters["schema"]
         session.use_schema(schema_name)
-        assert session.getCurrentSchema(unquoted=True) == schema_name.upper()
+        assert session.get_current_schema(unquoted=True) == schema_name.upper()
 
 
 def test_use_warehouse(db_parameters):
