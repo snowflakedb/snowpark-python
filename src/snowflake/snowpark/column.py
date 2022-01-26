@@ -311,9 +311,6 @@ class Column:
 
         return Column(SPInExpression(self.expression, value_expressions))
 
-    # Alias
-    isin = in_
-
     def between(
         self,
         lower_bound: Union[ColumnOrLiteral, SPExpression],
@@ -457,8 +454,6 @@ class Column:
             )
         )
 
-    rlike = regexp
-
     def startswith(self, other: Union["Column", str]) -> "Column":
         """Returns true if this Column starts with another string.
 
@@ -484,7 +479,24 @@ class Column:
         """
         return snowflake.snowpark.functions.substring(self, start_pos, length)
 
-    substring = substr
+    # TODO: Add these functions for code migration
+    # def contains(self):
+    #     ...
+    #
+    # def endswith(self):
+    #     ...
+    #
+    # def get_field(self):
+    #     ...
+    #
+    # def get_item(self):
+    #     ...
+    #
+    # def with_field(self):
+    #     ...
+    #
+    # def drop_fields(self):
+    #     ...
 
     def collate(self, collation_spec: str) -> "Column":
         """Returns a copy of the original :class:`Column` with the specified ``collation_spec``
@@ -495,7 +507,7 @@ class Column:
         """
         return Column(SPCollate(self.expression, collation_spec))
 
-    def getName(self) -> Optional[str]:
+    def get_name(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
         return (
             self.expression.name
@@ -587,6 +599,25 @@ class Column:
     def _expr(cls, e: str) -> "Column":
         return cls(SPUnresolvedAttribute.quoted(e))
 
+    # Add these alias for user code migration
+    isin = in_
+    astype = cast
+    rlike = regexp
+    substring = substr
+    bitwiseAnd = bitand
+    bitwiseOR = bitor
+    bitwiseXOR = bitxor
+    isNotNull = is_not_null
+    isNull = is_null
+    eqNullSafe = equal_null
+    getName = get_name
+
+    # TODO: To add these alias after the snake_case APIs are added.
+    # getField = get_field
+    # getItem = get_item
+    # withField = with_field
+    # dropFields = drop_fields
+
 
 class CaseExpr(Column):
     """
@@ -626,4 +657,5 @@ class CaseExpr(Column):
         """Sets the default result for this CASE expression."""
         return CaseExpr(SPCaseWhen(self.__branches, Column._to_expr(value)))
 
+    # This alias is to sync with snowpark scala
     else_ = otherwise

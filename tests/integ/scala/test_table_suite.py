@@ -59,9 +59,7 @@ def test_read_snowflake_table(session, table_name_1):
     df1 = session.read.table(table_name_1)
     Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
 
-    db_schema_table_name = (
-        f"{session.getCurrentDatabase()}.{session.getCurrentSchema()}.{table_name_1}"
-    )
+    db_schema_table_name = f"{session.get_current_database()}.{session.get_current_schema()}.{table_name_1}"
     df2 = session.table(db_schema_table_name)
     Utils.check_answer(df2, [Row(1), Row(2), Row(3)])
 
@@ -76,35 +74,35 @@ def test_save_as_snowflake_table(session, table_name_1):
     table_name_3 = Utils.random_name()
     try:
         # copy table_name_1 to table_name_2, default mode
-        df.write.saveAsTable(table_name_2)
+        df.write.save_as_table(table_name_2)
 
         df2 = session.table(table_name_2)
         assert df2.collect() == [Row(1), Row(2), Row(3)]
 
         # append mode
-        df.write.mode("append").saveAsTable(table_name_2)
+        df.write.mode("append").save_as_table(table_name_2)
         df4 = session.table(table_name_2)
         assert df4.collect() == [Row(1), Row(2), Row(3), Row(1), Row(2), Row(3)]
 
         # ignore mode
-        df.write.mode("IGNORE").saveAsTable(table_name_2)
+        df.write.mode("IGNORE").save_as_table(table_name_2)
         df3 = session.table(table_name_2)
         assert df3.collect() == [Row(1), Row(2), Row(3), Row(1), Row(2), Row(3)]
 
         # overwrite mode
-        df.write.mode("OvErWrItE").saveAsTable(table_name_2)
+        df.write.mode("OvErWrItE").save_as_table(table_name_2)
         df5 = session.table(table_name_2)
         assert df5.collect() == [Row(1), Row(2), Row(3)]
 
         # test for append when the original table does not exist
         # need to create the table before insertion
-        df.write.mode("aPpEnD").saveAsTable(table_name_3)
+        df.write.mode("aPpEnD").save_as_table(table_name_3)
         df6 = session.table(table_name_3)
         assert df6.collect() == [Row(1), Row(2), Row(3)]
 
         # errorifexists mode
         with pytest.raises(ProgrammingError):
-            df.write.mode("errorifexists").saveAsTable(table_name_2)
+            df.write.mode("errorifexists").save_as_table(table_name_2)
     finally:
         Utils.drop_table(session, table_name_2)
         Utils.drop_table(session, table_name_3)
@@ -124,8 +122,8 @@ def test_save_as_snowflake_table_string_argument(table_name_4):
 
 def test_multipart_identifier(session, table_name_1):
     name1 = table_name_1
-    name2 = session.getCurrentSchema() + "." + name1
-    name3 = session.getCurrentDatabase() + "." + name2
+    name2 = session.get_current_schema() + "." + name1
+    name3 = session.get_current_database() + "." + name2
 
     expected = [Row(1), Row(2), Row(3)]
     assert session.table(name1).collect() == expected
@@ -133,22 +131,22 @@ def test_multipart_identifier(session, table_name_1):
     assert session.table(name3).collect() == expected
 
     name4 = Utils.random_name()
-    name5 = session.getCurrentSchema() + "." + name4
-    name6 = session.getCurrentDatabase() + "." + name5
+    name5 = session.get_current_schema() + "." + name4
+    name6 = session.get_current_database() + "." + name5
 
-    session.table(name1).write.mode("Overwrite").saveAsTable(name4)
+    session.table(name1).write.mode("Overwrite").save_as_table(name4)
     try:
         assert session.table(name4).collect() == expected
     finally:
         Utils.drop_table(session, name4)
 
-    session.table(name1).write.mode("Overwrite").saveAsTable(name5)
+    session.table(name1).write.mode("Overwrite").save_as_table(name5)
     try:
         assert session.table(name4).collect() == expected
     finally:
         Utils.drop_table(session, name5)
 
-    session.table(name1).write.mode("Overwrite").saveAsTable(name6)
+    session.table(name1).write.mode("Overwrite").save_as_table(name6)
     try:
         assert session.table(name6).collect() == expected
     finally:
@@ -158,7 +156,7 @@ def test_multipart_identifier(session, table_name_1):
 def test_write_table_to_different_schema(session, temp_schema, table_name_1):
     name1 = table_name_1
     name2 = temp_schema + "." + name1
-    session.table(name1).write.saveAsTable(name2)
+    session.table(name1).write.save_as_table(name2)
     try:
         assert session.table(name2).collect() == [Row(1), Row(2), Row(3)]
     finally:
@@ -203,10 +201,10 @@ def test_table_with_time_type(session, table_with_time):
 
 def test_consistent_table_name_behaviors(session):
     table_name = Utils.random_name()
-    db = session.getCurrentDatabase()
-    sc = session.getCurrentSchema()
-    df = session.createDataFrame([[1], [2], [3]]).toDF("a")
-    df.write.mode("overwrite").saveAsTable(table_name)
+    db = session.get_current_database()
+    sc = session.get_current_schema()
+    df = session.create_dataframe([[1], [2], [3]]).to_df("a")
+    df.write.mode("overwrite").save_as_table(table_name)
     table_names = [
         table_name,
         [table_name],
@@ -221,7 +219,7 @@ def test_consistent_table_name_behaviors(session):
         Utils.drop_table(session, table_name)
 
     for tn in table_names:
-        df.write.mode("Overwrite").saveAsTable(tn)
+        df.write.mode("Overwrite").save_as_table(tn)
         try:
             Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
         finally:

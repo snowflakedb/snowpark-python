@@ -55,7 +55,7 @@ class _PivotType(_GroupType):
 
 class GroupingSets:
     """Creates a GroupingSets object from a list of column/expression sets that you pass
-    to :meth:`DataFrame.groupByGroupingSets`. See :meth:`DataFrame.groupByGroupingSets` for
+    to :meth:`DataFrame.group_by_grouping_sets`. See :meth:`DataFrame.group_by_grouping_sets` for
     examples of how to use this class with a :class:`DataFrame`.
 
     Examples::
@@ -82,10 +82,10 @@ class RelationalGroupedDataFrame:
 
     Example::
 
-        grouped_df = df.groupBy("dept")
+        grouped_df = df.group_by("dept")
         agg_df = grouped_df.agg([(grouped_df["salary"], "mean")])
 
-    The method :py:func:`DataFrame.groupBy()`
+    The method :py:func:`DataFrame.group_by()`
     returns a :class:`RelationalGroupedDataFrame` object."""
 
     def __init__(self, df, grouping_exprs: List[SPExpression], group_type: _GroupType):
@@ -200,7 +200,7 @@ class RelationalGroupedDataFrame:
         Example::
 
             from snowflake.snowpark.functions import col
-            df.groupBy("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
+            df.group_by("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
         """
         if not isinstance(exprs, (list, tuple)):
             exprs = [exprs]
@@ -261,7 +261,7 @@ class RelationalGroupedDataFrame:
 
         Example::
 
-                df.groupBy("a").builtin("max")(col("b"))
+                df.group_by("a").builtin("max")(col("b"))
         """
         return lambda *cols: self.__builtin_internal(agg_name, *cols)
 

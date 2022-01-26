@@ -1447,11 +1447,11 @@ def udf(
             stages and external stages.
         imports: A list of imports that only apply to this UDF. You can use a string to
             represent a file path (similar to the ``path`` argument in
-            :meth:`~snowflake.snowpark.Session.addImport`) in this list, or a tuple of two
+            :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
             strings to represent a file path and an import path (similar to the ``import_path``
-            argument in :meth:`~snowflake.snowpark.Session.addImport`). These UDF-level imports
+            argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDF-level imports
             will overwrite the session-level imports added by
-            :meth:`~snowflake.snowpark.Session.addImport`.
+            :meth:`~snowflake.snowpark.Session.add_import`.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
@@ -1484,7 +1484,7 @@ def udf(
         def my_sqrt(x: float) -> float:
             return sqrt(x)
 
-        df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+        df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
         df.select(add_one("a"), minus_one("b"), my_sqrt("b"))
         session.sql("select minus_one(1)")
 

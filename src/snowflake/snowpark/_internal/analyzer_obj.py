@@ -618,7 +618,7 @@ class Analyzer:
                         logical_plan.files,
                         logical_plan.file_format,
                         logical_plan.cur_options,
-                        self.session.getFullyQualifiedCurrentSchema(),
+                        self.session.get_fully_qualified_current_schema(),
                         logical_plan.user_schema._to_attributes(),
                     )
             else:
@@ -626,7 +626,7 @@ class Analyzer:
                     logical_plan.files,
                     logical_plan.file_format,
                     logical_plan.cur_options,
-                    self.session.getFullyQualifiedCurrentSchema(),
+                    self.session.get_fully_qualified_current_schema(),
                     [Attribute('"$1"', VariantType())],
                 )
 

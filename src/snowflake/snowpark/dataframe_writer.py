@@ -19,11 +19,11 @@ class DataFrameWriter:
     2. Specify the save mode by calling :meth:`mode`, which returns the same
        :class:`DataFrameWriter` that is configured to save data using the specified mode.
        The default mode is "errorifexists".
-    3. Call the :meth:`saveAsTable` method to save the data to the specified destination.
+    3. Call the :meth:`save_as_table` method to save the data to the specified destination.
 
     Example::
 
-        df.write.mode("overwrite").saveAsTable("table1")
+        df.write.mode("overwrite").save_as_table("table1")
 
 
     """
@@ -56,7 +56,7 @@ class DataFrameWriter:
         )
         return self
 
-    def saveAsTable(
+    def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
         *,
@@ -82,8 +82,8 @@ class DataFrameWriter:
 
         Example::
 
-            df.write.mode("overwrite").saveAsTable("table1")
-            df.write.saveAsTable("table2", mode="overwrite", create_temp_table=True)
+            df.write.mode("overwrite").save_as_table("table1")
+            df.write.save_as_table("table2", mode="overwrite", create_temp_table=True)
 
         """
         # Snowpark scala doesn't have mode as a param but pyspark has it.
@@ -106,3 +106,5 @@ class DataFrameWriter:
         session = self.__dataframe.session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
         session._conn.execute(snowflake_plan)
+
+    saveAsTable = save_as_table

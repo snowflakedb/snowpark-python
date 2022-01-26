@@ -174,7 +174,7 @@ def test_avg(session):
 )
 def test_corr(session, k, v1, v2):
     Utils.check_answer(
-        TestData.number1(session).groupBy(k).agg(corr(v1, v2)),
+        TestData.number1(session).group_by(k).agg(corr(v1, v2)),
         [Row(1, None), Row(2, 0.40367115665231024)],
     )
 
@@ -199,12 +199,12 @@ def test_count(session):
 )
 def test_covariance(session, k, v1, v2):
     Utils.check_answer(
-        TestData.number1(session).groupBy(k).agg(covar_pop(v1, v2)),
+        TestData.number1(session).group_by(k).agg(covar_pop(v1, v2)),
         [Row(1, 0.0), Row(2, 38.75)],
     )
 
     Utils.check_answer(
-        TestData.number1(session).groupBy("K").agg(covar_samp("V1", col("V2"))),
+        TestData.number1(session).group_by("K").agg(covar_samp("V1", col("V2"))),
         [Row(1, None), Row(2, 51.666666666666664)],
     )
 
@@ -274,24 +274,24 @@ def test_stddev(session):
 
 
 def test_sum(session):
-    df = TestData.duplicated_numbers(session).groupBy("A").agg(sum(col("A")))
+    df = TestData.duplicated_numbers(session).group_by("A").agg(sum(col("A")))
     assert df.collect() == [Row(3, 6), Row(2, 4), Row(1, 1)]
 
-    df = TestData.duplicated_numbers(session).groupBy("A").agg(sum_distinct(col("A")))
+    df = TestData.duplicated_numbers(session).group_by("A").agg(sum_distinct(col("A")))
     assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]
 
     # same as above, but pass str instead of Column
-    df = TestData.duplicated_numbers(session).groupBy("A").agg(sum("A"))
+    df = TestData.duplicated_numbers(session).group_by("A").agg(sum("A"))
     assert df.collect() == [Row(3, 6), Row(2, 4), Row(1, 1)]
 
-    df = TestData.duplicated_numbers(session).groupBy("A").agg(sum_distinct("A"))
+    df = TestData.duplicated_numbers(session).group_by("A").agg(sum_distinct("A"))
     assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]
 
 
 def test_variance(session):
     df = (
         TestData.xyz(session)
-        .groupBy("X")
+        .group_by("X")
         .agg([variance(col("Y")), var_pop(col("Z")), var_samp(col("Z"))])
     )
     Utils.check_answer(
@@ -310,7 +310,7 @@ def test_variance(session):
     # same as above, but pass str instead of Column
     df = (
         TestData.xyz(session)
-        .groupBy("X")
+        .group_by("X")
         .agg([variance("Y"), var_pop("Z"), var_samp("Z")])
     )
     Utils.check_answer(
@@ -1000,7 +1000,7 @@ def test_startswith(session):
 
 
 def test_char(session):
-    df = session.createDataFrame([(84, 85), (96, 97)]).toDF("A", "B")
+    df = session.create_dataframe([(84, 85), (96, 97)]).to_df("A", "B")
 
     Utils.check_answer(
         df.select(char(col("A")), char(col("B"))),
@@ -2510,7 +2510,7 @@ def test_approx_percentile_combine(session, col_a, col_b):
 
 
 def test_iff(session):
-    df = session.createDataFrame(
+    df = session.create_dataframe(
         [(True, 2, 2, 4), (False, 12, 12, 14), (True, 22, 23, 24)],
         schema=["a", "b", "c", "d"],
     )
@@ -2529,7 +2529,7 @@ def test_iff(session):
 def test_cume_dist(session):
     Utils.check_answer(
         TestData.xyz(session).select(
-            cume_dist().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+            cume_dist().over(Window.partition_by(col("X")).order_by(col("Y")))
         ),
         [Row(0.3333333333333333), Row(1.0), Row(1.0), Row(1.0), Row(1.0)],
         sort=False,
@@ -2538,7 +2538,7 @@ def test_cume_dist(session):
 
 def test_dense_rank(session):
     Utils.check_answer(
-        TestData.xyz(session).select(dense_rank().over(Window.orderBy(col("X")))),
+        TestData.xyz(session).select(dense_rank().over(Window.order_by(col("X")))),
         [Row(1), Row(1), Row(2), Row(2), Row(2)],
         sort=False,
     )
@@ -2548,7 +2548,7 @@ def test_dense_rank(session):
 def test_lag(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
-            lag(col_z, 1, 0).over(Window.partitionBy(col("X")).orderBy(col("X")))
+            lag(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(0), Row(10), Row(1), Row(0), Row(1)],
         sort=False,
@@ -2556,7 +2556,7 @@ def test_lag(session, col_z):
 
     Utils.check_answer(
         TestData.xyz(session).select(
-            lag(col_z, 1).over(Window.partitionBy(col("X")).orderBy(col("X")))
+            lag(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
         sort=False,
@@ -2564,7 +2564,7 @@ def test_lag(session, col_z):
 
     Utils.check_answer(
         TestData.xyz(session).select(
-            lag(col_z).over(Window.partitionBy(col("X")).orderBy(col("X")))
+            lag(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
         sort=False,
@@ -2575,7 +2575,7 @@ def test_lag(session, col_z):
 def test_lead(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
-            lead(col_z, 1, 0).over(Window.partitionBy(col("X")).orderBy(col("X")))
+            lead(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(0), Row(3), Row(0)],
         sort=False,
@@ -2583,7 +2583,7 @@ def test_lead(session, col_z):
 
     Utils.check_answer(
         TestData.xyz(session).select(
-            lead(col_z, 1).over(Window.partitionBy(col("X")).orderBy(col("X")))
+            lead(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
         sort=False,
@@ -2591,7 +2591,7 @@ def test_lead(session, col_z):
 
     Utils.check_answer(
         TestData.xyz(session).select(
-            lead(col_z).over(Window.partitionBy(col("X")).orderBy(col("X")))
+            lead(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
         sort=False,
@@ -2600,9 +2600,9 @@ def test_lead(session, col_z):
 
 @pytest.mark.parametrize("col_n", ["n", col("n")])
 def test_ntile(session, col_n):
-    df = TestData.xyz(session).withColumn("n", lit(4))
+    df = TestData.xyz(session).with_column("n", lit(4))
     Utils.check_answer(
-        df.select(ntile(col_n).over(Window.partitionBy(col("X")).orderBy(col("Y")))),
+        df.select(ntile(col_n).over(Window.partition_by(col("X")).order_by(col("Y")))),
         [Row(1), Row(2), Row(3), Row(1), Row(2)],
         sort=False,
     )
@@ -2611,7 +2611,7 @@ def test_ntile(session, col_n):
 def test_percent_rank(session):
     Utils.check_answer(
         TestData.xyz(session).select(
-            percent_rank().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+            percent_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
         ),
         [Row(0.0), Row(0.5), Row(0.5), Row(0.0), Row(0.0)],
         sort=False,
@@ -2621,7 +2621,7 @@ def test_percent_rank(session):
 def test_rank(session):
     Utils.check_answer(
         TestData.xyz(session).select(
-            rank().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+            rank().over(Window.partition_by(col("X")).order_by(col("Y")))
         ),
         [Row(1), Row(2), Row(2), Row(1), Row(1)],
         sort=False,
@@ -2631,7 +2631,7 @@ def test_rank(session):
 def test_row_number(session):
     Utils.check_answer(
         TestData.xyz(session).select(
-            row_number().over(Window.partitionBy(col("X")).orderBy(col("Y")))
+            row_number().over(Window.partition_by(col("X")).order_by(col("Y")))
         ),
         [Row(1), Row(2), Row(3), Row(1), Row(2)],
         sort=False,

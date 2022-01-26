@@ -14,7 +14,7 @@ from tests.utils import Utils
 def test_to_pandas_new_df_from_range(session):
     # Single column
     snowpark_df = session.range(3, 8)
-    pandas_df = snowpark_df.toPandas()
+    pandas_df = snowpark_df.to_pandas()
 
     assert isinstance(pandas_df, PandasDF)
     assert "ID" in pandas_df
@@ -24,7 +24,7 @@ def test_to_pandas_new_df_from_range(session):
 
     # Two columns
     snowpark_df = session.range(3, 8).select([col("id"), col("id").alias("other")])
-    pandas_df = snowpark_df.toPandas()
+    pandas_df = snowpark_df.to_pandas()
 
     assert isinstance(pandas_df, PandasDF)
     assert "ID" in pandas_df
@@ -38,16 +38,16 @@ def test_to_pandas_new_df_from_range(session):
 
 def test_to_pandas_non_select(session):
     # `with ... select ...` is also a SELECT statement
-    isinstance(session.sql("select 1").toPandas(), PandasDF)
+    isinstance(session.sql("select 1").to_pandas(), PandasDF)
     isinstance(
-        session.sql("with mytable as (select 1) select * from mytable").toPandas(),
+        session.sql("with mytable as (select 1) select * from mytable").to_pandas(),
         PandasDF,
     )
 
     # non SELECT statements will fail
     def check_fetch_data_exception(query: str) -> None:
         with pytest.raises(SnowparkFetchDataException) as ex_info:
-            session.sql(query).toPandas()
+            session.sql(query).to_pandas()
         assert "the input query can only be a SELECT statement" in str(ex_info.value)
 
     temp_table_name = Utils.random_name()
@@ -55,9 +55,9 @@ def test_to_pandas_non_select(session):
     check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
     check_fetch_data_exception(f"drop table if exists {temp_table_name}")
 
-    # toPandas should work for the large dataframe
+    # to_pandas should work for the large dataframe
     # batch insertion will run "create" and "insert" first
-    df = session.createDataFrame([1] * 2000)
+    df = session.create_dataframe([1] * 2000)
     assert len(df._plan.queries) > 1
     assert df._plan.queries[0].sql.strip().startswith("CREATE")
     assert df._plan.queries[1].sql.strip().startswith("INSERT")

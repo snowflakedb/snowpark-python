@@ -171,7 +171,7 @@ class UDFRegistration:
         1. A temporary UDF (when ``is_permanent`` is ``False`` in
         :func:`~snowflake.snowpark.functions.udf` or :func:`UDFRegistration.register`)
         is scoped to this session and all UDF related files will be uploaded to
-        a temporary session stage (:func:`session.getSessionStage() <snowflake.snowpark.Session.getSessionStage>`).
+        a temporary session stage (:func:`session.get_session_stage() <snowflake.snowpark.Session.get_session_stage>`).
         For a permanent UDF, these files will be uploaded to the stage that you provide.
 
         2. You can also use :class:`typing.List` to annotate a :class:`list`,
@@ -237,7 +237,7 @@ class UDFRegistration:
         if name:
             udf_name = name if isinstance(name, str) else ".".join(name)
         else:
-            udf_name = f"{self.session.getFullyQualifiedCurrentSchema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
+            udf_name = f"{self.session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
         Utils.validate_object_name(udf_name)
 
         # get return and input types
@@ -337,7 +337,7 @@ class UDFRegistration:
         upload_stage = (
             Utils.normalize_stage_location(stage_location)
             if stage_location
-            else self.session.getSessionStage()
+            else self.session.get_session_stage()
         )
 
         # resolve imports

@@ -74,7 +74,7 @@ def test_basic_udf(session):
         input_types=[IntegerType(), IntegerType()],
     )
 
-    df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     Utils.check_answer(df.select(return1_udf()).collect(), [Row("1"), Row("1")])
     Utils.check_answer(
         df.select(plus1_udf(col("a")), "a").collect(),
@@ -104,7 +104,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     )
     Utils.check_answer(session.sql("select test_mul(13, 19)").collect(), [Row(13 * 19)])
 
-    df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     Utils.check_answer(
         df.select(call_udf("test_mul", col("a"), col("b"))).collect(),
         [
@@ -114,7 +114,9 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     )
     Utils.check_answer(
         df.select(
-            call_udf(f"{session.getFullyQualifiedCurrentSchema()}.test_mul", "a", "b")
+            call_udf(
+                f"{session.get_fully_qualified_current_schema()}.test_mul", "a", "b"
+            )
         ).collect(),
         [Row(2), Row(12)],
     )
@@ -162,7 +164,7 @@ def test_recursive_udf(session):
     factorial_udf = udf(
         factorial, return_type=IntegerType(), input_types=[IntegerType()]
     )
-    df = session.range(10).toDF("a")
+    df = session.range(10).to_df("a")
     Utils.check_answer(
         df.select(factorial_udf("a")).collect(), [Row(factorial(i)) for i in range(10)]
     )
@@ -181,7 +183,7 @@ def test_nested_udf(session):
     def cube(x):
         return square(x) * x
 
-    df = session.createDataFrame([1, 2]).toDF("a")
+    df = session.create_dataframe([1, 2]).to_df("a")
     outer_func_udf = udf(outer_func, return_type=StringType())
     Utils.check_answer(
         df.select(outer_func_udf()).collect(),
@@ -214,7 +216,7 @@ def test_python_builtin_udf(session):
     sqrt_udf = udf(math.sqrt, return_type=DoubleType(), input_types=[DoubleType()])
     my_sqrt_udf = udf(my_sqrt, return_type=DoubleType(), input_types=[DoubleType()])
 
-    df = session.range(-5, 5).toDF("a")
+    df = session.range(-5, 5).to_df("a")
     Utils.check_answer(
         df.select(abs_udf("a")).collect(), [Row(abs(i)) for i in range(-5, 5)]
     )
@@ -247,7 +249,7 @@ def test_decorator_udf(session):
         return_type=ArrayType(IntegerType()),
         input_types=[ArrayType(IntegerType())],
     )
-    df = session.createDataFrame([[[1, 2], [2, 3]], [[3, 4], [4, 5]]]).toDF("a", "b")
+    df = session.create_dataframe([[[1, 2], [2, 3]], [[3, 4], [4, 5]]]).to_df("a", "b")
     res = df.select(
         duplicate_list_elements_udf("a"), duplicate_list_elements_udf("b")
     ).collect()
@@ -275,7 +277,7 @@ def test_annotation_syntax_udf(session):
     def snow():
         return "snow"
 
-    df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     Utils.check_answer(
         df.select(add_udf("a", "b"), snow()).collect(),
         [
@@ -292,7 +294,7 @@ def test_annotation_syntax_udf(session):
 
 
 def test_session_register_udf(session):
-    df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     add_udf = session.udf.register(
         lambda x, y: x + y,
         return_type=IntegerType(),
@@ -326,9 +328,9 @@ def test_add_imports_local_file(session, resources_path):
 
             return mod5(x + 4)
 
-        df = session.range(-5, 5).toDF("a")
+        df = session.range(-5, 5).to_df("a")
 
-        session.addImport(
+        session.add_import(
             test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
         )
         plus4_then_mod5_udf = udf(
@@ -341,7 +343,7 @@ def test_add_imports_local_file(session, resources_path):
 
         # if import_as argument changes, the checksum of the file will also change
         # and we will overwrite the file in the stage
-        session.addImport(test_files.test_udf_py_file)
+        session.add_import(test_files.test_udf_py_file)
         plus4_then_mod5_direct_import_udf = udf(
             plus4_then_mod5_direct_import,
             return_type=IntegerType(),
@@ -353,7 +355,7 @@ def test_add_imports_local_file(session, resources_path):
         )
 
         # clean
-        session.clearImports()
+        session.clear_imports()
 
 
 def test_add_imports_local_directory(session, resources_path):
@@ -372,9 +374,9 @@ def test_add_imports_local_directory(session, resources_path):
 
             return mod5(x + 4)
 
-        df = session.range(-5, 5).toDF("a")
+        df = session.range(-5, 5).to_df("a")
 
-        session.addImport(
+        session.add_import(
             test_files.test_udf_directory, import_path="resources.test_udf_dir"
         )
         plus4_then_mod5_udf = udf(
@@ -385,7 +387,7 @@ def test_add_imports_local_directory(session, resources_path):
             [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
         )
 
-        session.addImport(test_files.test_udf_directory)
+        session.add_import(test_files.test_udf_directory)
         plus4_then_mod5_direct_import_udf = udf(
             plus4_then_mod5_direct_import,
             return_type=IntegerType(),
@@ -397,7 +399,7 @@ def test_add_imports_local_directory(session, resources_path):
         )
 
         # clean
-        session.clearImports()
+        session.clear_imports()
 
 
 def test_add_imports_stage_file(session, resources_path):
@@ -410,24 +412,24 @@ def test_add_imports_stage_file(session, resources_path):
             return mod5(x + 4)
 
         stage_file = "@{}.{}/test_udf_file.py".format(
-            session.getFullyQualifiedCurrentSchema(), tmp_stage_name
+            session.get_fully_qualified_current_schema(), tmp_stage_name
         )
         Utils.upload_to_stage(
             session, tmp_stage_name, test_files.test_udf_py_file, compress=False
         )
-        session.addImport(stage_file)
+        session.add_import(stage_file)
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
 
-        df = session.range(-5, 5).toDF("a")
+        df = session.range(-5, 5).to_df("a")
         Utils.check_answer(
             df.select(plus4_then_mod5_udf("a")).collect(),
             [Row(plus4_then_mod5(i)) for i in range(-5, 5)],
         )
 
         # clean
-        session.clearImports()
+        session.clear_imports()
 
 
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
@@ -436,9 +438,9 @@ def test_add_imports_package(session):
         return x + relativedelta(month=1)
 
     d = datetime.date.today()
-    session.addImport(os.path.dirname(dateutil.__file__))
-    session.addImport(six.__file__)
-    df = session.createDataFrame([d]).toDF("a")
+    session.add_import(os.path.dirname(dateutil.__file__))
+    session.add_import(six.__file__)
+    df = session.create_dataframe([d]).to_df("a")
     plus_one_month_udf = udf(
         plus_one_month, return_type=DateType(), input_types=[DateType()]
     )
@@ -447,7 +449,7 @@ def test_add_imports_package(session):
     )
 
     # clean
-    session.clearImports()
+    session.clear_imports()
 
 
 def test_add_imports_duplicate(session, resources_path, caplog):
@@ -455,23 +457,23 @@ def test_add_imports_duplicate(session, resources_path, caplog):
     abs_path = test_files.test_udf_directory
     rel_path = os.path.relpath(abs_path)
 
-    session.addImport(abs_path)
-    session.addImport(f"{abs_path}/")
-    session.addImport(rel_path)
-    assert session.getImports() == [test_files.test_udf_directory]
+    session.add_import(abs_path)
+    session.add_import(f"{abs_path}/")
+    session.add_import(rel_path)
+    assert session.get_imports() == [test_files.test_udf_directory]
 
     # skip upload the file because the calculated checksum is same
-    session_stage = session.getSessionStage()
+    session_stage = session.get_session_stage()
     session._resolve_imports(session_stage)
-    session.addImport(abs_path)
+    session.add_import(abs_path)
     session._resolve_imports(session_stage)
     assert (
         f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
         in caplog.text
     )
 
-    session.removeImport(rel_path)
-    assert len(session.getImports()) == 0
+    session.remove_import(rel_path)
+    assert len(session.get_imports()) == 0
 
 
 def test_udf_level_import(session, resources_path):
@@ -483,7 +485,7 @@ def test_udf_level_import(session, resources_path):
 
             return mod5(x + 4)
 
-        df = session.range(-5, 5).toDF("a")
+        df = session.range(-5, 5).to_df("a")
 
         # with udf-level imports
         plus4_then_mod5_udf = udf(
@@ -531,7 +533,7 @@ def test_type_hints(session):
     def return_variant_dict_udf(v: Any) -> Dict[str, str]:
         return {str(k): f"{str(k)} {str(v)}" for k, v in v.items()}
 
-    df = session.createDataFrame([[1, 4], [2, 3]]).toDF("a", "b")
+    df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     Utils.check_answer(
         df.select(
             add_udf("a", "b"),
@@ -581,7 +583,7 @@ def test_udf_negative(session):
     def f(x):
         return x
 
-    df1 = session.createDataFrame(["a", "b"]).toDF("x")
+    df1 = session.create_dataframe(["a", "b"]).to_df("x")
 
     udf0 = udf()
     with pytest.raises(TypeError) as ex_info:
@@ -626,7 +628,7 @@ def test_udf_negative(session):
     with pytest.raises(ProgrammingError) as ex_info:
         df1.select(udf2("x")).collect()
     assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
-    df2 = session.createDataFrame([1, None]).toDF("x")
+    df2 = session.create_dataframe([1, None]).to_df("x")
     with pytest.raises(ProgrammingError) as ex_info:
         df2.select(udf2("x")).collect()
     assert "Python Interpreter Error" in str(ex_info)
@@ -687,15 +689,15 @@ def test_add_imports_negative(session, resources_path):
     test_files = TestFiles(resources_path)
 
     with pytest.raises(FileNotFoundError) as ex_info:
-        session.addImport("file_not_found.py")
+        session.add_import("file_not_found.py")
     assert "is not found" in str(ex_info)
 
     with pytest.raises(KeyError) as ex_info:
-        session.removeImport("file_not_found.py")
+        session.remove_import("file_not_found.py")
     assert "is not found in the existing imports" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
-        session.addImport(
+        session.add_import(
             test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file.py"
         )
     assert "import_path test_udf_dir.test_udf_file.py is invalid" in str(ex_info)
@@ -705,21 +707,21 @@ def test_add_imports_negative(session, resources_path):
 
         return mod5(x + 4)
 
-    df = session.range(-5, 5).toDF("a")
+    df = session.range(-5, 5).to_df("a")
     for import_path in [
         None,
         "resources.test_udf_dir.test_udf_file",
         "test_udf_dir.test_udf_file",
         "test_udf_file",
     ]:
-        session.addImport(test_files.test_udf_py_file, import_path)
+        session.add_import(test_files.test_udf_py_file, import_path)
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
         with pytest.raises(ProgrammingError) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect()
         assert "No module named 'test.resources'" in str(ex_info)
-    session.clearImports()
+    session.clear_imports()
 
     with pytest.raises(TypeError) as ex_info:
         udf(
@@ -829,7 +831,7 @@ def test_udf_variant_type(session):
 
 
 def test_udf_replace(session):
-    df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
 
     # Register named UDF and expect that it works.
     add_udf = session.udf.register(

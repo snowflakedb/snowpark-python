@@ -29,13 +29,13 @@ def test_query_tags_in_session(session):
     temp_view_name = Utils.random_name()
     try:
         session.query_tag = query_tag
-        session.createDataFrame(["a", "b", "c"]).collect()
-        session.createDataFrame(["a", "b", "c"]).count()
-        session.createDataFrame(["a", "b", "c"]).show()
-        session.createDataFrame(["a", "b", "c"]).first()
-        session.createDataFrame(["a", "b", "c"]).toPandas()
-        session.createDataFrame(["a", "b", "c"]).createOrReplaceTempView(view_name)
-        session.createDataFrame(["a", "b", "c"]).createOrReplaceView(temp_view_name)
+        session.create_dataframe(["a", "b", "c"]).collect()
+        session.create_dataframe(["a", "b", "c"]).count()
+        session.create_dataframe(["a", "b", "c"]).show()
+        session.create_dataframe(["a", "b", "c"]).first()
+        session.create_dataframe(["a", "b", "c"]).to_pandas()
+        session.create_dataframe(["a", "b", "c"]).create_or_replace_temp_view(view_name)
+        session.create_dataframe(["a", "b", "c"]).create_or_replace_view(temp_view_name)
         query_history = get_query_history_for_tags(session, query_tag)
         Utils.drop_view(session, view_name)
         Utils.drop_view(session, temp_view_name)
@@ -50,19 +50,19 @@ def test_query_tags_in_session(session):
 @pytest.mark.parametrize(
     "code",
     [
-        'session.createDataFrame(["a", "b", "c"]).collect()',
-        'session.createDataFrame(["a", "b", "c"]).count()',
-        'session.createDataFrame(["a", "b", "c"]).show()',
-        'session.createDataFrame(["a", "b", "c"]).first()',
-        'session.createDataFrame(["a", "b", "c"]).toPandas()',
+        'session.create_dataframe(["a", "b", "c"]).collect()',
+        'session.create_dataframe(["a", "b", "c"]).count()',
+        'session.create_dataframe(["a", "b", "c"]).show()',
+        'session.create_dataframe(["a", "b", "c"]).first()',
+        'session.create_dataframe(["a", "b", "c"]).to_pandas()',
         """
     view_name = Utils.random_name()
-    session.createDataFrame(["a", "b", "c"]).createOrReplaceView(view_name)
+    session.create_dataframe(["a", "b", "c"]).create_or_replace_view(view_name)
     Utils.drop_view(session, view_name)
     """,
         """
     temp_view_name = Utils.random_name()
-    session.createDataFrame(["a", "b", "c"]).createOrReplaceTempView(temp_view_name)
+    session.create_dataframe(["a", "b", "c"]).create_or_replace_temp_view(temp_view_name)
     Utils.drop_view(session, temp_view_name)
     """,
     ],
@@ -84,7 +84,7 @@ def test_query_tags_from_trackback(session, code):
 
 
 def test_large_local_relation_query_tag_from_traceback(session):
-    session.createDataFrame(
+    session.create_dataframe(
         [["a"] * (ARRAY_BIND_THRESHOLD + 1)]
     ).count()  # trigger large local relation query
     query_history = get_query_history_for_tags(

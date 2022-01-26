@@ -14,7 +14,7 @@ from tests.utils import Utils
 
 def test_df_agg_tuples_basic(session_cnx):
     with session_cnx() as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
             ["first", "second"]
         )
 
@@ -90,7 +90,7 @@ def test_df_agg_tuples_basic(session_cnx):
 def test_df_agg_tuples_avg_basic(session_cnx):
     """Test for making sure all avg word-variations work as expected"""
     with session_cnx() as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
             ["first", "second"]
         )
         # Aggregations on 'first' column
@@ -107,7 +107,7 @@ def test_df_agg_tuples_avg_basic(session_cnx):
 def test_df_agg_tuples_std_basic(session_cnx):
     """Test for making sure all stddev variations work as expected"""
     with session_cnx() as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
             ["first", "second"]
         )
         # Aggregations on 'first' column
@@ -121,7 +121,7 @@ def test_df_agg_tuples_std_basic(session_cnx):
 def test_df_agg_tuples_count_basic(session_cnx):
     """Test for making sure all count variations work as expected"""
     with session_cnx() as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
             ["first", "second"]
         )
         # Aggregations on 'first' column
@@ -133,21 +133,21 @@ def test_df_agg_tuples_count_basic(session_cnx):
 
 
 def test_df_groupBy_invalid_input(session_cnx):
-    """Test for check invalid input for groupBy function"""
+    """Test for check invalid input for group_by function"""
     with session_cnx() as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
             ["first", "second"]
         )
         with pytest.raises(TypeError) as ex_info:
-            df.groupBy([], []).count().collect()
+            df.group_by([], []).count().collect()
         assert (
-            "groupBy() only accepts str and Column objects,"
+            "group_by() only accepts str and Column objects,"
             " or a list containing str and Column objects" in str(ex_info)
         )
         with pytest.raises(TypeError) as ex_info:
-            df.groupBy(1).count().collect()
+            df.group_by(1).count().collect()
         assert (
-            "groupBy() only accepts str and Column objects,"
+            "group_by() only accepts str and Column objects,"
             " or a list containing str and Column objects" in str(ex_info)
         )
 
@@ -155,7 +155,7 @@ def test_df_groupBy_invalid_input(session_cnx):
 def test_df_agg_tuples_sum_basic(session_cnx):
     """Test for making sure sum works as expected"""
     with session_cnx() as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
             ["first", "second"]
         )
         # Aggregations on 'first' column
@@ -168,12 +168,12 @@ def test_df_agg_tuples_sum_basic(session_cnx):
         res = df.agg([("second", "sum"), ("first", "sum")]).collect()
         Utils.assert_rows(res, [Row(19, 6)])
 
-        res = df.groupBy("first").sum("second").collect()
+        res = df.group_by("first").sum("second").collect()
         res.sort(key=lambda x: x[0])
         Utils.assert_rows(res, [Row(1, 8), Row(2, 11)])
 
-        # same as above, but pass Column object to groupBy() and sum()
-        res = df.groupBy(col("first")).sum(col("second")).collect()
+        # same as above, but pass Column object to group_by() and sum()
+        res = df.group_by(col("first")).sum(col("second")).collect()
         res.sort(key=lambda x: x[0])
         Utils.assert_rows(res, [Row(1, 8), Row(2, 11)])
 
@@ -181,7 +181,7 @@ def test_df_agg_tuples_sum_basic(session_cnx):
 def test_df_agg_dict_arg(session_cnx):
     """Test for making sure dict when passed to agg() works as expected"""
     with session_cnx() as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
             ["first", "second"]
         )
         res = df.agg({"first": "sum"}).collect()
@@ -222,7 +222,7 @@ def test_df_agg_dict_arg(session_cnx):
 def test_df_agg_invalid_args_in_list(session_cnx):
     """Test for making sure when a list passed to agg() produces correct errors."""
     with session_cnx() as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
             ["first", "second"]
         )
 
@@ -255,7 +255,7 @@ def test_df_agg_invalid_args_in_list(session_cnx):
 def test_df_agg_empty_args(session_cnx):
     """Test for making sure dict when passed to agg() works as expected"""
     with session_cnx() as session:
-        df = session.createDataFrame([[1, 4], [1, 4], [2, 5], [2, 6]]).toDF(
+        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
             ["first", "second"]
         )
 
