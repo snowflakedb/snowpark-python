@@ -63,7 +63,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
     LiteralType,
 )
-from snowflake.snowpark._internal.utils import Utils, deprecate
+from snowflake.snowpark._internal.utils import TempObjectType, Utils, deprecate
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -1773,6 +1773,15 @@ class DataFrame:
         ]
         return self.select(new_columns)
 
+    def cache_result(self) -> "HasCachedResult":
+        temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        create_temp_table = self.session._Session__plan_builder.create_temp_table(
+            temp_table_name, self._plan
+        )
+        self.session._conn.execute(create_temp_table)
+        new_plan = self.session.table(temp_table_name)._plan
+        return HasCachedResult(session=self.session, plan=new_plan)
+
     def explain(self) -> None:
         """
         Prints the list of queries that will be executed to evaluate this DataFrame.
@@ -1927,6 +1936,7 @@ Query List:
     replace = DataFrameNaFunctions.replace
 
     # Add aliases for user code migration
+    cache = cache_result
     createOrReplaceTempView = create_or_replace_temp_view
     createOrReplaceView = create_or_replace_view
     crossJoin = cross_join
@@ -1949,3 +1959,6 @@ Query List:
 
     # Add this alias because snowpark scala has rename
     rename = with_column_renamed
+
+class HasCachedResult(DataFrame):
+    pass
