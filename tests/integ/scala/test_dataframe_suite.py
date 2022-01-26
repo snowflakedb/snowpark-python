@@ -220,6 +220,40 @@ def test_show(session):
     )
 
 
+def test_cache_result(session):
+    table_name = Utils.random_name()
+    session._run_query(f"create table {table_name} (num int)")
+    session._run_query(f"insert into {table_name} values(1),(2)")
+
+    df = session.table(table_name)
+    Utils.check_answer(df, [Row(1), Row(2)])
+
+    session._run_query(f"insert into {table_name} values (3)")
+    Utils.check_answer(df, [Row(1), Row(2), Row(3)])
+
+    df1 = df.cache_result()
+    session._run_query(f"insert into {table_name} values (4)")
+    Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
+    Utils.check_answer(df, [Row(1), Row(2), Row(3), Row(4)])
+
+    df2 = df1.where(col("num") > 2)
+    Utils.check_answer(df2, [Row(3)])
+
+    df3 = df.where(col("num") > 2)
+    Utils.check_answer(df3, [Row(3), Row(4)])
+
+    df4 = df1.cache_result()
+    Utils.check_answer(df4, [Row(1), Row(2), Row(3)])
+
+    session._run_query(f"drop table {table_name}")
+    Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
+    Utils.check_answer(df2, [Row(3)])
+
+
+def test_cache_result_with_show(session):
+    pass
+
+
 def test_non_select_query_composition(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
