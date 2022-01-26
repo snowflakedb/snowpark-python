@@ -495,7 +495,7 @@ class DataFrame:
         """
         return self._with_plan(
             SPFilter(
-                _to_col_if_sql_expr(expr, "filter/where"),
+                _to_col_if_sql_expr(expr, "filter/where").expression,
                 self._plan,
             )
         )
