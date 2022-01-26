@@ -681,7 +681,6 @@ class DataFrame:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use group_by_grouping_sets.",
         extra_doc_string="Use :meth:`group_by_grouping_sets`.",
     )
@@ -968,7 +967,6 @@ class DataFrame:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use natural_join.",
         extra_doc_string="Use :meth:`natural_join`.",
     )
@@ -1062,7 +1060,6 @@ class DataFrame:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use join_table_function.",
         extra_doc_string="Use :meth:`join_table_function`.",
     )
@@ -1200,7 +1197,6 @@ class DataFrame:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use with_columns.",
         extra_doc_string="Use :meth:`with_columns`.",
     )

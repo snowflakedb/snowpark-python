@@ -372,26 +372,23 @@ class _SaveMode(Enum):
 logger = logging.getLogger("snowflake.snowpark")
 
 
-def deprecate(
-    *, deprecate_version, remove_version, extra_warning_text="", extra_doc_string=""
-):
+def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
     def deprecate_wrapper(func):
-        deprecate_text = (
-            f"Deprecated from version {deprecate_version}. "
-            f"Will be removed from version {remove_version}. "
-        )
         warning_text = (
-            f"{func.__name__} is deprecated. "
-            f"{deprecate_text}"
-            f"The current API version is {Utils.get_version()}. "
+            f"{func.__name__} is deprecated since {deprecate_version}. "
             f"{extra_warning_text}"
         )
-        doc_string = f"{deprecate_text} {extra_doc_string} \n\n"
-        func.__doc__ = f"{(func.__doc__ or '')}\n\n{' '*8}{doc_string}\n"
+        doc_string_text = (
+            f"Deprecated since {deprecate_version}. {extra_doc_string} \n\n"
+        )
+        func.__doc__ = f"{func.__doc__ or ''}\n\n{' '*8}{doc_string_text}\n"
 
         @functools.wraps(func)
         def func_call_wrapper(*args, **kwargs):
-            logger.warning(warning_text)
+            deprecate_warning_times = getattr(func, "deprecate_warning_times", 0)
+            if getattr(func, "deprecate_warning_times", 0) < 1:
+                logger.warning(warning_text)
+                func.deprecate_warning_times = deprecate_warning_times + 1
             return func(*args, **kwargs)
 
         return func_call_wrapper

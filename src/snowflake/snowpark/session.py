@@ -234,7 +234,6 @@ class Session:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use get_imports.",
         extra_doc_string="Use :meth:`get_imports`.",
     )
@@ -255,7 +254,6 @@ class Session:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use add_import.",
         extra_doc_string="Use :meth:`add_import`.",
     )
@@ -332,7 +330,6 @@ class Session:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use remove_import.",
         extra_doc_string="Use :meth:`remove_import`.",
     )
@@ -365,7 +362,6 @@ class Session:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use clear_imports.",
         extra_doc_string="Use :meth:`clear_imports`.",
     )
@@ -620,7 +616,6 @@ class Session:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use get_session_stage.",
         extra_doc_string="Use :meth:`get_session_stage`.",
     )
@@ -1000,14 +995,14 @@ class Session:
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
         return DataFrame(session=self, plan=range_plan)
 
-    @deprecate(deprecate_version="0.4.0", remove_version="0.5.0")
+    @deprecate(deprecate_version="0.4.0")
     def getDefaultDatabase(self) -> Optional[str]:
         """
         Returns the name of the default database configured for this session in :attr:`builder`.
         """
         return self._conn.get_default_database()
 
-    @deprecate(deprecate_version="0.4.0", remove_version="0.5.0")
+    @deprecate(deprecate_version="0.4.0")
     def getDefaultSchema(self) -> Optional[str]:
         """
         Returns the name of the default schema configured for this session in :attr:`builder`.
@@ -1016,7 +1011,6 @@ class Session:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use get_current_database.",
         extra_doc_string="Use :meth:`get_current_database`.",
     )
@@ -1025,7 +1019,6 @@ class Session:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use get_current_schema.",
         extra_doc_string="Use :meth:`get_current_schema`.",
     )
@@ -1034,7 +1027,6 @@ class Session:
 
     @deprecate(
         deprecate_version="0.4.0",
-        remove_version="0.5.0",
         extra_warning_text="Use get_fully_qualified_current_schema.",
         extra_doc_string="Use :meth:`get_fully_qualified_current_schema`.",
     )
