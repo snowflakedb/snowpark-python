@@ -7,14 +7,17 @@ import array
 import contextlib
 import datetime
 import decimal
+import functools
 import hashlib
 import io
+import logging
 import os
 import platform
 import random
 import re
 import string
 import traceback
+import warnings
 import zipfile
 from enum import Enum
 from json import JSONEncoder
@@ -369,3 +372,30 @@ class _SaveMode(Enum):
     OVERWRITE = "overwrite"
     ERROR_IF_EXISTS = "errorifexists"
     IGNORE = "ignore"
+
+
+logger = logging.getLogger("snowflake.snowpark")
+
+
+def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
+    def deprecate_wrapper(func):
+        warning_text = (
+            f"{func.__name__} is deprecated since {deprecate_version}. "
+            f"{extra_warning_text}"
+        )
+        doc_string_text = (
+            f"Deprecated since {deprecate_version}. {extra_doc_string} \n\n"
+        )
+        func.__doc__ = f"{func.__doc__ or ''}\n\n{' '*8}{doc_string_text}\n"
+
+        @functools.wraps(func)
+        def func_call_wrapper(*args, **kwargs):
+            deprecate_warning_times = getattr(func, "deprecate_warning_times", 0)
+            if getattr(func, "deprecate_warning_times", 0) < 1:
+                logger.warning(warning_text)
+                func.deprecate_warning_times = deprecate_warning_times + 1
+            return func(*args, **kwargs)
+
+        return func_call_wrapper
+
+    return deprecate_wrapper

@@ -14,14 +14,14 @@ from snowflake.snowpark.types import DecimalType
 def test_literal_basic_types(session):
     df = (
         session.range(2)
-        .withColumn("null", lit(None))
-        .withColumn("str", lit("string"))
-        .withColumn("char", lit("C"))
-        .withColumn("bool", lit(True))
-        .withColumn("bytes", lit(bytes("bytes", "utf8")))
-        .withColumn("int", lit(12))
-        .withColumn("float", lit(float(14)))
-        .withColumn("decimal", lit(Decimal("16")))
+        .with_column("null", lit(None))
+        .with_column("str", lit("string"))
+        .with_column("char", lit("C"))
+        .with_column("bool", lit(True))
+        .with_column("bytes", lit(bytes("bytes", "utf8")))
+        .with_column("int", lit(12))
+        .with_column("float", lit(float(14)))
+        .with_column("decimal", lit(Decimal("16")))
     )
 
     field_str = str(df.schema.fields)
@@ -61,10 +61,10 @@ def test_literal_timestamp_and_instant(session):
 
     df = (
         session.range(2)
-        .withColumn("naive_datetime", lit(naive_datetime))
-        .withColumn("aware_datetime", lit(aware_datetime))
-        .withColumn("naive_time", lit(naive_time))
-        .withColumn("aware_time", lit(aware_time))
+        .with_column("naive_datetime", lit(naive_datetime))
+        .with_column("aware_datetime", lit(aware_datetime))
+        .with_column("naive_time", lit(naive_time))
+        .with_column("aware_time", lit(aware_time))
     )
     field_str = str(df.schema.fields)
     assert (
@@ -92,7 +92,7 @@ def test_date(session):
     # dates are always naive
     d = datetime.date(2020, 10, 11)
 
-    df = session.range(2).withColumn("date", lit(d))
+    df = session.range(2).with_column("date", lit(d))
 
     field_str = str(df.schema.fields)
     assert (
@@ -117,8 +117,8 @@ def test_special_literals(session):
     source_literal = lit(123)
     df = (
         session.range(2)
-        .withColumn("null", lit(None))
-        .withColumn("literal", lit(source_literal))
+        .with_column("null", lit(None))
+        .with_column("literal", lit(source_literal))
     )
 
     assert (

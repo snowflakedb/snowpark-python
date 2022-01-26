@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     Utils,
+    deprecate,
 )
 from snowflake.snowpark._internal.write_pandas import write_pandas
 from snowflake.snowpark.dataframe import DataFrame
@@ -268,7 +269,15 @@ class Session:
         self.__last_canceled_id = self.__last_action_id
         self._conn.run_query(f"select system$cancel_all_queries({self.__session_id})")
 
+    @deprecate(
+        deprecate_version="0.4.0",
+        extra_warning_text="Use get_imports.",
+        extra_doc_string="Use :meth:`get_imports`.",
+    )
     def getImports(self) -> List[str]:
+        return self.get_imports()
+
+    def get_imports(self) -> List[str]:
         """
         Returns a list of imports added for user defined functions (UDFs).
         This list includes any Python or zip files that were added automatically by the library.
@@ -277,10 +286,18 @@ class Session:
 
     def _get_local_imports(self) -> List[str]:
         return [
-            dep for dep in self.getImports() if not dep.startswith(self.__STAGE_PREFIX)
+            dep for dep in self.get_imports() if not dep.startswith(self.__STAGE_PREFIX)
         ]
 
+    @deprecate(
+        deprecate_version="0.4.0",
+        extra_warning_text="Use add_import.",
+        extra_doc_string="Use :meth:`add_import`.",
+    )
     def addImport(self, path: str, import_path: Optional[str] = None) -> None:
+        return self.add_import(path, import_path)
+
+    def add_import(self, path: str, import_path: Optional[str] = None) -> None:
         """
         Registers a remote file in stage or a local file as an import of a user-defined function
         (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
@@ -308,21 +325,21 @@ class Session:
         Examples::
 
             # import a local file
-            session.addImport(“/tmp/my_dir/my_module.py”)
+            session.add_import(“/tmp/my_dir/my_module.py”)
             @udf
             def f():
                 from my_module import g
                 return g()
 
             # import a local file with "import_path"
-            session.addImport(“/tmp/my_dir/my_module.py”, import_path="my_dir.my_module")
+            session.add_import(“/tmp/my_dir/my_module.py”, import_path="my_dir.my_module")
             @udf
             def f():
                 from my_dir.my_module import g
                 return g()
 
             # import a stage file
-            session.addImport(“@stage/test.py”)
+            session.add_import(“@stage/test.py”)
 
         Note:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
@@ -348,7 +365,15 @@ class Session:
         path, checksum, leading_path = self._resolve_import_path(path, import_path)
         self.__import_paths[path] = (checksum, leading_path)
 
+    @deprecate(
+        deprecate_version="0.4.0",
+        extra_warning_text="Use remove_import.",
+        extra_doc_string="Use :meth:`remove_import`.",
+    )
     def removeImport(self, path: str) -> None:
+        return self.remove_import(path)
+
+    def remove_import(self, path: str) -> None:
         """
         Removes a file in stage or local file from the imports of a user-defined function (UDF).
 
@@ -357,9 +382,9 @@ class Session:
 
         Examples::
 
-            session.removeImport(“/tmp/dir1/test.py”)
-            session.removeImport(“/tmp/dir1”)
-            session.removeImport(“@stage/test.py”)
+            session.remove_import(“/tmp/dir1/test.py”)
+            session.remove_import(“/tmp/dir1”)
+            session.remove_import(“@stage/test.py”)
         """
         trimmed_path = path.strip()
         abs_path = (
@@ -372,13 +397,21 @@ class Session:
         else:
             self.__import_paths.pop(abs_path)
 
+    @deprecate(
+        deprecate_version="0.4.0",
+        extra_warning_text="Use clear_imports.",
+        extra_doc_string="Use :meth:`clear_imports`.",
+    )
     def clearImports(self) -> None:
+        return self.clear_imports()
+
+    def clear_imports(self) -> None:
         """
         Clears all files in a stage or local files from the imports of a user-defined function (UDF).
 
         Example::
 
-            session.clearImports()
+            session.clear_imports()
         """
         self.__import_paths.clear()
 
@@ -393,7 +426,7 @@ class Session:
                 raise FileNotFoundError(f"{trimmed_path} is not found")
             if not os.path.isfile(trimmed_path) and not os.path.isdir(trimmed_path):
                 raise ValueError(
-                    f"addImport() only accepts a local file or directory, "
+                    f"add_import() only accepts a local file or directory, "
                     f"or a file in a stage, but got {trimmed_path}"
                 )
             abs_path = os.path.abspath(trimmed_path)
@@ -522,8 +555,8 @@ class Session:
             the session's query_tag will be unset. If the query tag is not set, the default
             will be the call stack when a :class:`DataFrame` method that pushes down the SQL
             query to the Snowflake Database is called. For example, :meth:`DataFrame.collect`,
-            :meth:`DataFrame.show`, :meth:`DataFrame.createOrReplaceView` and
-            :meth:`DataFrame.createOrReplaceTempView` will push down the SQL query.
+            :meth:`DataFrame.show`, :meth:`DataFrame.create_or_replace_view` and
+            :meth:`DataFrame.create_or_replace_temp_view` will push down the SQL query.
         """
         return self.__query_tag
 
@@ -578,7 +611,7 @@ class Session:
             A new :class:`DataFrame` with data from calling the table function.
 
         See Also:
-            - :meth:`DataFrame.joinTableFunction`, which lateral joins an existing :class:`DataFrame` and a SQL function.
+            - :meth:`DataFrame.join_table_function`, which lateral joins an existing :class:`DataFrame` and a SQL function.
         """
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -618,15 +651,23 @@ class Session:
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
 
+    @deprecate(
+        deprecate_version="0.4.0",
+        extra_warning_text="Use get_session_stage.",
+        extra_doc_string="Use :meth:`get_session_stage`.",
+    )
     def getSessionStage(self) -> str:
+        return self.get_session_stage()
+
+    def get_session_stage(self) -> str:
         """
         Returns the name of the temporary stage created by the Snowpark library
         for uploading and storing temporary artifacts for this session.
         These artifacts include libraries and packages for UDFs that you define
-        in this session via :func:`addImport`.
+        in this session via :func:`add_import`.
         """
         qualified_stage_name = (
-            f"{self.getFullyQualifiedCurrentSchema()}.{self.__session_stage}"
+            f"{self.get_fully_qualified_current_schema()}.{self.__session_stage}"
         )
         if not self.__stage_created:
             self._run_query(
@@ -691,7 +732,7 @@ class Session:
             # "write_pandas_table" is a table that was pre-created with two columns,
             # id and name which are an integer and varchar respectively
             snowpark_df = session.write_pandas(pandas_df, "write_pandas_table")
-            snowpark_pandas_df = snowpark_df.toPandas()
+            snowpark_pandas_df = snowpark_df.to_pandas()
             # These two pandas DataFrames have the same data
             snowpark_pandas_df.eq(snowpark_df)
         """
@@ -738,7 +779,7 @@ class Session:
                 str(ci_output)
             )
 
-    def createDataFrame(
+    def create_dataframe(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, List[str]]] = None,
@@ -767,28 +808,28 @@ class Session:
             import pandas as pd
 
             # infer schema
-            session.createDataFrame([1, 2, 3, 4]).toDF("a")  # one single column
-            session.createDataFrame([[1, 2, 3, 4]]).toDF("a", "b", "c", "d")
-            session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
-            session.createDataFrame([Row(a=1, b=2, c=3, d=4)])
-            session.createDataFrame([{"a": "snow", "b": "flake"}])
-            session.createDataFrame(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"]))
+            session.create_dataframe([1, 2, 3, 4]).to_df("a")  # one single column
+            session.create_dataframe([[1, 2, 3, 4]]).to_df("a", "b", "c", "d")
+            session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+            session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
+            session.create_dataframe([{"a": "snow", "b": "flake"}])
+            session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"]))
 
             # given a schema
             from snowflake.snowpark.types import IntegerType, StringType
             schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
-            session.createDataFrame([[1, "snow"], [3, "flake"]], schema)
+            session.create_dataframe([[1, "snow"], [3, "flake"]], schema)
         """
         if data is None:
             raise ValueError("data cannot be None.")
 
         # check the type of data
         if isinstance(data, Row):
-            raise TypeError("createDataFrame() function does not accept a Row object.")
+            raise TypeError("create_dataframe() function does not accept a Row object.")
 
         if not isinstance(data, (list, tuple, pandas.DataFrame)):
             raise TypeError(
-                "createDataFrame() function only accepts data as a list, tuple or a pandas DataFrame."
+                "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
@@ -797,8 +838,8 @@ class Session:
             table_name = AnalyzerPackage._escape_quotes(
                 Utils.random_name_for_temp_object(TempObjectType.TABLE)
             )
-            database = self.getCurrentDatabase(unquoted=True)
-            schema = self.getCurrentSchema(unquoted=True)
+            database = self.get_current_database(unquoted=True)
+            schema = self.get_current_schema(unquoted=True)
 
             return self.write_pandas(
                 data,
@@ -991,19 +1032,45 @@ class Session:
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
         return DataFrame(session=self, plan=range_plan)
 
+    @deprecate(deprecate_version="0.4.0")
     def getDefaultDatabase(self) -> Optional[str]:
         """
         Returns the name of the default database configured for this session in :attr:`builder`.
         """
         return self._conn.get_default_database()
 
+    @deprecate(deprecate_version="0.4.0")
     def getDefaultSchema(self) -> Optional[str]:
         """
         Returns the name of the default schema configured for this session in :attr:`builder`.
         """
         return self._conn.get_default_schema()
 
+    @deprecate(
+        deprecate_version="0.4.0",
+        extra_warning_text="Use get_current_database.",
+        extra_doc_string="Use :meth:`get_current_database`.",
+    )
     def getCurrentDatabase(self, unquoted: bool = False) -> Optional[str]:
+        return self.get_current_schema(unquoted)
+
+    @deprecate(
+        deprecate_version="0.4.0",
+        extra_warning_text="Use get_current_schema.",
+        extra_doc_string="Use :meth:`get_current_schema`.",
+    )
+    def getCurrentSchema(self, unquoted: bool = False) -> Optional[str]:
+        return self.get_current_schema(unquoted)
+
+    @deprecate(
+        deprecate_version="0.4.0",
+        extra_warning_text="Use get_fully_qualified_current_schema.",
+        extra_doc_string="Use :meth:`get_fully_qualified_current_schema`.",
+    )
+    def getFullyQualifiedCurrentSchema(self) -> str:
+        return self.get_fully_qualified_current_schema()
+
+    def get_current_database(self, unquoted: bool = False) -> Optional[str]:
         """
         Returns the name of the current database for the Python connector session attached
         to this session.
@@ -1012,11 +1079,11 @@ class Session:
 
             session.sql("use database newDB").collect()
             # return "newDB"
-            session.getCurrentDatabase()
+            session.get_current_database()
         """
         return self._conn.get_current_database(unquoted=unquoted)
 
-    def getCurrentSchema(self, unquoted: bool = False) -> Optional[str]:
+    def get_current_schema(self, unquoted: bool = False) -> Optional[str]:
         """
         Returns the name of the current schema for the Python connector session attached
         to this session.
@@ -1025,14 +1092,14 @@ class Session:
 
             session.sql("use schema newSchema").collect()
             # return "newSchema"
-            session.getCurrentSchema()
+            session.get_current_schema()
         """
         return self._conn.get_current_schema(unquoted=unquoted)
 
-    def getFullyQualifiedCurrentSchema(self) -> str:
+    def get_fully_qualified_current_schema(self) -> str:
         """Returns the fully qualified name of the current schema for the session."""
-        database = self.getCurrentDatabase()
-        schema = self.getCurrentSchema()
+        database = self.get_current_database()
+        schema = self.get_current_schema()
         if database is None or schema is None:
             missing_item = "DATABASE" if not database else "SCHEMA"
             # TODO: SNOW-372569 Use ErrorMessage
@@ -1132,3 +1199,5 @@ class Session:
         except ProgrammingError:
             logger.warning("query '%s' cannot be explained")
             return None
+
+    createDataFrame = create_dataframe

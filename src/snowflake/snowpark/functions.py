@@ -64,7 +64,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.column import CaseExpr, Column, _to_col_if_lit
+from snowflake.snowpark.column import CaseExpr, Column, _to_col_if_str
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UserDefinedFunction
 
@@ -1385,6 +1385,26 @@ def hash(e: ColumnOrName) -> Column:
     return builtin("hash")(c)
 
 
+def when_matched(
+    condition: Optional[Column] = None,
+) -> "snowflake.snowpark.table.WhenMatchedClause":
+    """
+    Specifies a matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
+    See :class:`~snowflake.snowpark.table.WhenMatchedClause` for details.
+    """
+    return snowflake.snowpark.table.WhenMatchedClause(condition)
+
+
+def when_not_matched(
+    condition: Optional[Column] = None,
+) -> "snowflake.snowpark.table.WhenNotMatchedClause":
+    """
+    Specifies a not-matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
+    See :class:`~snowflake.snowpark.table.WhenNotMatchedClause` for details.
+    """
+    return snowflake.snowpark.table.WhenNotMatchedClause(condition)
+
+
 def udf(
     func: Optional[Callable] = None,
     *,
@@ -1427,11 +1447,11 @@ def udf(
             stages and external stages.
         imports: A list of imports that only apply to this UDF. You can use a string to
             represent a file path (similar to the ``path`` argument in
-            :meth:`~snowflake.snowpark.Session.addImport`) in this list, or a tuple of two
+            :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
             strings to represent a file path and an import path (similar to the ``import_path``
-            argument in :meth:`~snowflake.snowpark.Session.addImport`). These UDF-level imports
+            argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDF-level imports
             will overwrite the session-level imports added by
-            :meth:`~snowflake.snowpark.Session.addImport`.
+            :meth:`~snowflake.snowpark.Session.add_import`.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
@@ -1464,7 +1484,7 @@ def udf(
         def my_sqrt(x: float) -> float:
             return sqrt(x)
 
-        df = session.createDataFrame([[1, 2], [3, 4]]).toDF("a", "b")
+        df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
         df.select(add_one("a"), minus_one("b"), my_sqrt("b"))
         session.sql("select minus_one(1)")
 
@@ -1582,15 +1602,6 @@ def builtin(function_name: str) -> Callable:
         df.select(avg(col("col_1")))
     """
     return lambda *args: call_builtin(function_name, *args)
-
-
-def _to_col_if_str(e: ColumnOrName, func_name: str) -> Column:
-    if isinstance(e, Column):
-        return e
-    elif isinstance(e, str):
-        return col(e)
-    else:
-        raise TypeError(f"'{func_name.upper()}' expected Column or str, got: {type(e)}")
 
 
 def _create_table_function_expression(

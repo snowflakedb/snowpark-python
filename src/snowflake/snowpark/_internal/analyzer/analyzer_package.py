@@ -145,6 +145,8 @@ class AnalyzerPackage:
     _Update = " UPDATE "
     _Delete = " DELETE "
     _Set = " SET "
+    _Merge = " MERGE "
+    _Matched = " MATCHED "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (
@@ -202,6 +204,16 @@ class AnalyzerPackage:
 
     def alias_expression(self, origin: str, alias: str) -> str:
         return origin + self._As + alias
+
+    def within_group_expression(self, column: str, order_by_cols: List[str]) -> str:
+        return (
+            column
+            + self._WithinGroup
+            + self._LeftParenthesis
+            + self._OrderBy
+            + self._Comma.join(order_by_cols)
+            + self._RightParenthesis
+        )
 
     def limit_expression(self, num: int) -> str:
         return self._Limit + str(num)
@@ -941,7 +953,7 @@ class AnalyzerPackage:
         assignments: Dict[str, str],
         condition: Optional[str],
         source_data: Optional[str],
-    ):
+    ) -> str:
         return (
             self._Update
             + table_name
@@ -962,7 +974,7 @@ class AnalyzerPackage:
 
     def delete_statement(
         self, table_name: str, condition: Optional[str], source_data: Optional[str]
-    ):
+    ) -> str:
         return (
             self._Delete
             + self._From
@@ -978,6 +990,69 @@ class AnalyzerPackage:
                 else self._EmptyString
             )
             + ((self._Where + condition) if condition else self._EmptyString)
+        )
+
+    def insert_merge_statement(
+        self, condition: Optional[str], keys: List[str], values: List[str]
+    ) -> str:
+        return (
+            self._When
+            + self._Not
+            + self._Matched
+            + ((self._And + condition) if condition else self._EmptyString)
+            + self._Then
+            + self._Insert
+            + (
+                (
+                    self._LeftParenthesis
+                    + self._Comma.join(keys)
+                    + self._RightParenthesis
+                )
+                if keys
+                else self._EmptyString
+            )
+            + self._Values
+            + self._LeftParenthesis
+            + self._Comma.join(values)
+            + self._RightParenthesis
+        )
+
+    def update_merge_statement(
+        self, condition: Optional[str], assignment: Dict[str, str]
+    ) -> str:
+        return (
+            self._When
+            + self._Matched
+            + ((self._And + condition) if condition else self._EmptyString)
+            + self._Then
+            + self._Update
+            + self._Set
+            + self._Comma.join([k + self._Equals + v for k, v in assignment.items()])
+        )
+
+    def delete_merge_statement(self, condition: Optional[str]) -> str:
+        return (
+            self._When
+            + self._Matched
+            + ((self._And + condition) if condition else self._EmptyString)
+            + self._Then
+            + self._Delete
+        )
+
+    def merge_statement(
+        self, table_name: str, source: str, join_expr: str, clauses: List[str]
+    ) -> str:
+        return (
+            self._Merge
+            + self._Into
+            + table_name
+            + self._Using
+            + self._LeftParenthesis
+            + source
+            + self._RightParenthesis
+            + self._On
+            + join_expr
+            + self._EmptyString.join(clauses)
         )
 
     def create_temp_table_statement(self, table_name: str, schema: str) -> str:

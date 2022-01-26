@@ -201,8 +201,8 @@ def test_saveAsTable_not_affect_copy_into(session, tmp_stage_name1):
             session.table(table_name), [Row(1, "one", 1.2), Row(2, "two", 2.2)]
         )
 
-        # Write data with saveAsTable(), loaded file are NOT skipped.
-        df.write.saveAsTable(table_name)
+        # Write data with save_as_table(), loaded file are NOT skipped.
+        df.write.save_as_table(table_name)
         Utils.check_answer(
             session.table(table_name).collect(),
             [
@@ -214,8 +214,8 @@ def test_saveAsTable_not_affect_copy_into(session, tmp_stage_name1):
             sort=False,
         )
 
-        # Write data with saveAsTable() again, loaded file are NOT skipped.
-        df.write.saveAsTable(table_name)
+        # Write data with save_as_table() again, loaded file are NOT skipped.
+        df.write.save_as_table(table_name)
         Utils.check_answer(
             session.table(table_name),
             [

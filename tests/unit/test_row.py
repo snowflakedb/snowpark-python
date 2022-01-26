@@ -201,3 +201,7 @@ def test_negative_dunder_call():
 def test_mul_rmul(row):
     assert row * 2 == Row(1, 2, 3, 1, 2, 3)
     assert 2 * row == Row(1, 2, 3, 1, 2, 3)
+
+
+def test_aliases():
+    assert Row.asDict == Row.as_dict

@@ -127,7 +127,7 @@ from tests.utils import TestData, Utils
 
 def test_current_date_and_time(session):
     df1 = session.sql("select current_date(), current_time(), current_timestamp()")
-    df2 = session.createDataFrame([1]).select(
+    df2 = session.create_dataframe([1]).select(
         current_date(), current_time(), current_timestamp()
     )
     assert len(df1.union(df2).collect()) == 1
@@ -135,19 +135,19 @@ def test_current_date_and_time(session):
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_regexp_replace(session, col_a):
-    df = session.createDataFrame(
+    df = session.create_dataframe(
         [["It was the best of times, it was the worst of times"]], schema=["a"]
     )
     res = df.select(regexp_replace(col_a, lit("( ){1,}"), lit(""))).collect()
     assert res[0][0] == "Itwasthebestoftimes,itwastheworstoftimes"
 
-    df2 = session.createDataFrame(
+    df2 = session.create_dataframe(
         [["It was the best of times, it was the worst of times"]], schema=["a"]
     )
     res = df2.select(regexp_replace(col_a, "times", "days", 1, 2, "i")).collect()
     assert res[0][0] == "It was the best of times, it was the worst of days"
 
-    df3 = session.createDataFrame([["firstname middlename lastname"]], schema=["a"])
+    df3 = session.create_dataframe([["firstname middlename lastname"]], schema=["a"])
     res = df3.select(
         regexp_replace(col_a, lit("(.*) (.*) (.*)"), lit("\\3, \\1 \\2"))
     ).collect()
@@ -158,7 +158,7 @@ def test_regexp_replace(session, col_a):
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
 def test_concat(session, col_a, col_b, col_c):
-    df = session.createDataFrame([["1", "2", "3"]], schema=["a", "b", "c"])
+    df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
     res = df.select(concat(col_a, col_b, col_c)).collect()
     assert res[0][0] == "123"
 
@@ -167,27 +167,27 @@ def test_concat(session, col_a, col_b, col_c):
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
 def test_concat_ws(session, col_a, col_b, col_c):
-    df = session.createDataFrame([["1", "2", "3"]], schema=["a", "b", "c"])
+    df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
     res = df.select(concat_ws(lit(","), col("a"), col("b"), col("c"))).collect()
     assert res[0][0] == "1,2,3"
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_to_char(session, col_a):
-    df = session.createDataFrame([[1]], schema=["a"])
+    df = session.create_dataframe([[1]], schema=["a"])
     df.select(to_char(col_a)).collect()
     assert df[0][0] == "1"
 
 
 def test_date_to_char(session):
-    df = session.createDataFrame([[datetime.date(2021, 12, 21)]], schema=["a"])
+    df = session.create_dataframe([[datetime.date(2021, 12, 21)]], schema=["a"])
     df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
     assert df[0][0] == "12-21-2021"
 
 
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_months_between(session, col_a, col_b):
-    df = session.createDataFrame(
+    df = session.create_dataframe(
         [[datetime.date(2021, 12, 20), datetime.date(2021, 11, 20)]], schema=["a", "b"]
     )
     res = df.select(months_between(col_a, col_b)).collect()
@@ -196,7 +196,7 @@ def test_months_between(session, col_a, col_b):
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_cast(session, col_a):
-    df = session.createDataFrame([["2018-01-01"]], schema=["a"])
+    df = session.create_dataframe([["2018-01-01"]], schema=["a"])
     cast_res = df.select(cast(col_a, "date")).collect()
     try_cast_res = df.select(try_cast(col_a, "date")).collect()
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
@@ -204,20 +204,20 @@ def test_cast(session, col_a):
 
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
-    df = session.createDataFrame([[5.2354]], schema=["a"])
+    df = session.create_dataframe([[5.2354]], schema=["a"])
     Utils.check_answer(
         df.select(cast(df["a"], f" {number_word} ( 3, 2 ) ")), [Row(5.24)]
     )
 
 
 def test_cast_map_type(session):
-    df = session.createDataFrame([['{"key": "1"}']], schema=["a"])
+    df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "object")).collect()
     assert json.loads(result[0][0]) == {"key": "1"}
 
 
 def test_cast_array_type(session):
-    df = session.createDataFrame([["[1,2,3]"]], schema=["a"])
+    df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "array")).collect()
     assert json.loads(result[0][0]) == [1, 2, 3]
 
@@ -234,7 +234,7 @@ def test_startswith(session):
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
 def test_greatest(session, col_a, col_b, col_c):
-    df = session.createDataFrame([[1, 2, 3]], schema=["a", "b", "c"])
+    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
     res = df.select(greatest(col_a, col_b, col_c)).collect()
     assert res[0][0] == 3
 
@@ -243,14 +243,14 @@ def test_greatest(session, col_a, col_b, col_c):
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
 def test_least(session, col_a, col_b, col_c):
-    df = session.createDataFrame([[1, 2, 3]], schema=["a", "b", "c"])
+    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
     res = df.select(least(col_a, col_b, col_c)).collect()
     assert res[0][0] == 1
 
 
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_hash(session, col_a, col_b):
-    df = session.createDataFrame([[10, "10"]], schema=["a", "b"])
+    df = session.create_dataframe([[10, "10"]], schema=["a", "b"])
     from snowflake.snowpark.functions import hash as snow_hash
 
     res = df.select(snow_hash(col_a), snow_hash(col_b)).collect()
@@ -260,7 +260,7 @@ def test_hash(session, col_a, col_b):
 
 def test_basic_numerical_operations_negative(session):
     # sqrt
-    df = session.sql("select 4").toDF("a")
+    df = session.sql("select 4").to_df("a")
     with pytest.raises(TypeError) as ex_info:
         df.select(sqrt([1])).collect()
     assert "'SQRT' expected Column or str, got: <class 'list'>" in str(ex_info)
@@ -310,7 +310,7 @@ def test_basic_numerical_operations_negative(session):
 
 def test_basic_string_operations(session):
     # Substring
-    df = session.sql("select 'a not that long string'").toDF("a")
+    df = session.sql("select 'a not that long string'").to_df("a")
     with pytest.raises(ProgrammingError) as ex_info:
         df.select(substring("a", "b", 1)).collect()
     assert "Numeric value 'b' is not recognized" in str(ex_info)
@@ -389,9 +389,9 @@ def test_basic_string_operations(session):
 
 
 def test_count_distinct(session):
-    df = session.createDataFrame(
+    df = session.create_dataframe(
         [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
-    ).toDF(["id", "value", "other"])
+    ).to_df(["id", "value", "other"])
 
     res = df.select(
         count_distinct(df["id"]),
@@ -820,9 +820,9 @@ def test_as_negative(session):
 
 def test_to_date_to_array_to_variant_to_object(session):
     df = (
-        session.createDataFrame([["2013-05-17", 1, 3.14, '{"a":1}']])
-        .toDF("date", "array", "var", "obj")
-        .withColumn("json", parse_json("obj"))
+        session.create_dataframe([["2013-05-17", 1, 3.14, '{"a":1}']])
+        .to_df("date", "array", "var", "obj")
+        .with_column("json", parse_json("obj"))
     )
 
     df1 = df.select(
@@ -846,7 +846,7 @@ def test_to_date_to_array_to_variant_to_object(session):
 def test_to_binary(session):
     res = (
         TestData.test_data1(session)
-        .toDF("a", "b", "c")
+        .to_df("a", "b", "c")
         .select(to_binary(col("c"), "utf-8"))
         .collect()
     )
@@ -854,14 +854,14 @@ def test_to_binary(session):
 
     res = (
         TestData.test_data1(session)
-        .toDF("a", "b", "c")
+        .to_df("a", "b", "c")
         .select(to_binary("c", "utf-8"))
         .collect()
     )
     assert res == [Row(bytearray(b"a")), Row(bytearray(b"b"))]
 
     # For NULL input, the output is NULL
-    res = TestData.all_nulls(session).toDF("a").select(to_binary(col("a"))).collect()
+    res = TestData.all_nulls(session).to_df("a").select(to_binary(col("a"))).collect()
     assert res == [Row(None), Row(None), Row(None), Row(None)]
 
 
@@ -901,7 +901,7 @@ def test_random_negative(session):
 
 
 def test_check_functions_negative(session):
-    df = session.sql("select 1").toDF("a")
+    df = session.sql("select 1").to_df("a")
 
     # check_json
     with pytest.raises(TypeError) as ex_info:
@@ -915,7 +915,7 @@ def test_check_functions_negative(session):
 
 
 def test_parse_functions_negative(session):
-    df = session.sql("select 1").toDF("a")
+    df = session.sql("select 1").to_df("a")
 
     # parse_json
     with pytest.raises(TypeError) as ex_info:
@@ -929,7 +929,7 @@ def test_parse_functions_negative(session):
 
 
 def test_json_functions_negative(session):
-    df = session.sql("select 1").toDF("a")
+    df = session.sql("select 1").to_df("a")
 
     # json_extract_path_text
     with pytest.raises(TypeError) as ex_info:
@@ -948,7 +948,7 @@ def test_json_functions_negative(session):
 
 
 def test_to_filetype_negative(session):
-    df = session.sql("select 1").toDF("a")
+    df = session.sql("select 1").to_df("a")
     # to_json
     with pytest.raises(TypeError) as ex_info:
         df.select(to_json([1])).collect()
@@ -961,7 +961,7 @@ def test_to_filetype_negative(session):
 
 
 def test_array_negative(session):
-    df = session.sql("select 1").toDF("a")
+    df = session.sql("select 1").to_df("a")
 
     with pytest.raises(TypeError) as ex_info:
         df.select(array_agg([1])).collect()
@@ -1040,7 +1040,7 @@ def test_array_negative(session):
 
 
 def test_object_negative(session):
-    df = session.sql("select 1").toDF("a")
+    df = session.sql("select 1").to_df("a")
 
     with pytest.raises(TypeError) as ex_info:
         df.select(object_agg([1], "column")).collect()
@@ -1073,7 +1073,7 @@ def test_object_negative(session):
 
 
 def test_date_operations_negative(session):
-    df = session.sql("select 1").toDF("a")
+    df = session.sql("select 1").to_df("a")
 
     with pytest.raises(TypeError) as ex_info:
         df.select(datediff("year", [1], "col")).collect()
@@ -1085,7 +1085,7 @@ def test_date_operations_negative(session):
 
 
 def test_get_negative(session):
-    df = session.sql("select 1").toDF("a")
+    df = session.sql("select 1").to_df("a")
 
     with pytest.raises(TypeError) as ex_info:
         df.select(get([1], 1)).collect()

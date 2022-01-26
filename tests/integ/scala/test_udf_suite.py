@@ -190,7 +190,7 @@ def test_filter_on_top_of_udf(session):
 
 
 def test_compose_on_dataframe_reader(session, resources_path):
-    df = session.read.parquet(f"@{tmp_stage_name}/test.parquet").toDF("a")
+    df = session.read.parquet(f"@{tmp_stage_name}/test.parquet").to_df("a")
     replace_udf = udf(
         lambda elem: elem.replace("num", "id"),
         return_type=StringType(),
@@ -203,16 +203,16 @@ def test_compose_on_dataframe_reader(session, resources_path):
 
 
 def test_view_with_udf(session):
-    TestData.column_has_special_char(session).createOrReplaceView(view1)
+    TestData.column_has_special_char(session).create_or_replace_view(view1)
     df1 = session.sql(f"select * from {view1}")
     udf1 = udf(
         lambda x, y: x + y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
     )
-    df1.withColumn('"col #"', udf1(col('"col %"'), col('"col *"'))).createOrReplaceView(
-        view2
-    )
+    df1.with_column(
+        '"col #"', udf1(col('"col %"'), col('"col *"'))
+    ).create_or_replace_view(view2)
     assert session.sql(f"select * from {view2}").collect() == [
         Row(1, 2, 3),
         Row(3, 4, 7),
@@ -254,7 +254,7 @@ def test_udf_function_with_multiple_columns(session):
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
     )
-    assert df.withColumn("c", sum_udf("a", "b")).collect() == [
+    assert df.with_column("c", sum_udf("a", "b")).collect() == [
         Row(1, 2, 3),
         Row(2, 3, 5),
         Row(3, 4, 7),
@@ -267,7 +267,7 @@ def test_incorrect_number_of_args(session):
         lambda x: f"Hello{x}", return_type=StringType(), input_types=[IntegerType()]
     )
     with pytest.raises(ValueError) as ex_info:
-        assert df.withColumn("c", string_udf("a", "b"))
+        assert df.with_column("c", string_udf("a", "b"))
     assert "Incorrect number of arguments passed to the UDF" in str(ex_info)
 
 
@@ -281,10 +281,11 @@ def test_call_udf_api(session):
         name=function_name,
     )
     assert (
-        df.withColumn(
+        df.with_column(
             "c",
             call_udf(
-                f"{session.getFullyQualifiedCurrentSchema()}.{function_name}", col("a")
+                f"{session.get_fully_qualified_current_schema()}.{function_name}",
+                col("a"),
             ),
         ).collect()
         == [Row(1, 2), Row(2, 4), Row(3, 6)]
@@ -292,7 +293,7 @@ def test_call_udf_api(session):
 
 
 def test_long_type(session):
-    df = session.createDataFrame([1, 2, 3]).toDF("a")
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
     long_udf = udf(lambda x: x + x, return_type=LongType(), input_types=[LongType()])
     assert df.select("a", long_udf("a")).collect() == [
         Row(1, 2),
@@ -302,7 +303,7 @@ def test_long_type(session):
 
 
 def test_short_type(session):
-    df = session.createDataFrame([1, 2, 3]).toDF("a")
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
     short_udf = udf(lambda x: x + x, return_type=ShortType(), input_types=[ShortType()])
     assert df.select("a", short_udf("a")).collect() == [
         Row(1, 2),
@@ -312,7 +313,7 @@ def test_short_type(session):
 
 
 def test_float_type(session):
-    df = session.createDataFrame([1.1, 2.2, 3.3]).toDF("a")
+    df = session.create_dataframe([1.1, 2.2, 3.3]).to_df("a")
     float_udf = udf(lambda x: x + x, return_type=FloatType(), input_types=[FloatType()])
     assert df.select("a", float_udf("a")).collect() == [
         Row(1.1, 2.2),
@@ -322,7 +323,7 @@ def test_float_type(session):
 
 
 def test_double_type(session):
-    df = session.createDataFrame([1.01, 2.01, 3.01]).toDF("a")
+    df = session.create_dataframe([1.01, 2.01, 3.01]).to_df("a")
     double_udf = udf(
         lambda x: x + x, return_type=DoubleType(), input_types=[DoubleType()]
     )
@@ -334,7 +335,7 @@ def test_double_type(session):
 
 
 def test_boolean_type(session):
-    df = session.createDataFrame([[1, 1], [2, 2], [3, 4]]).toDF("a", "b")
+    df = session.create_dataframe([[1, 1], [2, 2], [3, 4]]).to_df("a", "b")
     boolean_udf = udf(
         lambda x, y: x == y,
         return_type=BooleanType(),
@@ -350,8 +351,8 @@ def test_boolean_type(session):
 def test_binary_type(session):
     data = ["Hello", "World"]
     bytes_data = [bytes(s, "utf8") for s in data]
-    df1 = session.createDataFrame(data).toDF("a")
-    df2 = session.createDataFrame(bytes_data).toDF("a")
+    df1 = session.create_dataframe(data).to_df("a")
+    df2 = session.create_dataframe(bytes_data).to_df("a")
     to_binary = udf(
         lambda x: bytes(x, "utf8"),
         return_type=BinaryType(),
@@ -380,7 +381,7 @@ def test_date_and_timestamp_type(session):
         return t.date() if t else None
 
     out = [Row(to_timestamp(d), to_date(t)) for d, t in data]
-    df = session.createDataFrame(data).toDF("date", "timestamp")
+    df = session.create_dataframe(data).to_df("date", "timestamp")
     to_timestamp_udf = udf(
         to_timestamp, return_type=TimestampType(), input_types=[DateType()]
     )
@@ -794,7 +795,7 @@ def test_negative_test_to_input_invalid_func_name(session):
 
 def test_empty_argument_function(session):
     udf1 = udf(lambda: 100, return_type=IntegerType())
-    df = session.createDataFrame([1]).toDF("col")
+    df = session.create_dataframe([1]).to_df("col")
     assert df.select(udf1()).collect() == [Row(100)]
 
 

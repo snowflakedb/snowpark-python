@@ -150,7 +150,7 @@ class DataFrameReader:
                 path,
                 self._file_type,
                 self._cur_options,
-                self.session.getFullyQualifiedCurrentSchema(),
+                self.session.get_fully_qualified_current_schema(),
                 self._user_schema._to_attributes(),
             ),
         )
@@ -376,7 +376,7 @@ class DataFrameReader:
                 path,
                 format,
                 self._cur_options,
-                self.session.getFullyQualifiedCurrentSchema(),
+                self.session.get_fully_qualified_current_schema(),
                 [Attribute('"$1"', VariantType())],
             ),
         )

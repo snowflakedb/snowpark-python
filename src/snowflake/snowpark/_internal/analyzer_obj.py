@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
     SnowflakeValues,
     TableDelete,
+    TableMerge,
     TableUpdate,
 )
 from snowflake.snowpark._internal.analyzer.sp_views import (
@@ -57,11 +58,13 @@ from snowflake.snowpark._internal.sp_expressions import (
     CaseWhen as SPCaseWhen,
     Cast as SPCast,
     Collate as SPCollate,
+    DeleteMergeExpression as SPDeleteMergeExpression,
     Expression as SPExpression,
     FlattenFunction as SPFlattenFunction,
     FunctionExpression as SPFunctionExpression,
     GroupingSetsExpression as SPGroupingSetsExpression,
     InExpression as SPInExpression,
+    InsertMergeExpression as SPInsertMergeExpression,
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
@@ -87,8 +90,10 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnspecifiedFrame as SPUnspecifiedFrame,
+    UpdateMergeExpression as SPUpdateMergeExpression,
     WindowExpression as SPWindowExpression,
     WindowSpecDefinition as SPWindowSpecDefinition,
+    WithinGroup as SPWithinGroup,
 )
 from snowflake.snowpark.types import VariantType, _IntegralType
 
@@ -222,7 +227,6 @@ class Analyzer:
                 expr.udf_name, list(map(self.analyze, expr.children)), False
             )
 
-        # Extractors
         if isinstance(expr, SPTableFunctionExpression):
             return self.table_function_expression_extractor(expr)
 
@@ -233,8 +237,31 @@ class Analyzer:
             self.subquery_plans.append(expr.plan)
             return self.package.subquery_expression(expr.plan.queries[-1].sql)
 
+        if isinstance(expr, SPWithinGroup):
+            return self.package.within_group_expression(
+                self.analyze(expr.expr), [self.analyze(e) for e in expr.order_by_cols]
+            )
+
         if isinstance(expr, SPBinaryExpression):
             return self.binary_operator_extractor(expr)
+
+        if isinstance(expr, SPInsertMergeExpression):
+            return self.package.insert_merge_statement(
+                self.analyze(expr.condition) if expr.condition else None,
+                [self.analyze(k) for k in expr.keys],
+                [self.analyze(v) for v in expr.values],
+            )
+
+        if isinstance(expr, SPUpdateMergeExpression):
+            return self.package.update_merge_statement(
+                self.analyze(expr.condition) if expr.condition else None,
+                {self.analyze(k): self.analyze(v) for k, v in expr.assignments.items()},
+            )
+
+        if isinstance(expr, SPDeleteMergeExpression):
+            return self.package.delete_merge_statement(
+                self.analyze(expr.condition) if expr.condition else None
+            )
 
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))
 
@@ -591,7 +618,7 @@ class Analyzer:
                         logical_plan.files,
                         logical_plan.file_format,
                         logical_plan.cur_options,
-                        self.session.getFullyQualifiedCurrentSchema(),
+                        self.session.get_fully_qualified_current_schema(),
                         logical_plan.user_schema._to_attributes(),
                     )
             else:
@@ -599,7 +626,7 @@ class Analyzer:
                     logical_plan.files,
                     logical_plan.file_format,
                     logical_plan.cur_options,
-                    self.session.getFullyQualifiedCurrentSchema(),
+                    self.session.get_fully_qualified_current_schema(),
                     [Attribute('"$1"', VariantType())],
                 )
 
@@ -623,4 +650,12 @@ class Analyzer:
                 if logical_plan.condition
                 else None,
                 resolved_children.get(logical_plan.source_data, None),
+            )
+
+        if isinstance(logical_plan, TableMerge):
+            return self.plan_builder.merge(
+                logical_plan.table_name,
+                resolved_children.get(logical_plan.source),
+                self.analyze(logical_plan.join_expr),
+                [self.analyze(c) for c in logical_plan.clauses],
             )
