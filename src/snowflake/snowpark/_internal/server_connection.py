@@ -141,60 +141,19 @@ class ServerConnection:
         )
 
     @_Decorator.wrap_exception
-    def get_current_database(self, unquoted: bool = False) -> Optional[str]:
-        database_name = self._conn.database or self._get_string_datum(
-            "SELECT CURRENT_DATABASE()"
+    def _get_current_parameter(
+        self, param: str, unquoted: bool = False
+    ) -> Optional[str]:
+        name = getattr(self._conn, param) or self._get_string_datum(
+            f"SELECT CURRENT_{param.upper()}()"
         )
         return (
             (
-                AnalyzerPackage.quote_name_without_upper_casing(database_name)
+                AnalyzerPackage.quote_name_without_upper_casing(name)
                 if not unquoted
-                else AnalyzerPackage._escape_quotes(database_name)
+                else AnalyzerPackage._escape_quotes(name)
             )
-            if database_name
-            else None
-        )
-
-    @_Decorator.wrap_exception
-    def get_current_schema(self, unquoted: bool = False) -> Optional[str]:
-        schema_name = self._conn.schema or self._get_string_datum(
-            "SELECT CURRENT_SCHEMA()"
-        )
-        return (
-            (
-                AnalyzerPackage.quote_name_without_upper_casing(schema_name)
-                if not unquoted
-                else AnalyzerPackage._escape_quotes(schema_name)
-            )
-            if schema_name
-            else None
-        )
-
-    @_Decorator.wrap_exception
-    def get_current_warehouse(self, unquoted: bool = False) -> Optional[str]:
-        warehouse_name = self._conn.warehouse or self._get_string_datum(
-            "SELECT CURRENT_WAREHOUSE()"
-        )
-        return (
-            (
-                AnalyzerPackage.quote_name_without_upper_casing(warehouse_name)
-                if not unquoted
-                else AnalyzerPackage._escape_quotes(warehouse_name)
-            )
-            if warehouse_name
-            else None
-        )
-
-    @_Decorator.wrap_exception
-    def get_current_role(self, unquoted: bool = False) -> Optional[str]:
-        role_name = self._conn.role or self._get_string_datum("SELECT CURRENT_ROLE()")
-        return (
-            (
-                AnalyzerPackage.quote_name_without_upper_casing(role_name)
-                if not unquoted
-                else AnalyzerPackage._escape_quotes(role_name)
-            )
-            if role_name
+            if name
             else None
         )
 

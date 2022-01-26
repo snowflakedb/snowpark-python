@@ -1079,7 +1079,7 @@ class Session:
             # return "newDB"
             session.get_current_database()
         """
-        return self._conn.get_current_database(unquoted=unquoted)
+        return self._conn._get_current_parameter("database", unquoted=unquoted)
 
     def get_current_schema(self, unquoted: bool = False) -> Optional[str]:
         """
@@ -1092,7 +1092,7 @@ class Session:
             # return "newSchema"
             session.get_current_schema()
         """
-        return self._conn.get_current_schema(unquoted=unquoted)
+        return self._conn._get_current_parameter("schema", unquoted=unquoted)
 
     def get_fully_qualified_current_schema(self) -> str:
         """Returns the fully qualified name of the current schema for the session."""
@@ -1106,41 +1106,56 @@ class Session:
             )
         return database + "." + schema
 
-    def get_current_warehouse(self, unquoted=False) -> str:
+    def get_current_warehouse(self, unquoted=False) -> Optional[str]:
         """Returns the name of the warehouse in use for the current session."""
-        return self._conn.get_current_warehouse(unquoted=unquoted)
+        return self._conn._get_current_parameter("warehouse", unquoted=unquoted)
 
-    def get_current_role(self, unquoted=False) -> str:
+    def get_current_role(self, unquoted=False) -> Optional[str]:
         """Returns the name of the primary role in use for the current session."""
-        return self._conn.get_current_role(unquoted=unquoted)
+        return self._conn._get_current_parameter("role", unquoted)
 
     def use_database(self, database: str) -> None:
         """Specifies the active/current database for the session.
         Args:
             database: The database name.
         """
-        self.sql(f"use database {database}").collect()
+        if database:
+            self._run_query(f"use database {database}")
+        else:
+            raise ValueError("'database' must not be empty or None.")
 
-    def use_shcema(self, schema: str) -> None:
+    def use_schema(self, schema: str) -> None:
         """Specifies the active/current schema for the session.
 
         Args:
-            schema: The schema name. Use "<database>.<schema>" if you want to change both in one command.
+            schema: The schema name.
         """
-        self.sql(f"use schema {schema}").collect()
+        if schema:
+            self._run_query(f"use schema {schema}")
+        else:
+            raise ValueError("'schema' must not be empty or None.")
 
     def use_warehouse(self, warehouse: str) -> None:
         """Specifies the active/current warehouse for the session.
 
-        A warehouse must be specified for a session and the warehouse must be running before queries and other DML
-        statements can be executed in the session.
         Args:
             warehouse: the warehouse name.
         """
-        self.sql(f"use warehouse {warehouse}").collect()
+        if warehouse:
+            self._run_query(f"use warehouse {warehouse}")
+        else:
+            raise ValueError("'warehouse' must not be empty or None.")
 
     def use_role(self, role: str) -> None:
-        self.sql(f"use role {role}").collect()
+        """Specifies the active/current primary role for the session.
+
+        Args:
+            role: the role name.
+        """
+        if role:
+            self._run_query(f"use role {role}")
+        else:
+            raise ValueError("'role' must not be empty or None.")
 
     @property
     def file(self) -> FileOperation:

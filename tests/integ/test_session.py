@@ -140,46 +140,58 @@ def test_table_exists(session):
     assert session._table_exists(table_name) is True
 
 
-def test_use_database(session):
-    db_name = "SNOWFLAKE_SAMPLE_DATA"
-    original_db = session.getCurrentDatabase(unquoted=True)
-    try:
+def test_use_database(db_parameters):
+    parameters = db_parameters.copy()
+    del parameters["database"]
+    del parameters["schema"]
+    del parameters["warehouse"]
+    with Session.builder.configs(parameters).create() as session:
+        db_name = db_parameters["database"]
         session.use_database(db_name)
-        assert session.getCurrentDatabase(unquoted=True) == db_name
-    finally:
-        session.use_database(original_db)
+        assert session.getCurrentDatabase(unquoted=True) == db_name.upper()
 
 
-def test_use_schema(session):
-    schema_name = "PUBLIC"
-    original_schema = session.getCurrentSchema(unquoted=True)
-    try:
-        session.use_shcema(schema_name)
-        assert session.getCurrentSchema(unquoted=True) == schema_name
-    finally:
-        session.use_shcema(original_schema)
+def test_use_schema(db_parameters):
+    parameters = db_parameters.copy()
+    del parameters["schema"]
+    del parameters["warehouse"]
+    with Session.builder.configs(parameters).create() as session:
+        schema_name = db_parameters["schema"]
+        session.use_schema(schema_name)
+        assert session.getCurrentSchema(unquoted=True) == schema_name.upper()
 
 
-def test_use_warehouse(session):
-    warehouse_name = Utils.random_name()
-    session.sql(f"create warehouse {warehouse_name}").collect()
-    original_warehouse = session.get_current_warehouse(unquoted=True)
-    try:
+def test_use_warehouse(db_parameters):
+    parameters = db_parameters.copy()
+    del parameters["database"]
+    del parameters["schema"]
+    del parameters["warehouse"]
+    with Session.builder.configs(db_parameters).create() as session:
+        warehouse_name = db_parameters["warehouse"]
         session.use_warehouse(warehouse_name)
-        assert session.get_current_warehouse(unquoted=True) == warehouse_name
-    finally:
-        try:
-            session.use_warehouse(original_warehouse)
-        finally:
-            pass
-        session.sql(f"drop warehouse {warehouse_name}").collect()
+        assert session.get_current_warehouse(unquoted=True) == warehouse_name.upper()
 
 
-def test_use_role(session):
+def test_use_role(db_parameters):
     role_name = "PUBLIC"
-    original_role = session.get_current_role(unquoted=True)
-    try:
+    with Session.builder.configs(db_parameters).create() as session:
         session.use_role(role_name)
         assert session.get_current_role(unquoted=True) == role_name
-    finally:
-        session.use_role(original_role)
+
+
+def test_use_negative_tests(session):
+    with pytest.raises(ValueError) as exec_info:
+        session.use_database(None)
+    assert exec_info.value.args[0] == "'database' must not be empty or None."
+
+    with pytest.raises(ValueError) as exec_info:
+        session.use_schema(None)
+    assert exec_info.value.args[0] == "'schema' must not be empty or None."
+
+    with pytest.raises(ValueError) as exec_info:
+        session.use_warehouse(None)
+    assert exec_info.value.args[0] == "'warehouse' must not be empty or None."
+
+    with pytest.raises(ValueError) as exec_info:
+        session.use_role(None)
+    assert exec_info.value.args[0] == "'role' must not be empty or None."
