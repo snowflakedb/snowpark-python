@@ -9,7 +9,8 @@
         {% for item in ['CaseExpr', 'Column', 'DataFrame', 'DataFrameNaFunctions', 'DataFrameReader',
             'DataFrameStatFunctions', 'DataFrameWriter', 'GroupingSets', 'RelationalGroupedDataFrame',
             'Row', 'Session', 'FileOperation', 'PutResult', 'GetResult', 'Window', 'WindowSpec',
-            'Table', 'UpdateResult', 'DeleteResult']
+            'Table', 'UpdateResult', 'DeleteResult', 'MergeResult', 'WhenMatchedClause',
+            'WhenNotMatchedClause']
         %}
             {{ item }}
         {% endfor %}

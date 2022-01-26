@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
     SnowflakeValues,
     TableDelete,
+    TableMerge,
     TableUpdate,
 )
 from snowflake.snowpark._internal.analyzer.sp_views import (
@@ -57,11 +58,13 @@ from snowflake.snowpark._internal.sp_expressions import (
     CaseWhen as SPCaseWhen,
     Cast as SPCast,
     Collate as SPCollate,
+    DeleteMergeExpression as SPDeleteMergeExpression,
     Expression as SPExpression,
     FlattenFunction as SPFlattenFunction,
     FunctionExpression as SPFunctionExpression,
     GroupingSetsExpression as SPGroupingSetsExpression,
     InExpression as SPInExpression,
+    InsertMergeExpression as SPInsertMergeExpression,
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
@@ -87,6 +90,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
     UnspecifiedFrame as SPUnspecifiedFrame,
+    UpdateMergeExpression as SPUpdateMergeExpression,
     WindowExpression as SPWindowExpression,
     WindowSpecDefinition as SPWindowSpecDefinition,
     WithinGroup as SPWithinGroup,
@@ -223,7 +227,6 @@ class Analyzer:
                 expr.udf_name, list(map(self.analyze, expr.children)), False
             )
 
-        # Extractors
         if isinstance(expr, SPTableFunctionExpression):
             return self.table_function_expression_extractor(expr)
 
@@ -241,6 +244,24 @@ class Analyzer:
 
         if isinstance(expr, SPBinaryExpression):
             return self.binary_operator_extractor(expr)
+
+        if isinstance(expr, SPInsertMergeExpression):
+            return self.package.insert_merge_statement(
+                self.analyze(expr.condition) if expr.condition else None,
+                [self.analyze(k) for k in expr.keys],
+                [self.analyze(v) for v in expr.values],
+            )
+
+        if isinstance(expr, SPUpdateMergeExpression):
+            return self.package.update_merge_statement(
+                self.analyze(expr.condition) if expr.condition else None,
+                {self.analyze(k): self.analyze(v) for k, v in expr.assignments.items()},
+            )
+
+        if isinstance(expr, SPDeleteMergeExpression):
+            return self.package.delete_merge_statement(
+                self.analyze(expr.condition) if expr.condition else None
+            )
 
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))
 
@@ -629,4 +650,12 @@ class Analyzer:
                 if logical_plan.condition
                 else None,
                 resolved_children.get(logical_plan.source_data, None),
+            )
+
+        if isinstance(logical_plan, TableMerge):
+            return self.plan_builder.merge(
+                logical_plan.table_name,
+                resolved_children.get(logical_plan.source),
+                self.analyze(logical_plan.join_expr),
+                [self.analyze(c) for c in logical_plan.clauses],
             )
