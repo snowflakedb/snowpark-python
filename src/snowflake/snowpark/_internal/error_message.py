@@ -20,6 +20,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLInvalidIdException,
     SnowparkSQLUnexpectedAliasException,
+    SnowparkTableException,
     SnowparkUploadUdfFileException,
     _SnowparkInternalException,
 )
@@ -167,6 +168,14 @@ class SnowparkClientExceptionMessages:
             f"because it does not exist. Create table before "
             f"trying to write a pandas DataFrame",
             "1114",
+        )
+
+    @staticmethod
+    def MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
+        action: str, clause: str
+    ) -> SnowparkTableException:
+        return SnowparkTableException(
+            f"{action} has been specified for {clause} to merge table", "1115"
         )
 
     # Plan Analysis error codes 02XX
