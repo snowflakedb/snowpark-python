@@ -86,7 +86,7 @@ class DataFrameNaFunctions:
 
         Examples::
 
-            df = session.createDataFrame([[1.0, 1], [float('nan'), 2], [None, 3], [4, None], [float('nan'), None]]).toDF("a", "b")
+            df = session.create_dataframe([[1.0, 1], [float('nan'), 2], [None, 3], [4, None], [float('nan'), None]]).to_df("a", "b")
             # drop a row if it contains any nulls, with checking all columns
             df.na.drop()
             # drop a row only if all its values are null, with checking all columns
@@ -181,7 +181,7 @@ class DataFrameNaFunctions:
 
         Examples::
 
-            df = session.createDataFrame([[1.0, 1], [float('nan'), 2], [None, 3], [4, None], [float('nan'), None]]).toDF("a", "b")
+            df = session.create_dataframe([[1.0, 1], [float('nan'), 2], [None, 3], [4, None], [float('nan'), None]]).to_df("a", "b")
             # fill null and NaN values in all columns
             df.na.fill(3.14)
             # fill null and NaN values in column "a"
@@ -310,7 +310,7 @@ class DataFrameNaFunctions:
 
         Examples::
 
-            df = session.createDataFrame([[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"])
+            df = session.create_dataframe([[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"])
             # replace 1 with 3 in all columns
             df.na.replace(1, 3)
             # replace 1 with 3 and 2 with 4 in all columns

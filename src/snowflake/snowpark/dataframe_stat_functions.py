@@ -33,7 +33,7 @@ class DataFrameStatFunctions:
     def __init__(self, df: "snowflake.snowpark.DataFrame"):
         self._df = df
 
-    def approxQuantile(
+    def approx_quantile(
         self,
         col: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
         percentile: Union[List[float], Tuple[float, ...]],
@@ -43,12 +43,12 @@ class DataFrameStatFunctions:
 
         Examples::
 
-            df = session.createDataFrame([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], schema=["a"])
-            res = df.stat.approxQuantile("a", [0, 0.1, 0.4, 0.6, 1])
+            df = session.create_dataframe([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], schema=["a"])
+            res = df.stat.approx_quantile("a", [0, 0.1, 0.4, 0.6, 1])
             # res will be [-0.5, 0.5, 3.5, 5.5, 9.5]
 
-            df2 = session.createDataFrame([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
-            res2 = df2.stat.approxQuantile(["a", "b"], [0, 0.1, 0.6])
+            df2 = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+            res2 = df2.stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])
             # res2 will be [[0.05, 0.15000000000000002, 0.25)], [0.45, 0.55, 0.6499999999999999]]
 
         Args:
@@ -98,7 +98,7 @@ class DataFrameStatFunctions:
 
         Example::
 
-            df = session.createDataFrame([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+            df = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
             res = df.stat.corr("a", "b")
             # res will be 0.9999999999999991
 
@@ -118,7 +118,7 @@ class DataFrameStatFunctions:
 
         Example::
 
-           df = session.createDataFrame([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+           df = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
            res = df.stat.cov("a", "b")
            # res will be 0.010000000000000037
 
@@ -150,7 +150,7 @@ class DataFrameStatFunctions:
 
         Example::
 
-            df = session.createDataFrame([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
+            df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
             ct = df.stat.crosstab("key", "value")
             ct.show()
 
@@ -178,16 +178,16 @@ class DataFrameStatFunctions:
         ]
         return self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
 
-    def sampleBy(
+    def sample_by(
         self, col: ColumnOrName, fractions: Dict[LiteralType, float]
     ) -> "snowflake.snowpark.DataFrame":
         """Returns a DataFrame containing a stratified sample without replacement, based on a ``dict`` that specifies the fraction for each stratum.
 
         Example::
 
-            df = session.createDataFrame([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
+            df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
             fractions = {"Bob": 0.5, "Nico": 1.0}
-            df.stat.sampleBy("name", fractions).show()
+            df.stat.sample_by("name", fractions).show()
 
         The above example prints out the following result:
 
@@ -205,9 +205,12 @@ class DataFrameStatFunctions:
         """
         if not fractions:
             return self._df.limit(0)
-        col = _to_col_if_str(col, "sampleBy")
+        col = _to_col_if_str(col, "sample_by")
         res_df = reduce(
-            lambda x, y: x.unionAll(y),
+            lambda x, y: x.union_all(y),
             [self._df.filter(col == k).sample(v) for k, v in fractions.items()],
         )
         return res_df
+
+    approxQuantile = approx_quantile
+    sampleBy = sample_by
