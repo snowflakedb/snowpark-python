@@ -188,7 +188,7 @@ def test_read_csv_with_more_operations(session):
         Row(1, "one", 1.2),
         Row(2, "two", 2.2),
     ]
-    df22 = df.unionAll(df)
+    df22 = df.union_all(df)
     res = df22.collect()
     res.sort(key=lambda x: x[0])
     assert res == [
@@ -208,7 +208,7 @@ def test_read_csv_with_more_operations(session):
         Row(1, "one", 1.2),
         Row(2, "two", 2.2),
     ]
-    df44 = df.unionAll(df3)
+    df44 = df.union_all(df3)
     res = df44.collect()
     res.sort(key=lambda x: x[0])
     assert res == [
@@ -261,7 +261,7 @@ def test_read_csv_with_format_type_options(session, mode):
     # test for union between files with different schema and different stage
     test_file_on_stage2 = f"@{tmp_stage_name2}/{test_file_csv}"
     df4 = get_reader(session, mode).schema(user_schema).csv(test_file_on_stage2)
-    df5 = df1.unionAll(df4)
+    df5 = df1.union_all(df4)
     res = df5.collect()
     res.sort(key=lambda x: x[0])
     assert res == [
@@ -319,7 +319,7 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
     try:
         get_reader(session, mode).schema(user_schema).option("compression", "auto").csv(
             test_file_on_stage
-        ).write.saveAsTable(tmp_table)
+        ).write.save_as_table(tmp_table)
 
         session.sql(f"create file format {format_name} type = 'csv'").collect()
 
@@ -448,7 +448,7 @@ def test_for_all_parquet_compression_keywords(session, temp_schema, mode):
     reader = get_reader(session, mode)
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
 
-    reader.parquet(test_file_on_stage).toDF("a").write.saveAsTable(tmp_table)
+    reader.parquet(test_file_on_stage).to_df("a").write.save_as_table(tmp_table)
 
     format_name = Utils.random_name()
     session.sql(f"create file format {format_name} type = 'parquet'").collect()
