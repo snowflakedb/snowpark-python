@@ -20,7 +20,14 @@ from snowflake.snowpark.relational_grouped_dataframe import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.table import DeleteResult, Table, UpdateResult
+from snowflake.snowpark.table import (
+    DeleteResult,
+    MergeResult,
+    Table,
+    UpdateResult,
+    WhenMatchedClause,
+    WhenNotMatchedClause,
+)
 from snowflake.snowpark.window import Window, WindowSpec
 
 # types, udf, functions, exceptions still use its own modules
@@ -45,4 +52,7 @@ __all__ = [
     "Table",
     "UpdateResult",
     "DeleteResult",
+    "MergeResult",
+    "WhenMatchedClause",
+    "WhenNotMatchedClause",
 ]

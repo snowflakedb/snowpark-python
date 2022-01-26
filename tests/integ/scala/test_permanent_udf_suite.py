@@ -21,7 +21,6 @@ pytestmark = pytest.mark.udf
 @pytest.fixture(scope="module")
 def new_session(session, db_parameters) -> Session:
     new_session = Session.builder.configs(db_parameters).create()
-    Session._set_active_session(session)
     yield new_session
     new_session.close()
 

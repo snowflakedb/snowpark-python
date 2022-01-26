@@ -24,6 +24,7 @@ from json import JSONEncoder
 from random import choice
 from typing import IO, List, Optional, Tuple, Type
 
+from snowflake.connector.description import PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.version import VERSION as snowpark_version
@@ -329,6 +330,10 @@ class Utils:
                 )
 
         raise ValueError(f"Invalid stage {stage_location}")
+
+    @staticmethod
+    def is_in_stored_procedure():
+        return PLATFORM == "XP"
 
     @staticmethod
     def random_name_for_temp_object(object_type: TempObjectType) -> str:

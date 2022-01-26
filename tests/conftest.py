@@ -4,7 +4,10 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 from pathlib import Path
+
+logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 
 def pytest_collection_modifyitems(items) -> None:
