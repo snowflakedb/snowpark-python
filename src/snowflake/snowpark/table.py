@@ -78,12 +78,12 @@ class WhenMatchedClause:
 
         Examples::
 
-            # Adds a not-matched clause where a row in source is matched
+            # Adds a matched clause where a row in source is matched
             # if its id is equal to the id of any row in target.
             # For all such rows, update its value to the value of the
             # corresponding row in source.
-            from snowflake.snowpark import WhenMatchedClause
-            target.merge(source, target["id"] == source["id"], [WhenMatchedClause().update({"value": source("value")})])
+            from snowflake.snowpark.functions import when_matched
+            target.merge(source, target["id"] == source["id"], [when_matched().update({"value": source("value")})])
 
         Note:
             An exception will be raised if this method or :meth:`WhenMatchedClause.delete`
@@ -110,11 +110,12 @@ class WhenMatchedClause:
 
         Example::
 
-            # Adds a not-matched clause where a row in source is matched
+            # Adds a matched clause where a row in source is matched
             # if its id is equal to the id of any row in target.
             # For all such rows, update its value to the value of the
             # corresponding row in source.
-            target.merge(source, target["id"] == source["id"], [WhenMatchedClause().delete()])
+            from snowflake.snowpark.functions import when_matched
+            target.merge(source, target["id"] == source["id"], [when_matched().delete()])
 
         Note:
             An exception will be raised if this method or :meth:`WhenMatchedClause.update`
@@ -167,11 +168,12 @@ class WhenNotMatchedClause:
             # if its id does not equal the id of any row in target.
             # For all such rows, insert a row into target whose id and value
             # are assigned to the id and value of the not matched row.
-            target.merge(source, target["id"] == source["id"], [WhenNotMatchedClause().insert([source("id"), source("value")])])
+            from snowflake.snowpark.functions import when_not_matched
+            target.merge(source, target["id"] == source["id"], [when_not_matched().insert([source("id"), source("value")])])
 
             # For all such rows, insert a row into target whose id is
             # assigned to the id of the not matched row.
-            target.merge(source, target["id"] == source["id"], [WhenNotMatchedClause().insert({"id": source("id")})])
+            target.merge(source, target["id"] == source["id"], [when_not_matched().insert({"id": source("id")})])
 
         Note:
             An exception will be raised if this method is called more than once
