@@ -342,9 +342,8 @@ def test_filter_incorrect_type(session):
 
     with pytest.raises(TypeError) as ex_info:
         df.filter(1234)
-    assert ex_info.type == TypeError
     assert (
-        "The input type of filter() must be Column or str. Got: <class 'int'>"
+        "'filter/where' expected Column or str as SQL expression, got: <class 'int'>"
         in str(ex_info)
     )
 

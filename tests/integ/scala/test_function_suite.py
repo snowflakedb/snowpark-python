@@ -2525,6 +2525,13 @@ def test_iff(session):
         sort=False,
     )
 
+    # accept sql expression
+    Utils.check_answer(
+        df.select("b", "c", "d", iff("b = c", col("b"), col("d"))),
+        [Row(2, 2, 4, 2), Row(12, 12, 14, 12), Row(22, 23, 24, 24)],
+        sort=False,
+    )
+
 
 def test_cume_dist(session):
     Utils.check_answer(

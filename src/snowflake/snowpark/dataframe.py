@@ -64,14 +64,13 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils, deprecate
-from snowflake.snowpark.column import Column
+from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
-    _to_col_if_str,
     col,
     lit,
     row_number,
@@ -494,16 +493,9 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
-        if not isinstance(expr, (Column, str)):
-            raise TypeError(
-                f"The input type of filter() must be Column or str. Got: {type(expr)}"
-            )
-
         return self._with_plan(
             SPFilter(
-                expr.expression
-                if isinstance(expr, Column)
-                else sql_expr(expr).expression,
+                _to_col_if_sql_expr(expr, "filter/where"),
                 self._plan,
             )
         )
