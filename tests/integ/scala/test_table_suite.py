@@ -9,15 +9,14 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from tests.utils import Utils
 from snowflake.snowpark.types import (
     ArrayType,
-    Geography,
     GeographyType,
     MapType,
     StringType,
     VariantType,
 )
+from tests.utils import Utils
 
 
 @pytest.fixture(scope="function")
