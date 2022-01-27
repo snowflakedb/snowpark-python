@@ -1774,6 +1774,15 @@ class DataFrame:
         return self.select(new_columns)
 
     def cache_result(self) -> "HasCachedResult":
+        """Caches the content of this DataFrame to create a new cached DataFrame.
+
+        All subsequent operations on the returned cached DataFrame are performed on the cached data
+        and have no effect on the original DataFrame.
+
+        Returns:
+             A :class:`HasCachedResult` object that holds the cached result. All DataFrame operations
+             still work on a :class:`HasCachedResult` object
+        """
         temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         create_temp_table = self.session._Session__plan_builder.create_temp_table(
             temp_table_name, self._plan
