@@ -1960,5 +1960,6 @@ Query List:
     # Add this alias because snowpark scala has rename
     rename = with_column_renamed
 
+
 class HasCachedResult(DataFrame):
     pass
