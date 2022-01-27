@@ -6,8 +6,8 @@
 
 import os
 
+import snowflake.connector
 import pytest
-
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSessionException
@@ -131,6 +131,29 @@ def test_list_files_in_stage(session, resources_path):
     finally:
         Utils.drop_stage(session, stage_name)
         Utils.drop_stage(session, special_name)
+
+
+def test_create_session_from_connection(db_parameters):
+    connection = snowflake.connector.connect(**db_parameters)
+    new_session = Session.builder.configs({"connection": connection}).create()
+    try:
+        df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
+        Utils.check_answer(df, [Row(1, 2)])
+    finally:
+        new_session.close()
+
+
+def test_create_session_from_connection_with_noise_parameters(db_parameters):
+    connection = snowflake.connector.connect(**db_parameters)
+    new_session = Session.builder.configs(
+        {**db_parameters, "connection": connection}
+    ).create()
+    try:
+        df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
+        Utils.check_answer(df, [Row(1, 2)])
+        assert new_session._conn._conn == connection
+    finally:
+        new_session.close()
 
 
 def test_table_exists(session):
