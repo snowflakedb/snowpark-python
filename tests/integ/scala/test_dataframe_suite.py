@@ -251,7 +251,30 @@ def test_cache_result(session):
 
 
 def test_cache_result_with_show(session):
-    pass
+    table_name1 = Utils.random_name()
+    try:
+        session._run_query(f"create temp table {table_name1} (name string)")
+        session._run_query(f"insert into {table_name1} values('{table_name1}')")
+        table = session.table(table_name1)
+
+        # SHOW TABLES
+        df1 = session.sql("show tables").cache_result()
+        table_names = [tn[1] for tn in df1.collect()]
+        assert table_name1 in table_names
+
+        # SHOW TABLES + SELECT
+        df2 = session.sql("show tables").select('"created_on"', '"name"').cache_result()
+        table_names = [tn[1] for tn in df2.collect()]
+        assert table_name1 in table_names
+
+        # SHOW TABLES + SELECT + Join
+        df3 = session.sql("show tables").select('"created_on"', '"name"')
+        df3.show()
+        df4 = df3.join(table, df3['"name"'] == table["name"]).cache_result()
+        table_names = [tn[0] for tn in df4.select("name").collect()]
+        assert table_name1 in table_names
+    finally:
+        session._run_query(f"drop table {table_name1}")
 
 
 def test_non_select_query_composition(session):
