@@ -93,8 +93,13 @@ class Utils:
     @staticmethod
     def normalize_stage_location(name: str) -> str:
         """Get the normalized name of a stage."""
+        if Utils.is_single_quoted(name):
+            return name
         trim_name = name.strip()
-        return trim_name if trim_name.startswith("@") else f"@{trim_name}"
+        trim_name_escape_single_quote = trim_name.replace("'", "\\'")
+        if trim_name.startswith("@"):
+            return f"'{trim_name_escape_single_quote}'"
+        return f"'@{trim_name_escape_single_quote}'"
 
     @staticmethod
     def is_single_quoted(name: str) -> bool:
@@ -102,14 +107,17 @@ class Utils:
 
     @staticmethod
     def normalize_local_file(file: str) -> str:
-        trim_file = file.strip()
         # For PUT/GET commands, if there are any special characters including spaces in
         # directory and file names, it needs to be quoted with single quote. For example,
         # 'file:///tmp/load data' for a path containing a directory named "load data").
         # So, if `file` is single quoted, it doesn't make sense to add "file://".
-        if trim_file.startswith("file://") or Utils.is_single_quoted(file):
-            return trim_file
-        return f"file://{trim_file}"
+        if Utils.is_single_quoted(file):
+            return file
+        trim_file = file.strip()
+        trim_file_escape_single_quote = trim_file.replace("'", "\\'")
+        if trim_file.startswith("file://"):
+            return f"'{trim_file_escape_single_quote}'"
+        return f"'file://{trim_file_escape_single_quote}'"
 
     @staticmethod
     def get_local_file_path(file: str) -> str:

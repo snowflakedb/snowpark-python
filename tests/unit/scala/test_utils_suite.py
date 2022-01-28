@@ -67,11 +67,13 @@ def test_md5():
 
 def test_normalize_stage_location():
     name1 = "stage"
-    assert Utils.normalize_stage_location(name1 + "  ") == f"@{name1}"
-    assert Utils.normalize_stage_location("@" + name1 + "  ") == f"@{name1}"
-    name1 = '"DATABASE"."SCHEMA"."STAGE"'
-    assert Utils.normalize_stage_location(name1 + "  ") == f"@{name1}"
-    assert Utils.normalize_stage_location("@" + name1 + "  ") == f"@{name1}"
+    assert Utils.normalize_stage_location(name1 + "  ") == f"'@{name1}'"
+    assert Utils.normalize_stage_location("@" + name1 + "  ") == f"'@{name1}'"
+    name2 = '"DATABASE"."SCHEMA"."STAGE"'
+    assert Utils.normalize_stage_location(name2 + "  ") == f"'@{name2}'"
+    assert Utils.normalize_stage_location("@" + name2 + "  ") == f"'@{name2}'"
+    name3 = "s t a g 'e"
+    assert Utils.normalize_stage_location(name3) == f"'@s t a g \\'e'"
 
 
 def test_get_udf_upload_prefix():
