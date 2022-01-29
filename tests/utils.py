@@ -60,7 +60,7 @@ class Utils:
     @staticmethod
     def create_stage(session: "Session", name: str, is_temporary: bool = True):
         session._run_query(
-            f"create or replace {'temporary' if is_temporary else ''} stage {name}"
+            f"create or replace {'temporary' if is_temporary else ''} stage {AnalyzerPackage.quote_name(name)}"
         )
 
     @staticmethod

@@ -257,9 +257,12 @@ class ServerConnection:
         if Utils.is_in_stored_procedure():
             file_name = os.path.basename(path)
             target_path = self.__build_target_path(stage_location, dest_prefix)
-            self._cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
+            self._cursor.upload_stream(
+                open(path, "rb"),
+                Utils.normalize_remote_file_or_dir(f"{target_path}/{file_name}"),
+            )
         else:
-            uri = f"file://{path}"
+            uri = Utils.normalize_local_file(path)
             self.run_query(
                 self.__build_put_statement(
                     uri,
@@ -284,13 +287,16 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> None:
-        uri = f"file:///tmp/placeholder/{dest_filename}"
+        uri = Utils.normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
             if Utils.is_in_stored_procedure():
                 input_stream.seek(0)
                 target_path = self.__build_target_path(stage_location, dest_prefix)
                 self._cursor.upload_stream(
-                    input_stream, f"{target_path}/{dest_filename}"
+                    input_stream,
+                    Utils.normalize_remote_file_or_dir(
+                        f"{target_path}/{dest_filename}"
+                    ),
                 )
             else:
                 self.run_query(
@@ -334,7 +340,9 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> str:
-        target_path = self.__build_target_path(stage_location, dest_prefix)
+        target_path = Utils.normalize_remote_file_or_dir(
+            self.__build_target_path(stage_location, dest_prefix)
+        )
         parallel_str = f"PARALLEL = {parallel}"
         compress_str = f"AUTO_COMPRESS = {str(compress_data).upper()}"
         source_compression_str = f"SOURCE_COMPRESSION = {source_compression.upper()}"

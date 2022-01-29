@@ -91,7 +91,7 @@ class FileOperation:
         plan = self._session._Session__plan_builder.file_operation_plan(
             "put",
             Utils.normalize_local_file(local_file_name),
-            Utils.normalize_stage_location(stage_location),
+            Utils.normalize_remote_file_or_dir(stage_location),
             options,
         )
         put_result = snowflake.snowpark.DataFrame(self._session, plan).collect()
@@ -149,7 +149,7 @@ class FileOperation:
         plan = self._session._Session__plan_builder.file_operation_plan(
             "get",
             Utils.normalize_local_file(target_directory),
-            Utils.normalize_stage_location(stage_location),
+            Utils.normalize_remote_file_or_dir(stage_location),
             options,
         )
         try:

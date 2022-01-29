@@ -530,17 +530,21 @@ class Session:
                             overwrite=True,
                         )
                 resolved_stage_files.append(
-                    f"{normalized_stage_location}/{filename_with_prefix}"
+                    Utils.normalize_remote_file_or_dir(
+                        f"{normalized_stage_location}/{filename_with_prefix}"
+                    )
                 )
 
         return resolved_stage_files
 
     def _list_files_in_stage(self, stage_location: Optional[str] = None) -> Set[str]:
-        normalized = Utils.normalize_stage_location(
-            stage_location if stage_location else self.__session_stage
+        normalized = Utils.normalize_remote_file_or_dir(
+            Utils.escape_single_quoted(stage_location)
+            if stage_location
+            else self.__session_stage
         )
         file_list = self.sql(f"ls {normalized}").select('"name"').collect()
-        prefix_length = Utils.get_stage_file_prefix_length(normalized)
+        prefix_length = Utils.get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
     @property

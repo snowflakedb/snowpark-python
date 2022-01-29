@@ -206,6 +206,15 @@ def test_get_stage_file_prefix_length():
     stageName4 = '@"stage.1"/dir'  # stage.1/dir/
     assert Utils.get_stage_file_prefix_length(stageName4) == 12
 
+    stageName5 = '@" stage.\'1"/dir'  # [whitespace]stage.'1/dir/
+    assert Utils.get_stage_file_prefix_length(stageName5) == 14
+
+    stageName6 = "'@\" stage.'1\"/dir'"  # [whitespace]stage.'1/dir/
+    assert Utils.get_stage_file_prefix_length(stageName6) == 14
+
+    stageName7 = "'@\" stage.\\'1\"/dir'"  # [whitespace]stage.'1/dir/
+    assert Utils.get_stage_file_prefix_length(stageName7) == 14
+
     quotedStageName = '@"stage"'  # stage/
     assert Utils.get_stage_file_prefix_length(quotedStageName) == 6
 
@@ -259,6 +268,9 @@ def test_get_stage_file_prefix_length():
 
     dbStage6 = '@"db.1"."schema.1"."stage.1"/dir'  # stage.1/dir/
     assert Utils.get_stage_file_prefix_length(dbStage6) == 12
+
+    dbStage7 = '\'@"db.1"."schema.1"."\'stage.1"/dir\''  # 'stage.1/dir/
+    assert Utils.get_stage_file_prefix_length(dbStage7) == 13
 
     tempStage = '@"TESTDB_SNOWPARK"."SN_TEST_OBJECT_1509309849".SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL'
     assert Utils.get_stage_file_prefix_length(tempStage) == 36
