@@ -67,13 +67,26 @@ def test_md5():
 
 def test_normalize_stage_location():
     name1 = "stage"
-    assert Utils.normalize_stage_location(name1 + "  ") == f"'@{name1}'"
-    assert Utils.normalize_stage_location("@" + name1 + "  ") == f"'@{name1}'"
+    assert Utils.normalize_stage_location(name1 + "  ") == f"@{name1}"
+    assert Utils.normalize_stage_location("@" + name1 + "  ") == f"@{name1}"
     name2 = '"DATABASE"."SCHEMA"."STAGE"'
-    assert Utils.normalize_stage_location(name2 + "  ") == f"'@{name2}'"
-    assert Utils.normalize_stage_location("@" + name2 + "  ") == f"'@{name2}'"
+    assert Utils.normalize_stage_location(name2 + "  ") == f"@{name2}"
+    assert Utils.normalize_stage_location("@" + name2 + "  ") == f"@{name2}"
     name3 = "s t a g 'e"
-    assert Utils.normalize_stage_location(name3) == f"'@s t a g \\'e'"
+    assert Utils.normalize_stage_location(name3) == f"@s t a g 'e"
+    name4 = "' s t a g 'e'"
+    assert Utils.normalize_stage_location(name4) == f"@ s t a g 'e"
+
+
+@pytest.mark.parametrize("is_local", [True, False])
+def test_normalize_file(is_local):
+    symbol = "file://" if is_local else "@"
+    name1 = "stage"
+    assert Utils.normalize_path(name1, is_local) == f"'{symbol}stage'"
+    name2 = "sta'ge"
+    assert Utils.normalize_path(name2, is_local) == f"'{symbol}sta\\'ge'"
+    name3 = "s ta\\'ge "
+    assert Utils.normalize_path(name3, is_local) == f"'{symbol}s ta\\\\'ge'"
 
 
 def test_get_udf_upload_prefix():
