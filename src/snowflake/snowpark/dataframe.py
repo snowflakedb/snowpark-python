@@ -1781,6 +1781,31 @@ class DataFrame:
         All subsequent operations on the returned cached DataFrame are performed on the cached data
         and have no effect on the original DataFrame.
 
+        Example::
+            session.sql("create temp table RESULT (NUM int)").collect()
+            session.sql("insert into RESULT values(1),(2)").collect()
+
+            df = session.table("RESULT")
+            assert df.collect() == [Row(1), Row(2)]
+
+            # Run cache_result and then insert into the original table to see
+            # that the cached result is not affected
+            df1 = df.cache_result()
+            session.sql("insert into RESULT values (3)").collect()
+            assert df1.collect() == [Row(1), Row(2)]
+            assert df.collect() == [Row(1), Row(2), Row(3)]
+
+            # You can run cache_result on a result that has already been cached
+            df2 = df1.cache_result()
+            assert df2.collect() == [Row(1), Row(2)]
+
+            df3 = df.cache_result()
+            # Drop RESULT and see that the cached results still exist
+            session.sql(f"drop table RESULT").collect()
+            assert df1.collect() == [Row(1), Row(2)]
+            assert df2.collect() == [Row(1), Row(2)]
+            assert df3.collect() == [Row(1), Row(2), Row(3)]
+
         Returns:
              A :class:`DataFrame` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original
