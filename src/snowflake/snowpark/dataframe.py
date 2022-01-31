@@ -207,9 +207,11 @@ class DataFrame:
         self,
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
+        is_cached: bool = False,
     ):
         self.session = session
         self._plan = session._analyzer.resolve(plan)
+        self.is_cached = is_cached
 
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
@@ -1773,23 +1775,28 @@ class DataFrame:
         ]
         return self.select(new_columns)
 
-    def cache_result(self) -> "HasCachedResult":
+    def cache_result(self) -> "DataFrame":
         """Caches the content of this DataFrame to create a new cached DataFrame.
 
         All subsequent operations on the returned cached DataFrame are performed on the cached data
         and have no effect on the original DataFrame.
 
         Returns:
-             A :class:`HasCachedResult` object that holds the cached result. All DataFrame operations
-             still work on a :class:`HasCachedResult` object
+             A :class:`DataFrame` object that holds the cached result in a temporary table.
+             All operations on this new DataFrame have no effect on the original
         """
         temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         create_temp_table = self.session._Session__plan_builder.create_temp_table(
             temp_table_name, self._plan
         )
-        self.session._conn.execute(create_temp_table)
+        self.session._conn.execute(
+            create_temp_table,
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
+            if not self.session.query_tag
+            else None,
+        )
         new_plan = self.session.table(temp_table_name)._plan
-        return HasCachedResult(session=self.session, plan=new_plan)
+        return DataFrame(session=self.session, plan=new_plan, is_cached=True)
 
     def explain(self) -> None:
         """
@@ -1945,7 +1952,6 @@ Query List:
     replace = DataFrameNaFunctions.replace
 
     # Add aliases for user code migration
-    cache = cache_result
     createOrReplaceTempView = create_or_replace_temp_view
     createOrReplaceView = create_or_replace_view
     crossJoin = cross_join
@@ -1968,7 +1974,3 @@ Query List:
 
     # Add this alias because snowpark scala has rename
     rename = with_column_renamed
-
-
-class HasCachedResult(DataFrame):
-    pass

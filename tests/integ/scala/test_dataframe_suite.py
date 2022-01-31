@@ -221,8 +221,8 @@ def test_show(session):
 
 
 def test_cache_result(session):
-    table_name = Utils.random_name()
-    session._run_query(f"create table {table_name} (num int)")
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session._run_query(f"create temp table {table_name} (num int)")
     session._run_query(f"insert into {table_name} values(1),(2)")
 
     df = session.table(table_name)
@@ -251,7 +251,7 @@ def test_cache_result(session):
 
 
 def test_cache_result_with_show(session):
-    table_name1 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session._run_query(f"create temp table {table_name1} (name string)")
         session._run_query(f"insert into {table_name1} values('{table_name1}')")
