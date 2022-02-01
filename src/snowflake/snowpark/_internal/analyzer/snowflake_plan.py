@@ -232,6 +232,29 @@ class SnowflakePlanBuilder:
         )
 
     @SnowflakePlan.Decorator.wrap_exception
+    def build_from_multiple_queries(
+        self, multi_sql_generator, child, source_plan, schema_query=None
+    ):
+        select_child = self._add_result_scan_if_not_select(child)
+        queries = select_child.queries[0:-1] + [
+            Query(msg) for msg in multi_sql_generator(select_child.queries[-1].sql)
+        ]
+        new_schema_query = (
+            schema_query
+            if schema_query is not None
+            else multi_sql_generator(child._schema_query)[-1]
+        )
+
+        return SnowflakePlan(
+            queries,
+            new_schema_query,
+            select_child.post_actions,
+            select_child.expr_to_alias,
+            self.__session,
+            source_plan,
+        )
+
+    @SnowflakePlan.Decorator.wrap_exception
     def __build_binary(
         self,
         sql_generator: Callable[[str, str], str],
@@ -509,6 +532,26 @@ class SnowflakePlanBuilder:
             child,
             None,
         )
+
+    def create_temp_table(self, name: str, child: SnowflakePlan) -> SnowflakePlan:
+        return self.build_from_multiple_queries(
+            lambda x: self.create_table_and_insert(
+                self.__session, name, child._schema_query, x
+            ),
+            child,
+            None,
+            child._schema_query,
+        )
+
+    def create_table_and_insert(
+        self, session, name: str, schema_query: str, query: str
+    ) -> List[str]:
+        attributes = session._get_result_attributes(schema_query)
+        create_table = self.pkg.create_temp_table_statement(
+            name, self.pkg.attribute_to_schema_string(attributes)
+        )
+
+        return [create_table, self.pkg.insert_into_statement(name, query)]
 
     def read_file(
         self,
