@@ -17,14 +17,13 @@ import random
 import re
 import string
 import traceback
-import warnings
 import zipfile
 from enum import Enum
 from json import JSONEncoder
 from random import choice
 from typing import IO, List, Optional, Tuple, Type
 
-from snowflake.connector.description import PLATFORM
+from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.version import VERSION as snowpark_version
@@ -114,10 +113,12 @@ class Utils:
         symbol = "file://" if is_local else "@"
         if Utils.is_single_quoted(path):
             return path
-        trim_path = path.strip().replace("'", "\\'")
-        if not trim_path.startswith(symbol):
-            trim_path = f"{symbol}{trim_path}"
-        return f"'{trim_path}'"
+        if is_local and OPERATING_SYSTEM == "Windows":
+            path = path.replace("\\", "/")
+        path = path.strip().replace("'", "\\'")
+        if not path.startswith(symbol):
+            path = f"{symbol}{path}"
+        return f"'{path}'"
 
     @staticmethod
     def normalize_remote_file_or_dir(name: str) -> str:
