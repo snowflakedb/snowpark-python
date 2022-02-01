@@ -211,7 +211,7 @@ class DataFrame:
     ):
         self.session = session
         self._plan = session._analyzer.resolve(plan)
-        self.is_cached = is_cached
+        self.is_cached = is_cached  # whether it is a cached dataframe
 
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
@@ -1781,7 +1781,7 @@ class DataFrame:
         All subsequent operations on the returned cached DataFrame are performed on the cached data
         and have no effect on the original DataFrame.
 
-        Example::
+        Examples::
             session.sql("create temp table RESULT (NUM int)").collect()
             session.sql("insert into RESULT values(1),(2)").collect()
 
@@ -1808,7 +1808,7 @@ class DataFrame:
 
         Returns:
              A :class:`DataFrame` object that holds the cached result in a temporary table.
-             All operations on this new DataFrame have no effect on the original
+             All operations on this new DataFrame have no effect on the original.
         """
         temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         create_temp_table = self.session._Session__plan_builder.create_temp_table(
