@@ -86,7 +86,9 @@ def test_normalize_file(is_local):
     name2 = "sta'ge"
     assert Utils.normalize_path(name2, is_local) == f"'{symbol}sta\\'ge'"
     name3 = "s ta\\'ge "
-    assert Utils.normalize_path(name3, is_local) == f"'{symbol}s ta\\\\'ge'"
+    assert Utils.normalize_path(name3, is_local) == (
+        f"'{symbol}s ta/\\'ge'" if is_local and IS_WINDOWS else f"'{symbol}s ta\\\\'ge'"
+    )
 
 
 def test_get_udf_upload_prefix():
