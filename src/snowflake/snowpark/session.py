@@ -967,7 +967,7 @@ class Session:
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, VariantType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
-                elif type(data_type) == GeographyType:
+                elif isinstance(data_type, GeographyType):
                     converted_row.append(value)
                 else:
                     raise TypeError(
