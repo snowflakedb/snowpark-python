@@ -1247,7 +1247,7 @@ class Session:
         Example:
 
             with session.query_history() as query_history_listener:
-                df = session.create_dataframe([[1, 2], [3, 4], schema=["a", "b"])
+                df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
                 df = df.filter(df.a == 1)
                 df.collect()
 
