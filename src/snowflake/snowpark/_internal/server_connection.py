@@ -13,7 +13,6 @@ import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
-from snowflake.connector.description import PLATFORM
 from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
@@ -24,6 +23,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.query_history_listener import QueryHistoryListener
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
@@ -100,6 +100,7 @@ class ServerConnection:
         self.__add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         self._cursor = self._conn.cursor()
+        self._query_listener = set()  # type: set[QueryHistoryListener]
 
     def __add_application_name(self):
         if PARAM_APPLICATION not in self._lower_case_parameters:
@@ -114,6 +115,12 @@ class ServerConnection:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_VERSION
             ] = Utils.get_version()
+
+    def add_query_listener(self, listener):
+        self._query_listener.add(listener)
+
+    def remove_query_listener(self, listener):
+        self._query_listener.remove(listener)
 
     def close(self) -> None:
         if self._conn:
@@ -342,12 +349,17 @@ class ServerConnection:
         final_statement = f"PUT {local_path} {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
         return final_statement
 
+    def notify_query_listeners(self, query_record):
+        for listener in self._query_listener:
+            listener._add_query(query_record)
+
     @_Decorator.wrap_exception
     def run_query(
         self, query: str, to_pandas: bool = False, **kwargs
     ) -> Dict[str, Any]:
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
+            self.notify_query_listeners((results_cursor.sfqid, results_cursor.query))
             logger.info(
                 "Execute query [queryID: {}] {}".format(results_cursor.sfqid, query)
             )
@@ -453,8 +465,19 @@ class ServerConnection:
             else None
         )
         if query_tag:
-            self._cursor.execute(f"alter session set query_tag='{query_tag}'")
-        self._cursor.executemany(query, params)
+            set_query_tag_cursor = self._cursor.execute(
+                f"alter session set query_tag='{query_tag}'"
+            )
+            self.notify_query_listeners(
+                (set_query_tag_cursor.sfqid, set_query_tag_cursor.query)
+            )
+        results_cursor = self._cursor.executemany(query, params)
+        self.notify_query_listeners((results_cursor.sfqid, results_cursor.query))
         if query_tag:
-            self._cursor.execute("alter session unset query_tag")
+            unset_query_tag_cursor = self._cursor.execute(
+                "alter session unset query_tag"
+            )
+            self.notify_query_listeners(
+                (unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
+            )
         logger.info(f"Execute batch insertion query %s", query)

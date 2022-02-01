@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
+from snowflake.snowpark._internal.query_history_listener import QueryHistoryListener
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
@@ -1238,6 +1239,11 @@ class Session:
                 SPFlattenFunction(input.expression, path, outer, recursive, mode)
             ),
         )
+
+    def _query_history(self) -> QueryHistoryListener:
+        query_listener = QueryHistoryListener(self)
+        self._conn.add_query_listener(query_listener)
+        return query_listener
 
     def _table_exists(self, table_name: str):
         tables = self._run_query(f"show tables like '{table_name}'")
