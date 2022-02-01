@@ -63,7 +63,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
     LiteralType,
 )
-from snowflake.snowpark._internal.utils import Utils, deprecate
+from snowflake.snowpark._internal.utils import TempObjectType, Utils, deprecate
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -207,9 +207,11 @@ class DataFrame:
         self,
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
+        is_cached: bool = False,
     ):
         self.session = session
         self._plan = session._analyzer.resolve(plan)
+        self.is_cached = is_cached  # whether it is a cached dataframe
 
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
@@ -1772,6 +1774,54 @@ class DataFrame:
             for att in self.__output()
         ]
         return self.select(new_columns)
+
+    def cache_result(self) -> "DataFrame":
+        """Caches the content of this DataFrame to create a new cached DataFrame.
+
+        All subsequent operations on the returned cached DataFrame are performed on the cached data
+        and have no effect on the original DataFrame.
+
+        Examples::
+            session.sql("create temp table RESULT (NUM int)").collect()
+            session.sql("insert into RESULT values(1),(2)").collect()
+
+            df = session.table("RESULT")
+            assert df.collect() == [Row(1), Row(2)]
+
+            # Run cache_result and then insert into the original table to see
+            # that the cached result is not affected
+            df1 = df.cache_result()
+            session.sql("insert into RESULT values (3)").collect()
+            assert df1.collect() == [Row(1), Row(2)]
+            assert df.collect() == [Row(1), Row(2), Row(3)]
+
+            # You can run cache_result on a result that has already been cached
+            df2 = df1.cache_result()
+            assert df2.collect() == [Row(1), Row(2)]
+
+            df3 = df.cache_result()
+            # Drop RESULT and see that the cached results still exist
+            session.sql(f"drop table RESULT").collect()
+            assert df1.collect() == [Row(1), Row(2)]
+            assert df2.collect() == [Row(1), Row(2)]
+            assert df3.collect() == [Row(1), Row(2), Row(3)]
+
+        Returns:
+             A :class:`DataFrame` object that holds the cached result in a temporary table.
+             All operations on this new DataFrame have no effect on the original.
+        """
+        temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        create_temp_table = self.session._Session__plan_builder.create_temp_table(
+            temp_table_name, self._plan
+        )
+        self.session._conn.execute(
+            create_temp_table,
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
+            if not self.session.query_tag
+            else None,
+        )
+        new_plan = self.session.table(temp_table_name)._plan
+        return DataFrame(session=self.session, plan=new_plan, is_cached=True)
 
     def explain(self) -> None:
         """

@@ -220,6 +220,63 @@ def test_show(session):
     )
 
 
+def test_cache_result(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session._run_query(f"create temp table {table_name} (num int)")
+    session._run_query(f"insert into {table_name} values(1),(2)")
+
+    df = session.table(table_name)
+    Utils.check_answer(df, [Row(1), Row(2)])
+
+    session._run_query(f"insert into {table_name} values (3)")
+    Utils.check_answer(df, [Row(1), Row(2), Row(3)])
+
+    df1 = df.cache_result()
+    session._run_query(f"insert into {table_name} values (4)")
+    Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
+    Utils.check_answer(df, [Row(1), Row(2), Row(3), Row(4)])
+
+    df2 = df1.where(col("num") > 2)
+    Utils.check_answer(df2, [Row(3)])
+
+    df3 = df.where(col("num") > 2)
+    Utils.check_answer(df3, [Row(3), Row(4)])
+
+    df4 = df1.cache_result()
+    Utils.check_answer(df4, [Row(1), Row(2), Row(3)])
+
+    session._run_query(f"drop table {table_name}")
+    Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
+    Utils.check_answer(df2, [Row(3)])
+
+
+def test_cache_result_with_show(session):
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        session._run_query(f"create temp table {table_name1} (name string)")
+        session._run_query(f"insert into {table_name1} values('{table_name1}')")
+        table = session.table(table_name1)
+
+        # SHOW TABLES
+        df1 = session.sql("show tables").cache_result()
+        table_names = [tn[1] for tn in df1.collect()]
+        assert table_name1 in table_names
+
+        # SHOW TABLES + SELECT
+        df2 = session.sql("show tables").select('"created_on"', '"name"').cache_result()
+        table_names = [tn[1] for tn in df2.collect()]
+        assert table_name1 in table_names
+
+        # SHOW TABLES + SELECT + Join
+        df3 = session.sql("show tables").select('"created_on"', '"name"')
+        df3.show()
+        df4 = df3.join(table, df3['"name"'] == table["name"]).cache_result()
+        table_names = [tn[0] for tn in df4.select("name").collect()]
+        assert table_name1 in table_names
+    finally:
+        session._run_query(f"drop table {table_name1}")
+
+
 def test_non_select_query_composition(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
