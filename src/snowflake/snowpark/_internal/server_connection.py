@@ -116,10 +116,10 @@ class ServerConnection:
                 PARAM_INTERNAL_APPLICATION_VERSION
             ] = Utils.get_version()
 
-    def add_query_listener(self, listener):
+    def add_query_listener(self, listener: QueryHistoryListener):
         self._query_listener.add(listener)
 
-    def remove_query_listener(self, listener):
+    def remove_query_listener(self, listener: QueryHistoryListener):
         self._query_listener.remove(listener)
 
     def close(self) -> None:

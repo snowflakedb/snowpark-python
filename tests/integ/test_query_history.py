@@ -13,6 +13,17 @@ def test_query_history(session):
     assert query_listener.queries[0].sql_text == "select 0"
 
 
+def test_query_history_stop_listening(session):
+    with session.query_history() as query_listener:
+        session.sql("select 0").collect()
+    session.sql(
+        "select 1"
+    ).collect()  # the query from this action shouldn't be recorded by query_listener
+    assert len(query_listener.queries) == 1
+    assert query_listener.queries[0].query_id is not None
+    assert query_listener.queries[0].sql_text == "select 0"
+
+
 def test_query_history_two_listeners(session):
     with session.query_history() as query_listener:
         session.sql("select 0").collect()

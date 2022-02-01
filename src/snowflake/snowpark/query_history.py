@@ -7,8 +7,6 @@ import snowflake.snowpark
 
 
 class QueryRecord(NamedTuple):
-    """ """
-
     query_id: str
     sql_text: str
 
