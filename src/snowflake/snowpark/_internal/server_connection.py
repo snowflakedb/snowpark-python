@@ -23,8 +23,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.query_history_listener import QueryHistoryListener
 from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark.query_history import QueryHistoryListener
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,

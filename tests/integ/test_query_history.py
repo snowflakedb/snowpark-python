@@ -1,0 +1,72 @@
+#
+# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+#
+
+from snowflake.snowpark._internal.analyzer_obj import ARRAY_BIND_THRESHOLD
+
+
+def test_query_history(session):
+    with session.query_history() as query_listener:
+        session.sql("select 0").collect()
+    assert len(query_listener.queries) == 1
+    assert query_listener.queries[0].query_id is not None
+    assert query_listener.queries[0].sql_text == "select 0"
+
+
+def test_query_history_two_listeners(session):
+    with session.query_history() as query_listener:
+        session.sql("select 0").collect()
+        with session.query_history() as query_listener1:
+            session.sql("select 1").collect()
+
+    assert len(query_listener1.queries) == 1
+    assert query_listener1.queries[0].query_id is not None
+    assert query_listener1.queries[0].sql_text == "select 1"
+
+    assert len(query_listener.queries) == 2
+    assert (
+        query_listener.queries[0].query_id is not None
+        and query_listener.queries[1].query_id is not None
+    )
+    assert (
+        query_listener.queries[0].sql_text == "select 0"
+        and query_listener.queries[1].sql_text == "select 1"
+    )
+
+
+def test_query_history_multiple_actions(session):
+    with session.query_history() as query_listener:
+        session.sql("select 0").collect()
+        session.sql("select 1").collect()
+        session.sql("select 2").collect()
+    assert len(query_listener.queries) == 3
+    assert all(query.query_id is not None for query in query_listener.queries)
+    assert query_listener.queries[0].sql_text == "select 0"
+    assert query_listener.queries[1].sql_text == "select 1"
+    assert query_listener.queries[2].sql_text == "select 2"
+
+
+def test_query_history_no_actions(session):
+    with session.query_history() as query_listener:
+        pass  # no action
+    assert len(query_listener.queries) == 0
+
+
+def test_query_history_executemany(session):
+    """Large local data frame uses ServerConnection.run_batch_insert instead of .run_query.
+    run_batch_insert create a temp table and use parameter binding to insert values, then select from the temp table.
+    Finally it drops the temp table.
+    """
+    with session.query_history() as query_listener:
+        session.create_dataframe(
+            [[1]] * (ARRAY_BIND_THRESHOLD + 1), schema=["a"]
+        ).collect()
+
+    queries = query_listener.queries
+    assert all(query.query_id is not None for query in queries)
+    assert "CREATE  TEMPORARY" in queries[0].sql_text
+    assert "alter session set query_tag" in queries[1].sql_text
+    assert "INSERT  INTO" in queries[2].sql_text and "VALUES (?)" in queries[2].sql_text
+    assert "alter session unset query_tag" in queries[3].sql_text
+    assert 'SELECT "A" FROM' in queries[4].sql_text
+    assert "DROP  TABLE  If  EXISTS" in queries[5].sql_text  # post action

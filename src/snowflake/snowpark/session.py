@@ -30,7 +30,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
-from snowflake.snowpark._internal.query_history_listener import QueryHistoryListener
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
@@ -64,6 +63,7 @@ from snowflake.snowpark.functions import (
     to_timestamp,
     to_variant,
 )
+from snowflake.snowpark.query_history import QueryHistoryListener
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
@@ -1240,7 +1240,19 @@ class Session:
             ),
         )
 
-    def _query_history(self) -> QueryHistoryListener:
+    def query_history(self) -> QueryHistoryListener:
+        """Create an instance of :class:`QueryHistoryListener` as a context manager to record queries pushed down to
+        Snowflake DB.
+
+        Example:
+
+            with session.query_history() as query_history_listener:
+                df = session.create_dataframe([[1, 2], [3, 4], schema=["a", "b"])
+                df = df.filter(df.a == 1)
+                df.collect()
+
+        Then ``query_history_listener.queries`` will have a list of :class:`QueryRecord` that were pushed down to Snowflake DB.
+        """
         query_listener = QueryHistoryListener(self)
         self._conn.add_query_listener(query_listener)
         return query_listener
