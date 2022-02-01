@@ -10,12 +10,13 @@
 import pytest
 
 from snowflake.snowpark._internal.analyzer_obj import ARRAY_BIND_THRESHOLD
+from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import Utils
 
 
 def test_set_query_tag(session):
     """Test set query_tag properties on session"""
-    query_tag = Utils.random_name()
+    query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
     try:
         session.query_tag = query_tag
         assert session.query_tag == query_tag
@@ -24,9 +25,9 @@ def test_set_query_tag(session):
 
 
 def test_query_tags_in_session(session):
-    query_tag = Utils.random_name()
-    view_name = Utils.random_name()
-    temp_view_name = Utils.random_name()
+    query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     try:
         session.query_tag = query_tag
         session.create_dataframe(["a", "b", "c"]).collect()
@@ -70,7 +71,7 @@ def test_query_tags_in_session(session):
 def test_query_tags_from_trackback(session, code):
     """Create a function with random name and check if the random name is in query tag of sql history"""
 
-    random_name = Utils.random_name()
+    random_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     exec(
         f"""def {random_name}_func(session):
             {code}
@@ -91,6 +92,15 @@ def test_large_local_relation_query_tag_from_traceback(session):
         session, "test_large_local_relation_query_tag_from_traceback"
     )
     assert len(query_history) > 0  # some hidden SQLs are run so it's not exactly 1.
+
+
+def test_query_tag_for_cache_result(session):
+    query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
+    session.query_tag = query_tag
+    session.create_dataframe([1, 2, 3]).cache_result()
+    Utils.unset_query_tag(session)
+    query_history = get_query_history_for_tags(session, query_tag)
+    assert len(query_history) == 3
 
 
 def get_query_history_for_tags(session, query_tag):
