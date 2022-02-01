@@ -840,14 +840,14 @@ class Session:
             table_name = AnalyzerPackage._escape_quotes(
                 Utils.random_name_for_temp_object(TempObjectType.TABLE)
             )
-            database = self.get_current_database(unquoted=True)
-            schema = self.get_current_schema(unquoted=True)
+            sf_database = self.get_current_database(unquoted=True)
+            sf_schema = self.get_current_schema(unquoted=True)
 
             return self.write_pandas(
                 data,
                 table_name,
-                database=database,
-                schema=schema,
+                database=sf_database,
+                schema=sf_schema,
                 quote_identifiers=True,
                 auto_create_table=True,
                 create_temp_table=True,
@@ -968,7 +968,7 @@ class Session:
                 elif isinstance(data_type, VariantType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif type(data_type) == GeographyType:
-                    converted_row.append(value.as_geo_json())
+                    converted_row.append(value)
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."

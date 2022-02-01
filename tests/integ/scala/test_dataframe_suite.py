@@ -41,7 +41,6 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
-    Geography,
     GeographyType,
     IntegerType,
     LongType,
@@ -1437,7 +1436,7 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
         ]
     )
     data = [
-        Row(["'", 2], {"'": 1}, 1, Geography("POINT(30 10)")),
+        Row(["'", 2], {"'": 1}, 1, "POINT(30 10)"),
         Row(None, None, None, None),
     ]
     df = session.create_dataframe(data, schema)

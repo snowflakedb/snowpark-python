@@ -317,27 +317,6 @@ class StructType(DataType):
         return [f.name for f in self.fields]
 
 
-class Geography:
-    """Python representation of Snowflake Geography data. Only support GeoJSON format."""
-
-    def __init__(self, string_data: str):
-        if string_data is None:
-            raise ValueError("Cannot create geography object from None input")
-        self.__string_data = string_data
-
-    def __eq__(self, other):
-        return (
-            isinstance(other, self.__class__)
-            and self.__string_data == other.__string_data
-        )
-
-    def __repr__(self):
-        return self.__string_data
-
-    def as_geo_json(self):
-        return self.__string_data
-
-
 class GeographyType(DataType):
     """Geography data type. This maps to the GEOGRAPHY data type in Snowflake."""
 

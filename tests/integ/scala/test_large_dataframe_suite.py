@@ -17,7 +17,6 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
-    Geography,
     GeographyType,
     IntegerType,
     LongType,
@@ -149,7 +148,7 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
 
     row_count = 350
     large_data = [
-        Row(i, ["'", 2], {"'": 1}, {"a": "foo"}, Geography("POINT(30 10)"))
+        Row(i, ["'", 2], {"'": 1}, {"a": "foo"}, "POINT(30 10)")
         for i in range(row_count)
     ]
     large_data.append(Row(row_count, None, None, None, None))
