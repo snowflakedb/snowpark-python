@@ -462,6 +462,22 @@ class TestData:
         )
 
     @classmethod
+    def geography_type(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            """
+            select to_geography(a) as geo
+            from values
+            ('{
+                "coordinates": [
+                  30,
+                  10
+                ],
+                "type": "Point"
+            }') as T(a)
+            """
+        )
+
+    @classmethod
     def null_json1(cls, session: "Session") -> DataFrame:
         return session.sql(
             'select parse_json(column1) as v from values (\'{"a": null}\'), (\'{"a": "foo"}\'),'

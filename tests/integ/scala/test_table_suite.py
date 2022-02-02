@@ -202,7 +202,6 @@ def test_quotes_upper_and_lower_case_name(session, table_name_1):
         Utils.check_answer(session.table(table_name), [Row(1), Row(2), Row(3)])
 
 
-# @pytest.mark.skip("To port from scala after Python implements Geography")
 def test_table_with_semi_structured_types(session, semi_structured_table):
     df = session.table(semi_structured_table)
     types = [s.datatype for s in df.schema.fields]
