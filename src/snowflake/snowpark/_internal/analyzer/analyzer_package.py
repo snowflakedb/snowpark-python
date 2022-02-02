@@ -368,7 +368,7 @@ class AnalyzerPackage:
                 + str(probability_fraction * 100)
                 + self._RightParenthesis
             )
-        elif row_count is not None:
+        else:  # row_count is not None. Upstream code will validate input.
             return (
                 self.project_statement([], child)
                 + self._Sample
@@ -377,8 +377,6 @@ class AnalyzerPackage:
                 + self._Rows
                 + self._RightParenthesis
             )
-        else:
-            raise SnowparkClientExceptionMessages.PLAN_SAMPLING_NEED_ONE_PARAMETER()
 
     def aggregate_statement(
         self, grouping_exprs: List[str], aggregate_exprs: List[str], child: str
