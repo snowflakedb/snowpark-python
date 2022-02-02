@@ -9,6 +9,9 @@
 - Added `DataFrame.cache_result()` for caching the operations performed on a `DataFrame` in a temporary table.
   Subsequent operations on the original `DataFrame` have no effect on the cached result `DataFrame`.
 
+### Dependency updates
+- Updated ``snowflake-connector-python`` to 2.7.4.
+
 ## 0.3.0 (2022-01-09)
 ### New Features
 - Added `Column.isin()`, with an alias `Column.in_()`.
