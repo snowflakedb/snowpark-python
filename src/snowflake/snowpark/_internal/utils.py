@@ -26,7 +26,9 @@ from typing import IO, List, Optional, Tuple, Type
 import snowflake.snowpark
 from snowflake.connector.description import PLATFORM
 from snowflake.connector.version import VERSION as connector_version
+from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.types import DecimalType, LongType, StringType
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
@@ -338,10 +340,10 @@ class Utils:
 
     @staticmethod
     def random_name_for_temp_object(object_type: TempObjectType) -> str:
-        return f"{TEMP_OBJECT_NAME_PREFIX}{object_type.value}_{Utils.generate_random_alphanumeric(10).upper()}"
+        return f"{TEMP_OBJECT_NAME_PREFIX}{object_type.value}_{Utils.generate_random_alphanumeric().upper()}"
 
     @staticmethod
-    def generate_random_alphanumeric(length: int) -> str:
+    def generate_random_alphanumeric(length: int = 10) -> str:
         return "".join(choice(ALPHANUMERIC) for _ in range(length))
 
     @staticmethod
@@ -412,3 +414,74 @@ def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
         return func_call_wrapper
 
     return deprecate_wrapper
+
+
+class SchemaUtils:
+    @staticmethod
+    def command_attributes() -> List[Attribute]:
+        return [Attribute('"status"', StringType())]
+
+    @staticmethod
+    def list_stage_attributes() -> List[Attribute]:
+        return [
+            Attribute('"name"', StringType()),
+            Attribute('"size"', LongType()),
+            Attribute('"md5"', StringType()),
+            Attribute('"last_modified"', StringType()),
+        ]
+
+    @staticmethod
+    def remove_state_file_attributes() -> List[Attribute]:
+        return [Attribute('"name"', StringType()), Attribute('"result"', StringType())]
+
+    @staticmethod
+    def put_attributes() -> List[Attribute]:
+        return [
+            Attribute('"source"', StringType(), nullable=False),
+            Attribute('"target"', StringType(), nullable=False),
+            Attribute('"source_size"', DecimalType(10, 0), nullable=False),
+            Attribute('"target_size"', DecimalType(10, 0), nullable=False),
+            Attribute('"source_compression"', StringType(), nullable=False),
+            Attribute('"target_compression"', StringType(), nullable=False),
+            Attribute('"status"', StringType(), nullable=False),
+            Attribute('"encryption"', StringType(), nullable=False),
+            Attribute('"message"', StringType(), nullable=False),
+        ]
+
+    @staticmethod
+    def get_attributes() -> List[Attribute]:
+        return [
+            Attribute('"file"', StringType(), nullable=False),
+            Attribute('"size"', DecimalType(10, 0), nullable=False),
+            Attribute('"status"', StringType(), nullable=False),
+            Attribute('"encryption"', StringType(), nullable=False),
+            Attribute('"message"', StringType(), nullable=False),
+        ]
+
+    @staticmethod
+    def analyze_attributes(
+        sql: str, session: "snowflake.snowpark.Session"
+    ) -> List[Attribute]:
+        lowercase = sql.strip().lower()
+
+        # SQL commands which cannot be prepared
+        # https://docs.snowflake.com/en/user-guide/sql-prepare.html
+        if lowercase.startswith(
+            ("alter", "drop", "use", "create", "grant", "revoke", "comment")
+        ):
+            return SchemaUtils.command_attributes()
+        if lowercase.startswith(("ls", "list")):
+            return SchemaUtils.list_stage_attributes()
+        if lowercase.startswith(("rm", "remove")):
+            return SchemaUtils.remove_state_file_attributes()
+        if lowercase.startswith("put"):
+            return SchemaUtils.put_attributes()
+        if lowercase.startswith("get"):
+            return SchemaUtils.get_attributes()
+        if lowercase.startswith("describe"):
+            session._run_query(sql)
+            return session._conn.convert_result_meta_to_attribute(
+                session._conn._cursor.description
+            )
+
+        return session._get_result_attributes(sql)

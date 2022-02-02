@@ -20,13 +20,17 @@ from snowflake.snowpark._internal.plans.logical.logical_plan import (
     LeafNode,
     LogicalPlan,
 )
-from snowflake.snowpark._internal.schema_utils import SchemaUtils
 from snowflake.snowpark._internal.sp_expressions import (
     Attribute as SPAttribute,
     AttributeReference as SPAttributeReference,
     Expression as SPExpression,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, Utils, _SaveMode
+from snowflake.snowpark._internal.utils import (
+    SchemaUtils,
+    TempObjectType,
+    Utils,
+    _SaveMode,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -817,7 +821,7 @@ class Query:
         self.query_id_place_holder = (
             query_id_place_holder
             if query_id_place_holder
-            else f"query_id_place_holder_{SchemaUtils.random_string()}"
+            else f"query_id_place_holder_{Utils.generate_random_alphanumeric()}"
         )
 
 
