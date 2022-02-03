@@ -551,6 +551,12 @@ def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
     return builtin("months_between")(c1, c2)
 
 
+def to_geography(e: ColumnOrName) -> Column:
+    """Parses an input and returns a value of type GEOGRAPHY."""
+    c = _to_col_if_str(e, "to_geography")
+    return builtin("to_geography")(c)
+
+
 def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Compares whether two ARRAYs have at least one element in common. Returns TRUE
     if there is at least one element in common; otherwise returns FALSE. The function

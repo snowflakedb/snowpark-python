@@ -12,7 +12,7 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 VERSION = (1, 1, 1, None)  # Default, needed so code will compile
-CONNECTOR_DEPENDENCY_VERSION = "2.7.2"
+CONNECTOR_DEPENDENCY_VERSION = "2.7.4"
 with open(os.path.join(SNOWPARK_SRC_DIR, "version.py"), encoding="utf-8") as f:
     exec(f.read())
 version = ".".join([str(v) for v in VERSION if v is not None])
