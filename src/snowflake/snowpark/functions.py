@@ -43,7 +43,6 @@ from snowflake.snowpark._internal.sp_expressions import (
     ArraysOverlap as SPArraysOverlap,
     Avg as SPAverage,
     CaseWhen as SPCaseWhen,
-    Cast as SPCast,
     Count as SPCount,
     FunctionExpression as SPFunctionExpression,
     IsNaN as SPIsNan,
@@ -64,7 +63,12 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.column import CaseExpr, Column, _to_col_if_str
+from snowflake.snowpark.column import (
+    CaseExpr,
+    Column,
+    _to_col_if_sql_expr,
+    _to_col_if_str,
+)
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UserDefinedFunction
 
@@ -1221,29 +1225,48 @@ def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("get")(c1, c2)
 
 
-def when(condition: Column, value: Union[Column, LiteralType]) -> CaseExpr:
+def when(condition: Union[Column, str], value: Union[ColumnOrLiteral]) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
     When a condition evaluates to TRUE, the evaluation stops and the associated
     result (after THEN) is returned. If none of the conditions evaluate to TRUE,
     then the result after the optional OTHERWISE is returned, if present;
     otherwise NULL is returned.
+
+    Args:
+        condition: A :class:`Column` expression or SQL text representing the specified condition.
+        value: A :class:`Column` expression or a literal value, which will be returned
+            if ``condition`` is true.
     """
-    return CaseExpr(SPCaseWhen([(condition.expression, Column._to_expr(value))]))
+    return CaseExpr(
+        SPCaseWhen(
+            [
+                (
+                    _to_col_if_sql_expr(condition, "when").expression,
+                    Column._to_expr(value),
+                )
+            ]
+        )
+    )
 
 
 def iff(
-    condition: Column,
-    expr1: Union[Column, LiteralType],
-    expr2: Union[Column, LiteralType],
+    condition: Union[Column, str],
+    expr1: Union[ColumnOrLiteral],
+    expr2: Union[ColumnOrLiteral],
 ) -> Column:
     """
     Returns one of two specified expressions, depending on a condition.
-    This is equivalent to an ``if-then-else`` expression. If ``condition``
-    evaluates to TRUE, the function returns ``expr1``. Otherwise, the
-    function returns ``expr2``.
+    This is equivalent to an ``if-then-else`` expression.
+
+    Args:
+        condition: A :class:`Column` expression or SQL text representing the specified condition.
+        expr1: A :class:`Column` expression or a literal value, which will be returned
+            if ``condition`` is true.
+        expr2: A :class:`Column` expression or a literal value, which will be returned
+            if ``condition`` is false.
     """
-    return builtin("iff")(condition, expr1, expr2)
+    return builtin("iff")(_to_col_if_sql_expr(condition, "iff"), expr1, expr2)
 
 
 def in_(
@@ -1333,7 +1356,7 @@ def row_number() -> Column:
 def lag(
     e: ColumnOrName,
     offset: int = 1,
-    default_value: Optional[Union[Column, LiteralType]] = None,
+    default_value: Optional[Union[ColumnOrLiteral]] = None,
 ) -> Column:
     """
     Accesses data in a previous row in the same result set without having to
@@ -1568,7 +1591,7 @@ def call_udf(
     )
 
 
-def call_builtin(function_name: str, *args: Union[Column, LiteralType]) -> Column:
+def call_builtin(function_name: str, *args: Union[ColumnOrLiteral]) -> Column:
     """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
     and arguments.
 
