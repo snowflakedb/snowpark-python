@@ -17,6 +17,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
+    GeographyType,
     IntegerType,
     LongType,
     MapType,
@@ -141,22 +142,41 @@ def test_create_dataframe_for_large_values_array_map_variant(session):
             StructField("array", ArrayType(None)),
             StructField("map", MapType(None, None)),
             StructField("variant", VariantType()),
+            StructField("geography", GeographyType()),
         ]
     )
 
     row_count = 350
-    large_data = [Row(i, ["'", 2], {"'": 1}, {"a": "foo"}) for i in range(row_count)]
-    large_data.append(Row(row_count, None, None, None))
+    large_data = [
+        Row(i, ["'", 2], {"'": 1}, {"a": "foo"}, "POINT(30 10)")
+        for i in range(row_count)
+    ]
+    large_data.append(Row(row_count, None, None, None, None))
     df = session.create_dataframe(large_data, schema)
     assert [type(field.datatype) for field in df.schema.fields] == [
         LongType,
         ArrayType,
         MapType,
         VariantType,
+        GeographyType,
     ]
+    geography_string = """\
+{
+  "coordinates": [
+    30,
+    10
+  ],
+  "type": "Point"
+}"""
     expected = [
-        Row(i, '[\n  "\'",\n  2\n]', '{\n  "\'": 1\n}', '{\n  "a": "foo"\n}')
+        Row(
+            i,
+            '[\n  "\'",\n  2\n]',
+            '{\n  "\'": 1\n}',
+            '{\n  "a": "foo"\n}',
+            geography_string,
+        )
         for i in range(row_count)
     ]
-    expected.append(Row(row_count, None, None, None))
+    expected.append(Row(row_count, None, None, None, None))
     assert df.sort("id").collect() == expected

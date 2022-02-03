@@ -8,6 +8,10 @@
   Also, the `merge` method is added to merge a `Table` with a `DataFrame`.
 - Added `DataFrame.cache_result()` for caching the operations performed on a `DataFrame` in a temporary table.
   Subsequent operations on the original `DataFrame` have no effect on the cached result `DataFrame`.
+- Added support for Geography geoJSON data.
+
+### Dependency updates
+- Updated ``snowflake-connector-python`` to 2.7.4.
 
 ## 0.3.0 (2022-01-09)
 ### New Features

@@ -317,7 +317,7 @@ class StructType(DataType):
         return [f.name for f in self.fields]
 
 
-class _GeographyType(_AtomicType):
+class GeographyType(DataType):
     """Geography data type. This maps to the GEOGRAPHY data type in Snowflake."""
 
     def __repr__(self):

@@ -64,14 +64,13 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils, deprecate
-from snowflake.snowpark.column import Column
+from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
-    _to_col_if_str,
     col,
     lit,
     row_number,
@@ -494,16 +493,9 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
-        if not isinstance(expr, (Column, str)):
-            raise TypeError(
-                f"The input type of filter() must be Column or str. Got: {type(expr)}"
-            )
-
         return self._with_plan(
             SPFilter(
-                expr.expression
-                if isinstance(expr, Column)
-                else sql_expr(expr).expression,
+                _to_col_if_sql_expr(expr, "filter/where").expression,
                 self._plan,
             )
         )
@@ -1676,22 +1668,25 @@ class DataFrame:
         Returns:
             a :class:`DataFrame` containing the sample of rows.
         """
+        DataFrame._validate_sample_input(frac, n)
+        return self._with_plan(
+            SPSample(self._plan, probability_fraction=frac, row_count=n)
+        )
+
+    @staticmethod
+    def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
         if frac is None and n is None:
             raise ValueError(
-                "probability_fraction and row_count cannot both be None. "
+                "'frac' and 'n' cannot both be None. "
                 "One of those values must be defined"
             )
         if frac is not None and (frac < 0.0 or frac > 1.0):
             raise ValueError(
-                f"probability_fraction value {frac} "
+                f"'frac' value {frac} "
                 f"is out of range (0 <= probability_fraction <= 1)"
             )
         if n is not None and n < 0:
-            raise ValueError(f"row_count value {n} must be greater than 0")
-
-        return self._with_plan(
-            SPSample(self._plan, probability_fraction=frac, row_count=n)
-        )
+            raise ValueError(f"'n' value {n} must be greater than 0")
 
     @property
     def na(self) -> DataFrameNaFunctions:
