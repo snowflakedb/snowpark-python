@@ -351,6 +351,12 @@ class Utils:
 
     @staticmethod
     def column_to_bool(col_):
+        """A replacement to bool(col_) to check if ``col_`` is None or Empty.
+
+        ``Column.__bool__` raises an exception to remind users to use &, |, ~ instead of and, or, not for logical operations.
+        The side-effect is the implicit call like ``if col_`` also raises an exception.
+        Our internal code sometimes needs to check an input column is None, "", or []. So this method will help it by writeint ``if column_to_bool(col_): ...``
+        """
         if isinstance(col_, snowflake.snowpark.Column):
             return True
         return bool(col_)

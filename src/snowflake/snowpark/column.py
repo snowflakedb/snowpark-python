@@ -226,8 +226,7 @@ class Column:
     def __bool__(self) -> bool:
         raise TypeError(
             "Cannot convert a Column object into bool: please use '&' for 'and', '|' for 'or', "
-            "'~' for 'not' if you're building DataFrame filter expressions. The correct example is like df.filter((col1 > 1) & (col2 > 2)), "
-            "but not df.filter(col1 > 1 and col2 > 2)."
+            "'~' for 'not' if you're building DataFrame filter expressions. For example, use df.filter((col1 > 1) & (col2 > 2)) instead of df.filter(col1 > 1 and col2 > 2)."
         )
 
     def in_(
