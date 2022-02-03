@@ -518,13 +518,17 @@ def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
 def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into the corresponding timestamp."""
     c = _to_col_if_str(e, "to_timestamp")
-    return builtin("to_timestamp")(c, fmt) if fmt else builtin("to_timestamp")(c)
+    return (
+        builtin("to_timestamp")(c, fmt)
+        if fmt is not None
+        else builtin("to_timestamp")(c)
+    )
 
 
 def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into a date."""
     c = _to_col_if_str(e, "to_date")
-    return builtin("to_date")(c, fmt) if fmt else builtin("to_date")(c)
+    return builtin("to_date")(c, fmt) if fmt is not None else builtin("to_date")(c)
 
 
 def current_timestamp() -> Column:
@@ -977,8 +981,8 @@ def object_insert(
     o = _to_col_if_str(obj, "object_insert")
     k = _to_col_if_str(key, "object_insert")
     v = _to_col_if_str(value, "object_insert")
-    uf = _to_col_if_str(update_flag, "update_flag") if update_flag else None
-    if uf:
+    uf = _to_col_if_str(update_flag, "update_flag") if update_flag is not None else None
+    if uf is not None:
         return builtin("object_insert")(o, k, v, uf)
     else:
         return builtin("object_insert")(o, k, v)

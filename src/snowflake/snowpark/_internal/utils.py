@@ -17,13 +17,13 @@ import random
 import re
 import string
 import traceback
-import warnings
 import zipfile
 from enum import Enum
 from json import JSONEncoder
 from random import choice
 from typing import IO, List, Optional, Tuple, Type
 
+import snowflake.snowpark
 from snowflake.connector.description import PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -348,6 +348,13 @@ class Utils:
     def double_quote_identifier(name: str) -> str:
         name = name.replace('"', '""')
         return f'"{name}"'
+
+    @staticmethod
+    def column_to_bool(coll):
+        if isinstance(coll, snowflake.snowpark.Column):
+            return coll is not None
+        else:
+            return bool(coll)
 
 
 class PythonObjJSONEncoder(JSONEncoder):

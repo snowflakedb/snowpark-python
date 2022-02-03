@@ -143,7 +143,7 @@ def test_join_with_multiple_conditions(session):
         ["num", "val"]
     )
 
-    res = df1.join(df2, df1["a"] == df2["num"] and df1["b"] == df2["val"]).collect()
+    res = df1.join(df2, (df1["a"] == df2["num"]) & (df1["b"] == df2["val"])).collect()
     assert res == []
 
 
@@ -393,7 +393,7 @@ def test_semi_join_with_columns_from_LHS(session):
     res = (
         lhs.join(
             rhs,
-            lhs["intcol"] == rhs["intcol"] and lhs["negcol"] == rhs["negcol"],
+            (lhs["intcol"] == rhs["intcol"]) & (lhs["negcol"] == rhs["negcol"]),
             "leftsemi",
         )
         .select(lhs["intcol"])
@@ -418,7 +418,7 @@ def test_semi_join_with_columns_from_LHS(session):
     res = (
         lhs.join(
             rhs,
-            lhs["intcol"] == rhs["intcol"] and lhs["negcol"] == rhs["negcol"],
+            (lhs["intcol"] == rhs["intcol"]) & (lhs["negcol"] == rhs["negcol"]),
             "leftanti",
         )
         .select(lhs["intcol"])
@@ -839,7 +839,7 @@ def test_outer_join_conversion(session):
     # outer -> inner
     outer_join_2_inner = (
         df.join(df2, df["int"] == df2["int"], "outer")
-        .where(df["int"] == 1 and df2["int2"] == 3)
+        .where((df["int"] == 1) & (df2["int2"] == 3))
         .collect()
     )
     assert outer_join_2_inner == [Row(1, 2, "1", 1, 3, "1")]
