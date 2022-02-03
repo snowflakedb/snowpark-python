@@ -350,11 +350,10 @@ class Utils:
         return f'"{name}"'
 
     @staticmethod
-    def column_to_bool(coll):
-        if isinstance(coll, snowflake.snowpark.Column):
-            return coll is not None
-        else:
-            return bool(coll)
+    def column_to_bool(col_):
+        if isinstance(col_, snowflake.snowpark.Column):
+            return True
+        return bool(col_)
 
 
 class PythonObjJSONEncoder(JSONEncoder):
