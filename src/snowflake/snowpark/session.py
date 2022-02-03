@@ -58,6 +58,7 @@ from snowflake.snowpark.functions import (
     to_array,
     to_date,
     to_decimal,
+    to_geography,
     to_object,
     to_time,
     to_timestamp,
@@ -69,6 +70,7 @@ from snowflake.snowpark.types import (
     ArrayType,
     DateType,
     DecimalType,
+    GeographyType,
     MapType,
     StringType,
     StructType,
@@ -838,14 +840,14 @@ class Session:
             table_name = AnalyzerPackage._escape_quotes(
                 Utils.random_name_for_temp_object(TempObjectType.TABLE)
             )
-            database = self.get_current_database(unquoted=True)
-            schema = self.get_current_schema(unquoted=True)
+            sf_database = self.get_current_database(unquoted=True)
+            sf_schema = self.get_current_schema(unquoted=True)
 
             return self.write_pandas(
                 data,
                 table_name,
-                database=database,
-                schema=schema,
+                database=sf_database,
+                schema=sf_schema,
                 quote_identifiers=True,
                 auto_create_table=True,
                 create_temp_table=True,
@@ -920,6 +922,7 @@ class Session:
                         TimeType,
                         DateType,
                         TimestampType,
+                        GeographyType,
                     ),
                 )
                 else field.datatype
@@ -964,6 +967,8 @@ class Session:
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, VariantType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
+                elif isinstance(data_type, GeographyType):
+                    converted_row.append(value)
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."
@@ -991,6 +996,8 @@ class Session:
                 project_columns.append(
                     to_variant(parse_json(column(field.name))).as_(field.name)
                 )
+            elif isinstance(field.datatype, GeographyType):
+                project_columns.append(to_geography(column(field.name)).as_(field.name))
             elif isinstance(field.datatype, ArrayType):
                 project_columns.append(
                     to_array(parse_json(column(field.name))).as_(field.name)
@@ -999,8 +1006,6 @@ class Session:
                 project_columns.append(
                     to_object(parse_json(column(field.name))).as_(field.name)
                 )
-            # TODO: support geo type
-            # elif isinstance(field.data_type, Geography):
             else:
                 project_columns.append(column(field.name))
 
