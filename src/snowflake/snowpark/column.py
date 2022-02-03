@@ -59,7 +59,6 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
     ColumnOrName,
-    LiteralType,
 )
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.types import DataType, _type_string_to_type_object
@@ -67,7 +66,7 @@ from snowflake.snowpark.window import Window, WindowSpec
 
 
 def _to_col_if_lit(
-    col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"]
+    col: Union[ColumnOrLiteral, "snowflake.snowpark.DataFrame"], func_name: str
 ) -> "Column":
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
         return col
@@ -75,7 +74,18 @@ def _to_col_if_lit(
         return Column(SPLiteral(col))
     else:
         raise TypeError(
-            f"Expected Column, DataFrame, Iterable or LiteralType, got: {type(col)}"
+            f"'{func_name}' expected Column, DataFrame, Iterable or LiteralType, got: {type(col)}"
+        )
+
+
+def _to_col_if_sql_expr(col: Union["Column", str], func_name: str) -> "Column":
+    if isinstance(col, Column):
+        return col
+    elif isinstance(col, str):
+        return Column._expr(col)
+    else:
+        raise TypeError(
+            f"'{func_name}' expected Column or str as SQL expression, got: {type(col)}"
         )
 
 
@@ -262,7 +272,7 @@ class Column:
             vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
         """
         cols = Utils.parse_positional_args_to_list(*vals)
-        cols = [_to_col_if_lit(col) for col in cols]
+        cols = [_to_col_if_lit(col, "in_") for col in cols]
 
         column_count = (
             len(self.expression.expressions)
@@ -644,16 +654,29 @@ class CaseExpr(Column):
         self.__branches = expr.branches
 
     def when(
-        self, condition: Column, value: Union["Column", LiteralType]
+        self, condition: Union[Column, str], value: Union[ColumnOrLiteral]
     ) -> "CaseExpr":
-        """Appends one more WHEN condition to the CASE expression."""
+        """
+        Appends one more WHEN condition to the CASE expression.
+
+        Args:
+            condition: A :class:`Column` expression or SQL text representing the specified condition.
+            value: A :class:`Column` expression or a literal value, which will be returned
+                if ``condition`` is true.
+        """
         return CaseExpr(
             SPCaseWhen(
-                [*self.__branches, (condition.expression, Column._to_expr(value))]
+                [
+                    *self.__branches,
+                    (
+                        _to_col_if_sql_expr(condition, "when").expression,
+                        Column._to_expr(value),
+                    ),
+                ]
             )
         )
 
-    def otherwise(self, value: Union["Column", LiteralType]) -> "CaseExpr":
+    def otherwise(self, value: Union[ColumnOrLiteral]) -> "CaseExpr":
         """Sets the default result for this CASE expression."""
         return CaseExpr(SPCaseWhen(self.__branches, Column._to_expr(value)))
 

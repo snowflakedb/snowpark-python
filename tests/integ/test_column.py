@@ -132,3 +132,17 @@ def test_when_accept_literal_value(session):
     assert TestData.null_data1(session).select(
         when(col("a").is_null(), 5).when(col("a") == 1, 6).as_("a")
     ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
+
+
+def test_when_accept_sql_expr(session):
+    assert TestData.null_data1(session).select(
+        when("a is NULL", 5).when("a = 1", 6).otherwise(7).as_("a")
+    ).collect() == [Row(5), Row(7), Row(6), Row(7), Row(5)]
+    assert TestData.null_data1(session).select(
+        when("a is NULL", 5).when("a = 1", 6).else_(7).as_("a")
+    ).collect() == [Row(5), Row(7), Row(6), Row(7), Row(5)]
+
+    # empty otherwise
+    assert TestData.null_data1(session).select(
+        when("a is NULL", 5).when("a = 1", 6).as_("a")
+    ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
