@@ -1674,14 +1674,13 @@ class DataFrame:
         Returns:
             a :class:`DataFrame` containing the sample of rows.
         """
-        self._validate_sample_input(frac, n)
+        DataFrame._validate_sample_input(frac, n)
         return self._with_plan(
             SPSample(self._plan, probability_fraction=frac, row_count=n)
         )
 
-    def _validate_sample_input(
-        self, frac: Optional[float] = None, n: Optional[int] = None
-    ):
+    @staticmethod
+    def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
         if frac is None and n is None:
             raise ValueError(
                 "'frac' and 'n' cannot both be None. "

@@ -257,8 +257,8 @@ class Table(DataFrame):
         This is the main difference between :meth:`DataFrame.sample` and this method.
 
         Args:
-            frac: the percentage of rows to be sampled.
-            n: the fixed number of rows to sample in the range of 0 to 1,000,000 (inclusive). Either ``frac`` or ``n`` should be provided.
+            frac: The percentage of rows to be sampled.
+            n: The fixed number of rows to sample in the range of 0 to 1,000,000 (inclusive). Either ``frac`` or ``n`` should be provided.
             seed: Specifies a seed value to make the sampling deterministic. Can be any integer between 0 and 2147483647 inclusive.
                 Default value is ``None``.
             sampling_method: Specifies the sampling method to use:
@@ -272,12 +272,10 @@ class Table(DataFrame):
             - Fixed-size sampling can be slower than equivalent fraction-based sampling because fixed-size sampling prevents some query optimization.
             - Fixed-size sampling doesn't work with SYSTEM | BLOCK sampling.
 
-        Returns:
-            a :class:`DataFrame` containing the sample of rows.
         """
         if sampling_method is None and seed is None:
             return super(Table, self).sample(frac=frac, n=n)
-        super()._validate_sample_input(frac, n)
+        DataFrame._validate_sample_input(frac, n)
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
             "ROW",
@@ -288,7 +286,12 @@ class Table(DataFrame):
                 f"'sampling_method' value {sampling_method} must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'."
             )
 
-        sql_text = f"select * from {self.table_name} sample {sampling_method if sampling_method else ''} ({frac * 100 if frac is not None else str(n)+' rows'}) {' seed (' + str(seed) + ')' if seed is not None else ''}"
+        # The analyzer will generate a sql with subquery. So we build the sql directly without using the analyzer.
+        # TODO: Refactoring the analyzer to not generate a sql with subquery is not an easy task. We may revisit it.
+        sampling_method_text = sampling_method or ""
+        frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} rows"
+        seed_text = f" seed ({seed})" if seed is not None else ""
+        sql_text = f"select * from {self.table_name} sample {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         return self.session.sql(sql_text)
 
     def update(
