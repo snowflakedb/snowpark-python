@@ -1818,6 +1818,18 @@ class DataFrame:
         new_plan = self.session.table(temp_table_name)._plan
         return DataFrame(session=self.session, plan=new_plan, is_cached=True)
 
+    @property
+    def queries(self) -> Dict[str, List[str]]:
+        """
+        Returns a ``dict`` that contains a list of queries that will be executed to
+        evaluate this DataFrame with the key `queries`, and a list of post-execution
+        actions (e.g., queries to clean up temporary objects) with the key `psot_actions`.
+        """
+        return {
+            "queries": [query.sql.strip() for query in self._plan.queries],
+            "post_actions": [query.strip() for query in self._plan.post_actions],
+        }
+
     def explain(self) -> None:
         """
         Prints the list of queries that will be executed to evaluate this DataFrame.
