@@ -1823,7 +1823,7 @@ class DataFrame:
         """
         Returns a ``dict`` that contains a list of queries that will be executed to
         evaluate this DataFrame with the key `queries`, and a list of post-execution
-        actions (e.g., queries to clean up temporary objects) with the key `psot_actions`.
+        actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
         return {
             "queries": [query.sql.strip() for query in self._plan.queries],
