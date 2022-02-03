@@ -223,6 +223,13 @@ class Column:
     def __rpow__(self, other: Union[ColumnOrLiteral, SPExpression]) -> "Column":
         return Column(SPPow(Column._to_expr(other), self.expression))
 
+    def __bool__(self) -> bool:
+        raise TypeError(
+            "Cannot convert a Column object into bool: please use '&' for 'and', '|' for 'or', "
+            "'~' for 'not' if you're building DataFrame filter expressions. The correct example is like df.filter((col1 > 1) & (col2 > 2)), "
+            "but not df.filter(col1 > 1 and col2 > 2)."
+        )
+
     def in_(
         self,
         *vals: Union[

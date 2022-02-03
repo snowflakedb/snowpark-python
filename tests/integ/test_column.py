@@ -132,3 +132,10 @@ def test_when_accept_literal_value(session):
     assert TestData.null_data1(session).select(
         when(col("a").is_null(), 5).when(col("a") == 1, 6).as_("a")
     ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
+
+
+def test_logical_operator_raise_error(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    with pytest.raises(TypeError) as execinfo:
+        df.filter(df.a > 1 and df.b > 1)
+    assert "Cannot convert a Column object into bool" in str(execinfo)
