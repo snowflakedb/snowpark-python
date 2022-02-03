@@ -129,6 +129,7 @@ from snowflake.snowpark.functions import (
     sum_distinct,
     to_array,
     to_date,
+    to_geography,
     to_json,
     to_object,
     to_timestamp,
@@ -2316,6 +2317,26 @@ def test_to_xml(session):
         ],
         sort=False,
     )
+
+
+def test_to_geography(session):
+    geography_string = """{
+  "coordinates": [
+    30,
+    10
+  ],
+  "type": "Point"
+}"""
+    geography = TestData.geography(session)
+    Utils.check_answer(
+        geography.select(to_geography(col("a"))),
+        [Row(geography_string)],
+        sort=False,
+    )
+    assert geography.select(to_geography(col("a"))).collect()[0][0] == geography_string
+
+    # same as above, but pass str instead of Column
+    assert geography.select(to_geography("a")).collect()[0][0] == geography_string
 
 
 @pytest.mark.parametrize("a", ["a", col("a")])

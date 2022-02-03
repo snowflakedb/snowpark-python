@@ -10,6 +10,7 @@ import string
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import call_udf, col, lit, max, min, udf
 from snowflake.snowpark.types import (
@@ -20,6 +21,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
+    GeographyType,
     IntegerType,
     LongType,
     MapType,
@@ -443,6 +445,38 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
         input_types=[TimestampType()],
     )
     assert str(df.select(add_udf("col1")).collect()[0][0]) == "2020-01-02 00:00:05"
+
+
+def test_geography_type(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, table_name, "g geography")
+    session._run_query(
+        f"insert into {table_name} values ('POINT(30 10)'), ('POINT(50 60)'), (null)"
+    )
+    df = session.table(table_name)
+
+    def geography(g):
+        if not g:
+            return None
+        else:
+            g_str = str(g)
+            if "[50, 60]" in g_str and "Point" in g_str:
+                return g_str
+            else:
+                return g_str.replace("0", "")
+
+    geography_udf = udf(
+        geography, return_type=StringType(), input_types=[GeographyType()]
+    )
+
+    Utils.check_answer(
+        df.select(geography_udf(col("g"))),
+        [
+            Row("{'coordinates': [3, 1], 'type': 'Point'}"),
+            Row("{'coordinates': [50, 60], 'type': 'Point'}"),
+            Row(None),
+        ],
+    )
 
 
 def test_variant_string_input(session):
