@@ -688,6 +688,51 @@ def test_sample_with_frac(session):
     assert len(df.sample(frac=1.0).collect()) == row_count
 
 
+def test_sample_with_seed(session):
+    row_count = 10000
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.range(row_count).write.save_as_table(
+        temp_table_name, create_temp_table=True
+    )
+    df = session.table(temp_table_name)
+    try:
+        sample1 = df.sample(frac=0.1, seed=1).collect()
+        sample2 = df.sample(frac=0.1, seed=1).collect()
+        Utils.check_answer(sample1, sample2, sort=True)
+    finally:
+        Utils.drop_table(session, temp_table_name)
+
+
+def test_sample_with_sampling_method(session):
+    """sampling method actually has no impact on result. It has impact on performance."""
+    row_count = 10000
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.range(row_count).write.save_as_table(
+        temp_table_name, create_temp_table=True
+    )
+    df = session.table(temp_table_name)
+    try:
+        assert df.sample(frac=0.0, sampling_method="BLOCK").count() == 0
+        half_row_count = row_count * 0.5
+        assert (
+            abs(df.sample(frac=0.5, sampling_method="BLOCK").count() - half_row_count)
+            < half_row_count * SAMPLING_DEVIATION
+        )
+        assert df.sample(frac=1.0, sampling_method="BLOCK").count() == row_count
+        assert len(df.sample(frac=0.0, sampling_method="BLOCK").collect()) == 0
+        half_row_count = row_count * 0.5
+        assert (
+            abs(
+                len(df.sample(frac=0.5, sampling_method="BLOCK").collect())
+                - half_row_count
+            )
+            < half_row_count * SAMPLING_DEVIATION
+        )
+        assert len(df.sample(frac=1.0, sampling_method="BLOCK").collect()) == row_count
+    finally:
+        Utils.drop_table(session, temp_table_name)
+
+
 def test_sample_negative(session):
     """Tests negative test cases for sample"""
     row_count = 10000
@@ -700,6 +745,10 @@ def test_sample_negative(session):
         df.sample(frac=-0.01)
     with pytest.raises(ValueError):
         df.sample(frac=1.01)
+
+    table = session.table("non_existing_table")
+    with pytest.raises(ValueError):
+        table.sample(sampling_method="InvalidValue")
 
 
 def test_sample_on_join(session):

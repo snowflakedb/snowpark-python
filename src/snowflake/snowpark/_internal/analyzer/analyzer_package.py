@@ -377,8 +377,10 @@ class AnalyzerPackage:
                 + self._Rows
                 + self._RightParenthesis
             )
-        else:
-            raise SnowparkClientExceptionMessages.PLAN_SAMPLING_NEED_ONE_PARAMETER()
+        else:  # this shouldn't happen because upstream code will validate either probability_fraction or row_count will have a value.
+            raise ValueError(
+                "Either 'probability_fraction' or 'row_count' must not be None."
+            )
 
     def aggregate_statement(
         self, grouping_exprs: List[str], aggregate_exprs: List[str], child: str
