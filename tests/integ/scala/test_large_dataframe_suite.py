@@ -59,7 +59,7 @@ def test_to_local_iterator_should_not_load_all_data_at_once(session):
 
     local_array_time = t2 - t1
     load_first_value_time = t3 - t2
-    assert local_array_time > 10 * load_first_value_time
+    assert local_array_time > 5 * load_first_value_time
 
 
 def test_limit_on_order_by(session, is_sample_data_available):
