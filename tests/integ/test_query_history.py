@@ -64,7 +64,7 @@ def test_query_history_no_actions(session):
 
 
 def test_query_history_executemany(session):
-    """Large local data frame uses ServerConnection.run_batch_insert instead of .run_query.
+    """Large local data frame uses ServerConnection.run_batch_insert instead of ServerConnection.run_query.
     run_batch_insert create a temp table and use parameter binding to insert values, then select from the temp table.
     Finally it drops the temp table.
     """

@@ -7,12 +7,14 @@ import snowflake.snowpark
 
 
 class QueryRecord(NamedTuple):
+    """Contains the query information returned from the Snowflake database after the query is run."""
+
     query_id: str
     sql_text: str
 
 
-class QueryHistoryListener:
-    """A context manager that listens to and record sqls pushed down to Snowflake DB."""
+class QueryHistory:
+    """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database."""
 
     def __init__(self, session: "snowflake.snowpark.Session"):
         self.session = session
@@ -24,7 +26,7 @@ class QueryHistoryListener:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.session._conn.remove_query_listener(self)
 
-    def _add_query(self, query_record):
+    def _add_query(self, query_record: QueryRecord):
         self._queries.append(QueryRecord(*query_record))
 
     @property

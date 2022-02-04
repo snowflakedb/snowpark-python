@@ -24,7 +24,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.query_history import QueryHistoryListener
+from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
@@ -100,7 +100,7 @@ class ServerConnection:
         self.__add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         self._cursor = self._conn.cursor()
-        self._query_listener = set()  # type: set[QueryHistoryListener]
+        self._query_listener = set()  # type: set[QueryHistory]
 
     def __add_application_name(self):
         if PARAM_APPLICATION not in self._lower_case_parameters:
@@ -116,10 +116,10 @@ class ServerConnection:
                 PARAM_INTERNAL_APPLICATION_VERSION
             ] = Utils.get_version()
 
-    def add_query_listener(self, listener: QueryHistoryListener):
+    def add_query_listener(self, listener: QueryHistory):
         self._query_listener.add(listener)
 
-    def remove_query_listener(self, listener: QueryHistoryListener):
+    def remove_query_listener(self, listener: QueryHistory):
         self._query_listener.remove(listener)
 
     def close(self) -> None:
@@ -349,7 +349,7 @@ class ServerConnection:
         final_statement = f"PUT {local_path} {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
         return final_statement
 
-    def notify_query_listeners(self, query_record):
+    def notify_query_listeners(self, query_record: List[QueryRecord]):
         for listener in self._query_listener:
             listener._add_query(query_record)
 
