@@ -6,14 +6,17 @@
 import datetime
 import decimal
 import json
+import logging
 import os
 from array import array
 from functools import reduce
 from logging import getLogger
 from threading import RLock
+from types import ModuleType
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import cloudpickle
+import pkg_resources
 
 import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
@@ -41,6 +44,7 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     _merge_type,
 )
 from snowflake.snowpark._internal.utils import (
+    MODULE_NAME_TO_PACKAGE_NAME_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
     Utils,
@@ -204,9 +208,7 @@ class Session:
         self._conn = conn
         self.__query_tag = None
         self.__import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
-        self.__cloudpickle_path = {
-            os.path.dirname(cloudpickle.__file__): ("cloudpickle", None)
-        }
+        self._packages: Dict[str, str] = {}
         self.__session_id = self._conn.get_session_id()
         self._session_info = f"""
 "version" : {Utils.get_version()},
@@ -328,17 +330,18 @@ class Session:
         Examples::
 
             # import a local file
+            from my_module import g
             session.add_import(“/tmp/my_dir/my_module.py”)
             @udf
             def f():
-                from my_module import g
                 return g()
 
             # import a local file with "import_path"
+            # `my_dir.my_module` is a valid import path used to import the module locally
+            from my_dir.my_module import g
             session.add_import(“/tmp/my_dir/my_module.py”, import_path="my_dir.my_module")
             @udf
             def f():
-                from my_dir.my_module import g
                 return g()
 
             # import a stage file
@@ -411,10 +414,6 @@ class Session:
     def clear_imports(self) -> None:
         """
         Clears all files in a stage or local files from the imports of a user-defined function (UDF).
-
-        Example::
-
-            session.clear_imports()
         """
         self.__import_paths.clear()
 
@@ -485,16 +484,7 @@ class Session:
             stage_location
         )
 
-        # always import cloudpickle for non-stored-proc mode
-        # TODO(SNOW-500845): Remove importing cloudpickle after it is installed on the server side by default
-        import_paths = (
-            udf_level_import_paths.copy()
-            if udf_level_import_paths
-            else self.__import_paths.copy()
-        )
-        if not Utils.is_in_stored_procedure():
-            import_paths.update(self.__cloudpickle_path)
-
+        import_paths = udf_level_import_paths or self.__import_paths
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
             if path.startswith(self.__STAGE_PREFIX):
@@ -551,6 +541,194 @@ class Session:
         file_list = self.sql(f"ls {normalized}").select('"name"').collect()
         prefix_length = Utils.get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
+
+    def get_packages(self) -> Dict[str, str]:
+        """
+        Returns a ``dict`` of packages added for user-defined functions (UDFs).
+        The key of this ``dict`` is the package name and the value of this ``dict``
+        is the corresponding requirement specifier.
+        """
+        return self._packages.copy()
+
+    def add_packages(
+        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
+    ) -> None:
+        # TODO: add a link to python udf package doc
+        """
+        Adds third-party packages as dependencies of a user-defined function (UDF).
+        Use this method to add packages for UDFs as installing packages using
+        `conda <https://docs.conda.io/en/latest/>`_.
+
+        Args:
+            packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
+                a ``module`` object or a list of them for installing the packages. An exception
+                will be raised if two conflicting requirement specifiers are provided.
+                The syntax of a requirement specifier is defined in full in
+                `PEP 508 <https://www.python.org/dev/peps/pep-0508/>`_, but currently only the
+                `version matching clause <https://www.python.org/dev/peps/pep-0440/#version-matching>`_ (``==``)
+                is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
+                for this argument. If a ``module`` object is provided, the package will be
+                installed with the version in the local environment.
+
+        Examples::
+
+            import numpy as np
+
+            # add numpy with the latest version on Snowflake Anaconda
+            session.add_packages("numpy")
+
+            @udf
+            def numpy_sin(x: float) -> float:
+                return np.sin(x)
+
+            # or use version specifiers
+            session.add_packages("numpy==1.20.1")
+            session.add_packages("numpy==1.20.*", "pandas==1.3.*")
+
+            # add numpy with the local version
+            session.add_packages(np)
+
+        Note:
+            This method will add packages for all UDFs created later in the current
+            session. If you only want to add packages for a specific UDF, you can use
+            ``packages`` argument in :func:`functions.udf` or
+            :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+        """
+        self._resolve_packages(
+            Utils.parse_positional_args_to_list(*packages), self._packages
+        )
+
+    def remove_package(self, package: str) -> None:
+        """
+        Removes a third-party package from the dependency list of a user-defined function (UDF).
+
+        Args:
+            package: The package name.
+
+        Examples::
+
+            session.remove_package("numpy")
+            session.remove_package("numpy==1.21.1")
+        """
+        package_name = pkg_resources.Requirement.parse(package).key
+        if package_name in self._packages:
+            self._packages.pop(package_name)
+        else:
+            raise ValueError(f"{package_name} is not in the package list")
+
+    def clear_packages(self) -> None:
+        """
+        Clears all third-party packages of a user-defined function (UDF).
+        """
+        self._packages.clear()
+
+    def add_requirements(self, file_path: str) -> None:
+        """
+        Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
+        that contains a list of packages as dependencies of a user-defined function (UDF).
+
+        Args:
+            file_path: The path of a local requirement file.
+
+        Example::
+
+            session.add_requirements("mydir/requirements.txt")
+
+        Note:
+            This method will add packages for all UDFs created later in the current
+            session. If you only want to add packages for a specific UDF, you can use
+            ``packages`` argument in :func:`functions.udf` or
+            :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+        """
+        packages = []
+        with open(file_path) as f:
+            for line in f:
+                package = line.rstrip()
+                if package:
+                    packages.append(package)
+        self.add_packages(packages)
+
+    def _resolve_packages(
+        self,
+        packages: List[str],
+        existing_packages_dict: Optional[Dict[str, str]] = None,
+        validate_package: bool = True,
+    ) -> List[str]:
+        valid_packages = (
+            {
+                p[0]: p[1]
+                for p in self._run_query(
+                    "select package_name, version from information_schema.packages where language='python'"
+                )
+            }
+            if validate_package
+            else None
+        )
+
+        result_dict = (
+            existing_packages_dict if existing_packages_dict is not None else {}
+        )
+        for package in packages:
+            if isinstance(package, ModuleType):
+                package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
+                    package.__name__, package.__name__
+                )
+                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+                use_local_version = True
+            else:
+                package = package.strip().lower()
+                use_local_version = False
+            package_req = pkg_resources.Requirement.parse(package)
+            # get the standard package name
+            package_name = package_req.key
+            if validate_package:
+                if package_name not in valid_packages:
+                    raise ValueError(
+                        f"Cannot add package {package_name} because it is not "
+                        f"available in Snowflake. Check information_schema.packages "
+                        f"to see available packages for UDFs. If this package is a "
+                        f'"pure-Python" package, you can find the directory of this package '
+                        f"and add it via session.add_import()."
+                    )
+                elif not use_local_version:
+                    try:
+                        package_client_version = pkg_resources.get_distribution(
+                            package_name
+                        ).version
+                        if package_client_version not in package_req:
+                            logging.warning(
+                                "The version of package %s in the local environment is %s, "
+                                "which does not fit the criteria for the requirement %s. "
+                                "Your UDF might not work when the package version is different "
+                                "between the server and your local environment",
+                                package_name,
+                                package_client_version,
+                                package,
+                            )
+                    except pkg_resources.DistributionNotFound:
+                        logging.warning(
+                            "package %s is not installed in the local environment"
+                            "Your UDF might not work when the package is installed "
+                            "on the server but not on your local environment.",
+                            package_name,
+                        )
+
+            if package_name in result_dict:
+                if result_dict[package_name] != package:
+                    raise ValueError(
+                        f"Cannot add {package} because {result_dict[package_name]} "
+                        "is already added"
+                    )
+            else:
+                result_dict[package_name] = package
+
+        # always include cloudpickle
+        if "cloudpickle" in result_dict:
+            return list(result_dict.values())
+        else:
+            return list(result_dict.values()) + [
+                f"cloudpickle=={cloudpickle.__version__}"
+            ]
 
     @property
     def query_tag(self) -> Optional[str]:
@@ -1175,7 +1353,8 @@ class Session:
     def file(self) -> FileOperation:
         """Returns a :class:`FileOperation` object that you can use to perform file operations on stages.
 
-        Examples:
+        Examples::
+
             session.file.put("file:///tmp/file1.csv", "@myStage/prefix1")
             session.file.get("@myStage/prefix1", "file:///tmp")
         """

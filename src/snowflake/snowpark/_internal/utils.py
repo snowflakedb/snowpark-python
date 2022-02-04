@@ -58,6 +58,42 @@ TEMP_OBJECT_NAME_PREFIX = "SNOWPARK_TEMP_"
 ALPHANUMERIC = string.digits + string.ascii_lowercase
 
 
+# A set of widely-used packages,
+# whose names in pypi are different from their package name
+PACKAGE_NAME_TO_MODULE_NAME_MAP = {
+    "absl-py": "absl",
+    "async-timeout": "async_timeout",
+    "attrs": "attr",
+    "brotlipy": "brotli",
+    "charset-normalizer": "charset_normalizer",
+    "google-auth": "google.auth",
+    "google-auth-oauthlib": "google_auth_oauthlib",
+    "google-pasta": "pasta",
+    "grpcio": "grpc",
+    "importlib-metadata": "importlib_metadata",
+    "ncurses": "curses",
+    "py-xgboost": "xgboost",
+    "pyasn1-modules": "pyasn1_modules",
+    "pyjwt": "jwt",
+    "pyopenssl": "OpenSSL",
+    "pysocks": "socks",
+    "python-dateutil": "dateutil",
+    "python-flatbuffers": "flatbuffers",
+    "pytorch": "torch",
+    "pyyaml": "yaml",
+    "requests-oauthlib": "requests_oauthlib",
+    "scikit-learn": "sklearn",
+    "sqlite": "sqlite3",
+    "tensorboard-plugin-wit": "tensorboard_plugin_wit",
+    "tensorflow-estimator": "tensorflow_estimator",
+    "typing-extensions": "typing_extensions",
+}
+
+MODULE_NAME_TO_PACKAGE_NAME_MAP = {
+    v: k for k, v in PACKAGE_NAME_TO_MODULE_NAME_MAP.items()
+}
+
+
 class TempObjectType(Enum):
     TABLE = "TABLE"
     VIEW = "VIEW"

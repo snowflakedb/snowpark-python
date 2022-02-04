@@ -22,6 +22,15 @@ try:
 except ImportError:
     is_dateutil_available = False
 
+
+try:
+    import numpy
+    import pandas
+
+    is_pandas_and_numpy_available = True
+except ImportError:
+    is_pandas_and_numpy_available = False
+
 from typing import Any, Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
@@ -38,7 +47,7 @@ from snowflake.snowpark.types import (
     StringType,
     VariantType,
 )
-from tests.utils import TestData, TestFiles, Utils
+from tests.utils import TempObjectType, TestData, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
 
@@ -310,7 +319,7 @@ def test_session_register_udf(session):
     )
 
 
-def test_add_imports_local_file(session, resources_path):
+def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
     # This is a hack in the test such that we can just use `from test_udf import mod5`,
     # instead of `from test.resources.test_udf.test_udf import mod5`. Then we can test
@@ -359,7 +368,7 @@ def test_add_imports_local_file(session, resources_path):
         session.clear_imports()
 
 
-def test_add_imports_local_directory(session, resources_path):
+def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
     with patch.object(
         sys, "path", [*sys.path, resources_path, os.path.dirname(resources_path)]
@@ -403,7 +412,7 @@ def test_add_imports_local_directory(session, resources_path):
         session.clear_imports()
 
 
-def test_add_imports_stage_file(session, resources_path):
+def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
     with patch.object(sys, "path", [*sys.path, test_files.test_udf_directory]):
 
@@ -434,7 +443,7 @@ def test_add_imports_stage_file(session, resources_path):
 
 
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
-def test_add_imports_package(session):
+def test_add_import_package(session):
     def plus_one_month(x):
         return x + relativedelta(month=1)
 
@@ -453,7 +462,7 @@ def test_add_imports_package(session):
     session.clear_imports()
 
 
-def test_add_imports_duplicate(session, resources_path, caplog):
+def test_add_import_duplicate(session, resources_path, caplog):
     test_files = TestFiles(resources_path)
     abs_path = test_files.test_udf_directory
     rel_path = os.path.relpath(abs_path)
@@ -686,7 +695,7 @@ def test_udf_negative(session):
     assert "stage_location must be specified for permanent udf" in str(ex_info)
 
 
-def test_add_imports_negative(session, resources_path):
+def test_add_import_negative(session, resources_path):
     test_files = TestFiles(resources_path)
 
     with pytest.raises(FileNotFoundError) as ex_info:
@@ -943,3 +952,97 @@ def test_udf_parallel(session):
             parallel=100,
         )
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
+
+
+@pytest.mark.skipif(
+    not is_pandas_and_numpy_available, reason="numpy and pandas are required"
+)
+def test_add_packages(session):
+    session.add_packages(["numpy==1.20.1", "pandas==1.3.5", "pandas==1.3.5"])
+    assert session.get_packages() == {
+        "numpy": "numpy==1.20.1",
+        "pandas": "pandas==1.3.5",
+    }
+
+    # dateutil is a dependency of pandas
+    def get_numpy_pandas_dateutil_version() -> str:
+        return f"{numpy.__version__}/{pandas.__version__}/{dateutil.__version__}"
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    session.udf.register(get_numpy_pandas_dateutil_version, name=udf_name)
+    # don't need to check the version of dateutil, as it can be changed on the server side
+    assert (
+        session.sql(f"select {udf_name}()").collect()[0][0].startswith("1.20.1/1.3.5")
+    )
+
+    # only add numpy, which will overwrite the previously added packages
+    # so pandas will not be available on the server side
+    def is_pandas_available() -> bool:
+        try:
+            import pandas
+        except ModuleNotFoundError:
+            return False
+        return True
+
+    session.udf.register(
+        is_pandas_available, name=udf_name, replace=True, packages=["numpy"]
+    )
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
+    session.clear_packages()
+
+    # add module objects
+    session.add_packages(numpy, pandas, dateutil)
+    assert session.get_packages() == {
+        "numpy": f"numpy=={numpy.__version__}",
+        "pandas": f"pandas=={pandas.__version__}",
+        "python-dateutil": f"python-dateutil=={dateutil.__version__}",
+    }
+
+    session.udf.register(get_numpy_pandas_dateutil_version, name=udf_name, replace=True)
+    Utils.check_answer(
+        session.sql(f"select {udf_name}()"),
+        [Row(f"{numpy.__version__}/{pandas.__version__}/{dateutil.__version__}")],
+    )
+    session.clear_packages()
+
+
+def test_add_packages_negative(session, caplog):
+    with pytest.raises(ValueError) as ex_info:
+        session.add_packages("python-dateutil****")
+    assert "InvalidRequirement" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        session.add_packages("dateutil")
+    assert "it is not available in Snowflake. Check information_schema.packages" in str(
+        ex_info
+    )
+
+    with pytest.raises(ValueError) as ex_info:
+        session.add_packages("numpy", "numpy==0.1.0")
+    assert "is already added" in str(ex_info)
+    assert "which does not fit the criteria for the requirement" in caplog.text
+
+    with pytest.raises(ValueError) as ex_info:
+        session.remove_package("python-dateutil")
+    assert "is not in the package list" in str(ex_info)
+
+
+@pytest.mark.skipif(
+    not is_pandas_and_numpy_available, reason="numpy and pandas are required"
+)
+def test_add_requirements(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    session.add_requirements(test_files.test_requirements_file)
+    assert session.get_packages() == {
+        "numpy": "numpy==1.21.2",
+        "pandas": "pandas==1.3.5",
+    }
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name)
+    def get_numpy_pandas_version() -> str:
+        return f"{numpy.__version__}/{pandas.__version__}"
+
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.21.2/1.3.5")])
