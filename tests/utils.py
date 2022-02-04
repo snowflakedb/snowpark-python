@@ -13,10 +13,28 @@ import uuid
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
+from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark._internal import utils
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.types import (
+    ArrayType,
+    BinaryType,
+    BooleanType,
+    DataType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    LongType,
+    MapType,
+    StringType,
+    StructType,
+    TimestampType,
+    TimeType,
+    VariantType,
+)
 
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
@@ -54,8 +72,12 @@ class Utils:
         return f"SN_TEST_Stage_{abs(random.randint(0, 2 ** 31))}".upper()
 
     @staticmethod
-    def create_table(session: "Session", name: str, schema: str):
-        session._run_query(f"create or replace table {name} ({schema})")
+    def create_table(
+        session: "Session", name: str, schema: str, is_temporary: bool = False
+    ):
+        session._run_query(
+            f"create or replace {'temporary' if is_temporary else ''} table {name} ({schema})"
+        )
 
     @staticmethod
     def create_stage(session: "Session", name: str, is_temporary: bool = True):
@@ -173,6 +195,25 @@ class Utils:
             Utils.assert_rows(sorted_actual_rows, sorted_expected_rows)
         else:
             Utils.assert_rows(actual_rows, expected_rows)
+
+    @staticmethod
+    def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
+        session._run_query(sql)
+        result_meta = session._conn._cursor.description
+
+        assert len(result_meta) == len(expected_schema.fields)
+        for meta, field in zip(result_meta, expected_schema.fields):
+            assert (
+                AnalyzerPackage.quote_name_without_upper_casing(meta.name)
+                == field.column_identifier.quoted_name
+            )
+            assert meta.is_nullable == field.nullable
+            assert (
+                ServerConnection.get_data_type(
+                    FIELD_ID_TO_NAME[meta.type_code], meta.precision, meta.scale
+                )
+                == field.datatype
+            )
 
 
 class TestData:
@@ -673,3 +714,47 @@ class TestFiles:
     @property
     def test_udf_py_file(self):
         return os.path.join(self.test_udf_directory, "test_udf_file.py")
+
+
+class TypeMap(NamedTuple):
+    col_name: str
+    sf_type: str
+    snowpark_type: DataType
+
+
+TYPE_MAP = [
+    TypeMap("number", "number(10,2)", DecimalType(10, 2)),
+    TypeMap("decimal", "decimal(38,0)", LongType()),
+    TypeMap("numeric", "numeric(0,0)", LongType()),
+    TypeMap("int", "int", LongType()),
+    TypeMap("integer", "integer", LongType()),
+    TypeMap("bigint", "bigint", LongType()),
+    TypeMap("smallint", "smallint", LongType()),
+    TypeMap("tinyint", "tinyint", LongType()),
+    TypeMap("byteint", "byteint", LongType()),
+    TypeMap("float", "float", DoubleType()),
+    TypeMap("float4", "float4", DoubleType()),
+    TypeMap("float8", "float8", DoubleType()),
+    TypeMap("double", "double", DoubleType()),
+    TypeMap("doubleprecision", "double precision", DoubleType()),
+    TypeMap("real", "real", DoubleType()),
+    TypeMap("varchar", "varchar", StringType()),
+    TypeMap("char", "char", StringType()),
+    TypeMap("character", "character", StringType()),
+    TypeMap("string", "string", StringType()),
+    TypeMap("text", "text", StringType()),
+    TypeMap("binary", "binary", BinaryType()),
+    TypeMap("varbinary", "varbinary", BinaryType()),
+    TypeMap("boolean", "boolean", BooleanType()),
+    TypeMap("date", "date", DateType()),
+    TypeMap("datetime", "datetime", TimestampType()),
+    TypeMap("time", "time", TimeType()),
+    TypeMap("timestamp", "timestamp", TimestampType()),
+    TypeMap("timestamp_ltz", "timestamp_ltz", TimestampType()),
+    TypeMap("timestamp_ntz", "timestamp_ntz", TimestampType()),
+    TypeMap("timestamp_tz", "timestamp_tz", TimestampType()),
+    TypeMap("variant", "variant", VariantType()),
+    TypeMap("object", "object", MapType(StringType(), StringType())),
+    TypeMap("array", "array", ArrayType(StringType())),
+    # TODO: add geography type
+]
