@@ -10,7 +10,7 @@
             'DataFrameStatFunctions', 'DataFrameWriter', 'GroupingSets', 'RelationalGroupedDataFrame',
             'Row', 'Session', 'FileOperation', 'PutResult', 'GetResult', 'Window', 'WindowSpec',
             'Table', 'UpdateResult', 'DeleteResult', 'MergeResult', 'WhenMatchedClause',
-            'WhenNotMatchedClause']
+            'WhenNotMatchedClause', 'QueryHistory', 'QueryRecord']
         %}
             {{ item }}
         {% endfor %}
