@@ -174,7 +174,7 @@ class ServerConnection:
         return rows[0][0] if len(rows) > 0 else None
 
     @staticmethod
-    def _get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
+    def get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
         """Convert the Snowflake logical type to the Snowpark type."""
         if column_type_name == "ARRAY":
             return ArrayType(StringType())
@@ -232,7 +232,7 @@ class ServerConnection:
             attributes.append(
                 Attribute(
                     quoted_name,
-                    ServerConnection._get_data_type(
+                    ServerConnection.get_data_type(
                         FIELD_ID_TO_NAME[type_value], precision, scale
                     ),
                     nullable,
@@ -242,13 +242,9 @@ class ServerConnection:
 
     @_Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
-        lowercase = query.strip().lower()
-        if lowercase.startswith("put") or lowercase.startswith("get"):
-            return []
-        else:
-            return ServerConnection.convert_result_meta_to_attribute(
-                self._cursor.describe(query)
-            )
+        return ServerConnection.convert_result_meta_to_attribute(
+            self._cursor.describe(query)
+        )
 
     @_Decorator.log_msg_and_telemetry("Uploading file to stage")
     def upload_file(

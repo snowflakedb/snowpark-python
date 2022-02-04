@@ -786,7 +786,7 @@ class DataFrame:
         rownum = row_number().over(
             snowflake.snowpark.Window.partition_by(*filter_cols).order_by(*filter_cols)
         )
-        rownum_name = Utils.generate_random_alphanumeric(10)
+        rownum_name = Utils.generate_random_alphanumeric()
         return (
             self.select(*output_cols, rownum.as_(rownum_name))
             .where(col(rownum_name) == 1)
