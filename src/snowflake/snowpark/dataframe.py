@@ -63,15 +63,14 @@ from snowflake.snowpark._internal.sp_types.types_package import (
     ColumnOrName,
     LiteralType,
 )
-from snowflake.snowpark._internal.utils import Utils, deprecate
-from snowflake.snowpark.column import Column
+from snowflake.snowpark._internal.utils import TempObjectType, Utils, deprecate
+from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
-    _to_col_if_str,
     col,
     lit,
     row_number,
@@ -207,9 +206,11 @@ class DataFrame:
         self,
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
+        is_cached: bool = False,
     ):
         self.session = session
         self._plan = session._analyzer.resolve(plan)
+        self.is_cached = is_cached  # whether it is a cached dataframe
 
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
@@ -492,16 +493,9 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
-        if not isinstance(expr, (Column, str)):
-            raise TypeError(
-                f"The input type of filter() must be Column or str. Got: {type(expr)}"
-            )
-
         return self._with_plan(
             SPFilter(
-                expr.expression
-                if isinstance(expr, Column)
-                else sql_expr(expr).expression,
+                _to_col_if_sql_expr(expr, "filter/where").expression,
                 self._plan,
             )
         )
@@ -1033,7 +1027,7 @@ class DataFrame:
                 isinstance(join_type, str)
                 and join_type.strip().lower().replace("_", "").startswith("cross")
             ):
-                if using_columns:
+                if Utils.column_to_bool(using_columns):
                     raise Exception("Cross joins cannot take columns as input.")
 
             sp_join_type = (
@@ -1043,7 +1037,7 @@ class DataFrame:
             )
 
             # Parse using_columns arg
-            if using_columns is None:
+            if Utils.column_to_bool(using_columns) is False:
                 using_columns = []
             elif isinstance(using_columns, str):
                 using_columns = [using_columns]
@@ -1161,7 +1155,7 @@ class DataFrame:
         self, right: "DataFrame", join_type: SPJoinType, join_exprs: Optional[Column]
     ) -> "DataFrame":
         (lhs, rhs) = self._disambiguate(self, right, join_type, [])
-        expression = join_exprs.expression if join_exprs else None
+        expression = join_exprs.expression if join_exprs is not None else None
         return self._with_plan(
             SPJoin(
                 lhs._plan,
@@ -1674,22 +1668,25 @@ class DataFrame:
         Returns:
             a :class:`DataFrame` containing the sample of rows.
         """
+        DataFrame._validate_sample_input(frac, n)
+        return self._with_plan(
+            SPSample(self._plan, probability_fraction=frac, row_count=n)
+        )
+
+    @staticmethod
+    def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
         if frac is None and n is None:
             raise ValueError(
-                "probability_fraction and row_count cannot both be None. "
+                "'frac' and 'n' cannot both be None. "
                 "One of those values must be defined"
             )
         if frac is not None and (frac < 0.0 or frac > 1.0):
             raise ValueError(
-                f"probability_fraction value {frac} "
+                f"'frac' value {frac} "
                 f"is out of range (0 <= probability_fraction <= 1)"
             )
         if n is not None and n < 0:
-            raise ValueError(f"row_count value {n} must be greater than 0")
-
-        return self._with_plan(
-            SPSample(self._plan, probability_fraction=frac, row_count=n)
-        )
+            raise ValueError(f"'n' value {n} must be greater than 0")
 
     @property
     def na(self) -> DataFrameNaFunctions:
@@ -1772,6 +1769,66 @@ class DataFrame:
             for att in self.__output()
         ]
         return self.select(new_columns)
+
+    def cache_result(self) -> "DataFrame":
+        """Caches the content of this DataFrame to create a new cached DataFrame.
+
+        All subsequent operations on the returned cached DataFrame are performed on the cached data
+        and have no effect on the original DataFrame.
+
+        Examples::
+            session.sql("create temp table RESULT (NUM int)").collect()
+            session.sql("insert into RESULT values(1),(2)").collect()
+
+            df = session.table("RESULT")
+            assert df.collect() == [Row(1), Row(2)]
+
+            # Run cache_result and then insert into the original table to see
+            # that the cached result is not affected
+            df1 = df.cache_result()
+            session.sql("insert into RESULT values (3)").collect()
+            assert df1.collect() == [Row(1), Row(2)]
+            assert df.collect() == [Row(1), Row(2), Row(3)]
+
+            # You can run cache_result on a result that has already been cached
+            df2 = df1.cache_result()
+            assert df2.collect() == [Row(1), Row(2)]
+
+            df3 = df.cache_result()
+            # Drop RESULT and see that the cached results still exist
+            session.sql(f"drop table RESULT").collect()
+            assert df1.collect() == [Row(1), Row(2)]
+            assert df2.collect() == [Row(1), Row(2)]
+            assert df3.collect() == [Row(1), Row(2), Row(3)]
+
+        Returns:
+             A :class:`DataFrame` object that holds the cached result in a temporary table.
+             All operations on this new DataFrame have no effect on the original.
+        """
+        temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        create_temp_table = self.session._Session__plan_builder.create_temp_table(
+            temp_table_name, self._plan
+        )
+        self.session._conn.execute(
+            create_temp_table,
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
+            if not self.session.query_tag
+            else None,
+        )
+        new_plan = self.session.table(temp_table_name)._plan
+        return DataFrame(session=self.session, plan=new_plan, is_cached=True)
+
+    @property
+    def queries(self) -> Dict[str, List[str]]:
+        """
+        Returns a ``dict`` that contains a list of queries that will be executed to
+        evaluate this DataFrame with the key `queries`, and a list of post-execution
+        actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
+        """
+        return {
+            "queries": [query.sql.strip() for query in self._plan.queries],
+            "post_actions": [query.strip() for query in self._plan.post_actions],
+        }
 
     def explain(self) -> None:
         """

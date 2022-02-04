@@ -33,6 +33,7 @@ from snowflake.snowpark.types import (
     ArrayType,
     DateType,
     DoubleType,
+    GeographyType,
     IntegerType,
     StringType,
     VariantType,
@@ -827,6 +828,20 @@ def test_udf_variant_type(session):
             Row("<class 'list'>"),
             Row("<class 'dict'>"),
         ],
+    )
+
+
+def test_udf_geography_type(session):
+    def get_type(g):
+        return str(type(g))
+
+    geography_udf = udf(
+        get_type, return_type=StringType(), input_types=[GeographyType()]
+    )
+
+    Utils.check_answer(
+        TestData.geography_type(session).select(geography_udf(col("geo"))).collect(),
+        [Row("<class 'dict'>")],
     )
 
 

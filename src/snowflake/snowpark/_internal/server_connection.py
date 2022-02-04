@@ -34,13 +34,13 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     DoubleType,
+    GeographyType,
     LongType,
     MapType,
     StringType,
     TimestampType,
     TimeType,
     VariantType,
-    _GeographyType,
 )
 
 logger = getLogger(__name__)
@@ -176,7 +176,7 @@ class ServerConnection:
         if column_type_name == "OBJECT":
             return MapType(StringType(), StringType())
         if column_type_name == "GEOGRAPHY":  # not supported by python connector
-            return _GeographyType()
+            return GeographyType()
         if column_type_name == "BOOLEAN":
             return BooleanType()
         if column_type_name == "BINARY":

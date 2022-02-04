@@ -342,9 +342,8 @@ def test_filter_incorrect_type(session):
 
     with pytest.raises(TypeError) as ex_info:
         df.filter(1234)
-    assert ex_info.type == TypeError
     assert (
-        "The input type of filter() must be Column or str. Got: <class 'int'>"
+        "'filter/where' expected Column or str as SQL expression, got: <class 'int'>"
         in str(ex_info)
     )
 
@@ -1396,3 +1395,21 @@ def test_write_temp_table(session, save_mode):
         assert table_info[0]["kind"] == "TEMPORARY"
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_queries(session):
+    df = TestData.column_has_special_char(session)
+    queries = df.queries
+    assert len(queries["queries"]) == 1
+    assert len(queries["post_actions"]) == 0
+    assert df._plan.queries[0].sql.strip() in queries["queries"]
+
+    # multiple queries and
+    df = session.create_dataframe([1] * 20000)
+    queries, post_actions = df.queries["queries"], df.queries["post_actions"]
+    assert len(queries) == 3
+    assert queries[0].startswith("CREATE")
+    assert queries[1].startswith("INSERT")
+    assert queries[2].startswith("SELECT")
+    assert len(post_actions) == 1
+    assert post_actions[0].startswith("DROP")

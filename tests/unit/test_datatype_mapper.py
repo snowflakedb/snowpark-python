@@ -18,6 +18,7 @@ from snowflake.snowpark.types import (
     DecimalType as DecimalType,
     DoubleType as DoubleType,
     FloatType as FloatType,
+    GeographyType as GeographyType,
     IntegerType as IntegerType,
     LongType as LongType,
     MapType as MapType,
@@ -26,7 +27,6 @@ from snowflake.snowpark.types import (
     StringType as StringType,
     StructType as StructType,
     TimestampType as TimestampType,
-    _GeographyType as GeographyType,
 )
 
 

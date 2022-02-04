@@ -41,6 +41,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
+    GeographyType,
     IntegerType,
     LongType,
     MapType,
@@ -218,6 +219,63 @@ def test_show(session):
 |Drop statement executed successfully (TEST_TABL...  |
 ------------------------------------------------------\n""".lstrip()
     )
+
+
+def test_cache_result(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session._run_query(f"create temp table {table_name} (num int)")
+    session._run_query(f"insert into {table_name} values(1),(2)")
+
+    df = session.table(table_name)
+    Utils.check_answer(df, [Row(1), Row(2)])
+
+    session._run_query(f"insert into {table_name} values (3)")
+    Utils.check_answer(df, [Row(1), Row(2), Row(3)])
+
+    df1 = df.cache_result()
+    session._run_query(f"insert into {table_name} values (4)")
+    Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
+    Utils.check_answer(df, [Row(1), Row(2), Row(3), Row(4)])
+
+    df2 = df1.where(col("num") > 2)
+    Utils.check_answer(df2, [Row(3)])
+
+    df3 = df.where(col("num") > 2)
+    Utils.check_answer(df3, [Row(3), Row(4)])
+
+    df4 = df1.cache_result()
+    Utils.check_answer(df4, [Row(1), Row(2), Row(3)])
+
+    session._run_query(f"drop table {table_name}")
+    Utils.check_answer(df1, [Row(1), Row(2), Row(3)])
+    Utils.check_answer(df2, [Row(3)])
+
+
+def test_cache_result_with_show(session):
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        session._run_query(f"create temp table {table_name1} (name string)")
+        session._run_query(f"insert into {table_name1} values('{table_name1}')")
+        table = session.table(table_name1)
+
+        # SHOW TABLES
+        df1 = session.sql("show tables").cache_result()
+        table_names = [tn[1] for tn in df1.collect()]
+        assert table_name1 in table_names
+
+        # SHOW TABLES + SELECT
+        df2 = session.sql("show tables").select('"created_on"', '"name"').cache_result()
+        table_names = [tn[1] for tn in df2.collect()]
+        assert table_name1 in table_names
+
+        # SHOW TABLES + SELECT + Join
+        df3 = session.sql("show tables").select('"created_on"', '"name"')
+        df3.show()
+        df4 = df3.join(table, df3['"name"'] == table["name"]).cache_result()
+        table_names = [tn[0] for tn in df4.select("name").collect()]
+        assert table_name1 in table_names
+    finally:
+        session._run_query(f"drop table {table_name1}")
 
 
 def test_non_select_query_composition(session):
@@ -630,6 +688,51 @@ def test_sample_with_frac(session):
     assert len(df.sample(frac=1.0).collect()) == row_count
 
 
+def test_sample_with_seed(session):
+    row_count = 10000
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.range(row_count).write.save_as_table(
+        temp_table_name, create_temp_table=True
+    )
+    df = session.table(temp_table_name)
+    try:
+        sample1 = df.sample(frac=0.1, seed=1).collect()
+        sample2 = df.sample(frac=0.1, seed=1).collect()
+        Utils.check_answer(sample1, sample2, sort=True)
+    finally:
+        Utils.drop_table(session, temp_table_name)
+
+
+def test_sample_with_sampling_method(session):
+    """sampling method actually has no impact on result. It has impact on performance."""
+    row_count = 10000
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.range(row_count).write.save_as_table(
+        temp_table_name, create_temp_table=True
+    )
+    df = session.table(temp_table_name)
+    try:
+        assert df.sample(frac=0.0, sampling_method="BLOCK").count() == 0
+        half_row_count = row_count * 0.5
+        assert (
+            abs(df.sample(frac=0.5, sampling_method="BLOCK").count() - half_row_count)
+            < half_row_count * SAMPLING_DEVIATION
+        )
+        assert df.sample(frac=1.0, sampling_method="BLOCK").count() == row_count
+        assert len(df.sample(frac=0.0, sampling_method="BLOCK").collect()) == 0
+        half_row_count = row_count * 0.5
+        assert (
+            abs(
+                len(df.sample(frac=0.5, sampling_method="BLOCK").collect())
+                - half_row_count
+            )
+            < half_row_count * SAMPLING_DEVIATION
+        )
+        assert len(df.sample(frac=1.0, sampling_method="BLOCK").collect()) == row_count
+    finally:
+        Utils.drop_table(session, temp_table_name)
+
+
 def test_sample_negative(session):
     """Tests negative test cases for sample"""
     row_count = 10000
@@ -642,6 +745,10 @@ def test_sample_negative(session):
         df.sample(frac=-0.01)
     with pytest.raises(ValueError):
         df.sample(frac=1.01)
+
+    table = session.table("non_existing_table")
+    with pytest.raises(ValueError):
+        table.sample(sampling_method="InvalidValue")
 
 
 def test_sample_on_join(session):
@@ -1374,21 +1481,32 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
             StructField("array", ArrayType(None)),
             StructField("map", MapType(None, None)),
             StructField("variant", VariantType()),
-            # StructField("geography", GeographyType()),
+            StructField("geography", GeographyType()),
         ]
     )
-    data = [Row(["'", 2], {"'": 1}, 1), Row(None, None, None)]
+    data = [
+        Row(["'", 2], {"'": 1}, 1, "POINT(30 10)"),
+        Row(None, None, None, None),
+    ]
     df = session.create_dataframe(data, schema)
     assert (
         str(df.schema)
         == "StructType[StructField(ARRAY, ArrayType[String], Nullable=True), "
         "StructField(MAP, MapType[String, String], Nullable=True), "
-        "StructField(VARIANT, Variant, Nullable=True)]"
+        "StructField(VARIANT, Variant, Nullable=True), "
+        "StructField(GEOGRAPHY, GeographyType, Nullable=True)]"
     )
     df.show()
+    geography_string = """{
+  "coordinates": [
+    30,
+    10
+  ],
+  "type": "Point"
+}"""
     expected = [
-        Row('[\n  "\'",\n  2\n]', '{\n  "\'": 1\n}', "1"),
-        Row(None, None, None),
+        Row('[\n  "\'",\n  2\n]', '{\n  "\'": 1\n}', "1", geography_string),
+        Row(None, None, None, None),
     ]
     Utils.check_answer(df, expected, sort=False)
 

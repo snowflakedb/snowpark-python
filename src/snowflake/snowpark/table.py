@@ -59,7 +59,7 @@ class WhenMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self.condition_expr = condition.expression if condition else None
+        self.condition_expr = condition.expression if condition is not None else None
         self.clause = None
 
     def update(
@@ -145,7 +145,7 @@ class WhenNotMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self.condition_expr = condition.expression if condition else None
+        self.condition_expr = condition.expression if condition is not None else None
         self.clause = None
 
     def insert(
@@ -243,6 +243,57 @@ class Table(DataFrame):
         """Returns a clone of this :class:`Table`."""
         return Table(self.table_name, self.session)
 
+    def sample(
+        self,
+        frac: Optional[float] = None,
+        n: Optional[int] = None,
+        *,
+        seed: Optional[float] = None,
+        sampling_method: Optional[str] = None,
+    ) -> "DataFrame":
+        """Samples rows based on either the number of rows to be returned or a percentage of rows to be returned.
+
+        Sampling with a seed is not supported on views or subqueries. This method works on tables so it supports ``seed``.
+        This is the main difference between :meth:`DataFrame.sample` and this method.
+
+        Args:
+            frac: The percentage of rows to be sampled.
+            n: The fixed number of rows to sample in the range of 0 to 1,000,000 (inclusive). Either ``frac`` or ``n`` should be provided.
+            seed: Specifies a seed value to make the sampling deterministic. Can be any integer between 0 and 2147483647 inclusive.
+                Default value is ``None``.
+            sampling_method: Specifies the sampling method to use:
+                - "BERNOULLI" (or "ROW"): Includes each row with a probability of p/100. Similar to flipping a weighted coin for each row.
+                - "SYSTEM" (or "BLOCK"): Includes each block of rows with a probability of p/100. Similar to flipping a weighted coin for each block of rows. This method does not support fixed-size sampling.
+                Default is ``None``. Then the Snowflake database will use "ROW" by default.
+
+        Note:
+            - SYSTEM | BLOCK sampling is often faster than BERNOULLI | ROW sampling.
+            - Sampling without a seed is often faster than sampling with a seed.
+            - Fixed-size sampling can be slower than equivalent fraction-based sampling because fixed-size sampling prevents some query optimization.
+            - Fixed-size sampling doesn't work with SYSTEM | BLOCK sampling.
+
+        """
+        if sampling_method is None and seed is None:
+            return super(Table, self).sample(frac=frac, n=n)
+        DataFrame._validate_sample_input(frac, n)
+        if sampling_method and sampling_method.upper() not in (
+            "BERNOULLI",
+            "ROW",
+            "SYSTEM",
+            "BLOCK",
+        ):
+            raise ValueError(
+                f"'sampling_method' value {sampling_method} must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'."
+            )
+
+        # The analyzer will generate a sql with subquery. So we build the sql directly without using the analyzer.
+        # TODO: Refactoring the analyzer to not generate a sql with subquery is not an easy task. We may revisit it.
+        sampling_method_text = sampling_method or ""
+        frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} rows"
+        seed_text = f" seed ({seed})" if seed is not None else ""
+        sql_text = f"select * from {self.table_name} sample {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
+        return self.session.sql(sql_text)
+
     def update(
         self,
         # TODO SNOW-526251: also accept Column as a key when Column is hashable
@@ -278,7 +329,9 @@ class Table(DataFrame):
             t.update({"b": 0}, t["a"] == df["a"], df)
         """
         if source:
-            assert condition, "condition should also be provided if source is provided"
+            assert (
+                condition is not None
+            ), "condition should also be provided if source is provided"
 
         new_df = self._with_plan(
             TableUpdate(
@@ -287,7 +340,7 @@ class Table(DataFrame):
                     Column(k).expression: Column._to_expr(v)
                     for k, v in assignments.items()
                 },
-                condition.expression if condition else None,
+                condition.expression if condition is not None else None,
                 DataFrame._disambiguate(
                     self, source, SPJoinType.from_string("left"), []
                 )[1]._plan
@@ -325,12 +378,14 @@ class Table(DataFrame):
             t.delete(t["a"] == df["a"], df)
         """
         if source:
-            assert condition, "condition should also be provided if source is provided"
+            assert (
+                condition is not None
+            ), "condition should also be provided if source is provided"
 
         new_df = self._with_plan(
             TableDelete(
                 self.table_name,
-                condition.expression if condition else None,
+                condition.expression if condition is not None else None,
                 DataFrame._disambiguate(
                     self, source, SPJoinType.from_string("left"), []
                 )[1]._plan

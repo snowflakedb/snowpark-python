@@ -152,7 +152,7 @@ class DataFrameNaFunctions:
                 else:
                     # iff(col is null, 0, 1)
                     is_na = iff(col.is_null(), 0, 1)
-                if col_counter:
+                if col_counter is not None:
                     col_counter += is_na
                 else:
                     col_counter = is_na
@@ -405,7 +405,7 @@ class DataFrameNaFunctions:
                         replace_value = lit(None) if value is None else lit(value)
                         case_when = (
                             case_when.when(cond, replace_value)
-                            if case_when
+                            if case_when is not None
                             else when(cond, replace_value)
                         )
                     else:
@@ -415,7 +415,7 @@ class DataFrameNaFunctions:
                             f"Type: {datatype}, Input Key: {key}, Type: {type(key)}, "
                             f"Input Value: {value}, Type: {type(value)}"
                         )
-                if case_when:
+                if case_when is not None:
                     case_when = case_when.otherwise(col).as_(col_name)
                     res_columns.append(case_when)
                 else:
