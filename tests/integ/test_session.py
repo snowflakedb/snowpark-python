@@ -6,8 +6,9 @@
 
 import os
 
-import snowflake.connector
 import pytest
+
+import snowflake.connector
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSessionException
@@ -84,6 +85,7 @@ def test_close_session_in_sp(session):
 def test_list_files_in_stage(session, resources_path):
     stage_name = Utils.random_stage_name()
     special_name = f'"{stage_name}/aa"'
+    single_quoted_name = f"'{stage_name}/b\\' b'"
     test_files = TestFiles(resources_path)
 
     try:
@@ -128,9 +130,18 @@ def test_list_files_in_stage(session, resources_path):
         files6 = session._list_files_in_stage(special_name)
         assert len(files6) == 1
         assert os.path.basename(test_files.test_file_csv) in files6
+
+        Utils.create_stage(session, single_quoted_name)
+        Utils.upload_to_stage(
+            session, single_quoted_name, test_files.test_file_csv, compress=False
+        )
+        files7 = session._list_files_in_stage(single_quoted_name)
+        assert len(files7) == 1
+        assert os.path.basename(test_files.test_file_csv) in files7
     finally:
         Utils.drop_stage(session, stage_name)
         Utils.drop_stage(session, special_name)
+        Utils.drop_stage(session, single_quoted_name)
 
 
 def test_create_session_from_connection(db_parameters):
