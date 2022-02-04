@@ -297,7 +297,7 @@ class DataFrame:
         `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
 
         When the data is large that cannot be fit into the memory, you can use
-        :meth:`to_pandas_batches.
+        :meth:`to_pandas_batches`.
 
         Note:
             1. This method is only available if Pandas is installed and available.

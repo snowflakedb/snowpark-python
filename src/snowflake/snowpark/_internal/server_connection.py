@@ -374,7 +374,7 @@ class ServerConnection:
             raise ex
 
         # fetch_pandas_all/batches() only works for SELECT statements
-        # We call fetchall/one() if fetch_pandas_all/batches() fails,
+        # We call fetchall() if fetch_pandas_all/batches() fails,
         # because when the query plan has multiple queries, it will
         # have non-select statements, and it shouldn't fail if the user
         # calls to_pandas() to execute the query.
