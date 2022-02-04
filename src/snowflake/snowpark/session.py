@@ -64,6 +64,7 @@ from snowflake.snowpark.functions import (
     to_timestamp,
     to_variant,
 )
+from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
@@ -1243,6 +1244,22 @@ class Session:
                 SPFlattenFunction(input.expression, path, outer, recursive, mode)
             ),
         )
+
+    def query_history(self) -> QueryHistory:
+        """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
+
+        Example:
+
+            with session.query_history() as query_history:
+                df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+                df = df.filter(df.a == 1)
+                df.collect()
+
+        Then ``query_history.queries`` will have a list of :class:`QueryRecord` that were pushed down to the Snowflake database.
+        """
+        query_listener = QueryHistory(self)
+        self._conn.add_query_listener(query_listener)
+        return query_listener
 
     def _table_exists(self, table_name: str):
         tables = self._run_query(f"show tables like '{table_name}'")

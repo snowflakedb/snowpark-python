@@ -343,7 +343,7 @@ def test_join_expression_ambiguous_columns(session):
     assert res == [Row(2, -1, -10, "one", "one"), Row(4, -2, -20, "two", "two")]
 
 
-@pytest.mark.skip(message="Ignored in Scala tests since this only produces a warning")
+@pytest.mark.skip("Ignored in Scala tests since this only produces a warning")
 def test_semi_join_expression_ambiguous_columns(session_cnx):
     with session_cnx() as session:
         lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
