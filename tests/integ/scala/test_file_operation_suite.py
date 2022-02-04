@@ -315,7 +315,7 @@ def test_get_negative_test_file_name_collision(
 
 def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
-    stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
+    stage_with_prefix = f"'@{temp_stage}/{stage_prefix}/'"
     special_directory = tmp_path_factory.mktemp("dir !_")
     try:
         special_path1 = special_directory.joinpath("file_!.txt")
@@ -334,6 +334,36 @@ def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
         dest_directory = tmp_path_factory.mktemp("dir !_")
         get1 = session.file.get(
             stage_with_prefix, f"'file://{Utils.escape_path(str(dest_directory))}'"
+        )
+        assert len(get1) == 2
+        assert len(list(dest_directory.iterdir())) == 2
+    finally:
+        shutil.rmtree(special_directory)
+
+
+def test_path_with_special_chars(session, tmp_path_factory):
+    stage_prefix = f"prefix_{random_alphanumeric_name()}"
+    temp_stage = "s peci'al chars"
+    Utils.create_stage(session, f'"{temp_stage}"', is_temporary=True)
+    stage_with_prefix = f'"{temp_stage}"/{stage_prefix}/"'
+    special_directory = tmp_path_factory.mktemp("dir !_")
+    try:
+        special_path1 = special_directory.joinpath("file_!.txt")
+        special_path1.write_text("aaa")
+        special_path2 = special_directory.joinpath("file_.txt")
+        special_path2.write_text("bbb")
+        put1 = session.file.put(
+            f"file://{Utils.escape_path(str(special_path1))}", stage_with_prefix
+        )
+        assert len(put1) == 1
+        put2 = session.file.put(
+            f"file://{Utils.escape_path(str(special_path2))}", stage_with_prefix
+        )
+        assert len(put2) == 1
+
+        dest_directory = tmp_path_factory.mktemp("dir !_")
+        get1 = session.file.get(
+            stage_with_prefix, f"file://{Utils.escape_path(str(dest_directory))}"
         )
         assert len(get1) == 2
         assert len(list(dest_directory.iterdir())) == 2

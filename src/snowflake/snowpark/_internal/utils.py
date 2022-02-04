@@ -24,7 +24,7 @@ from random import choice
 from typing import IO, List, Optional, Tuple, Type
 
 import snowflake.snowpark
-from snowflake.connector.description import PLATFORM
+from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.version import VERSION as snowpark_version
@@ -92,25 +92,50 @@ class Utils:
         return "PythonSnowpark"
 
     @staticmethod
-    def normalize_stage_location(name: str) -> str:
-        """Get the normalized name of a stage."""
-        trim_name = name.strip()
-        return trim_name if trim_name.startswith("@") else f"@{trim_name}"
-
-    @staticmethod
     def is_single_quoted(name: str) -> bool:
         return name.startswith("'") and name.endswith("'")
 
     @staticmethod
+    def unwrap_single_quote(name: str) -> str:
+        new_name = name.strip()
+        if Utils.is_single_quoted(new_name):
+            new_name = new_name[1:-1]
+        new_name = new_name.replace("\\'", "'")
+        return new_name
+
+    @staticmethod
+    def normalize_path(path: str, is_local: bool) -> str:
+        """
+        Get a normalized path of a local file or remote stage location for PUT/GET commands.
+        If there are any special characters including spaces in the path, it needs to be
+        quoted with single quote. For example, 'file:///tmp/load data' for a path containing
+        a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
+        we do nothing.
+        """
+        symbol = "file://" if is_local else "@"
+        if Utils.is_single_quoted(path):
+            return path
+        if is_local and OPERATING_SYSTEM == "Windows":
+            path = path.replace("\\", "/")
+        path = path.strip().replace("'", "\\'")
+        if not path.startswith(symbol):
+            path = f"{symbol}{path}"
+        return f"'{path}'"
+
+    @staticmethod
+    def normalize_remote_file_or_dir(name: str) -> str:
+        return Utils.normalize_path(name, is_local=False)
+
+    @staticmethod
     def normalize_local_file(file: str) -> str:
-        trim_file = file.strip()
-        # For PUT/GET commands, if there are any special characters including spaces in
-        # directory and file names, it needs to be quoted with single quote. For example,
-        # 'file:///tmp/load data' for a path containing a directory named "load data").
-        # So, if `file` is single quoted, it doesn't make sense to add "file://".
-        if trim_file.startswith("file://") or Utils.is_single_quoted(file):
-            return trim_file
-        return f"file://{trim_file}"
+        return Utils.normalize_path(file, is_local=True)
+
+    @staticmethod
+    def unwrap_stage_location_single_quote(name: str) -> str:
+        new_name = Utils.unwrap_single_quote(name)
+        if new_name.startswith("@"):
+            return new_name
+        return f"@{new_name}"
 
     @staticmethod
     def get_local_file_path(file: str) -> str:
@@ -299,7 +324,7 @@ class Utils:
 
     @staticmethod
     def get_stage_file_prefix_length(stage_location: str) -> int:
-        normalized = Utils.normalize_stage_location(stage_location)
+        normalized = Utils.unwrap_stage_location_single_quote(stage_location)
         if not normalized.endswith("/"):
             normalized = f"{normalized}/"
 

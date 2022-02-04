@@ -276,9 +276,11 @@ class UDFRegistration:
         # python file and raise the exception
         except BaseException as ex:
             if is_permanent:
-                upload_stage = Utils.normalize_stage_location(stage_location)
+                upload_stage = Utils.unwrap_stage_location_single_quote(stage_location)
                 dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-                udf_file_path = f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+                udf_file_path = Utils.normalize_remote_file_or_dir(
+                    f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+                )
                 try:
                     logger.info("Removing Snowpark uploaded file: %s", udf_file_path)
                     self.session._run_query(f"REMOVE {udf_file_path}")
@@ -336,7 +338,7 @@ class UDFRegistration:
         ]
         code = self.__generate_python_code(func, arg_names)
         upload_stage = (
-            Utils.normalize_stage_location(stage_location)
+            Utils.unwrap_stage_location_single_quote(stage_location)
             if stage_location
             else self.session.get_session_stage()
         )
@@ -366,7 +368,9 @@ class UDFRegistration:
         # Upload closure to stage if it is beyond inline closure size limit
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-            upload_file_stage_location = f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+            upload_file_stage_location = Utils.normalize_remote_file_or_dir(
+                f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+            )
             udf_file_name_base = os.path.splitext(udf_file_name)[0]
             with io.BytesIO() as input_stream:
                 with zipfile.ZipFile(
@@ -390,7 +394,9 @@ class UDFRegistration:
             handler = _DEFAULT_HANDLER_NAME
 
         # build imports string
-        all_imports = ",".join([f"'{url}'" for url in all_urls])
+        all_imports = ",".join(
+            [url if Utils.is_single_quoted(url) else f"'{url}'" for url in all_urls]
+        )
         self.__create_python_udf(
             return_type=return_type,
             input_args=input_args,
