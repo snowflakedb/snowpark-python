@@ -1027,7 +1027,7 @@ class DataFrame:
                 isinstance(join_type, str)
                 and join_type.strip().lower().replace("_", "").startswith("cross")
             ):
-                if using_columns:
+                if Utils.column_to_bool(using_columns):
                     raise Exception("Cross joins cannot take columns as input.")
 
             sp_join_type = (
@@ -1037,7 +1037,7 @@ class DataFrame:
             )
 
             # Parse using_columns arg
-            if using_columns is None:
+            if Utils.column_to_bool(using_columns) is False:
                 using_columns = []
             elif isinstance(using_columns, str):
                 using_columns = [using_columns]
@@ -1155,7 +1155,7 @@ class DataFrame:
         self, right: "DataFrame", join_type: SPJoinType, join_exprs: Optional[Column]
     ) -> "DataFrame":
         (lhs, rhs) = self._disambiguate(self, right, join_type, [])
-        expression = join_exprs.expression if join_exprs else None
+        expression = join_exprs.expression if join_exprs is not None else None
         return self._with_plan(
             SPJoin(
                 lhs._plan,
