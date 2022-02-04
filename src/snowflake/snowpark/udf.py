@@ -275,7 +275,7 @@ class UDFRegistration:
         # python file and raise the exception
         except BaseException as ex:
             if is_permanent:
-                upload_stage = Utils.normalize_stage_location(stage_location)
+                upload_stage = Utils.unwrap_stage_location_single_quote(stage_location)
                 dest_prefix = Utils.get_udf_upload_prefix(udf_name)
                 udf_file_path = Utils.normalize_remote_file_or_dir(
                     f"{upload_stage}/{dest_prefix}/{udf_file_name}"
@@ -337,7 +337,7 @@ class UDFRegistration:
         ]
         code = self.__generate_python_code(func, arg_names)
         upload_stage = (
-            Utils.normalize_stage_location(stage_location)
+            Utils.unwrap_stage_location_single_quote(stage_location)
             if stage_location
             else self.session.get_session_stage()
         )

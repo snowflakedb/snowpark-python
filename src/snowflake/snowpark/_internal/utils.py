@@ -94,12 +94,12 @@ class Utils:
         return name.startswith("'") and name.endswith("'")
 
     @staticmethod
-    def escape_single_quoted(name: str) -> str:
-        escaped_name = name.strip()
-        if Utils.is_single_quoted(escaped_name):
-            escaped_name = escaped_name[1:-1]
-        escaped_name = escaped_name.replace("\\'", "'")
-        return escaped_name
+    def unwrap_single_quote(name: str) -> str:
+        new_name = name.strip()
+        if Utils.is_single_quoted(new_name):
+            new_name = new_name[1:-1]
+        new_name = new_name.replace("\\'", "'")
+        return new_name
 
     @staticmethod
     def normalize_path(path: str, is_local: bool) -> str:
@@ -129,11 +129,11 @@ class Utils:
         return Utils.normalize_path(file, is_local=True)
 
     @staticmethod
-    def normalize_stage_location(name: str) -> str:
-        normalized = Utils.escape_single_quoted(name)
-        if normalized.startswith("@"):
-            return normalized
-        return f"@{normalized}"
+    def unwrap_stage_location_single_quote(name: str) -> str:
+        new_name = Utils.unwrap_single_quote(name)
+        if new_name.startswith("@"):
+            return new_name
+        return f"@{new_name}"
 
     @staticmethod
     def get_local_file_path(file: str) -> str:
@@ -322,7 +322,7 @@ class Utils:
 
     @staticmethod
     def get_stage_file_prefix_length(stage_location: str) -> int:
-        normalized = Utils.normalize_stage_location(stage_location)
+        normalized = Utils.unwrap_stage_location_single_quote(stage_location)
         if not normalized.endswith("/"):
             normalized = f"{normalized}/"
 

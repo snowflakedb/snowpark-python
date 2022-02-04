@@ -322,7 +322,7 @@ class ServerConnection:
                 raise ex
 
     def __build_target_path(self, stage_location: str, dest_prefix: str = "") -> str:
-        qualified_stage_name = Utils.normalize_stage_location(stage_location)
+        qualified_stage_name = Utils.unwrap_stage_location_single_quote(stage_location)
         dest_prefix_name = (
             dest_prefix
             if not dest_prefix or dest_prefix.startswith("/")

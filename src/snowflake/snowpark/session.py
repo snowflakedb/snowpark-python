@@ -478,7 +478,9 @@ class Session:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(stage_location)
-        normalized_stage_location = Utils.normalize_stage_location(stage_location)
+        normalized_stage_location = Utils.unwrap_stage_location_single_quote(
+            stage_location
+        )
 
         # always import cloudpickle for non-stored-proc mode
         # TODO(SNOW-500845): Remove importing cloudpickle after it is installed on the server side by default
@@ -539,7 +541,7 @@ class Session:
 
     def _list_files_in_stage(self, stage_location: Optional[str] = None) -> Set[str]:
         normalized = Utils.normalize_remote_file_or_dir(
-            Utils.escape_single_quoted(stage_location)
+            Utils.unwrap_single_quote(stage_location)
             if stage_location
             else self.__session_stage
         )
