@@ -175,14 +175,14 @@ def test_concat_ws(session, col_a, col_b, col_c):
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_to_char(session, col_a):
     df = session.create_dataframe([[1]], schema=["a"])
-    df.select(to_char(col_a)).collect()
-    assert df[0][0] == "1"
+    res = df.select(to_char(col_a)).collect()
+    assert res[0][0] == "1"
 
 
 def test_date_to_char(session):
     df = session.create_dataframe([[datetime.date(2021, 12, 21)]], schema=["a"])
-    df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
-    assert df[0][0] == "12-21-2021"
+    res = df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
+    assert res[0][0] == "12-21-2021"
 
 
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])

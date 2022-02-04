@@ -59,7 +59,7 @@ class WhenMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self.condition_expr = condition.expression if condition else None
+        self.condition_expr = condition.expression if condition is not None else None
         self.clause = None
 
     def update(
@@ -145,7 +145,7 @@ class WhenNotMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self.condition_expr = condition.expression if condition else None
+        self.condition_expr = condition.expression if condition is not None else None
         self.clause = None
 
     def insert(
@@ -329,7 +329,9 @@ class Table(DataFrame):
             t.update({"b": 0}, t["a"] == df["a"], df)
         """
         if source:
-            assert condition, "condition should also be provided if source is provided"
+            assert (
+                condition is not None
+            ), "condition should also be provided if source is provided"
 
         new_df = self._with_plan(
             TableUpdate(
@@ -338,7 +340,7 @@ class Table(DataFrame):
                     Column(k).expression: Column._to_expr(v)
                     for k, v in assignments.items()
                 },
-                condition.expression if condition else None,
+                condition.expression if condition is not None else None,
                 DataFrame._disambiguate(
                     self, source, SPJoinType.from_string("left"), []
                 )[1]._plan
@@ -376,12 +378,14 @@ class Table(DataFrame):
             t.delete(t["a"] == df["a"], df)
         """
         if source:
-            assert condition, "condition should also be provided if source is provided"
+            assert (
+                condition is not None
+            ), "condition should also be provided if source is provided"
 
         new_df = self._with_plan(
             TableDelete(
                 self.table_name,
-                condition.expression if condition else None,
+                condition.expression if condition is not None else None,
                 DataFrame._disambiguate(
                     self, source, SPJoinType.from_string("left"), []
                 )[1]._plan

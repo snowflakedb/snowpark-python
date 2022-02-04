@@ -17,13 +17,13 @@ import random
 import re
 import string
 import traceback
-import warnings
 import zipfile
 from enum import Enum
 from json import JSONEncoder
 from random import choice
 from typing import IO, List, Optional, Tuple, Type
 
+import snowflake.snowpark
 from snowflake.connector.description import PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -348,6 +348,18 @@ class Utils:
     def double_quote_identifier(name: str) -> str:
         name = name.replace('"', '""')
         return f'"{name}"'
+
+    @staticmethod
+    def column_to_bool(col_):
+        """A replacement to bool(col_) to check if ``col_`` is None or Empty.
+
+        ``Column.__bool__` raises an exception to remind users to use &, |, ~ instead of and, or, not for logical operations.
+        The side-effect is the implicit call like ``if col_`` also raises an exception.
+        Our internal code sometimes needs to check an input column is None, "", or []. So this method will help it by writeint ``if column_to_bool(col_): ...``
+        """
+        if isinstance(col_, snowflake.snowpark.Column):
+            return True
+        return bool(col_)
 
 
 class PythonObjJSONEncoder(JSONEncoder):
