@@ -73,7 +73,7 @@ class Utils:
 
     @staticmethod
     def create_table(
-        session: "Session", name: str, schema: str, is_temporary: bool = True
+        session: "Session", name: str, schema: str, is_temporary: bool = False
     ):
         session._run_query(
             f"create or replace {'temporary' if is_temporary else ''} table {name} ({schema})"
