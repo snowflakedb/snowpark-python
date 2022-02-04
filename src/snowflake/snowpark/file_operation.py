@@ -91,7 +91,7 @@ class FileOperation:
         plan = self._session._Session__plan_builder.file_operation_plan(
             "put",
             Utils.normalize_local_file(local_file_name),
-            Utils.normalize_stage_location(stage_location),
+            Utils.normalize_remote_file_or_dir(stage_location),
             options,
         )
         put_result = snowflake.snowpark.DataFrame(self._session, plan).collect()
@@ -142,13 +142,14 @@ class FileOperation:
         """
         options = {"parallel": parallel}
         if pattern is not None:
-            options["pattern"] = (
-                pattern if Utils.is_single_quoted(pattern) else f"'{pattern}'"
-            )  # snowflake pattern is a string with single quote
+            if not Utils.is_single_quoted(pattern):
+                pattern_escape_single_quote = pattern.replace("'", "\\'")
+                pattern = f"'{pattern_escape_single_quote}'"  # snowflake pattern is a string with single quote
+            options["pattern"] = pattern
         plan = self._session._Session__plan_builder.file_operation_plan(
             "get",
             Utils.normalize_local_file(target_directory),
-            Utils.normalize_stage_location(stage_location),
+            Utils.normalize_remote_file_or_dir(stage_location),
             options,
         )
         try:

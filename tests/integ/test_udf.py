@@ -137,7 +137,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
             name=[*temp_schema.split("."), "test_add"],
-            stage_location=InternalUtils.normalize_stage_location(
+            stage_location=InternalUtils.unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
         )
