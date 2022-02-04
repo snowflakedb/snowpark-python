@@ -7,12 +7,12 @@ import functools
 import os
 import time
 from logging import getLogger
-from typing import IO, Any, Dict, List, Optional, Union
+from typing import IO, Any, Dict, Iterator, List, Optional, Union
 
 import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
-from snowflake.connector.cursor import ResultMetadata
+from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
@@ -170,7 +170,7 @@ class ServerConnection:
         return self._conn._session_parameters.get(parameter_name.upper(), None)
 
     def _get_string_datum(self, query: str) -> Optional[str]:
-        rows = self.result_set_to_rows(self.run_query(query)["data"])
+        rows = ServerConnection.result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
     @staticmethod
@@ -359,7 +359,7 @@ class ServerConnection:
 
     @_Decorator.wrap_exception
     def run_query(
-        self, query: str, to_pandas: bool = False, **kwargs
+        self, query: str, to_pandas: bool = False, to_iter: bool = False, **kwargs
     ) -> Dict[str, Any]:
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
@@ -373,26 +373,33 @@ class ServerConnection:
             logger.error("Failed to execute query {}\n{}".format(query, ex))
             raise ex
 
-        # fetch_pandas_all() only works for SELECT statements
-        # We call fetchall() if fetch_pandas_all() fails, because
-        # when the query plan has multiple queries, it will have
-        # non-select statements, and it shouldn't fail if the user
+        # fetch_pandas_all/batches() only works for SELECT statements
+        # We call fetchall/one() if fetch_pandas_all/batches() fails,
+        # because when the query plan has multiple queries, it will
+        # have non-select statements, and it shouldn't fail if the user
         # calls to_pandas() to execute the query.
         if to_pandas:
             try:
-                data = results_cursor.fetch_pandas_all()
+                data_or_iter = (
+                    results_cursor.fetch_pandas_batches()
+                    if to_iter
+                    else results_cursor.fetch_pandas_all()
+                )
             except NotSupportedError:
-                data = results_cursor.fetchall()
+                data_or_iter = results_cursor if to_iter else results_cursor.fetchall()
+            except KeyboardInterrupt:
+                raise
             except BaseException as ex:
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
                     str(ex)
                 )
         else:
-            data = results_cursor.fetchall()
-        return {"data": data, "sfqid": results_cursor.sfqid}
+            data_or_iter = results_cursor if to_iter else results_cursor.fetchall()
+        return {"data": data_or_iter, "sfqid": results_cursor.sfqid}
 
+    @staticmethod
     def result_set_to_rows(
-        self, result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
+        result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
     ) -> List[Row]:
         if result_meta:
             col_names = [col.name for col in result_meta]
@@ -406,36 +413,68 @@ class ServerConnection:
             rows = [Row(*row) for row in result_set]
         return rows
 
+    @staticmethod
+    def result_set_to_iter(
+        result_set: SnowflakeCursor, result_meta: Optional[List[ResultMetadata]] = None
+    ) -> Iterator[Row]:
+        col_names = [col.name for col in result_meta] if result_meta else None
+        for data in result_set:
+            row = Row(*data)
+            if col_names:
+                row._fields = col_names
+            yield row
+
     def execute(
-        self, plan: SnowflakePlan, to_pandas: bool = False, **kwargs
-    ) -> Union[List[Row], "pandas.DataFrame"]:
-        result_set, result_meta = self.get_result_set(plan, to_pandas, **kwargs)
-        return (
-            result_set
-            if to_pandas
-            else self.result_set_to_rows(result_set, result_meta)
+        self,
+        plan: SnowflakePlan,
+        to_pandas: bool = False,
+        to_iter: bool = False,
+        **kwargs,
+    ) -> Union[
+        List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
+    ]:
+        result_set, result_meta = self.get_result_set(
+            plan, to_pandas, to_iter, **kwargs
         )
+        if to_pandas:
+            return result_set
+        else:
+            if to_iter:
+                return ServerConnection.result_set_to_iter(result_set, result_meta)
+            else:
+                return ServerConnection.result_set_to_rows(result_set, result_meta)
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
         self,
         plan: SnowflakePlan,
         to_pandas: bool = False,
+        to_iter: bool = False,
         **kwargs,
-    ) -> (Union[List[Any], "pandas.DataFrame"], List[ResultMetadata]):
+    ) -> (
+        Union[
+            List[Any], "pandas.DataFrame", SnowflakeCursor, Iterator["pandas.DataFrame"]
+        ],
+        List[ResultMetadata],
+    ):
         action_id = plan.session._generate_new_action_id()
 
         result, result_meta = None, None
         try:
             placeholders = {}
-            for query in plan.queries:
+            for i, query in enumerate(plan.queries):
                 if isinstance(query, BatchInsertQuery):
                     self.run_batch_insert(query.sql, query.rows, **kwargs)
                 else:
                     final_query = query.sql
                     for holder, id_ in placeholders.items():
                         final_query = final_query.replace(holder, id_)
-                    result = self.run_query(final_query, to_pandas, **kwargs)
+                    result = self.run_query(
+                        final_query,
+                        to_pandas,
+                        to_iter and (i == len(plan.queries) - 1),
+                        **kwargs,
+                    )
                     placeholders[query.query_id_place_holder] = result["sfqid"]
                     result_meta = self._cursor.description
                 if action_id < plan.session._get_last_canceled_id():
@@ -454,7 +493,7 @@ class ServerConnection:
         self, plan: SnowflakePlan, **kwargs
     ) -> (List[Row], List[Attribute]):
         result_set, result_meta = self.get_result_set(plan, **kwargs)
-        result = self.result_set_to_rows(result_set)
+        result = ServerConnection.result_set_to_rows(result_set)
         meta = ServerConnection.convert_result_meta_to_attribute(result_meta)
         return result, meta
 
