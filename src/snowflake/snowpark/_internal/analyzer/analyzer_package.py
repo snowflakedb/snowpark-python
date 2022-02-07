@@ -147,6 +147,7 @@ class AnalyzerPackage:
     _Set = " SET "
     _Merge = " MERGE "
     _Matched = " MATCHED "
+    _ListAgg = " LISTAGG "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (
@@ -1085,6 +1086,17 @@ class AnalyzerPackage:
                 + self.quote_name(attr.name)
                 for attr in output
             ]
+        )
+
+    def list_agg(self, col: str, delimiter: str, is_distinct: bool) -> str:
+        return (
+            self._ListAgg
+            + self._LeftParenthesis
+            + f"{self._Distinct if is_distinct else self._EmptyString}"
+            + col
+            + self._Comma
+            + delimiter
+            + self._RightParenthesis
         )
 
     def generator(self, row_count: int) -> str:

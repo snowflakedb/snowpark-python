@@ -93,6 +93,7 @@ from snowflake.snowpark.functions import (
     kurtosis,
     lag,
     lead,
+    listagg,
     lit,
     log,
     max,
@@ -2663,4 +2664,23 @@ def test_row_number(session):
         ),
         [Row(1), Row(2), Row(3), Row(1), Row(2)],
         sort=False,
+    )
+
+
+def test_listagg(session):
+    df = session.create_dataframe([1, 2, 3, 2, 4, 5], schema=["col"])
+    Utils.check_answer(
+        df.select(listagg(df["col"]).within_group(df["col"].asc())), [Row("122345")]
+    )
+    Utils.check_answer(
+        df.select(listagg("col", ",").within_group(df["col"].asc())),
+        [Row("1,2,2,3,4,5")],
+    )
+    Utils.check_answer(
+        df.select(listagg(df.col("col"), ",", True).within_group(df["col"].asc())),
+        [Row("1,2,3,4,5")],
+    )
+    Utils.check_answer(
+        df.select(listagg("col", "'", True).within_group(df["col"].asc())),
+        [Row("1'2'3'4'5")],
     )
