@@ -645,6 +645,17 @@ class TestData:
         )
 
     @classmethod
+    def monthly_sales_flat(cls, session: "Session"):
+        return session.create_dataframe(
+            [
+                (1, "electronics", 100, 200, 300, 100),
+                (2, "clothes", 100, 300, 150, 200),
+                (3, "cars", 200, 400, 100, 50),
+            ],
+            schema=["empid", "dept", "jan", "feb", "mar", "apr"],
+        )
+
+    @classmethod
     def column_has_special_char(cls, session: "Session") -> DataFrame:
         return session.create_dataframe([[1, 2], [3, 4]]).to_df(['"col %"', '"col *"'])
 

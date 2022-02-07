@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Join as SPJoin,
     Sort as SPSort,
     Union as SPUnion,
+    Unpivot as SPUnpivot,
 )
 from snowflake.snowpark._internal.plans.logical.hints import JoinHint as SPJoinHint
 from snowflake.snowpark._internal.plans.logical.logical_plan import (
@@ -822,6 +823,45 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
                 pc[0], value_exprs
             ),
+        )
+
+    def unpivot(
+        self, value_column: str, name_column: str, column_list: List[ColumnOrName]
+    ) -> "DataFrame":
+        """Rotates a table by transforming columns into rows.
+        UNPIVOT is a relational operator that accepts two columns (from a table or subquery), along with a list of columns, and generates a row for each column specified in the list. In a query, it is specified in the FROM clause after the table name or subquery.
+        Note that UNPIVOT is not exactly the reverse of PIVOT as it cannot undo aggregations made by PIVOT.
+
+        Args:
+            value_column: The name to assign to the generated column that will be populated with the values from the columns in the column list.
+            name_column: The name to assign to the generated column that will be populated with the names of the columns in the column list.
+            column_list: The names of the columns in the source table or subequery that will be narrowed into a single pivot column. The column names will populate ``name_column``, and the column values will populate ``value_column``.
+
+        Example::
+
+            df = session.create_dataframe(
+                [
+                    (1, 'electronics', 100, 200),
+                    (2, 'clothes', 100, 300),
+                ],
+                schema=["empid", "dept", "jan", "feb"]
+            )
+            df = df.unpivot("sales", "month", ["jan", "feb"]).sort("empid")
+            df.show()
+
+        The output is:
+        ---------------------------------------------
+        |"EMPID"  |"DEPT"       |"MONTH"  |"SALES"  |
+        ---------------------------------------------
+        |1        |electronics  |JAN      |100      |
+        |1        |electronics  |FEB      |200      |
+        |2        |clothes      |JAN      |100      |
+        |2        |clothes      |FEB      |300      |
+        ---------------------------------------------
+        """
+        column_exprs = self.__convert_cols_to_exprs("unpivot()", column_list)
+        return self._with_plan(
+            SPUnpivot(value_column, name_column, column_exprs, self._plan)
         )
 
     def limit(self, n: int) -> "DataFrame":

@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Range as SPRange,
     Sort as SPSort,
     Union as SPUnion,
+    Unpivot as SPUnpivot,
 )
 from snowflake.snowpark._internal.plans.logical.logical_plan import (
     Filter as SPFilter,
@@ -573,6 +574,15 @@ class Analyzer:
                 self.analyze(logical_plan.pivot_column),
                 [self.analyze(pv) for pv in logical_plan.pivot_values],
                 self.analyze(logical_plan.aggregates[0]),
+                self.resolve(logical_plan.child),
+                logical_plan,
+            )
+
+        if isinstance(logical_plan, SPUnpivot):
+            return self.plan_builder.unpivot(
+                logical_plan.value_column,
+                logical_plan.name_column,
+                [self.analyze(c) for c in logical_plan.column_list],
                 self.resolve(logical_plan.child),
                 logical_plan,
             )

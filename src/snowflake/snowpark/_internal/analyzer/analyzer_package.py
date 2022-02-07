@@ -71,6 +71,7 @@ class AnalyzerPackage:
     _Where = " WHERE "
     _Limit = " LIMIT "
     _Pivot = " PIVOT "
+    _Unpivot = " UNPIVOT "
     _For = " FOR "
     _On = " ON "
     _Using = " USING "
@@ -836,6 +837,28 @@ class AnalyzerPackage:
             + self._In
             + self._LeftParenthesis
             + self._Comma.join(pivot_values)
+            + self._RightParenthesis
+            + self._RightParenthesis
+        )
+
+    def unpivot_statement(
+        self, value_column: str, name_column: str, column_list: List[str], child: str
+    ) -> str:
+        return (
+            self._Select
+            + self._Star
+            + self._From
+            + self._LeftParenthesis
+            + child
+            + self._RightParenthesis
+            + self._Unpivot
+            + self._LeftParenthesis
+            + value_column
+            + self._For
+            + name_column
+            + self._In
+            + self._LeftParenthesis
+            + self._Comma.join(column_list)
             + self._RightParenthesis
             + self._RightParenthesis
         )

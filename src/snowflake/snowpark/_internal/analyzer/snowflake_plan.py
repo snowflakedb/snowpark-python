@@ -522,6 +522,22 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
+    def unpivot(
+        self,
+        value_column: str,
+        name_column: str,
+        column_list: List[str],
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+    ):
+        return self.build(
+            lambda x: self.pkg.unpivot_statement(
+                value_column, name_column, column_list, x
+            ),
+            child,
+            source_plan,
+        )
+
     def create_or_replace_view(
         self, name: str, child: SnowflakePlan, is_temp: bool
     ) -> SnowflakePlan:
