@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import logging
 import math
 import os
 import sys
@@ -991,6 +992,8 @@ def test_add_packages(session):
     session.clear_packages()
 
     # add module objects
+    # but we can't register a udf with these versions
+    # because the server might not have them
     session.add_packages(numpy, pandas, dateutil)
     assert session.get_packages() == {
         "numpy": f"numpy=={numpy.__version__}",
@@ -998,11 +1001,6 @@ def test_add_packages(session):
         "python-dateutil": f"python-dateutil=={dateutil.__version__}",
     }
 
-    session.udf.register(get_numpy_pandas_dateutil_version, name=udf_name, replace=True)
-    Utils.check_answer(
-        session.sql(f"select {udf_name}()"),
-        [Row(f"{numpy.__version__}/{pandas.__version__}/{dateutil.__version__}")],
-    )
     session.clear_packages()
 
 
@@ -1018,7 +1016,8 @@ def test_add_packages_negative(session, caplog):
     )
 
     with pytest.raises(ValueError) as ex_info:
-        session.add_packages("numpy", "numpy==0.1.0")
+        with caplog.at_level(logging.WARNING):
+            session.add_packages("numpy", "numpy==0.1.0")
     assert "is already added" in str(ex_info)
     assert "which does not fit the criteria for the requirement" in caplog.text
 
@@ -1026,12 +1025,15 @@ def test_add_packages_negative(session, caplog):
         session.remove_package("python-dateutil")
     assert "is not in the package list" in str(ex_info)
 
+    session.clear_packages()
+
 
 @pytest.mark.skipif(
     not is_pandas_and_numpy_available, reason="numpy and pandas are required"
 )
 def test_add_requirements(session, resources_path):
     test_files = TestFiles(resources_path)
+    session.clear_packages()
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
@@ -1046,3 +1048,5 @@ def test_add_requirements(session, resources_path):
         return f"{numpy.__version__}/{pandas.__version__}"
 
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.21.2/1.3.5")])
+
+    session.clear_packages()

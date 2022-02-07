@@ -589,10 +589,14 @@ class Session:
             session.add_packages(np)
 
         Note:
-            This method will add packages for all UDFs created later in the current
+            1. This method will add packages for all UDFs created later in the current
             session. If you only want to add packages for a specific UDF, you can use
             ``packages`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+
+            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html#local-development-and-testing>`_,
+            to ensure the consistent experience of a UDF between your local environment
+            and the Snowflake server.
         """
         self._resolve_packages(
             Utils.parse_positional_args_to_list(*packages), self._packages
@@ -635,10 +639,14 @@ class Session:
             session.add_requirements("mydir/requirements.txt")
 
         Note:
-            This method will add packages for all UDFs created later in the current
+            1. This method will add packages for all UDFs created later in the current
             session. If you only want to add packages for a specific UDF, you can use
             ``packages`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+
+            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html#local-development-and-testing>`_,
+            to ensure the consistent experience of a UDF between your local environment
+            and the Snowflake server.
         """
         packages = []
         with open(file_path) as f:
