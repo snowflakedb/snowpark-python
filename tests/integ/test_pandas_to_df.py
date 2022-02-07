@@ -9,6 +9,7 @@ import pytest
 from pandas import DataFrame as PandasDF, to_datetime
 from pandas.testing import assert_frame_equal
 
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
 
@@ -161,7 +162,7 @@ def test_write_pandas_temp_table_and_irregular_column_names(session):
         columns=["id".upper(), "foot size".upper(), "shoe model".upper()],
         # TODO: connector's write_pandas doesn't support double quote in column name. It should support column name "foot\"size".
     )
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.write_pandas(
             pd, table_name, auto_create_table=True, create_temp_table=True
@@ -183,7 +184,7 @@ def test_write_pandas_with_timestamps(session):
         ],
         columns=["tm_tz", "tm_ntz"],
     )
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.write_pandas(
             pd, table_name, auto_create_table=True, create_temp_table=True
