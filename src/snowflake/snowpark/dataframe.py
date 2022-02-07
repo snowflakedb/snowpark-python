@@ -269,12 +269,12 @@ class DataFrame:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
 
-        Unlike the :meth:`collect`, this method does not load all data into memory
+        Unlike :meth:`collect`, this method does not load all data into memory
         at once.
 
         Example::
 
-            # read a large table from Snowflake
+            # Read a large table from Snowflake
             df = session.table("mytable")
             for row in df.to_local_iterator():
                 my_row_processing_function(df)
@@ -296,8 +296,7 @@ class DataFrame:
         Executes the query representing this DataFrame and returns the result as a
         `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
 
-        When the data is large that cannot be fit into the memory, you can use
-        :meth:`to_pandas_batches`.
+        When the data is too large to fit into memory, you can use :meth:`to_pandas_batches`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -331,12 +330,12 @@ class DataFrame:
         Pandas dataframes (containing a subset of rows) that you can use to
         retrieve the results.
 
-        Unlike the :meth:`to_pandas`, this method does not load all data into memory
+        Unlike :meth:`to_pandas`, this method does not load all data into memory
         at once.
 
         Example::
 
-            # read a large table from Snowflake
+            # Read a large table from Snowflake
             df = session.table("mytable")
             for pandas_df in df.to_pandas_batches():
                 my_dataframe_processing_function(pandas_df)
