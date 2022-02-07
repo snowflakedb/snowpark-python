@@ -6,6 +6,7 @@
 import pytest
 from pandas import DataFrame as PandasDF, Series as PandasSeries
 
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
 from snowflake.snowpark.functions import col
 from tests.utils import Utils
@@ -50,7 +51,7 @@ def test_to_pandas_non_select(session):
             session.sql(query).toPandas()
         assert "the input query can only be a SELECT statement" in str(ex_info.value)
 
-    temp_table_name = Utils.random_name()
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     check_fetch_data_exception("show tables")
     check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
     check_fetch_data_exception(f"drop table if exists {temp_table_name}")
