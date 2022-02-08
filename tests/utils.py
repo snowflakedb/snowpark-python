@@ -69,7 +69,7 @@ class Utils:
 
     @staticmethod
     def random_stage_name() -> str:
-        return f"SN_TEST_Stage_{abs(random.randint(0, 2 ** 31))}".upper()
+        return Utils.random_name_for_temp_object(TempObjectType.STAGE)
 
     @staticmethod
     def create_table(
