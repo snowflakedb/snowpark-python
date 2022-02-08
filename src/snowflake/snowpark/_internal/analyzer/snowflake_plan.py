@@ -529,7 +529,7 @@ class SnowflakePlanBuilder:
         column_list: List[str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
-    ):
+    ) -> SnowflakePlan:
         return self.build(
             lambda x: self.pkg.unpivot_statement(
                 value_column, name_column, column_list, x
