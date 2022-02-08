@@ -39,6 +39,8 @@ repos:
                 docs/.*|
             )$
     -   id: check-yaml
+        # The first two lines of meta.yaml does not work with check-yaml
+        exclude: recipe/meta.yaml
     -   id: debug-statements
     -   id: check-ast
 -   repo: https://github.com/Lucas-C/pre-commit-hooks.git

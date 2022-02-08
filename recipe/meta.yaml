@@ -1,0 +1,41 @@
+{% set name = "snowflake-snowpark-python" %}
+{% set version = "0.3.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  # Change git_rev to your branch if you want to build custom package for testing
+  git_url: git@github.com:snowflakedb/snowpark-python.git
+  git_rev: tags/v{{ version }}
+
+build:
+  number: 0
+  # neither on Windows 32-bit nor on s390x there is right now arrow support
+  skip: true  # [win32 or s390x]
+  script:
+    - {{ PYTHON }} -m pip install . --no-deps -vvv
+
+requirements:
+  build:
+    - wheel
+  host:
+    - python 3.8
+    - pip
+  run:
+    - python 3.8
+    - cloudpickle >=1.6.0
+    - snowflake-connector-python
+    - setuptools >34.0.0
+  run_constrained:
+    - pandas >1,<1.4
+
+test:
+  imports:
+    - snowflake
+    - snowflake.snowpark
+
+about:
+  home: https://github.com/snowflakedb/snowpark-python
+  summary: Snowpark Python
