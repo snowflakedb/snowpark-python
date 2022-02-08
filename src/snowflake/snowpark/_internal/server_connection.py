@@ -353,7 +353,7 @@ class ServerConnection:
         final_statement = f"PUT {local_path} {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
         return final_statement
 
-    def notify_query_listeners(self, query_record: List[QueryRecord]):
+    def notify_query_listeners(self, query_record: QueryRecord):
         for listener in self._query_listener:
             listener._add_query(query_record)
 
@@ -363,7 +363,9 @@ class ServerConnection:
     ) -> Dict[str, Any]:
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
-            self.notify_query_listeners((results_cursor.sfqid, results_cursor.query))
+            self.notify_query_listeners(
+                QueryRecord(results_cursor.sfqid, results_cursor.query)
+            )
             logger.info(
                 "Execute query [queryID: {}] {}".format(results_cursor.sfqid, query)
             )
@@ -473,15 +475,17 @@ class ServerConnection:
                 f"alter session set query_tag='{query_tag}'"
             )
             self.notify_query_listeners(
-                (set_query_tag_cursor.sfqid, set_query_tag_cursor.query)
+                QueryRecord(set_query_tag_cursor.sfqid, set_query_tag_cursor.query)
             )
         results_cursor = self._cursor.executemany(query, params)
-        self.notify_query_listeners((results_cursor.sfqid, results_cursor.query))
+        self.notify_query_listeners(
+            QueryRecord(results_cursor.sfqid, results_cursor.query)
+        )
         if query_tag:
             unset_query_tag_cursor = self._cursor.execute(
                 "alter session unset query_tag"
             )
             self.notify_query_listeners(
-                (unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
+                QueryRecord(unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
             )
         logger.info(f"Execute batch insertion query %s", query)
