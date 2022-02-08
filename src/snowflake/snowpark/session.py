@@ -18,7 +18,7 @@ import cloudpickle
 import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
-from snowflake.snowpark import Column, DataFrame
+from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -51,7 +51,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     Utils,
 )
-from snowflake.snowpark._internal.write_pandas import write_pandas
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
