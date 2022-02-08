@@ -849,15 +849,16 @@ class DataFrame:
             df = df.unpivot("sales", "month", ["jan", "feb"]).sort("empid")
             df.show()
 
-        The output is:
-        ---------------------------------------------
-        |"EMPID"  |"DEPT"       |"MONTH"  |"SALES"  |
-        ---------------------------------------------
-        |1        |electronics  |JAN      |100      |
-        |1        |electronics  |FEB      |200      |
-        |2        |clothes      |JAN      |100      |
-        |2        |clothes      |FEB      |300      |
-        ---------------------------------------------
+        The output dataframe is:
+
+        ========  ===========  =======  =========
+        EMPID     DEPT         MONTH    SALES
+        ========  ===========  =======  =========
+        1         electronics  JAN      100
+        1         electronics  FEB      200
+        2         clothes      JAN      100
+        2         clothes      FEB      300
+        ========  ===========  =======  =========
         """
         column_exprs = self.__convert_cols_to_exprs("unpivot()", column_list)
         return self._with_plan(
