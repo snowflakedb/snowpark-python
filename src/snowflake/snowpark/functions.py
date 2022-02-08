@@ -34,6 +34,7 @@ The following examples demonstrate the use of some of these functions::
 """
 import functools
 from random import randint
+from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
@@ -1447,6 +1448,7 @@ def udf(
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
@@ -1483,8 +1485,12 @@ def udf(
             :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
             strings to represent a file path and an import path (similar to the ``import_path``
             argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDF-level imports
-            will overwrite the session-level imports added by
+            will override the session-level imports added by
             :meth:`~snowflake.snowpark.Session.add_import`.
+        packages: A list of packages that only apply to this UDF. These UDF-level packages
+            will override the session-level packages added by
+            :meth:`~snowflake.snowpark.Session.add_packages` and
+            :meth:`~snowflake.snowpark.Session.add_requirements`.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
             results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
@@ -1545,6 +1551,7 @@ def udf(
             is_permanent=is_permanent,
             stage_location=stage_location,
             imports=imports,
+            packages=packages,
             replace=replace,
             parallel=parallel,
         )
@@ -1557,6 +1564,7 @@ def udf(
             is_permanent=is_permanent,
             stage_location=stage_location,
             imports=imports,
+            packages=packages,
             replace=replace,
             parallel=parallel,
         )

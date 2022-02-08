@@ -25,6 +25,9 @@ def new_session(session, db_parameters) -> Session:
     new_session.close()
 
 
+@pytest.mark.skip(
+    "Skip the test before SNOW-541414 is fixed and temp functions are not leaked"
+)
 def test_mix_temporary_and_permanent_udf(session, new_session):
     def add_one(x: int) -> int:
         return x + 1
@@ -79,6 +82,9 @@ def test_valid_quoted_function_name(session):
         Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.skip(
+    "Skip the test before SNOW-541414 is fixed and temp functions are not leaked"
+)
 def test_support_fully_qualified_udf_name(session, new_session):
     def add_one(x: int) -> int:
         return x + 1
