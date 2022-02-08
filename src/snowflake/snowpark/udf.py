@@ -9,6 +9,7 @@ import os
 import pickle
 import zipfile
 from logging import getLogger
+from types import ModuleType
 from typing import (
     Callable,
     Iterable,
@@ -205,6 +206,7 @@ class UDFRegistration:
         is_permanent: bool = False,
         stage_location: Optional[str] = None,
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
     ) -> UserDefinedFunction:
@@ -267,6 +269,7 @@ class UDFRegistration:
                 udf_file_name,
                 stage_location,
                 imports,
+                packages,
                 replace,
                 parallel,
             )
@@ -329,6 +332,7 @@ class UDFRegistration:
         udf_file_name: str,
         stage_location: Optional[str] = None,
         imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
     ) -> None:
@@ -365,6 +369,15 @@ class UDFRegistration:
         else:
             all_urls = self.session._resolve_imports(upload_stage)
 
+        # resolve packages
+        resolved_packages = (
+            self.session._resolve_packages(packages)
+            if packages
+            else self.session._resolve_packages(
+                [], self.session._packages, validate_package=False
+            )
+        )
+
         # Upload closure to stage if it is beyond inline closure size limit
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = Utils.get_udf_upload_prefix(udf_name)
@@ -393,16 +406,19 @@ class UDFRegistration:
         else:
             handler = _DEFAULT_HANDLER_NAME
 
-        # build imports string
+        # build imports and packages string
         all_imports = ",".join(
             [url if Utils.is_single_quoted(url) else f"'{url}'" for url in all_urls]
         )
+        all_packages = ",".join([f"'{package}'" for package in resolved_packages])
+
         self.__create_python_udf(
             return_type=return_type,
             input_args=input_args,
             handler=handler,
             udf_name=udf_name,
             all_imports=all_imports,
+            all_packages=all_packages,
             is_temporary=stage_location is None,
             replace=replace,
             inline_python_code=code,
@@ -428,6 +444,7 @@ def {_DEFAULT_HANDLER_NAME}({args}):
         handler: str,
         udf_name: str,
         all_imports: str,
+        all_packages: str,
         is_temporary: bool,
         replace: bool,
         inline_python_code: Optional[str] = None,
@@ -438,6 +455,7 @@ def {_DEFAULT_HANDLER_NAME}({args}):
             [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
         )
         imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
+        packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
         inline_python_code_in_sql = (
             f"""
 AS $$
@@ -455,6 +473,7 @@ RETURNS {return_sql_type}
 LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
 {imports_in_sql}
+{packages_in_sql}
 HANDLER='{handler}'
 {inline_python_code_in_sql}
 """

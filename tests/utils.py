@@ -715,6 +715,10 @@ class TestFiles:
     def test_udf_py_file(self):
         return os.path.join(self.test_udf_directory, "test_udf_file.py")
 
+    @property
+    def test_requirements_file(self):
+        return os.path.join(self.resources_path, "test_requirements.txt")
+
 
 class TypeMap(NamedTuple):
     col_name: str
