@@ -380,9 +380,13 @@ class ServerConnection:
         # calls to_pandas() to execute the query.
         if to_pandas:
             try:
-                data_or_iter = results_cursor.fetch_pandas_batches()
+                data_or_iter = (
+                    results_cursor.fetch_pandas_batches()
+                    if to_iter
+                    else results_cursor.fetch_pandas_all()
+                )
             except NotSupportedError:
-                data_or_iter = results_cursor
+                data_or_iter = results_cursor if to_iter else results_cursor.fetchall()
             except KeyboardInterrupt:
                 raise
             except BaseException as ex:
@@ -390,14 +394,7 @@ class ServerConnection:
                     str(ex)
                 )
         else:
-            data_or_iter = results_cursor
-
-        if not to_iter:
-            data_or_iter = (
-                pandas.concat(list(data_or_iter))
-                if to_pandas
-                else data_or_iter.fetchall()
-            )
+            data_or_iter = results_cursor if to_iter else results_cursor.fetchall()
 
         return {"data": data_or_iter, "sfqid": results_cursor.sfqid}
 
