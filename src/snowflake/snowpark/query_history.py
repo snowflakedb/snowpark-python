@@ -27,7 +27,7 @@ class QueryHistory:
         self.session._conn.remove_query_listener(self)
 
     def _add_query(self, query_record: QueryRecord):
-        self._queries.append(query_record)
+        self._queries.append(QueryRecord(*query_record))
 
     @property
     def queries(self) -> List[QueryRecord]:
