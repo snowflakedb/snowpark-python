@@ -21,10 +21,10 @@ requirements:
   build:
     - wheel
   host:
-    - python
+    - python 3.8
     - pip
   run:
-    - python
+    - python 3.8
     - cloudpickle >=1.6.0
     - snowflake-connector-python
     - setuptools >34.0.0
