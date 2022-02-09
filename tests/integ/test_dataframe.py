@@ -1433,9 +1433,19 @@ def test_df_columns(session):
         assert df.select(df['"a b"']).collect()[0][0] == 1
         assert df.select(df['"a""b"']).collect()[0][0] == 2
         assert df.select(df['"a"']).collect()[0][0] == 3
+        assert df.select(df['"A"']).collect()[0][0] == 4
+
+        with pytest.raises(SnowparkColumnException) as sce:
+            df.select(df['"A B"']).collect()
+        assert (
+            sce.value.message
+            == 'The DataFrame does not contain the column named "A B".'
+        )
+
     finally:
         Utils.drop_table(session, temp_table)
-=======
+
+
 @pytest.mark.parametrize(
     "column_list",
     [["jan", "feb", "mar", "apr"], [col("jan"), col("feb"), col("mar"), col("apr")]],
