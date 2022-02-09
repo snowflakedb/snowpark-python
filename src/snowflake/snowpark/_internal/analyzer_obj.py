@@ -70,6 +70,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     IsNull as SPIsNull,
     LeafExpression as SPLeafExpression,
     Like as SPLike,
+    ListAgg as SPListAgg,
     Literal as SPLiteral,
     MultipleExpression as SPMultipleExpression,
     NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
@@ -261,6 +262,13 @@ class Analyzer:
         if isinstance(expr, SPDeleteMergeExpression):
             return self.package.delete_merge_statement(
                 self.analyze(expr.condition) if expr.condition else None
+            )
+
+        if isinstance(expr, SPListAgg):
+            return self.package.list_agg(
+                self.analyze(expr.col),
+                DataTypeMapper.str_to_sql(expr.delimiter),
+                expr.is_distinct,
             )
 
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))

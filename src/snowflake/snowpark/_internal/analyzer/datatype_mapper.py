@@ -21,9 +21,9 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
+    GeographyType,
     IntegerType,
     LongType,
-    GeographyType,
     MapType,
     NullType,
     ShortType,
@@ -39,6 +39,13 @@ from snowflake.snowpark.types import (
 class DataTypeMapper:
     MILLIS_PER_DAY = 24 * 3600 * 1000
     MICROS_PER_MILLIS = 1000
+
+    @staticmethod
+    def str_to_sql(value: str) -> str:
+        sql_str = (
+            str(value).replace("\\", "\\\\").replace("'", "''").replace("\n", "\\n")
+        )
+        return f"'{sql_str}'"
 
     @staticmethod
     def to_sql(value: Any, datatype: DataType) -> str:
@@ -82,16 +89,8 @@ class DataTypeMapper:
             return "NULL"
 
         # Not nulls
-        if isinstance(datatype, StringType):
-            if isinstance(value, str):
-                return (
-                    "'"
-                    + str(value)
-                    .replace("\\", "\\\\")
-                    .replace("'", "''")
-                    .replace("\n", "\\n")
-                    + "'"
-                )
+        if isinstance(value, str) and isinstance(datatype, StringType):
+            return DataTypeMapper.str_to_sql(value)
         if isinstance(datatype, ByteType):
             return str(value) + f" :: tinyint"
         if isinstance(datatype, ShortType):
