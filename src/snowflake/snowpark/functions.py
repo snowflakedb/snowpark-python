@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     FunctionExpression as SPFunctionExpression,
     IsNaN as SPIsNan,
     IsNull as SPIsNull,
+    ListAgg as SPListAgg,
     Literal as SPLiteral,
     Max as SPMax,
     Min as SPMin,
@@ -1417,6 +1418,26 @@ def hash(e: ColumnOrName) -> Column:
     """Returns a signed 64-bit hash value. Note that HASH never returns NULL, even for NULL inputs."""
     c = _to_col_if_str(e, "hash")
     return builtin("hash")(c)
+
+
+def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> Column:
+    """
+    Returns the concatenated input values, separated by `delimiter` string.
+    See `LISTAGG <https://docs.snowflake.com/en/sql-reference/functions/listagg.html>`_ for details.
+
+    Args:
+        e: A :class:`Column` object or column name that determines the values
+            to be put into the list.
+        delimiter: A string delimiter.
+        is_distinct: Whether the input expression is distinct.
+
+    Examples::
+
+        df.group_by(df.col1).agg(listagg(df.col2. ",")).within_group(df.col2.asc())
+        df.select(listagg(df["col2"], ",", False)
+    """
+    c = _to_col_if_str(e, "listagg")
+    return Column(SPListAgg(c.expression, delimiter, is_distinct))
 
 
 def when_matched(

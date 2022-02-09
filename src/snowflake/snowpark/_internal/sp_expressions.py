@@ -795,3 +795,11 @@ class InsertMergeExpression(MergeExpression):
         super().__init__(condition)
         self.keys = keys
         self.values = values
+
+
+class ListAgg(Expression):
+    def __init__(self, col: Expression, delimiter: str, is_distinct: bool):
+        super().__init__()
+        self.col = col
+        self.delimiter = delimiter
+        self.is_distinct = is_distinct
