@@ -2,6 +2,7 @@
 ## 0.4.0 (Unknown)
 
 ### New Features
+- Added `DataFrame.to_local_iterator()` and `DataFrame.to_pandas_batches()` to allow getting results from an iterator.
 - Added a parameter `session` to function `udf` so you can specify which session to use to create a UDF if you have multiple sessions.
 - Added `Column.within_group()` for sorting the rows by the specified columns with some aggregation functions.
 - Added `Table` class, with the `update` and `delete` method to update and delete rows of a table in Snowflake.
@@ -10,6 +11,7 @@
   Subsequent operations on the original `DataFrame` have no effect on the cached result `DataFrame`.
 - Added support for Geography geoJSON data.
 - Added `DataFrame.queries` to get queries that will be executed to evaluate the `DataFrame`.
+- Added a new aggregation function `listagg()`.
 
 ### Dependency updates
 - Updated ``snowflake-connector-python`` to 2.7.4.

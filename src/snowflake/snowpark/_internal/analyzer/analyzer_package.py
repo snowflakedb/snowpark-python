@@ -71,6 +71,7 @@ class AnalyzerPackage:
     _Where = " WHERE "
     _Limit = " LIMIT "
     _Pivot = " PIVOT "
+    _Unpivot = " UNPIVOT "
     _For = " FOR "
     _On = " ON "
     _Using = " USING "
@@ -147,6 +148,7 @@ class AnalyzerPackage:
     _Set = " SET "
     _Merge = " MERGE "
     _Matched = " MATCHED "
+    _ListAgg = " LISTAGG "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (
@@ -840,6 +842,28 @@ class AnalyzerPackage:
             + self._RightParenthesis
         )
 
+    def unpivot_statement(
+        self, value_column: str, name_column: str, column_list: List[str], child: str
+    ) -> str:
+        return (
+            self._Select
+            + self._Star
+            + self._From
+            + self._LeftParenthesis
+            + child
+            + self._RightParenthesis
+            + self._Unpivot
+            + self._LeftParenthesis
+            + value_column
+            + self._For
+            + name_column
+            + self._In
+            + self._LeftParenthesis
+            + self._Comma.join(column_list)
+            + self._RightParenthesis
+            + self._RightParenthesis
+        )
+
     def copy_into_table(
         self,
         table_name: str,
@@ -1085,6 +1109,17 @@ class AnalyzerPackage:
                 + self.quote_name(attr.name)
                 for attr in output
             ]
+        )
+
+    def list_agg(self, col: str, delimiter: str, is_distinct: bool) -> str:
+        return (
+            self._ListAgg
+            + self._LeftParenthesis
+            + f"{self._Distinct if is_distinct else self._EmptyString}"
+            + col
+            + self._Comma
+            + delimiter
+            + self._RightParenthesis
         )
 
     def generator(self, row_count: int) -> str:

@@ -21,6 +21,7 @@ from snowflake.snowpark.functions import (
     dense_rank,
     kurtosis,
     lead,
+    listagg,
     lit,
     max as max_,
     mean,
@@ -440,5 +441,34 @@ def test_window_functions_in_multiple_selects(session):
             Row("S1", "P1", 700, 800, 800),
             Row("S2", "P1", 200, 200, 500),
             Row("S2", "P2", 300, 300, 500),
+        ],
+    )
+
+
+def test_listagg_window_function(session):
+    df = session.create_dataframe(
+        [
+            (2, 1, 35, "red", 99),
+            (7, 2, 24, "red", 99),
+            (7, 9, 77, "green", 99),
+            (8, 5, 11, "green", 99),
+            (8, 4, 14, "blue", 99),
+            (8, 3, 21, "red", 99),
+            (9, 9, 12, "orange", 99),
+        ],
+        schema=["v1", "v2", "length", "color", "unused"],
+    )
+
+    w = Window.partition_by("color")
+    Utils.check_answer(
+        df.select(listagg("length", ",").within_group(df.length.asc()).over(w)),
+        [
+            Row("21,24,35"),
+            Row("21,24,35"),
+            Row("11,77"),
+            Row("11,77"),
+            Row("14"),
+            Row("21,24,35"),
+            Row("12"),
         ],
     )

@@ -1435,3 +1435,29 @@ def test_df_columns(session):
         assert df.select(df['"a"']).collect()[0][0] == 3
     finally:
         Utils.drop_table(session, temp_table)
+=======
+@pytest.mark.parametrize(
+    "column_list",
+    [["jan", "feb", "mar", "apr"], [col("jan"), col("feb"), col("mar"), col("apr")]],
+)
+def test_unpivot(session, column_list):
+    Utils.check_answer(
+        TestData.monthly_sales_flat(session)
+        .unpivot("sales", "month", column_list)
+        .sort("empid"),
+        [
+            Row(1, "electronics", "JAN", 100),
+            Row(1, "electronics", "FEB", 200),
+            Row(1, "electronics", "MAR", 300),
+            Row(1, "electronics", "APR", 100),
+            Row(2, "clothes", "JAN", 100),
+            Row(2, "clothes", "FEB", 300),
+            Row(2, "clothes", "MAR", 150),
+            Row(2, "clothes", "APR", 200),
+            Row(3, "cars", "JAN", 200),
+            Row(3, "cars", "FEB", 400),
+            Row(3, "cars", "MAR", 100),
+            Row(3, "cars", "APR", 50),
+        ],
+        sort=False,
+    )

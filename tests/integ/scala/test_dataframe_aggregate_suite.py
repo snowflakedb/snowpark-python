@@ -18,6 +18,7 @@ from snowflake.snowpark.functions import (
     count,
     count_distinct,
     kurtosis,
+    listagg,
     lit,
     max,
     mean,
@@ -854,4 +855,34 @@ def test_limit_and_aggregates(session):
     limit_2df = df.limit(2)
     Utils.check_answer(
         limit_2df.group_by("id").count().select(col("id")), limit_2df.select("id"), True
+    )
+
+
+def test_listagg(session):
+    df = session.create_dataframe(
+        [
+            (2, 1, 35, "red", 99),
+            (7, 2, 24, "red", 99),
+            (7, 9, 77, "green", 99),
+            (8, 5, 11, "green", 99),
+            (8, 4, 14, "blue", 99),
+            (8, 3, 21, "red", 99),
+            (9, 9, 12, "orange", 99),
+        ],
+        schema=["v1", "v2", "length", "color", "unused"],
+    )
+
+    result = df.group_by("color").agg(listagg("length", ",")).collect()
+    # result is unpredictable without within group
+    assert len(result) == 4
+
+    Utils.check_answer(
+        df.group_by("color").agg(listagg("length", ",").within_group(df.length.asc())),
+        [
+            Row("orange", "12"),
+            Row("red", "21,24,35"),
+            Row("green", "11,77"),
+            Row("blue", "14"),
+        ],
+        sort=False,
     )

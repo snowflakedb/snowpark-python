@@ -6,7 +6,7 @@
 import re
 from collections import Counter
 from logging import getLogger
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Join as SPJoin,
     Sort as SPSort,
     Union as SPUnion,
+    Unpivot as SPUnpivot,
 )
 from snowflake.snowpark._internal.plans.logical.hints import JoinHint as SPJoinHint
 from snowflake.snowpark._internal.plans.logical.logical_plan import (
@@ -265,18 +266,44 @@ class DataFrame:
             else None,
         )
 
+    def to_local_iterator(self) -> Iterator[Row]:
+        """Executes the query representing this DataFrame and returns an iterator
+        of :class:`Row` objects that you can use to retrieve the results.
+
+        Unlike :meth:`collect`, this method does not load all data into memory
+        at once.
+
+        Example::
+
+            # Read a large table from Snowflake
+            df = session.table("mytable")
+            for row in df.to_local_iterator():
+                my_row_processing_function(df)
+        """
+        yield from self.session._conn.execute(
+            self._plan,
+            to_iter=True,
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
+            if not self.session.query_tag
+            else None,
+        )
+
     def clone(self) -> "DataFrame":
         """Returns a clone of this :class:`DataFrame`."""
         return DataFrame(self.session, self._plan.clone())
 
     def to_pandas(self, **kwargs) -> "pandas.DataFrame":
         """
-        Returns the contents of this DataFrame as a `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__.
+        Executes the query representing this DataFrame and returns the result as a
+        `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
+
+        When the data is too large to fit into memory, you can use :meth:`to_pandas_batches`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
 
-            2. If you use :func:`Session.sql` with this method, the input query of :func:`Session.sql` can only be a SELECT statement.
+            2. If you use :func:`Session.sql` with this method, the input query of
+            :func:`Session.sql` can only be a SELECT statement.
         """
         if not self.session.query_tag:
             kwargs["_statement_params"] = {
@@ -297,6 +324,36 @@ class DataFrame:
             )
 
         return result
+
+    def to_pandas_batches(self, **kwargs) -> Iterator["pandas.DataFrame"]:
+        """
+        Executes the query representing this DataFrame and returns an iterator of
+        Pandas dataframes (containing a subset of rows) that you can use to
+        retrieve the results.
+
+        Unlike :meth:`to_pandas`, this method does not load all data into memory
+        at once.
+
+        Example::
+
+            # Read a large table from Snowflake
+            df = session.table("mytable")
+            for pandas_df in df.to_pandas_batches():
+                my_dataframe_processing_function(pandas_df)
+
+        Note:
+            1. This method is only available if Pandas is installed and available.
+
+            2. If you use :func:`Session.sql` with this method, the input query of
+            :func:`Session.sql` can only be a SELECT statement.
+        """
+        if not self.session.query_tag:
+            kwargs["_statement_params"] = {
+                "QUERY_TAG": Utils.create_statement_query_tag(2)
+            }
+        yield from self.session._conn.execute(
+            self._plan, to_pandas=True, to_iter=True, **kwargs
+        )
 
     def to_df(self, *names: Union[str, List[str], Tuple[str, ...]]) -> "DataFrame":
         """
@@ -836,6 +893,46 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
                 pc[0], value_exprs
             ),
+        )
+
+    def unpivot(
+        self, value_column: str, name_column: str, column_list: List[ColumnOrName]
+    ) -> "DataFrame":
+        """Rotates a table by transforming columns into rows.
+        UNPIVOT is a relational operator that accepts two columns (from a table or subquery), along with a list of columns, and generates a row for each column specified in the list. In a query, it is specified in the FROM clause after the table name or subquery.
+        Note that UNPIVOT is not exactly the reverse of PIVOT as it cannot undo aggregations made by PIVOT.
+
+        Args:
+            value_column: The name to assign to the generated column that will be populated with the values from the columns in the column list.
+            name_column: The name to assign to the generated column that will be populated with the names of the columns in the column list.
+            column_list: The names of the columns in the source table or subequery that will be narrowed into a single pivot column. The column names will populate ``name_column``, and the column values will populate ``value_column``.
+
+        Example::
+
+            df = session.create_dataframe(
+                [
+                    (1, 'electronics', 100, 200),
+                    (2, 'clothes', 100, 300),
+                ],
+                schema=["empid", "dept", "jan", "feb"]
+            )
+            df = df.unpivot("sales", "month", ["jan", "feb"]).sort("empid")
+            df.show()
+
+        The output dataframe is:
+
+        ========  ===========  =======  =========
+        EMPID     DEPT         MONTH    SALES
+        ========  ===========  =======  =========
+        1         electronics  JAN      100
+        1         electronics  FEB      200
+        2         clothes      JAN      100
+        2         clothes      FEB      300
+        ========  ===========  =======  =========
+        """
+        column_exprs = self.__convert_cols_to_exprs("unpivot()", column_list)
+        return self._with_plan(
+            SPUnpivot(value_column, name_column, column_exprs, self._plan)
         )
 
     def limit(self, n: int) -> "DataFrame":
@@ -2013,6 +2110,7 @@ Query List:
     unionByName = union_by_name
     withColumn = with_column
     withColumnRenamed = with_column_renamed
+    toLocalIterator = to_local_iterator
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets

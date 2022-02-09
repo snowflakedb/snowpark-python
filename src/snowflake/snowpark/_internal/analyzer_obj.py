@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     Range as SPRange,
     Sort as SPSort,
     Union as SPUnion,
+    Unpivot as SPUnpivot,
 )
 from snowflake.snowpark._internal.plans.logical.logical_plan import (
     Filter as SPFilter,
@@ -70,6 +71,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     IsNull as SPIsNull,
     LeafExpression as SPLeafExpression,
     Like as SPLike,
+    ListAgg as SPListAgg,
     Literal as SPLiteral,
     MultipleExpression as SPMultipleExpression,
     NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
@@ -261,6 +263,13 @@ class Analyzer:
         if isinstance(expr, SPDeleteMergeExpression):
             return self.package.delete_merge_statement(
                 self.analyze(expr.condition) if expr.condition else None
+            )
+
+        if isinstance(expr, SPListAgg):
+            return self.package.list_agg(
+                self.analyze(expr.col),
+                DataTypeMapper.str_to_sql(expr.delimiter),
+                expr.is_distinct,
             )
 
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))
@@ -573,6 +582,15 @@ class Analyzer:
                 self.analyze(logical_plan.pivot_column),
                 [self.analyze(pv) for pv in logical_plan.pivot_values],
                 self.analyze(logical_plan.aggregates[0]),
+                self.resolve(logical_plan.child),
+                logical_plan,
+            )
+
+        if isinstance(logical_plan, SPUnpivot):
+            return self.plan_builder.unpivot(
+                logical_plan.value_column,
+                logical_plan.name_column,
+                [self.analyze(c) for c in logical_plan.column_list],
                 self.resolve(logical_plan.child),
                 logical_plan,
             )
