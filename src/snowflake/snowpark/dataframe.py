@@ -6,7 +6,7 @@
 import re
 from collections import Counter
 from logging import getLogger
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
@@ -266,18 +266,44 @@ class DataFrame:
             else None,
         )
 
+    def to_local_iterator(self) -> Iterator[Row]:
+        """Executes the query representing this DataFrame and returns an iterator
+        of :class:`Row` objects that you can use to retrieve the results.
+
+        Unlike :meth:`collect`, this method does not load all data into memory
+        at once.
+
+        Example::
+
+            # Read a large table from Snowflake
+            df = session.table("mytable")
+            for row in df.to_local_iterator():
+                my_row_processing_function(df)
+        """
+        yield from self.session._conn.execute(
+            self._plan,
+            to_iter=True,
+            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
+            if not self.session.query_tag
+            else None,
+        )
+
     def clone(self) -> "DataFrame":
         """Returns a clone of this :class:`DataFrame`."""
         return DataFrame(self.session, self._plan.clone())
 
     def to_pandas(self, **kwargs) -> "pandas.DataFrame":
         """
-        Returns the contents of this DataFrame as a `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`__.
+        Executes the query representing this DataFrame and returns the result as a
+        `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
+
+        When the data is too large to fit into memory, you can use :meth:`to_pandas_batches`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
 
-            2. If you use :func:`Session.sql` with this method, the input query of :func:`Session.sql` can only be a SELECT statement.
+            2. If you use :func:`Session.sql` with this method, the input query of
+            :func:`Session.sql` can only be a SELECT statement.
         """
         if not self.session.query_tag:
             kwargs["_statement_params"] = {
@@ -298,6 +324,36 @@ class DataFrame:
             )
 
         return result
+
+    def to_pandas_batches(self, **kwargs) -> Iterator["pandas.DataFrame"]:
+        """
+        Executes the query representing this DataFrame and returns an iterator of
+        Pandas dataframes (containing a subset of rows) that you can use to
+        retrieve the results.
+
+        Unlike :meth:`to_pandas`, this method does not load all data into memory
+        at once.
+
+        Example::
+
+            # Read a large table from Snowflake
+            df = session.table("mytable")
+            for pandas_df in df.to_pandas_batches():
+                my_dataframe_processing_function(pandas_df)
+
+        Note:
+            1. This method is only available if Pandas is installed and available.
+
+            2. If you use :func:`Session.sql` with this method, the input query of
+            :func:`Session.sql` can only be a SELECT statement.
+        """
+        if not self.session.query_tag:
+            kwargs["_statement_params"] = {
+                "QUERY_TAG": Utils.create_statement_query_tag(2)
+            }
+        yield from self.session._conn.execute(
+            self._plan, to_pandas=True, to_iter=True, **kwargs
+        )
 
     def to_df(self, *names: Union[str, List[str], Tuple[str, ...]]) -> "DataFrame":
         """
@@ -2038,6 +2094,7 @@ Query List:
     unionByName = union_by_name
     withColumn = with_column
     withColumnRenamed = with_column_renamed
+    toLocalIterator = to_local_iterator
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets

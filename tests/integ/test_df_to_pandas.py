@@ -3,8 +3,12 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from typing import Iterator
+
+import pandas as pd
 import pytest
 from pandas import DataFrame as PandasDF, Series as PandasSeries
+from pandas.util.testing import assert_frame_equal
 
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
@@ -64,3 +68,18 @@ def test_to_pandas_non_select(session):
     assert df._plan.queries[1].sql.strip().startswith("INSERT")
     assert df._plan.queries[2].sql.strip().startswith("SELECT")
     isinstance(df.toPandas(), PandasDF)
+
+
+def test_to_pandas_batches(session):
+    df = session.range(100000).cache_result()
+    iterator = df.to_pandas_batches()
+    assert isinstance(iterator, Iterator)
+
+    entire_pandas_df = df.to_pandas()
+    pandas_df_list = list(df.to_pandas_batches())
+    assert len(pandas_df_list) > 1
+    assert_frame_equal(pd.concat(pandas_df_list), entire_pandas_df)
+
+    for df_batch in df.to_pandas_batches():
+        assert_frame_equal(df_batch, entire_pandas_df.iloc[: len(df_batch)])
+        break
