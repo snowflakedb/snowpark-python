@@ -2398,3 +2398,7 @@ def test_to_local_iterator(session):
     for row in iterator:
         assert row == array[index]
         index += 1
+
+    for row in df.to_local_iterator():
+        assert row == array[0]
+        break
