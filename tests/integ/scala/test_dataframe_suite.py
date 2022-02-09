@@ -6,6 +6,7 @@ import os
 import re
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Iterator
 
 import pytest
 
@@ -2385,3 +2386,19 @@ def test_explain(session):
     assert "\n---\n" in explain_string
     assert "SELECT" in explain_string
     assert "Logical Execution Plan" not in explain_string
+
+
+def test_to_local_iterator(session):
+    df = session.create_dataframe([1, 2, 3]).toDF("a")
+    iterator = df.to_local_iterator()
+    assert isinstance(iterator, Iterator)
+
+    index = 0
+    array = df.collect()
+    for row in iterator:
+        assert row == array[index]
+        index += 1
+
+    for row in df.to_local_iterator():
+        assert row == array[0]
+        break

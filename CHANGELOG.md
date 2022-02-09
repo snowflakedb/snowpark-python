@@ -2,6 +2,7 @@
 ## 0.4.0 (Unknown)
 
 ### New Features
+- Added `DataFrame.to_local_iterator()` and `DataFrame.to_pandas_batches()` to allow getting results from an iterator.
 - Added a parameter `session` to function `udf` so you can specify which session to use to create a UDF if you have multiple sessions.
 - Added `Column.within_group()` for sorting the rows by the specified columns with some aggregation functions.
 - Added `Table` class, with the `update` and `delete` method to update and delete rows of a table in Snowflake.
