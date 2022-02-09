@@ -345,7 +345,8 @@ class DataFrame:
             raise TypeError(f"Unexpected item type: {type(item)}")
 
     def __getattr__(self, name):
-        if AnalyzerPackage.quote_name(name) not in self.columns:
+        # Snowflake DB ignores cases when there is no quotes.
+        if name.lower() not in [c.lower() for c in self.columns]:
             raise AttributeError(
                 f"{self.__class__.__name__} object has no attribute {name}"
             )
@@ -353,9 +354,22 @@ class DataFrame:
 
     @property
     def columns(self) -> List[str]:
-        """Returns all column names as a list."""
+        """Returns all column names as a list.
+
+        The returned column names are consistent with the Snowflake database object `identifier syntax <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
+        ==================================   ==========================
+        Column name used to create a table   Column name returned in str
+        ==================================   ==========================
+        a                                    'A'
+        A                                    'A'
+        "a"                                  '"a"'
+        "a b"                                '"a b"'
+        "a""b"                               '"a""b"'
+        ==================================   ==========================
+        """
         # Does not exist in scala snowpark.
-        return [attr.name for attr in self.__output()]
+        return self.schema.names
 
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
@@ -1755,7 +1769,9 @@ class DataFrame:
         else:
             raise TypeError("'exisitng' must be a column name or Column object.")
 
-        to_be_renamed = [x for x in self.columns if x.upper() == old_name.upper()]
+        to_be_renamed = [
+            x for x in self.__output() if x.name.upper() == old_name.upper()
+        ]
         if not to_be_renamed:
             raise ValueError(
                 f'Unable to rename column "{existing}" because it doesn\'t exist.'
