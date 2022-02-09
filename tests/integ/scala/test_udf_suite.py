@@ -449,7 +449,7 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
 
 def test_geography_type(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(session, table_name, "g geography")
+    Utils.create_table(session, table_name, "g geography", is_temporary=True)
     session._run_query(
         f"insert into {table_name} values ('POINT(30 10)'), ('POINT(50 60)'), (null)"
     )

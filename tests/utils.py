@@ -27,6 +27,7 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     DoubleType,
+    GeographyType,
     LongType,
     MapType,
     StringType,
@@ -771,5 +772,5 @@ TYPE_MAP = [
     TypeMap("variant", "variant", VariantType()),
     TypeMap("object", "object", MapType(StringType(), StringType())),
     TypeMap("array", "array", ArrayType(StringType())),
-    # TODO: add geography type
+    TypeMap("geography", "geography", GeographyType()),
 ]

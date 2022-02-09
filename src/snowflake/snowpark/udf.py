@@ -177,8 +177,9 @@ class UDFRegistration:
         For a permanent UDF, these files will be uploaded to the stage that you provide.
 
         2. You can also use :class:`typing.List` to annotate a :class:`list`,
-        use :class:`typing.Dict` to annotate a :class:`dict`, and use
-        :class:`typing.Any` to annotate a variant when defining a UDF.
+        use :class:`typing.Dict` to annotate a :class:`dict`, use
+        :attr:`~snowflake.snowpark.types.Variant` to annotate a variant, and use
+        :attr:`~snowflake.snowpark.types.Geography` to annotate a geography when defining a UDF.
 
         3. :class:`typing.Union` is not a valid type annotation for UDFs,
         but :class:`typing.Optional` can be used to indicate the optional type.
@@ -425,7 +426,13 @@ class UDFRegistration:
         )
 
     def __generate_python_code(self, func: Callable, arg_names: List[str]) -> str:
+        # clear the annotations because when the user annotates Variant and Geography,
+        # which are from snowpark modules and will not work on the server side
+        annotations = func.__annotations__.copy()
+        func.__annotations__.clear()
         pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+        # restore the annotations so we don't change the original function
+        func.__annotations__ = annotations
         args = ",".join(arg_names)
         code = f"""
 import pickle
