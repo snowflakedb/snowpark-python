@@ -1418,10 +1418,8 @@ def test_queries(session):
 def test_df_columns(session):
     assert session.create_dataframe([1], schema=["a"]).columns == ["A"]
 
-    temp_table = "columns_test_t"
-    session.sql(
-        f'create or replace temp table {temp_table}("a b" int, "a""b" int, "a" int, a int)'
-    ).collect()
+    temp_table = Utils.random_name()
+    Utils.create_table(session, temp_table, '"a b" int, "a""b" int, "a" int, a int')
     session.sql(f"insert into {temp_table} values (1, 2, 3, 4)").collect()
     try:
         df = session.table(temp_table)
@@ -1429,7 +1427,9 @@ def test_df_columns(session):
         assert df.select(df.a).collect()[0][0] == 4
         assert df.select(df.A).collect()[0][0] == 4
         assert df.select(df["a"]).collect()[0][0] == 4
-        assert df.select(df["A"]).collect()[0][0] == 4
+        assert (
+            df.select(df["A"]).collect()[0][0] == 4
+        )  # Snowflake finds column a without quotes.
         assert df.select(df['"a b"']).collect()[0][0] == 1
         assert df.select(df['"a""b"']).collect()[0][0] == 2
         assert df.select(df['"a"']).collect()[0][0] == 3
@@ -1441,7 +1441,6 @@ def test_df_columns(session):
             sce.value.message
             == 'The DataFrame does not contain the column named "A B".'
         )
-
     finally:
         Utils.drop_table(session, temp_table)
 
