@@ -77,6 +77,21 @@ class Pivot(UnaryNode):
         self.child = child
 
 
+class Unpivot(UnaryNode):
+    def __init__(
+        self,
+        value_column: str,
+        name_column: str,
+        column_list: List[Expression],
+        child: LogicalPlan,
+    ):
+        super().__init__()
+        self.value_column = value_column
+        self.name_column = name_column
+        self.column_list = column_list
+        self.child = child
+
+
 class Sort(UnaryNode):
     def __init__(self, order: List["SortOrder"], is_global: bool, child: LogicalPlan):
         super().__init__()
