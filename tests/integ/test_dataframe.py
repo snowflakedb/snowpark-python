@@ -721,7 +721,7 @@ def test_toDF(session_cnx):
         assert sorted(res, key=lambda r: r[0]) == expected
 
         res = df.to_df(["rename1", "rename2"]).columns
-        assert res == ['"RENAME1"', '"RENAME2"']
+        assert res == ["RENAME1", "RENAME2"]
 
         df_prime = df.to_df(["rename1", "rename2"])
         res = df_prime.select(df_prime.RENAME1).collect()
@@ -1346,9 +1346,9 @@ def test_select_expr(session):
 
 def test_describe(session):
     assert TestData.test_data2(session).describe().columns == [
-        '"SUMMARY"',
-        '"A"',
-        '"B"',
+        "SUMMARY",
+        "A",
+        "B",
     ]
     Utils.check_answer(
         TestData.test_data2(session).describe().collect(),
@@ -1413,6 +1413,38 @@ def test_queries(session):
     assert queries[2].startswith("SELECT")
     assert len(post_actions) == 1
     assert post_actions[0].startswith("DROP")
+
+
+def test_df_columns(session):
+    assert session.create_dataframe([1], schema=["a"]).columns == ["A"]
+
+    temp_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(
+        session, temp_table, '"a b" int, "a""b" int, "a" int, a int', is_temporary=True
+    )
+    session.sql(f"insert into {temp_table} values (1, 2, 3, 4)").collect()
+    try:
+        df = session.table(temp_table)
+        assert df.columns == ['"a b"', '"a""b"', '"a"', "A"]
+        assert df.select(df.a).collect()[0][0] == 4
+        assert df.select(df.A).collect()[0][0] == 4
+        assert df.select(df["a"]).collect()[0][0] == 4
+        assert (
+            df.select(df["A"]).collect()[0][0] == 4
+        )  # Snowflake finds column a without quotes.
+        assert df.select(df['"a b"']).collect()[0][0] == 1
+        assert df.select(df['"a""b"']).collect()[0][0] == 2
+        assert df.select(df['"a"']).collect()[0][0] == 3
+        assert df.select(df['"A"']).collect()[0][0] == 4
+
+        with pytest.raises(SnowparkColumnException) as sce:
+            df.select(df['"A B"']).collect()
+        assert (
+            sce.value.message
+            == 'The DataFrame does not contain the column named "A B".'
+        )
+    finally:
+        Utils.drop_table(session, temp_table)
 
 
 @pytest.mark.parametrize(
