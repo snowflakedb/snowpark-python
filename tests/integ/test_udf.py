@@ -575,6 +575,15 @@ def test_type_hints(session):
     )
 
 
+def test_type_hint_no_change_after_registration(session):
+    def add(x: int, y: int) -> int:
+        return x + y
+
+    annotations = add.__annotations__
+    session.udf.register(add)
+    assert annotations == add.__annotations__
+
+
 def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name()

@@ -428,11 +428,15 @@ class UDFRegistration:
     def __generate_python_code(self, func: Callable, arg_names: List[str]) -> str:
         # clear the annotations because when the user annotates Variant and Geography,
         # which are from snowpark modules and will not work on the server side
-        annotations = func.__annotations__.copy()
-        func.__annotations__.clear()
-        pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
-        # restore the annotations so we don't change the original function
-        func.__annotations__ = annotations
+        # built-in functions don't have __annotations__
+        if hasattr(func, "__annotations__"):
+            annotations = func.__annotations__
+            func.__annotations__ = {}
+            pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+            # restore the annotations so we don't change the original function
+            func.__annotations__ = annotations
+        else:
+            pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
         args = ",".join(arg_names)
         code = f"""
 import pickle
