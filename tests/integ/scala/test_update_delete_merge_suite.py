@@ -3,6 +3,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import copy
+
 import pytest
 
 from snowflake.snowpark import (
@@ -389,12 +391,12 @@ def test_merge_with_multiple_clause_conditions(session):
     )
 
 
-def test_clone(session):
+def test_copy(session):
     df = session.createDataFrame([1, 2], schema=["a"])
     df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
     table = session.table(table_name)
     assert isinstance(table, Table)
-    cloned = table.clone()
+    cloned = copy.copy(table)
     assert isinstance(table, Table)
     cloned.delete(col("a") == 1)
     Utils.check_answer(session.table(table_name), [Row(2)])

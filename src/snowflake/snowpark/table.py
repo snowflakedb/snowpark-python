@@ -243,6 +243,10 @@ class Table(DataFrame):
         """Returns a clone of this :class:`Table`."""
         return Table(self.table_name, self.session)
 
+    def __copy__(self) -> "Table":
+        """Returns a clone of this :class:`Table`."""
+        return Table(self.table_name, self.session)
+
     def sample(
         self,
         frac: Optional[float] = None,
