@@ -1418,8 +1418,10 @@ def test_queries(session):
 def test_df_columns(session):
     assert session.create_dataframe([1], schema=["a"]).columns == ["A"]
 
-    temp_table = Utils.random_name()
-    Utils.create_table(session, temp_table, '"a b" int, "a""b" int, "a" int, a int')
+    temp_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(
+        session, temp_table, '"a b" int, "a""b" int, "a" int, a int', is_temporary=True
+    )
     session.sql(f"insert into {temp_table} values (1, 2, 3, 4)").collect()
     try:
         df = session.table(temp_table)
