@@ -75,8 +75,8 @@ class SnowparkClientExceptionMessages:
     def DF_SELF_JOIN_NOT_SUPPORTED() -> SnowparkJoinException:
         return SnowparkJoinException(
             "You cannot join a DataFrame with itself because the column references cannot "
-            "be resolved correctly. Instead, call clone() to create a copy of the "
-            "DataFrame, and join the DataFrame with this copy.",
+            "be resolved correctly. Instead, create a copy of the DataFrame with copy.copy(), "
+            "and join the DataFrame with this copy.",
             "1103",
         )
 

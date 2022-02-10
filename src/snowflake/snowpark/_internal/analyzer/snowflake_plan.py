@@ -185,7 +185,7 @@ class SnowflakePlan(LogicalPlan):
             ]
         return self.__placeholder_for_output
 
-    def clone(self):
+    def __copy__(self) -> "SnowflakePlan":
         return SnowflakePlan(
             self.queries.copy() if self.queries else [],
             self._schema_query,

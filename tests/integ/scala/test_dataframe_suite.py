@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import copy
 import math
 import os
 import re
@@ -1774,7 +1775,7 @@ def test_clone_with_union_dataframe(session):
         df = session.table(table_name)
 
         union_df = df.union(df)
-        cloned_union_df = union_df.clone()
+        cloned_union_df = copy.copy(union_df)
         res = cloned_union_df.collect()
         res.sort(key=lambda x: x[0])
         assert res == [Row(1, 1), Row(2, 2)]
@@ -1791,7 +1792,7 @@ def test_clone_with_unionall_dataframe(session):
         df = session.table(table_name)
 
         union_df = df.union_all(df)
-        cloned_union_df = union_df.clone()
+        cloned_union_df = copy.copy(union_df)
         res = cloned_union_df.collect()
         res.sort(key=lambda x: x[0])
         assert res == [Row(1, 1), Row(1, 1), Row(2, 2), Row(2, 2)]
