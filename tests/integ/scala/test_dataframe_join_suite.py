@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
+import copy
 import re
 
 import pytest
@@ -571,7 +571,7 @@ def test_negative_test_for_self_join_with_conditions(session):
 
         msg = (
             "You cannot join a DataFrame with itself because the column references cannot be resolved "
-            "correctly. Instead, call clone() to create a copy of the DataFrame, and join the DataFrame with "
+            "correctly. Instead, create a copy of the DataFrame with copy.copy(), and join the DataFrame with "
             "this copy."
         )
 
@@ -594,7 +594,7 @@ def test_clone_can_help_these_self_joins(session):
         Utils.create_table(session, table_name1, "c1 int, c2 int")
         session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
         df = session.table(table_name1)
-        cloned_df = df.clone()
+        cloned_df = copy.copy(df)
 
         # inner self join
         assert df.join(cloned_df, df["c1"] == cloned_df["c2"]).collect() == [
@@ -632,7 +632,7 @@ def test_natural_cross_joins(session):
         session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
         df = session.table(table_name1)
         df2 = df  # Another reference of "df"
-        cloned_df = df.clone()
+        cloned_df = copy.copy(df)
 
         # "natural join" supports self join
         assert df.natural_join(df2).collect() == [Row(1, 2), Row(2, 3)]
@@ -671,14 +671,14 @@ def test_clone_with_join_dataframe(session):
 
         assert df.collect() == [Row(1, 2), Row(2, 3)]
 
-        cloned_df = df.clone()
+        cloned_df = copy.copy(df)
         #  Cloned DF has the same conent with original DF
         assert cloned_df.collect() == [Row(1, 2), Row(2, 3)]
 
         join_df = df.join(cloned_df, df["c1"] == cloned_df["c2"])
         assert join_df.collect() == [Row(2, 3, 1, 2)]
         # Cloned join DF
-        cloned_join_df = join_df.clone()
+        cloned_join_df = copy.copy(join_df)
         assert cloned_join_df.collect() == [Row(2, 3, 1, 2)]
 
     finally:
@@ -691,12 +691,12 @@ def test_join_of_join(session):
         Utils.create_table(session, table_name1, "c1 int, c2 int")
         session.sql(f"insert into {table_name1} values(1, 1), (2, 2)").collect()
         df_l = session.table(table_name1)
-        df_r = df_l.clone()
+        df_r = copy.copy(df_l)
         df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
 
         assert df_j.collect() == [Row(1, 1, 1, 1), Row(2, 2, 2, 2)]
 
-        df_j_clone = df_j.clone()
+        df_j_clone = copy.copy(df_j)
         # Because of duplicate column name rename, we have to get a name.
         col_name = df_j.schema.fields[0].name
         df_j_j = df_j.join(df_j_clone, df_j[col_name] == df_j_clone[col_name])
@@ -717,9 +717,9 @@ def test_negative_test_join_of_join(session_cnx):
             Utils.create_table(session, table_name1, "c1 int, c2 int")
             session.sql(f"insert into {table_name1} values(1, 1), (2, 2)").collect()
             df_l = session.table(table_name1)
-            df_r = df_l.clone()
+            df_r = copy.copy(df_l)
             df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
-            df_j_clone = df_j.clone()
+            df_j_clone = copy.copy(df_j)
 
             with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
                 df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
@@ -757,7 +757,7 @@ def test_drop_on_self_join(session):
             "a", "b", "c"
         ).write.save_as_table(table_name_1)
         df1 = session.table(table_name_1)
-        df2 = df1.clone()
+        df2 = copy.copy(df1)
         df3 = df1.join(df2, df1["c"] == df2["c"]).drop(df1["a"], df2["b"], df1["c"])
         Utils.check_answer(df3, [Row("a", 1, True), Row("b", 2, False)])
         df4 = df3.drop(df2["c"], df1["b"], col("other"))

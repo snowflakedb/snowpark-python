@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import copy
 import re
 from collections import Counter
 from logging import getLogger
@@ -288,9 +289,8 @@ class DataFrame:
             else None,
         )
 
-    def clone(self) -> "DataFrame":
-        """Returns a clone of this :class:`DataFrame`."""
-        return DataFrame(self.session, self._plan.clone())
+    def __copy__(self) -> "DataFrame":
+        return DataFrame(self.session, copy.copy(self._plan))
 
     def to_pandas(self, **kwargs) -> "pandas.DataFrame":
         """
