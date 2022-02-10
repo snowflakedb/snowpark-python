@@ -196,6 +196,13 @@ def min(e: ColumnOrName) -> Column:
     return __with_aggregate_function(SPMin(c.expression))
 
 
+def mode(e: ColumnOrName) -> Column:
+    """Returns the most frequent value for the records in a group. NULL values are ignored.
+    If all the values are NULL, or there are 0 rows, then the function returns NULL."""
+    c = _to_col_if_str(e, "mode")
+    return builtin("mode")(c)
+
+
 def skew(e: ColumnOrName) -> Column:
     """Returns the sample skewness of non-NULL records. If all records inside a group
     are NULL, the function returns NULL."""
