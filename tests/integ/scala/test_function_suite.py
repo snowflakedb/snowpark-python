@@ -99,6 +99,7 @@ from snowflake.snowpark.functions import (
     max,
     mean,
     min,
+    mode,
     negate,
     not_,
     ntile,
@@ -247,6 +248,23 @@ def test_max_min_mean(session):
     # same as above, but pass str instead of Column
     df = TestData.xyz(session).select(max("X"), min("Y"), mean("Z"))
     assert df.collect() == [Row(2, 1, Decimal("3.6"))]
+
+
+def test_mode(session):
+    xyz = TestData.xyz(session)
+    df_col = xyz.select(mode(col("X")), mode(col("Y")), mode(col("Z"))).collect()
+    # Z column has two most frequent values 1 and 3, and either could be returned
+    try:
+        Utils.check_answer(df_col, Row(2, 2, 1))
+    except AssertionError:
+        Utils.check_answer(df_col, Row(2, 2, 3))
+
+    # same as above, but pass str instead of Column
+    df_str = xyz.select(mode("X"), mode("Y"), mode("Z")).collect()
+    try:
+        Utils.check_answer(df_str, Row(2, 2, 1))
+    except AssertionError:
+        Utils.check_answer(df_str, Row(2, 2, 3))
 
 
 def test_skew(session):
