@@ -66,7 +66,8 @@ def test_reverse_lead_lag_with_negative_offset(session):
     )
 
 
-def test_lead_lag_with_default_value(session):
+@pytest.mark.parametrize("default", [None, 10])
+def test_lead_lag_with_default_value(session, default):
     default = None
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4"), (2, "5")], schema=["key", "value"]
@@ -75,10 +76,10 @@ def test_lead_lag_with_default_value(session):
     Utils.check_answer(
         df.select(
             "key",
-            lead("value", 2).over(window),
-            lag("value", 2).over(window),
-            lead("value", -2).over(window),
-            lag("value", -2).over(window),
+            lead("value", 2, default).over(window),
+            lag("value", 2, default).over(window),
+            lead("value", -2, default).over(window),
+            lag("value", -2, default).over(window),
         ),
         [
             Row(1, default, default, default, default),
@@ -86,6 +87,32 @@ def test_lead_lag_with_default_value(session):
             Row(2, "5", default, default, "5"),
             Row(2, default, "2", "2", default),
             Row(2, default, default, default, default),
+        ],
+    )
+
+
+def test_lead_lag_with_ignore_or_respect_nulls(session):
+    df = session.create_dataframe(
+        [(1, 5), (2, 4), (3, None), (4, 2), (5, None), (6, None), (7, 6)],
+        schema=["key", "value"],
+    )
+    window = Window.order_by("key")
+    Utils.check_answer(
+        df.select(
+            "key",
+            lead("value").over(window),
+            lag("value").over(window),
+            lead("value", ignore_nulls=True).over(window),
+            lag("value", ignore_nulls=True).over(window),
+        ).sort("key"),
+        [
+            Row(1, 4, None, 4, None),
+            Row(2, None, 5, 2, 5),
+            Row(3, 2, 4, 2, 4),
+            Row(4, None, None, 6, 4),
+            Row(5, None, 2, 6, 2),
+            Row(6, 6, None, 6, 2),
+            Row(7, None, None, None, 2),
         ],
     )
 
