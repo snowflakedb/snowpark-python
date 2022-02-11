@@ -538,7 +538,9 @@ class Session:
             if stage_location
             else self.__session_stage
         )
-        file_list = self.sql(f"ls {normalized}").select('"name"').collect()
+        file_list = (
+            self.sql(f"ls {normalized}").select('"name"')._internal_collect_with_tag()
+        )
         prefix_length = Utils.get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
