@@ -352,7 +352,7 @@ class Table(DataFrame):
                 else None,
             )
         )
-        return _get_update_result(new_df.collect())
+        return _get_update_result(new_df._internal_collect_with_tag())
 
     def delete(
         self,
@@ -397,7 +397,7 @@ class Table(DataFrame):
                 else None,
             )
         )
-        return _get_delete_result(new_df.collect())
+        return _get_delete_result(new_df._internal_collect_with_tag())
 
     def merge(
         self,
@@ -458,5 +458,8 @@ class Table(DataFrame):
             )
         )
         return _get_merge_result(
-            new_df.collect(), inserted=inserted, updated=updated, deleted=deleted
+            new_df._internal_collect_with_tag(),
+            inserted=inserted,
+            updated=updated,
+            deleted=deleted,
         )

@@ -69,7 +69,7 @@ class DataFrameStatFunctions:
                 .select(
                     [approx_percentile_estimate(temp_col_name, p) for p in percentile]
                 )
-                ._collect_with_tag()
+                ._internal_collect_with_tag()
             )
             return list(res[0])
         elif isinstance(col, (List, Tuple)):
@@ -83,7 +83,11 @@ class DataFrameStatFunctions:
                 for p in percentile
             ]
             percentile_len = len(output_cols) // len(accumate_cols)
-            res = self._df.select(accumate_cols).select(output_cols)._collect_with_tag()
+            res = (
+                self._df.select(accumate_cols)
+                .select(output_cols)
+                ._internal_collect_with_tag()
+            )
             return [
                 [x for x in res[0][j * percentile_len : (j + 1) * percentile_len]]
                 for j in range(len(accumate_cols))
@@ -110,7 +114,7 @@ class DataFrameStatFunctions:
             The correlation of the two numeric columns.
             If there is not enough data to generate the correlation, the method returns ``None``.
         """
-        res = self._df.select(corr_func(col1, col2))._collect_with_tag()
+        res = self._df.select(corr_func(col1, col2))._internal_collect_with_tag()
         return res[0][0] if res[0] is not None else None
 
     def cov(self, col1: ColumnOrName, col2: ColumnOrName) -> Optional[float]:
@@ -130,7 +134,7 @@ class DataFrameStatFunctions:
             The sample covariance of the two numeric columns.
             If there is not enough data to generate the covariance, the method returns None.
         """
-        res = self._df.select(covar_samp(col1, col2))._collect_with_tag()
+        res = self._df.select(covar_samp(col1, col2))._internal_collect_with_tag()
         return res[0][0] if res[0] is not None else None
 
     def crosstab(
@@ -168,13 +172,16 @@ class DataFrameStatFunctions:
             col1: The name of the first column to use.
             col2: The name of the second column to use.
         """
-        row_count = self._df.select(count_distinct(col2))._collect_with_tag()[0][0]
+        row_count = self._df.select(count_distinct(col2))._internal_collect_with_tag()[
+            0
+        ][0]
         if row_count > _MAX_COLUMNS_PER_TABLE:
             raise SnowparkClientExceptionMessages.DF_CROSS_TAB_COUNT_TOO_LARGE(
                 row_count, _MAX_COLUMNS_PER_TABLE
             )
         column_names = [
-            row[0] for row in self._df.select(col2).distinct()._collect_with_tag()
+            row[0]
+            for row in self._df.select(col2).distinct()._internal_collect_with_tag()
         ]
         return self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
 
