@@ -12,7 +12,7 @@ modified: false
 
 # release_branches: list of release branch patterns, exact matches or regex is acceptable
 release_branches:
-  - main
+  - master
   - release-*
 
 # code_owners_file_present: whether there is a CODEOWNERS file in this repository
