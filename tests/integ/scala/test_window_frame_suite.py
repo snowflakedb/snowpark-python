@@ -66,9 +66,8 @@ def test_reverse_lead_lag_with_negative_offset(session):
     )
 
 
-@pytest.mark.parametrize("default", [None, 10])
+@pytest.mark.parametrize("default", [None, "10"])
 def test_lead_lag_with_default_value(session, default):
-    default = None
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4"), (2, "5")], schema=["key", "value"]
     )
