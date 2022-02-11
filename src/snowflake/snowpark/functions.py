@@ -1485,8 +1485,8 @@ def udf(
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.
     This function uses that session to register the UDF. If you have multiple sessions, you need to
-    explicitly specify the `session` parameter of this function. If you have a function and would like to register it to
-    multiple databases, use ``session.udf.register`` instead.
+    explicitly specify the ``session`` parameter of this function. If you have a function and would
+    like to register it to multiple databases, use ``session.udf.register`` instead.
 
     Args:
         func: A Python function used for creating the UDF.
@@ -1561,13 +1561,24 @@ def udf(
         See details of supported data types for UDFs in
         :class:`~snowflake.snowpark.udf.UDFRegistration`.
 
-        2. This function registers a UDF using the last created session.
-        If you want to register a UDF with a specific session, use
-        :func:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
+            - You can use use :attr:`~snowflake.snowpark.types.Variant` to
+              annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
+              to annotate a geography when defining a UDF.
+
+            - :class:`typing.Union` is not a valid type annotation for UDFs,
+              but :class:`typing.Optional` can be used to indicate the optional type.
+
+        2. A temporary UDF (when ``is_permanent`` is ``False``) is scoped to this ``session``
+        and all UDF related files will be uploaded to a temporary session stage
+        (:func:`session.get_session_stage() <snowflake.snowpark.Session.get_session_stage>`).
+        For a permanent UDF, these files will be uploaded to the stage that you provide.
 
         3. By default, UDF registration fails if a function with the same name is already
         registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
+
+    See Also:
+        :class:`~snowflake.snowpark.udf.UDFRegistration`
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:

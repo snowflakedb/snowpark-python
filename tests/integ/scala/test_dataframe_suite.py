@@ -1496,7 +1496,7 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
         == "StructType[StructField(ARRAY, ArrayType[String], Nullable=True), "
         "StructField(MAP, MapType[String, String], Nullable=True), "
         "StructField(VARIANT, Variant, Nullable=True), "
-        "StructField(GEOGRAPHY, GeographyType, Nullable=True)]"
+        "StructField(GEOGRAPHY, Geography, Nullable=True)]"
     )
     df.show()
     geography_string = """{

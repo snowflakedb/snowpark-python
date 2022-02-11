@@ -5,7 +5,7 @@
 #
 """This package contains all Snowpark logical types."""
 import re
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 
 class DataType:
@@ -184,12 +184,6 @@ class MapType(DataType):
         return self.__repr__()
 
 
-class VariantType(DataType):
-    """Variant data type. This maps to the VARIANT data type in Snowflake."""
-
-    pass
-
-
 class ColumnIdentifier:
     """Represents a column identifier."""
 
@@ -317,17 +311,23 @@ class StructType(DataType):
         return [f.name for f in self.fields]
 
 
+class VariantType(DataType):
+    """Variant data type. This maps to the VARIANT data type in Snowflake."""
+
+    pass
+
+
 class GeographyType(DataType):
     """Geography data type. This maps to the GEOGRAPHY data type in Snowflake."""
 
-    def __repr__(self):
-        """Returns GeographyType Info. Decimal(precision, scale)"""
-        return "GeographyType"
+    pass
 
-    @property
-    def type_name(self):
-        """Returns GeographyType Info. GeographyType."""
-        return self.__repr__()
+
+#: The type hint for annotating Variant data when registering UDFs.
+Variant = TypeVar("Variant")
+
+#: The type hint for annotating Geography data when registering UDFs.
+Geography = TypeVar("Geography")
 
 
 def _get_data_type_mappings(

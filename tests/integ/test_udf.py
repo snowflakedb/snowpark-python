@@ -32,7 +32,7 @@ try:
 except ImportError:
     is_pandas_and_numpy_available = False
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
@@ -43,9 +43,11 @@ from snowflake.snowpark.types import (
     ArrayType,
     DateType,
     DoubleType,
+    Geography,
     GeographyType,
     IntegerType,
     StringType,
+    Variant,
     VariantType,
 )
 from tests.utils import TempObjectType, TestData, TestFiles, Utils
@@ -541,8 +543,12 @@ def test_type_hints(session):
         return dt
 
     @udf
-    def return_variant_dict_udf(v: Any) -> Dict[str, str]:
+    def return_variant_dict_udf(v: Variant) -> Dict[str, str]:
         return {str(k): f"{str(k)} {str(v)}" for k, v in v.items()}
+
+    @udf
+    def return_geography_dict_udf(g: Geography) -> Dict[str, str]:
+        return g
 
     df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     Utils.check_answer(
@@ -562,6 +568,20 @@ def test_type_hints(session):
         TestData.variant1(session).select(return_variant_dict_udf("obj1")).collect(),
         [Row('{\n  "Tree": "Tree Pine"\n}')],
     )
+
+    Utils.check_answer(
+        TestData.geography_type(session).select(return_geography_dict_udf("geo")),
+        [Row('{\n  "coordinates": [\n    30,\n    10\n  ],\n  "type": "Point"\n}')],
+    )
+
+
+def test_type_hint_no_change_after_registration(session):
+    def add(x: int, y: int) -> int:
+        return x + y
+
+    annotations = add.__annotations__
+    session.udf.register(add)
+    assert annotations == add.__annotations__
 
 
 def test_permanent_udf(session, db_parameters):
