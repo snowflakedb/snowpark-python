@@ -940,7 +940,7 @@ class CopyIntoLocationNode(LeafNode):
         child: LogicalPlan,
         stage_location: str,
         *,
-        partition_by: Optional[str] = None,
+        partition_by: Optional[SPExpression] = None,
         file_format_name: Optional[str] = None,
         file_format_type: Optional[str] = None,
         format_type_options: Optional[str] = None,

@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
@@ -150,6 +150,7 @@ class AnalyzerPackage:
     _Merge = " MERGE "
     _Matched = " MATCHED "
     _ListAgg = " LISTAGG "
+    _Header = " HEADER "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (
@@ -865,6 +866,11 @@ class AnalyzerPackage:
             + self._RightParenthesis
         )
 
+    def _options_to_str(self, options: Dict[Any, Any]) -> str:
+        return self._Space.join(
+            f"{k}={v!r}" for k, v in options.items() if v is not None
+        )
+
     def copy_into_table(
         self,
         table_name: str,
@@ -941,18 +947,12 @@ class AnalyzerPackage:
         )
         if format_type_options:
             ftostr += (
-                self._Space
-                + self._Space.join(f"{k}={v}" for k, v in format_type_options.items())
-                + self._Space
+                self._Space + self._options_to_str(format_type_options) + self._Space
             )
         ftostr += self._RightParenthesis
 
         if copy_options:
-            costr = (
-                self._Space
-                + self._Space.join(f"{k}={v}" for k, v in copy_options.items())
-                + self._Space
-            )
+            costr = self._Space + self._options_to_str(copy_options) + self._Space
         else:
             costr = ""
 
@@ -1004,23 +1004,23 @@ class AnalyzerPackage:
             self._Type + self._Equals + file_format_type if file_format_type else ""
         )
         format_type_options_clause = (
-            self._Space.join(f"{k}={v}" for k, v in format_type_options.items())
-            if format_type_options
-            else ""
+            self._options_to_str(format_type_options) if format_type_options else ""
         )
         file_format_clause = (
             self._FileFormat
             + self._Equals
             + self._LeftParenthesis
-            + (format_name_clause + file_type_clause + format_type_options_clause)
+            + (
+                format_name_clause
+                + self._Space
+                + file_type_clause
+                + self._Space
+                + format_type_options_clause
+            )
             + self._RightParenthesis
         )
-        copy_options_clause = (
-            self._Space.join(f"{k}={v}" for k, v in copy_options.items())
-            if copy_options
-            else ""
-        )
-        header_clause = str(header) if header else ""
+        copy_options_clause = self._options_to_str(copy_options) if copy_options else ""
+        header_clause = f"{self._Header}={header}" if header is not None else ""
         return (
             self._Copy
             + self._Into
@@ -1031,7 +1031,9 @@ class AnalyzerPackage:
             + self._RightParenthesis
             + partition_by_clause
             + file_format_clause
+            + self._Space
             + copy_options_clause
+            + self._Space
             + header_clause
         )
 
