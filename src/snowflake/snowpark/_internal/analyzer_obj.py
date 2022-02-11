@@ -653,7 +653,9 @@ class Analyzer:
             return self.plan_builder.copy_into_location(
                 query=logical_plan.child,
                 stage_location=logical_plan.stage_location,
-                partition_by=logical_plan.partition_by,
+                partition_by=self.analyze(logical_plan.partition_by)
+                if logical_plan.partition_by
+                else None,
                 file_format_name=logical_plan.file_format_name,
                 file_format_type=logical_plan.file_format_type,
                 format_type_options=logical_plan.format_type_options,
