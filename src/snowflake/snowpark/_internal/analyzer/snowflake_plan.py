@@ -641,7 +641,7 @@ class SnowflakePlanBuilder:
             # it is useless since we always create new temp table.
             # setting it helps users to understand generated queries.
 
-            copy_options_with_force = {**copy_options, "FORCE": "TRUE"}
+            copy_options_with_force = {**copy_options, "FORCE": True}
 
             temp_table_schema = []
             for index, att in enumerate(schema):
@@ -741,14 +741,14 @@ class SnowflakePlanBuilder:
 
     def copy_into_location(
         self,
-        query,
-        stage_location,
-        partition_by,
-        file_format_name,
-        file_format_type,
-        format_type_options,
-        header,
-        copy_options,
+        query: SnowflakePlan,
+        stage_location: str,
+        partition_by: Optional[str] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[Dict[str, Any]] = None,
+        header: bool = False,
+        copy_options: Optional[Dict[str, Any]] = None,
     ):
         return self.build(
             lambda x: self.pkg.copy_into_location(

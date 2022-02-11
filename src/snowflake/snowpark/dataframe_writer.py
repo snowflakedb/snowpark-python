@@ -114,7 +114,7 @@ class DataFrameWriter:
 
     def copy_into_location(
         self,
-        stage_location,
+        location: str,
         *,
         partition_by: Optional[ColumnOrName] = None,
         file_format_name: Optional[str] = None,
@@ -131,7 +131,7 @@ class DataFrameWriter:
             df.write.copy_into_location("@my_stage_location", partition_by=col("LAST_NAME"), file_format_type="csv")
 
         Args:
-            stage_location: The destination stage location.
+            location: The destination stage location.
             partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
             file_format_name: Specifies an existing named file format to use for unloading data from the table. The named file format determines the format type (CSV, JSON, PARQUET), as well as any other format options, for the data files.
             file_format_type: Specifies the type of files unloaded from the table. If a format type is specified, additional format-specific options can be specified in ``format_type_options``.
@@ -139,7 +139,7 @@ class DataFrameWriter:
             header: Specifies whether to include the table column headings in the output files.
             copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options<https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
         """
-        stage_location = Utils.normalize_remote_file_or_dir(stage_location)
+        stage_location = Utils.normalize_remote_file_or_dir(location)
         partition_by = (
             Column._to_expr(partition_by) if partition_by is not None else None
         )

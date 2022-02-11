@@ -663,7 +663,11 @@ class AnalyzerPackage:
         if_not_exist: bool,
     ) -> str:
         options_str = (
-            self._Type + self._Equals + file_type + self.get_options_statement(options)
+            self._Type
+            + self._Equals
+            + file_type
+            + self._Space
+            + self.get_options_statement(options)
         )
         return (
             self._Create
@@ -679,9 +683,9 @@ class AnalyzerPackage:
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
     ) -> str:
         if command.lower() == "put":
-            return f"{self._Put}{file_name}{self._Space}{stage_location}{self._Space}{self._get_operation_statement(options)}"
+            return f"{self._Put}{file_name}{self._Space}{stage_location}{self._Space}{self.get_options_statement(options)}"
         if command.lower() == "get":
-            return f"{self._Get}{stage_location}{self._Space}{file_name}{self._Space}{self._get_operation_statement(options)}"
+            return f"{self._Get}{stage_location}{self._Space}{file_name}{self._Space}{self.get_options_statement(options)}"
         raise ValueError(f"Unsupported file operation type {command}")
 
     def _get_operation_statement(self, options: Dict[str, str]) -> str:
@@ -689,12 +693,13 @@ class AnalyzerPackage:
             f"{k.upper() + self._Equals + str(v)}" for k, v in options.items()
         )
 
-    def get_options_statement(self, options: Dict[str, str]) -> str:
+    def get_options_statement(self, options: Dict[str, Any]) -> str:
         return (
             self._Space
             + self._Space.join(
-                k + self._Space + self._Equals + self._Space + v
+                f"{k}={v if (isinstance(v, str) and Utils.is_single_quoted(v)) else repr(v)}"
                 for k, v in options.items()
+                if v is not None
             )
             + self._Space
         )
@@ -866,17 +871,12 @@ class AnalyzerPackage:
             + self._RightParenthesis
         )
 
-    def _options_to_str(self, options: Dict[Any, Any]) -> str:
-        return self._Space.join(
-            f"{k}={v!r}" for k, v in options.items() if v is not None
-        )
-
     def copy_into_table(
         self,
         table_name: str,
         file_path: str,
         file_format: str,
-        format_type_options: Dict[str, str],
+        format_type_options: Dict[str, Any],
         copy_options: Dict[str, str],
         pattern: str,
         *,
@@ -947,12 +947,14 @@ class AnalyzerPackage:
         )
         if format_type_options:
             ftostr += (
-                self._Space + self._options_to_str(format_type_options) + self._Space
+                self._Space
+                + self.get_options_statement(format_type_options)
+                + self._Space
             )
         ftostr += self._RightParenthesis
 
         if copy_options:
-            costr = self._Space + self._options_to_str(copy_options) + self._Space
+            costr = self._Space + self.get_options_statement(copy_options) + self._Space
         else:
             costr = ""
 
@@ -1004,7 +1006,9 @@ class AnalyzerPackage:
             self._Type + self._Equals + file_format_type if file_format_type else ""
         )
         format_type_options_clause = (
-            self._options_to_str(format_type_options) if format_type_options else ""
+            self.get_options_statement(format_type_options)
+            if format_type_options
+            else ""
         )
         file_format_clause = (
             self._FileFormat
@@ -1019,7 +1023,9 @@ class AnalyzerPackage:
             )
             + self._RightParenthesis
         )
-        copy_options_clause = self._options_to_str(copy_options) if copy_options else ""
+        copy_options_clause = (
+            self.get_options_statement(copy_options) if copy_options else ""
+        )
         header_clause = f"{self._Header}={header}" if header is not None else ""
         return (
             self._Copy
