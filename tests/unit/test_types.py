@@ -26,6 +26,8 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
+    Geography,
+    GeographyType,
     IntegerType,
     LongType,
     MapType,
@@ -35,6 +37,7 @@ from snowflake.snowpark.types import (
     StructField,
     TimestampType,
     TimeType,
+    Variant,
     VariantType,
     _FractionalType,
     _get_number_precissions,
@@ -332,7 +335,8 @@ def test_python_type_to_snow_type():
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snow_type(typing.Any) == (VariantType(), False)
+    assert _python_type_to_snow_type(Variant) == (VariantType(), False)
+    assert _python_type_to_snow_type(Geography) == (GeographyType(), False)
 
     # complicated (nested) types
     assert _python_type_to_snow_type(typing.Optional[typing.Optional[str]]) == (

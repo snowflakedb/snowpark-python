@@ -136,7 +136,7 @@ class UDFRegistration:
     For more information about Snowflake Python UDFs, see `Python UDFs <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python.html>`__.
 
     :attr:`session.udf <snowflake.snowpark.Session.udf>` returns an object of this class.
-    You can use this object to register UDFs that you plan to use in the current session.
+    You can use this object to register UDFs that you plan to use in the current session or permanently.
     The methods that register a UDF return a :class:`UserDefinedFunction` object,
     which you can also use in :class:`~snowflake.snowpark.Column` expressions.
 
@@ -170,28 +170,21 @@ class UDFRegistration:
     =============================================  ================================================  =========
 
     Note:
-        1. A temporary UDF (when ``is_permanent`` is ``False`` in
-        :func:`~snowflake.snowpark.functions.udf` or :func:`UDFRegistration.register`)
-        is scoped to this session and all UDF related files will be uploaded to
-        a temporary session stage (:func:`session.get_session_stage() <snowflake.snowpark.Session.get_session_stage>`).
-        For a permanent UDF, these files will be uploaded to the stage that you provide.
-
-        2. You can also use :class:`typing.List` to annotate a :class:`list`,
-        use :class:`typing.Dict` to annotate a :class:`dict`, and use
-        :class:`typing.Any` to annotate a variant when defining a UDF.
-
-        3. :class:`typing.Union` is not a valid type annotation for UDFs,
-        but :class:`typing.Optional` can be used to indicate the optional type.
-
-        4. Data with the VARIANT SQL type will be converted to a Python type
+        1. Data with the VARIANT SQL type will be converted to a Python type
         dynamically inside a UDF. The following SQL types are converted to :class:`str`
         in UDFs rather than native Python types:  TIME, DATE, TIMESTAMP and BINARY.
 
-        5. Data returned as :class:`~snowflake.snowpark.types.ArrayType` (``list``),
+        2. Data returned as :class:`~snowflake.snowpark.types.ArrayType` (``list``),
         :class:`~snowflake.snowpark.types.MapType` (``dict``) or
-        :class:`~snowflake.snowpark.types.VariantType` by a UDF will be represented
-        as a json string. You can call ``eval()`` or ``json.loads()`` to convert
-        the result to a native Python object.
+        :class:`~snowflake.snowpark.types.VariantType` (:attr:`~snowflake.snowpark.types.Variant`)
+        by a UDF will be represented as a json string. You can call ``eval()`` or ``json.loads()``
+        to convert the result to a native Python object. Data returned as
+        :class:`~snowflake.snowpark.types.GeographyType` (:attr:`~snowflake.snowpark.types.Geography`)
+        by a UDF will be represented as a `GeoJSON <https://datatracker.ietf.org/doc/html/rfc7946>`_
+        string.
+
+    See Also:
+        :func:`~snowflake.snowpark.functions.udf`
     """
 
     def __init__(self, session: "snowflake.snowpark.Session"):
@@ -425,7 +418,17 @@ class UDFRegistration:
         )
 
     def __generate_python_code(self, func: Callable, arg_names: List[str]) -> str:
-        pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+        # clear the annotations because when the user annotates Variant and Geography,
+        # which are from snowpark modules and will not work on the server side
+        # built-in functions don't have __annotations__
+        if hasattr(func, "__annotations__"):
+            annotations = func.__annotations__
+            func.__annotations__ = {}
+            pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+            # restore the annotations so we don't change the original function
+            func.__annotations__ = annotations
+        else:
+            pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
         args = ",".join(arg_names)
         code = f"""
 import pickle
