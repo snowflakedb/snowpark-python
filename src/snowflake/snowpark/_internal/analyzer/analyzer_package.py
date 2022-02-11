@@ -688,11 +688,6 @@ class AnalyzerPackage:
             return f"{self._Get}{stage_location}{self._Space}{file_name}{self._Space}{self.get_options_statement(options)}"
         raise ValueError(f"Unsupported file operation type {command}")
 
-    def _get_operation_statement(self, options: Dict[str, str]) -> str:
-        return self._Space.join(
-            f"{k.upper() + self._Equals + str(v)}" for k, v in options.items()
-        )
-
     def get_options_statement(self, options: Dict[str, Any]) -> str:
         return (
             self._Space
