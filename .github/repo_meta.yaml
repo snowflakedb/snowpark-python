@@ -1,19 +1,19 @@
 # point_of_contace: the owner of this repository, can be a GitHub user or GitHub team
-point_of_contact: <user or github team> 
+point_of_contact: @snowflakedb/snowpark-python-stored-procs
 
 # production: whether this repository meets the criteria for being "production", see https://snowflakecomputing.atlassian.net/wiki/spaces/CLO/pages/2239988967/Production+Repository+Criteria for criteria
 production: true
 
 # distributed: whether any source code in this repository is distributed directly to customers (e.g. driver and frontend software)
-distributed: false
+distributed: true
 
-# modified: whether any open source dependencies in this repository have been modified 
+# modified: whether any open source dependencies in this repository have been modified
 modified: false
 
 # release_branches: list of release branch patterns, exact matches or regex is acceptable
-release_branches: 
+release_branches:
   - main
-  - release.*
+  - release-*
 
 # code_owners_file_present: whether there is a CODEOWNERS file in this repository
 code_owners_file_present: true
@@ -22,4 +22,4 @@ code_owners_file_present: true
 jira_project_issue_type: Bug
 
 # jira_area: the jira area that raised issues should use
-jira_area: Orphaned
+jira_area: 'Snowpark: Stored Procs & APIs'
