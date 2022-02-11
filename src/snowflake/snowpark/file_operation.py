@@ -94,7 +94,9 @@ class FileOperation:
             Utils.normalize_remote_file_or_dir(stage_location),
             options,
         )
-        put_result = snowflake.snowpark.DataFrame(self._session, plan).collect()
+        put_result = snowflake.snowpark.DataFrame(
+            self._session, plan
+        )._internal_collect_with_tag()
         return [PutResult(**file_result.asDict()) for file_result in put_result]
 
     def get(
@@ -155,7 +157,9 @@ class FileOperation:
         try:
             # JDBC auto-creates directory but python-connector doesn't. So create the folder here.
             os.makedirs(Utils.get_local_file_path(target_directory), exist_ok=True)
-            get_result = snowflake.snowpark.DataFrame(self._session, plan).collect()
+            get_result = snowflake.snowpark.DataFrame(
+                self._session, plan
+            )._internal_collect_with_tag()
             return [GetResult(**file_result.asDict()) for file_result in get_result]
         # connector raises IndexError when no file is downloaded from python connector.
         # TODO: https://snowflakecomputing.atlassian.net/browse/SNOW-499333. Discuss with python connector whether
