@@ -13,6 +13,7 @@ import datetime
 import decimal
 import sys
 from array import array
+from collections import OrderedDict
 from typing import (
     Any,
     DefaultDict,
@@ -26,7 +27,6 @@ from typing import (
     get_args,
     get_origin,
 )
-from collections import OrderedDict, defaultdict
 
 from snowflake.snowpark.types import (
     ArrayType,
@@ -38,6 +38,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
+    Geography,
     GeographyType,
     IntegerType,
     LongType,
@@ -49,6 +50,7 @@ from snowflake.snowpark.types import (
     StructType,
     TimestampType,
     TimeType,
+    Variant,
     VariantType,
     _NumericType,
 )
@@ -90,7 +92,7 @@ def convert_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, VariantType):
         return "VARIANT"
     if isinstance(datatype, GeographyType):
-       return "GEOGRAPHY"
+        return "GEOGRAPHY"
     raise TypeError(f"Unsupported data type: {datatype.type_name}")
 
 
@@ -361,8 +363,11 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
         )
         return MapType(key_type, value_type), False
 
-    if tp == Any:
+    if tp == Variant:
         return VariantType(), False
+
+    if tp == Geography:
+        return GeographyType(), False
 
     raise TypeError(f"invalid type {tp}")
 
