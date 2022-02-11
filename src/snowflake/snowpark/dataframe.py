@@ -257,9 +257,12 @@ class DataFrame:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
         """
-        return self._collect_with_tag()
+        return self._internal_collect_with_tag()
 
-    def _collect_with_tag(self) -> List["Row"]:
+    def _internal_collect_with_tag(self) -> List["Row"]:
+        # When executing a DataFrame in any method of snowpark (either public or private),
+        # we should always call this method instead of collect(), to make sure the
+        # query tag is set properly.
         return self.session._conn.execute(
             self._plan,
             _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
@@ -1358,7 +1361,7 @@ class DataFrame:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
         """
-        return self.agg(("*", "count"))._collect_with_tag()[0][0]
+        return self.agg(("*", "count"))._internal_collect_with_tag()[0][0]
 
     @property
     def write(self) -> DataFrameWriter:
@@ -1488,7 +1491,7 @@ class DataFrame:
                 user_schema=self._reader._user_schema,
                 cur_options=self._reader._cur_options,
             ),
-        )._collect_with_tag()
+        )._internal_collect_with_tag()
 
     def show(self, n: int = 10, max_width: int = 50) -> None:
         """Evaluates this DataFrame and prints out the first ``n`` rows with the
@@ -1756,14 +1759,14 @@ class DataFrame:
              results, or ``None`` if it does not exist.
         """
         if n is None:
-            result = self.limit(1)._collect_with_tag()
+            result = self.limit(1)._internal_collect_with_tag()
             return result[0] if result else None
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
-            return self._collect_with_tag()
+            return self._internal_collect_with_tag()
         else:
-            return self.limit(n)._collect_with_tag()
+            return self.limit(n)._internal_collect_with_tag()
 
     take = first
 
