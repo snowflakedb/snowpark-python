@@ -118,6 +118,7 @@ class AnalyzerPackage:
     _Type = " TYPE "
     _Equals = " = "
     _FileFormat = " FILE_FORMAT "
+    _FormatName = " FORMAT_NAME "
     _Copy = " COPY "
     _RegExp = " REGEXP "
     _Collate = " COLLATE "
@@ -971,6 +972,67 @@ class AnalyzerPackage:
             + ftostr
             + costr
             + validation_str
+        )
+
+    def copy_into_location(
+        self,
+        query,
+        stage_location,
+        partition_by,
+        file_format_name,
+        file_format_type,
+        format_type_options,
+        header,
+        copy_options,
+    ):
+        """
+        COPY INTO { internalStage | externalStage | externalLocation }
+             FROM { [<namespace>.]<table_name> | ( <query> ) }
+        [ PARTITION BY <expr> ]
+        [ FILE_FORMAT = ( { FORMAT_NAME = '[<namespace>.]<file_format_name>' |
+                            TYPE = { CSV | JSON | PARQUET } [ formatTypeOptions ] } ) ]
+        [ copyOptions ]
+        [ HEADER ]
+        """
+        partition_by_clause = (self._PartitionBy + partition_by) if partition_by else ""
+        format_name_clause = (
+            self._FormatName + self._Equals + file_format_name
+            if file_format_name
+            else ""
+        )
+        file_type_clause = (
+            self._Type + self._Equals + file_format_type if file_format_type else ""
+        )
+        format_type_options_clause = (
+            self._Space.join(f"{k}={v}" for k, v in format_type_options.items())
+            if format_type_options
+            else ""
+        )
+        file_format_clause = (
+            self._FileFormat
+            + self._Equals
+            + self._LeftParenthesis
+            + (format_name_clause + file_type_clause + format_type_options_clause)
+            + self._RightParenthesis
+        )
+        copy_options_clause = (
+            self._Space.join(f"{k}={v}" for k, v in copy_options.items())
+            if copy_options
+            else ""
+        )
+        header_clause = str(header) if header else ""
+        return (
+            self._Copy
+            + self._Into
+            + stage_location
+            + self._From
+            + self._LeftParenthesis
+            + query
+            + self._RightParenthesis
+            + partition_by_clause
+            + file_format_clause
+            + copy_options_clause
+            + header_clause
         )
 
     def update_statement(

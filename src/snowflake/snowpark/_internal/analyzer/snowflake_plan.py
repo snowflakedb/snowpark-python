@@ -739,6 +739,33 @@ class SnowflakePlanBuilder:
             )
         return SnowflakePlan(queries, copy_command, [], {}, self.__session, None)
 
+    def copy_into_location(
+        self,
+        query,
+        stage_location,
+        partition_by,
+        file_format_name,
+        file_format_type,
+        format_type_options,
+        header,
+        copy_options,
+    ):
+        return self.build(
+            lambda x: self.pkg.copy_into_location(
+                query=x,
+                stage_location=stage_location,
+                partition_by=partition_by,
+                file_format_name=file_format_name,
+                file_format_type=file_format_type,
+                format_type_options=format_type_options,
+                header=header,
+                copy_options=copy_options,
+            ),
+            query,
+            None,
+            query._schema_query,
+        )
+
     def update(
         self,
         table_name: str,
@@ -905,6 +932,30 @@ class CopyIntoNode(LeafNode):
         self.validation_mode = validation_mode
         self.user_schema = user_schema
         self.cur_options = cur_options
+
+
+class CopyIntoLocationNode(LeafNode):
+    def __init__(
+        self,
+        child: LogicalPlan,
+        stage_location: str,
+        *,
+        partition_by: Optional[str] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[str] = None,
+        header: bool = False,
+        copy_options: Dict[str, Any],
+    ):
+        super().__init__()
+        self.child = child
+        self.stage_location = stage_location
+        self.partition_by = partition_by
+        self.format_type_options = format_type_options
+        self.header = header
+        self.file_format_name = file_format_name
+        self.file_format_type = file_format_type
+        self.copy_options = copy_options
 
 
 class TableUpdate(LogicalPlan):
