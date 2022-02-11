@@ -6,7 +6,11 @@ from enum import Enum
 from typing import Dict, Iterable, Optional, Union
 
 import snowflake.snowpark  # for forward references of type hints
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakeCreateTable
+from snowflake.snowpark import Column
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CopyIntoLocationNode,
+    SnowflakeCreateTable,
+)
 from snowflake.snowpark._internal.utils import Utils, _SaveMode
 
 
@@ -106,5 +110,47 @@ class DataFrameWriter:
         session = self.__dataframe.session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
         session._conn.execute(snowflake_plan)
+
+    def copy_into_location(
+        self,
+        stage_location,
+        *,
+        partition_by: Optional[Union[str, Column]] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        **copy_options: Optional[str]
+    ):
+        """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
+
+        Example::
+
+            df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
+            df.copy_into_location("@my_stage_location", partition_by=col("LAST_NAME"), file_format_type="csv")
+
+        Args:
+            stage_location: The destination stage location.
+            partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a sql expression.
+            file_format_name: Specifies an existing named file format to use for unloading data from the table. The named file format determines the format type (CSV, JSON, PARQUET), as well as any other format options, for the data files.
+            file_format_type: Specifies the type of files unloaded from the table. If a format type is specified, additional format-specific options can be specified in ``format_type_options``.
+            format_type_options: Depending on the ``file_format_type`` specified, you can include more format specific options. Use the options documented in the `Format Type Options<https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
+            header: Specifies whether to include the table column headings in the output files.
+            copy_options: The kwargs that is used to specify the copy options. Use the options documented in the `Copy Options<https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
+        """
+        stage_location = Utils.normalize_remote_file_or_dir(stage_location)
+        partition_by = partition_by
+        return self.__dataframe._with_plan(
+            CopyIntoLocationNode(
+                self.__dataframe._plan,
+                stage_location,
+                partition_by=partition_by,
+                file_format_name=file_format_name,
+                file_format_type=file_format_type,
+                format_type_options=format_type_options,
+                copy_options=copy_options,
+                header=header,
+            )
+        )._collect_with_tag()
 
     saveAsTable = save_as_table
