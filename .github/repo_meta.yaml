@@ -2,7 +2,7 @@
 point_of_contact: @snowflakedb/snowpark-python-stored-procs
 
 # production: whether this repository meets the criteria for being "production", see https://snowflakecomputing.atlassian.net/wiki/spaces/CLO/pages/2239988967/Production+Repository+Criteria for criteria
-production: true
+production: false
 
 # distributed: whether any source code in this repository is distributed directly to customers (e.g. driver and frontend software)
 distributed: true
