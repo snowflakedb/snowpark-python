@@ -1,5 +1,5 @@
 # point_of_contace: the owner of this repository, can be a GitHub user or GitHub team
-point_of_contact: @snowflakedb/snowpark-python-stored-procs
+point_of_contact: @snowflakedb/snowpark-python-api
 
 # production: whether this repository meets the criteria for being "production", see https://snowflakecomputing.atlassian.net/wiki/spaces/CLO/pages/2239988967/Production+Repository+Criteria for criteria
 production: false
