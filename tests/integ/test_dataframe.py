@@ -21,7 +21,7 @@ from snowflake.snowpark._internal.sp_expressions import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkColumnException
-from snowflake.snowpark.functions import col, when
+from snowflake.snowpark.functions import col, concat, lit, when
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -1413,7 +1413,16 @@ def test_write_copy_into_location_basic(session):
         Utils.drop_stage(session, temp_stage)
 
 
-def test_write_copy_into_location_csv(session):
+@pytest.mark.parametrize(
+    "partition_by",
+    [
+        col("last_name"),
+        "last_name",
+        concat(col("last_name"), lit("s")),
+        "last_name || 's'",
+    ],
+)
+def test_write_copy_into_location_csv(session, partition_by):
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     Utils.create_stage(session, temp_stage, is_temporary=True)
     try:
@@ -1423,7 +1432,7 @@ def test_write_copy_into_location_csv(session):
         )
         df.write.copy_into_location(
             temp_stage,
-            partition_by=col("LAST_NAME"),
+            partition_by=partition_by,
             file_format_type="csv",
             format_type_options={"COMPRESSION": "GZIP"},
             header=True,

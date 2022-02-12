@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-from enum import Enum
 from typing import Dict, Iterable, Optional, Union
 
 import snowflake.snowpark  # for forward references of type hints
@@ -13,6 +12,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.sp_types.types_package import ColumnOrName
 from snowflake.snowpark._internal.utils import Utils, _SaveMode
+from snowflake.snowpark.functions import sql_expr
 
 
 class DataFrameWriter:
@@ -66,7 +66,7 @@ class DataFrameWriter:
         table_name: Union[str, Iterable[str]],
         *,
         mode: Optional[str] = None,
-        create_temp_table: bool = False
+        create_temp_table: bool = False,
     ) -> None:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -121,7 +121,7 @@ class DataFrameWriter:
         file_format_type: Optional[str] = None,
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
-        **copy_options: Optional[str]
+        **copy_options: Optional[str],
     ) -> None:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
 
@@ -140,9 +140,14 @@ class DataFrameWriter:
             copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
         """
         stage_location = Utils.normalize_remote_file_or_dir(location)
-        partition_by = (
-            Column._to_expr(partition_by) if partition_by is not None else None
-        )
+        if isinstance(partition_by, str):
+            partition_by = sql_expr(partition_by).expression
+        elif isinstance(partition_by, Column):
+            partition_by = partition_by.expression
+        else:
+            raise TypeError(
+                f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
+            )
         return self.__dataframe._with_plan(
             CopyIntoLocationNode(
                 self.__dataframe._plan,
