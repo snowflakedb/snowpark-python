@@ -159,6 +159,6 @@ class DataFrameWriter:
                 copy_options=copy_options,
                 header=header,
             )
-        )._collect_with_tag()
+        )._internal_collect_with_tag()
 
     saveAsTable = save_as_table
