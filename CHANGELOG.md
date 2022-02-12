@@ -12,6 +12,7 @@
 - Added support for Geography geoJSON data.
 - Added `DataFrame.queries` to get queries that will be executed to evaluate the `DataFrame`.
 - Added a new aggregation function `listagg()`.
+- Added an optional argument `ignore_nulls` in function `lead()` and `lag()`.
 
 ### Dependency updates
 - Updated ``snowflake-connector-python`` to 2.7.4.

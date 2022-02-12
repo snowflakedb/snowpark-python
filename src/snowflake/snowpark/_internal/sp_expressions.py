@@ -767,6 +767,27 @@ class WindowExpression(Expression):
         self.window_spec = window_spec
 
 
+class RankRelatedFunctionExpression(Expression):
+    sql: str
+
+    def __init__(
+        self, expr: Expression, offset: int, default: Expression, ignore_nulls: bool
+    ):
+        super().__init__()
+        self.expr = expr
+        self.offset = offset
+        self.default = default
+        self.ignore_nulls = ignore_nulls
+
+
+class Lag(RankRelatedFunctionExpression):
+    sql = "LAG"
+
+
+class Lead(RankRelatedFunctionExpression):
+    sql = "LEAD"
+
+
 class MergeExpression(Expression):
     def __init__(self, condition: Optional[Expression]):
         super().__init__()
