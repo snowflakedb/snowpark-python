@@ -48,6 +48,8 @@ from snowflake.snowpark._internal.sp_expressions import (
     FunctionExpression as SPFunctionExpression,
     IsNaN as SPIsNan,
     IsNull as SPIsNull,
+    Lag as SPLag,
+    Lead as SPLead,
     ListAgg as SPListAgg,
     Literal as SPLiteral,
     Max as SPMax,
@@ -1370,16 +1372,15 @@ def lag(
     e: ColumnOrName,
     offset: int = 1,
     default_value: Optional[Union[ColumnOrLiteral]] = None,
+    ignore_nulls: bool = False,
 ) -> Column:
     """
     Accesses data in a previous row in the same result set without having to
     join the table to itself.
     """
     c = _to_col_if_str(e, "lag")
-    return builtin("lag")(
-        c,
-        SPLiteral(offset),
-        SPLiteral(None) if default_value is None else default_value,
+    return Column(
+        SPLag(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
     )
 
 
@@ -1387,16 +1388,15 @@ def lead(
     e: ColumnOrName,
     offset: int = 1,
     default_value: Optional[Union[Column, LiteralType]] = None,
+    ignore_nulls: bool = False,
 ) -> Column:
     """
     Accesses data in a subsequent row in the same result set without having to
     join the table to itself.
     """
     c = _to_col_if_str(e, "lead")
-    return builtin("lead")(
-        c,
-        SPLiteral(offset),
-        SPLiteral(None) if default_value is None else default_value,
+    return Column(
+        SPLead(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
     )
 
 

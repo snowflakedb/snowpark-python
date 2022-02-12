@@ -151,6 +151,7 @@ class AnalyzerPackage:
     _Matched = " MATCHED "
     _ListAgg = " LISTAGG "
     _Header = " HEADER "
+    _IgnoreNulls = " IGNORE NULLS "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
         return (
@@ -797,6 +798,21 @@ class AnalyzerPackage:
 
     def window_frame_boundary_expression(self, offset: str, is_following: bool) -> str:
         return offset + (self._Following if is_following else self._Preceding)
+
+    def rank_related_function_expression(
+        self, func_name: str, expr: str, offset: int, default: str, ignore_nulls: bool
+    ) -> str:
+        return (
+            func_name
+            + self._LeftParenthesis
+            + expr
+            + self._Comma
+            + str(offset)
+            + self._Comma
+            + default
+            + self._RightParenthesis
+            + (self._IgnoreNulls if ignore_nulls else self._EmptyString)
+        )
 
     def cast_expression(
         self, child: str, datatype: DataType, try_: bool = False

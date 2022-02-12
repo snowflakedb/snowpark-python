@@ -77,6 +77,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     MultipleExpression as SPMultipleExpression,
     NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
     Not as SPNot,
+    RankRelatedFunctionExpression as SPRankRelatedFunctionExpression,
     RegExp as SPRegExp,
     ScalarSubquery as SPScalarSubquery,
     SnowflakeUDF as SPSnowflakeUDF,
@@ -271,6 +272,15 @@ class Analyzer:
                 self.analyze(expr.col),
                 DataTypeMapper.str_to_sql(expr.delimiter),
                 expr.is_distinct,
+            )
+
+        if isinstance(expr, SPRankRelatedFunctionExpression):
+            return self.package.rank_related_function_expression(
+                expr.sql,
+                self.analyze(expr.expr),
+                expr.offset,
+                self.analyze(expr.default),
+                expr.ignore_nulls,
             )
 
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(str(expr))
