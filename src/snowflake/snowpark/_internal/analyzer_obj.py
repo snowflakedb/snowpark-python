@@ -660,7 +660,7 @@ class Analyzer:
                 file_format_type=logical_plan.file_format_type,
                 format_type_options=logical_plan.format_type_options,
                 header=logical_plan.header,
-                copy_options=logical_plan.copy_options,
+                **logical_plan.copy_options,
             )
 
         if isinstance(logical_plan, TableUpdate):

@@ -278,7 +278,7 @@ class AnalyzerPackage:
             + self._Path
             + self._RightArrow
             + self._SingleQuote
-            + (path or "")
+            + (path or self._EmptyString)
             + self._SingleQuote
             + self._Comma
             + self._Outer
@@ -330,7 +330,7 @@ class AnalyzerPackage:
     ) -> str:
         return (
             self._Case
-            + "".join(
+            + self._EmptyString.join(
                 [
                     self._When + condition + self._Then + value
                     for condition, value in branches
@@ -671,10 +671,14 @@ class AnalyzerPackage:
         )
         return (
             self._Create
-            + (self._Temporary if temp else "")
+            + (self._Temporary if temp else self._EmptyString)
             + self._File
             + self._Format
-            + (self._If + self._Not + self._Exists if if_not_exist else "")
+            + (
+                self._If + self._Not + self._Exists
+                if if_not_exist
+                else self._EmptyString
+            )
             + format_name
             + options_str
         )
@@ -692,6 +696,7 @@ class AnalyzerPackage:
         return (
             self._Space
             + self._Space.join(
+                # repr("a") return "'a'" instead of "a". This is what we need for str values. For bool, int, float, repr(v) and str(v) return the same.
                 f"{k}={v if (isinstance(v, str) and Utils.is_single_quoted(v)) else repr(v)}"
                 for k, v in options.items()
                 if v is not None
@@ -711,12 +716,12 @@ class AnalyzerPackage:
         format_statement = (
             (self._FileFormat + self._RightArrow + self.single_quote(format_name))
             if format_name
-            else ""
+            else self._EmptyString
         )
         pattern_statement = (
             (self._Pattern + self._RightArrow + self.single_quote(pattern))
             if pattern
-            else ""
+            else self._EmptyString
         )
 
         return (
@@ -927,10 +932,12 @@ class AnalyzerPackage:
             )
             + self._RightParenthesis
             if files
-            else ""
+            else self._EmptyString
         )
         validation_str = (
-            f"{self._ValidationMode} = {validation_mode}" if validation_mode else ""
+            f"{self._ValidationMode} = {validation_mode}"
+            if validation_mode
+            else self._EmptyString
         )
         ftostr = (
             self._FileFormat
@@ -951,7 +958,7 @@ class AnalyzerPackage:
         if copy_options:
             costr = self._Space + self.get_options_statement(copy_options) + self._Space
         else:
-            costr = ""
+            costr = self._EmptyString
 
         return (
             self._Copy
@@ -973,14 +980,14 @@ class AnalyzerPackage:
 
     def copy_into_location(
         self,
-        query,
-        stage_location,
-        partition_by,
-        file_format_name,
-        file_format_type,
-        format_type_options,
-        header,
-        copy_options,
+        query: str,
+        stage_location: str,
+        partition_by: Optional[str] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[Dict[str, Any]] = None,
+        header: bool = False,
+        **copy_options: Any,
     ):
         """
         COPY INTO { internalStage | externalStage | externalLocation }
@@ -991,19 +998,23 @@ class AnalyzerPackage:
         [ copyOptions ]
         [ HEADER ]
         """
-        partition_by_clause = (self._PartitionBy + partition_by) if partition_by else ""
+        partition_by_clause = (
+            (self._PartitionBy + partition_by) if partition_by else self._EmptyString
+        )
         format_name_clause = (
             self._FormatName + self._Equals + file_format_name
             if file_format_name
-            else ""
+            else self._EmptyString
         )
         file_type_clause = (
-            self._Type + self._Equals + file_format_type if file_format_type else ""
+            self._Type + self._Equals + file_format_type
+            if file_format_type
+            else self._EmptyString
         )
         format_type_options_clause = (
             self.get_options_statement(format_type_options)
             if format_type_options
-            else ""
+            else self._EmptyString
         )
         file_format_clause = (
             self._FileFormat
@@ -1019,9 +1030,13 @@ class AnalyzerPackage:
             + self._RightParenthesis
         )
         copy_options_clause = (
-            self.get_options_statement(copy_options) if copy_options else ""
+            self.get_options_statement(copy_options)
+            if copy_options
+            else self._EmptyString
         )
-        header_clause = f"{self._Header}={header}" if header is not None else ""
+        header_clause = (
+            f"{self._Header}={header}" if header is not None else self._EmptyString
+        )
         return (
             self._Copy
             + self._Into

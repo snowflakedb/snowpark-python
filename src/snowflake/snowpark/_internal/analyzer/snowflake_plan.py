@@ -748,8 +748,8 @@ class SnowflakePlanBuilder:
         file_format_type: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         header: bool = False,
-        copy_options: Optional[Dict[str, Any]] = None,
-    ):
+        **copy_options: Optional[Any],
+    ) -> SnowflakePlan:
         return self.build(
             lambda x: self.pkg.copy_into_location(
                 query=x,
@@ -759,7 +759,7 @@ class SnowflakePlanBuilder:
                 file_format_type=file_format_type,
                 format_type_options=format_type_options,
                 header=header,
-                copy_options=copy_options,
+                **copy_options,
             ),
             query,
             None,
@@ -937,7 +937,7 @@ class CopyIntoNode(LeafNode):
 class CopyIntoLocationNode(LeafNode):
     def __init__(
         self,
-        child: LogicalPlan,
+        child: SnowflakePlan,
         stage_location: str,
         *,
         partition_by: Optional[SPExpression] = None,
