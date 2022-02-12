@@ -144,7 +144,7 @@ class DataFrameWriter:
             partition_by = sql_expr(partition_by).expression
         elif isinstance(partition_by, Column):
             partition_by = partition_by.expression
-        else:
+        elif partition_by is not None:
             raise TypeError(
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
