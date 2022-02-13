@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    CopyIntoLocationNode,
     CopyIntoNode,
     SnowflakeCreateTable,
     SnowflakePlan,
@@ -657,6 +658,20 @@ class Analyzer:
                     self.session.get_fully_qualified_current_schema(),
                     [Attribute('"$1"', VariantType())],
                 )
+
+        if isinstance(logical_plan, CopyIntoLocationNode):
+            return self.plan_builder.copy_into_location(
+                query=logical_plan.child,
+                stage_location=logical_plan.stage_location,
+                partition_by=self.analyze(logical_plan.partition_by)
+                if logical_plan.partition_by
+                else None,
+                file_format_name=logical_plan.file_format_name,
+                file_format_type=logical_plan.file_format_type,
+                format_type_options=logical_plan.format_type_options,
+                header=logical_plan.header,
+                **logical_plan.copy_options,
+            )
 
         if isinstance(logical_plan, TableUpdate):
             return self.plan_builder.update(

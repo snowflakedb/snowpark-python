@@ -323,7 +323,7 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
-        self._cur_options[key.upper()] = self.__parse_value(value)
+        self._cur_options[key.upper()] = value
         return self
 
     def options(self, configs: Dict) -> "DataFrameReader":
@@ -356,14 +356,6 @@ class DataFrameReader:
         for k, v in configs.items():
             self.option(k, v)
         return self
-
-    def __parse_value(self, v) -> str:
-        if isinstance(v, (bool, int)):
-            return str(v)
-        elif isinstance(v, str) and v.lower() in ["true", "false"]:
-            return v
-        else:
-            return AnalyzerPackage.single_quote(str(v))
 
     def __read_semi_structured_file(self, path: str, format: str) -> "DataFrame":
         if self._user_schema:
