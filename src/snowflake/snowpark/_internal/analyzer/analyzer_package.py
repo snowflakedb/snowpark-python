@@ -4,7 +4,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
@@ -118,6 +118,7 @@ class AnalyzerPackage:
     _Type = " TYPE "
     _Equals = " = "
     _FileFormat = " FILE_FORMAT "
+    _FormatName = " FORMAT_NAME "
     _Copy = " COPY "
     _RegExp = " REGEXP "
     _Collate = " COLLATE "
@@ -149,6 +150,7 @@ class AnalyzerPackage:
     _Merge = " MERGE "
     _Matched = " MATCHED "
     _ListAgg = " LISTAGG "
+    _Header = " HEADER "
     _IgnoreNulls = " IGNORE NULLS "
 
     def result_scan_statement(self, uuid_place_holder: str) -> str:
@@ -277,7 +279,7 @@ class AnalyzerPackage:
             + self._Path
             + self._RightArrow
             + self._SingleQuote
-            + (path or "")
+            + (path or self._EmptyString)
             + self._SingleQuote
             + self._Comma
             + self._Outer
@@ -329,7 +331,7 @@ class AnalyzerPackage:
     ) -> str:
         return (
             self._Case
-            + "".join(
+            + self._EmptyString.join(
                 [
                     self._When + condition + self._Then + value
                     for condition, value in branches
@@ -662,14 +664,22 @@ class AnalyzerPackage:
         if_not_exist: bool,
     ) -> str:
         options_str = (
-            self._Type + self._Equals + file_type + self.get_options_statement(options)
+            self._Type
+            + self._Equals
+            + file_type
+            + self._Space
+            + self.get_options_statement(options)
         )
         return (
             self._Create
-            + (self._Temporary if temp else "")
+            + (self._Temporary if temp else self._EmptyString)
             + self._File
             + self._Format
-            + (self._If + self._Not + self._Exists if if_not_exist else "")
+            + (
+                self._If + self._Not + self._Exists
+                if if_not_exist
+                else self._EmptyString
+            )
             + format_name
             + options_str
         )
@@ -678,22 +688,19 @@ class AnalyzerPackage:
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
     ) -> str:
         if command.lower() == "put":
-            return f"{self._Put}{file_name}{self._Space}{stage_location}{self._Space}{self._get_operation_statement(options)}"
+            return f"{self._Put}{file_name}{self._Space}{stage_location}{self._Space}{self.get_options_statement(options)}"
         if command.lower() == "get":
-            return f"{self._Get}{stage_location}{self._Space}{file_name}{self._Space}{self._get_operation_statement(options)}"
+            return f"{self._Get}{stage_location}{self._Space}{file_name}{self._Space}{self.get_options_statement(options)}"
         raise ValueError(f"Unsupported file operation type {command}")
 
-    def _get_operation_statement(self, options: Dict[str, str]) -> str:
-        return self._Space.join(
-            f"{k.upper() + self._Equals + str(v)}" for k, v in options.items()
-        )
-
-    def get_options_statement(self, options: Dict[str, str]) -> str:
+    def get_options_statement(self, options: Dict[str, Any]) -> str:
         return (
             self._Space
             + self._Space.join(
-                k + self._Space + self._Equals + self._Space + v
+                # repr("a") return "'a'" instead of "a". This is what we need for str values. For bool, int, float, repr(v) and str(v) return the same.
+                f"{k}={v if (isinstance(v, str) and Utils.is_single_quoted(v)) else repr(v)}"
                 for k, v in options.items()
+                if v is not None
             )
             + self._Space
         )
@@ -710,12 +717,12 @@ class AnalyzerPackage:
         format_statement = (
             (self._FileFormat + self._RightArrow + self.single_quote(format_name))
             if format_name
-            else ""
+            else self._EmptyString
         )
         pattern_statement = (
             (self._Pattern + self._RightArrow + self.single_quote(pattern))
             if pattern
-            else ""
+            else self._EmptyString
         )
 
         return (
@@ -885,7 +892,7 @@ class AnalyzerPackage:
         table_name: str,
         file_path: str,
         file_format: str,
-        format_type_options: Dict[str, str],
+        format_type_options: Dict[str, Any],
         copy_options: Dict[str, str],
         pattern: str,
         *,
@@ -941,10 +948,12 @@ class AnalyzerPackage:
             )
             + self._RightParenthesis
             if files
-            else ""
+            else self._EmptyString
         )
         validation_str = (
-            f"{self._ValidationMode} = {validation_mode}" if validation_mode else ""
+            f"{self._ValidationMode} = {validation_mode}"
+            if validation_mode
+            else self._EmptyString
         )
         ftostr = (
             self._FileFormat
@@ -957,19 +966,15 @@ class AnalyzerPackage:
         if format_type_options:
             ftostr += (
                 self._Space
-                + self._Space.join(f"{k}={v}" for k, v in format_type_options.items())
+                + self.get_options_statement(format_type_options)
                 + self._Space
             )
         ftostr += self._RightParenthesis
 
         if copy_options:
-            costr = (
-                self._Space
-                + self._Space.join(f"{k}={v}" for k, v in copy_options.items())
-                + self._Space
-            )
+            costr = self._Space + self.get_options_statement(copy_options) + self._Space
         else:
-            costr = ""
+            costr = self._EmptyString
 
         return (
             self._Copy
@@ -987,6 +992,81 @@ class AnalyzerPackage:
             + ftostr
             + costr
             + validation_str
+        )
+
+    def copy_into_location(
+        self,
+        query: str,
+        stage_location: str,
+        partition_by: Optional[str] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[Dict[str, Any]] = None,
+        header: bool = False,
+        **copy_options: Any,
+    ):
+        """
+        COPY INTO { internalStage | externalStage | externalLocation }
+             FROM { [<namespace>.]<table_name> | ( <query> ) }
+        [ PARTITION BY <expr> ]
+        [ FILE_FORMAT = ( { FORMAT_NAME = '[<namespace>.]<file_format_name>' |
+                            TYPE = { CSV | JSON | PARQUET } [ formatTypeOptions ] } ) ]
+        [ copyOptions ]
+        [ HEADER ]
+        """
+        partition_by_clause = (
+            (self._PartitionBy + partition_by) if partition_by else self._EmptyString
+        )
+        format_name_clause = (
+            self._FormatName + self._Equals + file_format_name
+            if file_format_name
+            else self._EmptyString
+        )
+        file_type_clause = (
+            self._Type + self._Equals + file_format_type
+            if file_format_type
+            else self._EmptyString
+        )
+        format_type_options_clause = (
+            self.get_options_statement(format_type_options)
+            if format_type_options
+            else self._EmptyString
+        )
+        file_format_clause = (
+            self._FileFormat
+            + self._Equals
+            + self._LeftParenthesis
+            + (
+                format_name_clause
+                + self._Space
+                + file_type_clause
+                + self._Space
+                + format_type_options_clause
+            )
+            + self._RightParenthesis
+        )
+        copy_options_clause = (
+            self.get_options_statement(copy_options)
+            if copy_options
+            else self._EmptyString
+        )
+        header_clause = (
+            f"{self._Header}={header}" if header is not None else self._EmptyString
+        )
+        return (
+            self._Copy
+            + self._Into
+            + stage_location
+            + self._From
+            + self._LeftParenthesis
+            + query
+            + self._RightParenthesis
+            + partition_by_clause
+            + file_format_clause
+            + self._Space
+            + copy_options_clause
+            + self._Space
+            + header_clause
         )
 
     def update_statement(

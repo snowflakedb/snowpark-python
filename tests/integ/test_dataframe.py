@@ -21,7 +21,7 @@ from snowflake.snowpark._internal.sp_expressions import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkColumnException
-from snowflake.snowpark.functions import col, when
+from snowflake.snowpark.functions import col, concat, lit, when
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -1395,6 +1395,55 @@ def test_write_temp_table(session, save_mode):
         assert table_info[0]["kind"] == "TEMPORARY"
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_write_copy_into_location_basic(session):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        df.write.copy_into_location(temp_stage, file_format_type="parquet")
+        copied_files = session.sql(f"list @{temp_stage}").collect()
+        assert len(copied_files) == 1
+        assert ".parquet" in copied_files[0][0]
+    finally:
+        Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.parametrize(
+    "partition_by",
+    [
+        col("last_name"),
+        "last_name",
+        concat(col("last_name"), lit("s")),
+        "last_name || 's'",
+    ],
+)
+def test_write_copy_into_location_csv(session, partition_by):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        df.write.copy_into_location(
+            temp_stage,
+            partition_by=partition_by,
+            file_format_type="csv",
+            format_type_options={"COMPRESSION": "GZIP"},
+            header=True,
+            overwrite=False,
+        )
+        copied_files = session.sql(f"list @{temp_stage}").collect()
+        assert len(copied_files) == 2
+        assert ".csv.gz" in copied_files[0][0]
+        assert ".csv.gz" in copied_files[1][0]
+    finally:
+        Utils.drop_stage(session, temp_stage)
 
 
 def test_queries(session):
