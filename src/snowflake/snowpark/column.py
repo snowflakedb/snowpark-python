@@ -572,7 +572,7 @@ class Column:
             from snowflake.snowpark.functions import array_agg, col
             from snowflake.snowpark import Window
 
-            df = session.createDataFrame([(3, "v1"), (1, "v3"), (2, "v2")], schema=["a", "b"])
+            df = session.create_dataframe([(3, "v1"), (1, "v3"), (2, "v2")], schema=["a", "b"])
             # create a DataFrame containing the values in "a" sorted by "b"
             df_array_agg = df.select(array_agg("a").within_group("b"))
             # create a DataFrame containing the values in "a" grouped by "b"
