@@ -8,7 +8,7 @@
   - Added parameter `packages` to function `snowflake.snowpark.functions.udf()` and method `UserDefinedFunction.register()` to indicate UDF-level Anaconda package dependencies when creating a UDF.
   - Added parameter `imports` to `snowflake.snowpark.functions.udf()` and `UserDefinedFunction.register()` to specify UDF-level code imports.
 - Added a parameter `session` to function `udf()` and `UserDefinedFunction.register()` so you can specify which session to use to create a UDF if you have multiple sessions.
-- Added types `Geography` and `Variant` to `snowflake.snowpark.types` to be used as type hint types for Geography and Variant data when defining a UDF.
+- Added types `Geography` and `Variant` to `snowflake.snowpark.types` to be used as type hints for Geography and Variant data when defining a UDF.
 - Added support for Geography geoJSON data.
 - Added `Table`, a subclass of `DataFrame` for table operations:
   - Methods `update` and `delete` update and delete rows of a table in Snowflake.
