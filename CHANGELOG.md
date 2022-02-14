@@ -1,18 +1,42 @@
 # Release History
-## 0.4.0 (Unknown)
+## 0.4.0 (2022-02-15)
 
 ### New Features
-- Added `DataFrame.to_local_iterator()` and `DataFrame.to_pandas_batches()` to allow getting results from an iterator.
-- Added a parameter `session` to function `udf` so you can specify which session to use to create a UDF if you have multiple sessions.
-- Added `Column.within_group()` for sorting the rows by the specified columns with some aggregation functions.
-- Added `Table` class, with the `update` and `delete` method to update and delete rows of a table in Snowflake.
-  Also, the `merge` method is added to merge a `Table` with a `DataFrame`.
+- You can now specify which Anaconda packages to use when defining UDFs.
+  - Added `add_packages()`, `get_packages()`, `clear_packages()`, and `remove_package()`, to class `Session`.
+  - Added `add_requirements()` to `Session` so you can use a requirements file to specify which packages this session will use.
+  - Added parameter `packages` to function `snowflake.snowpark.functions.udf()` and method `UserDefinedFunction.register()` to indicate UDF-level Anaconda package dependencies when creating a UDF.
+  - Added parameter `imports` to `snowflake.snowpark.functions.udf()` and `UserDefinedFunction.register()` to specify UDF-level code imports.
+- Added a parameter `session` to function `udf()` and `UserDefinedFunction.register()` so you can specify which session to use to create a UDF if you have multiple sessions.
+- Added types `Geography` and `Variant` to `snowflake.snowpark.types` to be used as type hints for Geography and Variant data when defining a UDF.
+- Added support for Geography geoJSON data.
+- Added `Table`, a subclass of `DataFrame` for table operations:
+  - Methods `update` and `delete` update and delete rows of a table in Snowflake.
+  - Method `merge` merges data from a `DataFrame` to a `Table`.
+  - Override method `DataFrame.sample()` with an additional parameter `seed`, which works on tables but not on view and sub-queries.
+- Added `DataFrame.to_local_iterator()` and `DataFrame.to_pandas_batches()` to allow getting results from an iterator when the result set returned from the Snowflake database is too large.
 - Added `DataFrame.cache_result()` for caching the operations performed on a `DataFrame` in a temporary table.
   Subsequent operations on the original `DataFrame` have no effect on the cached result `DataFrame`.
-- Added support for Geography geoJSON data.
-- Added `DataFrame.queries` to get queries that will be executed to evaluate the `DataFrame`.
-- Added a new aggregation function `listagg()`.
+- Added property `DataFrame.queries` to get SQL queries that will be executed to evaluate the `DataFrame`.
+- Added `Session.query_history()` as a context manager to track SQL queries executed on a session, including all SQL queries to evaluate `DataFrame`s created from a session. Both query ID and query text are recorded.
+- You can now create a `Session` instance from an existing established `snowflake.connector.SnowflakeConnection`. Use parameter `connection` in `Session.builder.configs()`.
+- Added `use_database()`, `use_schema()`, `use_warehouse()`, and `use_role()` to class `Session` to switch database/schema/warehouse/role after a session is created.
+- Added `DataFrameWriter.copy_into_table()` to unload a `DataFrame` to stage files.
+- Added `DataFrame.unpivot()`.
+- Added `Column.within_group()` for sorting the rows by columns with some aggregation functions.
+- Added functions `listagg()` and `mode()` to `snowflake.snowflake.functions`.
 - Added an optional argument `ignore_nulls` in function `lead()` and `lag()`.
+- The `condition` parameter of function `when()` and `iff()` now accepts SQL expressions.
+
+### Improvements
+- All function and method names have been renamed to use the snake case naming style, which is more Pythonic. For convenience, some camel case names are kept as aliases to the snake case APIs. It is recommended to use the snake case APIs.
+  - Deprecated these methods on class `Session` and replaced them with their snake case equivalents: `getImports()`, `addImports()`, `removeImport()`, `clearImports()`, `getSessionStage()`, `getDefaultSchema()`, `getDefaultSchema()`, `getCurrentDatabase()`, `getFullyQualifiedCurrentSchema()`.
+  - Deprecated these methods on class `DataFrame` and replaced them with their snake case equivalents: `groupingByGroupingSets()`, `naturalJoin()`, `withColumns()`, `joinTableFunction()`.
+- Property `DataFrame.columns` is now consistent with `DataFrame.schema.names` and the Snowflake database `Identifier Requirements`.
+- `Column.__bool__()` now raises a `TypeError`. This will ban the use of logical operators `and`, `or`, `not` on `Column` object, for instance `col("a") > 1 and col("b") > 2` will raise the `TypeError`. Use `(col("a") > 1) & (col("b") > 2)` instead.
+- Changed `PutResult` and `GetResult` to subclass `NamedTuple`.
+- Fixed a bug which raised an error when the local path or stage location has a space or other special characters.
+
 
 ### Dependency updates
 - Updated ``snowflake-connector-python`` to 2.7.4.
