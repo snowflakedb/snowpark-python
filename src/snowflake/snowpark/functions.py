@@ -348,6 +348,24 @@ def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     return builtin("to_decimal")(c, sql_expr(str(precision)), sql_expr(str(scale)))
 
 
+def div0(
+    dividend: Union[ColumnOrName, int, float], divisor: Union[ColumnOrName, int, float]
+) -> Column:
+    """Performs division like the division operator (/),
+    but returns 0 when the divisor is 0 (rather than reporting an error)."""
+    dividend_col = (
+        lit(dividend)
+        if isinstance(dividend, (int, float))
+        else _to_col_if_str(dividend, "div0")
+    )
+    divisor_col = (
+        lit(divisor)
+        if isinstance(divisor, (int, float))
+        else _to_col_if_str(divisor, "div0")
+    )
+    return builtin("div0")(dividend_col, divisor_col)
+
+
 def sqrt(e: ColumnOrName) -> Column:
     """Returns the square-root of a non-negative numeric expression."""
     c = _to_col_if_str(e, "sqrt")
@@ -360,11 +378,65 @@ def abs(e: ColumnOrName) -> Column:
     return builtin("abs")(c)
 
 
+def acos(e: ColumnOrName) -> Column:
+    """Computes the inverse cosine (arc cosine) of its input;
+    the result is a number in the interval [-pi, pi]."""
+    c = _to_col_if_str(e, "acos")
+    return builtin("acos")(c)
+
+
+def asin(e: ColumnOrName) -> Column:
+    """Computes the inverse sine (arc sine) of its input;
+    the result is a number in the interval [-pi, pi]."""
+    c = _to_col_if_str(e, "asin")
+    return builtin("asin")(c)
+
+
+def atan(e: ColumnOrName) -> Column:
+    """Computes the inverse tangent (arc tangent) of its input;
+    the result is a number in the interval [-pi, pi]."""
+    c = _to_col_if_str(e, "atan")
+    return builtin("atan")(c)
+
+
+def atan2(y: ColumnOrName, x: ColumnOrName) -> Column:
+    """Computes the inverse tangent (arc tangent) of its input;
+    the result is a number in the interval [-pi, pi]."""
+    y_col = _to_col_if_str(y, "atan2")
+    x_col = _to_col_if_str(x, "atan2")
+    return builtin("atan2")(y_col, x_col)
+
+
 def ceil(e: ColumnOrName) -> Column:
     """Returns values from the specified column rounded to the nearest equal or larger
     integer."""
     c = _to_col_if_str(e, "ceil")
     return builtin("ceil")(c)
+
+
+def cos(e: ColumnOrName) -> Column:
+    """Computes the cosine of its argument; the argument should be expressed in radians."""
+    c = _to_col_if_str(e, "cos")
+    return builtin("cos")(c)
+
+
+def cosh(e: ColumnOrName) -> Column:
+    """Computes the hyperbolic cosine of its argument."""
+    c = _to_col_if_str(e, "cosh")
+    return builtin("cosh")(c)
+
+
+def exp(e: ColumnOrName) -> Column:
+    """Computes Euler's number e raised to a floating-point value."""
+    c = _to_col_if_str(e, "exp")
+    return builtin("exp")(c)
+
+
+def factorial(e: ColumnOrName) -> Column:
+    """Computes the factorial of its input. The input argument must be an integer
+    expression in the range of 0 to 33."""
+    c = _to_col_if_str(e, "factorial")
+    return builtin("factorial")(c)
 
 
 def floor(e: ColumnOrName) -> Column:
@@ -374,10 +446,40 @@ def floor(e: ColumnOrName) -> Column:
     return builtin("floor")(c)
 
 
-def exp(e: ColumnOrName) -> Column:
-    """Computes Euler's number e raised to a floating-point value."""
-    c = _to_col_if_str(e, "exp")
-    return builtin("exp")(c)
+def sin(e: ColumnOrName) -> Column:
+    """Computes the sine of its argument; the argument should be expressed in radians."""
+    c = _to_col_if_str(e, "sin")
+    return builtin("sin")(c)
+
+
+def sinh(e: ColumnOrName) -> Column:
+    """Computes the hyperbolic sine of its argument."""
+    c = _to_col_if_str(e, "sinh")
+    return builtin("sinh")(c)
+
+
+def tan(e: ColumnOrName) -> Column:
+    """Computes the tangent of its argument; the argument should be expressed in radians."""
+    c = _to_col_if_str(e, "tan")
+    return builtin("tan")(c)
+
+
+def tanh(e: ColumnOrName) -> Column:
+    """Computes the hyperbolic tangent of its argument."""
+    c = _to_col_if_str(e, "tanh")
+    return builtin("tanh")(c)
+
+
+def degrees(e: ColumnOrName) -> Column:
+    """Converts radians to degrees."""
+    c = _to_col_if_str(e, "degrees")
+    return builtin("degrees")(c)
+
+
+def radians(e: ColumnOrName) -> Column:
+    """Converts degrees to radians."""
+    c = _to_col_if_str(e, "radians")
+    return builtin("radians")(c)
 
 
 def log(
@@ -396,6 +498,18 @@ def pow(
     number = lit(l) if isinstance(l, (int, float)) else _to_col_if_str(l, "pow")
     power = lit(r) if isinstance(r, (int, float)) else _to_col_if_str(r, "pow")
     return builtin("pow")(number, power)
+
+
+def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
+    """Returns values from the specified column rounded to the nearest equal or
+    smaller integer."""
+    c = _to_col_if_str(e, "round")
+    scale_col = (
+        lit(scale)
+        if isinstance(scale, (int, float))
+        else _to_col_if_str(scale, "round")
+    )
+    return builtin("round")(c, scale_col)
 
 
 def split(
@@ -618,6 +732,19 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     c1 = _to_col_if_str(col1, "datediff")
     c2 = _to_col_if_str(col2, "datediff")
     return builtin("datediff")(part, c1, c2)
+
+
+def trunc(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
+    """Rounds the input expression down to the nearest (or equal) integer closer to zero,
+    or to the nearest equal or smaller value with the specified number of
+    places after the decimal point."""
+    c = _to_col_if_str(e, "trunc")
+    scale_col = (
+        lit(scale)
+        if isinstance(scale, (int, float))
+        else _to_col_if_str(scale, "trunc")
+    )
+    return builtin("trunc")(c, scale_col)
 
 
 def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
