@@ -329,7 +329,7 @@ class Table(DataFrame):
             t.update({"b": 0}, t["a"] == 1)
             # update all rows in column "b" to 0 where column "a" in this
             # table is equal to column "a" in another dataframe
-            df = sessions.createDataFrame([1, 2, 3, 4], schema=["a"])
+            df = sessions.create_dataframe([1, 2, 3, 4], schema=["a"])
             t.update({"b": 0}, t["a"] == df["a"], df)
         """
         if source:
@@ -378,7 +378,7 @@ class Table(DataFrame):
             t.delete(t["a"] == 1)
             # delete all rows in this table where column "a" in this
             # table is equal to column "a" in another dataframe
-            df = sessions.createDataFrame([1, 2, 3, 4], schema=["a"])
+            df = sessions.create_dataframe([1, 2, 3, 4], schema=["a"])
             t.delete(t["a"] == df["a"], df)
         """
         if source:
