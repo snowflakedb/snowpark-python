@@ -11,6 +11,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     abs,
+    acos,
     approx_count_distinct,
     approx_percentile,
     approx_percentile_accumulate,
@@ -46,6 +47,9 @@ from snowflake.snowpark.functions import (
     as_timestamp_ntz,
     as_timestamp_tz,
     as_varchar,
+    asin,
+    atan,
+    atan2,
     avg,
     builtin,
     ceil,
@@ -56,6 +60,8 @@ from snowflake.snowpark.functions import (
     col,
     contains,
     corr,
+    cos,
+    cosh,
     count,
     count_distinct,
     covar_pop,
@@ -63,9 +69,12 @@ from snowflake.snowpark.functions import (
     cume_dist,
     dateadd,
     datediff,
+    degrees,
     dense_rank,
+    div0,
     equal_nan,
     exp,
+    factorial,
     floor,
     get,
     get_ignore_case,
@@ -114,9 +123,13 @@ from snowflake.snowpark.functions import (
     parse_xml,
     percent_rank,
     pow,
+    radians,
     random,
     rank,
+    round,
     row_number,
+    sin,
+    sinh,
     skew,
     split,
     sql_expr,
@@ -129,6 +142,8 @@ from snowflake.snowpark.functions import (
     substring,
     sum,
     sum_distinct,
+    tan,
+    tanh,
     to_array,
     to_date,
     to_geography,
@@ -138,6 +153,7 @@ from snowflake.snowpark.functions import (
     to_variant,
     to_xml,
     translate,
+    trunc,
     typeof,
     var_pop,
     var_samp,
@@ -2701,4 +2717,134 @@ def test_listagg(session):
     Utils.check_answer(
         df.select(listagg("col", "'", True).within_group(df["col"].asc())),
         [Row("1'2'3'4'5")],
+    )
+
+
+@pytest.mark.parametrize(
+    "col_expr, col_scale", [("expr", 1), (col("expr"), col("scale"))]
+)
+def test_trunc(session, col_expr, col_scale):
+    df = session.create_dataframe([(3.14, 1)], schema=["expr", "scale"])
+    Utils.check_answer(df.select(trunc(col_expr, col_scale)), [Row(3.1)])
+
+
+@pytest.mark.parametrize("col_A, col_scale", [("A", 0), (col("A"), lit(0))])
+def test_trunc(session, col_A, col_scale):
+    Utils.check_answer(
+        TestData.double1(session).select(round(col_A, col_scale)),
+        [Row(1.0), Row(2.0), Row(3.0)],
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_sin_sinh(session, col_A):
+    Utils.check_answer(
+        TestData.double2(session).select(sin(col_A), sinh(col_A)),
+        [
+            Row(0.09983341664682815, 0.10016675001984403),
+            Row(0.19866933079506122, 0.20133600254109402),
+            Row(0.29552020666133955, 0.3045202934471426),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
+def test_cos_cosh(session, col_A, col_B):
+    Utils.check_answer(
+        TestData.double2(session).select(cos(col_A), cosh(col_B)),
+        [
+            Row(0.9950041652780258, 1.1276259652063807),
+            Row(0.9800665778412416, 1.1854652182422676),
+            Row(0.955336489125606, 1.255169005630943),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_tan_tanh(session, col_A):
+    Utils.check_answer(
+        TestData.double2(session).select(tan(col_A), tanh(col_A)),
+        [
+            Row(0.10033467208545055, 0.09966799462495582),
+            Row(0.2027100355086725, 0.197375320224904),
+            Row(0.30933624960962325, 0.2913126124515909),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_asin_acos(session, col_A):
+    Utils.check_answer(
+        TestData.double2(session).select(acos(col_A), asin(col_A)),
+        [
+            Row(1.4706289056333368, 0.1001674211615598),
+            Row(1.369438406004566, 0.2013579207903308),
+            Row(1.2661036727794992, 0.3046926540153975),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
+def test_atan_atan2(session, col_A, col_B):
+    Utils.check_answer(
+        TestData.double2(session).select(atan(col_B), atan(col_A)),
+        [
+            Row(0.4636476090008061, 0.09966865249116204),
+            Row(0.5404195002705842, 0.19739555984988078),
+            Row(0.6107259643892086, 0.2914567944778671),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.double2(session).select(atan2(col_B, col_A)),
+        [Row(1.373400766945016), Row(1.2490457723982544), Row(1.1659045405098132)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
+def test_degrees(session, col_A, col_B):
+    Utils.check_answer(
+        TestData.double2(session).select(degrees(col_A), degrees(col_B)),
+        [
+            Row(5.729577951308233, 28.64788975654116),
+            Row(11.459155902616466, 34.37746770784939),
+            Row(17.188733853924695, 40.10704565915762),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_radians(session, col_A):
+    Utils.check_answer(
+        TestData.double1(session).select(radians(col_A)),
+        [
+            Row(0.019390607989657),
+            Row(0.038781215979314),
+            Row(0.058171823968971005),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_factorial(session, col_A):
+    Utils.check_answer(
+        TestData.integer1(session).select(factorial(col_A)),
+        [Row(1), Row(2), Row(6)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_0, col_2, col_4", [(0, 2, 4), (lit(0), lit(2), lit(4))])
+def test_div0(session, col_0, col_2, col_4):
+    Utils.check_answer(
+        TestData.zero1(session).select(div0(col_2, col_0), div0(col_4, col_2)),
+        [Row(0.0, 2.0)],
     )
