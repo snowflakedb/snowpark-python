@@ -295,11 +295,9 @@ class ServerConnection:
             if Utils.is_in_stored_procedure():
                 input_stream.seek(0)
                 target_path = self.__build_target_path(stage_location, dest_prefix)
+                # upload_stream directly consume stage path, so we don't need to normalize it
                 self._cursor.upload_stream(
-                    input_stream,
-                    Utils.normalize_remote_file_or_dir(
-                        f"{target_path}/{dest_filename}"
-                    ),
+                    input_stream, f"{target_path}/{dest_filename}"
                 )
             else:
                 self.run_query(
