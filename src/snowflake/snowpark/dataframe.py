@@ -74,12 +74,18 @@ from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
     col,
+    count,
     lit,
+    max as max_,
+    mean,
+    min as min_,
     row_number,
     sql_expr,
+    stddev,
+    to_char,
 )
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types import StructType
+from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 logger = getLogger(__name__)
 
@@ -1815,24 +1821,57 @@ class DataFrame:
         Computes basic statistics for numeric columns, which includes
         ``count``, ``mean``, ``stddev``, ``min``, and ``max``. If no columns
         are provided, this function computes statistics for all numerical or
-        string columns. Calling this method on non-numeric columns will
-        raise an exception.
+        string columns. Non-numeric and non-string columns will be ignored
+        when calling this method.
 
         Args:
             cols: The names of columns whose basic statistics are computed.
         """
         cols = Utils.parse_positional_args_to_list(*cols)
-        if len(cols) == 0:
-            cols = self.columns
+        df = self.select(cols) if len(cols) > 0 else self
+
+        # ignore non-numeric and non-string columns
+        numerical_string_col_type_dict = {
+            field.name: field.datatype
+            for field in df.schema.fields
+            if isinstance(field.datatype, (StringType, _NumericType))
+        }
 
         # These are five stats that pyspark's describe() outputs
-        stats = ["count", "mean", "stddev", "min", "max"]
+        stat_func_dict = {
+            "count": count,
+            "mean": mean,
+            "stddev": stddev,
+            "min": min_,
+            "max": max_,
+        }
+
+        # if no columns should be selected, just return stat names
+        if len(numerical_string_col_type_dict) == 0:
+            return self.session.create_dataframe(
+                list(stat_func_dict.keys()), schema=["summary"]
+            )
+
+        # otherwise, calculate stats
         res_df = None
-        for stat in stats:
+        for name, func in stat_func_dict.items():
+            agg_cols = []
+            for c, t in numerical_string_col_type_dict.items():
+                # for string columns, we need to convert all stats to string
+                # such that they can be fitted into one column
+                if isinstance(t, StringType):
+                    if name in ["mean", "stddev"]:
+                        agg_cols.append(to_char(func(lit(None))))
+                    else:
+                        agg_cols.append(to_char(func(c)))
+                else:
+                    agg_cols.append(func(c))
             agg_stat_df = (
-                self.agg({c: stat for c in cols})
-                .to_df(cols)
-                .select(lit(stat).as_("summary"), *cols)
+                self.agg(agg_cols)
+                .to_df(list(numerical_string_col_type_dict.keys()))
+                .select(
+                    lit(name).as_("summary"), *numerical_string_col_type_dict.keys()
+                )
             )
             res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
 
