@@ -24,7 +24,7 @@
 - Added `DataFrameWriter.copy_into_table()` to unload a `DataFrame` to stage files.
 - Added `DataFrame.unpivot()`.
 - Added `Column.within_group()` for sorting the rows by columns with some aggregation functions.
-- Added functions `listagg()` and `mode()` to `snowflake.snowflake.functions`.
+- Added functions `listagg()`, `mode()`, `div0()`, `acos()`, `asin()`, `atan()`, `atan2()`, `cos()`, `cosh()`, `sin()`, `sinh()`, `tan()`, `tanh()`, `degrees()`, `radians()`, `round()`, `trunc()`, and `factorial()` to `snowflake.snowflake.functions`.
 - Added an optional argument `ignore_nulls` in function `lead()` and `lag()`.
 - The `condition` parameter of function `when()` and `iff()` now accepts SQL expressions.
 
