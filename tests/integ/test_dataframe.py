@@ -1351,7 +1351,7 @@ def test_describe(session):
         "B",
     ]
     Utils.check_answer(
-        TestData.test_data2(session).describe().collect(),
+        TestData.test_data2(session).describe("a", "b").collect(),
         [
             Row("count", 6, 6),
             Row("mean", 2.0, 1.5),
@@ -1371,15 +1371,52 @@ def test_describe(session):
         ],
     )
 
-    # describe() on the string column
-    with pytest.raises(ProgrammingError) as ex_info:
-        TestData.lower_case_data(session).describe().collect()
-    assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
+    Utils.check_answer(
+        session.create_dataframe(["a", "a", "c", "z", "b", "a"]).describe(),
+        [
+            Row("count", "6"),
+            Row("mean", None),
+            Row("stddev", None),
+            Row("min", "a"),
+            Row("max", "z"),
+        ],
+    )
 
-    # describe() on the boolean column
+    # describe() will ignore all non-numeric and non-string columns
+    data = [
+        1,
+        "one",
+        1.0,
+        Decimal(0.5),
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        True,
+        bytearray("a", "utf-8"),
+    ]
+    assert session.create_dataframe([data]).describe().columns == [
+        "SUMMARY",
+        "_1",
+        "_2",
+        "_3",
+        "_4",
+    ]
+
+    # return an "empty" dataframe if no numeric or string column is present
+    Utils.check_answer(
+        TestData.timestamp1(session).describe(),
+        [
+            Row("count"),
+            Row("mean"),
+            Row("stddev"),
+            Row("min"),
+            Row("max"),
+        ],
+    )
+
     with pytest.raises(ProgrammingError) as ex_info:
-        TestData.test_data1(session).describe().collect()
-    assert "Invalid argument types for function 'SUM': (BOOLEAN)" in str(ex_info)
+        TestData.test_data2(session).describe("c")
+    assert "invalid identifier" in str(ex_info)
 
 
 @pytest.mark.parametrize(
