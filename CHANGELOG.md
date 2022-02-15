@@ -36,8 +36,7 @@
 - `Column.__bool__()` now raises a `TypeError`. This will ban the use of logical operators `and`, `or`, `not` on `Column` object, for instance `col("a") > 1 and col("b") > 2` will raise the `TypeError`. Use `(col("a") > 1) & (col("b") > 2)` instead.
 - Changed `PutResult` and `GetResult` to subclass `NamedTuple`.
 - Fixed a bug which raised an error when the local path or stage location has a space or other special characters.
-- Ignored non-numeric and non-string columns when `DataFrame.describe()` is applied on them, instead of raising an exception.
-
+- Changed `DataFrame.describe()` so that non-numeric and non-string columns are ignored instead of raising an exception.
 
 ### Dependency updates
 - Updated ``snowflake-connector-python`` to 2.7.4.
