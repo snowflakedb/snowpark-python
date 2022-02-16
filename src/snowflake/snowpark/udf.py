@@ -453,7 +453,8 @@ import sys
 import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
-func.__globals__["_SNOWFLAKE_IMPORT_DIRECTORY"] = sys._xoptions["snowflake_import_directory"]
+if hasattr(func, "__globals__"):
+    func.__globals__["_SNOWFLAKE_IMPORT_DIRECTORY"] = sys._xoptions["snowflake_import_directory"]
 
 def {_DEFAULT_HANDLER_NAME}({args}):
     return func({args})
