@@ -14,7 +14,6 @@ from snowflake.snowpark import Session
 def add_snowpark_session(doctest_namespace):
     with open("tests/parameters.py", encoding="utf-8") as f:
         exec(f.read(), globals())
-    print(globals()["CONNECTION_PARAMETERS"])
     with Session.builder.configs(
         globals()["CONNECTION_PARAMETERS"]
     ).create() as session:
