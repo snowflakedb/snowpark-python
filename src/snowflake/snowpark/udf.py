@@ -140,14 +140,26 @@ class UDFRegistration:
     The methods that register a UDF return a :class:`UserDefinedFunction` object,
     which you can also use in :class:`~snowflake.snowpark.Column` expressions.
 
-    Examples::
+    A basic example of creating and executing a UDF::
 
         def double(x: int) -> int:
             return 2 * x
 
         double_udf = session.udf.register(double, name="mydoubleudf")
-        session.sql(s"SELECT mydoubleudf(c) FROM table")
+        session.sql("select mydoubleudf(c) from table")
         df.select(double_udf("c"))
+
+    An example of reading a text file in a UDF::
+
+        # _SNOWFLAKE_IMPORT_DIRECTORY is pre-defined in a UDF
+        def read_file(name: str) -> str:
+            import os
+            file = open(os.path.join(_SNOWFLAKE_IMPORT_DIRECTORY, name), "r")
+            return file.read()
+
+        session.add_import("myfile.txt")
+        session.udf.register(read_file, name="read_file")
+        session.sql("select read_file('myfile.txt')")
 
     Snowflake supports the following data types for the parameters for a UDF:
 
@@ -182,6 +194,12 @@ class UDFRegistration:
         :class:`~snowflake.snowpark.types.GeographyType` (:attr:`~snowflake.snowpark.types.Geography`)
         by a UDF will be represented as a `GeoJSON <https://datatracker.ietf.org/doc/html/rfc7946>`_
         string.
+
+        3. As the second example illustrates, ``_SNOWFLAKE_IMPORT_DIRECTORY`` is pre-defined and
+        returns the path of the directory containing all imported files from stage in a UDF.
+        You can use this global variable inside a UDF to find all imported files. However,
+        You should not set this variable in your local environment before creating a UDF,
+        otherwise the UDF might not work properly.
 
     See Also:
         :func:`~snowflake.snowpark.functions.udf`
@@ -431,9 +449,11 @@ class UDFRegistration:
             pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
         args = ",".join(arg_names)
         code = f"""
+import sys
 import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
+func.__globals__["_SNOWFLAKE_IMPORT_DIRECTORY"] = sys._xoptions["snowflake_import_directory"]
 
 def {_DEFAULT_HANDLER_NAME}({args}):
     return func({args})

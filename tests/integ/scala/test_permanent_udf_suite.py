@@ -174,12 +174,9 @@ def test_clean_up_files_if_udf_registration_fails(session):
 
 def test_udf_read_file_with_snowflake_import_directory_basic(session, resources_path):
     def read_file(name: str) -> str:
-        import sys
+        import os
 
-        IMPORT_DIRECTORY_NAME = "snowflake_import_directory"
-        import_dir = sys._xoptions[IMPORT_DIRECTORY_NAME]
-        file_path = import_dir + name
-        file = open(file_path, "r")
+        file = open(os.path.join(_SNOWFLAKE_IMPORT_DIRECTORY, name), "r")
         return file.read()
 
     test_csv_file = TestFiles(resources_path).test_file_csv
@@ -206,12 +203,9 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
     session, tmpdir_factory, new_session
 ):
     def read_file(name: str) -> str:
-        import sys
+        import os
 
-        IMPORT_DIRECTORY_NAME = "snowflake_import_directory"
-        import_dir = sys._xoptions[IMPORT_DIRECTORY_NAME]
-        file_path = import_dir + name
-        file = open(file_path, "r")
+        file = open(os.path.join(_SNOWFLAKE_IMPORT_DIRECTORY, name), "r")
         return file.read()
 
     # Two session to read two files (same file name, but different content) in UDF
@@ -253,12 +247,9 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
 
 def test_udf_read_file_with_staged_file(session, resources_path):
     def read_file(name: str) -> str:
-        import sys
+        import os
 
-        IMPORT_DIRECTORY_NAME = "snowflake_import_directory"
-        import_dir = sys._xoptions[IMPORT_DIRECTORY_NAME]
-        file_path = import_dir + name
-        file = open(file_path, "r")
+        file = open(os.path.join(_SNOWFLAKE_IMPORT_DIRECTORY, name), "r")
         return file.read()
 
     test_csv_file = TestFiles(resources_path).test_file_csv
