@@ -1070,3 +1070,17 @@ def test_add_requirements(session, resources_path):
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.21.2/1.3.5")])
 
     session.clear_packages()
+
+
+def test_snowflake_import_directory(session):
+    def check_snowflake_import_directory() -> str:
+        return _SNOWFLAKE_IMPORT_DIRECTORY
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    udf(
+        check_snowflake_import_directory,
+        name=udf_name,
+    )
+    assert str(session.sql(f"select {udf_name}()").collect()[0][0]).startswith(
+        "/home/udf"
+    )
