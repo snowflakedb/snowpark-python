@@ -25,11 +25,11 @@ from snowflake.snowpark.functions import (
     when_matched,
     when_not_matched,
 )
-from tests.utils import TestData, Utils
+from tests.utils import TempObjectType, TestData, Utils
 
-table_name = Utils.random_name()
-table_name2 = Utils.random_name()
-table_name3 = Utils.random_name()
+table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
 
 def test_update_rows_in_table(session):
