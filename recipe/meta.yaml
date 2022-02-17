@@ -11,8 +11,7 @@ source:
 
 build:
   number: 0
-  # neither on Windows 32-bit nor on s390x there is right now arrow support
-  skip: true  # [win32 or s390x]
+  noarch: python
   script:
     - {{ PYTHON }} -m pip install . --no-deps -vvv
 
