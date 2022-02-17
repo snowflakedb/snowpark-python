@@ -6,9 +6,8 @@ package:
   version: {{ version }}
 
 source:
-  # Change git_rev to your branch if you want to build custom package for testing
-  git_url: git@github.com:snowflakedb/snowpark-python.git
-  git_rev: tags/v{{ version }}
+  # need to use path to build on Jenkins
+  path: ../
 
 build:
   number: 0
