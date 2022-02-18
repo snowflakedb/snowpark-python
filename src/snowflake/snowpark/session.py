@@ -196,7 +196,7 @@ class Session:
         def __get__(self, obj, objtype=None):
             return Session.SessionBuilder()
 
-    __STAGE_PREFIX = "@"
+    _STAGE_PREFIX = "@"
 
     #: Returns a builder you can use to set configuration properties
     #: and create a :class:`Session` object.
@@ -291,7 +291,7 @@ class Session:
 
     def _get_local_imports(self) -> List[str]:
         return [
-            dep for dep in self.get_imports() if not dep.startswith(self.__STAGE_PREFIX)
+            dep for dep in self.get_imports() if not dep.startswith(self._STAGE_PREFIX)
         ]
 
     @deprecate(
@@ -395,7 +395,7 @@ class Session:
         trimmed_path = path.strip()
         abs_path = (
             os.path.abspath(trimmed_path)
-            if not trimmed_path.startswith(self.__STAGE_PREFIX)
+            if not trimmed_path.startswith(self._STAGE_PREFIX)
             else trimmed_path
         )
         if abs_path not in self.__import_paths:
@@ -423,7 +423,7 @@ class Session:
         trimmed_path = path.strip()
         trimmed_import_path = import_path.strip() if import_path else None
 
-        if not trimmed_path.startswith(self.__STAGE_PREFIX):
+        if not trimmed_path.startswith(self._STAGE_PREFIX):
             if not os.path.exists(trimmed_path):
                 raise FileNotFoundError(f"{trimmed_path} is not found")
             if not os.path.isfile(trimmed_path) and not os.path.isdir(trimmed_path):
@@ -487,7 +487,7 @@ class Session:
         import_paths = udf_level_import_paths or self.__import_paths
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
-            if path.startswith(self.__STAGE_PREFIX):
+            if path.startswith(self._STAGE_PREFIX):
                 resolved_stage_files.append(path)
             else:
                 filename = (

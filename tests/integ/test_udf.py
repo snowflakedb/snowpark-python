@@ -8,6 +8,7 @@ import logging
 import math
 import os
 import sys
+from typing import Callable
 from unittest.mock import patch
 
 import pytest
@@ -58,8 +59,12 @@ tmp_stage_name = Utils.random_stage_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session):
+def setup(session, resources_path):
+    test_files = TestFiles(resources_path)
     Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, tmp_stage_name, test_files.test_udf_py_file, compress=False
+    )
 
 
 def test_basic_udf(session):
@@ -317,11 +322,66 @@ def test_session_register_udf(session):
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
     )
+    assert isinstance(add_udf.func, Callable)
     Utils.check_answer(
         df.select(add_udf("a", "b")).collect(),
         [
             Row(3),
             Row(7),
+        ],
+    )
+
+
+def test_session_register_udf_from_file(session, resources_path, tmpdir):
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
+
+    mod5_udf = session.udf.register_from_file(
+        test_files.test_udf_py_file,
+        "mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    assert isinstance(mod5_udf.func, tuple)
+    Utils.check_answer(
+        df.select(mod5_udf("a"), mod5_udf("b")).collect(),
+        [
+            Row(3, 4),
+            Row(0, 1),
+        ],
+    )
+
+    # test zip file
+    from zipfile import ZipFile
+
+    zip_path = f"{tmpdir.join(os.path.basename(test_files.test_udf_py_file))}.zip"
+    with ZipFile(zip_path, "w") as zf:
+        zf.write(
+            test_files.test_udf_py_file, os.path.basename(test_files.test_udf_py_file)
+        )
+
+    mod5_udf2 = session.udf.register_from_file(
+        zip_path, "mod5", return_type=IntegerType(), input_types=[IntegerType()]
+    )
+
+    Utils.check_answer(
+        df.select(mod5_udf2("a"), mod5_udf2("b")).collect(),
+        [
+            Row(3, 4),
+            Row(0, 1),
+        ],
+    )
+
+    # test a remote python file
+    stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
+    mod5_udf3 = session.udf.register_from_file(
+        stage_file, "mod5", return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    Utils.check_answer(
+        df.select(mod5_udf3("a"), mod5_udf3("b")).collect(),
+        [
+            Row(3, 4),
+            Row(0, 1),
         ],
     )
 
@@ -428,11 +488,8 @@ def test_add_import_stage_file(session, resources_path):
 
             return mod5(x + 4)
 
-        stage_file = "@{}.{}/test_udf_file.py".format(
-            session.get_fully_qualified_current_schema(), tmp_stage_name
-        )
-        Utils.upload_to_stage(
-            session, tmp_stage_name, test_files.test_udf_py_file, compress=False
+        stage_file = (
+            f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
         )
         session.add_import(stage_file)
         plus4_then_mod5_udf = udf(
