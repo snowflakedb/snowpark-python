@@ -267,13 +267,24 @@ class UDFRegistration:
         and returns the UDF. Apart from ``file_path`` and ``func_name``, the input arguments
         of this method are the same as :meth:`register`.
 
+        Args:
+            file_path: The path of a local file or a remote file in the stage. See
+                more details on ``path`` argument of
+                :meth:`session.add_import() <snowflake.snowpark.Session.add_import>`.
+                Note that unlike `path`` argument of
+                :meth:`session.add_import() <snowflake.snowpark.Session.add_import>`,
+                here the file can only be a Python file, or a compressed file
+                (e.g., .zip file) containing Python modules.
+            func_name: The Python function name in the file that will be created
+                as a UDF.
+
         Note::
-            You should provide ``return_type`` and ``input_types`` as the function
-            might not be in your runtime.
+            You should provide ``return_type`` and ``input_types`` as the Python function
+            that will be created as a UDF might not be in your runtime.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
-            - :meth:`register`.
+            - :meth:`register`
         """
         UDFRegistration._check_register_args(
             name, is_permanent, stage_location, parallel
