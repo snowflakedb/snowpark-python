@@ -366,6 +366,8 @@ class UDFRegistration:
         # get return and input types from type hints
         if not return_type and not input_types:
             return_type, input_types = self.__get_types_from_type_hints(func)
+        if input_types is None:
+            input_types = []
 
         upload_stage = (
             Utils.unwrap_stage_location_single_quote(stage_location)
