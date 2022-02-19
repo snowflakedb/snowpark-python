@@ -18,7 +18,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Literal,
     UnresolvedAttribute,
 )
-from snowflake.snowpark._internal.sp_types.types_package import _type_mappings
+from snowflake.snowpark._internal.type_utils import _type_mappings
 from snowflake.snowpark.exceptions import SnowparkPlanException
 from snowflake.snowpark.types import DecimalType, IntegerType
 

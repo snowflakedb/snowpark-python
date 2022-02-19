@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 import snowflake.snowpark._internal.analyzer.analyzer_package as analyzer_package
-from snowflake.snowpark._internal.sp_types.types_package import convert_to_sf_type
+from snowflake.snowpark._internal.type_utils import convert_to_sf_type
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,

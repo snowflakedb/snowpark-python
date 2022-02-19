@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark._internal.sp_types.types_package import (
+from snowflake.snowpark._internal.type_utils import (
     _infer_type,
     _python_type_to_snow_type,
 )

@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     CopyIntoLocationNode,
     SnowflakeCreateTable,
 )
-from snowflake.snowpark._internal.sp_types.types_package import ColumnOrName
+from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import Utils, _SaveMode
 from snowflake.snowpark.functions import sql_expr
 

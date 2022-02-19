@@ -6,6 +6,7 @@
 from typing import Dict, Iterable, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.binary_plan_nodes import create_join_type
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     TableDelete,
     TableMerge,
@@ -18,8 +19,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     InsertMergeExpression,
     UpdateMergeExpression,
 )
-from snowflake.snowpark._internal.sp_types.sp_join_types import JoinType as SPJoinType
-from snowflake.snowpark._internal.sp_types.types_package import ColumnOrLiteral
+from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.row import Row
@@ -345,9 +345,9 @@ class Table(DataFrame):
                     for k, v in assignments.items()
                 },
                 condition.expression if condition is not None else None,
-                DataFrame._disambiguate(
-                    self, source, SPJoinType.from_string("left"), []
-                )[1]._plan
+                DataFrame._disambiguate(self, source, create_join_type("left"), [])[
+                    1
+                ]._plan
                 if source
                 else None,
             )
@@ -390,9 +390,9 @@ class Table(DataFrame):
             TableDelete(
                 self.table_name,
                 condition.expression if condition is not None else None,
-                DataFrame._disambiguate(
-                    self, source, SPJoinType.from_string("left"), []
-                )[1]._plan
+                DataFrame._disambiguate(self, source, create_join_type("left"), [])[
+                    1
+                ]._plan
                 if source
                 else None,
             )
@@ -450,9 +450,9 @@ class Table(DataFrame):
         new_df = self._with_plan(
             TableMerge(
                 self.table_name,
-                DataFrame._disambiguate(
-                    self, source, SPJoinType.from_string("left"), []
-                )[1]._plan,
+                DataFrame._disambiguate(self, source, create_join_type("left"), [])[
+                    1
+                ]._plan,
                 join_expr.expression,
                 merge_exprs,
             )

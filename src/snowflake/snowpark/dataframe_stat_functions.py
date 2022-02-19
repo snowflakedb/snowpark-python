@@ -8,10 +8,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import snowflake.snowpark
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.sp_types.types_package import (
-    ColumnOrName,
-    LiteralType,
-)
+from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark.functions import (
     _to_col_if_str,
     approx_percentile_accumulate,
