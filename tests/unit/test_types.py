@@ -12,6 +12,7 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark._internal.type_utils import (
+    _get_number_precision_scale,
     _infer_type,
     _python_type_to_snow_type,
 )
@@ -40,7 +41,6 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     _FractionalType,
-    _get_number_precissions,
     _IntegralType,
     _NumericType,
 )
@@ -386,15 +386,15 @@ def test_python_type_to_snow_type():
 
 @pytest.mark.parametrize("decimal_word", ["number", "numeric", "decimal"])
 def test_decimal_regular_expression(decimal_word):
-    assert _get_number_precissions(f"{decimal_word}") is None
-    assert _get_number_precissions(f" {decimal_word}") is None
-    assert _get_number_precissions(f"{decimal_word} ") is None
-    assert _get_number_precissions(f"{decimal_word}") is None
-    assert _get_number_precissions(f"{decimal_word}(2) ") is None
-    assert _get_number_precissions(f"a{decimal_word}(2,1)") is None
-    assert _get_number_precissions(f"{decimal_word}(2,1) a") is None
+    assert _get_number_precision_scale(f"{decimal_word}") is None
+    assert _get_number_precision_scale(f" {decimal_word}") is None
+    assert _get_number_precision_scale(f"{decimal_word} ") is None
+    assert _get_number_precision_scale(f"{decimal_word}") is None
+    assert _get_number_precision_scale(f"{decimal_word}(2) ") is None
+    assert _get_number_precision_scale(f"a{decimal_word}(2,1)") is None
+    assert _get_number_precision_scale(f"{decimal_word}(2,1) a") is None
 
-    assert _get_number_precissions(f"{decimal_word}(2,1)") == (2, 1)
-    assert _get_number_precissions(f" {decimal_word}(2,1)") == (2, 1)
-    assert _get_number_precissions(f"{decimal_word}(2,1) ") == (2, 1)
-    assert _get_number_precissions(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
+    assert _get_number_precision_scale(f"{decimal_word}(2,1)") == (2, 1)
+    assert _get_number_precision_scale(f" {decimal_word}(2,1)") == (2, 1)
+    assert _get_number_precision_scale(f"{decimal_word}(2,1) ") == (2, 1)
+    assert _get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
