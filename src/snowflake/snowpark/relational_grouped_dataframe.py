@@ -24,7 +24,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAlias as SPUnresolvedAlias,
     UnresolvedAttribute as SPUnresolvedAttribute,
 )
-from snowflake.snowpark._internal.sp_types.types_package import ColumnOrName
+from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame

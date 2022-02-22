@@ -24,7 +24,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     WindowFrame as SPWindowFrame,
     WindowSpecDefinition as SPWindowSpecDefinition,
 )
-from snowflake.snowpark._internal.sp_types.types_package import ColumnOrName
+from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import Utils
 
 

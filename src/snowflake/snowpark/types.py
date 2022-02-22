@@ -5,7 +5,7 @@
 #
 """This package contains all Snowpark logical types."""
 import re
-from typing import Dict, List, Optional, Tuple, Type, TypeVar, Union
+from typing import List, TypeVar, Union
 
 
 class DataType:
@@ -328,54 +328,3 @@ Variant = TypeVar("Variant")
 
 #: The type hint for annotating Geography data when registering UDFs.
 Geography = TypeVar("Geography")
-
-
-def _get_data_type_mappings(
-    to_fill_dict: Optional[Dict[str, Type[DataType]]] = None,
-    data_type: Optional[Type[DataType]] = None,
-) -> None:
-    if data_type is None:
-        if to_fill_dict is None:
-            to_fill_dict = dict()
-        return _get_data_type_mappings(to_fill_dict, DataType)
-    for child in data_type.__subclasses__():
-        if not child.__name__.startswith("_") and child is not DecimalType:
-            to_fill_dict[child.__name__[:-4].lower()] = child
-        _get_data_type_mappings(to_fill_dict, child)
-    return to_fill_dict
-
-
-_DATA_TYPE_MAPPINGS = {}
-_get_data_type_mappings(_DATA_TYPE_MAPPINGS)
-# Add additional mappings to match snowflake db data types
-_DATA_TYPE_MAPPINGS["int"] = IntegerType
-_DATA_TYPE_MAPPINGS["smallint"] = ShortType
-_DATA_TYPE_MAPPINGS["byteint"] = ByteType
-_DATA_TYPE_MAPPINGS["bigint"] = LongType
-_DATA_TYPE_MAPPINGS["number"] = DecimalType
-_DATA_TYPE_MAPPINGS["numeric"] = DecimalType
-_DATA_TYPE_MAPPINGS["object"] = MapType
-_DATA_TYPE_MAPPINGS["array"] = ArrayType
-
-_DECIMAL_RE = re.compile(
-    r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
-)
-# support type string format like "  decimal  (  2  ,  1  )  "
-
-
-def _get_number_precissions(type_str) -> Optional[Tuple[int, int]]:
-    decimal_matches = _DECIMAL_RE.match(type_str)
-    if decimal_matches:
-        return (int(decimal_matches.group(3)), int(decimal_matches.group(4)))
-
-
-def _type_string_to_type_object(type_str: str) -> DataType:
-    precissions = _get_number_precissions(type_str)
-    if precissions:
-        return DecimalType(*precissions)
-    type_str = type_str.replace(" ", "")
-    type_str = type_str.lower()
-    try:
-        return _DATA_TYPE_MAPPINGS[type_str]()
-    except KeyError:
-        raise ValueError(f"'{type_str}' is not a supported type")

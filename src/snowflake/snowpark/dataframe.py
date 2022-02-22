@@ -12,6 +12,15 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 import snowflake.snowpark
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.binary_plan_nodes import (
+    Cross as SPCrossJoin,
+    JoinType as SPJoinType,
+    LeftAnti as SPLeftAnti,
+    LeftSemi as SPLeftSemi,
+    NaturalJoin as SPNaturalJoin,
+    UsingJoin as SPUsingJoin,
+    create_join_type,
+)
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.snowflake_plan import CopyIntoNode
@@ -53,18 +62,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Star as SPStar,
     TableFunctionExpression as SPTableFunctionExpression,
 )
-from snowflake.snowpark._internal.sp_types.sp_join_types import (
-    Cross as SPCrossJoin,
-    JoinType as SPJoinType,
-    LeftAnti as SPLeftAnti,
-    LeftSemi as SPLeftSemi,
-    NaturalJoin as SPNaturalJoin,
-    UsingJoin as SPUsingJoin,
-)
-from snowflake.snowpark._internal.sp_types.types_package import (
-    ColumnOrName,
-    LiteralType,
-)
+from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import TempObjectType, Utils, deprecate
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
@@ -1109,7 +1107,7 @@ class DataFrame:
             SPJoin(
                 self._plan,
                 right._plan,
-                SPNaturalJoin(SPJoinType.from_string(join_type)),
+                SPNaturalJoin(create_join_type(join_type)),
                 None,
                 SPJoinHint.none(),
             )
@@ -1151,9 +1149,9 @@ class DataFrame:
                     raise Exception("Cross joins cannot take columns as input.")
 
             sp_join_type = (
-                SPJoinType.from_string("inner")
+                create_join_type("inner")
                 if not join_type
-                else SPJoinType.from_string(join_type)
+                else create_join_type(join_type)
             )
 
             # Parse using_columns arg
@@ -1237,9 +1235,7 @@ class DataFrame:
         Args:
             right: the right :class:`DataFrame` to join.
         """
-        return self.__join_dataframes_internal(
-            right, SPJoinType.from_string("cross"), None
-        )
+        return self.__join_dataframes_internal(right, create_join_type("cross"), None)
 
     def __join_dataframes(
         self,

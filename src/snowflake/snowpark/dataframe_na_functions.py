@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.sp_types.types_package import (
+from snowflake.snowpark._internal.type_utils import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     LiteralType,
     _python_type_to_snow_type,
