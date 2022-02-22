@@ -28,7 +28,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     Expression as SPExpression,
     SnowflakeUDF,
 )
-from snowflake.snowpark._internal.sp_types.types_package import (
+from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     _python_type_to_snow_type,
     convert_to_sf_type,

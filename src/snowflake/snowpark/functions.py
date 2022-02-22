@@ -61,7 +61,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     TableFunction as SPTableFunction,
     TableFunctionExpression as SPTableFunctionExpression,
 )
-from snowflake.snowpark._internal.sp_types.types_package import (
+from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrName,
     LiteralType,

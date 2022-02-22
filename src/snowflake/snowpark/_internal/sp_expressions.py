@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.sp_types.types_package import (
+from snowflake.snowpark._internal.type_utils import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
     _infer_type,
