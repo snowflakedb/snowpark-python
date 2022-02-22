@@ -6,6 +6,22 @@ from typing import List
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
+SUPPORTED_JOIN_TYPE_STR = [
+    "inner",
+    "outer",
+    "full",
+    "fullouter",
+    "leftouter",
+    "left",
+    "rightouter",
+    "right",
+    "leftsemi",
+    "semi",
+    "leftanti",
+    "anti",
+    "cross",
+]
+
 
 def create_join_type(join_type: str) -> "JoinType":
     jt = join_type.strip().lower().replace("_", "")
@@ -17,7 +33,7 @@ def create_join_type(join_type: str) -> "JoinType":
         return FullOuter()
 
     if jt in ["leftouter", "left"]:
-        return LefOuter()
+        return LeftOuter()
 
     if jt in ["rightouter", "right"]:
         return RightOuter()
@@ -31,24 +47,8 @@ def create_join_type(join_type: str) -> "JoinType":
     if jt == "cross":
         return Cross()
 
-    supported = [
-        "inner",
-        "outer",
-        "full",
-        "fullouter",
-        "leftouter",
-        "left",
-        "rightouter",
-        "right",
-        "leftsemi",
-        "semi",
-        "leftanti",
-        "anti",
-        "cross",
-    ]
-
     raise SnowparkClientExceptionMessages.DF_JOIN_INVALID_JOIN_TYPE(
-        join_type, ", ".join(supported)
+        join_type, ", ".join(SUPPORTED_JOIN_TYPE_STR)
     )
 
 
@@ -68,7 +68,7 @@ class Cross(InnerLike):
     sql = "CROSS"
 
 
-class LefOuter(JoinType):
+class LeftOuter(JoinType):
     sql = "LEFT OUTER"
 
 
@@ -94,7 +94,7 @@ class NaturalJoin(JoinType):
             tpe,
             (
                 Inner,
-                LefOuter,
+                LeftOuter,
                 RightOuter,
                 FullOuter,
             ),
@@ -112,7 +112,7 @@ class UsingJoin(JoinType):
             tpe,
             (
                 Inner,
-                LefOuter,
+                LeftOuter,
                 LeftSemi,
                 RightOuter,
                 FullOuter,
