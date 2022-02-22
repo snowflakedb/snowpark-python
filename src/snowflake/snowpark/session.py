@@ -39,7 +39,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     AttributeReference as SPAttributeReference,
     FlattenFunction as SPFlattenFunction,
 )
-from snowflake.snowpark._internal.sp_types.types_package import (
+from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     _infer_schema,
     _merge_type,

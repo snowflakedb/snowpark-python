@@ -55,13 +55,14 @@ from snowflake.snowpark._internal.sp_expressions import (
     UnresolvedAttribute as SPUnresolvedAttribute,
     WithinGroup as SPWithinGroup,
 )
-from snowflake.snowpark._internal.sp_types.types_package import (
+from snowflake.snowpark._internal.type_utils import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
     ColumnOrName,
+    _type_string_to_type_object,
 )
 from snowflake.snowpark._internal.utils import Utils
-from snowflake.snowpark.types import DataType, _type_string_to_type_object
+from snowflake.snowpark.types import DataType
 from snowflake.snowpark.window import Window, WindowSpec
 
 

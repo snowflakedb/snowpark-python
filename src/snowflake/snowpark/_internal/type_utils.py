@@ -6,11 +6,11 @@
 # Code in this file may constitute partial or total reimplementation, or modification of
 # existing code originally distributed by the Apache Software Foundation as part of the
 # Apache Spark project, under the Apache License, Version 2.0.
-
 import collections
 import ctypes
 import datetime
 import decimal
+import re
 import sys
 from array import array
 from collections import OrderedDict
@@ -370,6 +370,58 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
         return GeographyType(), False
 
     raise TypeError(f"invalid type {tp}")
+
+
+# Get a mapping from type string to type object, for cast() function
+def _get_data_type_string_object_mappings(
+    to_fill_dict: Optional[Dict[str, Type[DataType]]] = None,
+    data_type: Optional[Type[DataType]] = None,
+) -> None:
+    if data_type is None:
+        if to_fill_dict is None:
+            to_fill_dict = dict()
+        return _get_data_type_string_object_mappings(to_fill_dict, DataType)
+    for child in data_type.__subclasses__():
+        if not child.__name__.startswith("_") and child is not DecimalType:
+            to_fill_dict[child.__name__[:-4].lower()] = child
+        _get_data_type_string_object_mappings(to_fill_dict, child)
+    return to_fill_dict
+
+
+_DATA_TYPE_STRING_OBJECT_MAPPINGS = {}
+_get_data_type_string_object_mappings(_DATA_TYPE_STRING_OBJECT_MAPPINGS)
+# Add additional mappings to match snowflake db data types
+_DATA_TYPE_STRING_OBJECT_MAPPINGS["int"] = IntegerType
+_DATA_TYPE_STRING_OBJECT_MAPPINGS["smallint"] = ShortType
+_DATA_TYPE_STRING_OBJECT_MAPPINGS["byteint"] = ByteType
+_DATA_TYPE_STRING_OBJECT_MAPPINGS["bigint"] = LongType
+_DATA_TYPE_STRING_OBJECT_MAPPINGS["number"] = DecimalType
+_DATA_TYPE_STRING_OBJECT_MAPPINGS["numeric"] = DecimalType
+_DATA_TYPE_STRING_OBJECT_MAPPINGS["object"] = MapType
+_DATA_TYPE_STRING_OBJECT_MAPPINGS["array"] = ArrayType
+
+_DECIMAL_RE = re.compile(
+    r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
+)
+# support type string format like "  decimal  (  2  ,  1  )  "
+
+
+def _get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
+    decimal_matches = _DECIMAL_RE.match(type_str)
+    if decimal_matches:
+        return int(decimal_matches.group(3)), int(decimal_matches.group(4))
+
+
+def _type_string_to_type_object(type_str: str) -> DataType:
+    precision_scale = _get_number_precision_scale(type_str)
+    if precision_scale:
+        return DecimalType(*precision_scale)
+    type_str = type_str.replace(" ", "")
+    type_str = type_str.lower()
+    try:
+        return _DATA_TYPE_STRING_OBJECT_MAPPINGS[type_str]()
+    except KeyError:
+        raise ValueError(f"'{type_str}' is not a supported type")
 
 
 # Type hints
