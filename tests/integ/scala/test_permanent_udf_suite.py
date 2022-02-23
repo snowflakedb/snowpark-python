@@ -329,10 +329,10 @@ def test_call_udf_with_literal_value(session):
         i: datetime.time,
         j: datetime.date,
     ) -> str:
-        return f"{a} {b} {c} {d} {e} {g} {h} {i} {j}"
+        return f"{a} {b} {float(c)} {d} {e} {g} {h} {i} {j}"
 
     session.udf.register(func, name=udf_name)
     Utils.check_answer(
         session.range(1).select(call_udf(udf_name, *values)),
-        [Row("2 1.1 1 str True b'a' 2017-02-24 12:00:05.456000 20:57:06 2017-02-25")],
+        [Row("2 1.1 1.2 str True b'a' 2017-02-24 12:00:05.456000 20:57:06 2017-02-25")],
     )
