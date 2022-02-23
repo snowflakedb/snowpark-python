@@ -10,7 +10,7 @@ import pytest
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark._internal.utils import Utils as snowpark_utils
+from snowflake.snowpark._internal.utils import TempObjectType, Utils as snowpark_utils
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkMissingDbOrSchemaException,
