@@ -56,7 +56,7 @@ def test_default_and_current_database_and_schema(session):
     assert Utils.equals_ignore_case(default_schema, session.get_current_schema())
 
     try:
-        schema_name = Utils.random_name()
+        schema_name = Utils.random_alphanumeric_str(10)
         session._run_query("create schema {}".format(schema_name))
 
         assert Utils.equals_ignore_case(default_database, session.getDefaultDatabase())
@@ -188,7 +188,7 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
 
 
 def test_load_table_from_array_multipart_identifier(session):
-    name = Utils.random_name()
+    name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, name, "col int")
         db = session.get_current_database()

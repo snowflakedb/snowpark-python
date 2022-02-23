@@ -1127,7 +1127,9 @@ def test_dataframe_duplicated_column_names(session):
     # however, create a table/view doesn't work because
     # Snowflake doesn't allow duplicated column names
     with pytest.raises(ProgrammingError) as ex_info:
-        df.create_or_replace_view(Utils.random_name())
+        df.create_or_replace_view(
+            Utils.random_name_for_temp_object(TempObjectType.VIEW)
+        )
     assert "duplicate column name 'A'" in str(ex_info)
 
 

@@ -6,6 +6,7 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
@@ -76,7 +77,7 @@ def tmp_stage_name2(session):
 
 @pytest.fixture(scope="module")
 def tmp_table_name(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "a Int, b String, c Double")
     try:
         yield table_name
@@ -179,7 +180,7 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
 def test_copy_csv_create_table_if_not_exists(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     df = session.read.schema(user_schema).csv(test_file_on_stage)
-    test_table_name = Utils.random_name()
+    test_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df.copy_into_table(test_table_name)
     try:
         df2 = session.table(test_table_name)
@@ -191,7 +192,7 @@ def test_copy_csv_create_table_if_not_exists(session, tmp_stage_name1):
 
 def test_saveAsTable_not_affect_copy_into(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 Int, c2 String, c3 Double")
     try:
         assert session.table(table_name).count() == 0
@@ -237,7 +238,7 @@ def test_saveAsTable_not_affect_copy_into(session, tmp_stage_name1):
 )
 def test_copy_csv_transformation(session, tmp_stage_name1, trans_columns):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 String, c2 String, c3 String")
     try:
         assert session.table(table_name).count() == 0
@@ -290,7 +291,7 @@ def test_copy_csv_negative(session, tmp_stage_name1, tmp_table_name):
     df = session.read.schema(user_schema).csv(test_file_on_stage)
     # case 1: copy into a non-existing table with transformation but doesn't match the provided schema
     with pytest.raises(SnowparkDataframeReaderException) as exec_info:
-        table_name_not_exist = Utils.random_name()
+        table_name_not_exist = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         df.copy_into_table(
             table_name_not_exist, transformations=[col("$1").as_("c1_alias")]
         )
@@ -311,7 +312,7 @@ def test_copy_csv_copy_transformation_with_column_names(session, tmp_stage_name1
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
     # create target table
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 String, c2 String, c3 String")
     try:
         assert session.table(table_name).count() == 0
@@ -370,7 +371,7 @@ def test_copy_csv_copy_into_columns_without_transformation(session, tmp_stage_na
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
     # create target table
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(
         session, table_name, "c1 String, c2 String, c3 String, c4 String"
     )
@@ -406,7 +407,7 @@ def test_copy_json_write_with_column_names(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_json}"
     df = session.read.json(test_file_on_stage)
 
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 String, c2 Variant, c3 String")
     try:
         df.copy_into_table(
@@ -423,7 +424,7 @@ def test_copy_json_negative_test_with_column_names(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_json}"
     df = session.read.json(test_file_on_stage)
 
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 String, c2 Variant, c3 String")
     try:
         with pytest.raises(ProgrammingError) as exec_info:
@@ -438,7 +439,7 @@ def test_copy_json_negative_test_with_column_names(session, tmp_stage_name1):
 
 def test_copy_csv_negative_test_with_column_names(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 String, c2 Variant, c3 String")
     try:
         df = session.read.schema(user_schema).csv(test_file_on_stage)
@@ -469,7 +470,7 @@ def test_copy_csv_negative_test_with_column_names(session, tmp_stage_name1):
 
 def test_transormation_as_clause_no_effect(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 String, c2 String")
     try:
         df = session.read.schema(user_schema).csv(test_file_on_stage)
@@ -538,7 +539,7 @@ def test_copy_non_csv_basic(
     session, tmp_stage_name1, file_format, file_name, assert_data
 ):
     test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 Variant")
     try:
         df = create_df_for_file_format(session, file_format, test_file_on_stage)
@@ -630,7 +631,7 @@ def test_copy_non_csv_transformation(
     assert_data,
 ):
     test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, schema)
     try:
         df = create_df_for_file_format(session, file_format, test_file_on_stage)
@@ -668,7 +669,7 @@ def test_copy_non_csv_transformation(
 )
 def test_copy_non_csv_negative_test(session, tmp_stage_name1, file_format, file_name):
     test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = create_df_for_file_format(session, file_format, test_file_on_stage)
     with pytest.raises(SnowparkDataframeReaderException) as exec_info:
         df.copy_into_table(table_name)

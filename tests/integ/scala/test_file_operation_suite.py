@@ -36,21 +36,21 @@ def temp_target_directory(tmpdir_factory):
 
 @pytest.fixture(scope="module")
 def path1(temp_source_directory):
-    file = temp_source_directory.join(f"file_1_{Utils.random_name()}.csv")
+    file = temp_source_directory.join(f"file_1_{Utils.random_alphanumeric_str(10)}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
 
 
 @pytest.fixture(scope="module")
 def path2(temp_source_directory):
-    file = temp_source_directory.join(f"file_2_{Utils.random_name()}.csv")
+    file = temp_source_directory.join(f"file_2_{Utils.random_alphanumeric_str(10)}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
 
 
 @pytest.fixture(scope="module")
 def path3(temp_source_directory):
-    file = temp_source_directory.join(f"file_3_{Utils.random_name()}.csv")
+    file = temp_source_directory.join(f"file_3_{Utils.random_alphanumeric_str(10)}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
 

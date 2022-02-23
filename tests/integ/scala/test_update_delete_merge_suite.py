@@ -16,6 +16,7 @@ from snowflake.snowpark import (
     WhenMatchedClause,
     WhenNotMatchedClause,
 )
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkTableException
 from snowflake.snowpark.functions import (
     col,
@@ -27,9 +28,9 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import TestData, Utils
 
-table_name = Utils.random_name()
-table_name2 = Utils.random_name()
-table_name3 = Utils.random_name()
+table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
 
 def test_update_rows_in_table(session):
