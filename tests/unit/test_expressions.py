@@ -9,11 +9,8 @@ import decimal
 import pytest
 
 from snowflake.snowpark._internal.sp_expressions import (
-    AggregateExpression,
     Attribute,
     AttributeReference,
-    Complete,
-    Count,
     FunctionExpression,
     Literal,
     UnresolvedAttribute,
@@ -39,11 +36,6 @@ def test_expression_sql():
         is_distinct=False,
     )
     assert "func(A)" == function_expression.sql()
-
-    agg_expr = AggregateExpression(
-        Count(AttributeReference("A", IntegerType(), False)), Complete(), False, None
-    )
-    assert "COUNT(A)" == agg_expr.sql()
 
 
 def test_literal():
