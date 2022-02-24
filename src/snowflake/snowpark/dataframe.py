@@ -1857,7 +1857,7 @@ class DataFrame:
                 # such that they can be fitted into one column
                 if isinstance(t, StringType):
                     if name in ["mean", "stddev"]:
-                        agg_cols.append(to_char(func(lit(None))))
+                        agg_cols.append(to_char(func(lit(None))).as_(c))
                     else:
                         agg_cols.append(to_char(func(c)))
                 else:
