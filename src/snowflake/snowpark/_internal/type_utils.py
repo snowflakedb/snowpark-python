@@ -323,7 +323,9 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
     """Converts a Python type to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
-    if tp in _type_mappings:
+    if tp is decimal.Decimal:
+        return DecimalType(38, 18), False
+    elif tp in _type_mappings:
         return _type_mappings[tp](), False
 
     tp_origin = get_origin(tp)

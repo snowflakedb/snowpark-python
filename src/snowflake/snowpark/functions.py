@@ -1744,14 +1744,16 @@ def __with_aggregate_function(
 
 def call_udf(
     udf_name: str,
-    *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName]],
+    *args: ColumnOrLiteral,
 ) -> Column:
     """Calls a user-defined function (UDF) by name.
 
     Args:
         udf_name: The name of UDF in Snowflake.
-        cols: Columns that the UDF will be applied to, as :class:`str`,
-            :class:`~snowflake.snowpark.Column` or a list of those.
+        args: Arguments can be in two types:
+
+            - :class:`~snowflake.snowpark.Column`, or
+            - Basic Python types, which are converted to Snowpark literals.
 
     Example::
 
@@ -1759,17 +1761,10 @@ def call_udf(
     """
 
     Utils.validate_object_name(udf_name)
-    exprs = Utils.parse_positional_args_to_list(*cols)
-    return Column(
-        SPFunctionExpression(
-            udf_name,
-            [_to_col_if_str(e, "call_udf").expression for e in exprs],
-            is_distinct=False,
-        )
-    )
+    return _call_function(udf_name, False, *args)
 
 
-def call_builtin(function_name: str, *args: Union[ColumnOrLiteral]) -> Column:
+def call_builtin(function_name: str, *args: ColumnOrLiteral) -> Column:
     """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
     and arguments.
 
@@ -1785,11 +1780,7 @@ def call_builtin(function_name: str, *args: Union[ColumnOrLiteral]) -> Column:
         df.select(call_builtin("avg", col("a")))
     """
 
-    expressions = [
-        Column._to_expr(arg) for arg in Utils.parse_positional_args_to_list(*args)
-    ]
-
-    return Column(SPFunctionExpression(function_name, expressions, is_distinct=False))
+    return _call_function(function_name, False, *args)
 
 
 def builtin(function_name: str) -> Callable:
@@ -1809,6 +1800,15 @@ def builtin(function_name: str) -> Callable:
         df.select(avg(col("col_1")))
     """
     return lambda *args: call_builtin(function_name, *args)
+
+
+def _call_function(
+    name: str, is_distinct: bool = False, *args: ColumnOrLiteral
+) -> Column:
+    expressions = [
+        Column._to_expr(arg) for arg in Utils.parse_positional_args_to_list(*args)
+    ]
+    return Column(SPFunctionExpression(name, expressions, is_distinct=is_distinct))
 
 
 def _create_table_function_expression(

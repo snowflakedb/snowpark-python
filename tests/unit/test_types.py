@@ -275,7 +275,7 @@ def test_python_type_to_snow_type():
     assert _python_type_to_snow_type(date) == (DateType(), False)
     assert _python_type_to_snow_type(time) == (TimeType(), False)
     assert _python_type_to_snow_type(datetime) == (TimestampType(), False)
-    assert _python_type_to_snow_type(Decimal) == (DecimalType(), False)
+    assert _python_type_to_snow_type(Decimal) == (DecimalType(38, 18), False)
     assert _python_type_to_snow_type(typing.Optional[str]) == (StringType(), True)
     assert _python_type_to_snow_type(typing.Union[str, None]) == (
         StringType(),
