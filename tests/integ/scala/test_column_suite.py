@@ -9,6 +9,7 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkPlanException,
@@ -374,7 +375,7 @@ def test_drop_columns_by_column(session):
 
 
 def test_fully_qualified_column_name(session):
-    random_name = Utils.random_name()
+    random_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = "{}.{}".format(
         session.get_current_database(), session.get_current_schema()
     )

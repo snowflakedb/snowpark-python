@@ -36,21 +36,21 @@ def temp_target_directory(tmpdir_factory):
 
 @pytest.fixture(scope="module")
 def path1(temp_source_directory):
-    file = temp_source_directory.join(f"file_1_{Utils.random_name()}.csv")
+    file = temp_source_directory.join(f"file_1_{Utils.random_alphanumeric_str(10)}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
 
 
 @pytest.fixture(scope="module")
 def path2(temp_source_directory):
-    file = temp_source_directory.join(f"file_2_{Utils.random_name()}.csv")
+    file = temp_source_directory.join(f"file_2_{Utils.random_alphanumeric_str(10)}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
 
 
 @pytest.fixture(scope="module")
 def path3(temp_source_directory):
-    file = temp_source_directory.join(f"file_3_{Utils.random_name()}.csv")
+    file = temp_source_directory.join(f"file_3_{Utils.random_alphanumeric_str(10)}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
 
@@ -75,7 +75,7 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     assert first_result.source == os.path.basename(path1)
     assert first_result.target == os.path.basename(path1) + ".gz"
     assert first_result.source_size in (10, 11)
-    assert first_result.target_size in (96, 112)
+    assert first_result.target_size in (64, 96)
     assert first_result.source_compression == "NONE"
     assert first_result.target_compression == "GZIP"
     assert first_result.status == "UPLOADED"
@@ -101,7 +101,7 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     assert third_result.source == os.path.basename(path3)
     assert third_result.target == os.path.basename(path3) + ".gz"
     assert third_result.source_size in (10, 11)
-    assert third_result.target_size in (96, 112)
+    assert third_result.target_size in (64, 96)
     assert third_result.source_compression == "NONE"
     assert third_result.target_compression == "GZIP"
     assert third_result.status == "UPLOADED"
@@ -121,7 +121,7 @@ def test_put_with_one_file_twice(session, temp_stage, path1):
     assert second_result.target == os.path.basename(path1) + ".gz"
     assert second_result.source_size in (10, 11)
     # On GCP, the files are not skipped if target file already exists
-    assert second_result.target_size in (0, 96, 112)
+    assert second_result.target_size in (0, 64, 96)
     assert second_result.source_compression == "NONE"
     assert second_result.target_compression == "GZIP"
     assert second_result.status in ("SKIPPED", "UPLOADED")
@@ -139,7 +139,7 @@ def test_put_with_one_relative_path_file(session, temp_stage, path1):
         assert first_result.source == os.path.basename(path1)
         assert first_result.target == os.path.basename(path1) + ".gz"
         assert first_result.source_size in (10, 11)
-        assert first_result.target_size in (96, 112)
+        assert first_result.target_size in (64, 96)
         assert first_result.source_compression == "NONE"
         assert first_result.target_compression == "GZIP"
         assert first_result.status == "UPLOADED"
@@ -201,7 +201,7 @@ def test_get_one_file(
     try:
         assert len(results) == 1
         assert results[0].file == f"{os.path.basename(path1)}.gz"
-        assert results[0].size in (95, 96)
+        assert results[0].size in (54, 55)
         assert results[0].status == "DOWNLOADED"
         # Scala has encryption but python doesn't
         # assert results[0].encryption == "DECRYPTED"
@@ -227,8 +227,8 @@ def test_get_multiple_files(
         assert results[1].file == os.path.basename(f"{path2}.gz")
         assert results[2].file == os.path.basename(f"{path3}")
 
-        assert results[0].size in (95, 96)
-        assert results[1].size in (95, 96)
+        assert results[0].size in (54, 55)
+        assert results[1].size in (54, 55)
         assert results[2].size in (10, 11)
     finally:
         os.remove(f"{temp_target_directory}/{os.path.basename(path1)}.gz")

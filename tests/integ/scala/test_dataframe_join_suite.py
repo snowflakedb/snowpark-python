@@ -160,8 +160,8 @@ def test_join_with_ambiguous_column_in_condidtion(session_cnx):
 
 
 def test_join_using_multiple_columns_and_specifying_join_type(session):
-    table_name1 = Utils.random_name()
-    table_name2 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "int int, int2 int, str string")
         session.sql(
@@ -208,8 +208,8 @@ def test_join_using_multiple_columns_and_specifying_join_type(session):
 
 
 def test_join_using_conditions_and_specifying_join_type(session):
-    table_name1 = Utils.random_name()
-    table_name2 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
     try:
         Utils.create_table(session, table_name1, "a1 int, b1 int, str1 string")
@@ -518,7 +518,7 @@ def test_aliases_multiple_levels_deep(session):
 
 def test_join_sql_as_the_backing_dataframe(session):
 
-    table_name1 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "int int, int2 int, str string")
         session.sql(
@@ -562,7 +562,7 @@ def test_join_sql_as_the_backing_dataframe(session):
 
 def test_negative_test_for_self_join_with_conditions(session):
 
-    table_name1 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
         session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
@@ -589,7 +589,7 @@ def test_negative_test_for_self_join_with_conditions(session):
 
 
 def test_clone_can_help_these_self_joins(session):
-    table_name1 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
         session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
@@ -626,7 +626,7 @@ def test_clone_can_help_these_self_joins(session):
 
 def test_natural_cross_joins(session):
 
-    table_name1 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
         session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
@@ -663,7 +663,7 @@ def test_natural_cross_joins(session):
 
 def test_clone_with_join_dataframe(session):
 
-    table_name1 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
         session.sql(f"insert into {table_name1} values(1, 2), (2, 3)").collect()
@@ -686,7 +686,7 @@ def test_clone_with_join_dataframe(session):
 
 
 def test_join_of_join(session):
-    table_name1 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
         session.sql(f"insert into {table_name1} values(1, 1), (2, 2)").collect()
@@ -712,7 +712,7 @@ def test_join_of_join(session):
 
 def test_negative_test_join_of_join(session_cnx):
     with session_cnx() as session:
-        table_name1 = Utils.random_name()
+        table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         try:
             Utils.create_table(session, table_name1, "c1 int, c2 int")
             session.sql(f"insert into {table_name1} values(1, 1), (2, 2)").collect()
@@ -730,8 +730,8 @@ def test_negative_test_join_of_join(session_cnx):
 
 
 def test_drop_on_join(session):
-    table_name_1 = Utils.random_name()
-    table_name_2 = Utils.random_name()
+    table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
             "a", "b", "c"
@@ -751,7 +751,7 @@ def test_drop_on_join(session):
 
 
 def test_drop_on_self_join(session):
-    table_name_1 = Utils.random_name()
+    table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
             "a", "b", "c"
@@ -767,8 +767,8 @@ def test_drop_on_self_join(session):
 
 
 def test_with_column_on_join(session):
-    table_name_1 = Utils.random_name()
-    table_name_2 = Utils.random_name()
+    table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
             "a", "b", "c"
