@@ -18,7 +18,7 @@ from tests.utils import TestData, Utils
 
 def test_create_view(session):
     try:
-        view_name = Utils.random_name()
+        view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
         TestData.integer1(session).create_or_replace_view(view_name)
 
         res = session.sql(f"select * from {view_name}").collect()
@@ -40,7 +40,7 @@ def test_create_view(session):
 
 def test_view_name_with_special_character(session):
     try:
-        view_name = Utils.random_name()
+        view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
         TestData.column_has_special_char(session).create_or_replace_view(view_name)
 
         res = session.sql(
@@ -53,7 +53,7 @@ def test_view_name_with_special_character(session):
 
 
 def test_only_works_on_select(session):
-    view_name = Utils.random_name()
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     with pytest.raises(SnowparkCreateViewException) as ex_info:
         session.sql("show tables").create_or_replace_view(view_name)
 

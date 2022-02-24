@@ -25,7 +25,7 @@ from tests.utils import Utils
 
 @pytest.fixture(scope="module")
 def tmp_table_basic(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(
         session, table_name, "id integer, foot_size float, shoe_model varchar"
     )
@@ -37,7 +37,7 @@ def tmp_table_basic(session):
 
 @pytest.fixture(scope="module")
 def tmp_table_complex(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(
         session,
         table_name,

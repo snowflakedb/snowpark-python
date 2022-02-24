@@ -11,6 +11,7 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.functions import call_udf
 from tests.utils import TestFiles, Utils
@@ -32,8 +33,8 @@ def test_mix_temporary_and_permanent_udf(session, new_session):
     def add_one(x: int) -> int:
         return x + 1
 
-    temp_func_name = Utils.random_name()
-    perm_func_name = Utils.random_name()
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    perm_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
@@ -64,8 +65,12 @@ def test_valid_quoted_function_name(session):
         return x + 1
 
     special_chars = "quoted_name"
-    temp_func_name = f'"{Utils.random_name()}{special_chars}"'
-    perm_func_name = f'"{special_chars}{Utils.random_name()}"'
+    temp_func_name = (
+        f'"{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}{special_chars}"'
+    )
+    perm_func_name = (
+        f'"{special_chars}{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"'
+    )
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
@@ -89,12 +94,8 @@ def test_support_fully_qualified_udf_name(session, new_session):
     def add_one(x: int) -> int:
         return x + 1
 
-    temp_func_name = (
-        f"{session.get_fully_qualified_current_schema()}.{Utils.random_name()}"
-    )
-    perm_func_name = (
-        f"{session.get_fully_qualified_current_schema()}.{Utils.random_name()}"
-    )
+    temp_func_name = f"{session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
+    perm_func_name = f"{session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
@@ -146,7 +147,7 @@ def test_clean_up_files_if_udf_registration_fails(session):
     def large_udf() -> str:
         return long_string
 
-    perm_func_name = Utils.random_name()
+    perm_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
@@ -186,7 +187,7 @@ def test_udf_read_file_with_snowflake_import_directory_basic(session, resources_
     filename = os.path.basename(test_csv_file)
     with open(test_csv_file, "r") as f:
         file_content = f.read()
-    func_name = Utils.random_name()
+    func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
@@ -215,7 +216,7 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
         return file.read()
 
     # Two session to read two files (same file name, but different content) in UDF
-    filename = Utils.random_name()
+    filename = f"file_{Utils.random_alphanumeric_str(10)}"
     temp_dir1 = tmpdir_factory.mktemp("data")
     temp_dir2 = tmpdir_factory.mktemp("data")
     temp_file_path1 = temp_dir1.join(filename)
@@ -227,8 +228,8 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
     with open(temp_file_path2, "w") as f2:
         f2.write(file_content2)
 
-    func_name1 = Utils.random_name()
-    func_name2 = Utils.random_name()
+    func_name1 = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    func_name2 = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
@@ -265,7 +266,7 @@ def test_udf_read_file_with_staged_file(session, resources_path):
     filename = os.path.basename(test_csv_file)
     with open(test_csv_file, "r") as f:
         file_content = f.read()
-    func_name = Utils.random_name()
+    func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     stage_name = Utils.random_stage_name()
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)

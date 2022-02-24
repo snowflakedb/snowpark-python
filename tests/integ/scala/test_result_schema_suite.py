@@ -210,9 +210,9 @@ def test_use(session):
 def test_create_drop(session):
     tmp_table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     tmp_stage_name1 = Utils.random_name_for_temp_object(TempObjectType.STAGE)
-    tmp_stream_name = Utils.random_name()
-    tmp_view_name = Utils.random_name()
-    tmp_pipe_name = Utils.random_name()
+    tmp_stream_name = f"stream_{Utils.random_alphanumeric_str(10)}"
+    tmp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    tmp_pipe_name = f"pipe_{Utils.random_alphanumeric_str(10)}"
 
     try:
         sql = f"create or replace table {tmp_table_name1} (num int)"
@@ -273,9 +273,9 @@ def test_grant_revoke(session):
 def test_describe(session):
     tmp_table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     tmp_stage_name1 = Utils.random_name_for_temp_object(TempObjectType.STAGE)
-    tmp_stream_name = Utils.random_name()
-    tmp_view_name = Utils.random_name()
-    tmp_pipe_name = Utils.random_name()
+    tmp_stream_name = f"stream_{Utils.random_alphanumeric_str(10)}"
+    tmp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    tmp_pipe_name = f"pipe_{Utils.random_alphanumeric_str(10)}"
 
     try:
         session._run_query(f"create or replace table {tmp_table_name1} (num int)")

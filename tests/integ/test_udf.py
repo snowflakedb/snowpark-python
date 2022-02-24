@@ -140,7 +140,9 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     )
     try:
         assert not new_session.getDefaultSchema()
-        tmp_stage_name_in_temp_schema = f"{temp_schema}.{Utils.random_name()}"
+        tmp_stage_name_in_temp_schema = (
+            f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
+        )
         new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
         full_udf_name = f"{temp_schema}.test_add"
         new_session._run_query(f"drop function if exists {full_udf_name}(int, int)")
@@ -586,7 +588,7 @@ def test_type_hint_no_change_after_registration(session):
 
 def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
-    udf_name = Utils.random_name()
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     with Session.builder.configs(db_parameters).create() as new_session:
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)

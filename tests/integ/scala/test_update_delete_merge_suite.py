@@ -16,6 +16,7 @@ from snowflake.snowpark import (
     WhenMatchedClause,
     WhenNotMatchedClause,
 )
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkTableException
 from snowflake.snowpark.functions import (
     col,
