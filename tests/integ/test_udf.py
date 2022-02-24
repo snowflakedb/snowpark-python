@@ -129,11 +129,11 @@ def test_call_named_udf(session, temp_schema, db_parameters):
         df.select(
             call_udf(
                 f"{session.get_fully_qualified_current_schema()}.test_mul",
-                col("a"),
-                col("b"),
+                6,
+                7,
             )
         ).collect(),
-        [Row(2), Row(12)],
+        [Row(42), Row(42)],
     )
 
     # create a UDF when the session doesn't have a schema
