@@ -3,6 +3,7 @@
 #
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import (
     DoubleType,
@@ -89,7 +90,7 @@ def test_combination_of_multiple_data_sources(session, resources_path):
     test_files = TestFiles(resources_path)
     test_file_csv = "testCSV.csv"
     tmp_stage_name = Utils.random_stage_name()
-    tmp_table_name = Utils.random_name()
+    tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     user_schema = StructType(
         [
             StructField("a", IntegerType()),

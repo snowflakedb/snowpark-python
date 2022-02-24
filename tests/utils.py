@@ -52,10 +52,6 @@ class Utils:
             return path
 
     @staticmethod
-    def random_name() -> str:
-        return "SN_TEST_OBJECT_{}".format(str(uuid.uuid4()).replace("-", "_")).upper()
-
-    @staticmethod
     def random_name_for_temp_object(object_type: TempObjectType) -> str:
         return utils.Utils.random_name_for_temp_object(object_type)
 
@@ -116,7 +112,7 @@ class Utils:
 
     @classmethod
     def random_temp_schema(cls):
-        return f"SCHEMA_{cls.random_name()}"
+        return f"SCHEMA_{cls.random_alphanumeric_str(10)}"
 
     @classmethod
     def get_fully_qualified_temp_schema(cls, session: Session):

@@ -37,12 +37,12 @@ from tests.utils import TestData, TestFiles, Utils
 pytestmark = pytest.mark.udf
 
 tmp_stage_name = Utils.random_stage_name()
-tmp_table_name = Utils.random_name()
-table1 = Utils.random_name()
-table2 = Utils.random_name()
-semi_structured_table = Utils.random_name()
-view1 = f'"{Utils.random_name()}"'
-view2 = f'"{Utils.random_name()}"'
+tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+table1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+table2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+semi_structured_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+view1 = f'"{Utils.random_name_for_temp_object(TempObjectType.VIEW)}"'
+view2 = f'"{Utils.random_name_for_temp_object(TempObjectType.VIEW)}"'
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -275,7 +275,7 @@ def test_incorrect_number_of_args(session):
 
 def test_call_udf_api(session):
     df = session.table(table1)
-    function_name = Utils.random_name()
+    function_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     session.udf.register(
         lambda x: x + x,
         return_type=IntegerType(),
