@@ -61,7 +61,7 @@ SAMPLING_DEVIATION = 0.4
 
 
 def test_null_data_in_tables(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name, "num int")
         session.sql(f"insert into {table_name} values(null),(null),(null)").collect()
@@ -105,7 +105,7 @@ def test_project_null_values(session):
 
 
 def test_write_null_data_to_table(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, None), (2, None), (3, None)]).to_df("a", "b")
     try:
         df.write.save_as_table(table_name)
@@ -118,7 +118,7 @@ def test_createOrReplaceView_with_null_data(session):
     df = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]]).to_df(
         ["a", "b"]
     )
-    view_name = Utils.random_name()
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     try:
         df.create_or_replace_view(view_name)
 
@@ -423,7 +423,7 @@ def test_df_stat_approxQuantile(session):
         TestData.string1(session).stat.approx_quantile("a", [0.5])
     assert "Numeric value 'test1' is not recognized" in str(exec_info)
 
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "num int")
     try:
         assert session.table(table_name).stat.approx_quantile("num", [0.5])[0] is None
@@ -1439,7 +1439,8 @@ def test_createDataFrame_with_given_schema_time(session):
 
 
 def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
-    object_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     # In scala, they create a temp JAR file, here we just upload an existing CSV file
     filepath = TestFiles(resources_path).test_file_csv
@@ -1455,10 +1456,10 @@ def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
         f"list @{stage_name}",
         f"remove @{stage_name}",
         f"remove @{stage_name}",  # second REMOVE returns 0 rows.
-        f"create temp table {object_name} (c1 int)",
-        f"drop table {object_name}",
-        f"create temp view {object_name} (string) as select current_version()",
-        f"drop view {object_name}",
+        f"create temp table {table_name} (c1 int)",
+        f"drop table {table_name}",
+        f"create temp view {view_name} (string) as select current_version()",
+        f"drop view {view_name}",
         f"show tables",
         f"drop stage {stage_name}",
     ]
@@ -1529,7 +1530,7 @@ def test_escaped_character(session):
 
 
 def test_create_or_replace_temporary_view(session, db_parameters):
-    view_name = Utils.random_name()
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     view_name1 = f'"{view_name}%^11"'
     view_name2 = f'"{view_name}"'
 
@@ -1636,7 +1637,7 @@ def test_quoted_column_names(session):
     quoteMiddle = '"quote_""_mid"'
     quoteAllCases = '"""quote_""_start"""'
 
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(
             session,
@@ -1730,7 +1731,7 @@ def test_column_names_without_surrounding_quote(session):
     quoteMiddle = '"quote_""_mid"'
     quoteAllCases = '"""quote_""_start"""'
 
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(
             session,
@@ -1767,7 +1768,7 @@ def test_negative_test_for_user_input_invalid_quoted_name(session):
 
 
 def test_clone_with_union_dataframe(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name, "c1 int, c2 int")
 
@@ -1784,7 +1785,7 @@ def test_clone_with_union_dataframe(session):
 
 
 def test_clone_with_unionall_dataframe(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name, "c1 int, c2 int")
 

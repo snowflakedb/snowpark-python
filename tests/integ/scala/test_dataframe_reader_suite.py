@@ -8,6 +8,7 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
@@ -313,9 +314,11 @@ def test_to_read_files_from_stage(session, resources_path, mode):
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_for_all_csv_compression_keywords(session, temp_schema, mode):
-    tmp_table = temp_schema + "." + Utils.random_name()
+    tmp_table = (
+        temp_schema + "." + Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    )
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    format_name = Utils.random_name()
+    format_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     try:
         get_reader(session, mode).schema(user_schema).option("compression", "auto").csv(
             test_file_on_stage
@@ -339,7 +342,7 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
             )
             res = df.collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
+            Utils.check_answer(res, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
     finally:
         session.sql(f"drop file format {format_name}")
 
@@ -444,13 +447,15 @@ def test_read_avro_with_no_schema(session, mode):
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_for_all_parquet_compression_keywords(session, temp_schema, mode):
-    tmp_table = temp_schema + "." + Utils.random_name()
+    tmp_table = (
+        temp_schema + "." + Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    )
     reader = get_reader(session, mode)
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
 
     reader.parquet(test_file_on_stage).to_df("a").write.save_as_table(tmp_table)
 
-    format_name = Utils.random_name()
+    format_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     session.sql(f"create file format {format_name} type = 'parquet'").collect()
     for ctype in ["snappy", "lzo"]:
         # upload data

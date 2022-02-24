@@ -57,12 +57,12 @@ def test_query_tags_in_session(session):
         'session.create_dataframe(["a", "b", "c"]).first()',
         'session.create_dataframe(["a", "b", "c"]).to_pandas()',
         """
-    view_name = Utils.random_name()
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     session.create_dataframe(["a", "b", "c"]).create_or_replace_view(view_name)
     Utils.drop_view(session, view_name)
     """,
         """
-    temp_view_name = Utils.random_name()
+    temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     session.create_dataframe(["a", "b", "c"]).create_or_replace_temp_view(temp_view_name)
     Utils.drop_view(session, temp_view_name)
     """,

@@ -22,7 +22,7 @@ def test_non_select_queries(session):
         # verify result is not empty
         assert f"{stage_name}" in str(res[0])
 
-        table_name1 = Utils.random_name()
+        table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         Utils.create_table(session, table_name1, "num int")
         res = session.sql(f"show tables like '{table_name1}'").collect()
         assert len(res) == 1
@@ -104,8 +104,8 @@ def test_run_sql_query(session):
 
 
 def test_create_table(session):
-    table_name = Utils.random_name()
-    other_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    other_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         table = session.sql(f"create or replace table {table_name} (num int)")
         assert len(table.schema.fields) > 0
@@ -139,8 +139,8 @@ def test_create_table(session):
 
 
 def test_insert_into_table(session):
-    table_name1 = Utils.random_name()
-    table_name2 = Utils.random_name()
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "num int")
         insert = session.sql(f"insert into {table_name1} values(1),(2),(3)")
@@ -169,7 +169,7 @@ def test_insert_into_table(session):
 
 
 def test_show(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name, "num int")
         table_sql_res = session.sql("SHOW TABLES")

@@ -14,7 +14,7 @@ from tests.utils import Utils
 
 def test_single_query(session_cnx):
     with session_cnx() as session:
-        table_name = Utils.random_name()
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         try:
             Utils.create_table(session, table_name, "num int, str string")
             session.sql(

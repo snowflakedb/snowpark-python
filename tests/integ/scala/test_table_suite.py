@@ -9,6 +9,7 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import (
     ArrayType,
     GeographyType,
@@ -21,7 +22,7 @@ from tests.utils import Utils
 
 @pytest.fixture(scope="function")
 def table_name_1(session: Session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "num int")
     session._run_query(f"insert into {table_name} values (1), (2), (3)")
     yield table_name
@@ -30,7 +31,7 @@ def table_name_1(session: Session):
 
 @pytest.fixture(scope="function")
 def table_name_4(session: Session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "num int")
     session._run_query(f"insert into {table_name} values (1), (2), (3)")
     yield table_name
@@ -39,7 +40,7 @@ def table_name_4(session: Session):
 
 @pytest.fixture(scope="function")
 def semi_structured_table(session: Session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(
         session, table_name, "a1 array, o1 object, v1 variant, g1 geography"
     )
@@ -55,7 +56,7 @@ def semi_structured_table(session: Session):
 
 @pytest.fixture(scope="function")
 def temp_table_name(session: Session, temp_schema: str):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_with_schema = f"{temp_schema}.{table_name}"
     Utils.create_table(session, table_name_with_schema, "str string")
     session._run_query(f"insert into {table_name_with_schema} values ('abc')")
@@ -65,7 +66,7 @@ def temp_table_name(session: Session, temp_schema: str):
 
 @pytest.fixture(scope="function")
 def table_with_time(session: Session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "time time")
     session._run_query(
         f"insert into {table_name} select to_time(a) from values('09:15:29'),"
@@ -93,8 +94,8 @@ def test_read_snowflake_table(session, table_name_1):
 def test_save_as_snowflake_table(session, table_name_1):
     df = session.table(table_name_1)
     assert df.collect() == [Row(1), Row(2), Row(3)]
-    table_name_2 = Utils.random_name()
-    table_name_3 = Utils.random_name()
+    table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name_3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         # copy table_name_1 to table_name_2, default mode
         df.write.save_as_table(table_name_2)
@@ -153,7 +154,7 @@ def test_multipart_identifier(session, table_name_1):
     assert session.table(name2).collect() == expected
     assert session.table(name3).collect() == expected
 
-    name4 = Utils.random_name()
+    name4 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     name5 = session.get_current_schema() + "." + name4
     name6 = session.get_current_database() + "." + name5
 
@@ -249,7 +250,7 @@ def test_table_with_time_type(session, table_with_time):
 
 
 def test_consistent_table_name_behaviors(session):
-    table_name = Utils.random_name()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     db = session.get_current_database()
     sc = session.get_current_schema()
     df = session.create_dataframe([[1], [2], [3]]).to_df("a")
