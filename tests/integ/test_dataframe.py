@@ -1402,6 +1402,19 @@ def test_describe(session):
         "_4",
     ]
 
+    # describe() will still work when there are more than two string columns
+    # ambiguity will be eliminated
+    Utils.check_answer(
+        TestData.string1(session).describe(),
+        [
+            Row("count", "3", "3"),
+            Row("mean", None, None),
+            Row("stddev", None, None),
+            Row("min", "test1", "a"),
+            Row("max", "test3", "c"),
+        ],
+    )
+
     # return an "empty" dataframe if no numeric or string column is present
     Utils.check_answer(
         TestData.timestamp1(session).describe(),
