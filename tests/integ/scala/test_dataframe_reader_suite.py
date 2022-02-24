@@ -342,7 +342,7 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
             )
             res = df.collect()
             res.sort(key=lambda x: x[0])
-            assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
+            Utils.check_answer(res, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
     finally:
         session.sql(f"drop file format {format_name}")
 
