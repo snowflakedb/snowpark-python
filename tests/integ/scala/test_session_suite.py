@@ -56,7 +56,7 @@ def test_default_and_current_database_and_schema(session):
     assert Utils.equals_ignore_case(default_schema, session.get_current_schema())
 
     try:
-        schema_name = Utils.random_alphanumeric_str(10)
+        schema_name = Utils.random_temp_schema()
         session._run_query("create schema {}".format(schema_name))
 
         assert Utils.equals_ignore_case(default_database, session.getDefaultDatabase())

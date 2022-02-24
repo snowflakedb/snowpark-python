@@ -216,7 +216,7 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
         return file.read()
 
     # Two session to read two files (same file name, but different content) in UDF
-    filename = Utils.random_alphanumeric_str(10)
+    filename = f"file_{Utils.random_alphanumeric_str(10)}"
     temp_dir1 = tmpdir_factory.mktemp("data")
     temp_dir2 = tmpdir_factory.mktemp("data")
     temp_file_path1 = temp_dir1.join(filename)
