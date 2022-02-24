@@ -1070,3 +1070,33 @@ def test_add_requirements(session, resources_path):
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.21.2/1.3.5")])
 
     session.clear_packages()
+
+
+@pytest.mark.skipif(
+    not is_pandas_and_numpy_available, reason="numpy and pandas are required"
+)
+def test_udf_describe(session):
+    def get_numpy_pandas_version(s: str) -> str:
+        return f"{s}{numpy.__version__}/{pandas.__version__}"
+
+    get_numpy_pandas_version_udf = session.udf.register(
+        get_numpy_pandas_version, packages=["numpy", "pandas"]
+    )
+    describe_res = session.udf.describe(get_numpy_pandas_version_udf).collect()
+    assert [row[0] for row in describe_res] == [
+        "signature",
+        "returns",
+        "language",
+        "null handling",
+        "volatility",
+        "body",
+        "imports",
+        "handler",
+        "runtime_version",
+        "packages",
+        "installed_packages",
+    ]
+    for row in describe_res:
+        if row[0] == "packages":
+            assert "numpy" in row[1] and "pandas" in row[1]
+            break
