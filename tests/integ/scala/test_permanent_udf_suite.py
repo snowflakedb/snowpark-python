@@ -3,6 +3,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
+import decimal
 import os
 import random
 import string
@@ -12,8 +14,8 @@ import pytest
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
-from snowflake.snowpark.functions import call_udf
-from tests.utils import TestFiles, Utils
+from snowflake.snowpark.functions import call_udf, col
+from tests.utils import TempObjectType, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
 
@@ -42,15 +44,21 @@ def test_mix_temporary_and_permanent_udf(session, new_session):
             add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
         )
         df = session.create_dataframe([1, 2], schema=["a"])
-        Utils.check_answer(df.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)])
-        Utils.check_answer(df.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
+        Utils.check_answer(
+            df.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
+        )
+        Utils.check_answer(
+            df.select(call_udf(perm_func_name, col("a"))), [Row(2), Row(3)]
+        )
 
         # another session
         df2 = new_session.create_dataframe([1, 2], schema=["a"])
-        Utils.check_answer(df2.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
+        Utils.check_answer(
+            df2.select(call_udf(perm_func_name, col("a"))), [Row(2), Row(3)]
+        )
         with pytest.raises(ProgrammingError) as ex_info:
             Utils.check_answer(
-                df2.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)]
+                df2.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
             )
         assert "SQL compilation error" in str(ex_info)
     finally:
@@ -74,8 +82,12 @@ def test_valid_quoted_function_name(session):
         session.udf.register(
             add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
         )
-        Utils.check_answer(df.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)])
-        Utils.check_answer(df.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
+        Utils.check_answer(
+            df.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
+        )
+        Utils.check_answer(
+            df.select(call_udf(perm_func_name, col("a"))), [Row(2), Row(3)]
+        )
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session._run_query(f"drop function if exists {perm_func_name}(int)")
@@ -103,21 +115,29 @@ def test_support_fully_qualified_udf_name(session, new_session):
             add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
         )
         df = session.create_dataframe([1, 2], schema=["a"])
-        Utils.check_answer(df.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)])
-        Utils.check_answer(df.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
         Utils.check_answer(
-            df.select(call_udf(temp_func_name.split(".")[-1], "a")), [Row(2), Row(3)]
+            df.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
         )
         Utils.check_answer(
-            df.select(call_udf(perm_func_name.split(".")[-1], "a")), [Row(2), Row(3)]
+            df.select(call_udf(perm_func_name, col("a"))), [Row(2), Row(3)]
+        )
+        Utils.check_answer(
+            df.select(call_udf(temp_func_name.split(".")[-1], col("a"))),
+            [Row(2), Row(3)],
+        )
+        Utils.check_answer(
+            df.select(call_udf(perm_func_name.split(".")[-1], col("a"))),
+            [Row(2), Row(3)],
         )
 
         # another session
         df2 = new_session.create_dataframe([1, 2], schema=["a"])
-        Utils.check_answer(df2.select(call_udf(perm_func_name, "a")), [Row(2), Row(3)])
+        Utils.check_answer(
+            df2.select(call_udf(perm_func_name, col("a"))), [Row(2), Row(3)]
+        )
         with pytest.raises(ProgrammingError) as ex_info:
             Utils.check_answer(
-                df2.select(call_udf(temp_func_name, "a")), [Row(2), Row(3)]
+                df2.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
             )
         assert "SQL compilation error" in str(ex_info)
     finally:
@@ -282,3 +302,37 @@ def test_udf_read_file_with_staged_file(session, resources_path):
         session._run_query(f"drop function if exists {func_name}(string)")
         Utils.drop_stage(session, stage_name)
         session.clear_imports()
+
+
+def test_call_udf_with_literal_value(session):
+    values = [
+        2,
+        1.1,
+        decimal.Decimal(1.2),
+        "str",
+        True,
+        bytes("a", "utf-8"),
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+    ]
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    def func(
+        a: int,
+        b: float,
+        c: decimal.Decimal,
+        d: str,
+        e: bool,
+        g: bytes,
+        h: datetime.datetime,
+        i: datetime.time,
+        j: datetime.date,
+    ) -> str:
+        return f"{a} {b} {float(c)} {d} {e} {g} {h} {i} {j}"
+
+    session.udf.register(func, name=udf_name)
+    Utils.check_answer(
+        session.range(1).select(call_udf(udf_name, *values)),
+        [Row("2 1.1 1.2 str True b'a' 2017-02-24 12:00:05.456000 20:57:06 2017-02-25")],
+    )
