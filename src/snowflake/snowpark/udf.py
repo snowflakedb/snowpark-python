@@ -188,7 +188,20 @@ class UDFRegistration:
     """
 
     def __init__(self, session: "snowflake.snowpark.Session"):
-        self.session = session
+        self._session = session
+
+    def describe(self, udf_obj: UserDefinedFunction) -> "snowflake.snowpark.DataFrame":
+        """
+        Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a UDF.
+
+        Args:
+            udf_obj: A :class:`UserDefinedFunction` returned by
+                :func:`~snowflake.snowpark.functions.udf` or :meth:`register`.
+        """
+        func_args = [convert_to_sf_type(t) for t in udf_obj._input_types]
+        return self._session.sql(
+            f"describe function {udf_obj.name}({','.join(func_args)})"
+        )
 
     def register(
         self,
@@ -233,7 +246,7 @@ class UDFRegistration:
         if name:
             udf_name = name if isinstance(name, str) else ".".join(name)
         else:
-            udf_name = f"{self.session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
+            udf_name = f"{self._session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
         Utils.validate_object_name(udf_name)
 
         # get return and input types
@@ -279,7 +292,7 @@ class UDFRegistration:
                 )
                 try:
                     logger.info("Removing Snowpark uploaded file: %s", udf_file_path)
-                    self.session._run_query(f"REMOVE {udf_file_path}")
+                    self._session._run_query(f"REMOVE {udf_file_path}")
                     logger.info(
                         "Finished removing Snowpark uploaded file: %s", udf_file_path
                     )
@@ -288,7 +301,11 @@ class UDFRegistration:
             raise ex
 
         return UserDefinedFunction(
-            func, return_type, new_input_types, udf_name, is_return_nullable
+            func,
+            new_return_type,
+            new_input_types,
+            udf_name,
+            is_return_nullable,
         )
 
     def __get_types_from_type_hints(
@@ -337,7 +354,7 @@ class UDFRegistration:
         upload_stage = (
             Utils.unwrap_stage_location_single_quote(stage_location)
             if stage_location
-            else self.session.get_session_stage()
+            else self._session.get_session_stage()
         )
 
         # resolve imports
@@ -345,11 +362,11 @@ class UDFRegistration:
             udf_level_imports = {}
             for udf_import in imports:
                 if isinstance(udf_import, str):
-                    resolved_import_tuple = self.session._resolve_import_path(
+                    resolved_import_tuple = self._session._resolve_import_path(
                         udf_import
                     )
                 elif isinstance(udf_import, tuple) and len(udf_import) == 2:
-                    resolved_import_tuple = self.session._resolve_import_path(
+                    resolved_import_tuple = self._session._resolve_import_path(
                         udf_import[0], udf_import[1]
                     )
                 else:
@@ -358,16 +375,16 @@ class UDFRegistration:
                         "or a tuple of the file path (str) and the import path (str)."
                     )
                 udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
-            all_urls = self.session._resolve_imports(upload_stage, udf_level_imports)
+            all_urls = self._session._resolve_imports(upload_stage, udf_level_imports)
         else:
-            all_urls = self.session._resolve_imports(upload_stage)
+            all_urls = self._session._resolve_imports(upload_stage)
 
         # resolve packages
         resolved_packages = (
-            self.session._resolve_packages(packages)
+            self._session._resolve_packages(packages)
             if packages
-            else self.session._resolve_packages(
-                [], self.session._packages, validate_package=False
+            else self._session._resolve_packages(
+                [], self._session._packages, validate_package=False
             )
         )
 
@@ -383,7 +400,7 @@ class UDFRegistration:
                     input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
                 ) as zf:
                     zf.writestr(f"{udf_file_name_base}.py", code)
-                self.session._conn.upload_stream(
+                self._session._conn.upload_stream(
                     input_stream=input_stream,
                     stage_location=upload_stage,
                     dest_filename=udf_file_name,
@@ -480,4 +497,4 @@ RUNTIME_VERSION=3.8
 HANDLER='{handler}'
 {inline_python_code_in_sql}
 """
-        self.session._run_query(create_udf_query)
+        self._session._run_query(create_udf_query)
