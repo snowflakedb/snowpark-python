@@ -192,7 +192,7 @@ class UDFRegistration:
 
     def describe(self, udf_obj: UserDefinedFunction) -> "snowflake.snowpark.DataFrame":
         """
-        Returns a :class:`~snowflake.snowpark.DataFrame` that describes properties of a UDF.
+        Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a UDF.
 
         Args:
             udf_obj: A :class:`UserDefinedFunction` returned by
