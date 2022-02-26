@@ -1,4 +1,8 @@
 # Release History
+## 0.4.1 (2022-02-25)
+### Bug Fixes
+- Fixed a bug in `DataFrame.describe()` that raised an error when the `DataFrame` has more than one string columns.
+
 ## 0.4.0 (2022-02-15)
 
 ### New Features
