@@ -926,11 +926,11 @@ def strip_null_value(col: ColumnOrName) -> Column:
     return builtin("strip_null_value")(c)
 
 
-def array_agg(col: ColumnOrName) -> Column:
+def array_agg(col: ColumnOrName, is_distinct: bool = False) -> Column:
     """Returns the input values, pivoted into an ARRAY. If the input is empty, an empty
     ARRAY is returned."""
     c = _to_col_if_str(col, "array_agg")
-    return builtin("array_agg")(c)
+    return _call_function("array_agg", is_distinct, c)
 
 
 def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
