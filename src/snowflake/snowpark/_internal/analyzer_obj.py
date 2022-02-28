@@ -50,8 +50,6 @@ from snowflake.snowpark._internal.plans.logical.logical_plan import (
     UnresolvedRelation as SPUnresolvedRelation,
 )
 from snowflake.snowpark._internal.sp_expressions import (
-    AggregateExpression as SPAggregateExpression,
-    AggregateFunction as SPAggregateFunction,
     Alias as SPAlias,
     AttributeReference as SPAttributeReference,
     BaseGroupingSets as SPBaseGroupingSets,
@@ -70,7 +68,6 @@ from snowflake.snowpark._internal.sp_expressions import (
     IsNaN as SPIsNaN,
     IsNotNull as SPIsNotNull,
     IsNull as SPIsNull,
-    LeafExpression as SPLeafExpression,
     Like as SPLike,
     ListAgg as SPListAgg,
     Literal as SPLiteral,
@@ -158,11 +155,6 @@ class Analyzer:
                 [self.analyze(expression) for expression in expr.values],
             )
 
-        # aggregate
-        if isinstance(expr, SPAggregateExpression):
-            return self.aggr_extractor_convert_expr(
-                expr.aggregate_function, expr.is_distinct
-            )
         if isinstance(expr, SPBaseGroupingSets):
             return self.grouping_extractor(expr)
 
@@ -306,23 +298,6 @@ class Analyzer:
                 {key: self.analyze(value) for key, value in expr.args.items()},
             )
 
-    # TODO
-    def leaf_expression_extractor(self, expr):
-        if not isinstance(expr, SPLeafExpression):
-            return None
-
-    # TODO
-    def string_to_trim_expression_extractor(self, expr):
-        pass
-
-    # TODO
-    def complex_type_merging_expressing_extractor(self, expr):
-        pass
-
-    # TODO
-    def ternary_expression_extractor(self, expr):
-        pass
-
     def unary_expression_extractor(self, expr) -> Optional[str]:
         if isinstance(expr, SPUnresolvedAlias):
             return self.analyze(expr.child)
@@ -360,27 +335,6 @@ class Analyzer:
                 [self.analyze(expr.left), self.analyze(expr.right)],
                 False,
             )
-
-    # TODO
-    def aggregate_extractor(self, expr):
-        if not isinstance(expr, SPAggregateFunction):
-            return None
-        else:
-            return self.aggr_extractor_convert_expr(expr, is_distinct=False)
-
-    def aggr_extractor_convert_expr(
-        self, expr: SPAggregateFunction, is_distinct: bool
-    ) -> str:
-        # if type(expr) == SPSkewness:
-        #   TODO
-        # if type(expr) == SPNTile:
-        #   TODO
-        # if type(expr) == aggregateWindow:
-        #   TODO
-        # else:
-        return self.package.function_expression(
-            expr.pretty_name(), [self.analyze(c) for c in expr.children], is_distinct
-        )
 
     def grouping_extractor(self, expr: SPExpression):
         return self.analyze(
