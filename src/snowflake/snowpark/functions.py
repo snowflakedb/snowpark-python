@@ -39,12 +39,9 @@ from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.sp_expressions import (
-    AggregateFunction as SPAggregateFunction,
     ArrayIntersect as SPArrayIntersect,
     ArraysOverlap as SPArraysOverlap,
-    Avg as SPAverage,
     CaseWhen as SPCaseWhen,
-    Count as SPCount,
     FunctionExpression as SPFunctionExpression,
     IsNaN as SPIsNan,
     IsNull as SPIsNull,
@@ -52,12 +49,9 @@ from snowflake.snowpark._internal.sp_expressions import (
     Lead as SPLead,
     ListAgg as SPListAgg,
     Literal as SPLiteral,
-    Max as SPMax,
-    Min as SPMin,
     MultipleExpression as SPMultipleExpression,
     NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
     Star as SPStar,
-    Sum as SPSum,
     TableFunction as SPTableFunction,
     TableFunctionExpression as SPTableFunctionExpression,
 )
@@ -115,7 +109,7 @@ def avg(e: ColumnOrName) -> Column:
     """Returns the average of non-NULL records. If all records inside a group are NULL,
     the function returns NULL."""
     c = _to_col_if_str(e, "avg")
-    return __with_aggregate_function(SPAverage(c.expression))
+    return builtin("avg")(c)
 
 
 def corr(column1: ColumnOrName, column2: ColumnOrName) -> Column:
@@ -129,12 +123,11 @@ def count(e: ColumnOrName) -> Column:
     """Returns either the number of non-NULL records for the specified columns, or the
     total number of records."""
     c = _to_col_if_str(e, "count")
-    exp = (
-        SPCount(SPLiteral(1))
+    return (
+        builtin("count")(SPLiteral(1))
         if isinstance(c.expression, SPStar)
-        else SPCount(c.expression)
+        else builtin("count")(c.expression)
     )
-    return __with_aggregate_function(exp)
 
 
 def count_distinct(*cols: ColumnOrName) -> Column:
@@ -175,7 +168,7 @@ def max(e: ColumnOrName) -> Column:
     """Returns the maximum value for the records in a group. NULL values are ignored
     unless all the records are NULL, in which case a NULL value is returned."""
     c = _to_col_if_str(e, "max")
-    return __with_aggregate_function(SPMax(c.expression))
+    return builtin("max")(c)
 
 
 def mean(e: ColumnOrName) -> Column:
@@ -195,7 +188,7 @@ def min(e: ColumnOrName) -> Column:
     """Returns the minimum value for the records in a group. NULL values are ignored
     unless all the records are NULL, in which case a NULL value is returned."""
     c = _to_col_if_str(e, "min")
-    return __with_aggregate_function(SPMin(c.expression))
+    return builtin("min")(c)
 
 
 def mode(e: ColumnOrName) -> Column:
@@ -239,7 +232,7 @@ def sum(e: ColumnOrName) -> Column:
     to compute the sum of unique non-null values. If all records inside a group are
     NULL, the function returns NULL."""
     c = _to_col_if_str(e, "sum")
-    return __with_aggregate_function(SPSum(c.expression))
+    return builtin("sum")(c)
 
 
 def sum_distinct(e: ColumnOrName) -> Column:
@@ -247,7 +240,7 @@ def sum_distinct(e: ColumnOrName) -> Column:
     DISTINCT keyword to compute the sum of unique non-null values. If all records
     inside a group are NULL, the function returns NULL."""
     c = _to_col_if_str(e, "sum_distinct")
-    return __with_aggregate_function(SPSum(c.expression), is_distinct=True)
+    return _call_function("sum", True, c)
 
 
 def variance(e: ColumnOrName) -> Column:
@@ -1734,12 +1727,6 @@ def udf(
             replace=replace,
             parallel=parallel,
         )
-
-
-def __with_aggregate_function(
-    func: SPAggregateFunction, is_distinct: bool = False
-) -> Column:
-    return Column(func.to_aggregate_expression(is_distinct))
 
 
 def call_udf(
