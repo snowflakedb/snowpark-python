@@ -1194,21 +1194,26 @@ def test_strip_null_value(session):
     # This test needs columns to be passed and can't be replicated by passing strings
 
 
-def test_array_agg(session):
+@pytest.mark.parametrize("col_amount", ["amount", col("amount")])
+def test_array_agg(session, col_amount):
     assert (
         str(
             TestData.monthly_sales(session)
-            .select(array_agg(col("amount")))
+            .select(array_agg(col_amount))
             .collect()[0][0]
         )
         == "[\n  10000,\n  400,\n  4500,\n  35000,\n  5000,\n  3000,\n  200,\n  90500,\n  6000,\n  "
         + "5000,\n  2500,\n  9500,\n  8000,\n  10000,\n  800,\n  4500\n]"
     )
-    # same as above, but pass str instead of Column
+
     assert (
-        str(TestData.monthly_sales(session).select(array_agg("amount")).collect()[0][0])
-        == "[\n  10000,\n  400,\n  4500,\n  35000,\n  5000,\n  3000,\n  200,\n  90500,\n  6000,\n  "
-        + "5000,\n  2500,\n  9500,\n  8000,\n  10000,\n  800,\n  4500\n]"
+        str(
+            TestData.monthly_sales(session)
+            .select(array_agg(col_amount, is_distinct=True))
+            .collect()[0][0]
+        )
+        == "[\n  10000,\n  4500,\n  35000,\n  5000,\n  3000,\n  200,\n  90500,\n  6000,\n  "
+        + "2500,\n  8000,\n  800,\n  400,\n  9500\n]"
     )
 
 
