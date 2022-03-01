@@ -5,9 +5,8 @@
 from typing import Dict
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.sp_expressions import Attribute
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.types import StructType, VariantType
 

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
+import snowflake.snowpark._internal.analyzer.analyzer_package as analyzer_package
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -27,7 +28,6 @@ class Expression:
     But the constructor accepts a single child. This might be refactored in the future.
     """
 
-    # https://github.com/apache/spark/blob/1dd0ca23f64acfc7a3dc697e19627a1b74012a2d/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/Expression.scala#L86
     def __init__(self, child: Optional["Expression"] = None):
         """
         Subclasses will override these attributes
@@ -37,11 +37,13 @@ class Expression:
         self.children = [child] if child else None
         self.datatype: Optional[DataType] = None
 
+    @property
     def pretty_name(self) -> str:
         """Returns a user-facing string representation of this expression's name.
         This should usually match the name of the function in SQL."""
         return self.__class__.__name__.upper()
 
+    @property
     def sql(self) -> str:
         """TODO: analyzer_object.py's analyze() method doesn't use this method to create sql statement.
         The only place that uses Expression.sql() to generate sql statement
@@ -49,32 +51,19 @@ class Expression:
         consistent among all different Expressions.
         """
         children_sql = (
-            ", ".join([x.sql() for x in self.children]) if self.children else ""
+            ", ".join([x.sql for x in self.children]) if self.children else ""
         )
-        return f"{self.pretty_name()}({children_sql})"
+        return f"{self.pretty_name}({children_sql})"
 
     def __repr__(self) -> str:
-        return self.pretty_name()
+        return self.pretty_name
 
 
-class NamedExpression:
-    """In scala, `NamedExpression` is a trait that extends `Expression`. Python doesn't have trait.
-    A Mixin is used to simulate it. They're still different though.
-    """
-
-    @property
-    def name(self):
-        return getattr(self, "_name", None)
-
-    @property
-    def expr_id(self):
-        if not hasattr(self, "_expr_id"):
-            self._expr_id = uuid.uuid4()
-        return self._expr_id
-
-
-class LeafExpression(Expression):
-    pass
+class NamedExpression(Expression):
+    def __init__(self, child: Optional["Expression"] = None):
+        super().__init__(child)
+        self.name = None
+        self.expr_id = uuid.uuid4()
 
 
 class ScalarSubquery(Expression):
@@ -96,10 +85,9 @@ class InExpression(Expression):
         self.values = values
 
 
-class Star(LeafExpression, NamedExpression):
+class Star(Expression):
     def __init__(self, expressions: List[NamedExpression]):
         super().__init__()
-        self._name = "Star"
         self.expressions = expressions
 
 
@@ -149,36 +137,63 @@ class Rollup(BaseGroupingSets):
         self.children = self.grouping_set_indexes
 
 
-# Named Expressions
 class Alias(UnaryExpression, NamedExpression):
-    def __init__(self, child, name, expr_id=None):
+    def __init__(self, child: Expression, name: str):
         super().__init__(child)
-        self._name = name
-        self._expr_id = expr_id if expr_id else uuid.uuid4()
+        self.name = name
 
 
-class Attribute(LeafExpression, NamedExpression):
-    def __init__(self, name):
+class Attribute(NamedExpression):
+    def __init__(self, name: str, datatype: DataType, nullable: bool = True):
         super().__init__()
-        self._name = name
+        self.name = name
+        self.datatype = datatype
+        self.nullable = nullable
 
-    @classmethod
-    def with_name(cls, name):
-        return Attribute(name)
+    def with_name(self, new_name: str) -> "Attribute":
+        if self.name == new_name:
+            return self
+        else:
+            return Attribute(
+                analyzer_package.AnalyzerPackage.quote_name(new_name),
+                self.datatype,
+                self.nullable,
+            )
 
+    @property
     def sql(self) -> str:
         return self.name
 
+    def __str__(self):
+        return self.name
+
+
+class UnresolvedAttribute(NamedExpression):
+    def __init__(self, name: str):
+        super().__init__()
+        self.name = name
+
+    @property
+    def sql(self) -> str:
+        return self.name
+
+    def __str__(self):
+        return self.name
+
+    def __eq__(self, other):
+        return type(other) is type(self) and other.name == self.name
+
+    def __hash__(self):
+        return hash(self.name)
+
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
-    def __init__(self, child, alias_func):
+    def __init__(self, child: Expression):
         super().__init__(child=child)
-        self.alias_func = alias_func
-        self._name = alias_func
+        self.name = child.sql
 
 
-# Leaf Expressions
-class Literal(LeafExpression):
+class Literal(Expression):
     def __init__(self, value: Any, datatype: Optional[DataType] = None):
         super().__init__()
 
@@ -328,63 +343,6 @@ class Cast(UnaryExpression):
         self.nullable = child.nullable
 
 
-# Attributes
-class AttributeReference(Attribute):
-    def __init__(self, name: str, datatype: DataType, nullable: bool):
-        super().__init__(name)
-        self.datatype = datatype
-        self.nullable = nullable
-
-    def with_name(self, new_name):
-        if self.name == new_name:
-            return self
-        else:
-            return AttributeReference(self.name, self.datatype, self.nullable)
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return self.__str__()
-
-
-class UnresolvedAttribute(Attribute):
-    def __init__(self, name_parts):
-        super().__init__(name_parts if type(name_parts) == str else name_parts[-1])
-        self.name_parts = [name_parts] if type(name_parts) == str else name_parts
-
-    # @property
-    # def expr_id(self) -> None:
-    #    raise Exception("UnresolvedException - expr_id")
-
-    @classmethod
-    def quoted(cls, name):
-        # TODO revisit
-        return cls(name)
-
-    @classmethod
-    def quoted_string(cls, name):
-        # TODO revisit
-        return cls(UnresolvedAttribute.parse_attribute_name(name))
-
-    @staticmethod
-    def parse_attribute_name(name):
-        # TODO
-        return name
-
-    def __str__(self):
-        return ".".join(self.name_parts)
-
-    def __eq__(self, other):
-        return type(other) is type(self) and str(self) == str(other)
-
-    def __hash__(self):
-        return hash(str(self))
-
-    def sql(self):
-        return self.__str__()
-
-
 class Like(Expression):
     def __init__(self, expr: Expression, pattern: Expression):
         super().__init__(expr)
@@ -427,12 +385,16 @@ class FunctionExpression(Expression):
         self.children = arguments
         self.is_distinct = is_distinct
 
+    @property
     def pretty_name(self) -> str:
         return self.name
 
+    @property
     def sql(self) -> str:
         distinct = "DISTINCT " if self.is_distinct else ""
-        return f"{self.pretty_name()}({distinct}{', '.join([c.sql() for c in self.children])})"
+        return (
+            f"{self.pretty_name}({distinct}{', '.join([c.sql for c in self.children])})"
+        )
 
 
 class TableFunctionExpression(Expression):

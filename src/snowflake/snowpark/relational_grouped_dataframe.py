@@ -153,13 +153,13 @@ class RelationalGroupedDataFrame:
 
     def __alias(self, expr: SPExpression) -> SPNamedExpression:
         if isinstance(expr, SPUnresolvedAttribute):
-            return SPUnresolvedAlias(expr, None)
+            return SPUnresolvedAlias(expr)
         elif isinstance(expr, SPNamedExpression):
             return expr
         else:
             return SPAlias(
                 expr,
-                self.__strip_invalid_sf_identifier_chars(expr.sql().upper()),
+                self.__strip_invalid_sf_identifier_chars(expr.sql.upper()),
             )
 
     @staticmethod

@@ -149,7 +149,7 @@ class Column:
             if expr == "*":
                 self.expression = SPStar([])
             else:
-                self.expression = SPUnresolvedAttribute.quoted(
+                self.expression = SPUnresolvedAttribute(
                     AnalyzerPackage.quote_name(expr)
                 )
         elif isinstance(expr, SPExpression):
@@ -594,7 +594,7 @@ class Column:
         if isinstance(self.expression, SPNamedExpression):
             return self.expression
         else:
-            return SPUnresolvedAlias(self.expression, None)
+            return SPUnresolvedAlias(self.expression)
 
     @classmethod
     def _to_expr(cls, expr: Union[ColumnOrLiteral, SPExpression]) -> SPExpression:
@@ -614,7 +614,7 @@ class Column:
 
     @classmethod
     def _expr(cls, e: str) -> "Column":
-        return cls(SPUnresolvedAttribute.quoted(e))
+        return cls(SPUnresolvedAttribute(e))
 
     # Add these alias for user code migration
     isin = in_
