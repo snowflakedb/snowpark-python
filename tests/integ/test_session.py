@@ -123,7 +123,7 @@ def test_list_files_in_stage(session, resources_path):
         assert len(files5) == 1
         assert os.path.basename(test_files.test_file_avro) in files5
 
-        Utils.create_stage(session, special_name)
+        Utils.create_stage(session, special_name, is_temporary=False)
         Utils.upload_to_stage(
             session, special_name, test_files.test_file_csv, compress=False
         )
@@ -131,7 +131,7 @@ def test_list_files_in_stage(session, resources_path):
         assert len(files6) == 1
         assert os.path.basename(test_files.test_file_csv) in files6
 
-        Utils.create_stage(session, single_quoted_name)
+        Utils.create_stage(session, single_quoted_name, is_temporary=False)
         Utils.upload_to_stage(
             session, single_quoted_name, test_files.test_file_csv, compress=False
         )
