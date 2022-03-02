@@ -2414,8 +2414,8 @@ def test_random_split(session):
         expected_row_count = total_count * weights[index] / sum(weights)
         assert abs(expected_row_count - count) < expected_row_count * SAMPLING_DEVIATION
 
-    def check_random_split_result(weights):
-        parts = df1.random_split(weights)
+    def check_random_split_result(weights, seed=None):
+        parts = df1.random_split(weights, seed)
         assert len(parts) == len(weights)
         part_counts = [p.count() for p in parts]
         assert sum(part_counts) == row_count
@@ -2430,6 +2430,9 @@ def test_random_split(session):
 
     # 2 parts
     check_random_split_result([0.2, 0.8])
+
+    # 2 parts with seed
+    check_random_split_result([0.2, 0.8], 42)
 
     # 2 parts and weights needs to be normalized
     check_random_split_result([0.11111, 0.6666])

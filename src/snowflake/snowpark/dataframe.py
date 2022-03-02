@@ -1972,7 +1972,9 @@ class DataFrame:
         new_plan = self.session.table(temp_table_name)._plan
         return DataFrame(session=self.session, plan=new_plan, is_cached=True)
 
-    def random_split(self, weights: List[float]) -> List["DataFrame"]:
+    def random_split(
+        self, weights: List[float], seed: Optional[int] = None
+    ) -> List["DataFrame"]:
         """
         Randomly splits the current DataFrame into separate DataFrames,
         using the specified weights.
@@ -1983,6 +1985,7 @@ class DataFrame:
                 Every number in ``weights`` has to be positive. If only one
                 weight is specified, the returned DataFrame list only includes
                 the current DataFrame.
+            seed: The seed for sampling.
 
         Example::
 
@@ -2007,7 +2010,7 @@ class DataFrame:
             one_million = 1000000
             temp_column_name = Utils.random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
-                temp_column_name, abs_(random()) % one_million
+                temp_column_name, abs_(random(seed)) % one_million
             ).cache_result()
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
@@ -2206,6 +2209,7 @@ Query List:
     withColumn = with_column
     withColumnRenamed = with_column_renamed
     toLocalIterator = to_local_iterator
+    randomSplit = random_split
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets
