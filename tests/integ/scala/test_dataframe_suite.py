@@ -2446,12 +2446,12 @@ def test_random_split_negative(session):
 
     with pytest.raises(ValueError) as ex_info:
         df1.random_split([])
-    assert "weights can't be None or empty" in str(ex_info)
+    assert "weights can't be None or empty and must be positive numbers" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
         df1.random_split([-0.1, -0.2])
-    assert "weight can't be negative" in str(ex_info)
+    assert "weights must be positive numbers" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
         df1.random_split([0.1, 0])
-    assert "weight can't be negative" in str(ex_info)
+    assert "weights must be positive numbers" in str(ex_info)

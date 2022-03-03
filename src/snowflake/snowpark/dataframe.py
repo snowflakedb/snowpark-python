@@ -90,6 +90,8 @@ from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 logger = getLogger(__name__)
 
+ONE_MILLION = 1e6
+
 
 class DataFrame:
     """Represents a lazily-evaluated relational dataset that contains a collection
@@ -1995,26 +1997,30 @@ class DataFrame:
             >>> assert len(df_parts) == len(weights)
 
         Note:
-            When multiple weights are specified, the current DataFrame will
+            1. When multiple weights are specified, the current DataFrame will
             be cached before being split.
+
+            2. When a weight or a normailized weight is less than 1000000, the
+            corresponding split dataframe will be empty.
         """
         if not weights:
-            raise ValueError("weights can't be None or empty")
+            raise ValueError(
+                "weights can't be None or empty and must be positive numbers"
+            )
         elif len(weights) == 1:
             return [self]
         else:
             for w in weights:
                 if w <= 0:
-                    raise ValueError("weight can't be negative")
+                    raise ValueError("weights must be positive numbers")
 
-            one_million = 1000000
             temp_column_name = Utils.random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
-                temp_column_name, abs_(random(seed)) % one_million
+                temp_column_name, abs_(random(seed)) % ONE_MILLION
             ).cache_result()
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
-                int(w * one_million)
+                int(w * ONE_MILLION)
                 for w in list(itertools.accumulate([w / sum_weights for w in weights]))
             ]
             normalized_boundaries = zip(
