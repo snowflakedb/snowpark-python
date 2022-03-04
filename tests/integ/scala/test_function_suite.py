@@ -72,6 +72,7 @@ from snowflake.snowpark.functions import (
     degrees,
     dense_rank,
     div0,
+    endswith,
     equal_nan,
     exp,
     factorial,
@@ -1030,6 +1031,20 @@ def test_startswith(session):
     # same as above, but pass str instead of Column
     Utils.check_answer(
         TestData.string4(session).select(startswith("a", lit("ban"))),
+        [Row(False), Row(True), Row(False)],
+        sort=False,
+    )
+
+
+def test_endswith(session):
+    Utils.check_answer(
+        TestData.string4(session).select(endswith(col("a"), lit("ana"))),
+        [Row(False), Row(True), Row(False)],
+        sort=False,
+    )
+    # same as above, but pass str instead of Column
+    Utils.check_answer(
+        TestData.string4(session).select(endswith("a", lit("ana"))),
         [Row(False), Row(True), Row(False)],
         sort=False,
     )

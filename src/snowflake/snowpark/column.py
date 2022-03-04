@@ -481,6 +481,16 @@ class Column:
         other = snowflake.snowpark.functions.lit(other)
         return snowflake.snowpark.functions.startswith(self, other)
 
+    def endswith(self, other: Union["Column", str]) -> "Column":
+        """Returns true if this Column ends with another string.
+
+        Args:
+            other: A :class:`Column` or a ``str`` that is used to check if this column ends with it.
+                A ``str`` will be interpreted as a literal value instead of a column name.
+        """
+        other = snowflake.snowpark.functions.lit(other)
+        return snowflake.snowpark.functions.endswith(self, other)
+
     def substr(
         self,
         start_pos: Union["Column", int],
@@ -498,9 +508,6 @@ class Column:
 
     # TODO: Add these functions for code migration
     # def contains(self):
-    #     ...
-    #
-    # def endswith(self):
     #     ...
     #
     # def get_field(self):
