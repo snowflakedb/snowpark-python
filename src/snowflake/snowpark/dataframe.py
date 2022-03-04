@@ -90,7 +90,7 @@ from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 logger = getLogger(__name__)
 
-ONE_MILLION = 1e6
+ONE_MILLION = 1000000
 
 
 class DataFrame:
