@@ -23,6 +23,7 @@ from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
     SnowflakeValues,
@@ -41,6 +42,7 @@ from snowflake.snowpark._internal.sp_expressions import (
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     _infer_schema,
+    _infer_type,
     _merge_type,
 )
 from snowflake.snowpark._internal.utils import (
@@ -69,6 +71,10 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.stored_procedure import (
+    StoredProcedure,
+    StoredProcedureRegistration,
+)
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
@@ -219,6 +225,7 @@ class Session:
         self.__session_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
         self.__stage_created = False
         self.__udf_registration = None
+        self.__sp_registration = None
         self.__plan_builder = SnowflakePlanBuilder(self)
 
         self.__last_action_id = 0
@@ -1380,6 +1387,36 @@ class Session:
         if not self.__udf_registration:
             self.__udf_registration = UDFRegistration(self)
         return self.__udf_registration
+
+    @property
+    def stored_proc(self) -> StoredProcedureRegistration:
+        """
+        Returns a :class:`stored_procedure.StoredProcedureRegistration` object that you can use to register stored procedures.
+        See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
+        """
+        if not self.__sp_registration:
+            self.__sp_registration = StoredProcedureRegistration(self)
+        return self.__sp_registration
+
+    def call(
+        self, stored_proc_name: str, *args: Union[Any, List[Any], Tuple[Any, ...]]
+    ):
+        """Calls a stored procedure by name.
+
+        Args:
+            stored_proc_name: The name of stored procedure in Snowflake.
+            args: Arguments should be Basic Python types.
+
+        Example::
+
+            session.call("my_copy_sp", "test_from", "test_to", 10)
+        """
+        sql_args = []
+        for arg in Utils.parse_positional_args_to_list(*args):
+            sql_args.append(DataTypeMapper.to_sql(arg, _infer_type(arg)))
+        return self.sql(f"CALL {stored_proc_name}({', '.join(sql_args)})").collect()[0][
+            0
+        ]
 
     def flatten(
         self,
