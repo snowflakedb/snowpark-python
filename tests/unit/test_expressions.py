@@ -8,34 +8,9 @@ import decimal
 
 import pytest
 
-from snowflake.snowpark._internal.sp_expressions import (
-    Attribute,
-    AttributeReference,
-    FunctionExpression,
-    Literal,
-    UnresolvedAttribute,
-)
+from snowflake.snowpark._internal.sp_expressions import Literal
 from snowflake.snowpark._internal.type_utils import _type_mappings
 from snowflake.snowpark.exceptions import SnowparkPlanException
-from snowflake.snowpark.types import DecimalType, IntegerType
-
-
-def test_expression_sql():
-    attribute = Attribute("A")
-    assert "A" == attribute.sql()
-
-    ar = AttributeReference("A", DecimalType(), True)
-    assert "A" == ar.sql()
-
-    unresolved_attribute = UnresolvedAttribute(["namepart1", "namepart2"])
-    assert "namepart1.namepart2" == unresolved_attribute.sql()
-
-    function_expression = FunctionExpression(
-        name="func",
-        arguments=[AttributeReference("A", IntegerType(), True)],
-        is_distinct=False,
-    )
-    assert "func(A)" == function_expression.sql()
 
 
 def test_literal():

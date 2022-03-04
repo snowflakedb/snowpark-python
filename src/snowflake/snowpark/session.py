@@ -23,7 +23,6 @@ from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlanBuilder,
     SnowflakeValues,
@@ -36,7 +35,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.sp_expressions import (
-    AttributeReference as SPAttributeReference,
+    Attribute as SPAttribute,
     FlattenFunction as SPFlattenFunction,
 )
 from snowflake.snowpark._internal.type_utils import (
@@ -845,7 +844,7 @@ class Session:
     def _run_query(self, query: str) -> List[Any]:
         return self._conn.run_query(query)["data"]
 
-    def _get_result_attributes(self, query: str) -> List[Attribute]:
+    def _get_result_attributes(self, query: str) -> List[SPAttribute]:
         return self._conn.get_result_attributes(query)
 
     @deprecate(
@@ -1123,7 +1122,7 @@ class Session:
                 else field.datatype
             )
             attrs.append(
-                SPAttributeReference(
+                SPAttribute(
                     AnalyzerPackage.quote_name(field.name), sf_type, field.nullable
                 )
             )

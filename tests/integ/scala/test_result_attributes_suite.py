@@ -8,7 +8,7 @@ from typing import List
 import pytest
 
 from snowflake.snowpark import Session
-from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
+from snowflake.snowpark._internal.sp_expressions import Attribute
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import (
     ArrayType,

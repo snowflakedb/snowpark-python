@@ -11,7 +11,6 @@ import snowflake.connector
 import snowflake.snowpark.dataframe
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     SetOperation,
@@ -21,8 +20,7 @@ from snowflake.snowpark._internal.plans.logical.logical_plan import (
     LogicalPlan,
 )
 from snowflake.snowpark._internal.sp_expressions import (
-    Attribute as SPAttribute,
-    AttributeReference as SPAttributeReference,
+    Attribute,
     Expression as SPExpression,
 )
 from snowflake.snowpark._internal.utils import (
@@ -168,7 +166,7 @@ class SnowflakePlan(LogicalPlan):
             source_plan=self.source_plan,
         )
 
-    def attributes(self) -> List["Attribute"]:
+    def attributes(self) -> List[Attribute]:
         if not self.__placeholder_for_attributes:
             output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
             pkg = AnalyzerPackage()
@@ -177,11 +175,10 @@ class SnowflakePlan(LogicalPlan):
         return self.__placeholder_for_attributes
 
     # Convert to 'Spark' AttributeReference
-    def output(self) -> List[SPAttributeReference]:
+    def output(self) -> List[Attribute]:
         if not self.__placeholder_for_output:
             self.__placeholder_for_output = [
-                SPAttributeReference(a.name, a.datatype, a.nullable)
-                for a in self.attributes()
+                Attribute(a.name, a.datatype, a.nullable) for a in self.attributes()
             ]
         return self.__placeholder_for_output
 
@@ -319,7 +316,7 @@ class SnowflakePlanBuilder:
 
     def large_local_relation_plan(
         self,
-        output: List[SPAttribute],
+        output: List[Attribute],
         data: List[Row],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
@@ -880,7 +877,7 @@ class BatchInsertQuery(Query):
 
 # TODO: this class was taken from SnowflakePlanNonde.scala, we might have to move it to a new file
 class SnowflakeValues(LeafNode):
-    def __init__(self, output: List["SPAttribute"], data: List["Row"]):
+    def __init__(self, output: List[Attribute], data: List[Row]):
         super(SnowflakeValues, self).__init__()
         self.output = output
         self.data = data
