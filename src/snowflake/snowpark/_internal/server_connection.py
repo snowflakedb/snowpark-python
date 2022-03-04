@@ -17,12 +17,12 @@ from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.sp_expressions import Attribute
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row

@@ -10,7 +10,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPacka
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
-from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     CopyIntoLocationNode,
     CopyIntoNode,
@@ -51,7 +50,7 @@ from snowflake.snowpark._internal.plans.logical.logical_plan import (
 )
 from snowflake.snowpark._internal.sp_expressions import (
     Alias as SPAlias,
-    AttributeReference as SPAttributeReference,
+    Attribute as SPAttribute,
     BaseGroupingSets as SPBaseGroupingSets,
     BinaryArithmeticExpression as SPBinaryArithmeticExpression,
     BinaryExpression as SPBinaryExpression,
@@ -183,22 +182,17 @@ class Analyzer:
         if isinstance(expr, SPLiteral):
             return DataTypeMapper.to_sql(expr.value, expr.datatype)
 
-        if isinstance(expr, SPAttributeReference):
+        if isinstance(expr, SPAttribute):
             name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
             return self.package.quote_name(name)
 
         # unresolved expression
         if isinstance(expr, SPUnresolvedAttribute):
-            if len(expr.name_parts) == 1:
-                return expr.name_parts[0]
-            else:
-                raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(
-                    ".".join(expr.name_parts)
-                )
+            return expr.name
 
         if isinstance(expr, SPAlias):
             quoted_name = self.package.quote_name(expr.name)
-            if isinstance(expr.child, SPAttributeReference):
+            if isinstance(expr.child, SPAttribute):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
@@ -339,7 +333,7 @@ class Analyzer:
     def grouping_extractor(self, expr: SPExpression):
         return self.analyze(
             SPFunctionExpression(
-                expr.pretty_name().upper(),
+                expr.pretty_name.upper(),
                 [c.child if isinstance(c, SPAlias) else c for c in expr.children],
                 False,
             )
@@ -610,7 +604,7 @@ class Analyzer:
                     logical_plan.file_format,
                     logical_plan.cur_options,
                     self.session.get_fully_qualified_current_schema(),
-                    [Attribute('"$1"', VariantType())],
+                    [SPAttribute('"$1"', VariantType())],
                 )
 
         if isinstance(logical_plan, CopyIntoLocationNode):

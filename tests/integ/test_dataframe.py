@@ -16,7 +16,7 @@ import pytest
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.sp_expressions import (
-    AttributeReference as SPAttributeReference,
+    Attribute as SPAttribute,
     Star as SPStar,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
@@ -734,12 +734,12 @@ def test_df_col(session_cnx):
     with session_cnx() as session:
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         c = df.col("id")
-        assert type(c) == Column
-        assert type(c.expression) == SPAttributeReference
+        assert isinstance(c, Column)
+        assert isinstance(c.expression, SPAttribute)
 
         c = df.col("*")
-        assert type(c) == Column
-        assert type(c.expression) == SPStar
+        assert isinstance(c, Column)
+        assert isinstance(c.expression, SPStar)
 
 
 def test_create_dataframe_with_basic_data_types(session_cnx):
