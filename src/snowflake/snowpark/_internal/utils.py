@@ -101,6 +101,7 @@ class TempObjectType(Enum):
     FUNCTION = "FUNCTION"
     FILE_FORMAT = "FILE_FORMAT"
     QUERY_TAG = "QUERY_TAG"
+    COLUMN = "COLUMN"
 
 
 class Utils:

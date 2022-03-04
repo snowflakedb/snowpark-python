@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import copy
+import itertools
 import re
 from collections import Counter
 from logging import getLogger
@@ -71,12 +72,14 @@ from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     _create_table_function_expression,
+    abs as abs_,
     col,
     count,
     lit,
     max as max_,
     mean,
     min as min_,
+    random,
     row_number,
     sql_expr,
     stddev,
@@ -86,6 +89,8 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 logger = getLogger(__name__)
+
+ONE_MILLION = 1000000
 
 
 class DataFrame:
@@ -1969,6 +1974,67 @@ class DataFrame:
         new_plan = self.session.table(temp_table_name)._plan
         return DataFrame(session=self.session, plan=new_plan, is_cached=True)
 
+    def random_split(
+        self, weights: List[float], seed: Optional[int] = None
+    ) -> List["DataFrame"]:
+        """
+        Randomly splits the current DataFrame into separate DataFrames,
+        using the specified weights.
+
+        Args:
+            weights: Weights to use for splitting the DataFrame. If the
+                weights don't add up to 1, the weights will be normalized.
+                Every number in ``weights`` has to be positive. If only one
+                weight is specified, the returned DataFrame list only includes
+                the current DataFrame.
+            seed: The seed for sampling.
+
+        Example::
+
+            >>> df = session.range(10000)
+            >>> weights = [0.1, 0.2, 0.3]
+            >>> df_parts = df.random_split(weights)
+            >>> assert len(df_parts) == len(weights)
+
+        Note:
+            1. When multiple weights are specified, the current DataFrame will
+            be cached before being split.
+
+            2. When a weight or a normailized weight is less than ``1e-6``, the
+            corresponding split dataframe will be empty.
+        """
+        if not weights:
+            raise ValueError(
+                "weights can't be None or empty and must be positive numbers"
+            )
+        elif len(weights) == 1:
+            return [self]
+        else:
+            for w in weights:
+                if w <= 0:
+                    raise ValueError("weights must be positive numbers")
+
+            temp_column_name = Utils.random_name_for_temp_object(TempObjectType.COLUMN)
+            cached_df = self.with_column(
+                temp_column_name, abs_(random(seed)) % ONE_MILLION
+            ).cache_result()
+            sum_weights = sum(weights)
+            normalized_cum_weights = [0] + [
+                int(w * ONE_MILLION)
+                for w in list(itertools.accumulate([w / sum_weights for w in weights]))
+            ]
+            normalized_boundaries = zip(
+                normalized_cum_weights[:-1], normalized_cum_weights[1:]
+            )
+            res_dfs = [
+                cached_df.where(
+                    (col(temp_column_name) >= lower_bound)
+                    & (col(temp_column_name) < upper_bound)
+                ).drop(temp_column_name)
+                for lower_bound, upper_bound in normalized_boundaries
+            ]
+            return res_dfs
+
     @property
     def queries(self) -> Dict[str, List[str]]:
         """
@@ -2149,6 +2215,7 @@ Query List:
     withColumn = with_column
     withColumnRenamed = with_column_renamed
     toLocalIterator = to_local_iterator
+    randomSplit = random_split
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets

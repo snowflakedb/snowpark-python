@@ -31,7 +31,7 @@ from snowflake.snowpark.functions import (
     mean,
     min,
     parse_json,
-    sum,
+    sum as sum_,
     to_timestamp,
 )
 from snowflake.snowpark.types import (
@@ -1068,7 +1068,7 @@ def test_rollup(session):
 
     # At least one column needs to be provided ( negative test )
     with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
-        df.rollup(list()).agg(sum(col("value"))).show()
+        df.rollup(list()).agg(sum_(col("value"))).show()
 
     assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
         ex_info
@@ -1080,13 +1080,13 @@ def test_rollup(session):
         Row("country B", 220),
         Row(None, 330),
     ]
-    Utils.check_answer(df.rollup("country").agg(sum(col("value"))), expected_result)
-    Utils.check_answer(df.rollup(["country"]).agg(sum(col("value"))), expected_result)
+    Utils.check_answer(df.rollup("country").agg(sum_(col("value"))), expected_result)
+    Utils.check_answer(df.rollup(["country"]).agg(sum_(col("value"))), expected_result)
     Utils.check_answer(
-        df.rollup(col("country")).agg(sum(col("value"))), expected_result
+        df.rollup(col("country")).agg(sum_(col("value"))), expected_result
     )
     Utils.check_answer(
-        df.rollup([col("country")]).agg(sum(col("value"))), expected_result
+        df.rollup([col("country")]).agg(sum_(col("value"))), expected_result
     )
 
     # rollup() on 2 columns
@@ -1101,28 +1101,28 @@ def test_rollup(session):
     ]
     Utils.check_answer(
         df.rollup("country", "state")
-        .agg(sum(col("value")))
+        .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
         expected_result,
         False,
     )
     Utils.check_answer(
         df.rollup(["country", "state"])
-        .agg(sum(col("value")))
+        .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
         expected_result,
         False,
     )
     Utils.check_answer(
         df.rollup(col("country"), col("state"))
-        .agg(sum(col("value")))
+        .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
         expected_result,
         False,
     )
     Utils.check_answer(
         df.rollup([col("country"), col("state")])
-        .agg(sum(col("value")))
+        .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
         expected_result,
         False,
@@ -1145,16 +1145,16 @@ def test_groupby(session):
 
     # group_by without column
     assert df.group_by().agg(max(col("value"))).collect() == [Row(100)]
-    assert df.group_by([]).agg(sum(col("value"))).collect() == [Row(330)]
-    assert df.group_by().agg([sum(col("value"))]).collect() == [Row(330)]
+    assert df.group_by([]).agg(sum_(col("value"))).collect() == [Row(330)]
+    assert df.group_by().agg([sum_(col("value"))]).collect() == [Row(330)]
 
     # group_by() on 1 column
     expected_res = [Row("country A", 110), Row("country B", 220)]
-    assert df.group_by("country").agg(sum(col("value"))).collect() == expected_res
-    assert df.group_by(["country"]).agg(sum(col("value"))).collect() == expected_res
-    assert df.group_by(col("country")).agg(sum(col("value"))).collect() == expected_res
+    assert df.group_by("country").agg(sum_(col("value"))).collect() == expected_res
+    assert df.group_by(["country"]).agg(sum_(col("value"))).collect() == expected_res
+    assert df.group_by(col("country")).agg(sum_(col("value"))).collect() == expected_res
     assert (
-        df.group_by([col("country")]).agg(sum(col("value"))).collect() == expected_res
+        df.group_by([col("country")]).agg(sum_(col("value"))).collect() == expected_res
     )
 
     # group_by() on 2 columns
@@ -1165,10 +1165,10 @@ def test_groupby(session):
         Row("country B", "state A", 200),
     ]
 
-    res = df.group_by(["country", "state"]).agg(sum(col("value"))).collect()
+    res = df.group_by(["country", "state"]).agg(sum_(col("value"))).collect()
     assert sorted(res, key=lambda x: x[2]) == expected_res
 
-    res = df.group_by([col("country"), col("state")]).agg(sum(col("value"))).collect()
+    res = df.group_by([col("country"), col("state")]).agg(sum_(col("value"))).collect()
     assert sorted(res, key=lambda x: x[2]) == expected_res
 
 
@@ -1188,7 +1188,7 @@ def test_cube(session):
 
     # At least one column needs to be provided ( negative test )
     with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
-        df.cube(list()).agg(sum(col("value"))).show()
+        df.cube(list()).agg(sum_(col("value"))).show()
 
     assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
         ex_info
@@ -1200,11 +1200,11 @@ def test_cube(session):
         Row("country B", 220),
         Row(None, 330),
     ]
-    Utils.check_answer(df.cube("country").agg(sum(col("value"))), expected_result)
-    Utils.check_answer(df.cube(["country"]).agg(sum(col("value"))), expected_result)
-    Utils.check_answer(df.cube(col("country")).agg(sum(col("value"))), expected_result)
+    Utils.check_answer(df.cube("country").agg(sum_(col("value"))), expected_result)
+    Utils.check_answer(df.cube(["country"]).agg(sum_(col("value"))), expected_result)
+    Utils.check_answer(df.cube(col("country")).agg(sum_(col("value"))), expected_result)
     Utils.check_answer(
-        df.cube([col("country")]).agg(sum(col("value"))), expected_result
+        df.cube([col("country")]).agg(sum_(col("value"))), expected_result
     )
 
     # cube() on 2 columns
@@ -1221,28 +1221,28 @@ def test_cube(session):
     ]
     Utils.check_answer(
         df.cube("country", "state")
-        .agg(sum(col("value")))
+        .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
         expected_result,
         False,
     )
     Utils.check_answer(
         df.cube(["country", "state"])
-        .agg(sum(col("value")))
+        .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
         expected_result,
         False,
     )
     Utils.check_answer(
         df.cube(col("country"), col("state"))
-        .agg(sum(col("value")))
+        .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
         expected_result,
         False,
     )
     Utils.check_answer(
         df.cube([col("country"), col("state")])
-        .agg(sum(col("value")))
+        .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
         expected_result,
         False,
@@ -1941,7 +1941,7 @@ def test_rollup_with_array_args(session):
 
     Utils.check_answer(
         df.rollup([col("country"), col("state")])
-        .agg(sum(col("value")))
+        .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
         expected_result,
         sort=False,
@@ -1974,7 +1974,7 @@ def test_rollup_string_with_array_args(session):
 
     Utils.check_answer(
         df.rollup(["country", "state"])
-        .agg(sum("value"))
+        .agg(sum_("value"))
         .sort(col("country"), col("state")),
         expected_result,
         sort=False,
@@ -2003,7 +2003,7 @@ def test_groupby_with_array_args(session):
     ]
 
     Utils.check_answer(
-        df.group_by([col("country"), col("state")]).agg(sum(col("value"))), expected
+        df.group_by([col("country"), col("state")]).agg(sum_(col("value"))), expected
     )
 
 
@@ -2029,7 +2029,7 @@ def test_groupby_string_with_array_args(session):
     ]
 
     Utils.check_answer(
-        df.group_by(["country", "state"]).agg(sum(col("value"))), expected
+        df.group_by(["country", "state"]).agg(sum_(col("value"))), expected
     )
 
 
@@ -2404,3 +2404,54 @@ def test_to_local_iterator(session):
     for row in df.to_local_iterator():
         assert row == array[0]
         break
+
+
+def test_random_split(session):
+    row_count = 10000
+    df1 = session.range(row_count)
+
+    def check_part_row_count(weights, index, count, total_count):
+        expected_row_count = total_count * weights[index] / sum(weights)
+        assert abs(expected_row_count - count) < expected_row_count * SAMPLING_DEVIATION
+
+    def check_random_split_result(weights, seed=None):
+        parts = df1.random_split(weights, seed)
+        assert len(parts) == len(weights)
+        part_counts = [p.count() for p in parts]
+        assert sum(part_counts) == row_count
+
+        for i, part_count in enumerate(part_counts):
+            check_part_row_count(weights, i, part_count, row_count)
+
+    # 1 part
+    parts = df1.random_split([0.2])
+    assert len(parts) == 1
+    assert parts[0] == df1
+
+    # 2 parts
+    check_random_split_result([0.2, 0.8])
+
+    # 2 parts with seed
+    check_random_split_result([0.2, 0.8], 42)
+
+    # 2 parts and weights needs to be normalized
+    check_random_split_result([0.11111, 0.6666])
+
+    # 3 parts
+    check_random_split_result([0.11111, 0.6666, 1.3])
+
+
+def test_random_split_negative(session):
+    df1 = session.range(10)
+
+    with pytest.raises(ValueError) as ex_info:
+        df1.random_split([])
+    assert "weights can't be None or empty and must be positive numbers" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        df1.random_split([-0.1, -0.2])
+    assert "weights must be positive numbers" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        df1.random_split([0.1, 0])
+    assert "weights must be positive numbers" in str(ex_info)
