@@ -14,9 +14,8 @@ from snowflake.snowpark._internal.analyzer.binary_plan_nodes import (
     UsingJoin as SPUsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
-from snowflake.snowpark._internal.analyzer.sf_attribute import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.sp_expressions import Attribute as SPAttribute
+from snowflake.snowpark._internal.sp_expressions import Attribute
 from snowflake.snowpark._internal.type_utils import convert_to_sf_type
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.row import Row
@@ -436,7 +435,7 @@ class AnalyzerPackage:
             self.table(self.generator(0 if count < 0 else count)),
         )
 
-    def values_statement(self, output: List["SPAttribute"], data: List["Row"]) -> str:
+    def values_statement(self, output: List[Attribute], data: List[Row]) -> str:
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         data_types = [attr.datatype for attr in output]
         names = [AnalyzerPackage.quote_name(attr.name) for attr in output]
@@ -460,7 +459,7 @@ class AnalyzerPackage:
         )
         return self.project_statement([], query_source)
 
-    def empty_values_statement(self, output: List["SPAttribute"]):
+    def empty_values_statement(self, output: List[Attribute]):
         data = [Row(*[None] * len(output))]
         self.filter_statement(self._UnsatFilter, self.values_statement(output, data))
 
