@@ -72,6 +72,7 @@ from snowflake.snowpark.functions import (
     degrees,
     dense_rank,
     div0,
+    endswith,
     equal_nan,
     exp,
     factorial,
@@ -1021,15 +1022,19 @@ def test_contains(session):
     )
 
 
-def test_startswith(session):
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_startswith(session, col_a):
     Utils.check_answer(
-        TestData.string4(session).select(startswith(col("a"), lit("ban"))),
+        TestData.string4(session).select(startswith(col_a, lit("ban"))),
         [Row(False), Row(True), Row(False)],
         sort=False,
     )
-    # same as above, but pass str instead of Column
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_endswith(session, col_a):
     Utils.check_answer(
-        TestData.string4(session).select(startswith("a", lit("ban"))),
+        TestData.string4(session).select(endswith(col_a, lit("ana"))),
         [Row(False), Row(True), Row(False)],
         sort=False,
     )

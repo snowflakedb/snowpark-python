@@ -40,6 +40,10 @@ pytest tests/integ/test_dataframe.py -k "test_filter"
 
 ### Running tests with tox
 
+Install tox within your environment
+```bash
+pip install tox
+```
 You can run the linter, all integration and unit tests as well as generate a code coverage report
 with tox. To run all three functions run the following command:
 ```bash

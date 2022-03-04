@@ -110,6 +110,14 @@ def test_startswith(session):
     )
 
 
+def test_endswith(session):
+    Utils.check_answer(
+        TestData.string4(session).select(col("a").endswith(lit("ana"))),
+        [Row(False), Row(True), Row(False)],
+        sort=False,
+    )
+
+
 def test_substring(session):
     Utils.check_answer(
         TestData.string4(session).select(
@@ -140,6 +148,7 @@ def test_logical_operator_raise_error(session):
         df.filter(df.a > 1 and df.b > 1)
     assert "Cannot convert a Column object into bool" in str(execinfo)
 
+
 def test_when_accept_sql_expr(session):
     assert TestData.null_data1(session).select(
         when("a is NULL", 5).when("a = 1", 6).otherwise(7).as_("a")
@@ -152,4 +161,3 @@ def test_when_accept_sql_expr(session):
     assert TestData.null_data1(session).select(
         when("a is NULL", 5).when("a = 1", 6).as_("a")
     ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
-
