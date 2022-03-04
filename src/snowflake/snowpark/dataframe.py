@@ -2000,7 +2000,7 @@ class DataFrame:
             1. When multiple weights are specified, the current DataFrame will
             be cached before being split.
 
-            2. When a weight or a normailized weight is less than 1000000, the
+            2. When a weight or a normailized weight is less than ``1e-6``, the
             corresponding split dataframe will be empty.
         """
         if not weights:
