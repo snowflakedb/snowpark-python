@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
+from functools import cached_property
+
 import snowflake.snowpark._internal.analyzer.analyzer_package as analyzer_package
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
@@ -59,11 +61,12 @@ class Expression:
         return self.pretty_name
 
 
-class NamedExpression(Expression):
-    def __init__(self, child: Optional["Expression"] = None):
-        super().__init__(child)
-        self.name = None
-        self.expr_id = uuid.uuid4()
+class NamedExpression:
+    name: str = None
+
+    @cached_property
+    def expr_id(self) -> uuid.UUID:
+        return uuid.uuid4()
 
 
 class ScalarSubquery(Expression):
@@ -143,7 +146,7 @@ class Alias(UnaryExpression, NamedExpression):
         self.name = name
 
 
-class Attribute(NamedExpression):
+class Attribute(Expression, NamedExpression):
     def __init__(self, name: str, datatype: DataType, nullable: bool = True):
         super().__init__()
         self.name = name
@@ -168,7 +171,7 @@ class Attribute(NamedExpression):
         return self.name
 
 
-class UnresolvedAttribute(NamedExpression):
+class UnresolvedAttribute(Expression, NamedExpression):
     def __init__(self, name: str):
         super().__init__()
         self.name = name
