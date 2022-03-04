@@ -614,6 +614,13 @@ def startswith(col: ColumnOrName, str: ColumnOrName) -> Column:
     return builtin("startswith")(c, s)
 
 
+def endswith(col: ColumnOrName, str: ColumnOrName) -> Column:
+    """Returns true if col ends with str."""
+    c = _to_col_if_str(col, "endswith")
+    s = _to_col_if_str(str, "endswith")
+    return builtin("endswith")(c, s)
+
+
 def char(col: ColumnOrName) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
