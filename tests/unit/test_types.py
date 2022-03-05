@@ -441,21 +441,6 @@ def test_retrieve_func_type_hints_from_source():
     func_name = "foo"
 
     source = f"""
-def {func_name}():
-    pass
-
-def {func_name}_{func_name}(x: int) -> int:
-    return x
-"""
-    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {}
-
-    source = f"""
-def {func_name}():
-    pass
-"""
-    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {}
-
-    source = f"""
 def {func_name}() -> None:
     return None
 """
@@ -466,6 +451,17 @@ def {func_name}() -> None:
     source = f"""
 def {func_name}() -> int:
     return 1
+"""
+    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+        "return": "int"
+    }
+
+    source = f"""
+def {func_name}() -> int:
+    return 1
+
+def {func_name}_{func_name}(x: int) -> int:
+    return x
 """
     assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
         "return": "int"
@@ -516,6 +512,14 @@ def {func_name}(x) -> int:
     with pytest.raises(TypeError) as ex_info:
         _retrieve_func_type_hints_from_source("", func_name, _source=source)
     assert "arg x does not have a type annotation" in str(ex_info)
+
+    source = f"""
+def {func_name}():
+    pass
+"""
+    with pytest.raises(TypeError) as ex_info:
+        _retrieve_func_type_hints_from_source("", func_name, _source=source)
+    assert "return does not have a type annotation" in str(ex_info)
 
     source = f"""
 def {func_name}_{func_name}(x: int) -> int:

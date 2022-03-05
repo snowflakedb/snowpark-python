@@ -288,7 +288,9 @@ class UDFRegistration:
             - :meth:`register`
         """
         file_path = file_path.strip()
-        if not os.path.exists(file_path):
+        if not file_path.startswith(self._session._STAGE_PREFIX) and not os.path.exists(
+            file_path
+        ):
             raise ValueError(f"file_path {file_path} does not exist")
 
         UDFRegistration._check_register_args(
@@ -335,6 +337,7 @@ class UDFRegistration:
             # here at that time. https://www.python.org/dev/peps/pep-0563/
             num_args = func.__code__.co_argcount
             python_types_dict = get_type_hints(func)
+            assert "return" in python_types_dict, f"The return type must be specified"
             assert len(python_types_dict) - 1 == num_args, (
                 f"The number of arguments ({num_args}) is different from "
                 f"the number of argument type hints ({len(python_types_dict) - 1})"
@@ -342,7 +345,6 @@ class UDFRegistration:
         else:
             python_types_dict = _retrieve_func_type_hints_from_source(func[0], func[1])
 
-        assert "return" in python_types_dict, f"The return type must be specified"
         return_type, _ = _python_type_to_snow_type(python_types_dict["return"])
         input_types = []
         # types are in order

@@ -437,10 +437,7 @@ def _retrieve_func_type_hints_from_source(
                 if node.returns:
                     self.type_hints["return"] = parse_arg_annotation(node.returns)
                 else:
-                    for e in node.body:
-                        # it returns something without type hint, raise exception later
-                        if isinstance(e, ast.Return):
-                            self.type_hints["return"] = None
+                    raise TypeError(f"return does not have a type annotation")
                 self.func_exist = True
 
     if _source:
