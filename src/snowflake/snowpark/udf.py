@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.sp_expressions import (
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     _python_type_to_snow_type,
+    _retrieve_func_type_hints_from_source,
     convert_to_sf_type,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
@@ -286,13 +287,17 @@ class UDFRegistration:
             - :func:`~snowflake.snowpark.functions.udf`
             - :meth:`register`
         """
+        file_path = file_path.strip()
+        if not os.path.exists(file_path):
+            raise ValueError(f"file_path {file_path} does not exist")
+
         UDFRegistration._check_register_args(
             name, is_permanent, stage_location, parallel
         )
 
         # register udf
         return self.__do_register_udf(
-            (file_path.strip(), func_name),
+            (file_path, func_name),
             return_type,
             input_types,
             name,
@@ -322,19 +327,22 @@ class UDFRegistration:
             )
 
     def __get_types_from_type_hints(
-        self, func: Callable
+        self, func: Union[Callable, Tuple[str, str]]
     ) -> Tuple[DataType, List[DataType]]:
-        # For Python 3.10+, the result values of get_type_hints()
-        # will become strings, which we have to change the implementation
-        # here at that time. https://www.python.org/dev/peps/pep-0563/
-        num_args = func.__code__.co_argcount
-        python_types_dict = get_type_hints(func)
-        assert "return" in python_types_dict, f"The return type must be specified"
-        assert len(python_types_dict) - 1 == num_args, (
-            f"The number of arguments ({num_args}) is different from "
-            f"the number of argument type hints ({len(python_types_dict) - 1})"
-        )
+        if isinstance(func, Callable):
+            # For Python 3.10+, the result values of get_type_hints()
+            # will become strings, which we have to change the implementation
+            # here at that time. https://www.python.org/dev/peps/pep-0563/
+            num_args = func.__code__.co_argcount
+            python_types_dict = get_type_hints(func)
+            assert len(python_types_dict) - 1 == num_args, (
+                f"The number of arguments ({num_args}) is different from "
+                f"the number of argument type hints ({len(python_types_dict) - 1})"
+            )
+        else:
+            python_types_dict = _retrieve_func_type_hints_from_source(func[0], func[1])
 
+        assert "return" in python_types_dict, f"The return type must be specified"
         return_type, _ = _python_type_to_snow_type(python_types_dict["return"])
         input_types = []
         # types are in order

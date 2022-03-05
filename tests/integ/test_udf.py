@@ -332,7 +332,7 @@ def test_session_register_udf(session):
     )
 
 
-def test_session_register_udf_from_file(session, resources_path, tmpdir):
+def test_register_udf_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
 
@@ -643,6 +643,59 @@ def test_type_hint_no_change_after_registration(session):
     annotations = add.__annotations__
     session.udf.register(add)
     assert annotations == add.__annotations__
+
+
+def test_register_udf_from_file_type_hints(session, tmpdir):
+    source = """
+import datetime
+from typing import Dict, List, Optional
+
+def add(x: int, y: int) -> int:
+        return x + y
+
+def snow(x: int) -> Optional[str]:
+    return "snow" if x % 2 else None
+
+def double_str_list(x: str) -> List[str]:
+    return [x, x]
+
+dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
+
+def return_datetime() -> datetime.datetime:
+    return dt
+
+def return_dict(v: dict) -> Dict[str, str]:
+    return {str(k): f"{str(k)} {str(v)}" for k, v in v.items()}
+"""
+    file_path = os.path.join(tmpdir, "register_from_file_type_hints.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    add_udf = session.udf.register_from_file(file_path, "add")
+    snow_udf = session.udf.register_from_file(file_path, "snow")
+    double_str_list_udf = session.udf.register_from_file(file_path, "double_str_list")
+    return_datetime_udf = session.udf.register_from_file(file_path, "return_datetime")
+    return_variant_dict_udf = session.udf.register_from_file(file_path, "return_dict")
+
+    df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
+    dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
+    Utils.check_answer(
+        df.select(
+            add_udf("a", "b"),
+            snow_udf("a"),
+            double_str_list_udf(snow_udf("b")),
+            return_datetime_udf(),
+        ).collect(),
+        [
+            Row(5, "snow", "[\n  null,\n  null\n]", dt),
+            Row(5, None, '[\n  "snow",\n  "snow"\n]', dt),
+        ],
+    )
+
+    Utils.check_answer(
+        TestData.variant1(session).select(return_variant_dict_udf("obj1")).collect(),
+        [Row('{\n  "Tree": "Tree Pine"\n}')],
+    )
 
 
 def test_permanent_udf(session, db_parameters):
