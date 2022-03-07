@@ -272,16 +272,25 @@ class UDFRegistration:
             file_path: The path of a local file or a remote file in the stage. See
                 more details on ``path`` argument of
                 :meth:`session.add_import() <snowflake.snowpark.Session.add_import>`.
-                Note that unlike `path`` argument of
+                Note that unlike ``path`` argument of
                 :meth:`session.add_import() <snowflake.snowpark.Session.add_import>`,
-                here the file can only be a Python file, or a compressed file
+                here the file can only be a Python file or a compressed file
                 (e.g., .zip file) containing Python modules.
             func_name: The Python function name in the file that will be created
                 as a UDF.
 
+        Example::
+
+            # "my_double.py" contains a function "double":
+            # def double(x: int) -> int:
+            #     return 2 * x
+            double_udf = session.udf.register_from_file("my_double.py", "double", name="mydoubleudf")
+
         Note::
-            You should provide ``return_type`` and ``input_types`` as the Python function
-            that will be created as a UDF might not be in your runtime.
+            The type hints can still be extracted from the source Python file if they
+            are provided, but currently are not working for a zip file. Therefore,
+            you have to provide ``return_type`` and ``input_types`` when ``path``
+            points to a zip file.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
