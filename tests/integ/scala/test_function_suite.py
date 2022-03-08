@@ -2957,7 +2957,7 @@ def test_ltrim_rtrim_trim(session, col_A):
 
     Utils.check_answer(
         TestData.string3(session).select(
-            ltrim(col_A, lit(" a")), rtrim(col_A, lit(" a")), trim(col_A, lit("a_"))
+            ltrim(col_A, lit(" a")), rtrim(col_A, lit(" a")), trim(col_A, lit("a "))
         ),
         [Row("bcba  ", "  abcb", "bcb"), Row("12321a   ", " a12321", "12321")],
         sort=False,
