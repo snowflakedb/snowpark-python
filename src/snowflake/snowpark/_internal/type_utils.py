@@ -440,18 +440,16 @@ def _retrieve_func_type_hints_from_source(
                     raise TypeError(f"return does not have a type annotation")
                 self.func_exist = True
 
-    if _source:
-        nodes = ast.parse(_source)
-    else:
+    if not _source:
         if not file_path.endswith(".py"):
             raise ValueError(
                 f"{file_path} is not a Python file, so type hints cannot be extracted"
             )
         with open(file_path, "r") as f:
-            nodes = ast.parse(f.read())
+            _source = f.read()
 
     visitor = NodeVisitor()
-    visitor.visit(nodes)
+    visitor.visit(ast.parse(_source))
     if not visitor.func_exist:
         raise ValueError(f"function {func_name} is not found in file {file_path}")
     return visitor.type_hints
