@@ -260,6 +260,7 @@ class Session:
                 logger.info(f"Closed session: %s", self.__session_id)
             finally:
                 _remove_session(self)
+                logger.info(f"Removed session: %s", self.__session_id)
 
     def _get_last_canceled_id(self) -> int:
         return self.__last_canceled_id
