@@ -14,9 +14,11 @@ RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 
 
-@pytest.fixture(
-    autouse=True, scope="module"
-)  # scope session is pytest session, not the snowpark session.
+# scope is module so that we ensure we delete the session before
+# moving onto running the tests in the tests dir. Having only one
+# session is important to certain UDF tests to pass , since they
+# use the @udf decorator
+@pytest.fixture(autouse=True, scope="module")
 def add_snowpark_session(doctest_namespace):
     with open("tests/parameters.py", encoding="utf-8") as f:
         exec(f.read(), globals())
