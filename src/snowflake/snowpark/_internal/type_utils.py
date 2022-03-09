@@ -6,12 +6,14 @@
 # Code in this file may constitute partial or total reimplementation, or modification of
 # existing code originally distributed by the Apache Software Foundation as part of the
 # Apache Spark project, under the Apache License, Version 2.0.
+import ast
 import collections
 import ctypes
 import datetime
 import decimal
 import re
 import sys
+import typing  # type: ignore
 from array import array
 from collections import OrderedDict
 from typing import (
@@ -28,6 +30,7 @@ from typing import (
     get_origin,
 )
 
+import snowflake.snowpark.types  # type: ignore
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -102,8 +105,9 @@ def convert_to_sf_type(datatype: DataType) -> str:
 # https://spark.apache.org/docs/3.1.1/api/python/_modules/pyspark/sql/types.html
 
 # Mapping Python types to Spark SQL DataType
+NoneType = type(None)
 _type_mappings = {
-    type(None): NullType,
+    NoneType: NullType,
     bool: BooleanType,
     int: LongType,
     float: FloatType,
@@ -319,10 +323,30 @@ def _merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataTyp
         return a
 
 
-def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
-    """Converts a Python type to a Snowpark type.
+def _python_type_str_to_object(tp_str: str) -> Type:
+    # handle several special cases, which we want to support currently
+    if tp_str == "Decimal":
+        return decimal.Decimal
+    elif tp_str == "date":
+        return datetime.date
+    elif tp_str == "time":
+        return datetime.time
+    elif tp_str == "datetime":
+        return datetime.datetime
+    elif tp_str == "defaultdict":
+        return collections.defaultdict
+    else:
+        return eval(tp_str)
+
+
+def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
+    """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
+    # convert a type string to a type object
+    if isinstance(tp, str):
+        tp = _python_type_str_to_object(tp)
+
     if tp is decimal.Decimal:
         return DecimalType(38, 18), False
     elif tp in _type_mappings:
@@ -337,7 +361,7 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
         and tp_origin == Union
         and tp_args
         and len(tp_args) == 2
-        and tp_args[1] == type(None)
+        and tp_args[1] == NoneType
     ):
         return _python_type_to_snow_type(tp_args[0])[0], True
 
@@ -372,6 +396,63 @@ def _python_type_to_snow_type(tp: Type) -> Tuple[DataType, bool]:
         return GeographyType(), False
 
     raise TypeError(f"invalid type {tp}")
+
+
+def _retrieve_func_type_hints_from_source(
+    file_path: str, func_name: str, _source: Optional[str] = None
+) -> Dict[str, Type]:
+    """
+    Retrieve type hints of a function from a source file, or a source string (test only).
+    """
+
+    def parse_arg_annotation(annotation: ast.expr) -> str:
+        if isinstance(annotation, (ast.Tuple, ast.List)):
+            return ", ".join([parse_arg_annotation(e) for e in annotation.elts])
+        if isinstance(annotation, ast.Attribute):
+            return f"{parse_arg_annotation(annotation.value)}.{annotation.attr}"
+        if isinstance(annotation, ast.Subscript):
+            return f"{parse_arg_annotation(annotation.value)}[{parse_arg_annotation(annotation.slice)}]"
+        if isinstance(annotation, ast.Index):
+            return parse_arg_annotation(annotation.value)
+        if isinstance(annotation, ast.Constant) and annotation.value is None:
+            return "NoneType"
+        if isinstance(annotation, ast.Name):
+            return annotation.id
+        raise TypeError(f"invalid type annotation: {annotation}")
+
+    class NodeVisitor(ast.NodeVisitor):
+        type_hints = {}
+        func_exist = False
+
+        def visit_FunctionDef(self, node):
+            if node.name == func_name:
+                for arg in node.args.args:
+                    if arg.annotation:
+                        self.type_hints[arg.arg] = parse_arg_annotation(arg.annotation)
+                    else:
+                        raise TypeError(
+                            f"arg {arg.arg} does not have a type annotation"
+                        )
+
+                if node.returns:
+                    self.type_hints["return"] = parse_arg_annotation(node.returns)
+                else:
+                    raise TypeError(f"return does not have a type annotation")
+                self.func_exist = True
+
+    if not _source:
+        if not file_path.endswith(".py"):
+            raise ValueError(
+                f"{file_path} is not a Python file, so type hints cannot be extracted"
+            )
+        with open(file_path, "r") as f:
+            _source = f.read()
+
+    visitor = NodeVisitor()
+    visitor.visit(ast.parse(_source))
+    if not visitor.func_exist:
+        raise ValueError(f"function {func_name} is not found in file {file_path}")
+    return visitor.type_hints
 
 
 # Get a mapping from type string to type object, for cast() function

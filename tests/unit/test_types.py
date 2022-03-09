@@ -3,6 +3,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import os
 import typing
 from array import array
 from collections import OrderedDict, defaultdict
@@ -15,6 +16,7 @@ from snowflake.snowpark._internal.type_utils import (
     _get_number_precision_scale,
     _infer_type,
     _python_type_to_snow_type,
+    _retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -44,7 +46,12 @@ from snowflake.snowpark.types import (
     _IntegralType,
     _NumericType,
 )
-from tests.utils import IS_WINDOWS
+from tests.utils import IS_WINDOWS, TestFiles
+
+resources_path = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "../resources")
+)
+test_files = TestFiles(resources_path)
 
 
 # TODO complete for schema case
@@ -264,97 +271,123 @@ def test_strip_unnecessary_quotes():
 
 
 def test_python_type_to_snow_type():
+    def check_type(python_type, snow_type, is_nullable):
+        assert _python_type_to_snow_type(python_type) == (snow_type, is_nullable)
+        assert _python_type_to_snow_type(
+            getattr(python_type, "__name__", str(python_type))
+        ) == (snow_type, is_nullable)
+
     # basic types
-    assert _python_type_to_snow_type(int) == (LongType(), False)
-    assert _python_type_to_snow_type(float) == (FloatType(), False)
-    assert _python_type_to_snow_type(str) == (StringType(), False)
-    assert _python_type_to_snow_type(bool) == (BooleanType(), False)
-    assert _python_type_to_snow_type(bytes) == (BinaryType(), False)
-    assert _python_type_to_snow_type(bytearray) == (BinaryType(), False)
-    assert _python_type_to_snow_type(type(None)) == (NullType(), False)
-    assert _python_type_to_snow_type(date) == (DateType(), False)
-    assert _python_type_to_snow_type(time) == (TimeType(), False)
-    assert _python_type_to_snow_type(datetime) == (TimestampType(), False)
-    assert _python_type_to_snow_type(Decimal) == (DecimalType(38, 18), False)
-    assert _python_type_to_snow_type(typing.Optional[str]) == (StringType(), True)
-    assert _python_type_to_snow_type(typing.Union[str, None]) == (
+    check_type(int, LongType(), False)
+    check_type(float, FloatType(), False)
+    check_type(str, StringType(), False)
+    check_type(bool, BooleanType(), False)
+    check_type(bytes, BinaryType(), False)
+    check_type(bytearray, BinaryType(), False)
+    check_type(type(None), NullType(), False)
+    check_type(date, DateType(), False)
+    check_type(time, TimeType(), False)
+    check_type(datetime, TimestampType(), False)
+    check_type(Decimal, DecimalType(38, 18), False)
+    check_type(typing.Optional[str], StringType(), True)
+    check_type(
+        typing.Union[str, None],
         StringType(),
         True,
     )
-    assert _python_type_to_snow_type(typing.List[int]) == (
+    check_type(
+        typing.List[int],
         ArrayType(LongType()),
         False,
     )
-    assert _python_type_to_snow_type(typing.List) == (
+    check_type(
+        typing.List,
         ArrayType(StringType()),
         False,
     )
-    assert _python_type_to_snow_type(list) == (ArrayType(StringType()), False)
-    assert _python_type_to_snow_type(typing.Tuple[int]) == (
+    check_type(list, ArrayType(StringType()), False)
+    check_type(
+        typing.Tuple[int],
         ArrayType(LongType()),
         False,
     )
-    assert _python_type_to_snow_type(typing.Tuple) == (
+    check_type(
+        typing.Tuple,
         ArrayType(StringType()),
         False,
     )
-    assert _python_type_to_snow_type(tuple) == (ArrayType(StringType()), False)
-    assert _python_type_to_snow_type(typing.Dict[str, int]) == (
+    check_type(tuple, ArrayType(StringType()), False)
+    check_type(
+        typing.Dict[str, int],
         MapType(StringType(), LongType()),
         False,
     )
-    assert _python_type_to_snow_type(typing.Dict) == (
+    check_type(
+        typing.Dict,
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snow_type(dict) == (
+    check_type(
+        dict,
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snow_type(typing.DefaultDict[str, int]) == (
+    check_type(
+        typing.DefaultDict[str, int],
         MapType(StringType(), LongType()),
         False,
     )
-    assert _python_type_to_snow_type(typing.DefaultDict) == (
+    check_type(
+        typing.DefaultDict,
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snow_type(defaultdict) == (
+    check_type(
+        defaultdict,
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snow_type(typing.OrderedDict[str, int]) == (
+    check_type(
+        typing.OrderedDict[str, int],
         MapType(StringType(), LongType()),
         False,
     )
-    assert _python_type_to_snow_type(typing.OrderedDict) == (
+    check_type(
+        typing.OrderedDict,
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snow_type(OrderedDict) == (
+    check_type(
+        OrderedDict,
         MapType(StringType(), StringType()),
         False,
     )
-    assert _python_type_to_snow_type(Variant) == (VariantType(), False)
-    assert _python_type_to_snow_type(Geography) == (GeographyType(), False)
+    check_type(Variant, VariantType(), False)
+    check_type(Geography, GeographyType(), False)
 
     # complicated (nested) types
-    assert _python_type_to_snow_type(typing.Optional[typing.Optional[str]]) == (
+    check_type(
+        typing.Optional[typing.Optional[str]],
         StringType(),
         True,
     )
-    assert _python_type_to_snow_type(typing.Optional[typing.List[str]]) == (
+    check_type(
+        typing.Optional[typing.List[str]],
         ArrayType(StringType()),
         True,
     )
-    assert _python_type_to_snow_type(typing.List[typing.List[float]]) == (
+    check_type(
+        typing.List[typing.List[float]],
         ArrayType(ArrayType(FloatType())),
         False,
     )
-    assert _python_type_to_snow_type(
-        typing.List[typing.List[typing.Optional[datetime]]]
-    ) == (ArrayType(ArrayType(TimestampType())), False)
-    assert _python_type_to_snow_type(typing.Dict[str, typing.List]) == (
+    check_type(
+        typing.List[typing.List[typing.Optional[datetime]]],
+        ArrayType(ArrayType(TimestampType())),
+        False,
+    )
+    check_type(
+        typing.Dict[str, typing.List],
         MapType(StringType(), ArrayType(StringType())),
         False,
     )
@@ -383,6 +416,10 @@ def test_python_type_to_snow_type():
     with pytest.raises(TypeError):
         _python_type_to_snow_type(StringType)
 
+    # invalid type str
+    with pytest.raises(NameError):
+        _python_type_to_snow_type("string")
+
 
 @pytest.mark.parametrize("decimal_word", ["number", "numeric", "decimal"])
 def test_decimal_regular_expression(decimal_word):
@@ -398,3 +435,104 @@ def test_decimal_regular_expression(decimal_word):
     assert _get_number_precision_scale(f" {decimal_word}(2,1)") == (2, 1)
     assert _get_number_precision_scale(f"{decimal_word}(2,1) ") == (2, 1)
     assert _get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
+
+
+def test_retrieve_func_type_hints_from_source():
+    func_name = "foo"
+
+    source = f"""
+def {func_name}() -> None:
+    return None
+"""
+    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+        "return": "NoneType"
+    }
+
+    source = f"""
+def {func_name}() -> int:
+    return 1
+"""
+    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+        "return": "int"
+    }
+
+    source = f"""
+def {func_name}() -> int:
+    return 1
+
+def {func_name}_{func_name}(x: int) -> int:
+    return x
+"""
+    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+        "return": "int"
+    }
+
+    source = f"""
+def {func_name}(x: bytes) -> int:
+    return 1
+"""
+    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+        "x": "bytes",
+        "return": "int",
+    }
+
+    source = f"""
+def {func_name}(x: List[str], y: None) -> Optional[int]:
+    return None
+"""
+    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+        "x": "List[str]",
+        "y": "NoneType",
+        "return": "Optional[int]",
+    }
+
+    source = f"""
+def {func_name}(x: collections.defaultdict, y: Union[datetime.date, time]) -> Optional[typing.Tuple[decimal.Decimal, Variant, List[float]]]:
+    return (1, 2)
+"""
+    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+        "x": "collections.defaultdict",
+        "y": "Union[datetime.date, time]",
+        "return": "Optional[typing.Tuple[decimal.Decimal, Variant, List[float]]]",
+    }
+
+    assert _retrieve_func_type_hints_from_source(
+        test_files.test_udf_py_file, "mod5"
+    ) == {"x": "int", "return": "int"}
+
+    # negative case
+    with pytest.raises(ValueError) as ex_info:
+        _retrieve_func_type_hints_from_source(test_files.test_file_avro, "mod5")
+    assert "is not a Python file, so type hints cannot be extracted" in str(ex_info)
+
+    source = f"""
+def {func_name}(x) -> int:
+    return 1
+"""
+    with pytest.raises(TypeError) as ex_info:
+        _retrieve_func_type_hints_from_source("", func_name, _source=source)
+    assert "arg x does not have a type annotation" in str(ex_info)
+
+    source = f"""
+def {func_name}():
+    pass
+"""
+    with pytest.raises(TypeError) as ex_info:
+        _retrieve_func_type_hints_from_source("", func_name, _source=source)
+    assert "return does not have a type annotation" in str(ex_info)
+
+    source = f"""
+def {func_name}_{func_name}(x: int) -> int:
+    return x
+"""
+    with pytest.raises(ValueError) as ex_info:
+        _retrieve_func_type_hints_from_source("", func_name, _source=source)
+    assert "is not found in file" in str(ex_info)
+
+    source = f"""
+def {func_name}() -> 1:
+    return 1
+"""
+    with pytest.raises(TypeError) as ex_info:
+        _retrieve_func_type_hints_from_source("", func_name, _source=source)
+    assert "invalid type annotation" in str(ex_info)

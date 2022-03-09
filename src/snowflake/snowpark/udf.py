@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.sp_expressions import (
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     _python_type_to_snow_type,
+    _retrieve_func_type_hints_from_source,
     convert_to_sf_type,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
@@ -79,14 +80,14 @@ class UserDefinedFunction:
 
     def __init__(
         self,
-        func: Callable,
+        func: Union[Callable, Tuple[str, str]],
         return_type: DataType,
         input_types: List[DataType],
         name: str,
         is_return_nullable: bool = False,
     ):
-        #: The Python function.
-        self.func: Callable = func
+        #: The Python function or a tuple containing the Python file path and the function name.
+        self.func: Union[Callable, Tuple[str, str]] = func
         #: The UDF name.
         self.name: str = name
 
@@ -231,6 +232,100 @@ class UDFRegistration:
                 f"(__call__ is not defined): {type(func)}"
             )
 
+        UDFRegistration._check_register_args(
+            name, is_permanent, stage_location, parallel
+        )
+
+        # register udf
+        return self.__do_register_udf(
+            func,
+            return_type,
+            input_types,
+            name,
+            stage_location,
+            imports,
+            packages,
+            replace,
+            parallel,
+        )
+
+    def register_from_file(
+        self,
+        file_path: str,
+        func_name: str,
+        return_type: Optional[DataType] = None,
+        input_types: Optional[List[DataType]] = None,
+        name: Optional[Union[str, Iterable[str]]] = None,
+        is_permanent: bool = False,
+        stage_location: Optional[str] = None,
+        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
+        replace: bool = False,
+        parallel: int = 4,
+    ) -> UserDefinedFunction:
+        """
+        Registers a Python function as a Snowflake Python UDF from a Python or zip file,
+        and returns the UDF. Apart from ``file_path`` and ``func_name``, the input arguments
+        of this method are the same as :meth:`register`.
+
+        Args:
+            file_path: The path of a local file or a remote file in the stage. See
+                more details on ``path`` argument of
+                :meth:`session.add_import() <snowflake.snowpark.Session.add_import>`.
+                Note that unlike ``path`` argument of
+                :meth:`session.add_import() <snowflake.snowpark.Session.add_import>`,
+                here the file can only be a Python file or a compressed file
+                (e.g., .zip file) containing Python modules.
+            func_name: The Python function name in the file that will be created
+                as a UDF.
+
+        Example::
+
+            # "my_double.py" contains a function "double":
+            # def double(x: int) -> int:
+            #     return 2 * x
+            double_udf = session.udf.register_from_file("my_double.py", "double", name="mydoubleudf")
+
+        Note::
+            The type hints can still be extracted from the source Python file if they
+            are provided, but currently are not working for a zip file. Therefore,
+            you have to provide ``return_type`` and ``input_types`` when ``path``
+            points to a zip file.
+
+        See Also:
+            - :func:`~snowflake.snowpark.functions.udf`
+            - :meth:`register`
+        """
+        file_path = file_path.strip()
+        if not file_path.startswith(self._session._STAGE_PREFIX) and not os.path.exists(
+            file_path
+        ):
+            raise ValueError(f"file_path {file_path} does not exist")
+
+        UDFRegistration._check_register_args(
+            name, is_permanent, stage_location, parallel
+        )
+
+        # register udf
+        return self.__do_register_udf(
+            (file_path, func_name),
+            return_type,
+            input_types,
+            name,
+            stage_location,
+            imports,
+            packages,
+            replace,
+            parallel,
+        )
+
+    @staticmethod
+    def _check_register_args(
+        name: Optional[Union[str, Iterable[str]]] = None,
+        is_permanent: bool = False,
+        stage_location: Optional[str] = None,
+        parallel: int = 4,
+    ):
         if is_permanent:
             if not name:
                 raise ValueError("name must be specified for permanent udf")
@@ -242,6 +337,44 @@ class UDFRegistration:
                 "Supported values of parallel are from 1 to 99, " f"but got {parallel}"
             )
 
+    def __get_types_from_type_hints(
+        self, func: Union[Callable, Tuple[str, str]]
+    ) -> Tuple[DataType, List[DataType]]:
+        if isinstance(func, Callable):
+            # For Python 3.10+, the result values of get_type_hints()
+            # will become strings, which we have to change the implementation
+            # here at that time. https://www.python.org/dev/peps/pep-0563/
+            num_args = func.__code__.co_argcount
+            python_types_dict = get_type_hints(func)
+            assert "return" in python_types_dict, f"The return type must be specified"
+            assert len(python_types_dict) - 1 == num_args, (
+                f"The number of arguments ({num_args}) is different from "
+                f"the number of argument type hints ({len(python_types_dict) - 1})"
+            )
+        else:
+            python_types_dict = _retrieve_func_type_hints_from_source(func[0], func[1])
+
+        return_type, _ = _python_type_to_snow_type(python_types_dict["return"])
+        input_types = []
+        # types are in order
+        for key, python_type in python_types_dict.items():
+            if key != "return":
+                input_types.append(_python_type_to_snow_type(python_type)[0])
+
+        return return_type, input_types
+
+    def __do_register_udf(
+        self,
+        func: Union[Callable, Tuple[str, str]],
+        return_type: Optional[DataType],
+        input_types: Optional[List[DataType]],
+        name: Optional[str],
+        stage_location: Optional[str] = None,
+        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
+        replace: bool = False,
+        parallel: int = 4,
+    ) -> UserDefinedFunction:
         # get the udf name
         if name:
             udf_name = name if isinstance(name, str) else ".".join(name)
@@ -249,108 +382,12 @@ class UDFRegistration:
             udf_name = f"{self._session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"
         Utils.validate_object_name(udf_name)
 
-        # get return and input types
-        if return_type or input_types:
-            new_return_type = return_type if return_type else StringType()
-            is_return_nullable = False
-            new_input_types = input_types if input_types else []
-        else:
-            (
-                new_return_type,
-                is_return_nullable,
-                new_input_types,
-            ) = self.__get_types_from_type_hints(func)
+        # get return and input types from type hints
+        if not return_type and not input_types:
+            return_type, input_types = self.__get_types_from_type_hints(func)
+        if input_types is None:
+            input_types = []
 
-        # generate a random name for udf py file
-        # and we compress it first then upload it
-        udf_file_name = f"udf_py_{Utils.random_number()}.zip"
-
-        # register udf
-        try:
-            self.__do_register_udf(
-                func,
-                new_return_type,
-                new_input_types,
-                udf_name,
-                udf_file_name,
-                stage_location,
-                imports,
-                packages,
-                replace,
-                parallel,
-            )
-        # an exception might happen during registering a UDF
-        # (e.g., a dependency might not be found on the stage),
-        # then for a permanent udf, we should delete the uploaded
-        # python file and raise the exception
-        except BaseException as ex:
-            if is_permanent:
-                upload_stage = Utils.unwrap_stage_location_single_quote(stage_location)
-                dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-                udf_file_path = Utils.normalize_remote_file_or_dir(
-                    f"{upload_stage}/{dest_prefix}/{udf_file_name}"
-                )
-                try:
-                    logger.info("Removing Snowpark uploaded file: %s", udf_file_path)
-                    self._session._run_query(f"REMOVE {udf_file_path}")
-                    logger.info(
-                        "Finished removing Snowpark uploaded file: %s", udf_file_path
-                    )
-                except BaseException as clean_ex:
-                    logger.warning("Failed to clean uploaded file: %s", clean_ex)
-            raise ex
-
-        return UserDefinedFunction(
-            func,
-            new_return_type,
-            new_input_types,
-            udf_name,
-            is_return_nullable,
-        )
-
-    def __get_types_from_type_hints(
-        self, func: Callable
-    ) -> Tuple[DataType, bool, List[DataType]]:
-        # For Python 3.10+, the result values of get_type_hints()
-        # will become strings, which we have to change the implementation
-        # here at that time. https://www.python.org/dev/peps/pep-0563/
-        num_args = func.__code__.co_argcount
-        python_types_dict = get_type_hints(func)
-        assert "return" in python_types_dict, f"The return type must be specified"
-        assert len(python_types_dict) - 1 == num_args, (
-            f"The number of arguments ({num_args}) is different from "
-            f"the number of argument type hints ({len(python_types_dict) - 1})"
-        )
-
-        return_type, is_nullable = _python_type_to_snow_type(
-            python_types_dict["return"]
-        )
-        input_types = []
-        # types are in order
-        for key, python_type in python_types_dict.items():
-            if key != "return":
-                input_types.append(_python_type_to_snow_type(python_type)[0])
-
-        return return_type, is_nullable, input_types
-
-    def __do_register_udf(
-        self,
-        func: Callable,
-        return_type: DataType,
-        input_types: List[DataType],
-        udf_name: str,
-        udf_file_name: str,
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
-        replace: bool = False,
-        parallel: int = 4,
-    ) -> None:
-        arg_names = [f"arg{i+1}" for i in range(len(input_types))]
-        input_args = [
-            _UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
-        ]
-        code = self.__generate_python_code(func, arg_names)
         upload_stage = (
             Utils.unwrap_stage_location_single_quote(stage_location)
             if stage_location
@@ -388,33 +425,69 @@ class UDFRegistration:
             )
         )
 
+        arg_names = [f"arg{i+1}" for i in range(len(input_types))]
+        input_args = [
+            _UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
+        ]
+        dest_prefix = Utils.get_udf_upload_prefix(udf_name)
+
         # Upload closure to stage if it is beyond inline closure size limit
-        if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
-            dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-            upload_file_stage_location = Utils.normalize_remote_file_or_dir(
-                f"{upload_stage}/{dest_prefix}/{udf_file_name}"
-            )
-            udf_file_name_base = os.path.splitext(udf_file_name)[0]
-            with io.BytesIO() as input_stream:
-                with zipfile.ZipFile(
-                    input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
-                ) as zf:
-                    zf.writestr(f"{udf_file_name_base}.py", code)
-                self._session._conn.upload_stream(
-                    input_stream=input_stream,
+        if isinstance(func, Callable):
+            # generate a random name for udf py file
+            # and we compress it first then upload it
+            udf_file_name_base = f"udf_py_{Utils.random_number()}"
+            udf_file_name = f"{udf_file_name_base}.zip"
+            code = self.__generate_python_code(func, arg_names)
+            if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
+                upload_file_stage_location = Utils.normalize_remote_file_or_dir(
+                    f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+                )
+                with io.BytesIO() as input_stream:
+                    with zipfile.ZipFile(
+                        input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
+                    ) as zf:
+                        zf.writestr(f"{udf_file_name_base}.py", code)
+                    self._session._conn.upload_stream(
+                        input_stream=input_stream,
+                        stage_location=upload_stage,
+                        dest_filename=udf_file_name,
+                        dest_prefix=dest_prefix,
+                        parallel=parallel,
+                        source_compression="DEFLATE",
+                        compress_data=False,
+                        overwrite=True,
+                    )
+                all_urls.append(upload_file_stage_location)
+                inline_code = None
+                handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
+            else:
+                inline_code = code
+                upload_file_stage_location = None
+                handler = _DEFAULT_HANDLER_NAME
+        else:
+            udf_file_name = os.path.basename(func[0])
+            # for a compressed file, it might have multiple extensions
+            # and we should remove all extensions
+            udf_file_name_base = udf_file_name.split(".")[0]
+            inline_code = None
+            handler = f"{udf_file_name_base}.{func[1]}"
+
+            if func[0].startswith(self._session._STAGE_PREFIX):
+                upload_file_stage_location = None
+                all_urls.append(func[0])
+            else:
+                upload_file_stage_location = Utils.normalize_remote_file_or_dir(
+                    f"{upload_stage}/{dest_prefix}/{udf_file_name}"
+                )
+                self._session._conn.upload_file(
+                    path=func[0],
                     stage_location=upload_stage,
-                    dest_filename=udf_file_name,
                     dest_prefix=dest_prefix,
                     parallel=parallel,
-                    source_compression="DEFLATE",
                     compress_data=False,
                     overwrite=True,
                 )
-            all_urls.append(upload_file_stage_location)
-            code = None
-            handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
-        else:
-            handler = _DEFAULT_HANDLER_NAME
+                all_urls.append(upload_file_stage_location)
 
         # build imports and packages string
         all_imports = ",".join(
@@ -422,17 +495,39 @@ class UDFRegistration:
         )
         all_packages = ",".join([f"'{package}'" for package in resolved_packages])
 
-        self.__create_python_udf(
-            return_type=return_type,
-            input_args=input_args,
-            handler=handler,
-            udf_name=udf_name,
-            all_imports=all_imports,
-            all_packages=all_packages,
-            is_temporary=stage_location is None,
-            replace=replace,
-            inline_python_code=code,
-        )
+        try:
+            self.__create_python_udf(
+                return_type=return_type,
+                input_args=input_args,
+                handler=handler,
+                udf_name=udf_name,
+                all_imports=all_imports,
+                all_packages=all_packages,
+                is_temporary=stage_location is None,
+                replace=replace,
+                inline_python_code=inline_code,
+            )
+        # an exception might happen during registering a UDF
+        # (e.g., a dependency might not be found on the stage),
+        # then for a permanent udf, we should delete the uploaded
+        # python file and raise the exception
+        except BaseException:
+            if stage_location and upload_file_stage_location:
+                try:
+                    logger.info(
+                        "Removing Snowpark uploaded file: %s",
+                        upload_file_stage_location,
+                    )
+                    self._session._run_query(f"REMOVE {upload_file_stage_location}")
+                    logger.info(
+                        "Finished removing Snowpark uploaded file: %s",
+                        upload_file_stage_location,
+                    )
+                except BaseException as clean_ex:
+                    logger.warning("Failed to clean uploaded file: %s", clean_ex)
+            raise
+
+        return UserDefinedFunction(func, return_type, input_types, udf_name)
 
     def __generate_python_code(self, func: Callable, arg_names: List[str]) -> str:
         # clear the annotations because when the user annotates Variant and Geography,
