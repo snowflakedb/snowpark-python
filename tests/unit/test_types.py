@@ -6,7 +6,7 @@
 import os
 import typing
 from array import array
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from datetime import date, datetime, time
 from decimal import Decimal
 
@@ -332,36 +332,6 @@ def test_python_type_to_snow_type():
         MapType(StringType(), StringType()),
         False,
     )
-    check_type(
-        typing.DefaultDict[str, int],
-        MapType(StringType(), LongType()),
-        False,
-    )
-    check_type(
-        typing.DefaultDict,
-        MapType(StringType(), StringType()),
-        False,
-    )
-    check_type(
-        defaultdict,
-        MapType(StringType(), StringType()),
-        False,
-    )
-    check_type(
-        typing.OrderedDict[str, int],
-        MapType(StringType(), LongType()),
-        False,
-    )
-    check_type(
-        typing.OrderedDict,
-        MapType(StringType(), StringType()),
-        False,
-    )
-    check_type(
-        OrderedDict,
-        MapType(StringType(), StringType()),
-        False,
-    )
     check_type(Variant, VariantType(), False)
     check_type(Geography, GeographyType(), False)
 
@@ -409,6 +379,10 @@ def test_python_type_to_snow_type():
         _python_type_to_snow_type(typing.Set)
     with pytest.raises(TypeError):
         _python_type_to_snow_type(set)
+    with pytest.raises(TypeError):
+        _python_type_to_snow_type(typing.OrderedDict)
+    with pytest.raises(TypeError):
+        _python_type_to_snow_type(defaultdict)
     with pytest.raises(TypeError):
         _python_type_to_snow_type(typing.Union[str, int, None])
     with pytest.raises(TypeError):
