@@ -7,7 +7,6 @@
 # existing code originally distributed by the Apache Software Foundation as part of the
 # Apache Spark project, under the Apache License, Version 2.0.
 import ast
-import collections
 import ctypes
 import datetime
 import decimal
@@ -15,20 +14,7 @@ import re
 import sys
 import typing  # type: ignore
 from array import array
-from collections import OrderedDict
-from typing import (
-    Any,
-    DefaultDict,
-    Dict,
-    List,
-    Optional,
-    OrderedDict,
-    Tuple,
-    Type,
-    Union,
-    get_args,
-    get_origin,
-)
+from typing import Any, Dict, List, Optional, Tuple, Type, Union, get_args, get_origin
 
 import snowflake.snowpark.types  # type: ignore
 from snowflake.snowpark.types import (
@@ -333,8 +319,6 @@ def _python_type_str_to_object(tp_str: str) -> Type:
         return datetime.time
     elif tp_str == "datetime":
         return datetime.datetime
-    elif tp_str == "defaultdict":
-        return collections.defaultdict
     else:
         return eval(tp_str)
 
@@ -373,15 +357,8 @@ def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         )
         return ArrayType(element_type), False
 
-    # typing.Dict, typing.DefaultDict, typing.OrderDict, dict, defaultdict, OrderedDict
-    dict_tps = [
-        dict,
-        collections.defaultdict,
-        collections.OrderedDict,
-        OrderedDict,
-        Dict,
-        DefaultDict,
-    ]
+    # typing.Dict, dict
+    dict_tps = [dict, Dict]
     if tp in dict_tps or (tp_origin and tp_origin in dict_tps):
         key_type = _python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
         value_type = (
