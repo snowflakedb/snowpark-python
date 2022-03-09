@@ -15,7 +15,7 @@ TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 
 
 @pytest.fixture(
-    autouse=True, scope="class"
+    autouse=True, scope="module"
 )  # scope session is pytest session, not the snowpark session.
 def add_snowpark_session(doctest_namespace):
     with open("tests/parameters.py", encoding="utf-8") as f:
