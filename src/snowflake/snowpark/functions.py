@@ -475,6 +475,119 @@ def radians(e: ColumnOrName) -> Column:
     return builtin("radians")(c)
 
 
+def md5(e: ColumnOrName) -> Column:
+    """Returns a 32-character hex-encoded string containing the 128-bit MD5 message digest."""
+    c = _to_col_if_str(e, "md5")
+    return builtin("md5")(c)
+
+
+def sha1(e: ColumnOrName) -> Column:
+    """Returns a 40-character hex-encoded string containing the 160-bit SHA-1 message digest."""
+    c = _to_col_if_str(e, "sha1")
+    return builtin("sha1")(c)
+
+
+def sha2(e: ColumnOrName, num_bits: int) -> Column:
+    """Returns a hex-encoded string containing the N-bit SHA-2 message digest,
+    where N is the specified output digest size."""
+    permitted_values = [0, 224, 256, 384, 512]
+    if num_bits not in permitted_values:
+        raise ValueError(
+            f"num_bits {num_bits} is not in the permitted values {permitted_values}"
+        )
+    c = _to_col_if_str(e, "sha2")
+    return builtin("sha2")(c, num_bits)
+
+
+def hash(e: ColumnOrName) -> Column:
+    """Returns a signed 64-bit hash value. Note that HASH never returns NULL, even for NULL inputs."""
+    c = _to_col_if_str(e, "hash")
+    return builtin("hash")(c)
+
+
+def ascii(e: ColumnOrName) -> Column:
+    """Returns the ASCII code for the first character of a string. If the string is empty,
+    a value of 0 is returned."""
+    c = _to_col_if_str(e, "ascii")
+    return builtin("ascii")(c)
+
+
+def initcap(e: ColumnOrName) -> Column:
+    """Returns the input string with the first letter of each word in uppercase
+    and the subsequent letters in lowercase."""
+    c = _to_col_if_str(e, "initcap")
+    return builtin("initcap")(c)
+
+
+def length(e: ColumnOrName) -> Column:
+    """Returns the length of an input string or binary value. For strings,
+    the length is the number of characters, and UTF-8 characters are counted as a
+    single character. For binary, the length is the number of bytes."""
+    c = _to_col_if_str(e, "length")
+    return builtin("length")(c)
+
+
+def lower(e: ColumnOrName) -> Column:
+    """Returns the input string with all characters converted to lowercase."""
+    c = _to_col_if_str(e, "lower")
+    return builtin("lower")(c)
+
+
+def lpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
+    """Left-pads a string with characters from another string, or left-pads a
+    binary value with bytes from another binary value."""
+    c = _to_col_if_str(e, "lpad")
+    p = _to_col_if_str(pad, "lpad")
+    return builtin("lpad")(c, lit(len), p)
+
+
+def ltrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
+    """Removes leading characters, including whitespace, from a string."""
+    c = _to_col_if_str(e, "ltrim")
+    t = _to_col_if_str(trim_string, "ltrim") if trim_string is not None else None
+    return builtin("ltrim")(c, t) if t is not None else builtin("ltrim")(c)
+
+
+def rpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
+    """Right-pads a string with characters from another string, or right-pads a
+    binary value with bytes from another binary value."""
+    c = _to_col_if_str(e, "rpad")
+    p = _to_col_if_str(pad, "rpad")
+    return builtin("rpad")(c, lit(len), p)
+
+
+def rtrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
+    """Removes trailing characters, including whitespace, from a string."""
+    c = _to_col_if_str(e, "rtrim")
+    t = _to_col_if_str(trim_string, "rtrim") if trim_string is not None else None
+    return builtin("rtrim")(c, t) if t is not None else builtin("rtrim")(c)
+
+
+def repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
+    """Builds a string by repeating the input for the specified number of times."""
+    c = _to_col_if_str(s, "rtrim")
+    return builtin("repeat")(c, lit(n))
+
+
+def soundex(e: ColumnOrName) -> Column:
+    """Returns a string that contains a phonetic representation of the input string."""
+    c = _to_col_if_str(e, "soundex")
+    return builtin("soundex")(c)
+
+
+def trim(e: ColumnOrName, trim_string: ColumnOrName) -> Column:
+    """Removes leading and trailing characters from a string."""
+    c = _to_col_if_str(e, "trim")
+    t = _to_col_if_str(trim_string, "trim")
+    return builtin("trim")(c, t)
+
+
+def upper(e: ColumnOrName) -> Column:
+    """Returns the input string with all characters converted to uppercase."""
+    c = _to_col_if_str(e, "upper")
+    return builtin("upper")(c)
+
+
 def log(
     base: Union[ColumnOrName, int, float], x: Union[ColumnOrName, int, float]
 ) -> Column:
@@ -538,13 +651,29 @@ def substring(
 substr = substring
 
 
+def regexp_count(
+    subject: ColumnOrName,
+    pattern: Union[Column, str],
+    position: Union[Column, int] = lit(1),
+    *parameters: ColumnOrLiteral,
+) -> Column:
+    """Returns the number of times that a pattern occurs in the subject."""
+    sql_func_name = "regexp_count"
+    sub = _to_col_if_str(subject, sql_func_name)
+    pat = lit(pattern)
+    pos = lit(position)
+
+    params = [lit(p) for p in parameters]
+    return builtin(sql_func_name)(sub, pat, pos, *params)
+
+
 def regexp_replace(
     subject: ColumnOrName,
     pattern: Union[Column, str],
     replacement: Union[Column, str] = lit(""),
     position: Union[Column, int] = lit(1),
-    occurences: Union[Column, int] = lit(0),
-    *parameters: Union[Column, LiteralType],
+    occurrences: Union[Column, int] = lit(0),
+    *parameters: ColumnOrLiteral,
 ) -> Column:
     """Returns the subject with the specified pattern (or all occurrences of the pattern) either removed or replaced by a replacement string.
     If no matches are found, returns the original subject.
@@ -554,10 +683,58 @@ def regexp_replace(
     pat = lit(pattern)
     rep = lit(replacement)
     pos = lit(position)
-    occ = lit(occurences)
+    occ = lit(occurrences)
 
     params = [lit(p) for p in parameters]
     return builtin(sql_func_name)(sub, pat, rep, pos, occ, *params)
+
+
+def replace(
+    subject: ColumnOrName,
+    pattern: Union[Column, str],
+    replacement: Union[Column, str] = lit(""),
+) -> Column:
+    """
+    Removes all occurrences of a specified subject and optionally replaces them with replacement.
+    """
+    sql_func_name = "replace"
+    sub = _to_col_if_str(subject, sql_func_name)
+    pat = lit(pattern)
+    rep = lit(replacement)
+    return builtin(sql_func_name)(sub, pat, rep)
+
+
+def charindex(
+    target_expr: ColumnOrName,
+    source_expr: ColumnOrName,
+    position: Optional[Union[Column, int]] = None,
+) -> Column:
+    """Searches for ``target_expr`` in ``source_expr`` and, if successful,
+    returns the position (1-based) of the ``target_expr`` in ``source_expr``."""
+    t = _to_col_if_str(target_expr, "charindex")
+    s = _to_col_if_str(source_expr, "charindex")
+    return (
+        builtin("charindex")(t, s, lit(position))
+        if position is not None
+        else builtin("charindex")(t, s)
+    )
+
+
+def collate(e: Column, collation_spec: str) -> Column:
+    """Returns a copy of the original :class:`Column` with the specified ``collation_spec``
+    property, rather than the original collation specification property.
+
+    For details, see the Snowflake documentation on
+    `collation specifications <https://docs.snowflake.com/en/sql-reference/collation.html#label-collation-specification>`_.
+    """
+    c = _to_col_if_str(e, "collate")
+    return builtin("collate")(c, collation_spec)
+
+
+def collation(e: ColumnOrName) -> Column:
+    """Returns the collation specification of expr."""
+    c = _to_col_if_str(e, "collation")
+    return builtin("collation")(c)
 
 
 def concat(*cols: ColumnOrName) -> Column:
@@ -587,19 +764,6 @@ def translate(
     return builtin("translate")(source, match, replace)
 
 
-def trim(e: ColumnOrName, trim_string: ColumnOrName) -> Column:
-    """Removes leading and trailing characters from a string."""
-    c = _to_col_if_str(e, "trim")
-    t = _to_col_if_str(trim_string, "trim")
-    return builtin("trim")(c, t)
-
-
-def upper(e: ColumnOrName) -> Column:
-    """Returns the input string with all characters converted to uppercase."""
-    c = _to_col_if_str(e, "upper")
-    return builtin("upper")(c)
-
-
 def contains(col: ColumnOrName, string: ColumnOrName) -> Column:
     """Returns true if col contains str."""
     c = _to_col_if_str(col, "contains")
@@ -621,6 +785,31 @@ def endswith(col: ColumnOrName, str: ColumnOrName) -> Column:
     return builtin("endswith")(c, s)
 
 
+def insert(
+    base_expr: ColumnOrName,
+    position: Union[Column, int],
+    length: Union[Column, int],
+    insert_expr: ColumnOrName,
+) -> Column:
+    """Replaces a substring of the specified length, starting at the specified position,
+    with a new string or binary value."""
+    b = _to_col_if_str(base_expr, "insert")
+    i = _to_col_if_str(insert_expr, "insert")
+    return builtin("insert")(b, lit(position), lit(length), i)
+
+
+def left(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
+    """Returns a left most substring of ``str_expr``."""
+    s = _to_col_if_str(str_expr, "left")
+    return builtin("left")(s, lit(length))
+
+
+def right(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
+    """Returns a right most substring of ``str_expr``."""
+    s = _to_col_if_str(str_expr, "right")
+    return builtin("right")(s, lit(length))
+
+
 def char(col: ColumnOrName) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
@@ -632,7 +821,11 @@ def to_char(c: ColumnOrName, format: Optional[Union[Column, str]] = None) -> Col
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
     c = _to_col_if_str(c, "to_char")
-    return builtin("to_char")(c, lit(format)) if format else builtin("to_char")(c)
+    return (
+        builtin("to_char")(c, lit(format))
+        if format is not None
+        else builtin("to_char")(c)
+    )
 
 
 to_varchar = to_char
@@ -641,7 +834,7 @@ to_varchar = to_char
 def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     """Converts an input expression into the corresponding time."""
     c = _to_col_if_str(e, "to_time")
-    return builtin("to_time")(c, fmt) if fmt else builtin("to_time")(c)
+    return builtin("to_time")(c, fmt) if fmt is not None else builtin("to_time")(c)
 
 
 def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
@@ -1546,12 +1739,6 @@ def least(*columns: ColumnOrName) -> Column:
     """Returns the smallest value from a list of expressions. LEAST supports all data types, including VARIANT."""
     c = [_to_col_if_str(ex, "least") for ex in columns]
     return builtin("least")(*c)
-
-
-def hash(e: ColumnOrName) -> Column:
-    """Returns a signed 64-bit hash value. Note that HASH never returns NULL, even for NULL inputs."""
-    c = _to_col_if_str(e, "hash")
-    return builtin("hash")(c)
 
 
 def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> Column:

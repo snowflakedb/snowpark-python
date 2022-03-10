@@ -47,6 +47,7 @@ from snowflake.snowpark.functions import (
     as_timestamp_ntz,
     as_timestamp_tz,
     as_varchar,
+    ascii,
     asin,
     atan,
     atan2,
@@ -54,10 +55,13 @@ from snowflake.snowpark.functions import (
     builtin,
     ceil,
     char,
+    charindex,
     check_json,
     check_xml,
     coalesce,
     col,
+    collate,
+    collation,
     contains,
     corr,
     cos,
@@ -81,6 +85,8 @@ from snowflake.snowpark.functions import (
     get_ignore_case,
     get_path,
     iff,
+    initcap,
+    insert,
     is_array,
     is_binary,
     is_boolean,
@@ -103,10 +109,16 @@ from snowflake.snowpark.functions import (
     kurtosis,
     lag,
     lead,
+    left,
+    length,
     listagg,
     lit,
     log,
+    lower,
+    lpad,
+    ltrim,
     max,
+    md5,
     mean,
     min,
     mode,
@@ -127,11 +139,20 @@ from snowflake.snowpark.functions import (
     radians,
     random,
     rank,
+    regexp_count,
+    repeat,
+    replace,
+    right,
     round,
     row_number,
+    rpad,
+    rtrim,
+    sha1,
+    sha2,
     sin,
     sinh,
     skew,
+    soundex,
     split,
     sql_expr,
     sqrt,
@@ -154,8 +175,10 @@ from snowflake.snowpark.functions import (
     to_variant,
     to_xml,
     translate,
+    trim,
     trunc,
     typeof,
+    upper,
     var_pop,
     var_samp,
     variance,
@@ -2857,4 +2880,191 @@ def test_div0(session, col_0, col_2, col_4):
     Utils.check_answer(
         TestData.zero1(session).select(div0(col_2, col_0), div0(col_4, col_2)),
         [Row(0.0, 2.0)],
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_md5_sha1_sha2(session, col_A):
+    Utils.check_answer(
+        TestData.string1(session).select(md5(col_A), sha1(col_A), sha2(col_A, 224)),
+        [
+            Row(
+                "5a105e8b9d40e1329780d62ea2265d8a",
+                "b444ac06613fc8d63795be9ad0beaf55011936ac",
+                "aff3c83c40e2f1ae099a0166e1f27580525a9de6acd995f21717e984",
+            ),
+            Row(
+                "ad0234829205b9033196ba818f7a872b",
+                "109f4b3c50d7b0df729d299bc6f8e9ef9066971f",
+                "35f757ad7f998eb6dd3dd1cd3b5c6de97348b84a951f13de25355177",
+            ),
+            Row(
+                "8ad8757baa8564dc136c1e07507f4a98",
+                "3ebfa301dc59196f18593c45e519287a23297589",
+                "d2d5c076b2435565f66649edd604dd5987163e8a8240953144ec652f",
+            ),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_B", ["B", col("B")])
+def test_ascii(session, col_B):
+    Utils.check_answer(
+        TestData.string1(session).select(ascii(col_B)),
+        [Row(97), Row(98), Row(99)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_initcap_length_lower_upper(session, col_A):
+    Utils.check_answer(
+        TestData.string2(session).select(
+            initcap(col_A), length(col_A), lower(col_A), upper(col_A)
+        ),
+        [
+            Row("Asdfg", 5, "asdfg", "ASDFG"),
+            Row("Qqq", 3, "qqq", "QQQ"),
+            Row("Qw", 2, "qw", "QW"),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_lpad_rpad(session, col_A):
+    Utils.check_answer(
+        TestData.string2(session).select(
+            lpad(col_A, 8, lit("X")), rpad(col_A, 9, lit("S"))
+        ),
+        [
+            Row("XXXasdFg", "asdFgSSSS"),
+            Row("XXXXXqqq", "qqqSSSSSS"),
+            Row("XXXXXXQw", "QwSSSSSSS"),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_ltrim_rtrim_trim(session, col_A):
+    Utils.check_answer(
+        TestData.string3(session).select(ltrim(col_A), rtrim(col_A)),
+        [Row("abcba  ", "  abcba"), Row("a12321a   ", " a12321a")],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.string3(session).select(
+            ltrim(col_A, lit(" a")), rtrim(col_A, lit(" a")), trim(col_A, lit("a "))
+        ),
+        [Row("bcba  ", "  abcb", "bcb"), Row("12321a   ", " a12321", "12321")],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_B", ["B", col("B")])
+def test_repeat(session, col_B):
+    Utils.check_answer(
+        TestData.string1(session).select(repeat(col_B, 3)),
+        [Row("aaa"), Row("bbb"), Row("ccc")],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_A", ["A", col("A")])
+def test_soundex(session, col_A):
+    Utils.check_answer(
+        TestData.string4(session).select(soundex(col_A)),
+        [Row("a140"), Row("b550"), Row("p200")],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_insert(session, col_a):
+    Utils.check_answer(
+        TestData.string4(session).select(insert(col_a, 2, 3, lit("abc"))),
+        [Row("aabce"), Row("babcna"), Row("pabch")],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_left(session, col_a):
+    Utils.check_answer(
+        TestData.string4(session).select(left(col_a, 2)),
+        [Row("ap"), Row("ba"), Row("pe")],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_right(session, col_a):
+    Utils.check_answer(
+        TestData.string4(session).select(right(col_a, 2)),
+        [Row("le"), Row("na"), Row("ch")],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_regexp_count(session, col_a):
+    Utils.check_answer(
+        TestData.string4(session).select(regexp_count(col_a, "a")),
+        [Row(1), Row(3), Row(1)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.string4(session).select(regexp_count(col_a, "a", 2, "c")),
+        [Row(0), Row(3), Row(1)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_replace(session, col_a):
+    Utils.check_answer(
+        TestData.string4(session).select(replace(col_a, "a")),
+        [Row("pple"), Row("bnn"), Row("pech")],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.string4(session).select(replace(col_a, "a", "z")),
+        [Row("zpple"), Row("bznznz"), Row("pezch")],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_charindex(session, col_a):
+    Utils.check_answer(
+        TestData.string4(session).select(charindex(lit("na"), col_a)),
+        [Row(0), Row(3), Row(0)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.string4(session).select(charindex(lit("na"), col_a, 4)),
+        [Row(0), Row(5), Row(0)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_collate(session, col_a):
+    Utils.check_answer(
+        TestData.string3(session).where(collate(col_a, "en_US-trim") == "abcba"),
+        [Row("  abcba  ")],
+        sort=False,
+    )
+
+
+def test_collation(session):
+    Utils.check_answer(
+        TestData.zero1(session).select(collation(lit("f").collate("de"))),
+        [Row("de")],
     )
