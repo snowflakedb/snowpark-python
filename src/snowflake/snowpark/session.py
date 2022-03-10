@@ -1405,7 +1405,7 @@ class Session:
 
         Args:
             stored_proc_name: The name of stored procedure in Snowflake.
-            args: Arguments should be Basic Python types.
+            args: Arguments should be basic Python types.
 
         Example::
 
