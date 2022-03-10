@@ -129,9 +129,9 @@ class Column:
             1. Snowflake object identifiers, including column names, may or may not be case sensitive depending on a set of rules.
                Refer to `Snowflake Object Identifer Requirements <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_ for details.
                It's highly suggested that you understand these rules.
-            2. When you use column names, you should follow the rules.
-            3. The returned column names after a DataFrame is evaluated follows the above mentioned rules.
-               The above ``df`` was created with column name "name", but as you can see, the returned column name after ``collect()`` is called became "NAME".
+            2. When you use column names with a DataFrame, you should follow these rules.
+            3. The returned column names after a DataFrame is evaluated follow these rules too.
+               The above ``df`` was created with column name "name" while the returned column name after ``collect()`` was called became "NAME".
                It's becasue the column is regarded as ignore-case so the Snowfalke database returns the upper case.
 
     To create a Column object that represents a constant value, use :func:``snowflake.snowpark.functions.lit``:
@@ -147,7 +147,7 @@ class Column:
     ==============================================  ==============================================
     Operator                                        Description
     ==============================================  ==============================================
-    ``x[index]``                                    Index operator to get an item out of a Array or Object
+    ``x[index]``                                    Index operator to get an item out of an Array or Object
     ``**``                                          Power
     ``-x``, ``~x``                                  Unary minus, unary not
     ``*``, ``/``, ``%``                             Multiply, divide, remainder
