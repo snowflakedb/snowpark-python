@@ -102,23 +102,42 @@ def _to_col_if_str(col: ColumnOrName, func_name: str) -> "Column":
 
 
 class Column:
-    """
-    Represents a column or an expression in a :class:`DataFrame`.
-    To create a Column object to refer to a column in a :class:`DataFrame`, you can:
+    """Represents a column or an expression in a :class:`DataFrame`.
 
-      - Use the :func:`functions.col` function.
-      - Use the :func:`DataFrame.col` method.
-      - Use the index operator ``[]`` on a dataframe object with a column name.
-      - Use the dot operator ``.`` on a dataframe object with a column name.
+    To access a Column object that refers a column in a :class:`DataFrame`, you can:
 
-    Examples::
+        - Use the column name.
+        - Use the :func:`functions.col` function.
+        - Use the :func:`DataFrame.col` method.
+        - Use the index operator ``[]`` on a dataframe object with a column name.
+        - Use the dot operator ``.`` on a dataframe object with a column name.
 
-        from snowflake.snowpark.functions import col
-        df.select("name")
-        df.select(col("name"))
-        df.select(df.col("name"))
-        df.select(df["name"])
-        df.select(df.name)
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["John", 1], ["Mike", 11]], schema=["name", "age"])
+        >>> df.select("name").collect()
+        [Row(NAME='John'), Row(NAME='Mike')]
+        >>> df.select(col("name")).collect()
+        [Row(NAME='John'), Row(NAME='Mike')]
+        >>> df.select(df.col("name")).collect()
+        [Row(NAME='John'), Row(NAME='Mike')]
+        >>> df.select(df["name"]).collect()
+        [Row(NAME='John'), Row(NAME='Mike')]
+        >>> df.select(df.name).collect()
+        [Row(NAME='John'), Row(NAME='Mike')]
+
+        Snowflake object identifiers, including column names, may or may not be case sensitive depending on a set of rules.
+        Refer to `Snowflake Object Identifer Requirements <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_ for details.
+        When you use column names with a DataFrame, you should follow these rules.
+
+        The returned column names after a DataFrame is evaluated follow the case-sensitivity rules too.
+        The above ``df`` was created with column name "name" while the returned column name after ``collect()`` was called became "NAME".
+        It's because the column is regarded as ignore-case so the Snowflake database returns the upper case.
+
+    To create a Column object that represents a constant value, use :func:`snowflake.snowpark.functions.lit`:
+
+        >>> from snowflake.snowpark.functions import lit
+        >>> df.select(col("name"), lit("const value").alias("literal_column")).collect()
+        [Row(NAME='John', LITERAL_COLUMN='const value'), Row(NAME='Mike', LITERAL_COLUMN='const value')]
 
     This class also defines utility functions for constructing expressions with Columns.
     Column objects can be built with the operators, summarized by operator precedence,
@@ -127,7 +146,7 @@ class Column:
     ==============================================  ==============================================
     Operator                                        Description
     ==============================================  ==============================================
-    ``x[index]``                                    Index operator to get an item out of a list or dict
+    ``x[index]``                                    Index operator to get an item out of a Snowflake ARRAY or OBJECT
     ``**``                                          Power
     ``-x``, ``~x``                                  Unary minus, unary not
     ``*``, ``/``, ``%``                             Multiply, divide, remainder
@@ -137,11 +156,37 @@ class Column:
     ``==``, ``!=``, ``<``, ``<=``, ``>``, ``>=``    Equal to, not equal to, less than, less than or equal to, greater than, greater than or equal to
     ==============================================  ==============================================
 
-    The following examples demonstrate how to use Column objects in expressions::
+        The following examples demonstrate how to use Column objects in expressions:
 
-        df.filter((col("id") == 20) | (col("id") <= 10)) \\
-          .filter((df["a"] + df.b) < 10) \\
-          .select((col("b") * 10).as_("c"))
+            >>> df = session.create_dataframe([[20, 5], [1, 2]], schema=["a", "b"])
+            >>> df.filter((col("a") == 20) | (col("b") <= 10)).collect()  # use parenthesises before and after the | operator.
+            [Row(A=20, B=5), Row(A=1, B=2)]
+            >>> df.filter((df["a"] + df.b) < 10).collect()
+            [Row(A=1, B=2)]
+            >>> df.select((col("b") * 10).alias("c")).collect()
+            [Row(C=50), Row(C=20)]
+
+        When you use ``|``, ``&``, and ``~`` as logical operators on columns, you must always enclose column expressions
+        with parenthesises as illustrated in the above example, because their order precedence is higher than ``==``, ``<``, etc.
+
+        Do not use ``and``, ``or``, and ``not`` logical operators on column objects, for instance, ``(df.col1 > 1) and (df.col2 > 2)`` is wrong.
+        The reason is Python doesn't have a magic method, or dunder method for them.
+        It will raise an error and tell you to use ``|``, ``&`` or ``~``, for which Python has magic methods.
+        A side effect is ``if column:`` will raise an error because it has a hidden call to ``bool(a_column)``, like using the ``and`` operator.
+        Use ``if a_column is None:`` instead.
+
+    To access elements of a semi-structured Object and Array, use ``[]`` on a Column object:
+
+        >>> from snowflake.snowpark.types import StringType, IntegerType
+        >>> df_with_semi_data = session.create_dataframe([[{"k1": "v1", "k2": "v2"}, ["a0", 1, "a2"]]], schema=["object_column", "array_column"])
+        >>> df_with_semi_data.select(df_with_semi_data["object_column"]["k1"].alias("k1_value"), df_with_semi_data["array_column"][0].alias("a0_value"), df_with_semi_data["array_column"][1].alias("a1_value")).collect()
+        [Row(K1_VALUE='"v1"', A0_VALUE='"a0"', A1_VALUE='1')]
+        >>> # The above two returned string columns have JSON literal values because children of semi-structured data are semi-structured.
+        >>> # The next line converts JSON literal to a string
+        >>> df_with_semi_data.select(df_with_semi_data["object_column"]["k1"].cast(StringType()).alias("k1_value"), df_with_semi_data["array_column"][0].cast(StringType()).alias("a0_value"), df_with_semi_data["array_column"][1].cast(IntegerType()).alias("a1_value")).collect()
+        [Row(K1_VALUE='v1', A0_VALUE='a0', A1_VALUE=1)]
+
+    This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
     def __init__(self, expr: Union[str, SPExpression]):
@@ -264,16 +309,20 @@ class Column:
 
         Examples::
 
-            # Basic example
-            df.filter(df("a").in_(lit(1), lit(2), lit(3)))
+            >>> from snowflake.snowpark.functions import lit
+            >>> df = session.create_dataframe([[1, "x"], [2, "y"] ,[4, "z"]], schema=["a", "b"])
+            >>> # Basic example
+            >>> df.filter(df["a"].in_(lit(1), lit(2), lit(3))).collect()
+            [Row(A=1, B='x'), Row(A=2, B='y')]
 
-            # Check in membership for a DataFrame
-            df1 = session.table(table1)
-            df2 = session.table(table2)
-            df2.filter(col("a").in_(df1))
+            >>> # Check in membership for a DataFrame that has a single column
+            >>> df_for_in = session.create_dataframe([[1], [2] ,[3]], schema=["col1"])
+            >>> df.filter(df["a"].in_(df_for_in)).sort(df["a"].asc()).collect()
+            [Row(A=1, B='x'), Row(A=2, B='y')]
 
-            # Use in with a select method call
-            df.select(df("a").in_(lit(1), lit(2), lit(3)))
+            >>> # Use in with a select method call
+            >>> df.select(df["a"].in_(lit(1), lit(2), lit(3)).alias("is_in_list")).collect()
+            [Row(IS_IN_LIST=True), Row(IS_IN_LIST=True), Row(IS_IN_LIST=False)]
 
         Args:
             vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
@@ -577,15 +626,40 @@ class Column:
 
         Examples::
 
-            from snowflake.snowpark.functions import array_agg, col
-            from snowflake.snowpark import Window
+            >>> from snowflake.snowpark.functions import array_agg, col
+            >>> from snowflake.snowpark import Window
 
-            df = session.create_dataframe([(3, "v1"), (1, "v3"), (2, "v2")], schema=["a", "b"])
-            # create a DataFrame containing the values in "a" sorted by "b"
-            df_array_agg = df.select(array_agg("a").within_group("b"))
-            # create a DataFrame containing the values in "a" grouped by "b"
-            # and sorted by "a" in descending order.
-            df_array_agg_window = df.select(array_agg("a").within_group(col("a").desc())).over(Window.partitionBy(col("b")))
+            >>> df = session.create_dataframe([(3, "v1"), (1, "v3"), (2, "v2")], schema=["a", "b"])
+            >>> # create a DataFrame containing the values in "a" sorted by "b"
+            >>> df.select(array_agg("a").within_group("b").alias("new_column")).show()
+            ----------------
+            |"NEW_COLUMN"  |
+            ----------------
+            |[             |
+            |  3,          |
+            |  2,          |
+            |  1           |
+            |]             |
+            ----------------
+            <BLANKLINE>
+            >>> # create a DataFrame containing the values in "a" grouped by "b"
+            >>> # and sorted by "a" in descending order.
+            >>> df_array_agg_window = df.select(array_agg("a").within_group(col("a").desc()).over(Window.partitionBy(col("b"))).alias("new_column"))
+            >>> df_array_agg_window.show()
+            ----------------
+            |"NEW_COLUMN"  |
+            ----------------
+            |[             |
+            |  3           |
+            |]             |
+            |[             |
+            |  1           |
+            |]             |
+            |[             |
+            |  2           |
+            |]             |
+            ----------------
+            <BLANKLINE>
         """
         return Column(
             SPWithinGroup(
@@ -655,12 +729,13 @@ class CaseExpr(Column):
 
     Examples::
 
-        from snowflake.snowpark.functions import when, col, lit
-        df.select(
-            when(col("col").is_null(), lit(1)) \\
-                .when(col("col") == 1, lit(2)) \\
-                .otherwise(lit(3))
-        )
+        >>> from snowflake.snowpark.functions import when, col, lit
+
+        >>> df = session.create_dataframe([[None], [1], [2]], schema=["a"])
+        >>> df.select(when(col("a").is_null(), lit(1)) \\
+        ...     .when(col("a") == 1, lit(2)) \\
+        ...     .otherwise(lit(3)).alias("case_when_column")).collect()
+        [Row(CASE_WHEN_COLUMN=1), Row(CASE_WHEN_COLUMN=2), Row(CASE_WHEN_COLUMN=3)]
     """
 
     def __init__(self, expr: SPCaseWhen):
@@ -691,7 +766,10 @@ class CaseExpr(Column):
         )
 
     def otherwise(self, value: Union[ColumnOrLiteral]) -> "CaseExpr":
-        """Sets the default result for this CASE expression."""
+        """Sets the default result for this CASE expression.
+
+        :meth:`else_` is an alias of :meth:`otherwise`.
+        """
         return CaseExpr(SPCaseWhen(self.__branches, Column._to_expr(value)))
 
     # This alias is to sync with snowpark scala
