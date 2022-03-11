@@ -106,7 +106,7 @@ class Column:
 
     To access a Column object that refers a column in a :class:`DataFrame`, you can:
 
-        - Use the column name in some APIs.
+        - Use the column name.
         - Use the :func:`functions.col` function.
         - Use the :func:`DataFrame.col` method.
         - Use the index operator ``[]`` on a dataframe object with a column name.
@@ -125,16 +125,15 @@ class Column:
         >>> df.select(df.name).collect()
         [Row(NAME='John'), Row(NAME='Mike')]
 
-        Note:
-            1. Snowflake object identifiers, including column names, may or may not be case sensitive depending on a set of rules.
-               Refer to `Snowflake Object Identifer Requirements <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_ for details.
-               It's highly suggested that you understand these rules.
-            2. When you use column names with a DataFrame, you should follow these rules.
-            3. The returned column names after a DataFrame is evaluated follow these rules too.
-               The above ``df`` was created with column name "name" while the returned column name after ``collect()`` was called became "NAME".
-               It's becasue the column is regarded as ignore-case so the Snowfalke database returns the upper case.
+        Snowflake object identifiers, including column names, may or may not be case sensitive depending on a set of rules.
+        Refer to `Snowflake Object Identifer Requirements <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_ for details.
+        When you use column names with a DataFrame, you should follow these rules.
 
-    To create a Column object that represents a constant value, use :func:``snowflake.snowpark.functions.lit``:
+        The returned column names after a DataFrame is evaluated follow the case-sensitivity rules too.
+        The above ``df`` was created with column name "name" while the returned column name after ``collect()`` was called became "NAME".
+        It's because the column is regarded as ignore-case so the Snowflake database returns the upper case.
+
+    To create a Column object that represents a constant value, use :func:`snowflake.snowpark.functions.lit`:
 
         >>> from snowflake.snowpark.functions import lit
         >>> df.select(col("name"), lit("const value").alias("literal_column")).collect()
@@ -147,7 +146,7 @@ class Column:
     ==============================================  ==============================================
     Operator                                        Description
     ==============================================  ==============================================
-    ``x[index]``                                    Index operator to get an item out of an Array or Object
+    ``x[index]``                                    Index operator to get an item out of a Snowflake ARRAY or OBJECT
     ``**``                                          Power
     ``-x``, ``~x``                                  Unary minus, unary not
     ``*``, ``/``, ``%``                             Multiply, divide, remainder
@@ -160,33 +159,34 @@ class Column:
         The following examples demonstrate how to use Column objects in expressions:
 
             >>> df = session.create_dataframe([[20, 5], [1, 2]], schema=["a", "b"])
-            >>> df.filter((col("a") == 20) | (col("b") <= 10)).collect()
+            >>> df.filter((col("a") == 20) | (col("b") <= 10)).collect()  # use parenthesises before and after the | operator.
             [Row(A=20, B=5), Row(A=1, B=2)]
             >>> df.filter((df["a"] + df.b) < 10).collect()
             [Row(A=1, B=2)]
             >>> df.select((col("b") * 10).alias("c")).collect()
             [Row(C=50), Row(C=20)]
 
-        Note:
-            1. When you use ``|``, ``&``, and ``~`` as logical operators to connect columns, please always enclose column expressions
-               with parenthesises like in the above example because their order precedence is higher than ``==``, ``<``, etc.
-            2. Please do not use ``and``, ``or``, and ``not`` logical operators on column objects, for instances ``(df.col1 > 1) and (df.col2 > 2)``.
-               The reason is Python doesn't have a magic method, or dunder method for them.
-               It will raise an error and tell you what to use ``|``, ``&``, and ``~``, for which Python has magic methods.
-               An side effect is ``if column:`` will raise an error because it has a hidden call to ``bool(a_column)``, like using the ``and`` operator.
-               Please use ``if a_column is None:`` instead.
+        When you use ``|``, ``&``, and ``~`` as logical operators on columns, you must always enclose column expressions
+        with parenthesises as illustrated in the above example, because their order precedence is higher than ``==``, ``<``, etc.
 
-    To access elements of a semi-structure Object and Array, use ``[]`` on a Column object:
+        Do not use ``and``, ``or``, and ``not`` logical operators on column objects, for instance, ``(df.col1 > 1) and (df.col2 > 2)`` is wrong.
+        The reason is Python doesn't have a magic method, or dunder method for them.
+        It will raise an error and tell you to use ``|``, ``&`` or ``~``, for which Python has magic methods.
+        A side effect is ``if column:`` will raise an error because it has a hidden call to ``bool(a_column)``, like using the ``and`` operator.
+        Use ``if a_column is None:`` instead.
 
+    To access elements of a semi-structured Object and Array, use ``[]`` on a Column object:
+
+        >>> from snowflake.snowpark.types import StringType, IntegerType
         >>> df_with_semi_data = session.create_dataframe([[{"k1": "v1", "k2": "v2"}, ["a0", 1, "a2"]]], schema=["object_column", "array_column"])
         >>> df_with_semi_data.select(df_with_semi_data["object_column"]["k1"].alias("k1_value"), df_with_semi_data["array_column"][0].alias("a0_value"), df_with_semi_data["array_column"][1].alias("a1_value")).collect()
         [Row(K1_VALUE='"v1"', A0_VALUE='"a0"', A1_VALUE='1')]
-        >>> # The above two returned string columns have JSON literal values because children of semi-structure data are semi-structure.
+        >>> # The above two returned string columns have JSON literal values because children of semi-structured data are semi-structured.
         >>> # The next line converts JSON literal to a string
-        >>> df_with_semi_data.select(df_with_semi_data["object_column"]["k1"].cast("string").alias("k1_value"), df_with_semi_data["array_column"][0].cast("string").alias("a0_value"), df_with_semi_data["array_column"][1].cast("integer").alias("a1_value")).collect()
+        >>> df_with_semi_data.select(df_with_semi_data["object_column"]["k1"].cast(StringType()).alias("k1_value"), df_with_semi_data["array_column"][0].cast(StringType()).alias("a0_value"), df_with_semi_data["array_column"][1].cast(IntegerType()).alias("a1_value")).collect()
         [Row(K1_VALUE='v1', A0_VALUE='a0', A1_VALUE=1)]
 
-    This class has methods for the most frequently used column transformation and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
+    This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
     def __init__(self, expr: Union[str, SPExpression]):
@@ -768,7 +768,7 @@ class CaseExpr(Column):
     def otherwise(self, value: Union[ColumnOrLiteral]) -> "CaseExpr":
         """Sets the default result for this CASE expression.
 
-        ``else_`` is an alias of ``otherwise``.
+        :meth:`else_` is an alias of :meth:`otherwise`.
         """
         return CaseExpr(SPCaseWhen(self.__branches, Column._to_expr(value)))
 
