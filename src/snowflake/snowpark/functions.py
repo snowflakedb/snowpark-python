@@ -1860,6 +1860,10 @@ def stored_proc(
     explicitly specify the ``session`` parameter of this function. If you have a function and would
     like to register it to multiple databases, use ``session.stored_proc.register`` instead.
 
+    Note that the first parameter of your function should be a snowpark Session. Also, you need to add
+    `snowflake-snowpark-python` package (version >= 0.4.0) to your session before trying to create a
+    stored procedure.
+
     Args:
         func: A Python function used for creating the stored procedure.
         return_type: A :class:`types.DataType` representing the return data

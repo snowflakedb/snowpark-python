@@ -70,30 +70,33 @@ class StoredProcedure:
 
     def __call__(
         self,
-        *args: Union[Any, List[Any], Tuple[Any, ...]],
+        *args: Any,
         session: Optional["snowflake.snowpark.Session"] = None,
     ) -> any:
         session = session or snowflake.snowpark.session._get_active_session()
-        arg_list = Utils.parse_positional_args_to_list(*args)
-        if len(self._input_types) != len(arg_list):
+        if len(self._input_types) != len(args):
             raise ValueError(
-                f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(arg_list)}"
+                f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
             )
-        return session.call(self.name, arg_list)
+        return session.call(self.name, *args)
 
 
 class StoredProcedureRegistration:
     """
     Provides methods to register lambdas and functions as stored procedures in the Snowflake database.
-    For more information about Snowflake Python stored procedures, see `Python UDFs <https://docs.snowflake.com/en/LIMITEDACCESS/stored-procedures-python.html>`__.
+    For more information about Snowflake Python stored procedures, see `Python stored procedures <https://docs.snowflake.com/en/LIMITEDACCESS/stored-procedures-python.html>`__.
 
     :attr:`session.stored_proc <snowflake.snowpark.Session.stored_proc>` returns an object of this class.
     You can use this object to register stored procedures that you plan to use in the current session or permanently.
     The methods that register a stored procedure return a :class:`StoredProcedure` object.
 
-    Note that the first parameter of your function should be a snowpark Session.
+    Note that the first parameter of your function should be a snowpark Session. Also, you need to add
+    `snowflake-snowpark-python` package (version >= 0.4.0) to your session before trying to create a
+    stored procedure.
 
     Examples::
+
+        session.add_packages('snowflake-snowpark-python')
 
         def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, limit: int) -> str:
             session.table(from_table).limit(count).write.save_as_table(to_table)
