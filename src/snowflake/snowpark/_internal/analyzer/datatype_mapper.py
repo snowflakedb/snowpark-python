@@ -4,7 +4,9 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import binascii
+import json
 import math
+from array import array
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Any
@@ -154,6 +156,12 @@ class DataTypeMapper:
             datatype, BinaryType
         ):
             return "'{}' :: binary".format(binascii.hexlify(value).decode())
+
+        if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
+            return f"parse_json({DataTypeMapper.str_to_sql(json.dumps(value))})"
+
+        if isinstance(value, dict) and isinstance(datatype, MapType):
+            return f"parse_json({DataTypeMapper.str_to_sql(json.dumps(value))})"
 
         raise TypeError(
             "Unsupported datatype {}, value {} by to_sql()".format(datatype, value)

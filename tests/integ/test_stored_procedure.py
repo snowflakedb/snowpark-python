@@ -4,19 +4,19 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
-import logging
 import os
 import sys
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
 import pytest
 
+import snowflake.snowpark.functions
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import Utils as InternalUtils
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
-from snowflake.snowpark.stored_procedure import stored_proc
+from snowflake.snowpark.functions import stored_proc
 from snowflake.snowpark.types import DoubleType, IntegerType, StringType
 from tests.utils import TempObjectType, TestFiles, Utils
 
@@ -209,7 +209,7 @@ def test_annotation_syntax(session):
 def test_register_sp_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
 
-    mod5_sp = session.stored_proc.register_from_file(
+    mod5_sp = snowflake.snowpark.functions.stored_proc.register_from_file(
         test_files.test_sp_py_file,
         "mod5",
         return_type=IntegerType(),
@@ -350,30 +350,6 @@ def test_add_import_stage_file(session, resources_path):
         session.clear_imports()
 
 
-def test_add_import_duplicate(session, resources_path, caplog):
-    test_files = TestFiles(resources_path)
-    abs_path = test_files.test_sp_directory
-    rel_path = os.path.relpath(abs_path)
-
-    session.add_import(abs_path)
-    session.add_import(f"{abs_path}/")
-    session.add_import(rel_path)
-    assert session.get_imports() == [test_files.test_sp_directory]
-
-    # skip upload the file because the calculated checksum is same
-    session_stage = session.get_session_stage()
-    session._resolve_imports(session_stage)
-    session.add_import(abs_path)
-    session._resolve_imports(session_stage)
-    assert (
-        f"{os.path.basename(abs_path)}.zip exists on {session_stage}, skipped"
-        in caplog.text
-    )
-
-    session.remove_import(rel_path)
-    assert len(session.get_imports()) == 0
-
-
 def test_sp_level_import(session, resources_path):
     test_files = TestFiles(resources_path)
     with patch.object(sys, "path", [*sys.path, resources_path]):
@@ -423,11 +399,21 @@ def test_type_hints(session):
     def return_datetime_sp(_: Session) -> datetime.datetime:
         return dt
 
+    @stored_proc
+    def first_element_sp(_: Session, x: List[str]) -> str:
+        return x[0]
+
+    @stored_proc
+    def get_sp(_: Session, d: Dict[str, str], i: str) -> str:
+        return d[i]
+
     assert add_sp(1, 2) == 3
     assert snow_sp(1) is None
     assert snow_sp(2) == "snow"
     assert double_str_list_sp("abc") == '[\n  "abc",\n  "abc"\n]'
     assert return_datetime_sp() == dt
+    assert first_element_sp([["0", "'"]]) == "0"
+    assert get_sp({"0": "snow", "1": "flake"}, "0") == "snow"
 
 
 def test_type_hint_no_change_after_registration(session):

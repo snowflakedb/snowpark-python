@@ -71,10 +71,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.stored_procedure import (
-    StoredProcedure,
-    StoredProcedureRegistration,
-)
+from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
@@ -1411,6 +1408,8 @@ class Session:
 
             session.call("my_copy_sp", "test_from", "test_to", 10)
         """
+        Utils.validate_object_name(stored_proc_name)
+
         sql_args = []
         for arg in Utils.parse_positional_args_to_list(*args):
             sql_args.append(DataTypeMapper.to_sql(arg, _infer_type(arg)))

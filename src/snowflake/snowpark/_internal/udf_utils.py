@@ -29,7 +29,7 @@ from snowflake.snowpark._internal.type_utils import (
     convert_to_sf_type,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
-from snowflake.snowpark.types import DataType, StringType
+from snowflake.snowpark.types import DataType
 
 logger = getLogger(__name__)
 
@@ -57,7 +57,7 @@ class FunctionType(Enum):
     PROCEDURE = FunctionContext(TempObjectType.PROCEDURE, "stored proc")
 
 
-def __get_types_from_type_hints(
+def get_types_from_type_hints(
     func: Union[Callable, Tuple[str, str]],
     function_type: FunctionType,
 ) -> Tuple[DataType, List[DataType]]:
@@ -87,7 +87,7 @@ def __get_types_from_type_hints(
                 "snowflake.snowpark.Session",
             ]:
                 raise TypeError(
-                    "First parameter of stored proc function should be Session"
+                    "The first argument of stored proc function should be Session"
                 )
         elif key != "return":
             input_types.append(_python_type_to_snow_type(python_type)[0])
@@ -144,16 +144,12 @@ def process_registration_inputs(
     Utils.validate_object_name(object_name)
 
     # get return and input types
-    if return_type or input_types:
-        new_return_type = return_type if return_type else StringType()
-        new_input_types = input_types if input_types else []
-    else:
-        (
-            new_return_type,
-            new_input_types,
-        ) = __get_types_from_type_hints(func, function_type)
+    if not return_type and not input_types:
+        return_type, input_types = get_types_from_type_hints(func, function_type)
+    if input_types is None:
+        input_types = []
 
-    return object_name, new_return_type, new_input_types
+    return object_name, return_type, input_types
 
 
 def cleanup_failed_permanent_registration(
@@ -177,7 +173,7 @@ def cleanup_failed_permanent_registration(
     raise
 
 
-def __generate_python_code(func: Callable, arg_names: List[str]) -> str:
+def generate_python_code(func: Callable, arg_names: List[str]) -> str:
     # clear the annotations because when the user annotates Variant and Geography,
     # which are from snowpark modules and will not work on the server side
     # built-in functions don't have __annotations__
@@ -253,7 +249,7 @@ def resolve_imports_and_packages(
         # and we compress it first then upload it
         udf_file_name_base = f"udf_py_{Utils.random_number()}"
         udf_file_name = f"{udf_file_name_base}.zip"
-        code = __generate_python_code(func, arg_names)
+        code = generate_python_code(func, arg_names)
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = Utils.get_udf_upload_prefix(udf_name)
             upload_file_stage_location = Utils.normalize_remote_file_or_dir(
@@ -315,7 +311,7 @@ def resolve_imports_and_packages(
     return handler, inline_code, all_imports, all_packages, upload_file_stage_location
 
 
-def create_python_udf_sp(
+def create_python_udf_or_sp(
     session: "snowflake.snowpark.Session",
     return_type: DataType,
     input_args: List[UDFColumn],

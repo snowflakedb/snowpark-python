@@ -19,7 +19,7 @@ from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
     check_register_args,
     cleanup_failed_permanent_registration,
-    create_python_udf_sp,
+    create_python_udf_or_sp,
     process_file_path,
     process_registration_inputs,
     resolve_imports_and_packages,
@@ -340,7 +340,7 @@ class UDFRegistration:
         )
 
         try:
-            create_python_udf_sp(
+            create_python_udf_or_sp(
                 session=self._session,
                 return_type=return_type,
                 input_args=input_args,

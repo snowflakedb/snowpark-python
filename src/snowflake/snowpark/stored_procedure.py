@@ -7,14 +7,13 @@ from types import ModuleType
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.sp_expressions import Literal
 from snowflake.snowpark._internal.type_utils import convert_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     FunctionType,
     UDFColumn,
     check_register_args,
     cleanup_failed_permanent_registration,
-    create_python_udf_sp,
+    create_python_udf_or_sp,
     process_file_path,
     process_registration_inputs,
     resolve_imports_and_packages,
@@ -29,11 +28,13 @@ class StoredProcedure:
     :func:`~snowflake.snowpark.stored_procedure.stored_proc` or by :func:`StoredProcedureRegistration.register`.
     The constructor of this class is not supposed to be called directly.
 
-    Call an instance of :class:`StoredProcedure` to invoke a stored procedure. The input type should be python types.
+    Call an instance of :class:`StoredProcedure` to invoke a stored procedure.
+    The input should be Python literal values.
+
 
     Examples::
 
-        import snowflake
+        import snowflake.snowpark
         from snowflake.snowpark.stored_procedure import stored_proc
 
         # Create an instance of StoredProcedure using the @stored_proc decorator
@@ -140,7 +141,7 @@ class StoredProcedureRegistration:
         in snowpark API.
 
     See Also:
-        :func:`~snowflake.snowpark.stored_procedure.stored_proc`
+        :func:`~snowflake.snowpark.functions.stored_proc`
     """
 
     def __init__(self, session: "snowflake.snowpark.Session"):
@@ -181,7 +182,7 @@ class StoredProcedureRegistration:
         cannot be used as a decorator.
 
         See Also:
-            :func:`~snowflake.snowpark.stored_procedure.stored_proc`
+            :func:`~snowflake.snowpark.functions.stored_proc`
         """
         if not callable(func):
             raise TypeError(
@@ -255,12 +256,12 @@ class StoredProcedureRegistration:
             points to a zip file.
 
         See Also:
-            - :func:`~snowflake.snowpark.stored_procedure.stored_proc`
+            - :func:`~snowflake.snowpark.functions.stored_proc`
             - :meth:`register`
         """
         file_path = process_file_path(self._session, file_path)
         check_register_args(
-            FunctionType.UDF, name, is_permanent, stage_location, parallel
+            FunctionType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
 
         # register udf
@@ -299,7 +300,7 @@ class StoredProcedureRegistration:
 
         arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
-            UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
+            UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])
         ]
 
         (
@@ -321,7 +322,7 @@ class StoredProcedureRegistration:
         )
 
         try:
-            create_python_udf_sp(
+            create_python_udf_or_sp(
                 session=self._session,
                 return_type=return_type,
                 input_args=input_args,
@@ -344,147 +345,3 @@ class StoredProcedureRegistration:
             )
 
         return StoredProcedure(func, return_type, input_types, udf_name)
-
-
-def stored_proc(
-    func: Optional[Callable] = None,
-    *,
-    return_type: Optional[DataType] = None,
-    input_types: Optional[List[DataType]] = None,
-    name: Optional[Union[str, Iterable[str]]] = None,
-    is_permanent: bool = False,
-    stage_location: Optional[str] = None,
-    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-    packages: Optional[List[Union[str, ModuleType]]] = None,
-    replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
-    parallel: int = 4,
-) -> Union[StoredProcedure, functools.partial]:
-    """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
-
-    It can be used as either a function call or a decorator. In most cases you work with a single session.
-    This function uses that session to register the stored procedure. If you have multiple sessions, you need to
-    explicitly specify the ``session`` parameter of this function. If you have a function and would
-    like to register it to multiple databases, use ``session.stored_proc.register`` instead.
-
-    Args:
-        func: A Python function used for creating the stored procedure.
-        return_type: A :class:`types.DataType` representing the return data
-            type of the stored procedure. Optional if type hints are provided.
-        input_types: A list of :class:`~snowflake.snowpark.types.DataType`
-            representing the input data types of the stored procedure. Optional if
-            type hints are provided.
-        name: A string or list of strings that specify the name or fully-qualified
-            object identifier (database name, schema name, and function name) for
-            the stored procedure in Snowflake, which allows you to call this stored procedure in a SQL
-            command or via :func:`session.call()`. If it is not provided, a name will
-            be automatically generated for the stored procedure. A name must be specified when
-            ``is_permanent`` is ``True``.
-        is_permanent: Whether to create a permanent stored procedure. The default is ``False``.
-            If it is ``True``, a valid ``stage_location`` must be provided.
-        stage_location: The stage location where the Python file for the stored procedure
-            and its dependencies should be uploaded. The stage location must be specified
-            when ``is_permanent`` is ``True``, and it will be ignored when
-            ``is_permanent`` is ``False``. It can be any stage other than temporary
-            stages and external stages.
-        imports: A list of imports that only apply to this stored procedure. You can use a string to
-            represent a file path (similar to the ``path`` argument in
-            :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
-            strings to represent a file path and an import path (similar to the ``import_path``
-            argument in :meth:`~snowflake.snowpark.Session.add_import`). These stored-proc-level imports
-            will override the session-level imports added by
-            :meth:`~snowflake.snowpark.Session.add_import`.
-        packages: A list of packages that only apply to this stored procedure. These stored-proc-level packages
-            will override the session-level packages added by
-            :meth:`~snowflake.snowpark.Session.add_packages` and
-            :meth:`~snowflake.snowpark.Session.add_requirements`.
-        replace: Whether to replace a UDF that already was registered. The default is ``False``.
-            If it is ``False``, attempting to register a stored procedure with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
-            an existing stored procedure with the same name is overwritten.
-        session: Use this session to register the stored procedure. If it's not specified, the session that you created before calling this function will be used.
-            You need to specify this parameter if you have created multiple sessions before calling this method.
-        parallel: The number of threads to use for uploading stored procedure files with the
-            `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
-            command. The default value is 4 and supported values are from 1 to 99.
-            Increasing the number of threads can improve performance when uploading
-            large stored procedure files.
-
-    Returns:
-        A stored procedure function that can be called with python value.
-
-    Examples::
-
-        from snowflake.snowpark.types import IntegerType
-        # register a temporary stored procedure
-        add_one = stored_proc(
-            lambda session_, x: session_.sql(f"SELECT {x} + 1").collect()[0][0],
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-
-        # register a permanent udf by setting is_permanent to True
-        @udf(name="minus_one", is_permanent=True, stage_location="@mystage")
-        def minus_one(session_: snowflake.snowpark.Session, x: int) -> int:
-            return session_.sql(f"SELECT {x} - 1").collect()[0][0]
-
-        # use stored-proc-level imports
-        from my_math import sqrt
-        @udf(name="my_sqrt", is_permanent=True, stage_location="@mystage", imports=["my_math.py"])
-        def my_sqrt(session_: snowflake.snowpark.Session, x: float) -> float:
-            return session_.sql(f"SELECT {sqrt(x)}").collect()[0][0]
-
-        session.call("minus_one", 5)
-
-    Note:
-        1. When type hints are provided and are complete for a function,
-        ``return_type`` and ``input_types`` are optional and will be ignored.
-        See details of supported data types for stored procedure in
-        :class:`~snowflake.snowpark.stored_procedure.UDFRegistration`.
-
-            - You can use :attr:`~snowflake.snowpark.types.Variant` to
-              annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
-              to annotate a geography when defining a stored procedure.
-
-            - :class:`typing.Union` is not a valid type annotation for stored procedures,
-              but :class:`typing.Optional` can be used to indicate the optional type.
-
-        2. A temporary stored procedure (when ``is_permanent`` is ``False``) is scoped to this ``session``
-        and all stored procedure related files will be uploaded to a temporary session stage
-        (:func:`session.get_session_stage() <snowflake.snowpark.Session.get_session_stage>`).
-        For a permanent stored procedure, these files will be uploaded to the stage that you provide.
-
-        3. By default, stored procedure registration fails if a function with the same name is already
-        registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
-        previously registered function.
-
-    See Also:
-        :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
-    """
-    session = session or snowflake.snowpark.session._get_active_session()
-    if func is None:
-        return functools.partial(
-            session.stored_proc.register,
-            return_type=return_type,
-            input_types=input_types,
-            name=name,
-            is_permanent=is_permanent,
-            stage_location=stage_location,
-            imports=imports,
-            packages=packages,
-            replace=replace,
-            parallel=parallel,
-        )
-    else:
-        return session.stored_proc.register(
-            func,
-            return_type=return_type,
-            input_types=input_types,
-            name=name,
-            is_permanent=is_permanent,
-            stage_location=stage_location,
-            imports=imports,
-            packages=packages,
-            replace=replace,
-            parallel=parallel,
-        )
