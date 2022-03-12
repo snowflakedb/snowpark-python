@@ -1395,9 +1395,7 @@ class Session:
             self.__sp_registration = StoredProcedureRegistration(self)
         return self.__sp_registration
 
-    def call(
-        self, stored_proc_name: str, *args: Union[Any, List[Any], Tuple[Any, ...]]
-    ):
+    def call(self, stored_proc_name: str, *args: Any):
         """Calls a stored procedure by name.
 
         Args:
@@ -1411,7 +1409,7 @@ class Session:
         Utils.validate_object_name(stored_proc_name)
 
         sql_args = []
-        for arg in Utils.parse_positional_args_to_list(*args):
+        for arg in args:
             sql_args.append(DataTypeMapper.to_sql(arg, _infer_type(arg)))
         return self.sql(f"CALL {stored_proc_name}({', '.join(sql_args)})").collect()[0][
             0

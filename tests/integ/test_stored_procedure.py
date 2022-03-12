@@ -209,7 +209,7 @@ def test_annotation_syntax(session):
 def test_register_sp_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
 
-    mod5_sp = snowflake.snowpark.functions.stored_proc.register_from_file(
+    mod5_sp = session.stored_proc.register_from_file(
         test_files.test_sp_py_file,
         "mod5",
         return_type=IntegerType(),
@@ -412,7 +412,7 @@ def test_type_hints(session):
     assert snow_sp(2) == "snow"
     assert double_str_list_sp("abc") == '[\n  "abc",\n  "abc"\n]'
     assert return_datetime_sp() == dt
-    assert first_element_sp([["0", "'"]]) == "0"
+    assert first_element_sp(["0", "'"]) == "0"
     assert get_sp({"0": "snow", "1": "flake"}, "0") == "snow"
 
 
@@ -593,7 +593,9 @@ def test_sp_negative(session):
         def add(_: int, x: int, y: int) -> int:
             return x + y
 
-    assert "First parameter of stored proc function should be Session" in str(ex_info)
+    assert "The first argument of stored proc function should be Session" in str(
+        ex_info
+    )
 
     with pytest.raises(ValueError) as ex_info:
 
