@@ -90,7 +90,7 @@ from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 logger = getLogger(__name__)
 
-ONE_MILLION = 1000000
+ONE_MILLION = 1000000  # TODO: why do we expose this to users?
 
 
 class DataFrame:
@@ -106,29 +106,47 @@ class DataFrame:
     You can create a DataFrame in a number of different ways, as shown in the examples
     below.
 
+    Creating tables and data to run the sample code:
+        >>> session.sql("create or replace temp table prices(product_id varchar, amount number(10, 2))").collect()
+        [Row(status='Table PRICES successfully created.')]
+        >>> session.sql("insert into prices values ('id1', 10.0), ('id2', 20.0)").collect()
+        [Row(number of rows inserted=2)]
+        >>> # Create a CSV file to demo load
+        >>> import tempfile
+        >>> with tempfile.NamedTemporaryFile(mode="w+t") as t:
+        ...     t.writelines(["id1, Product A", "\\n" "id2, Product B"])
+        ...     t.flush()
+        ...     create_stage_result = session.sql("create temp stage test_stage").collect()
+        ...     put_result = session.file.put(t.name, "@test_stage/test_dir")
+
     Example 1
         Creating a DataFrame by reading a table in Snowflake::
-
-            df_prices = session.table("itemsdb.publicschema.prices")
+            >>> df_prices = session.table("prices")
 
     Example 2
         Creating a DataFrame by reading files from a stage::
 
-            df_catalog = session.read.csv("@stage/some_dir")
-
+            >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+            >>> df_catalog = session.read.schema(StructType([StructField("id", StringType()), StructField("name", StringType())])).csv("@test_stage/test_dir")
+            >>> df_catalog.show()
+            ---------------------
+            |"ID"  |"NAME"      |
+            ---------------------
+            |id1   | Product A  |
+            |id2   | Product B  |
+            ---------------------
+            <BLANKLINE>
 
     Example 3
         Creating a DataFrame by specifying a sequence or a range::
 
-            df = session.create_dataframe([(1, "one"), (2, "two")])
-            df = session.range(1, 10, 2)
-
+            >>> df1 = session.create_dataframe([(1, "one"), (2, "two")], schema=["col_a", "col_b"])
+            >>> df2 = session.range(1, 10, 2).to_df("col1")
 
     Example 4
         Create a new DataFrame by applying transformations to other existing DataFrames::
 
-            df_merged_data = df_catalog.join(df_prices, df_catalog["itemId"] == df_prices["ID"])
-
+            >>> df_merged_data = df_catalog.join(df_prices, df_catalog["id"] == df_prices["product_id"])
 
     **Performing operations on a DataFrame**
 
@@ -145,34 +163,45 @@ class DataFrame:
         Using the :func:`select()` method to select the columns that should be in the
         DataFrame (similar to adding a ``SELECT`` clause)::
 
-            # Return a new DataFrame containing the ID and amount columns of the prices table.
-            # This is equivalent to: SELECT ID, AMOUNT FROM PRICES;
-            df_price_ids_and_amounts = df_prices.select(col("ID"), col("amount"))
+            >>> # Return a new DataFrame containing the product_id and amount columns of the prices table.
+            >>> # This is equivalent to: SELECT PRODUCT_ID, AMOUNT FROM PRICES;
+            >>> df_price_ids_and_amounts = df_prices.select(col("product_id"), col("amount"))
 
     Example 6
         Using the :func:`Column.as_` method to rename a column in a DataFrame (similar
         to using ``SELECT col AS alias``)::
 
-            # Return a new DataFrame containing the ID column of the prices table as a column named
-            # itemId. This is equivalent to: SELECT ID AS itemId FROM PRICES;
-            df_price_item_ids = df_prices.select(col("ID").as_("itemId"))
+            >>> # Return a new DataFrame containing the product_id column of the prices table as a column named
+            >>> # item_id. This is equivalent to: SELECT PRODUCT_ID AS ITEM_ID FROM PRICES;
+            >>> df_price_item_ids = df_prices.select(col("product_id").as_("item_id"))
 
     Example 7
         Using the :func:`filter` method to filter data (similar to adding a ``WHERE`` clause)::
 
-            # Return a new DataFrame containing the row from the prices table with the ID 1.
-            # This is equivalent to:
-            # SELECT FROM PRICES WHERE ID = 1;
-            df_price1 = df_prices.filter((col("ID") === 1))
+            >>> # Return a new DataFrame containing the row from the prices table with the ID 1.
+            >>> # This is equivalent to:
+            >>> # SELECT * FROM PRICES WHERE PRODUCT_ID = 1;
+            >>> df_price1 = df_prices.filter((col("product_id") == 1))
 
     Example 8
         Using the :func:`sort()` method to specify the sort order of the data (similar to adding an ``ORDER BY`` clause)::
 
-            # Return a new DataFrame for the prices table with the rows sorted by ID.
-            # This is equivalent to: SELECT FROM PRICES ORDER BY ID;
-            df_sorted_prices = df_prices.sort(col("ID"))
+            >>> # Return a new DataFrame for the prices table with the rows sorted by product_id.
+            >>> # This is equivalent to: SELECT * FROM PRICES ORDER BY PRODUCT_ID;
+            >>> df_sorted_prices = df_prices.sort(col("product_id"))
 
     Example 9
+        Using :meth:`agg` method to aggregate results.
+        >>> import snowflake.snowpark.functions as f
+        >>> df_prices.agg(("amount", "sum")).collect()
+        [Row(SUM(AMOUNT)=Decimal('30.00'))]
+        >>> df_prices.agg(f.sum("amount")).collect()
+        [Row(SUM(AMOUNT)=Decimal('30.00'))]
+        >>> # rename the aggregation column name
+        >>> df_prices.agg([f.sum("amount").alias("total_amount"), f.max("amount").alias("max_amount")]).collect()
+        [Row(TOTAL_AMOUNT=Decimal('30.00'), MAX_AMOUNT=Decimal('20.00'))]
+
+    Example 10
         Using the :func:`group_by()` method to return a
         :class:`RelationalGroupedDataFrame` that you can use to group and aggregate
         results (similar to adding a ``GROUP BY`` clause).
@@ -186,26 +215,78 @@ class DataFrame:
         - :func:`RelationalGroupedDataFrame.min()` (equivalent to MIN(column))
         - :func:`RelationalGroupedDataFrame.sum()` (equivalent to SUM(column))
 
-        ::
+        >>> # Return a new DataFrame for the prices table that computes the sum of the prices by
+        >>> # category. This is equivalent to:
+        >>> #  SELECT CATEGORY, SUM(AMOUNT) FROM PRICES GROUP BY CATEGORY
+        >>> df_total_price_per_category = df_prices.group_by(col("product_id")).sum(col("amount"))
+        >>> # Have multiple aggregation values with the group by
+        >>> import snowflake.snowpark.functions as f
+        >>> df_summary = df_prices.group_by(col("product_id")).agg([f.sum(col("amount")).alias("total_amount"), f.avg("amount")])
+        >>> df_summary.show()
+        -------------------------------------------------
+        |"PRODUCT_ID"  |"TOTAL_AMOUNT"  |"AVG(AMOUNT)"  |
+        -------------------------------------------------
+        |id1           |10.00           |10.00000000    |
+        |id2           |20.00           |20.00000000    |
+        -------------------------------------------------
+        <BLANKLINE>
 
-            # Return a new DataFrame for the prices table that computes the sum of the prices by
-            # category. This is equivalent to:
-            #  SELECT CATEGORY, SUM(AMOUNT) FROM PRICES GROUP BY CATEGORY
-            df_total_price_per_category = df_prices.group_by(col("category")).sum(col("amount"))
+
+    Example 11
+        Using windowing functions. Refer to :class:`Window` for more details.
+
+        >>> from snowflake.snowpark import Window
+        >>> from snowflake.snowpark.functions import row_number
+        >>> df_prices.with_column("price_rank",  row_number().over(Window.order_by(col("amount").desc()))).show()
+        ------------------------------------------
+        |"PRODUCT_ID"  |"AMOUNT"  |"PRICE_RANK"  |
+        ------------------------------------------
+        |id2           |20.00     |1             |
+        |id1           |10.00     |2             |
+        ------------------------------------------
+        <BLANKLINE>
+
+    Example 12
+        Handling missing values. Refer to :class:`DataFrameNaFunctions` for more details.
+
+        >>> df = session.create_dataframe([[1, None, 3], [4, 5, None]], schema=["a", "b", "c"])
+        >>> df.na.fill({"b": 2, "c": 6}).show()
+        -------------------
+        |"A"  |"B"  |"C"  |
+        -------------------
+        |1    |2    |3    |
+        |4    |5    |6    |
+        -------------------
+        <BLANKLINE>
 
     **Performing an action on a DataFrame**
 
     The following examples demonstrate how you can perform an action on a DataFrame.
 
-    Example 10
+    Example 13
         Performing a query and returning an array of Rows::
 
-            results = df_prices.collect()
+            >>> df_prices.collect()
+            [Row(PRODUCT_ID='id1', AMOUNT=Decimal('10.00')), Row(PRODUCT_ID='id2', AMOUNT=Decimal('20.00'))]
 
-    Example 11
+    Example 14
         Performing a query and print the results::
 
-            df_prices.show()
+            >>> df_prices.show()
+            ---------------------------
+            |"PRODUCT_ID"  |"AMOUNT"  |
+            ---------------------------
+            |id1           |10.00     |
+            |id2           |20.00     |
+            ---------------------------
+            <BLANKLINE>
+
+    Example 15
+        Calculating statistics values. Refer to :class:`DataFrameStatFunctions` for more details.
+
+            >>> df = session.create_dataframe([[1, 2], [3, 4], [5, -1]], schema=["a", "b"])
+            >>> df.stat.corr("a", "b")
+            -0.5960395606792697
     """
 
     __NUM_PREFIX_DIGITS = 4
@@ -288,10 +369,11 @@ class DataFrame:
 
         Example::
 
-            # Read a large table from Snowflake
-            df = session.table("mytable")
-            for row in df.to_local_iterator():
-                my_row_processing_function(df)
+            >>> df = session.table("prices")
+            >>> for row in df.to_local_iterator():
+            ...     print(row)
+            Row(PRODUCT_ID='id1', AMOUNT=Decimal('10.00'))
+            Row(PRODUCT_ID='id2', AMOUNT=Decimal('20.00'))
         """
         yield from self.session._conn.execute(
             self._plan,
@@ -348,10 +430,13 @@ class DataFrame:
 
         Example::
 
-            # Read a large table from Snowflake
-            df = session.table("mytable")
-            for pandas_df in df.to_pandas_batches():
-                my_dataframe_processing_function(pandas_df)
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> for pandas_df in df.to_pandas_batches():
+            ...     print(pandas_df)
+               A  B
+            0  1  2
+            1  3  4
+
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -376,8 +461,8 @@ class DataFrame:
 
         Examples::
 
-            df = session.range(1, 10, 2).to_df("col1")
-            df = session.range(1, 10, 2).to_df(["col1"])
+            >>> df1 = session.range(1, 10, 2).to_df("col1")
+            >>> df2 = session.range(1, 10, 2).to_df(["col1"])
 
         Args:
             names: list of new column names
@@ -458,17 +543,20 @@ class DataFrame:
         You can use any :class:`Column` expression or strings for named columns.
 
         Example 1::
-
-            df_selected = df.select(col("col1"), substring(col("col2"), 0, 10),
-                                    df["col3"] + df["col4"])
+            >>> df = session.create_dataframe([[1, "some string value", 3, 4]], schema=["col1", "col2", "col3", "col4"])
+            >>> df_selected = df.select(col("col1"), col("col2").substr(0, 10), df["col3"] + df["col4"])
 
         Example 2::
 
-            df_selected = df.select("col1", "col2", "col3")
+            >>> df_selected = df.select("col1", "col2", "col3")
 
         Example 3::
 
-            df_selected = df.select(["col1", "col2", "col3"])
+            >>> df_selected = df.select(["col1", "col2", "col3"])
+
+        Example 4::
+
+            >>> df_selected = df.select(df["col1"], df.col2, df.col("col3"))
 
         Args:
             *cols: A :class:`Column`, :class:`str`, or a list of those.
@@ -503,8 +591,17 @@ class DataFrame:
 
         Examples::
 
-            df = session.create_dataframe([-1, 2, 3], schema=["a"])
-            df.select_expr("abs(a)", "a + 2", "cast(a as string)")
+            >>> df = session.create_dataframe([-1, 2, 3], schema=["a"])  # with one pair of [], the dataframe has a single column and 3 rows.
+            >>> df.select_expr("abs(a)", "a + 2", "cast(a as string)").show()
+            --------------------------------------------
+            |"ABS(A)"  |"A + 2"  |"CAST(A AS STRING)"  |
+            --------------------------------------------
+            |1         |1        |-1                   |
+            |2         |4        |2                    |
+            |3         |5        |3                    |
+            --------------------------------------------
+            <BLANKLINE>
+
         """
         return self.select(
             [sql_expr(expr) for expr in Utils.parse_positional_args_to_list(*exprs)]
@@ -522,6 +619,17 @@ class DataFrame:
         This is functionally equivalent to calling :func:`select()` and passing in all
         columns except the ones to exclude. This is a no-op if schema does not contain
         the given column name(s).
+
+        Example::
+
+            >>> df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
+            >>> df.drop("a", "b").show()
+            -------
+            |"C"  |
+            -------
+            |3    |
+            -------
+            <BLANKLINE>
 
         Args:
             *cols: the columns to exclude, as :class:`str`, :class:`Column` or a list
@@ -565,11 +673,14 @@ class DataFrame:
 
         Examples::
 
-            df_filtered = df.filter((col("A") > 1) & (col("B") < 100))
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+            >>> df_filtered = df.filter((col("A") > 1) & (col("B") < 100))  # Must use parenthesis before and after operator &.
 
-            # The following two result in the same SQL query:
-            prices_df.filter(col("price") > 100)
-            prices_df.filter("price > 100")
+            >>> # The following two result in the same SQL query:
+            >>> df.filter(col("a") > 1).collect()
+            [Row(A=3, B=4)]
+            >>> df.filter("a > 1").collect()  # use SQL expression
+            [Row(A=3, B=4)]
 
         Args:
             expr: a :class:`Column` expression or SQL text.
@@ -592,11 +703,39 @@ class DataFrame:
 
         Examples::
 
-            from snowflake.snowpark.functions import col
-            df_sorted = df.sort(col("A"), col("B").asc())
-            df_sorted = df.sort(col("a"), ascending=False)
-            # The values from the list overwrite the column ordering.
-            sorted_rows = df.sort(["a", col("b").desc()], ascending=[1, 1]).collect()
+            >>> from snowflake.snowpark.functions import col
+
+            >>> df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
+            >>> df.sort(col("A"), col("B").asc()).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |1    |4    |
+            |3    |4    |
+            -------------
+            <BLANKLINE>
+
+            >>> df.sort(col("a"), ascending=False).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |3    |4    |
+            |1    |2    |
+            |1    |4    |
+            -------------
+            <BLANKLINE>
+
+            >>> # The values from the list overwrite the column ordering.
+            >>> df.sort(["a", col("b").desc()], ascending=[1, 1]).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |1    |4    |
+            |3    |4    |
+            -------------
+            <BLANKLINE>
 
         Args:
             *cols: A column name as :class:`str` or :class:`Column`, or a list of
@@ -667,12 +806,40 @@ class DataFrame:
 
         Examples::
 
-            from snowflake.snowpark.functions import col, stddev, stddev_pop
-            df.agg(stddev(col("a")))
-            df.agg([stddev(col("a")), stddev_pop(col("a"))])
+            >>> from snowflake.snowpark.functions import col, stddev, stddev_pop
 
-            df.agg([("length", "min"), ("width", "max")])
-            df.agg({"customers": "count", "amount": "sum"})
+            >>> df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
+            >>> df.agg(stddev(col("a"))).show()
+            ----------------------
+            |"STDDEV(A)"         |
+            ----------------------
+            |1.1547003940416753  |
+            ----------------------
+            <BLANKLINE>
+
+            >>> df.agg([stddev(col("a")), stddev_pop(col("a"))]).show()
+            -------------------------------------------
+            |"STDDEV(A)"         |"STDDEV_POP(A)"     |
+            -------------------------------------------
+            |1.1547003940416753  |0.9428091005076267  |
+            -------------------------------------------
+            <BLANKLINE>
+
+            >>> df.agg([("a", "min"), ("b", "max")]).show()
+            -----------------------
+            |"MIN(A)"  |"MAX(B)"  |
+            -----------------------
+            |1         |4         |
+            -----------------------
+            <BLANKLINE>
+
+            >>> df.agg({"a": "count", "b": "sum"}).show()
+            -------------------------
+            |"COUNT(A)"  |"SUM(B)"  |
+            -------------------------
+            |3           |10        |
+            -------------------------
+            <BLANKLINE>
         """
         grouping_exprs = None
         if isinstance(exprs, Column):
@@ -793,15 +960,17 @@ class DataFrame:
 
         Examples::
 
-            df.group_by_grouping_sets(GroupingSets([col("a")])).count().collect()  # is equivalent to
-            df.group_by_grouping_sets(GroupingSets(col("a"))).count().collect()  # is equivalent to
-            df.group_by("a").count().collect()
+            >>> from snowflake.snowpark import GroupingSets
+            >>> df = session.create_dataframe([[1, 2, 10], [3, 4, 20], [1, 4, 30]], schema=["A", "B", "C"])
+            >>> df.group_by_grouping_sets(GroupingSets([col("a")])).count().collect()
+            [Row(A=1, COUNT=2), Row(A=3, COUNT=1)]
+            >>> df.group_by_grouping_sets(GroupingSets(col("a"))).count().collect()
+            [Row(A=1, COUNT=2), Row(A=3, COUNT=1)]
+            >>> df.group_by_grouping_sets(GroupingSets([col("a")], [col("b")])).count().collect()
+            [Row(A=1, B=None, COUNT=2), Row(A=3, B=None, COUNT=1), Row(A=None, B=2, COUNT=1), Row(A=None, B=4, COUNT=2)]
+            >>> df.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()
+            [Row(A=None, B=None, C=10, COUNT=1), Row(A=None, B=None, C=20, COUNT=1), Row(A=None, B=None, C=30, COUNT=1), Row(A=1, B=2, C=None, COUNT=1), Row(A=3, B=4, C=None, COUNT=1), Row(A=1, B=4, C=None, COUNT=1)]
 
-            df.group_by_grouping_sets(GroupingSets([col("a")], [col("b")])).count().collect()  # is equivalent to
-            df.group_by("a").count().union_all(df.group_by("b").count()).collect()
-
-            df.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()  # is equivalent to
-            df.group_by("a", "b").count().union_all(df.group_by("c").count()).collect()
 
         Args:
             grouping_sets: The list of :class:`GroupingSets` to group by.
@@ -889,7 +1058,24 @@ class DataFrame:
 
         Example::
 
-            df_pivoted = df.pivot("col_1", [1,2,3]).agg(sum(col("col_2")))
+            >>> create_result = session.sql('''create or replace temp table monthly_sales(empid int, amount int, month text)
+            ... as select * from values
+            ... (1, 10000, 'JAN'),
+            ... (1, 400, 'JAN'),
+            ... (2, 4500, 'JAN'),
+            ... (2, 35000, 'JAN'),
+            ... (1, 5000, 'FEB'),
+            ... (1, 3000, 'FEB'),
+            ... (2, 200, 'FEB') ''').collect()
+            >>> df = session.table("monthly_sales")
+            >>> df.pivot("month", ['JAN', 'FEB']).sum("amount").show()
+            -------------------------------
+            |"EMPID"  |"'JAN'"  |"'FEB'"  |
+            -------------------------------
+            |1        |10400    |8000     |
+            |2        |39500    |200      |
+            -------------------------------
+            <BLANKLINE>
 
         Args:
             pivot_col: The column or name of the column to use.
@@ -921,26 +1107,21 @@ class DataFrame:
 
         Example::
 
-            df = session.create_dataframe(
-                [
-                    (1, 'electronics', 100, 200),
-                    (2, 'clothes', 100, 300),
-                ],
-                schema=["empid", "dept", "jan", "feb"]
-            )
-            df = df.unpivot("sales", "month", ["jan", "feb"]).sort("empid")
-            df.show()
-
-        The output dataframe is:
-
-        ========  ===========  =======  =========
-        EMPID     DEPT         MONTH    SALES
-        ========  ===========  =======  =========
-        1         electronics  JAN      100
-        1         electronics  FEB      200
-        2         clothes      JAN      100
-        2         clothes      FEB      300
-        ========  ===========  =======  =========
+            >>> df = session.create_dataframe([
+            ...     (1, 'electronics', 100, 200),
+            ...     (2, 'clothes', 100, 300)
+            ... ], schema=["empid", "dept", "jan", "feb"])
+            >>> df = df.unpivot("sales", "month", ["jan", "feb"]).sort("empid")
+            >>> df.show()
+            ---------------------------------------------
+            |"EMPID"  |"DEPT"       |"MONTH"  |"SALES"  |
+            ---------------------------------------------
+            |1        |electronics  |JAN      |100      |
+            |1        |electronics  |FEB      |200      |
+            |2        |clothes      |JAN      |100      |
+            |2        |clothes      |FEB      |300      |
+            ---------------------------------------------
+            <BLANKLINE>
         """
         column_exprs = self.__convert_cols_to_exprs("unpivot()", column_list)
         return self._with_plan(
@@ -964,8 +1145,17 @@ class DataFrame:
         DataFrames must contain the same number of columns.
 
         Example::
-
-             df1_and_2 = df1.union(df2)
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[0, 1], [3, 4]], schema=["c", "d"])
+            >>> df1.union(df2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |3    |4    |
+            |0    |1    |
+            -------------
+            <BLANKLINE>
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
@@ -979,7 +1169,18 @@ class DataFrame:
 
         Example::
 
-             df1_and_2 = df1.union_all(df2)
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[0, 1], [3, 4]], schema=["c", "d"])
+            >>> df1.union_all(df2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |3    |4    |
+            |0    |1    |
+            |3    |4    |
+            -------------
+            <BLANKLINE>
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
@@ -996,7 +1197,15 @@ class DataFrame:
 
         Example::
 
-             df1_and_2 = df1.union_by_name(df2)
+            >>> df1 = session.create_dataframe([[1, 2]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[2, 1]], schema=["b", "a"])
+            >>> df1.union_by_name(df2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
@@ -1013,7 +1222,16 @@ class DataFrame:
 
         Example::
 
-             df1_and_2 = df1.union_all_by_name(df2)
+            >>> df1 = session.create_dataframe([[1, 2]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[2, 1]], schema=["b", "a"])
+            >>> df1.union_all_by_name(df2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |1    |2    |
+            -------------
+            <BLANKLINE>
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
@@ -1059,7 +1277,15 @@ class DataFrame:
 
         Example::
 
-            df_intersection_of_1_and_2 = df1.intersect(df2)
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[1, 2], [5, 6]], schema=["c", "d"])
+            >>> df1.intersect(df2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
 
         Args:
             other: the other :class:`DataFrame` that contains the rows to use for the
@@ -1073,7 +1299,15 @@ class DataFrame:
 
         Example::
 
-            df1_except_df2 = df1.except_(df2)
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[1, 2], [5, 6]], schema=["c", "d"])
+            >>> df1.subtract(df2).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |3    |4    |
+            -------------
+            <BLANKLINE>
 
         :meth:`minus` and :meth:`subtract` are aliases of :meth:`except_`.
 
@@ -1099,15 +1333,35 @@ class DataFrame:
         current DataFrame and another DataFrame (``right``).
 
         Examples::
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
+            >>> df1.natural_join(df2).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            |3    |4    |8    |
+            -------------------
+            <BLANKLINE>
 
-            df_natural_join = df.natural_join(df2)
-            df_natural_join = df.natural_join(df2, "left")
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
+            >>> df1.natural_join(df2, "left").show()
+            --------------------
+            |"A"  |"B"  |"C"   |
+            --------------------
+            |1    |2    |7     |
+            |3    |4    |8     |
+            |5    |6    |NULL  |
+            --------------------
+            <BLANKLINE>
 
         Args:
             right: the other :class:`DataFrame` to join
-            join_type: The type of join (e.g. "right", "outer", etc.). The default value is "inner".
+            join_type: The type of join ("inner", "full", "left", "right"). The default value is "left".
         """
-        join_type = join_type if join_type else "inner"
+        join_type = join_type or "inner"
+        # TODO: Snowflake db doesn't have inner natural join. We shouldn't list it as a join_type value option?
         return self._with_plan(
             SPJoin(
                 self._plan,
@@ -1132,15 +1386,22 @@ class DataFrame:
         in the left and right DataFrames.
 
         Examples::
-
-            df_left_join = df1.join(df2, "a", "left")
-            df_outer_join = df.join(df2, ["a","b"], "outer")
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
+            >>> df1.join(df2, df1.a == df2.a).select(df1.a.alias("a"), df1.b, df2.c).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            |3    |4    |8    |
+            -------------------
+            <BLANKLINE>
 
         Args:
             right: The other :class:`Dataframe` to join.
             using_columns: A list of names of the columns, or the column objects, to
                 use for the join.
-            join_type: The type of join (e.g. "right", "outer", etc.).
+            join_type: The type of join ("inner", "full", "left", "right").
         """
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
@@ -1202,8 +1463,16 @@ class DataFrame:
 
         Example::
 
-            df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
-            name_address_list = df.join_table_function("split_to_table", df["addresses"], lit(" ")).collect()
+            >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
+            >>> df.join_table_function("split_to_table", df["addresses"], lit(" ")).show()
+            --------------------------------------------------------------------
+            |"NAME"  |"ADDRESSES"                 |"SEQ"  |"INDEX"  |"VALUE"   |
+            --------------------------------------------------------------------
+            |James   |address1 address2 address3  |1      |1        |address1  |
+            |James   |address1 address2 address3  |1      |2        |address2  |
+            |James   |address1 address2 address3  |1      |3        |address3  |
+            --------------------------------------------------------------------
+            <BLANKLINE>
 
         Args:
 
@@ -1234,8 +1503,18 @@ class DataFrame:
 
         Example::
 
-            df_cross = this.cross_join(right)
-            project = df_cross.select([this(["common_col"]), right(["common_col"])])
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[5, 6], [7, 8]], schema=["c", "d"])
+            >>> df1.cross_join(df2).sort("a", "b", "c", "d").show()
+            -------------------------
+            |"A"  |"B"  |"C"  |"D"  |
+            -------------------------
+            |1    |2    |5    |6    |
+            |1    |2    |7    |8    |
+            |3    |4    |5    |6    |
+            |3    |4    |7    |8    |
+            -------------------------
+            <BLANKLINE>
 
         Args:
             right: the right :class:`DataFrame` to join.
@@ -1299,10 +1578,17 @@ class DataFrame:
         If a column with the same name already exists in the DataFrame, that column is
         replaced by the new column.
 
-        This example adds a new column named ``mean_price`` that contains the mean of
-        the existing ``price`` column in the DataFrame::
+        Example::
 
-            df_with_mean_price_col = df.with_column("mean_price", mean(col("price")))
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df.with_column("mean", (df["a"] + df["b"]) / 2).show()
+            ------------------------
+            |"A"  |"B"  |"MEAN"    |
+            ------------------------
+            |1    |2    |1.500000  |
+            |3    |4    |3.500000  |
+            ------------------------
+            <BLANKLINE>
 
         Args:
             col_name: The name of the column to add or replace.
@@ -1326,12 +1612,17 @@ class DataFrame:
         If columns with the same names already exist in the DataFrame, those columns
         are removed and appended at the end by new columns.
 
-        This example adds new columns named ``mean_price`` and ``avg_price`` that
-        contain the mean and average of the existing ``price`` column::
+        Example::
 
-            df_with_added_columns = df.with_columns(["mean_price", "avg_price"],
-                                                   [mean(col("price")),
-                                                   avg(col("price"))])
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df.with_columns(["mean", "total"], [(df["a"] + df["b"]) / 2, df["a"] + df["b"]]).show()
+            ----------------------------------
+            |"A"  |"B"  |"MEAN"    |"TOTAL"  |
+            ----------------------------------
+            |1    |2    |1.500000  |3        |
+            |3    |4    |3.500000  |7        |
+            ----------------------------------
+            <BLANKLINE>
 
         Args:
             col_names: A list of the names of the columns to add or replace.
@@ -1373,11 +1664,22 @@ class DataFrame:
     @property
     def write(self) -> DataFrameWriter:
         """Returns a new :class:`DataFrameWriter` object that you can use to write the data in the :class:`DataFrame` to
-        a Snowflake database.
+        a Snowflake database or a stage location
 
         Example::
-
-            df.write.mode("overwrite").save_as_table("table1")
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df.write.mode("overwrite").save_as_table("saved_table", create_temp_table=True)
+            >>> session.table("saved_table").show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |3    |4    |
+            -------------
+            <BLANKLINE>
+            >>> stage_created_result = session.sql("create temp stage if not exists test_stage").collect()
+            >>> df.write.copy_into_location("@test_stage/copied_from_dataframe")  # default CSV
+            [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
 
         return DataFrameWriter(self)
@@ -1405,17 +1707,31 @@ class DataFrame:
 
         Example::
 
-            # user_schema is used to read from CSV files. For other files it's not needed.
-            user_schema = StructType(StructField("A", StringType()), StructField("A_LEN", IntegerType())
-            stage_location = "@somestage/somefiles.csv"
-            # Use the DataFrameReader (session.read below) to read from CSV files.
-            df = session.read.schema(user_schema).csv(stage_location)
-            # specify transformations and target column names. It's optional for the "copy into" command
-            transformations = [col("$1"), length(col("$1"))]
-            target_column_names = ["A", "A_LEN"]
-            # Use format type options and copy options
-            csv_file_format_options = {"skip_header": 2}
-            df.copy_into_table("T", target_column_names, transformations, format_type_options=csv_file_format_options, force=True)
+            >>> # Create a CSV file to demo load
+            >>> import tempfile
+            >>> with tempfile.NamedTemporaryFile(mode="w+t") as t:
+            ...     t.writelines(["id1, Product A", "\\n" "id2, Product B"])
+            ...     t.flush()
+            ...     create_stage_result = session.sql("create temp stage if not exists test_stage").collect()
+            ...     put_result = session.file.put(t.name, "@test_stage/copy_into_table_dir", overwrite=True)
+            >>> # user_schema is used to read from CSV files. For other files it's not needed.
+            >>> from snowflake.snowpark.types import StringType, StructField, StringType
+            >>> from snowflake.snowpark.functions import length
+            >>> user_schema = StructType([StructField("product_id", StringType()), StructField("product_name", StringType())])
+            >>> # Use the DataFrameReader (session.read below) to read from CSV files.
+            >>> df = session.read.schema(user_schema).csv("@test_stage/copy_into_table_dir")
+            >>> # specify target column names.
+            >>> target_column_names = ["product_id", "product_name"]
+            >>> drop_result = session.sql("drop table if exists copied_into_table").collect()  # The copy will recreate the table.
+            >>> copied_into_result = df.copy_into_table("copied_into_table", target_columns=target_column_names, force=True)
+            >>> session.table("copied_into_table").show()
+            ---------------------------------
+            |"PRODUCT_ID"  |"PRODUCT_NAME"  |
+            ---------------------------------
+            |id1           | Product A      |
+            |id2           | Product B      |
+            ---------------------------------
+            <BLANKLINE>
 
         The arguments of this function match the optional parameters of the `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#optional-parameters>`__.
 
@@ -1546,9 +1862,22 @@ class DataFrame:
 
         Example::
 
-            table1 = session.sql("select parse_json(value) as value from values('[1,2]') as T(value)")
-            flattened = table1.flatten(table1["value"])
-            flattened.select(table1["value"], flattened["value"].as_("newValue")).show()
+            >>> table1 = session.sql("select parse_json(numbers) as numbers from values('[1,2]') as T(numbers)")
+            >>> flattened = table1.flatten(table1["numbers"])
+            >>> flattened.select(table1["numbers"], flattened["value"].as_("flattened_number")).show()
+            ----------------------------------
+            |"NUMBERS"  |"FLATTENED_NUMBER"  |
+            ----------------------------------
+            |[          |1                   |
+            |  1,       |                    |
+            |  2        |                    |
+            |]          |                    |
+            |[          |2                   |
+            |  1,       |                    |
+            |  2        |                    |
+            |]          |                    |
+            ----------------------------------
+            <BLANKLINE>
 
         Args:
             input: The name of a column or a :class:`Column` instance that will be unseated into rows.
@@ -1825,6 +2154,20 @@ class DataFrame:
         string columns. Non-numeric and non-string columns will be ignored
         when calling this method.
 
+        Example::
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df.describe().show()
+            -------------------------------------------------------
+            |"SUMMARY"  |"A"                 |"B"                 |
+            -------------------------------------------------------
+            |count      |2.0                 |2.0                 |
+            |mean       |2.0                 |3.0                 |
+            |min        |1.0                 |2.0                 |
+            |stddev     |1.4142135623730951  |1.4142135623730951  |
+            |max        |3.0                 |4.0                 |
+            -------------------------------------------------------
+            <BLANKLINE>
+
         Args:
             cols: The names of columns whose basic statistics are computed.
         """
@@ -1883,9 +2226,16 @@ class DataFrame:
 
         Example::
 
-            # This example renames the column `A` as `NEW_A` in the DataFrame.
-            df = session.sql("select 1 as A, 2 as B")
-            df_renamed = df.with_column_renamed(col("A"), "NEW_A")
+            >>> # This example renames the column `A` as `NEW_A` in the DataFrame.
+            >>> df = session.sql("select 1 as A, 2 as B")
+            >>> df_renamed = df.with_column_renamed(col("A"), "NEW_A")
+            >>> df_renamed.show()
+            -----------------
+            |"NEW_A"  |"B"  |
+            -----------------
+            |1        |2    |
+            -----------------
+            <BLANKLINE>
 
         Args:
             existing: The old column instance or column name to be renamed.
@@ -1933,29 +2283,36 @@ class DataFrame:
         and have no effect on the original DataFrame.
 
         Examples::
-            session.sql("create temp table RESULT (NUM int)").collect()
-            session.sql("insert into RESULT values(1),(2)").collect()
+            >>> create_result = session.sql("create temp table RESULT (NUM int)").collect()
+            >>> insert_result = session.sql("insert into RESULT values(1),(2)").collect()
 
-            df = session.table("RESULT")
-            assert df.collect() == [Row(1), Row(2)]
+            >>> df = session.table("RESULT")
+            >>> df.collect()
+            [Row(NUM=1), Row(NUM=2)]
 
-            # Run cache_result and then insert into the original table to see
-            # that the cached result is not affected
-            df1 = df.cache_result()
-            session.sql("insert into RESULT values (3)").collect()
-            assert df1.collect() == [Row(1), Row(2)]
-            assert df.collect() == [Row(1), Row(2), Row(3)]
+            >>> # Run cache_result and then insert into the original table to see
+            >>> # that the cached result is not affected
+            >>> df1 = df.cache_result()
+            >>> insert_again_result = session.sql("insert into RESULT values (3)").collect()
+            >>> df1.collect()
+            [Row(NUM=1), Row(NUM=2)]
+            >>> df.collect()
+            [Row(NUM=1), Row(NUM=2), Row(NUM=3)]
 
-            # You can run cache_result on a result that has already been cached
-            df2 = df1.cache_result()
-            assert df2.collect() == [Row(1), Row(2)]
+            >>> # You can run cache_result on a result that has already been cached
+            >>> df2 = df1.cache_result()
+            >>> df2.collect()
+            [Row(NUM=1), Row(NUM=2)]
 
-            df3 = df.cache_result()
-            # Drop RESULT and see that the cached results still exist
-            session.sql(f"drop table RESULT").collect()
-            assert df1.collect() == [Row(1), Row(2)]
-            assert df2.collect() == [Row(1), Row(2)]
-            assert df3.collect() == [Row(1), Row(2), Row(3)]
+            >>> df3 = df.cache_result()
+            >>> # Drop RESULT and see that the cached results still exist
+            >>> drop_table_result = session.sql(f"drop table RESULT").collect()
+            >>> df1.collect()
+            [Row(NUM=1), Row(NUM=2)]
+            >>> df2.collect()
+            [Row(NUM=1), Row(NUM=2)]
+            >>> df3.collect()
+            [Row(NUM=1), Row(NUM=2), Row(NUM=3)]
 
         Returns:
              A :class:`DataFrame` object that holds the cached result in a temporary table.
@@ -1994,7 +2351,8 @@ class DataFrame:
             >>> df = session.range(10000)
             >>> weights = [0.1, 0.2, 0.3]
             >>> df_parts = df.random_split(weights)
-            >>> assert len(df_parts) == len(weights)
+            >>> len(df_parts) == len(weights)
+            True
 
         Note:
             1. When multiple weights are specified, the current DataFrame will
