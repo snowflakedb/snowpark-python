@@ -86,15 +86,46 @@ class DataFrameNaFunctions:
 
         Examples::
 
-            df = session.create_dataframe([[1.0, 1], [float('nan'), 2], [None, 3], [4, None], [float('nan'), None]]).to_df("a", "b")
-            # drop a row if it contains any nulls, with checking all columns
-            df.na.drop()
-            # drop a row only if all its values are null, with checking all columns
-            df.na.drop(how='all')
-            # drop a row if it contains at least one non-null and non-NaN values, with checking all columns
-            df.na.drop(thresh=1)
-            # drop a row if it contains any nulls, with checking column "a"
-            df.na.drop(subset=["a"])
+            >>> df = session.create_dataframe([[1.0, 1], [float('nan'), 2], [None, 3], [4.0, None], [float('nan'), None]]).to_df("a", "b")
+            >>> # drop a row if it contains any nulls, with checking all columns
+            >>> df.na.drop().show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1.0  |1    |
+            -------------
+            <BLANKLINE>
+            >>> # drop a row only if all its values are null, with checking all columns
+            >>> df.na.drop(how='all').show()
+            ---------------
+            |"A"   |"B"   |
+            ---------------
+            |1.0   |1     |
+            |nan   |2     |
+            |NULL  |3     |
+            |4.0   |NULL  |
+            ---------------
+            <BLANKLINE>
+            >>> # drop a row if it contains at least one non-null and non-NaN values, with checking all columns
+            >>> df.na.drop(thresh=1).show()
+            ---------------
+            |"A"   |"B"   |
+            ---------------
+            |1.0   |1     |
+            |nan   |2     |
+            |NULL  |3     |
+            |4.0   |NULL  |
+            ---------------
+            <BLANKLINE>
+            >>> # drop a row if it contains any nulls, with checking column "a"
+            >>> df.na.drop(subset=["a"]).show()
+            --------------
+            |"A"  |"B"   |
+            --------------
+            |1.0  |1     |
+            |4.0  |NULL  |
+            --------------
+            <BLANKLINE>
 
         See Also:
             :func:`DataFrame.dropna`
@@ -181,13 +212,43 @@ class DataFrameNaFunctions:
 
         Examples::
 
-            df = session.create_dataframe([[1.0, 1], [float('nan'), 2], [None, 3], [4, None], [float('nan'), None]]).to_df("a", "b")
-            # fill null and NaN values in all columns
-            df.na.fill(3.14)
-            # fill null and NaN values in column "a"
-            df.na.fill({"a": 3.14})
-            # fill null and NaN values in column "a" and "b"
-            df.na.fill({"a": 3.14, "b": 15})
+            >>> df = session.create_dataframe([[1.0, 1], [float('nan'), 2], [None, 3], [4.0, None], [float('nan'), None]]).to_df("a", "b")
+            >>> # fill null and NaN values in all columns
+            >>> df.na.fill(3.14).show()
+            ---------------
+            |"A"   |"B"   |
+            ---------------
+            |1.0   |1     |
+            |3.14  |2     |
+            |3.14  |3     |
+            |4.0   |NULL  |
+            |3.14  |NULL  |
+            ---------------
+            <BLANKLINE>
+            >>> # fill null and NaN values in column "a"
+            >>> df.na.fill({"a": 3.14}).show()
+            ---------------
+            |"A"   |"B"   |
+            ---------------
+            |1.0   |1     |
+            |3.14  |2     |
+            |3.14  |3     |
+            |4.0   |NULL  |
+            |3.14  |NULL  |
+            ---------------
+            <BLANKLINE>
+            >>> # fill null and NaN values in column "a" and "b"
+            >>> df.na.fill({"a": 3.14, "b": 15}).show()
+            --------------
+            |"A"   |"B"  |
+            --------------
+            |1.0   |1    |
+            |3.14  |2    |
+            |3.14  |3    |
+            |4.0   |15   |
+            |3.14  |15   |
+            --------------
+            <BLANKLINE>
 
         Note:
             If the type of a given value in ``value`` doesn't match the
@@ -310,19 +371,54 @@ class DataFrameNaFunctions:
 
         Examples::
 
-            df = session.create_dataframe([[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"])
-            # replace 1 with 3 in all columns
-            df.na.replace(1, 3)
-            # replace 1 with 3 and 2 with 4 in all columns
-            df.na.replace([1, 2], [3, 4])
-            # replace 1 with 3 and 2 with 3 in all columns
-            df.na.replace([1, 2], 3)
-            # the following line intends to replaces 1 with 3 and 2 with 4 in all columns
-            # and will give [Row(3, 3.0, "1.0"), Row(4, 4.0, "2.0")]
-            df.na.replace({1: 3, 2: 4})
-            # the following line intends to replace 1 with "3" in column "a",
-            # but will be ignored since "3" (str) doesn't match the original data type
-            df.na.replace({1: "3"}, ["a"])
+            >>> df = session.create_dataframe([[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"])
+            >>> # replace 1 with 3 in all columns
+            >>> df.na.replace(1, 3).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |3    |3.0  |1.0  |
+            |2    |2.0  |2.0  |
+            -------------------
+            <BLANKLINE>
+            >>> # replace 1 with 3 and 2 with 4 in all columns
+            >>> df.na.replace([1, 2], [3, 4]).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |3    |3.0  |1.0  |
+            |4    |4.0  |2.0  |
+            -------------------
+            <BLANKLINE>
+            >>> # replace 1 with 3 and 2 with 3 in all columns
+            >>> df.na.replace([1, 2], 3).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |3    |3.0  |1.0  |
+            |3    |3.0  |2.0  |
+            -------------------
+            <BLANKLINE>
+            >>> # the following line intends to replaces 1 with 3 and 2 with 4 in all columns
+            >>> # and will give [Row(3, 3.0, "1.0"), Row(4, 4.0, "2.0")]
+            >>> df.na.replace({1: 3, 2: 4}).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |3    |3.0  |1.0  |
+            |4    |4.0  |2.0  |
+            -------------------
+            <BLANKLINE>
+            >>> # the following line intends to replace 1 with "3" in column "a",
+            >>> # but will be ignored since "3" (str) doesn't match the original data type
+            >>> df.na.replace({1: "3"}, ["a"]).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |1.0  |1.0  |
+            |2    |2.0  |2.0  |
+            -------------------
+            <BLANKLINE>
 
         Note:
             If the type of a given value in ``to_replace`` or ``value`` doesn't match the

@@ -40,13 +40,13 @@ class DataFrameStatFunctions:
 
         Examples::
 
-            df = session.create_dataframe([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], schema=["a"])
-            res = df.stat.approx_quantile("a", [0, 0.1, 0.4, 0.6, 1])
-            # res will be [-0.5, 0.5, 3.5, 5.5, 9.5]
+            >>> df = session.create_dataframe([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], schema=["a"])
+            >>> df.stat.approx_quantile("a", [0, 0.1, 0.4, 0.6, 1])
+            [0.5, 1.5, 4.5, 6.5, 9.5]
 
-            df2 = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
-            res2 = df2.stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])
-            # res2 will be [[0.05, 0.15000000000000002, 0.25)], [0.45, 0.55, 0.6499999999999999]]
+            >>> df2 = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+            >>> df2.stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])
+            [[0.05, 0.15000000000000002, 0.25], [0.45, 0.55, 0.6499999999999999]]
 
         Args:
             col: The name of the numeric column.
@@ -99,9 +99,9 @@ class DataFrameStatFunctions:
 
         Example::
 
-            df = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
-            res = df.stat.corr("a", "b")
-            # res will be 0.9999999999999991
+            >>> df = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+            >>> df.stat.corr("a", "b")
+            0.9999999999999991
 
         Args:
             col1: The name of the first numeric column to use.
@@ -119,9 +119,9 @@ class DataFrameStatFunctions:
 
         Example::
 
-           df = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
-           res = df.stat.cov("a", "b")
-           # res will be 0.010000000000000037
+           >>> df = session.create_dataframe([[0.1, 0.5], [0.2, 0.6], [0.3, 0.7]], schema=["a", "b"])
+           >>> df.stat.cov("a", "b")
+           0.010000000000000037
 
         Args:
             col1: The name of the first numeric column to use.
@@ -151,19 +151,17 @@ class DataFrameStatFunctions:
 
         Example::
 
-            df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
-            ct = df.stat.crosstab("key", "value")
-            ct.show()
-
-        The above example prints out the following result:
-
-        ======  ==========================  ==========================  ===============================
-        "KEY"   "CAST(1 AS NUMBER(38,0))"   "CAST(2 AS NUMBER(38,0))"   "CAST(3 AS NUMBER(38,0))"
-        ======  ==========================  ==========================  ===============================
-        1       1                           1                           0
-        2       2                           0                           1
-        3       0                           1                           1
-        ======  ==========================  ==========================  ===============================
+            >>> df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
+            >>> ct = df.stat.crosstab("key", "value")
+            >>> ct.show()
+            ---------------------------------------------------------------------------------------------
+            |"KEY"  |"CAST(1 AS NUMBER(38,0))"  |"CAST(2 AS NUMBER(38,0))"  |"CAST(3 AS NUMBER(38,0))"  |
+            ---------------------------------------------------------------------------------------------
+            |1      |1                          |1                          |0                          |
+            |2      |2                          |0                          |1                          |
+            |3      |0                          |1                          |1                          |
+            ---------------------------------------------------------------------------------------------
+            <BLANKLINE>
 
         Args:
             col1: The name of the first column to use.
@@ -189,18 +187,9 @@ class DataFrameStatFunctions:
 
         Example::
 
-            df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
-            fractions = {"Bob": 0.5, "Nico": 1.0}
-            df.stat.sample_by("name", fractions).show()
-
-        The above example prints out the following result:
-
-        =======  ==========
-        "NAME"   "AGE"
-        =======  ==========
-        Bob      17
-        Nico     8
-        =======  ==========
+            >>> df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
+            >>> fractions = {"Bob": 0.5, "Nico": 1.0}
+            >>> sample_df = df.stat.sample_by("name", fractions)  # non-deterministic result
 
         Args:
             col: The name of the column that defines the strata.
