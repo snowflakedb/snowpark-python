@@ -90,7 +90,7 @@ from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 logger = getLogger(__name__)
 
-ONE_MILLION = 1000000  # TODO: why do we expose this to users?
+_ONE_MILLION = 1000000
 
 
 class DataFrame:
@@ -126,27 +126,44 @@ class DataFrame:
     Example 2
         Creating a DataFrame by reading files from a stage::
 
-            >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
-            >>> df_catalog = session.read.schema(StructType([StructField("id", StringType()), StructField("name", StringType())])).csv("@test_stage/test_dir")
-            >>> df_catalog.show()
-            ---------------------
-            |"ID"  |"NAME"      |
-            ---------------------
-            |id1   | Product A  |
-            |id2   | Product B  |
-            ---------------------
-            <BLANKLINE>
+        >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+        >>> df_catalog = session.read.schema(StructType([StructField("id", StringType()), StructField("name", StringType())])).csv("@test_stage/test_dir")
+        >>> df_catalog.show()
+        ---------------------
+        |"ID"  |"NAME"      |
+        ---------------------
+        |id1   | Product A  |
+        |id2   | Product B  |
+        ---------------------
+        <BLANKLINE>
 
     Example 3
         Creating a DataFrame by specifying a sequence or a range::
 
-            >>> df1 = session.create_dataframe([(1, "one"), (2, "two")], schema=["col_a", "col_b"])
-            >>> df2 = session.range(1, 10, 2).to_df("col1")
+        >>> session.create_dataframe([(1, "one"), (2, "two")], schema=["col_a", "col_b"]).show()
+        ---------------------
+        |"COL_A"  |"COL_B"  |
+        ---------------------
+        |1        |one      |
+        |2        |two      |
+        ---------------------
+        <BLANKLINE>
+        >>> session.range(1, 10, 2).to_df("col1").show()
+        ----------
+        |"COL1"  |
+        ----------
+        |1       |
+        |3       |
+        |5       |
+        |7       |
+        |9       |
+        ----------
+        <BLANKLINE>
 
     Example 4
         Create a new DataFrame by applying transformations to other existing DataFrames::
 
-            >>> df_merged_data = df_catalog.join(df_prices, df_catalog["id"] == df_prices["product_id"])
+        >>> df_merged_data = df_catalog.join(df_prices, df_catalog["id"] == df_prices["product_id"])
 
     **Performing operations on a DataFrame**
 
@@ -163,32 +180,32 @@ class DataFrame:
         Using the :func:`select()` method to select the columns that should be in the
         DataFrame (similar to adding a ``SELECT`` clause)::
 
-            >>> # Return a new DataFrame containing the product_id and amount columns of the prices table.
-            >>> # This is equivalent to: SELECT PRODUCT_ID, AMOUNT FROM PRICES;
-            >>> df_price_ids_and_amounts = df_prices.select(col("product_id"), col("amount"))
+        >>> # Return a new DataFrame containing the product_id and amount columns of the prices table.
+        >>> # This is equivalent to: SELECT PRODUCT_ID, AMOUNT FROM PRICES;
+        >>> df_price_ids_and_amounts = df_prices.select(col("product_id"), col("amount"))
 
     Example 6
         Using the :func:`Column.as_` method to rename a column in a DataFrame (similar
         to using ``SELECT col AS alias``)::
 
-            >>> # Return a new DataFrame containing the product_id column of the prices table as a column named
-            >>> # item_id. This is equivalent to: SELECT PRODUCT_ID AS ITEM_ID FROM PRICES;
-            >>> df_price_item_ids = df_prices.select(col("product_id").as_("item_id"))
+        >>> # Return a new DataFrame containing the product_id column of the prices table as a column named
+        >>> # item_id. This is equivalent to: SELECT PRODUCT_ID AS ITEM_ID FROM PRICES;
+        >>> df_price_item_ids = df_prices.select(col("product_id").as_("item_id"))
 
     Example 7
         Using the :func:`filter` method to filter data (similar to adding a ``WHERE`` clause)::
 
-            >>> # Return a new DataFrame containing the row from the prices table with the ID 1.
-            >>> # This is equivalent to:
-            >>> # SELECT * FROM PRICES WHERE PRODUCT_ID = 1;
-            >>> df_price1 = df_prices.filter((col("product_id") == 1))
+        >>> # Return a new DataFrame containing the row from the prices table with the ID 1.
+        >>> # This is equivalent to:
+        >>> # SELECT * FROM PRICES WHERE PRODUCT_ID = 1;
+        >>> df_price1 = df_prices.filter((col("product_id") == 1))
 
     Example 8
         Using the :func:`sort()` method to specify the sort order of the data (similar to adding an ``ORDER BY`` clause)::
 
-            >>> # Return a new DataFrame for the prices table with the rows sorted by product_id.
-            >>> # This is equivalent to: SELECT * FROM PRICES ORDER BY PRODUCT_ID;
-            >>> df_sorted_prices = df_prices.sort(col("product_id"))
+        >>> # Return a new DataFrame for the prices table with the rows sorted by product_id.
+        >>> # This is equivalent to: SELECT * FROM PRICES ORDER BY PRODUCT_ID;
+        >>> df_sorted_prices = df_prices.sort(col("product_id"))
 
     Example 9
         Using :meth:`agg` method to aggregate results.
@@ -266,27 +283,27 @@ class DataFrame:
     Example 13
         Performing a query and returning an array of Rows::
 
-            >>> df_prices.collect()
-            [Row(PRODUCT_ID='id1', AMOUNT=Decimal('10.00')), Row(PRODUCT_ID='id2', AMOUNT=Decimal('20.00'))]
+        >>> df_prices.collect()
+        [Row(PRODUCT_ID='id1', AMOUNT=Decimal('10.00')), Row(PRODUCT_ID='id2', AMOUNT=Decimal('20.00'))]
 
     Example 14
         Performing a query and print the results::
 
-            >>> df_prices.show()
-            ---------------------------
-            |"PRODUCT_ID"  |"AMOUNT"  |
-            ---------------------------
-            |id1           |10.00     |
-            |id2           |20.00     |
-            ---------------------------
-            <BLANKLINE>
+        >>> df_prices.show()
+        ---------------------------
+        |"PRODUCT_ID"  |"AMOUNT"  |
+        ---------------------------
+        |id1           |10.00     |
+        |id2           |20.00     |
+        ---------------------------
+        <BLANKLINE>
 
     Example 15
         Calculating statistics values. Refer to :class:`DataFrameStatFunctions` for more details.
 
-            >>> df = session.create_dataframe([[1, 2], [3, 4], [5, -1]], schema=["a", "b"])
-            >>> df.stat.corr("a", "b")
-            -0.5960395606792697
+        >>> df = session.create_dataframe([[1, 2], [3, 4], [5, -1]], schema=["a", "b"])
+        >>> df.stat.corr("a", "b")
+        -0.5960395606792697
     """
 
     __NUM_PREFIX_DIGITS = 4
@@ -2374,11 +2391,11 @@ class DataFrame:
 
             temp_column_name = Utils.random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
-                temp_column_name, abs_(random(seed)) % ONE_MILLION
+                temp_column_name, abs_(random(seed)) % _ONE_MILLION
             ).cache_result()
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
-                int(w * ONE_MILLION)
+                int(w * _ONE_MILLION)
                 for w in list(itertools.accumulate([w / sum_weights for w in weights]))
             ]
             normalized_boundaries = zip(
