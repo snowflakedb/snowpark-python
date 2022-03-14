@@ -1017,12 +1017,12 @@ class AnalyzerPackage:
             (self._PartitionBy + partition_by) if partition_by else self._EmptyString
         )
         format_name_clause = (
-            self._FormatName + self._Equals + file_format_name
+            (self._FormatName + self._Equals + file_format_name)
             if file_format_name
             else self._EmptyString
         )
         file_type_clause = (
-            self._Type + self._Equals + file_format_type
+            (self._Type + self._Equals + file_format_type)
             if file_format_type
             else self._EmptyString
         )
@@ -1032,17 +1032,21 @@ class AnalyzerPackage:
             else self._EmptyString
         )
         file_format_clause = (
-            self._FileFormat
-            + self._Equals
-            + self._LeftParenthesis
-            + (
-                format_name_clause
-                + self._Space
-                + file_type_clause
-                + self._Space
-                + format_type_options_clause
+            (
+                self._FileFormat
+                + self._Equals
+                + self._LeftParenthesis
+                + (
+                    format_name_clause
+                    + self._Space
+                    + file_type_clause
+                    + self._Space
+                    + format_type_options_clause
+                )
+                + self._RightParenthesis
             )
-            + self._RightParenthesis
+            if format_name_clause or file_type_clause or format_type_options_clause
+            else self._EmptyString
         )
         copy_options_clause = (
             self.get_options_statement(copy_options)
