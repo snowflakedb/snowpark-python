@@ -1457,10 +1457,10 @@ def test_write_copy_into_location_basic(session):
             [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
             schema=["FIRST_NAME", "LAST_NAME"],
         )
-        df.write.copy_into_location(temp_stage, file_format_type="parquet")
+        df.write.copy_into_location(temp_stage)
         copied_files = session.sql(f"list @{temp_stage}").collect()
         assert len(copied_files) == 1
-        assert ".parquet" in copied_files[0][0]
+        assert ".csv" in copied_files[0][0]
     finally:
         Utils.drop_stage(session, temp_stage)
 
