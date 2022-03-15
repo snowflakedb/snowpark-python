@@ -11,12 +11,11 @@ from unittest.mock import patch
 
 import pytest
 
-import snowflake.snowpark.functions
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import Utils as InternalUtils
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
-from snowflake.snowpark.functions import stored_proc
+from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.types import DoubleType, IntegerType, StringType
 from tests.utils import TempObjectType, TestFiles, Utils
 
@@ -54,17 +53,13 @@ def test_basic_stored_procedure(session):
     def int2str(session_, x):
         return session_.sql(f"select cast({x} as string)").collect()[0][0]
 
-    return1_sp = stored_proc(return1, return_type=StringType())
-    plus1_sp = stored_proc(
-        plus1, return_type=IntegerType(), input_types=[IntegerType()]
-    )
-    add_sp = stored_proc(
+    return1_sp = sproc(return1, return_type=StringType())
+    plus1_sp = sproc(plus1, return_type=IntegerType(), input_types=[IntegerType()])
+    add_sp = sproc(
         add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
     )
-    int2str_sp = stored_proc(
-        int2str, return_type=StringType(), input_types=[IntegerType()]
-    )
-    pow_sp = stored_proc(
+    int2str_sp = sproc(int2str, return_type=StringType(), input_types=[IntegerType()])
+    pow_sp = sproc(
         lambda session_, x, y: session_.sql(f"select pow({x}, {y})").collect()[0][0],
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
@@ -84,7 +79,7 @@ def test_basic_stored_procedure(session):
 
 def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     session._run_query("drop function if exists test_mul(int, int)")
-    stored_proc(
+    sproc(
         lambda session_, x, y: session_.sql(f"select {x} * {y}").collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
@@ -109,7 +104,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
         new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
         full_sp_name = f"{temp_schema}.test_add"
         new_session._run_query(f"drop function if exists {full_sp_name}(int, int)")
-        new_session.stored_proc.register(
+        new_session.sproc.register(
             lambda session_, x, y: session_.sql(f"select {x} + {y}").collect()[0][0],
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
@@ -138,7 +133,7 @@ def test_recursive_function(session):
     def factorial(session_, n):
         return 1 if n == 1 or n == 0 else n * factorial(session_, n - 1)
 
-    factorial_sp = stored_proc(
+    factorial_sp = sproc(
         factorial, return_type=IntegerType(), input_types=[IntegerType()]
     )
     assert factorial_sp(3) == factorial(session, 3)
@@ -157,17 +152,15 @@ def test_nested_function(session):
     def cube(session_, x):
         return square(session_, x) * x
 
-    outer_func_sp = stored_proc(outer_func, return_type=StringType())
+    outer_func_sp = sproc(outer_func, return_type=StringType())
     assert outer_func_sp() == "snow-snow"
 
     # we don't need to register function square()
-    cube_sp = stored_proc(cube, return_type=IntegerType(), input_types=[IntegerType()])
+    cube_sp = sproc(cube, return_type=IntegerType(), input_types=[IntegerType()])
     assert cube_sp(2) == 8
 
     # but we can still register function square()
-    square_sp = stored_proc(
-        square, return_type=IntegerType(), input_types=[IntegerType()]
-    )
+    square_sp = sproc(square, return_type=IntegerType(), input_types=[IntegerType()])
     assert cube_sp(2) == 8
     assert square_sp(2) == 4
 
@@ -185,7 +178,7 @@ def test_decorator_function(session):
     def square(session_, x):
         return session_.sql(f"select square({x})").collect()[0][0]
 
-    square_twice_sp = stored_proc(
+    square_twice_sp = sproc(
         square,
         return_type=IntegerType(),
         input_types=[IntegerType()],
@@ -194,11 +187,11 @@ def test_decorator_function(session):
 
 
 def test_annotation_syntax(session):
-    @stored_proc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+    @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
     def add_sp(session_, x, y):
         return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
 
-    @stored_proc(return_type=StringType())
+    @sproc(return_type=StringType())
     def snow(session_):
         return session_.sql("SELECT 'snow'").collect()[0][0]
 
@@ -209,7 +202,7 @@ def test_annotation_syntax(session):
 def test_register_sp_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
 
-    mod5_sp = session.stored_proc.register_from_file(
+    mod5_sp = session.sproc.register_from_file(
         test_files.test_sp_py_file,
         "mod5",
         return_type=IntegerType(),
@@ -227,21 +220,21 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
             test_files.test_sp_py_file, os.path.basename(test_files.test_sp_py_file)
         )
 
-    mod5_sp_zip = session.stored_proc.register_from_file(
+    mod5_sp_zip = session.sproc.register_from_file(
         zip_path, "mod5", return_type=IntegerType(), input_types=[IntegerType()]
     )
     assert mod5_sp_zip(3) == 3
 
     # test a remote python file
     stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_sp_py_file)}"
-    mod5_sp_stage = session.stored_proc.register_from_file(
+    mod5_sp_stage = session.sproc.register_from_file(
         stage_file, "mod5", return_type=IntegerType(), input_types=[IntegerType()]
     )
     assert mod5_sp_stage(3) == 3
 
 
 def test_session_register_sp(session):
-    add_sp = session.stored_proc.register(
+    add_sp = session.sproc.register(
         lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
@@ -271,7 +264,7 @@ def test_add_import_local_file(session, resources_path):
         session.add_import(
             test_files.test_sp_py_file, import_path="test_sp_dir.test_sp_file"
         )
-        plus4_then_mod5_sp = stored_proc(
+        plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
         assert plus4_then_mod5_sp(3) == 2
@@ -279,7 +272,7 @@ def test_add_import_local_file(session, resources_path):
         # if import_as argument changes, the checksum of the file will also change
         # and we will overwrite the file in the stage
         session.add_import(test_files.test_sp_py_file)
-        plus4_then_mod5_direct_import_sp = stored_proc(
+        plus4_then_mod5_direct_import_sp = sproc(
             plus4_then_mod5_direct_import,
             return_type=IntegerType(),
             input_types=[IntegerType()],
@@ -309,13 +302,13 @@ def test_add_import_local_directory(session, resources_path):
         session.add_import(
             test_files.test_sp_directory, import_path="resources.test_sp_dir"
         )
-        plus4_then_mod5_sp = stored_proc(
+        plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
         assert plus4_then_mod5_sp(3) == 2
 
         session.add_import(test_files.test_sp_directory)
-        plus4_then_mod5_direct_import_sp = stored_proc(
+        plus4_then_mod5_direct_import_sp = sproc(
             plus4_then_mod5_direct_import,
             return_type=IntegerType(),
             input_types=[IntegerType()],
@@ -340,7 +333,7 @@ def test_add_import_stage_file(session, resources_path):
             session, tmp_stage_name, test_files.test_sp_py_file, compress=False
         )
         session.add_import(stage_file)
-        plus4_then_mod5_sp = stored_proc(
+        plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
 
@@ -360,7 +353,7 @@ def test_sp_level_import(session, resources_path):
             return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
 
         # with sp-level imports
-        plus4_then_mod5_sp = stored_proc(
+        plus4_then_mod5_sp = sproc(
             plus4_then_mod5,
             return_type=IntegerType(),
             input_types=[IntegerType()],
@@ -369,7 +362,7 @@ def test_sp_level_import(session, resources_path):
         assert plus4_then_mod5_sp(3) == 2
 
         # without sp-level imports
-        plus4_then_mod5_sp = stored_proc(
+        plus4_then_mod5_sp = sproc(
             plus4_then_mod5,
             return_type=IntegerType(),
             input_types=[IntegerType()],
@@ -380,30 +373,30 @@ def test_sp_level_import(session, resources_path):
 
 
 def test_type_hints(session):
-    @stored_proc()
+    @sproc()
     def add_sp(session_: Session, x: int, y: int) -> int:
         return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
 
-    @stored_proc
+    @sproc
     def snow_sp(session_: Session, x: int) -> Optional[str]:
         return session_.sql(f"SELECT IFF({x} % 2 = 0, 'snow', NULL)").collect()[0][0]
 
-    @stored_proc
+    @sproc
     def double_str_list_sp(session_: Session, x: str) -> List[str]:
         val = session_.sql(f"SELECT '{x}'").collect()[0][0]
         return [val, val]
 
     dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
 
-    @stored_proc
+    @sproc
     def return_datetime_sp(_: Session) -> datetime.datetime:
         return dt
 
-    @stored_proc
+    @sproc
     def first_element_sp(_: Session, x: List[str]) -> str:
         return x[0]
 
-    @stored_proc
+    @sproc
     def get_sp(_: Session, d: Dict[str, str], i: str) -> str:
         return d[i]
 
@@ -421,7 +414,7 @@ def test_type_hint_no_change_after_registration(session):
         return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
 
     annotations = add.__annotations__
-    session.stored_proc.register(add)
+    session.sproc.register(add)
     assert annotations == add.__annotations__
 
 
@@ -451,14 +444,10 @@ def return_datetime(_: Session) -> datetime.datetime:
     with open(file_path, "w") as f:
         f.write(source)
 
-    add_sp = session.stored_proc.register_from_file(file_path, "add")
-    snow_sp = session.stored_proc.register_from_file(file_path, "snow")
-    double_str_list_sp = session.stored_proc.register_from_file(
-        file_path, "double_str_list"
-    )
-    return_datetime_sp = session.stored_proc.register_from_file(
-        file_path, "return_datetime"
-    )
+    add_sp = session.sproc.register_from_file(file_path, "add")
+    snow_sp = session.sproc.register_from_file(file_path, "snow")
+    double_str_list_sp = session.sproc.register_from_file(file_path, "double_str_list")
+    return_datetime_sp = session.sproc.register_from_file(file_path, "return_datetime")
 
     assert add_sp(1, 2) == 3
     assert snow_sp(0) == "snow"
@@ -476,7 +465,7 @@ def test_permanent_sp(session, db_parameters):
         new_session.add_packages("snowflake-snowpark-python")
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)
-            stored_proc(
+            sproc(
                 lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][
                     0
                 ],
@@ -499,24 +488,23 @@ def test_sp_negative(session):
     def f(_, x):
         return x
 
-    empty_sp = stored_proc()
+    empty_sp = sproc()
     with pytest.raises(TypeError) as ex_info:
         empty_sp(session)
     assert "Invalid function: not a function or callable" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
-        stored_proc(1, return_type=IntegerType())
+        sproc(1, return_type=IntegerType())
     assert "Invalid function: not a function or callable" in str(ex_info)
 
     # if return_type is specified, it must be passed passed with keyword argument
     with pytest.raises(TypeError) as ex_info:
-        stored_proc(f, IntegerType())
-    assert (
-        "stored_proc() takes from 0 to 1 positional arguments but 2 were given"
-        in str(ex_info)
+        sproc(f, IntegerType())
+    assert "sproc() takes from 0 to 1 positional arguments but 2 were given" in str(
+        ex_info
     )
 
-    f_sp = stored_proc(f, return_type=IntegerType(), input_types=[IntegerType()])
+    f_sp = sproc(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:
         f_sp("a", "")
     assert "Incorrect number of arguments passed to the stored procedure" in str(
@@ -532,7 +520,7 @@ def test_sp_negative(session):
     assert "Unknown function" in str(ex_info)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
-        stored_proc(
+        sproc(
             f,
             return_type=IntegerType(),
             input_types=[IntegerType()],
@@ -541,7 +529,7 @@ def test_sp_negative(session):
     assert "The object name 'invalid name' is invalid" in str(ex_info)
 
     # incorrect data type
-    int_sp = stored_proc(
+    int_sp = sproc(
         lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
     )
     with pytest.raises(ProgrammingError) as ex_info:
@@ -554,7 +542,7 @@ def test_sp_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @stored_proc(IntegerType())
+        @sproc(IntegerType())
         def g(_, x):
             return x
 
@@ -562,7 +550,7 @@ def test_sp_negative(session):
 
     with pytest.raises(AssertionError) as ex_info:
 
-        @stored_proc
+        @sproc
         def add(_: Session, x: int, y: int):
             return x + y
 
@@ -570,7 +558,7 @@ def test_sp_negative(session):
 
     with pytest.raises(AssertionError) as ex_info:
 
-        @stored_proc
+        @sproc
         def add(_: Session, x, y: int) -> int:
             return x + y
 
@@ -581,7 +569,7 @@ def test_sp_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @stored_proc
+        @sproc
         def add(_: Session, x: int, y: Union[int, float]) -> Union[int, float]:
             return x + y
 
@@ -589,7 +577,7 @@ def test_sp_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @stored_proc
+        @sproc
         def add(_: int, x: int, y: int) -> int:
             return x + y
 
@@ -599,7 +587,7 @@ def test_sp_negative(session):
 
     with pytest.raises(ValueError) as ex_info:
 
-        @stored_proc(is_permanent=True)
+        @sproc(is_permanent=True)
         def add(_: Session, x: int, y: int) -> int:
             return x + y
 
@@ -607,7 +595,7 @@ def test_sp_negative(session):
 
     with pytest.raises(ValueError) as ex_info:
 
-        @stored_proc(is_permanent=True, name="sp")
+        @sproc(is_permanent=True, name="sp")
         def add(_: Session, x: int, y: int) -> int:
             return x + y
 
@@ -629,7 +617,7 @@ def test_add_import_negative(session, resources_path):
         "test_sp_file",
     ]:
         session.add_import(test_files.test_sp_py_file, import_path)
-        plus4_then_mod5_sp = stored_proc(
+        plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
         with pytest.raises(ProgrammingError) as ex_info:
@@ -638,7 +626,7 @@ def test_add_import_negative(session, resources_path):
     session.clear_imports()
 
     with pytest.raises(TypeError) as ex_info:
-        stored_proc(
+        sproc(
             plus4_then_mod5,
             return_type=IntegerType(),
             input_types=[IntegerType()],
@@ -652,7 +640,7 @@ def test_add_import_negative(session, resources_path):
 
 def test_sp_replace(session):
     # Register named sp and expect that it works.
-    add_sp = session.stored_proc.register(
+    add_sp = session.sproc.register(
         lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
         name="test_sp_replace_add",
         return_type=IntegerType(),
@@ -662,7 +650,7 @@ def test_sp_replace(session):
     assert add_sp(1, 2) == 3
 
     # Replace named sp with different one and expect that data is changed.
-    add_sp = session.stored_proc.register(
+    add_sp = session.sproc.register(
         lambda session_, x, y: session_.sql(f"SELECT {x} + {y} + 1").collect()[0][0],
         name="test_sp_replace_add",
         return_type=IntegerType(),
@@ -673,7 +661,7 @@ def test_sp_replace(session):
 
     # Try to register sp without replacing and expect failure.
     with pytest.raises(ProgrammingError) as ex_info:
-        add_sp = session.stored_proc.register(
+        add_sp = session.sproc.register(
             lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
             name="test_sp_replace_add",
             return_type=IntegerType(),
@@ -684,8 +672,8 @@ def test_sp_replace(session):
     # Expect second sp version to still be there.
     assert add_sp(1, 2) == 4
 
-    # Register via stored_proc() in functions.py and expect that it works.
-    add_sp = stored_proc(
+    # Register via sproc() in functions.py and expect that it works.
+    add_sp = sproc(
         lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
         name="test_sp_replace_add",
         return_type=IntegerType(),
@@ -697,7 +685,7 @@ def test_sp_replace(session):
 
 def test_sp_parallel(session):
     for i in [1, 50, 99]:
-        stored_proc(
+        sproc(
             lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
@@ -705,7 +693,7 @@ def test_sp_parallel(session):
         )
 
     with pytest.raises(ValueError) as ex_info:
-        stored_proc(
+        sproc(
             lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
@@ -714,7 +702,7 @@ def test_sp_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
-        stored_proc(
+        sproc(
             lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
@@ -727,8 +715,8 @@ def test_describe_sp(session):
     def return1(session_: Session) -> str:
         return session_.sql("select '1'").collect()[0][0]
 
-    return1_sp = session.stored_proc.register(return1)
-    describe_res = session.stored_proc.describe(return1_sp).collect()
+    return1_sp = session.sproc.register(return1)
+    describe_res = session.sproc.describe(return1_sp).collect()
     assert [row[0] for row in describe_res] == [
         "signature",
         "returns",

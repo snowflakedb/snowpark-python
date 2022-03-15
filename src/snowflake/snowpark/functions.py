@@ -1839,7 +1839,7 @@ def _create_table_function_expression(
     )
 
 
-def stored_proc(
+def sproc(
     func: Optional[Callable] = None,
     *,
     return_type: Optional[DataType] = None,
@@ -1858,7 +1858,7 @@ def stored_proc(
     It can be used as either a function call or a decorator. In most cases you work with a single session.
     This function uses that session to register the stored procedure. If you have multiple sessions, you need to
     explicitly specify the ``session`` parameter of this function. If you have a function and would
-    like to register it to multiple databases, use ``session.stored_proc.register`` instead.
+    like to register it to multiple databases, use ``session.sproc.register`` instead.
 
     Note that the first parameter of your function should be a snowpark Session. Also, you need to add
     `snowflake-snowpark-python` package (version >= 0.4.0) to your session before trying to create a
@@ -1912,26 +1912,41 @@ def stored_proc(
 
     Examples::
 
-        from snowflake.snowpark.types import IntegerType
-        # register a temporary stored procedure
-        add_one = stored_proc(
-            lambda session_, x: session_.sql(f"SELECT {x} + 1").collect()[0][0],
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-
-        # register a permanent stored procedure by setting is_permanent to True
-        @stored_proc(name="minus_one", is_permanent=True, stage_location="@mystage")
-        def minus_one(session_: snowflake.snowpark.Session, x: int) -> int:
-            return session_.sql(f"SELECT {x} - 1").collect()[0][0]
-
-        # use stored-proc-level imports
-        from my_math import sqrt
-        @stored_proc(name="my_sqrt", is_permanent=True, stage_location="@mystage", imports=["my_math.py"])
-        def my_sqrt(session_: snowflake.snowpark.Session, x: float) -> float:
-            return session_.sql(f"SELECT {sqrt(x)}").collect()[0][0]
-
-        session.call("minus_one", 5)
+    >>> from snowflake.snowpark.functions import sproc
+    >>> from snowflake.snowpark.types import IntegerType
+    >>>
+    >>> session.add_packages('snowflake-snowpark-python')
+    >>>
+    >>> # register a temporary stored procedure
+    >>> add_one = sproc(
+    ...     lambda session_, x: session_.sql(f"SELECT {x} + 1").collect()[0][0],
+    ...     return_type=IntegerType(),
+    ...     input_types=[IntegerType()],
+    ...     replace=True,
+    ... )
+    >>>
+    >>> _ = session.sql("create or replace stage mystage").collect()
+    >>> # register a permanent stored procedure by setting is_permanent to True
+    >>> @sproc(name="minus_one_sp", is_permanent=True, stage_location="@mystage/", replace=True)
+    ... def minus_one(session_: snowflake.snowpark.Session, x: int) -> int:
+    ...     return session_.sql(f"SELECT {x} - 1").collect()[0][0]
+    >>>
+    >>> # use stored-proc-level imports
+    >>> from test_sp_dir.test_sp_file import mod5
+    >>> @sproc(
+    ...     name="my_mod5_sp",
+    ...     is_permanent=True,
+    ...     stage_location="@mystage",
+    ...     imports=["tests/resources/test_sp_dir/test_sp_file.py"],
+    ...     replace=True)
+    ... def my_mod5(session_: snowflake.snowpark.Session, x: float) -> float:
+    ...     return session_.sql(f"SELECT {mod5(x)}").collect()[0][0]
+    >>>
+    >>> # Call stored procedure
+    >>> session.call("minus_one_sp", 5)
+    4
+    >>> add_one(5)
+    6
 
     Note:
         1. When type hints are provided and are complete for a function,
@@ -1952,7 +1967,7 @@ def stored_proc(
         For a permanent stored procedure, these files will be uploaded to the stage that you provide.
 
         3. By default, stored procedure registration fails if a function with the same name is already
-        registered. Invoking :func:`stored_proc` with ``replace`` set to ``True`` will overwrite the
+        registered. Invoking :func:`sproc` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
 
     See Also:
@@ -1961,7 +1976,7 @@ def stored_proc(
     session = session or snowflake.snowpark.session._get_active_session()
     if func is None:
         return functools.partial(
-            session.stored_proc.register,
+            session.sproc.register,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -1973,7 +1988,7 @@ def stored_proc(
             parallel=parallel,
         )
     else:
-        return session.stored_proc.register(
+        return session.sproc.register(
             func,
             return_type=return_type,
             input_types=input_types,

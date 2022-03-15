@@ -1386,7 +1386,7 @@ class Session:
         return self.__udf_registration
 
     @property
-    def stored_proc(self) -> StoredProcedureRegistration:
+    def sproc(self) -> StoredProcedureRegistration:
         """
         Returns a :class:`stored_procedure.StoredProcedureRegistration` object that you can use to register stored procedures.
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
@@ -1395,25 +1395,38 @@ class Session:
             self.__sp_registration = StoredProcedureRegistration(self)
         return self.__sp_registration
 
-    def call(self, stored_proc_name: str, *args: Any):
+    def call(self, sproc_name: str, *args: Any):
         """Calls a stored procedure by name.
 
         Args:
-            stored_proc_name: The name of stored procedure in Snowflake.
+            sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
 
         Example::
 
-            session.call("my_copy_sp", "test_from", "test_to", 10)
+        >>> import snowflake.snowpark
+        >>> from snowflake.snowpark.functions import sproc
+        >>>
+        >>> session.add_packages('snowflake-snowpark-python')
+        >>>
+        >>> @sproc(name="my_copy_sp", replace=True)
+        ... def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+        ...     session.table(from_table).limit(count).write.save_as_table(to_table)
+        ...     return "SUCCESS"
+        >>>
+        >>> _ = session.sql("create or replace table test_from(test_str varchar) as select randstr(20, random()) from table(generator(rowCount => 100))").collect()
+        >>> _ = session.sql("drop table if exists test_to").collect()
+        >>> session.call("my_copy_sp", "test_from", "test_to", 10)
+        'SUCCESS'
+        >>> session.table("test_to").count()
+        10
         """
-        Utils.validate_object_name(stored_proc_name)
+        Utils.validate_object_name(sproc_name)
 
         sql_args = []
         for arg in args:
             sql_args.append(DataTypeMapper.to_sql(arg, _infer_type(arg)))
-        return self.sql(f"CALL {stored_proc_name}({', '.join(sql_args)})").collect()[0][
-            0
-        ]
+        return self.sql(f"CALL {sproc_name}({', '.join(sql_args)})").collect()[0][0]
 
     def flatten(
         self,

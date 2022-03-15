@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import os
+import sys
 import uuid
 
 import pytest
@@ -20,6 +21,7 @@ TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 # use the @udf decorator
 @pytest.fixture(autouse=True, scope="module")
 def add_snowpark_session(doctest_namespace):
+    sys.path.append("tests/resources")
     with open("tests/parameters.py", encoding="utf-8") as f:
         exec(f.read(), globals())
     with Session.builder.configs(

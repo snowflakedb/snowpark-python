@@ -25,7 +25,7 @@ from snowflake.snowpark.types import DataType
 class StoredProcedure:
     """
     Encapsulates a user defined lambda or function that is returned by
-    :func:`~snowflake.snowpark.stored_procedure.stored_proc` or by :func:`StoredProcedureRegistration.register`.
+    :func:`~snowflake.snowpark.functions.sproc` or by :func:`StoredProcedureRegistration.register`.
     The constructor of this class is not supposed to be called directly.
 
     Call an instance of :class:`StoredProcedure` to invoke a stored procedure.
@@ -34,23 +34,25 @@ class StoredProcedure:
 
     Examples::
 
-        import snowflake.snowpark
-        from snowflake.snowpark.stored_procedure import stored_proc
-
-        # Create an instance of StoredProcedure using the @stored_proc decorator
-        @stored_proc
-        def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, limit: int) -> str:
-            session.table(from_table).limit(count).write.save_as_table(to_table)
-            return "SUCCESS"
-
-        def double(session: snowflake.snowpark.Session, x: int) -> int:
-            return session.sql(f"select 2 * {x}").collect()[0][0]
-
-        # Create an instance of StoredProcedure using the stored_proc() function
-        double_sp = stored_proc(double)
-
-        # call stored proc
-        copy('test_from', 'test_to', 10)
+    >>> import snowflake.snowpark
+    >>> from snowflake.snowpark.functions import sproc
+    >>>
+    >>> session.add_packages('snowflake-snowpark-python')
+    >>>
+    >>> @sproc(name="my_copy_sp", replace=True)
+    ... def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+    ...     session.table(from_table).limit(count).write.save_as_table(to_table, create_temp_table=True)
+    ...     return "SUCCESS"
+    >>>
+    >>> def double(session: snowflake.snowpark.Session, x: int) -> int:
+    ...     return session.sql(f"select 2 * {x}").collect()[0][0]
+    >>>
+    >>> # Create an instance of StoredProcedure using the sproc() function
+    >>> double_sp = sproc(double, replace=True)
+    >>>
+    >>> # call stored proc
+    >>> double_sp(2.2)
+    >>> 4.4
     """
 
     def __init__(
@@ -86,7 +88,7 @@ class StoredProcedureRegistration:
     Provides methods to register lambdas and functions as stored procedures in the Snowflake database.
     For more information about Snowflake Python stored procedures, see `Python stored procedures <https://docs.snowflake.com/en/LIMITEDACCESS/stored-procedures-python.html>`__.
 
-    :attr:`session.stored_proc <snowflake.snowpark.Session.stored_proc>` returns an object of this class.
+    :attr:`session.sproc <snowflake.snowpark.Session.sproc>` returns an object of this class.
     You can use this object to register stored procedures that you plan to use in the current session or permanently.
     The methods that register a stored procedure return a :class:`StoredProcedure` object.
 
@@ -96,15 +98,30 @@ class StoredProcedureRegistration:
 
     Examples::
 
-        session.add_packages('snowflake-snowpark-python')
-
-        def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, limit: int) -> str:
-            session.table(from_table).limit(count).write.save_as_table(to_table)
-            return "SUCCESS"
-
-        copy_sp = session.stored_proc.register(copy, name="my_copy_sp")
-        session.sql("call my_copy_sp('test_from', 'test_to', 10)").collect()
-        session.call("my_copy_sp", "test_from", "test_to", 10)
+    >>> import snowflake.snowpark
+    >>> from snowflake.snowpark.functions import sproc
+    >>>
+    >>> session.add_packages('snowflake-snowpark-python')
+    >>>
+    >>> def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+    ...     session.table(from_table).limit(count).write.save_as_table(to_table)
+    ...     return "SUCCESS"
+    >>>
+    >>> my_copy_sp = session.sproc.register(copy, name="my_copy_sp", replace=True)
+    >>> _ = session.sql("create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table(generator(rowCount => 100))").collect()
+    >>>
+    >>> # call using sql
+    >>> _ = session.sql("drop table if exists test_to").collect()
+    >>> session.sql("call my_copy_sp('test_from', 'test_to', 10)").collect()
+    'SUCCESS'
+    >>> session.table("test_to").count()
+    10
+    >>> # call using session#call API
+    >>> _ = session.sql("drop table if exists test_to").collect()
+    >>> session.call("my_copy_sp", "test_from", "test_to", 10)
+    'SUCCESS'
+    >>> session.table("test_to").count()
+    10
 
     Snowflake supports the following data types for the parameters for a stored procedure:
 
@@ -144,25 +161,23 @@ class StoredProcedureRegistration:
         in snowpark API.
 
     See Also:
-        :func:`~snowflake.snowpark.functions.stored_proc`
+        :func:`~snowflake.snowpark.functions.sproc`
     """
 
     def __init__(self, session: "snowflake.snowpark.Session"):
         self._session = session
 
-    def describe(
-        self, stored_proc_obj: StoredProcedure
-    ) -> "snowflake.snowpark.DataFrame":
+    def describe(self, sproc_obj: StoredProcedure) -> "snowflake.snowpark.DataFrame":
         """
         Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a stored procedure.
 
         Args:
-            stored_proc_obj: A :class:`StoredProcedure` returned by
-                :func:`~snowflake.snowpark.stored_procedure.stored_proc` or :meth:`register`.
+            sproc_obj: A :class:`StoredProcedure` returned by
+                :func:`~snowflake.snowpark.stored_procedure.sproc` or :meth:`register`.
         """
-        func_args = [convert_to_sf_type(t) for t in stored_proc_obj._input_types]
+        func_args = [convert_to_sf_type(t) for t in sproc_obj._input_types]
         return self._session.sql(
-            f"describe procedure {stored_proc_obj.name}({','.join(func_args)})"
+            f"describe procedure {sproc_obj.name}({','.join(func_args)})"
         )
 
     def register(
@@ -181,11 +196,11 @@ class StoredProcedureRegistration:
         """
         Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
         The usage, input arguments, and return value of this method are the same as
-        they are for :func:`~snowflake.snowpark.stored_procedure.stored_proc`, but :meth:`register`
+        they are for :func:`~snowflake.snowpark.stored_procedure.sproc`, but :meth:`register`
         cannot be used as a decorator.
 
         See Also:
-            :func:`~snowflake.snowpark.functions.stored_proc`
+            :func:`~snowflake.snowpark.functions.sproc`
         """
         if not callable(func):
             raise TypeError(
@@ -246,11 +261,24 @@ class StoredProcedureRegistration:
 
         Example::
 
-            # "my_copy.py" contains a function "copy":
-            # def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, limit: int) -> str:
-            #     session.table(from_table).limit(count).write.save_as_table(to_table)
-            #     return "SUCCESS"
-            copy_sp = session.stored_proc.register_from_file("my_copy.py", "copy", name="my_copy_sp")
+        >>> import snowflake.snowpark
+        >>> from snowflake.snowpark.functions import sproc
+        >>> from snowflake.snowpark.types import IntegerType
+        >>>
+        >>> session.add_packages('snowflake-snowpark-python')
+        >>>
+        >>> # Contests in test_sp_file.py:
+        >>> # def mod5(session, x):
+        >>> #   return session.sql(f"SELECT {x} % 5").collect()[0][0]
+        >>> mod5_sp = session.sproc.register_from_file(
+        ...     "tests/resources/test_sp_dir/test_sp_file.py",
+        ...     "mod5",
+        ...     name="my_mod5_sp",
+        ...     return_type=IntegerType(),
+        ...     input_types=[IntegerType()],
+        ...     )
+        >>> mod5_sp(7)
+        2
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -259,7 +287,7 @@ class StoredProcedureRegistration:
             points to a zip file.
 
         See Also:
-            - :func:`~snowflake.snowpark.functions.stored_proc`
+            - :func:`~snowflake.snowpark.functions.sproc`
             - :meth:`register`
         """
         file_path = process_file_path(self._session, file_path)
