@@ -876,7 +876,7 @@ def test_add_import_negative(session, resources_path):
             imports=[1],
         )
     assert (
-        "UDF-level import can only be a file path (str) "
+        "udf-level import can only be a file path (str) "
         "or a tuple of the file path (str) and the import path (str)" in str(ex_info)
     )
 

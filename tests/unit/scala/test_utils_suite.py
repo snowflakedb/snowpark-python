@@ -56,13 +56,13 @@ def test_md5():
             Utils.calculate_md5(test_files.test_udf_directory)
             == "390d99ad95e160c6042bc4cb723e5530"
         )
-        assert Utils.calculate_md5(resources_path) == "9c7c45c0e9ad7c36fda4090757836054"
+        assert Utils.calculate_md5(resources_path) == "7a6a2de985a9bd586e8d1a925566b040"
     else:
         assert (
             Utils.calculate_md5(test_files.test_udf_directory)
             == "f5ae4c693680e2462256c0e155fd8210"
         )
-        assert Utils.calculate_md5(resources_path) == "6fb34d4161232e06475dfea9d9f72cc7"
+        assert Utils.calculate_md5(resources_path) == "a8d035c6cb2e585dbe479106b28c3052"
 
 
 def test_normalize_stage_location():
@@ -192,6 +192,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/testCSVquotes.csv",
                 "resources/testJson.json",
                 "resources/test_requirements.txt",
+                "resources/test_sp_dir/",
+                "resources/test_sp_dir/test_sp_file.py",
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_udf_file.py",
             ],

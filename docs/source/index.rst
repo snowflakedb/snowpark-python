@@ -18,6 +18,7 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
 
    snowflake.snowpark
    snowflake.snowpark.functions
+   snowflake.snowpark.stored_procedure
    snowflake.snowpark.types
    snowflake.snowpark.udf
    snowflake.snowpark.exceptions
