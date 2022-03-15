@@ -666,6 +666,7 @@ class Session:
         packages: List[str],
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
+        include_pandas: bool = False,
     ) -> List[str]:
         valid_packages = (
             {
@@ -735,13 +736,18 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        # always include cloudpickle
-        if "cloudpickle" in result_dict:
-            return list(result_dict.values())
-        else:
-            return list(result_dict.values()) + [
-                f"cloudpickle=={cloudpickle.__version__}"
+        def get_req_identifiers_list(modules: List[ModuleType]) -> List[str]:
+            return [
+                f"{m.__name__}=={m.__version__}"
+                for m in modules
+                if m.__name__ not in result_dict
             ]
+
+        # always include cloudpickle
+        extra_modules = [cloudpickle]
+        if include_pandas:
+            extra_modules.append(pandas)
+        return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
     @property
     def query_tag(self) -> Optional[str]:

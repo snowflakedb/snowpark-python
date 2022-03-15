@@ -54,15 +54,15 @@ def test_md5():
     if IS_WINDOWS:
         assert (
             Utils.calculate_md5(test_files.test_udf_directory)
-            == "390d99ad95e160c6042bc4cb723e5530"
+            == "c3988b8dcab346a2e8152e06276b4033"
         )
         assert Utils.calculate_md5(resources_path) == "7a6a2de985a9bd586e8d1a925566b040"
     else:
         assert (
             Utils.calculate_md5(test_files.test_udf_directory)
-            == "f5ae4c693680e2462256c0e155fd8210"
+            == "728a79922e1b869dc9578c4f8d51cc73"
         )
-        assert Utils.calculate_md5(resources_path) == "a8d035c6cb2e585dbe479106b28c3052"
+        assert Utils.calculate_md5(resources_path) == "2b244c44e2af1b46e3b49fda301f3d29"
 
 
 def test_normalize_stage_location():
@@ -150,7 +150,12 @@ def test_zip_file_or_directory_to_stream():
 
     with Utils.zip_file_or_directory_to_stream(test_files.test_udf_directory) as stream:
         check_zip_files_and_close_stream(
-            stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
+            stream,
+            [
+                "test_udf_dir/",
+                "test_udf_dir/test_pandas_udf_file.py",
+                "test_udf_dir/test_udf_file.py",
+            ],
         )
 
     with Utils.zip_file_or_directory_to_stream(
@@ -159,7 +164,12 @@ def test_zip_file_or_directory_to_stream():
         add_init_py=True,
     ) as stream:
         check_zip_files_and_close_stream(
-            stream, ["test_udf_dir/", "test_udf_dir/test_udf_file.py"]
+            stream,
+            [
+                "test_udf_dir/",
+                "test_udf_dir/test_pandas_udf_file.py",
+                "test_udf_dir/test_udf_file.py",
+            ],
         )
 
     with Utils.zip_file_or_directory_to_stream(
@@ -171,6 +181,7 @@ def test_zip_file_or_directory_to_stream():
             stream,
             [
                 "resources/test_udf_dir/",
+                "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
                 "resources/__init__.py",
             ],
@@ -195,6 +206,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
                 "resources/test_udf_dir/",
+                "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
             ],
         )

@@ -147,7 +147,7 @@ class StoredProcedureRegistration:
     Note:
         1. Data with the VARIANT SQL type will be converted to a Python type
         dynamically inside a stored procedure. The following SQL types are converted to :class:`str`
-        in stored procedures rather than native Python types:  TIME, DATE, TIMESTAMP and BINARY.
+        in stored procedures rather than native Python types: TIME, DATE, TIMESTAMP and BINARY.
 
         2. Data returned as :class:`~snowflake.snowpark.types.ArrayType` (``list``),
         :class:`~snowflake.snowpark.types.MapType` (``dict``) or
@@ -212,10 +212,6 @@ class StoredProcedureRegistration:
         check_register_args(
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
-
-        # generate a random name for udf py file
-        # and we compress it first then upload it
-        sp_file_name = f"sp_py_{Utils.random_number()}.zip"
 
         # register stored procedure
         return self.__do_register_sp(
@@ -291,7 +287,7 @@ class StoredProcedureRegistration:
             - :func:`~snowflake.snowpark.functions.sproc`
             - :meth:`register`
         """
-        file_path = process_file_path(self._session, file_path)
+        file_path = process_file_path(file_path)
         check_register_args(
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
@@ -321,7 +317,13 @@ class StoredProcedureRegistration:
         replace: bool,
         parallel: int,
     ) -> StoredProcedure:
-        udf_name, return_type, input_types = process_registration_inputs(
+        (
+            udf_name,
+            is_pandas_udf,
+            is_dataframe_input,
+            return_type,
+            input_types,
+        ) = process_registration_inputs(
             self._session,
             TempObjectType.PROCEDURE,
             func,
@@ -329,6 +331,9 @@ class StoredProcedureRegistration:
             input_types,
             sp_name,
         )
+
+        if is_pandas_udf:
+            raise NotImplementedError("Pandas stored procedure is not supported")
 
         arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [

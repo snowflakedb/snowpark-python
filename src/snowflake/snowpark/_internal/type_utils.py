@@ -17,6 +17,7 @@ from array import array
 from typing import Any, Dict, List, Optional, Tuple, Type, Union, get_args, get_origin
 
 import snowflake.snowpark.types  # type: ignore
+from snowflake.connector.options import pandas
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -33,6 +34,10 @@ from snowflake.snowpark.types import (
     LongType,
     MapType,
     NullType,
+    PandasDataFrame,
+    PandasDataFrameType,
+    PandasSeries,
+    PandasSeriesType,
     ShortType,
     StringType,
     StructField,
@@ -319,6 +324,10 @@ def _python_type_str_to_object(tp_str: str) -> Type:
         return datetime.time
     elif tp_str == "datetime":
         return datetime.datetime
+    elif tp_str in ["Series", "pd.Series"]:
+        return pandas.Series
+    elif tp_str in ["DataFrame", "pd.DataFrame"]:
+        return pandas.DataFrame
     else:
         return eval(tp_str)
 
@@ -366,6 +375,26 @@ def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         )
         return MapType(key_type, value_type), False
 
+    pandas_series_tps = [PandasSeries, pandas.Series]
+    if tp in pandas_series_tps or (tp_origin and tp_origin in pandas_series_tps):
+        return (
+            PandasSeriesType(
+                _python_type_to_snow_type(tp_args[0])[0] if tp_args else None
+            ),
+            False,
+        )
+
+    pandas_dataframe_tps = [PandasDataFrame, pandas.DataFrame]
+    if tp in pandas_dataframe_tps or (tp_origin and tp_origin in pandas_dataframe_tps):
+        return (
+            PandasDataFrameType(
+                [_python_type_to_snow_type(tp_arg)[0] for tp_arg in tp_args]
+                if tp_args
+                else ()
+            ),
+            False,
+        )
+
     if tp == Variant:
         return VariantType(), False
 
@@ -406,22 +435,11 @@ def _retrieve_func_type_hints_from_source(
                 for arg in node.args.args:
                     if arg.annotation:
                         self.type_hints[arg.arg] = parse_arg_annotation(arg.annotation)
-                    else:
-                        raise TypeError(
-                            f"arg {arg.arg} does not have a type annotation"
-                        )
-
                 if node.returns:
                     self.type_hints["return"] = parse_arg_annotation(node.returns)
-                else:
-                    raise TypeError(f"return does not have a type annotation")
                 self.func_exist = True
 
     if not _source:
-        if not file_path.endswith(".py"):
-            raise ValueError(
-                f"{file_path} is not a Python file, so type hints cannot be extracted"
-            )
         with open(file_path, "r") as f:
             _source = f.read()
 
