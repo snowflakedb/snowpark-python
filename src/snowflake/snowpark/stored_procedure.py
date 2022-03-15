@@ -42,7 +42,7 @@ class StoredProcedure:
         >>> session.add_packages('snowflake-snowpark-python')
         >>>
         >>> @sproc(name="my_copy_sp", replace=True)
-        ... def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+        ... def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
         ...     session.table(from_table).limit(count).write.save_as_table(to_table, create_temp_table=True)
         ...     return "SUCCESS"
         >>>
@@ -54,7 +54,7 @@ class StoredProcedure:
         >>>
         >>> # call stored proc
         >>> double_sp(2.2)
-        >>> 4.4
+        4.4
     """
 
     def __init__(
@@ -105,11 +105,11 @@ class StoredProcedureRegistration:
         >>>
         >>> session.add_packages('snowflake-snowpark-python')
         >>>
-        >>> def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+        >>> def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
         ...     session.table(from_table).limit(count).write.save_as_table(to_table)
         ...     return "SUCCESS"
         >>>
-        >>> my_copy_sp = session.sproc.register(copy, name="my_copy_sp", replace=True)
+        >>> my_copy_sp = session.sproc.register(my_copy, name="my_copy_sp", replace=True)
         >>> _ = session.sql("create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table(generator(rowCount => 100))").collect()
         >>>
         >>> # call using sql
@@ -376,5 +376,6 @@ class StoredProcedureRegistration:
             cleanup_failed_permanent_registration(
                 self._session, upload_file_stage_location, stage_location
             )
+            raise
 
         return StoredProcedure(func, return_type, input_types, udf_name)

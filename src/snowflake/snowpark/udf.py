@@ -361,5 +361,6 @@ class UDFRegistration:
             cleanup_failed_permanent_registration(
                 self._session, upload_file_stage_location, stage_location
             )
+            raise
 
         return UserDefinedFunction(func, return_type, input_types, udf_name)

@@ -1410,7 +1410,7 @@ class Session:
             >>> session.add_packages('snowflake-snowpark-python')
             >>>
             >>> @sproc(name="my_copy_sp", replace=True)
-            ... def copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+            ... def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
             ...     session.table(from_table).limit(count).write.save_as_table(to_table)
             ...     return "SUCCESS"
             >>> _ = session.sql("create or replace table test_from(test_str varchar) as select randstr(20, random()) from table(generator(rowCount => 100))").collect()

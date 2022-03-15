@@ -170,7 +170,6 @@ def cleanup_failed_permanent_registration(
             )
         except BaseException as clean_ex:
             logger.warning("Failed to clean uploaded file: %s", clean_ex)
-    raise
 
 
 def generate_python_code(func: Callable, arg_names: List[str]) -> str:
