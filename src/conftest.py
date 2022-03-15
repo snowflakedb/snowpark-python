@@ -21,7 +21,7 @@ TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 # use the @udf decorator
 @pytest.fixture(autouse=True, scope="module")
 def add_snowpark_session(doctest_namespace):
-    sys.path.append("tests/resources")
+    sys.path.append("tests/")
     with open("tests/parameters.py", encoding="utf-8") as f:
         exec(f.read(), globals())
     with Session.builder.configs(

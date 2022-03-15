@@ -1932,7 +1932,7 @@ def sproc(
         ...     return session_.sql(f"SELECT {x} - 1").collect()[0][0]
         >>>
         >>> # use stored-proc-level imports
-        >>> from test_sp_dir.test_sp_file import mod5
+        >>> from resources.test_sp_dir.test_sp_file import mod5
         >>> @sproc(
         ...     name="my_mod5_sp",
         ...     is_permanent=True,
