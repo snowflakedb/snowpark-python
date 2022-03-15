@@ -1937,7 +1937,7 @@ def sproc(
         ...     name="my_mod5_sp",
         ...     is_permanent=True,
         ...     stage_location="@mystage",
-        ...     imports=["tests/resources/test_sp_dir/test_sp_file.py"],
+        ...     imports=["tests/resources/"],
         ...     replace=True)
         ... def my_mod5(session_: snowflake.snowpark.Session, x: float) -> float:
         ...     return session_.sql(f"SELECT {mod5(x)}").collect()[0][0]

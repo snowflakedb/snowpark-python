@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -44,7 +46,7 @@ class StoredProcedure:
         ...     session.table(from_table).limit(count).write.save_as_table(to_table, create_temp_table=True)
         ...     return "SUCCESS"
         >>>
-        >>> def double(session: snowflake.snowpark.Session, x: int) -> int:
+        >>> def double(session: snowflake.snowpark.Session, x: double) -> double:
         ...     return session.sql(f"select 2 * {x}").collect()[0][0]
         >>>
         >>> # Create an instance of StoredProcedure using the sproc() function
@@ -119,7 +121,7 @@ class StoredProcedureRegistration:
         >>> # call using session#call API
         >>> _ = session.sql("drop table if exists test_to").collect()
         >>> session.call("my_copy_sp", "test_from", "test_to", 10)
-        'SUCCESS'
+        [Row(MY_COPY_SP='SUCCESS')]
         >>> session.table("test_to").count()
         10
 
