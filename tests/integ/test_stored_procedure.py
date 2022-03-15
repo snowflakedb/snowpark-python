@@ -563,8 +563,9 @@ def test_sp_negative(session):
             return x + y
 
     assert (
-        "The number of arguments (2) is different from"
-        " the number of argument type hints (1)" in str(ex_info)
+        "Excluding session argument in stored procedure, "
+        "the number of arguments (2) is different from "
+        "the number of argument type hints (1)" in str(ex_info)
     )
 
     with pytest.raises(TypeError) as ex_info:

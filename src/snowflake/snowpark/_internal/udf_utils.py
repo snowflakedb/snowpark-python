@@ -197,7 +197,8 @@ def extract_return_input_types(
         )
         if num_args != len(input_types_from_type_hints):
             raise TypeError(
-                f"The number of arguments ({num_args}) is different from "
+                f'{"" if object_type == TempObjectType.FUNCTION else f"Excluding session argument in stored procedure, "}'
+                f"the number of arguments ({num_args}) is different from "
                 f"the number of argument type hints ({len(input_types_from_type_hints)})"
             )
 
