@@ -11,7 +11,6 @@ from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 import snowflake.snowpark
 from snowflake.snowpark._internal.type_utils import convert_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
-    FunctionType,
     UDFColumn,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -20,7 +19,7 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.types import DataType
 
 
@@ -211,7 +210,7 @@ class StoredProcedureRegistration:
             )
 
         check_register_args(
-            FunctionType.PROCEDURE, name, is_permanent, stage_location, parallel
+            TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
 
         # generate a random name for udf py file
@@ -294,7 +293,7 @@ class StoredProcedureRegistration:
         """
         file_path = process_file_path(self._session, file_path)
         check_register_args(
-            FunctionType.PROCEDURE, name, is_permanent, stage_location, parallel
+            TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
 
         # register udf
@@ -324,7 +323,7 @@ class StoredProcedureRegistration:
     ) -> StoredProcedure:
         udf_name, return_type, input_types = process_registration_inputs(
             self._session,
-            FunctionType.PROCEDURE,
+            TempObjectType.PROCEDURE,
             func,
             return_type,
             input_types,
@@ -344,7 +343,7 @@ class StoredProcedureRegistration:
             upload_file_stage_location,
         ) = resolve_imports_and_packages(
             self._session,
-            FunctionType.PROCEDURE,
+            TempObjectType.PROCEDURE,
             func,
             arg_names,
             udf_name,
@@ -360,7 +359,7 @@ class StoredProcedureRegistration:
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler,
-                function_type=FunctionType.PROCEDURE,
+                object_type=TempObjectType.PROCEDURE,
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,

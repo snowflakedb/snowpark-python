@@ -47,19 +47,9 @@ class UDFColumn(NamedTuple):
     name: str
 
 
-class FunctionContext(NamedTuple):
-    temp_object_type: TempObjectType
-    abbr: str
-
-
-class FunctionType(Enum):
-    UDF = FunctionContext(TempObjectType.FUNCTION, "udf")
-    PROCEDURE = FunctionContext(TempObjectType.PROCEDURE, "stored proc")
-
-
 def get_types_from_type_hints(
     func: Union[Callable, Tuple[str, str]],
-    function_type: FunctionType,
+    object_type: TempObjectType,
 ) -> Tuple[DataType, List[DataType]]:
     if isinstance(func, Callable):
         # For Python 3.10+, the result values of get_type_hints()
@@ -81,7 +71,7 @@ def get_types_from_type_hints(
     index = 0
     for key, python_type in python_types_dict.items():
         # The first parameter of sp function should be Session
-        if function_type == FunctionType.PROCEDURE and index == 0:
+        if object_type == TempObjectType.PROCEDURE and index == 0:
             if python_type != snowflake.snowpark.Session and python_type not in [
                 "Session",
                 "snowflake.snowpark.Session",
@@ -96,8 +86,16 @@ def get_types_from_type_hints(
     return return_type, input_types
 
 
+def get_error_message_abbr(object_type: TempObjectType) -> str:
+    if object_type == TempObjectType.FUNCTION:
+        return "udf"
+    if object_type == TempObjectType.PROCEDURE:
+        return "stored proc"
+    raise ValueError(f"Expect FUNCTION of PROCEDURE, but get {object_type}")
+
+
 def check_register_args(
-    function_type: FunctionType,
+    object_type: TempObjectType,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
     stage_location: Optional[str] = None,
@@ -106,11 +104,11 @@ def check_register_args(
     if is_permanent:
         if not name:
             raise ValueError(
-                f"name must be specified for permanent {function_type.value.abbr}"
+                f"name must be specified for permanent {get_error_message_abbr(object_type)}"
             )
         if not stage_location:
             raise ValueError(
-                f"stage_location must be specified for permanent {function_type.value.abbr}"
+                f"stage_location must be specified for permanent {get_error_message_abbr(object_type)}"
             )
 
     if parallel < 1 or parallel > 99:
@@ -130,7 +128,7 @@ def process_file_path(session: "snowflake.snowpark.Session", file_path: str) -> 
 
 def process_registration_inputs(
     session: "snowflake.snowpark.Session",
-    function_type: FunctionType,
+    object_type: TempObjectType,
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
@@ -140,12 +138,12 @@ def process_registration_inputs(
     if name:
         object_name = name if isinstance(name, str) else ".".join(name)
     else:
-        object_name = f"{session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(function_type.value.temp_object_type)}"
+        object_name = f"{session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(object_type)}"
     Utils.validate_object_name(object_name)
 
     # get return and input types
     if not return_type and not input_types:
-        return_type, input_types = get_types_from_type_hints(func, function_type)
+        return_type, input_types = get_types_from_type_hints(func, object_type)
     if input_types is None:
         input_types = []
 
@@ -198,7 +196,7 @@ def {_DEFAULT_HANDLER_NAME}({args}):
 
 def resolve_imports_and_packages(
     session: "snowflake.snowpark.Session",
-    function_type: FunctionType,
+    object_type: TempObjectType,
     func: Callable,
     arg_names: List[str],
     udf_name: str,
@@ -225,7 +223,7 @@ def resolve_imports_and_packages(
                 )
             else:
                 raise TypeError(
-                    f"{function_type.value.abbr.replace(' ', '-')}-level import can only be a file path (str) "
+                    f"{get_error_message_abbr(object_type).replace(' ', '-')}-level import can only be a file path (str) "
                     "or a tuple of the file path (str) and the import path (str)."
                 )
             udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
@@ -315,7 +313,7 @@ def create_python_udf_or_sp(
     return_type: DataType,
     input_args: List[UDFColumn],
     handler: str,
-    function_type: FunctionType,
+    object_type: TempObjectType,
     object_name: str,
     all_imports: str,
     all_packages: str,
@@ -342,7 +340,7 @@ $$
 
     create_query = f"""
 CREATE {"OR REPLACE " if replace else ""}
-{"TEMPORARY" if is_temporary else ""} {function_type.value.temp_object_type.value} {object_name}({sql_func_args})
+{"TEMPORARY" if is_temporary else ""} {object_type.value} {object_name}({sql_func_args})
 RETURNS {return_sql_type}
 LANGUAGE PYTHON
 RUNTIME_VERSION=3.8

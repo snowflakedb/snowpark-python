@@ -15,7 +15,6 @@ from snowflake.snowpark._internal.sp_expressions import (
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
-    FunctionType,
     UDFColumn,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -24,7 +23,7 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType
 
@@ -218,7 +217,7 @@ class UDFRegistration:
             )
 
         check_register_args(
-            FunctionType.UDF, name, is_permanent, stage_location, parallel
+            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
         # register udf
@@ -283,7 +282,7 @@ class UDFRegistration:
         """
         file_path = process_file_path(self._session, file_path)
         check_register_args(
-            FunctionType.UDF, name, is_permanent, stage_location, parallel
+            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
         # register udf
@@ -313,7 +312,7 @@ class UDFRegistration:
     ) -> UserDefinedFunction:
         # get the udf name
         udf_name, return_type, input_types = process_registration_inputs(
-            self._session, FunctionType.UDF, func, return_type, input_types, name
+            self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
 
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
@@ -329,7 +328,7 @@ class UDFRegistration:
             upload_file_stage_location,
         ) = resolve_imports_and_packages(
             self._session,
-            FunctionType.UDF,
+            TempObjectType.FUNCTION,
             func,
             arg_names,
             udf_name,
@@ -345,7 +344,7 @@ class UDFRegistration:
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler,
-                function_type=FunctionType.UDF,
+                object_type=TempObjectType.FUNCTION,
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
