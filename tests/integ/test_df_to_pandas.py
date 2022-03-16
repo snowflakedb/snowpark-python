@@ -78,7 +78,7 @@ def test_to_pandas_batches(session):
     entire_pandas_df = df.to_pandas()
     pandas_df_list = list(df.to_pandas_batches())
     assert len(pandas_df_list) > 1
-    assert_frame_equal(pd.concat(pandas_df_list), entire_pandas_df)
+    assert_frame_equal(pd.concat(pandas_df_list, ignore_index=True), entire_pandas_df)
 
     for df_batch in df.to_pandas_batches():
         assert_frame_equal(df_batch, entire_pandas_df.iloc[: len(df_batch)])
