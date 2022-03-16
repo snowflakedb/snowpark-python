@@ -32,36 +32,6 @@ from snowflake.snowpark.types import (
 )
 
 
-def test_to_local_iterator_should_not_load_all_data_at_once(session):
-    df = (
-        session.range(1000000)
-        .select(
-            col("id").as_("a"),
-            (col("id") + 1).as_("b"),
-            (col("id") + 2).as_("c"),
-            (col("id") + 3).as_("d"),
-            (col("id") + 4).as_("e"),
-            (col("id") + 5).as_("f"),
-            (col("id") + 6).as_("g"),
-            (col("id") + 7).as_("h"),
-            (col("id") + 8).as_("i"),
-            (col("id") + 9).as_("j"),
-        )
-        .cache_result()
-    )
-
-    t1 = time.time()
-    df.collect()
-    t2 = time.time()
-    it = df.to_local_iterator()
-    next(it)
-    t3 = time.time()
-
-    local_array_time = t2 - t1
-    load_first_value_time = t3 - t2
-    assert local_array_time > 5 * load_first_value_time
-
-
 def test_limit_on_order_by(session, is_sample_data_available):
     # Tests using SNOWFLAKE_SAMPLE_DATA, it may be not available on some test deployments
     if not is_sample_data_available:
