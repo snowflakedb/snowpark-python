@@ -602,7 +602,7 @@ def test_sp_negative(session):
 
     assert "stage_location must be specified for permanent stored proc" in str(ex_info)
 
-    with pytest.raises(NotImplementedError) as ex_info:
+    with pytest.raises(TypeError) as ex_info:
 
         @sproc
         def add(

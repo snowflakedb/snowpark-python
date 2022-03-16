@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """User-defined functions (UDFs) in Snowpark."""
+import inspect
 from logging import getLogger
 from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
@@ -210,7 +211,6 @@ class UDFRegistration:
         replace: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
-        _from_pandas_udf_function: bool = False,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF and returns the UDF.
@@ -231,6 +231,12 @@ class UDFRegistration:
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
+        # whether called from pandas_udf
+        caller_frame = inspect.getouterframes(inspect.currentframe())
+        from_pandas_udf_function = (
+            len(caller_frame) > 1 and caller_frame[1].function == "pandas_udf"
+        )
+
         # register udf
         return self.__do_register_udf(
             func,
@@ -243,7 +249,7 @@ class UDFRegistration:
             replace,
             parallel,
             max_batch_size,
-            from_pandas_udf_function=_from_pandas_udf_function,
+            from_pandas_udf_function,
         )
 
     def register_from_file(

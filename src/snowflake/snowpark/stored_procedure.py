@@ -333,7 +333,7 @@ class StoredProcedureRegistration:
         )
 
         if is_pandas_udf:
-            raise NotImplementedError("Pandas stored procedure is not supported")
+            raise TypeError("Pandas stored procedure is not supported")
 
         arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [

@@ -48,6 +48,10 @@ class UDFColumn(NamedTuple):
     name: str
 
 
+def is_local_python_file(file_path: str) -> bool:
+    return not file_path.startswith(_STAGE_PREFIX) and file_path.endswith(".py")
+
+
 def get_types_from_type_hints(
     func: Union[Callable, Tuple[str, str]],
     object_type: TempObjectType,
@@ -59,9 +63,9 @@ def get_types_from_type_hints(
         python_types_dict = get_type_hints(func)
     else:
         python_types_dict = (
-            {}
-            if func[0].startswith(_STAGE_PREFIX) or not func[0].endswith(".py")
-            else _retrieve_func_type_hints_from_source(func[0], func[1])
+            _retrieve_func_type_hints_from_source(func[0], func[1])
+            if is_local_python_file(func[0])
+            else {}
         )
 
     return_type = (
@@ -134,6 +138,8 @@ def extract_return_input_types(
     input_types: Optional[List[DataType]],
     object_type: TempObjectType,
 ) -> Tuple[bool, bool, DataType, List[DataType]]:
+    # return results are: is_pandas_udf, is_dataframe_input, return_type, input_types
+
     # there are 3 cases:
     #   1. return_type and input_types are provided:
     #      a. type hints are provided and they are all pandas.Series or pandas.DataFrame,

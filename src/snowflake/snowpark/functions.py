@@ -2008,7 +2008,6 @@ def pandas_udf(
             replace=replace,
             parallel=parallel,
             max_batch_size=max_batch_size,
-            _from_pandas_udf_function=True,
         )
     else:
         return session.udf.register(
@@ -2023,7 +2022,6 @@ def pandas_udf(
             replace=replace,
             parallel=parallel,
             max_batch_size=max_batch_size,
-            _from_pandas_udf_function=True,
         )
 
 
