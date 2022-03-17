@@ -61,7 +61,6 @@ setup(
             "pytest-cov",
             "coverage",
             "sphinx",
-            "sphinx_autodoc_typehints",
         ],
     },
     classifiers=[
