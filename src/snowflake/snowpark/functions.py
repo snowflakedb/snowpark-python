@@ -102,6 +102,7 @@ By reading the API docs or the source code of a Python function defined in this 
 The return type is always ``Column``. The input types tell you the acceptable values:
 
   - ``ColumnOrName`` accepts a ``Column`` object, or a column name in str. Most functions accept this type.
+    If you still want to pass a literal to it, use `lit(value)`, which returns a ``Column`` object that represent a literal value.
 
     >>> df.select(avg("a")).show()
     ----------------
@@ -238,8 +239,8 @@ def sql_expr(sql: str) -> Column:
 
 
 def approx_count_distinct(e: ColumnOrName) -> Column:
-    """Returns the average of non-NULL records. If all records inside a group are NULL,
-    the function returns NULL."""
+    """Uses HyperLogLog to return an approximation of the distinct cardinality of the input (i.e. HLL(col1, col2, ... )
+    returns an approximation of COUNT(DISTINCT col1, col2, ... ))."""
     c = _to_col_if_str(e, "approx_count_distinct")
     return builtin("approx_count_distinct")(c)
 
