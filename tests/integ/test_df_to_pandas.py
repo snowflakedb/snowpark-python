@@ -7,9 +7,11 @@ from typing import Iterator
 
 import pandas as pd
 import pytest
+from packaging import version
 from pandas import DataFrame as PandasDF, Series as PandasSeries
 from pandas.util.testing import assert_frame_equal
 
+import snowflake.connector
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
 from snowflake.snowpark.functions import col
@@ -70,6 +72,10 @@ def test_to_pandas_non_select(session):
     isinstance(df.toPandas(), PandasDF)
 
 
+@pytest.mark.skipif(
+    version.parse(snowflake.connector.__version__) < version.parse("2.7.5"),
+    reason="Python connector >= v2.7.5 ignores the index for the dataframe from fetch_pandas_all()",
+)
 def test_to_pandas_batches(session):
     df = session.range(100000).cache_result()
     iterator = df.to_pandas_batches()
