@@ -7,9 +7,7 @@
 import re
 from typing import Generic, Iterable, List, Optional, TypeVar, Union
 
-from typing_extensions import TypeVarTuple
-
-from snowflake.connector.options import pandas
+from snowflake.connector.options import installed_pandas, pandas
 
 
 class DataType:
@@ -349,22 +347,27 @@ Variant = TypeVar("Variant")
 Geography = TypeVar("Geography")
 
 
-_T = TypeVar("_T")
+if installed_pandas:
+    _T = TypeVar("_T")
 
-_TT = TypeVarTuple("_TT")
+    class PandasSeries(Generic[_T]):
+        """The type hint for annotating Pandas Series data when registering UDFs."""
 
+        pass
 
-class PandasSeries(pandas.Series, Generic[_T]):
-    """The type hint for annotating Pandas Series data when registering UDFs."""
+    try:
+        from typing_extensions import TypeVarTuple
 
-    pass
+        _TT = TypeVarTuple("_TT")
 
+        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+            """
+            The type hint for annotating Pandas DataFrame data when registering UDFs.
+            The input should be a list of data types for all columns in order.
+            It cannot be used to annotate the return value of a Pandas UDF.
+            """
 
-class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
-    """
-    The type hint for annotating Pandas DataFrame data when registering UDFs.
-    The input should be a list of data types for all columns in order.
-    It cannot be used to annotate the return value of a Pandas UDF.
-    """
+            pass
 
-    pass
+    except ImportError:
+        pass

@@ -1985,10 +1985,15 @@ def pandas_udf(
         df.select(add_df_one_udf("a", "b")).collect()
 
     Note:
-        This function can only be used to register Pandas UDFs. :func:`udf` and
+        1. This function can only be used to register Pandas UDFs. :func:`udf` and
         :meth:`UDFRegistration.register() <snowflake.snowpark.udf.UDFRegistration.register>`
         can be used to register both non-Pandas UDFs and Pandas UDFs, by providing
         appropriate return and input types.
+
+        2. When registering a Pandas UDF, ``pandas`` will be added as a package automatically,
+        with the latest version on the Snowflake server. If you don't want to use this version,
+        you can overwrite it by adding `pandas` with specific version requirement using
+        ``package`` argument or :meth:`~snowflake.snowpark.Session.add_packages`.
 
     See Also:
         - :func:`udf`

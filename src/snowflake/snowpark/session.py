@@ -736,17 +736,22 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        def get_req_identifiers_list(modules: List[ModuleType]) -> List[str]:
-            return [
-                f"{m.__name__}=={m.__version__}"
-                for m in modules
-                if m.__name__ not in result_dict
-            ]
+        def get_req_identifiers_list(
+            modules: List[Union[str, ModuleType]]
+        ) -> List[str]:
+            res = []
+            for m in modules:
+                if isinstance(m, str) and m not in result_dict:
+                    res.append(m)
+                elif isinstance(m, ModuleType) and m.__name__ not in result_dict:
+                    res.append(f"{m.__name__}=={m.__version__}")
+
+            return res
 
         # always include cloudpickle
         extra_modules = [cloudpickle]
         if include_pandas:
-            extra_modules.append(pandas)
+            extra_modules.append("pandas")
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
     @property
