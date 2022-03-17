@@ -485,6 +485,12 @@ def _type_string_to_type_object(type_str: str) -> DataType:
 
 
 # Type hints
-ColumnOrName = Union["snowflake.snowpark.column.Column", str]
-LiteralType = Union[_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
-ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]
+ColumnOrName = typing.NewType(
+    "ColumnOrName", Union["snowflake.snowpark.column.Column", str]
+)
+LiteralType = typing.NewType(
+    "LiteralType", Union[_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
+)
+ColumnOrLiteral = typing.NewType(
+    "ColumnOrLiteral", Union["snowflake.snowpark.column.Column", LiteralType]
+)

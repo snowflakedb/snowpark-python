@@ -4,33 +4,110 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """
-Provides utility functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass
-to :class:`~snowflake.snowpark.DataFrame` transformation methods. These functions generate references to
-columns, literals, and SQL expressions (e.g. "c + 1").
+Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass to :class:`~snowflake.snowpark.DataFrame` transformation methods.
 
-This object also provides functions that correspond to Snowflake
-`system-defined functions <https://docs.snowflake.com/en/sql-reference-functions.html>`_
-(built-in functions), including functions for aggregation and window functions.
+These utility functions generate references to columns, literals, and SQL expressions (e.g. "c + 1").
 
-The following examples demonstrate the use of some of these functions::
+  - Use :func:`col()` to convert a column name to a :class:`Column` object.
+  - Use :func:`lit()` to convert a Python value to a :class:`Column` object that represents a constant value in Snowflake SQL.
+  - Use :func:`sql_expr()` to convert a Snowfalke SQL expression to a :class:`Column`.
 
-    # Use columns and literals in expressions.
-    df.select(col("c") + lit(1))
+    >>> df = session.create_dataframe([[1, 'a', True, '2022-03-16'], [3, 'b', False, '2023-04-17']], schema=["a", "b", "c", "d"])
+    >>> # Use columns and literals in expressions.
+    >>> res1 = df.filter(col("a") == 1).collect()
+    >>> res2 = df.filter(lit(1) == col("a")).collect()
+    >>> res3 = df.filter(sql_expr("a = 1")).collect()
+    >>> assert res1 == res2 == res3
+    >>> res1
+    [Row(A=1, B='a', C=True, D='2022-03-16')]
 
-    # Call system-defined (built-in) functions.
-    # This example calls the function that corresponds to the TO_DATE() SQL function.
-    df.select(to_date(col("d")))
+Some :class:`DataFrame` methods accept column names or SQL expressions in text for convenience.
+For instances:
 
-    # Call system-defined functions that have no corresponding function in the functions
-    # object. This example calls the RADIANS() SQL function, passing in values from the
-    # column "e".
-    df.select(call_builtin("radians", col("e")))
+    >>> df.filter("a = 1").collect()  # use the sql expression directly in filter
+    [Row(A=1, B='a', C=True, D='2022-03-16')]
+    >>> df.select("a").collect()
+    [Row(A=1), Row(A=3)]
 
-    # Call a user-defined function (UDF) by name.
-    df.select(call_udf("some_func", col("c")))
+whereas :class:`Column` objects enable you to use chained column operators and transformations with
+Python code fluently:
 
-    # Evaluate a SQL expression
-    df.select(sql_expr("c + 1"))
+    >>> # Use columns and literals in expressions.
+    >>> df.select(((col("a") + 1).cast("string")).alias("add_one")).show()
+    -------------
+    |"ADD_ONE"  |
+    -------------
+    |2          |
+    |4          |
+    -------------
+    <BLANKLINE>
+
+The Snowflake database has hundreds of `SQL functions <https://docs.snowflake.com/en/sql-reference-functions.html>`_
+This module provides Python functions that correspond to the Snowflake SQL functions. They typically accept :class:`Column`
+objects or column names as input parameters, and return a new :class:`Column` objects.
+The following examples demonstrate the use of some of these functions:
+
+    >>> # Call system-defined (built-in) functions.
+    >>> # This example calls the function that corresponds to the TO_DATE() SQL function.
+    >>> df.select(dateadd('day', lit(1), to_date(col("d")))).show()
+    ---------------------------------------
+    |"DATEADD('DAY', 1, TO_DATE(""D""))"  |
+    ---------------------------------------
+    |2022-03-17                           |
+    |2023-04-18                           |
+    ---------------------------------------
+    <BLANKLINE>
+
+If you want to use a SQL function but can't find the Python function for it,
+you can create your own Python function:
+
+    >>> my_radians = builtin("radians")  # "radians" is the SQL function name.
+    >>> df.select(my_radians(col("a")).alias("my_radians")).show()
+    ------------------------
+    |"MY_RADIANS"          |
+    ------------------------
+    |0.017453292519943295  |
+    |0.05235987755982988   |
+    ------------------------
+    <BLANKLINE>
+
+or call the SQL function directly:
+
+    >>> df.select(call_builtin("radians", col("a")).as_("call_builtin_radians")).show()
+    --------------------------
+    |"CALL_BUILTIN_RADIANS"  |
+    --------------------------
+    |0.017453292519943295    |
+    |0.05235987755982988     |
+    --------------------------
+    <BLANKLINE>
+
+A user-defined function (UDF) can be called by its name with ``call_udf``:
+
+    >>> # Call a user-defined function (UDF) by name.
+    >>> from snowflake.snowpark.types import IntegerType
+    >>> add_ten_udf = session.udf.register(lambda x: x + 1, name="add_ten", input_types=[IntegerType()], return_type=IntegerType())
+    >>> df.select(call_udf("add_ten", col("a")).as_("call_udf_add_ten")).show()
+    ----------------------
+    |"CALL_UDF_ADD_TEN"  |
+    ----------------------
+    |4                   |
+    |2                   |
+    ----------------------
+    <BLANKLINE>
+
+**Input parameters of the Python functions for SQL functions**
+
+By reading the API docs or the source code of a function, you'll see the type hints of the input parameters and return type.
+The return type is always ``Column``. The input types tell you the acceptable values:
+
+  - ``ColumnOrName`` accepts a ``Column`` object, or a column name in str.
+  - ``LiteralType`` accepts a value of type ``bool``, ``int``, ``float``, ``str``, ``bytearray``, ``decimal.Decimal``,
+    ``datetime.date``, ``datetime.datetime``, ``datetime.time``, ``bytes``, or ``NoneType``.
+  - ``ColumnOrLiteral`` accepts a ``Column`` object, or a value of ``LiteralType`` mentioned above.
+  - ``int``, ``bool``, or ``str`` accepts a value of that type.
+  - ``Union[Column, str]`` accepts a ``Column`` object, a ``str`` value, or a SQL expression. Look into the detailed
+    docstring of the API.
 """
 import functools
 from random import randint
