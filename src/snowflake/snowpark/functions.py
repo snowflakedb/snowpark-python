@@ -8,12 +8,11 @@ Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Col
 
 These utility functions generate references to columns, literals, and SQL expressions (e.g. "c + 1").
 
-  - Use :func:`col()` to convert a column name to a :class:`Column` object.
+  - Use :func:`col()` to convert a column name to a :class:`Column` object. Refer to the API docs of :class:`Column` to know more ways of referencing a column.
   - Use :func:`lit()` to convert a Python value to a :class:`Column` object that represents a constant value in Snowflake SQL.
   - Use :func:`sql_expr()` to convert a Snowfalke SQL expression to a :class:`Column`.
 
     >>> df = session.create_dataframe([[1, 'a', True, '2022-03-16'], [3, 'b', False, '2023-04-17']], schema=["a", "b", "c", "d"])
-    >>> # Use columns and literals in expressions.
     >>> res1 = df.filter(col("a") == 1).collect()
     >>> res2 = df.filter(lit(1) == col("a")).collect()
     >>> res3 = df.filter(sql_expr("a = 1")).collect()
@@ -21,7 +20,7 @@ These utility functions generate references to columns, literals, and SQL expres
     >>> res1
     [Row(A=1, B='a', C=True, D='2022-03-16')]
 
-Some :class:`DataFrame` methods accept column names or SQL expressions in text for convenience.
+Some :class:`DataFrame` methods accept column names or SQL expressions text aside from a Column object for convenience.
 For instances:
 
     >>> df.filter("a = 1").collect()  # use the sql expression directly in filter
@@ -47,7 +46,6 @@ This module provides Python functions that correspond to the Snowflake SQL funct
 objects or column names as input parameters, and return a new :class:`Column` objects.
 The following examples demonstrate the use of some of these functions:
 
-    >>> # Call system-defined (built-in) functions.
     >>> # This example calls the function that corresponds to the TO_DATE() SQL function.
     >>> df.select(dateadd('day', lit(1), to_date(col("d")))).show()
     ---------------------------------------
@@ -86,28 +84,91 @@ A user-defined function (UDF) can be called by its name with ``call_udf``:
 
     >>> # Call a user-defined function (UDF) by name.
     >>> from snowflake.snowpark.types import IntegerType
-    >>> add_ten_udf = session.udf.register(lambda x: x + 1, name="add_ten", input_types=[IntegerType()], return_type=IntegerType())
-    >>> df.select(call_udf("add_ten", col("a")).as_("call_udf_add_ten")).show()
+    >>> add_ten_udf = session.udf.register(lambda x: x + 1, name="add_one", input_types=[IntegerType()], return_type=IntegerType())
+    >>> df.select(call_udf("add_one", col("a")).as_("call_udf_add_one")).sort("call_udf_add_one").show()
     ----------------------
-    |"CALL_UDF_ADD_TEN"  |
+    |"CALL_UDF_ADD_ONE"  |
     ----------------------
-    |4                   |
     |2                   |
+    |4                   |
     ----------------------
     <BLANKLINE>
 
-**Input parameters of the Python functions for SQL functions**
+**How to find help on input parameters of the Python functions for SQL functions**
+The Python functions have the same name as the corresponding `SQL functions <https://docs.snowflake.com/en/sql-reference-functions.html>`_.
+It will be helpful to read their reference docs.
 
-By reading the API docs or the source code of a function, you'll see the type hints of the input parameters and return type.
+By reading the API docs or the source code of a Python function defined in this module, you'll see the type hints of the input parameters and return type.
 The return type is always ``Column``. The input types tell you the acceptable values:
 
-  - ``ColumnOrName`` accepts a ``Column`` object, or a column name in str.
+  - ``ColumnOrName`` accepts a ``Column`` object, or a column name in str. Most functions accept this type.
+
+    >>> df.select(avg("a")).show()
+    ----------------
+    |"AVG(""A"")"  |
+    ----------------
+    |2.000000      |
+    ----------------
+    <BLANKLINE>
+    >>> df.select(avg(col("a"))).show()
+    ----------------
+    |"AVG(""A"")"  |
+    ----------------
+    |2.000000      |
+    ----------------
+    <BLANKLINE>
+
   - ``LiteralType`` accepts a value of type ``bool``, ``int``, ``float``, ``str``, ``bytearray``, ``decimal.Decimal``,
-    ``datetime.date``, ``datetime.datetime``, ``datetime.time``, ``bytes``, or ``NoneType``.
+    ``datetime.date``, ``datetime.datetime``, ``datetime.time``, or ``bytes``. An example is the third parameter of :func:`lead`.
+
+    >>> import datetime
+    >>> from snowflake.snowpark.window import Window
+    >>> df.select(col("d"), lead("d", 1, datetime.date(2024, 5, 18), False).over(Window.order_by("d")).alias("lead_day")).show()
+    ---------------------------
+    |"D"         |"LEAD_DAY"  |
+    ---------------------------
+    |2022-03-16  |2023-04-17  |
+    |2023-04-17  |2024-05-18  |
+    ---------------------------
+    <BLANKLINE>
+
   - ``ColumnOrLiteral`` accepts a ``Column`` object, or a value of ``LiteralType`` mentioned above.
-  - ``int``, ``bool``, or ``str`` accepts a value of that type.
-  - ``Union[Column, str]`` accepts a ``Column`` object, a ``str`` value, or a SQL expression. Look into the detailed
-    docstring of the API.
+    The difference from ``ColumnOrLiteral`` is ``ColumnOrLiteral`` regards a str value as a SQL string value instead of
+    a column name. When a function is much more likely to accept a SQL constant value than a column expression, ``ColumnOrLiteral``
+    is used. Yet you can still pass in a ``Column`` object if you need. An example is the second parameter of
+    :func:``when``.
+
+    >>> df.select(when(df["a"] > 2, "Greater than 2").else_("Less than 2").alias("compare_with_2")).show()
+    --------------------
+    |"COMPARE_WITH_2"  |
+    --------------------
+    |Less than 2       |
+    |Greater than 2    |
+    --------------------
+    <BLANKLINE>
+
+  - ``int``, ``bool``, ``str``, or another specific type accepts a value of that type. An example is :func:`to_decimal`.
+
+    >>> df.with_column("e", lit("1.2")).select(to_decimal("e", 5, 2)).show()
+    -----------------------------
+    |"TO_DECIMAL(""E"", 5, 2)"  |
+    -----------------------------
+    |1.20                       |
+    |1.20                       |
+    -----------------------------
+    <BLANKLINE>
+
+  - ``Union[Column, str]`` accepts a ``Column`` object, or a SQL expression. Look into the detailed
+    docstring of the API. For instance, the first parameter in :func:``when``.
+
+    >>> df.select(when("a > 2", "Greater than 2").else_("Less than 2").alias("compare_with_2")).show()
+    --------------------
+    |"COMPARE_WITH_2"  |
+    --------------------
+    |Less than 2       |
+    |Greater than 2    |
+    --------------------
+    <BLANKLINE>
 """
 import functools
 from random import randint
@@ -990,8 +1051,16 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example::
 
-        # year difference between two date columns
-        date.select(datediff("year", col("date_col1"), col("date_col2")))
+        >>> # year difference between two date columns
+        >>> import datetime
+        >>> date_df = session.create_dataframe([[datetime.date(2020, 1, 1), datetime.date(2021, 1, 1)]], schema=["date_col1", "date_col2"])
+        >>> date_df.select(datediff("year", col("date_col1"), col("date_col2")).alias("year_diff")).show()
+        ---------------
+        |"YEAR_DIFF"  |
+        ---------------
+        |1            |
+        ---------------
+        <BLANKLINE>
 
     Args:
         part: The time part to use for calculating the difference
@@ -1025,8 +1094,16 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
 
     Example::
 
-        # add one year on dates
-        date.select(dateadd("year", lit(1), col("date_col")))
+        >>> # add one year on dates
+        >>> import datetime
+        >>> date_df = session.create_dataframe([[datetime.date(2020, 1, 1)]], schema=["date_col"])
+        >>> date_df.select(dateadd("year", lit(1), col("date_col")).alias("year_added")).show()
+        ----------------
+        |"YEAR_ADDED"  |
+        ----------------
+        |2021-01-01    |
+        ----------------
+        <BLANKLINE>
 
     Args:
         part: The time part to use for the addition
@@ -1703,7 +1780,15 @@ def in_(
 
     Example::
 
-        df1 = df.filter(in_([col("c1"), col("c2")], [[1, "a"], [2, "b"]]))
+        >>> df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"]], schema=["col1", "col2"])
+        >>> df.filter(in_([col("col1"), col("col2")], [[1, "a"], [2, "b"]])).show()
+        -------------------
+        |"COL1"  |"COL2"  |
+        -------------------
+        |1       |a       |
+        |2       |b       |
+        -------------------
+        <BLANKLINE>
 
     The following code returns a DataFrame that contains the rows where
     the values of the columns `c1` and `c2` in `df2` match the values of the columns
@@ -1712,9 +1797,14 @@ def in_(
 
     Example::
 
-        df1 = session.sql("select a, b from table1")
-        df2 = session.table(table2)
-        df = df2.filter(in_([col("c1"), col("c2")], df1))
+        >>> df1 = session.sql("select 1, 'a'")
+        >>> df.filter(in_([col("col1"), col("col2")], df1)).show()
+        -------------------
+        |"COL1"  |"COL2"  |
+        -------------------
+        |1       |a       |
+        -------------------
+        <BLANKLINE>
 
     Args::
         cols: A list of the columns to compare for the IN operation.
@@ -2015,8 +2105,17 @@ def call_udf(
             - Basic Python types, which are converted to Snowpark literals.
 
     Example::
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> udf_def = session.udf.register(lambda x, y: x + y, name="add", input_types=[IntegerType()], return_type=IntegerType())
+        >>> df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+        >>> df.select(call_udf("add", col("a"), col("b"))).show()
+        -----------------------
+        |"ADD(""A"", ""B"")"  |
+        -----------------------
+        |3                    |
+        -----------------------
+        <BLANKLINE>
 
-        df.select(call_udf("add", col("a"), col("b")))
     """
 
     Utils.validate_object_name(udf_name)
@@ -2035,8 +2134,15 @@ def call_builtin(function_name: str, *args: ColumnOrLiteral) -> Column:
             - Basic Python types, which are converted to Snowpark literals.
 
     Example::
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=["a"])  # a single column with 4 rows
+        >>> df.select(call_builtin("avg", col("a"))).show()
+        ----------------
+        |"AVG(""A"")"  |
+        ----------------
+        |2.500000      |
+        ----------------
+        <BLANKLINE>
 
-        df.select(call_builtin("avg", col("a")))
     """
 
     return _call_function(function_name, False, *args)
@@ -2054,9 +2160,16 @@ def builtin(function_name: str) -> Callable:
         A :class:`Callable` object for calling a Snowflake system-defined function.
 
     Example::
-
-        avg = functions.builtin('avg')
-        df.select(avg(col("col_1")))
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=["a"])  # a single column with 4 rows
+        >>> df.select(call_builtin("avg", col("a"))).show()
+        >>> my_avg = builtin('avg')
+        >>> df.select(my_avg(col("col_1"))).show()
+        ----------------
+        |"AVG(""A"")"  |
+        ----------------
+        |2.500000      |
+        ----------------
+        <BLANKLINE>
     """
     return lambda *args: call_builtin(function_name, *args)
 
