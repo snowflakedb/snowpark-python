@@ -2161,8 +2161,14 @@ def builtin(function_name: str) -> Callable:
     Example::
         >>> df = session.create_dataframe([1, 2, 3, 4], schema=["a"])  # a single column with 4 rows
         >>> df.select(call_builtin("avg", col("a"))).show()
+        ----------------
+        |"AVG(""A"")"  |
+        ----------------
+        |2.500000      |
+        ----------------
+        <BLANKLINE>
         >>> my_avg = builtin('avg')
-        >>> df.select(my_avg(col("col_1"))).show()
+        >>> df.select(my_avg(col("a"))).show()
         ----------------
         |"AVG(""A"")"  |
         ----------------
