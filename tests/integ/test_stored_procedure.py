@@ -16,7 +16,7 @@ from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import Utils as InternalUtils
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.functions import sproc
-from snowflake.snowpark.types import DoubleType, IntegerType, StringType
+from snowflake.snowpark.types import DoubleType, IntegerType, PandasSeries, StringType
 from tests.utils import TempObjectType, TestFiles, Utils
 
 try:
@@ -548,7 +548,7 @@ def test_sp_negative(session):
 
     assert "Invalid function: not a function or callable" in str(ex_info)
 
-    with pytest.raises(AssertionError) as ex_info:
+    with pytest.raises(TypeError) as ex_info:
 
         @sproc
         def add(_: Session, x: int, y: int):
@@ -556,15 +556,16 @@ def test_sp_negative(session):
 
     assert "The return type must be specified" in str(ex_info)
 
-    with pytest.raises(AssertionError) as ex_info:
+    with pytest.raises(TypeError) as ex_info:
 
         @sproc
         def add(_: Session, x, y: int) -> int:
             return x + y
 
     assert (
-        "The number of arguments (3) is different from"
-        " the number of argument type hints (2)" in str(ex_info)
+        "Excluding session argument in stored procedure, "
+        "the number of arguments (2) is different from "
+        "the number of argument type hints (1)" in str(ex_info)
     )
 
     with pytest.raises(TypeError) as ex_info:
@@ -600,6 +601,16 @@ def test_sp_negative(session):
             return x + y
 
     assert "stage_location must be specified for permanent stored proc" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+
+        @sproc
+        def add(
+            _: Session, x: PandasSeries[int], y: PandasSeries[int]
+        ) -> PandasSeries[int]:
+            return x + y
+
+    assert "Pandas stored procedure is not supported" in str(ex_info)
 
 
 def test_add_import_negative(session, resources_path):

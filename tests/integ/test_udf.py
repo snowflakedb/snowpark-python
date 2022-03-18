@@ -39,7 +39,7 @@ from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import Utils as InternalUtils
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
-from snowflake.snowpark.functions import call_udf, col, udf
+from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
@@ -47,6 +47,10 @@ from snowflake.snowpark.types import (
     Geography,
     GeographyType,
     IntegerType,
+    PandasDataFrame,
+    PandasDataFrameType,
+    PandasSeries,
+    PandasSeriesType,
     StringType,
     Variant,
     VariantType,
@@ -345,6 +349,20 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
     assert isinstance(mod5_udf.func, tuple)
     Utils.check_answer(
         df.select(mod5_udf("a"), mod5_udf("b")).collect(),
+        [
+            Row(3, 4),
+            Row(0, 1),
+        ],
+    )
+
+    mod5_pandas_udf = session.udf.register_from_file(
+        test_files.test_pandas_udf_py_file,
+        "pandas_apply_mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    Utils.check_answer(
+        df.select(mod5_pandas_udf("a"), mod5_pandas_udf("b")).collect(),
         [
             Row(3, 4),
             Row(0, 1),
@@ -786,7 +804,7 @@ def test_udf_negative(session):
 
     assert "Invalid function: not a function or callable" in str(ex_info)
 
-    with pytest.raises(AssertionError) as ex_info:
+    with pytest.raises(TypeError) as ex_info:
 
         @udf
         def add_udf(x: int, y: int):
@@ -794,15 +812,15 @@ def test_udf_negative(session):
 
     assert "The return type must be specified" in str(ex_info)
 
-    with pytest.raises(AssertionError) as ex_info:
+    with pytest.raises(TypeError) as ex_info:
 
         @udf
         def add_udf(x, y: int) -> int:
             return x + y
 
     assert (
-        "The number of arguments (2) is different from"
-        " the number of argument type hints (1)" in str(ex_info)
+        "the number of arguments (2) is different from "
+        "the number of argument type hints (1)" in str(ex_info)
     )
 
     with pytest.raises(TypeError) as ex_info:
@@ -1214,3 +1232,178 @@ def test_udf_describe(session):
         if row[0] == "packages":
             assert "numpy" in row[1] and "pandas" in row[1]
             break
+
+
+@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+def test_basic_pandas_udf(session):
+    def return1():
+        return pandas.Series(["1"])
+
+    @pandas_udf(
+        return_type=PandasSeriesType(IntegerType()),
+        input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
+    )
+    def add_one_df_pandas_udf(df):
+        return df[0] + df[1] + 1
+
+    def get_type_str(x):
+        return pandas.Series([str(type(x))])
+
+    return1_pandas_udf = udf(return1, return_type=PandasSeriesType(StringType()))
+    add_series_pandas_udf = udf(
+        lambda x, y: x + y,
+        return_type=PandasSeriesType(IntegerType()),
+        input_types=[PandasSeriesType(IntegerType()), PandasSeriesType(IntegerType())],
+    )
+    get_type_str_series_udf = udf(
+        get_type_str,
+        return_type=PandasSeriesType(StringType()),
+        input_types=[PandasSeriesType(IntegerType())],
+    )
+    get_type_str_df_udf = pandas_udf(
+        get_type_str,
+        return_type=PandasSeriesType(StringType()),
+        input_types=[PandasDataFrameType([IntegerType()])],
+    )
+
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+    Utils.check_answer(df.select(return1_pandas_udf()), [Row("1"), Row("1")])
+    Utils.check_answer(df.select(add_series_pandas_udf("a", "b")), [Row(3), Row(7)])
+    Utils.check_answer(df.select(add_one_df_pandas_udf("a", "b")), [Row(4), Row(8)])
+    Utils.check_answer(
+        df.select(get_type_str_series_udf("a")),
+        [
+            Row("<class 'pandas.core.series.Series'>"),
+            Row("<class 'pandas.core.series.Series'>"),
+        ],
+    )
+    Utils.check_answer(
+        df.select(get_type_str_df_udf("a")),
+        [
+            Row("<class 'pandas.core.frame.DataFrame'>"),
+            Row("<class 'pandas.core.frame.DataFrame'>"),
+        ],
+    )
+
+
+@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+def test_pandas_udf_type_hints(session):
+    def return1() -> PandasSeries[str]:
+        return pandas.Series(["1"])
+
+    def return1_pandas_annotation() -> pandas.Series:
+        return pandas.Series(["1"])
+
+    def add_series(x: PandasSeries[int], y: PandasSeries[int]) -> PandasSeries[int]:
+        return x + y
+
+    def add_series_pandas_annotation(
+        x: pandas.Series, y: pandas.Series
+    ) -> pandas.Series:
+        return x + y
+
+    def add_one_df(df: PandasDataFrame[int, int]) -> PandasSeries[int]:
+        return df[0] + df[1] + 1
+
+    def add_one_df_pandas_annotation(df: pandas.DataFrame) -> pandas.Series:
+        return df[0] + df[1] + 1
+
+    return1_pandas_udf = udf(return1)
+    return1_pandas_annotation_pandas_udf = udf(
+        return1_pandas_annotation, return_type=StringType()
+    )
+    add_series_pandas_udf = udf(add_series)
+    add_series_pandas_annotation_pandas_udf = udf(
+        add_series_pandas_annotation,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    add_one_df_pandas_udf = udf(add_one_df)
+    add_one_df_pandas_annotation_pandas_udf = udf(
+        add_one_df_pandas_annotation,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+    Utils.check_answer(df.select(return1_pandas_udf()), [Row("1"), Row("1")])
+    Utils.check_answer(
+        df.select(return1_pandas_annotation_pandas_udf()), [Row("1"), Row("1")]
+    )
+    Utils.check_answer(df.select(add_series_pandas_udf("a", "b")), [Row(3), Row(7)])
+    Utils.check_answer(
+        df.select(add_series_pandas_annotation_pandas_udf("a", "b")), [Row(3), Row(7)]
+    )
+    Utils.check_answer(df.select(add_one_df_pandas_udf("a", "b")), [Row(4), Row(8)])
+    Utils.check_answer(
+        df.select(add_one_df_pandas_annotation_pandas_udf("a", "b")), [Row(4), Row(8)]
+    )
+
+
+@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+def test_pandas_udf_max_batch_size(session):
+    def check_len(s):
+        length = s[0].size if isinstance(s, pandas.DataFrame) else s.size
+        return pandas.Series([1 if 0 < length <= 100 else -1] * length)
+
+    max_batch_size = 100
+    add_len_series_pandas_udf = udf(
+        check_len,
+        return_type=PandasSeriesType(IntegerType()),
+        input_types=[PandasSeriesType(IntegerType())],
+        max_batch_size=max_batch_size,
+    )
+    add_len_df_pandas_udf = udf(
+        check_len,
+        return_type=PandasSeriesType(IntegerType()),
+        input_types=[PandasDataFrameType([IntegerType()])],
+        max_batch_size=max_batch_size,
+    )
+
+    df = session.range(1000).to_df("a")
+    Utils.check_answer(
+        df.select(add_len_series_pandas_udf("a")), [Row(1) for _ in range(1000)]
+    )
+    Utils.check_answer(
+        df.select(add_len_df_pandas_udf("a")), [Row(1) for _ in range(1000)]
+    )
+
+
+@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+def test_pandas_udf_negative(session):
+    with pytest.raises(ValueError) as ex_info:
+        pandas_udf(
+            lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()]
+        )
+    assert "You cannot create a non-Pandas UDF using pandas_udf()" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        pandas_udf(
+            lambda df: df,
+            return_type=PandasDataFrameType([IntegerType()]),
+            input_types=[PandasDataFrameType([IntegerType()])],
+        )
+    assert "Invalid return type or input types for UDF" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        pandas_udf(
+            lambda df: df,
+            return_type=IntegerType(),
+            input_types=[PandasDataFrameType([IntegerType()])],
+        )
+    assert "Invalid return type or input types for UDF" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        pandas_udf(
+            lambda x, y: x + y,
+            return_type=PandasSeriesType(IntegerType()),
+            input_types=[IntegerType(), PandasSeriesType(IntegerType())],
+        )
+    assert "Invalid return type or input types for UDF" in str(ex_info)
+
+    def add(x: pandas.Series, y: pandas.Series) -> pandas.Series:
+        return x + y
+
+    with pytest.raises(TypeError) as ex_info:
+        pandas_udf(add)
+    assert "The return type must be specified" in str(ex_info)
