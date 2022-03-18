@@ -350,7 +350,7 @@ Geography = TypeVar("Geography")
 if installed_pandas:
     _T = TypeVar("_T")
 
-    class PandasSeries(Generic[_T]):
+    class PandasSeries(pandas.Series, Generic[_T]):
         """The type hint for annotating Pandas Series data when registering UDFs."""
 
         pass

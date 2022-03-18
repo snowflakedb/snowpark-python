@@ -153,8 +153,6 @@ class UDFRegistration:
     ``dict``                                       :class:`~snowflake.snowpark.types.MapType`              OBJECT
     Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`          VARIANT
     ``dict``                                       :class:`~snowflake.snowpark.types.GeographyType`        GEOGRAPHY
-    ``pandas.Series``                              :class:`~snowflake.snowpark.types.PandasSeriesType`     No SQL type
-    ``pandas.DataFrame``                           :class:`~snowflake.snowpark.types.PandasDataFrameType`  No SQL type
     =============================================  ======================================================= ============
 
     Note:
@@ -170,13 +168,6 @@ class UDFRegistration:
         :class:`~snowflake.snowpark.types.GeographyType` (:attr:`~snowflake.snowpark.types.Geography`)
         by a UDF will be represented as a `GeoJSON <https://datatracker.ietf.org/doc/html/rfc7946>`_
         string.
-
-        3. :class:`~snowflake.snowpark.types.PandasSeriesType` and
-        :class:`~snowflake.snowpark.types.PandasDataFrameType` are used when creating a Pandas UDF,
-        so they are not mapped to any SQL types. ``element_type`` in
-        :class:`~snowflake.snowpark.types.PandasSeriesType` and ``col_types`` in
-        :class:`~snowflake.snowpark.types.PandasDataFrameType` indicate the SQL types
-        in a Pandas Series and a Panda DataFrame.
 
     See Also:
         :func:`~snowflake.snowpark.functions.udf`
@@ -210,7 +201,7 @@ class UDFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
-        max_batch_size: Optional[int] = None,
+        **kwargs,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF and returns the UDF.
@@ -248,7 +239,7 @@ class UDFRegistration:
             packages,
             replace,
             parallel,
-            max_batch_size,
+            kwargs.get("max_batch_size"),
             from_pandas_udf_function,
         )
 
