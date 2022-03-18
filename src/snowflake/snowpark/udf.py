@@ -225,7 +225,7 @@ class UDFRegistration:
         # whether called from pandas_udf
         caller_frame = inspect.getouterframes(inspect.currentframe())
         from_pandas_udf_function = (
-            len(caller_frame) > 1 and caller_frame[1].function == "pandas_udf"
+            len(caller_frame) > 1 and caller_frame[1].function == "_pandas_udf"
         )
 
         # register udf
