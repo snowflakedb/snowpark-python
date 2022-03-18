@@ -21,9 +21,9 @@ These utility functions generate references to columns, literals, and SQL expres
     [Row(A=1, B='a', C=True, D='2022-03-16')]
 
 Some :class:`DataFrame` methods accept column names or SQL expressions text aside from a Column object for convenience.
-For instances:
+For instance:
 
-    >>> df.filter("a = 1").collect()  # use the sql expression directly in filter
+    >>> df.filter("a = 1").collect()  # use the SQL expression directly in filter
     [Row(A=1, B='a', C=True, D='2022-03-16')]
     >>> df.select("a").collect()
     [Row(A=1), Row(A=3)]
@@ -43,7 +43,7 @@ Python code fluently:
 
 The Snowflake database has hundreds of `SQL functions <https://docs.snowflake.com/en/sql-reference-functions.html>`_
 This module provides Python functions that correspond to the Snowflake SQL functions. They typically accept :class:`Column`
-objects or column names as input parameters, and return a new :class:`Column` objects.
+objects or column names as input parameters and return a new :class:`Column` objects.
 The following examples demonstrate the use of some of these functions:
 
     >>> # This example calls the function that corresponds to the TO_DATE() SQL function.
@@ -56,7 +56,7 @@ The following examples demonstrate the use of some of these functions:
     ---------------------------------------
     <BLANKLINE>
 
-If you want to use a SQL function but can't find the Python function for it,
+If you want to use a SQL function but can't find the corresponding Python function here,
 you can create your own Python function:
 
     >>> my_radians = builtin("radians")  # "radians" is the SQL function name.
@@ -84,7 +84,7 @@ A user-defined function (UDF) can be called by its name with ``call_udf``:
 
     >>> # Call a user-defined function (UDF) by name.
     >>> from snowflake.snowpark.types import IntegerType
-    >>> add_ten_udf = session.udf.register(lambda x: x + 1, name="add_one", input_types=[IntegerType()], return_type=IntegerType())
+    >>> add_one_udf = udf(lambda x: x + 1, name="add_one", input_types=[IntegerType()], return_type=IntegerType())
     >>> df.select(call_udf("add_one", col("a")).as_("call_udf_add_one")).sort("call_udf_add_one").show()
     ----------------------
     |"CALL_UDF_ADD_ONE"  |
@@ -96,13 +96,12 @@ A user-defined function (UDF) can be called by its name with ``call_udf``:
 
 **How to find help on input parameters of the Python functions for SQL functions**
 The Python functions have the same name as the corresponding `SQL functions <https://docs.snowflake.com/en/sql-reference-functions.html>`_.
-It will be helpful to read their reference docs.
 
 By reading the API docs or the source code of a Python function defined in this module, you'll see the type hints of the input parameters and return type.
 The return type is always ``Column``. The input types tell you the acceptable values:
 
-  - ``ColumnOrName`` accepts a ``Column`` object, or a column name in str. Most functions accept this type.
-    If you still want to pass a literal to it, use `lit(value)`, which returns a ``Column`` object that represent a literal value.
+  - ``ColumnOrName`` accepts a :class:`Column` object, or a column name in str. Most functions accept this type.
+    If you still want to pass a literal to it, use `lit(value)`, which returns a ``Column`` object that represents a literal value.
 
     >>> df.select(avg("a")).show()
     ----------------
@@ -136,7 +135,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
   - ``ColumnOrLiteral`` accepts a ``Column`` object, or a value of ``LiteralType`` mentioned above.
     The difference from ``ColumnOrLiteral`` is ``ColumnOrLiteral`` regards a str value as a SQL string value instead of
     a column name. When a function is much more likely to accept a SQL constant value than a column expression, ``ColumnOrLiteral``
-    is used. Yet you can still pass in a ``Column`` object if you need. An example is the second parameter of
+    is used. Yet you can still pass in a ``Column`` object if you need to. An example is the second parameter of
     :func:``when``.
 
     >>> df.select(when(df["a"] > 2, "Greater than 2").else_("Less than 2").alias("compare_with_2")).show()
@@ -159,8 +158,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
     -----------------------------
     <BLANKLINE>
 
-  - ``Union[Column, str]`` accepts a ``Column`` object, or a SQL expression. Look into the detailed
-    docstring of the API. For instance, the first parameter in :func:``when``.
+  - ``Union[Column, str]`` accepts a ``Column`` object, or a SQL expression. For instance, the first parameter in :func:``when``.
 
     >>> df.select(when("a > 2", "Greater than 2").else_("Less than 2").alias("compare_with_2")).show()
     --------------------
