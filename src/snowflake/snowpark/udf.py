@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """User-defined functions (UDFs) in Snowpark."""
+import inspect
 from logging import getLogger
 from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
@@ -136,28 +137,30 @@ class UDFRegistration:
 
     Snowflake supports the following data types for the parameters for a UDF:
 
-    =============================================  ================================================  =========
-    Python Type                                    Snowpark Type                                     SQL Type
-    =============================================  ================================================  =========
-    ``int``                                        :class:`~snowflake.snowpark.types.LongType`       NUMBER
-    ``decimal.Decimal``                            :class:`~snowflake.snowpark.types.DecimalType`    NUMBER
-    ``float``                                      :class:`~snowflake.snowpark.types.FloatType`      FLOAT
-    ``str``                                        :class:`~snowflake.snowpark.types.StringType`     STRING
-    ``bool``                                       :class:`~snowflake.snowpark.types.BooleanType`    BOOL
-    ``datetime.time``                              :class:`~snowflake.snowpark.types.TimeType`       TIME
-    ``datetime.date``                              :class:`~snowflake.snowpark.types.DateType`       DATE
-    ``datetime.datetime``                          :class:`~snowflake.snowpark.types.TimestampType`  TIMESTAMP
-    ``bytes`` or ``bytearray``                     :class:`~snowflake.snowpark.types.BinaryType`     BINARY
-    ``list``                                       :class:`~snowflake.snowpark.types.ArrayType`      ARRAY
-    ``dict``                                       :class:`~snowflake.snowpark.types.MapType`        OBJECT
-    Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`    VARIANT
-    ``dict``                                       :class:`~snowflake.snowpark.types.GeographyType`  GEOGRAPHY
-    =============================================  ================================================  =========
+    =============================================  ======================================================= ============
+    Python Type                                    Snowpark Type                                           SQL Type
+    =============================================  ======================================================= ============
+    ``int``                                        :class:`~snowflake.snowpark.types.LongType`             NUMBER
+    ``decimal.Decimal``                            :class:`~snowflake.snowpark.types.DecimalType`          NUMBER
+    ``float``                                      :class:`~snowflake.snowpark.types.FloatType`            FLOAT
+    ``str``                                        :class:`~snowflake.snowpark.types.StringType`           STRING
+    ``bool``                                       :class:`~snowflake.snowpark.types.BooleanType`          BOOL
+    ``datetime.time``                              :class:`~snowflake.snowpark.types.TimeType`             TIME
+    ``datetime.date``                              :class:`~snowflake.snowpark.types.DateType`             DATE
+    ``datetime.datetime``                          :class:`~snowflake.snowpark.types.TimestampType`        TIMESTAMP
+    ``bytes`` or ``bytearray``                     :class:`~snowflake.snowpark.types.BinaryType`           BINARY
+    ``list``                                       :class:`~snowflake.snowpark.types.ArrayType`            ARRAY
+    ``dict``                                       :class:`~snowflake.snowpark.types.MapType`              OBJECT
+    Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`          VARIANT
+    ``dict``                                       :class:`~snowflake.snowpark.types.GeographyType`        GEOGRAPHY
+    ``pandas.Series``                              :class:`~snowflake.snowpark.types.PandasSeriesType`     No SQL type
+    ``pandas.DataFrame``                           :class:`~snowflake.snowpark.types.PandasDataFrameType`  No SQL type
+    =============================================  ======================================================= ============
 
     Note:
         1. Data with the VARIANT SQL type will be converted to a Python type
         dynamically inside a UDF. The following SQL types are converted to :class:`str`
-        in UDFs rather than native Python types:  TIME, DATE, TIMESTAMP and BINARY.
+        in UDFs rather than native Python types: TIME, DATE, TIMESTAMP and BINARY.
 
         2. Data returned as :class:`~snowflake.snowpark.types.ArrayType` (``list``),
         :class:`~snowflake.snowpark.types.MapType` (``dict``) or
@@ -167,6 +170,13 @@ class UDFRegistration:
         :class:`~snowflake.snowpark.types.GeographyType` (:attr:`~snowflake.snowpark.types.Geography`)
         by a UDF will be represented as a `GeoJSON <https://datatracker.ietf.org/doc/html/rfc7946>`_
         string.
+
+        3. :class:`~snowflake.snowpark.types.PandasSeriesType` and
+        :class:`~snowflake.snowpark.types.PandasDataFrameType` are used when creating a Pandas UDF,
+        so they are not mapped to any SQL types. ``element_type`` in
+        :class:`~snowflake.snowpark.types.PandasSeriesType` and ``col_types`` in
+        :class:`~snowflake.snowpark.types.PandasDataFrameType` indicate the SQL types
+        in a Pandas Series and a Panda DataFrame.
 
     See Also:
         :func:`~snowflake.snowpark.functions.udf`
@@ -200,6 +210,7 @@ class UDFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        max_batch_size: Optional[int] = None,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF and returns the UDF.
@@ -220,6 +231,12 @@ class UDFRegistration:
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
+        # whether called from pandas_udf
+        caller_frame = inspect.getouterframes(inspect.currentframe())
+        from_pandas_udf_function = (
+            len(caller_frame) > 1 and caller_frame[1].function == "pandas_udf"
+        )
+
         # register udf
         return self.__do_register_udf(
             func,
@@ -231,6 +248,8 @@ class UDFRegistration:
             packages,
             replace,
             parallel,
+            max_batch_size,
+            from_pandas_udf_function,
         )
 
     def register_from_file(
@@ -280,7 +299,7 @@ class UDFRegistration:
             - :func:`~snowflake.snowpark.functions.udf`
             - :meth:`register`
         """
-        file_path = process_file_path(self._session, file_path)
+        file_path = process_file_path(file_path)
         check_register_args(
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
@@ -309,9 +328,17 @@ class UDFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        max_batch_size: Optional[int] = None,
+        from_pandas_udf_function: bool = False,
     ) -> UserDefinedFunction:
-        # get the udf name
-        udf_name, return_type, input_types = process_registration_inputs(
+        # get the udf name, return and input types
+        (
+            udf_name,
+            is_pandas_udf,
+            is_dataframe_input,
+            return_type,
+            input_types,
+        ) = process_registration_inputs(
             self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
 
@@ -319,6 +346,14 @@ class UDFRegistration:
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
         ]
+
+        # allow registering pandas UDF from udf(),
+        # but not allow registering non-pandas UDF from pandas_udf()
+        if from_pandas_udf_function and not is_pandas_udf:
+            raise ValueError(
+                "You cannot create a non-Pandas UDF using pandas_udf(). "
+                "Use udf() instead."
+            )
 
         (
             handler,
@@ -336,6 +371,9 @@ class UDFRegistration:
             imports,
             packages,
             parallel,
+            is_pandas_udf,
+            is_dataframe_input,
+            max_batch_size,
         )
 
         try:

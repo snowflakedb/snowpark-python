@@ -5,7 +5,9 @@
 #
 """This package contains all Snowpark logical types."""
 import re
-from typing import List, TypeVar, Union
+from typing import Generic, Iterable, List, Optional, TypeVar, Union
+
+from snowflake.connector.options import installed_pandas, pandas
 
 
 class DataType:
@@ -31,8 +33,6 @@ class DataType:
 
 
 # Data types
-
-
 class NullType(DataType):
     """Represents a null type."""
 
@@ -43,11 +43,7 @@ class _AtomicType(DataType):
     pass
 
 
-# See also StructType in the end of this file.
-
 # Atomic types
-
-
 class BinaryType(_AtomicType):
     """Binary data type. This maps to the BINARY data type in Snowflake."""
 
@@ -323,8 +319,55 @@ class GeographyType(DataType):
     pass
 
 
+class _PandasType(DataType):
+    pass
+
+
+class PandasSeriesType(_PandasType):
+    """Pandas Series data type."""
+
+    def __init__(self, element_type: Optional[DataType]):
+        self.element_type = element_type
+
+
+class PandasDataFrameType(_PandasType):
+    """
+    Pandas DataFrame data type. The input should be a list of data types for all columns in order.
+    It cannot be used as the return type of a Pandas UDF.
+    """
+
+    def __init__(self, col_types: Iterable[DataType]):
+        self.col_types = col_types
+
+
 #: The type hint for annotating Variant data when registering UDFs.
 Variant = TypeVar("Variant")
 
 #: The type hint for annotating Geography data when registering UDFs.
 Geography = TypeVar("Geography")
+
+
+if installed_pandas:
+    _T = TypeVar("_T")
+
+    class PandasSeries(Generic[_T]):
+        """The type hint for annotating Pandas Series data when registering UDFs."""
+
+        pass
+
+    try:
+        from typing_extensions import TypeVarTuple
+
+        _TT = TypeVarTuple("_TT")
+
+        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+            """
+            The type hint for annotating Pandas DataFrame data when registering UDFs.
+            The input should be a list of data types for all columns in order.
+            It cannot be used to annotate the return value of a Pandas UDF.
+            """
+
+            pass
+
+    except ImportError:
+        pass

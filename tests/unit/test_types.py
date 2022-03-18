@@ -10,6 +10,7 @@ from collections import defaultdict
 from datetime import date, datetime, time
 from decimal import Decimal
 
+import pandas
 import pytest
 
 from snowflake.snowpark._internal.type_utils import (
@@ -35,6 +36,10 @@ from snowflake.snowpark.types import (
     LongType,
     MapType,
     NullType,
+    PandasDataFrame,
+    PandasDataFrameType,
+    PandasSeries,
+    PandasSeriesType,
     ShortType,
     StringType,
     StructField,
@@ -334,6 +339,10 @@ def test_python_type_to_snow_type():
     )
     check_type(Variant, VariantType(), False)
     check_type(Geography, GeographyType(), False)
+    check_type(pandas.Series, PandasSeriesType(None), False)
+    check_type(pandas.DataFrame, PandasDataFrameType(()), False)
+    check_type(PandasSeries, PandasSeriesType(None), False)
+    check_type(PandasDataFrame, PandasDataFrameType(()), False)
 
     # complicated (nested) types
     check_type(
@@ -359,6 +368,22 @@ def test_python_type_to_snow_type():
     check_type(
         typing.Dict[str, typing.List],
         MapType(StringType(), ArrayType(StringType())),
+        False,
+    )
+    check_type(PandasSeries[float], PandasSeriesType(FloatType()), False)
+    check_type(
+        PandasSeries[typing.Dict[str, typing.List]],
+        PandasSeriesType(MapType(StringType(), ArrayType(StringType()))),
+        False,
+    )
+    check_type(
+        PandasDataFrame[int, str],
+        PandasDataFrameType([LongType(), StringType()]),
+        False,
+    )
+    check_type(
+        PandasDataFrame[int, PandasSeries[datetime]],
+        PandasDataFrameType([LongType(), PandasSeriesType(TimestampType())]),
         False,
     )
 
@@ -475,25 +500,8 @@ def {func_name}(x: collections.defaultdict, y: Union[datetime.date, time]) -> Op
     ) == {"x": "int", "return": "int"}
 
     # negative case
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(UnicodeDecodeError):
         _retrieve_func_type_hints_from_source(test_files.test_file_avro, "mod5")
-    assert "is not a Python file, so type hints cannot be extracted" in str(ex_info)
-
-    source = f"""
-def {func_name}(x) -> int:
-    return 1
-"""
-    with pytest.raises(TypeError) as ex_info:
-        _retrieve_func_type_hints_from_source("", func_name, _source=source)
-    assert "arg x does not have a type annotation" in str(ex_info)
-
-    source = f"""
-def {func_name}():
-    pass
-"""
-    with pytest.raises(TypeError) as ex_info:
-        _retrieve_func_type_hints_from_source("", func_name, _source=source)
-    assert "return does not have a type annotation" in str(ex_info)
 
     source = f"""
 def {func_name}_{func_name}(x: int) -> int:
