@@ -55,7 +55,10 @@ setup(
         "snowflake.snowpark": ["*.pem", "*.json", "*.rst", "LICENSE.txt"],
     },
     extras_require={
-        "pandas": f"snowflake-connector-python[pandas]>={CONNECTOR_DEPENDENCY_VERSION}",
+        "pandas": [
+            f"snowflake-connector-python[pandas]>={CONNECTOR_DEPENDENCY_VERSION}",
+            "typing-extensions>=4.1.0",
+        ],
         "development": [
             "pytest",
             "pytest-cov",

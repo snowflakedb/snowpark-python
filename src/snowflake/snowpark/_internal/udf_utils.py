@@ -6,7 +6,6 @@ import io
 import os
 import pickle
 import zipfile
-from enum import Enum
 from logging import getLogger
 from types import ModuleType
 from typing import (
@@ -29,7 +28,7 @@ from snowflake.snowpark._internal.type_utils import (
     convert_to_sf_type,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, PandasDataFrameType, PandasSeriesType
 
 logger = getLogger(__name__)
 
@@ -41,10 +40,16 @@ _DEFAULT_HANDLER_NAME = "compute"
 # because zip compression ratio is quite high.
 _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 
+_STAGE_PREFIX = "@"
+
 
 class UDFColumn(NamedTuple):
     datatype: DataType
     name: str
+
+
+def is_local_python_file(file_path: str) -> bool:
+    return not file_path.startswith(_STAGE_PREFIX) and file_path.endswith(".py")
 
 
 def get_types_from_type_hints(
@@ -55,18 +60,21 @@ def get_types_from_type_hints(
         # For Python 3.10+, the result values of get_type_hints()
         # will become strings, which we have to change the implementation
         # here at that time. https://www.python.org/dev/peps/pep-0563/
-        num_args = func.__code__.co_argcount
         python_types_dict = get_type_hints(func)
-        assert "return" in python_types_dict, f"The return type must be specified"
-        assert len(python_types_dict) - 1 == num_args, (
-            f"The number of arguments ({num_args}) is different from "
-            f"the number of argument type hints ({len(python_types_dict) - 1})"
-        )
     else:
-        python_types_dict = _retrieve_func_type_hints_from_source(func[0], func[1])
+        python_types_dict = (
+            _retrieve_func_type_hints_from_source(func[0], func[1])
+            if is_local_python_file(func[0])
+            else {}
+        )
 
-    return_type, _ = _python_type_to_snow_type(python_types_dict["return"])
+    return_type = (
+        _python_type_to_snow_type(python_types_dict["return"])[0]
+        if "return" in python_types_dict
+        else None
+    )
     input_types = []
+
     # types are in order
     index = 0
     for key, python_type in python_types_dict.items():
@@ -117,13 +125,122 @@ def check_register_args(
         )
 
 
-def process_file_path(session: "snowflake.snowpark.Session", file_path: str) -> str:
+def process_file_path(file_path: str) -> str:
     file_path = file_path.strip()
-    if not file_path.startswith(session._STAGE_PREFIX) and not os.path.exists(
-        file_path
-    ):
+    if not file_path.startswith(_STAGE_PREFIX) and not os.path.exists(file_path):
         raise ValueError(f"file_path {file_path} does not exist")
     return file_path
+
+
+def extract_return_input_types(
+    func: Union[Callable, Tuple[str, str]],
+    return_type: Optional[DataType],
+    input_types: Optional[List[DataType]],
+    object_type: TempObjectType,
+) -> Tuple[bool, bool, DataType, List[DataType]]:
+    # return results are: is_pandas_udf, is_dataframe_input, return_type, input_types
+
+    # there are 3 cases:
+    #   1. return_type and input_types are provided:
+    #      a. type hints are provided and they are all pandas.Series or pandas.DataFrame,
+    #         then combine them to pandas-related types.
+    #      b. otherwise, just use return_type and input_types.
+    #   2. return_type and input_types are not provided, but type hints are provided,
+    #      then just use the types inferred from type hints.
+    (
+        return_type_from_type_hints,
+        input_types_from_type_hints,
+    ) = get_types_from_type_hints(func, object_type)
+    if return_type and return_type_from_type_hints:
+        if isinstance(return_type_from_type_hints, PandasSeriesType):
+            res_return_type = (
+                return_type.element_type
+                if isinstance(return_type, PandasSeriesType)
+                else return_type
+            )
+            res_input_types = (
+                input_types[0].col_types
+                if len(input_types) == 1
+                and isinstance(input_types[0], PandasDataFrameType)
+                else input_types
+            )
+            res_input_types = [
+                tp.element_type if isinstance(tp, PandasSeriesType) else tp
+                for tp in res_input_types
+            ]
+            if len(input_types_from_type_hints) == 0:
+                return True, False, res_return_type, []
+            elif len(input_types_from_type_hints) == 1 and isinstance(
+                input_types_from_type_hints[0], PandasDataFrameType
+            ):
+                return True, True, res_return_type, res_input_types
+            elif all(
+                isinstance(tp, PandasSeriesType) for tp in input_types_from_type_hints
+            ):
+                return True, False, res_return_type, res_input_types
+
+    res_return_type = return_type or return_type_from_type_hints
+    res_input_types = input_types or input_types_from_type_hints
+
+    if not res_return_type or (
+        isinstance(res_return_type, PandasSeriesType)
+        and not res_return_type.element_type
+    ):
+        raise TypeError("The return type must be specified")
+
+    # We only want to have this check when only type hints are provided
+    if (
+        not return_type
+        and not input_types
+        and isinstance(func, Callable)
+        and hasattr(func, "__code__")
+    ):
+        # don't count Session if it's a SP
+        num_args = (
+            func.__code__.co_argcount
+            if object_type == TempObjectType.FUNCTION
+            else func.__code__.co_argcount - 1
+        )
+        if num_args != len(input_types_from_type_hints):
+            raise TypeError(
+                f'{"" if object_type == TempObjectType.FUNCTION else f"Excluding session argument in stored procedure, "}'
+                f"the number of arguments ({num_args}) is different from "
+                f"the number of argument type hints ({len(input_types_from_type_hints)})"
+            )
+
+    if isinstance(res_return_type, PandasSeriesType):
+        if len(res_input_types) == 0:
+            return True, False, res_return_type.element_type, []
+        elif len(res_input_types) == 1 and isinstance(
+            res_input_types[0], PandasDataFrameType
+        ):
+            return (
+                True,
+                True,
+                res_return_type.element_type,
+                [
+                    tp.element_type if isinstance(tp, PandasSeriesType) else tp
+                    for tp in res_input_types[0].col_types
+                ],
+            )
+        elif all(isinstance(tp, PandasSeriesType) for tp in res_input_types):
+            return (
+                True,
+                False,
+                res_return_type.element_type,
+                [tp.element_type for tp in res_input_types],
+            )
+
+    # not pandas UDF
+    if not isinstance(res_return_type, (PandasSeriesType, PandasDataFrameType)) and all(
+        not isinstance(tp, (PandasSeriesType, PandasDataFrameType))
+        for tp in res_input_types
+    ):
+        return False, False, res_return_type, res_input_types
+
+    raise TypeError(
+        f"Invalid return type or input types for UDF: return type {res_return_type}, input types {res_input_types}"
+    )
 
 
 def process_registration_inputs(
@@ -133,7 +250,7 @@ def process_registration_inputs(
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
     name: Optional[Union[str, Iterable[str]]],
-) -> Tuple[str, DataType, List[DataType]]:
+) -> Tuple[str, bool, bool, DataType, List[DataType]]:
     # get the udf name
     if name:
         object_name = name if isinstance(name, str) else ".".join(name)
@@ -142,12 +259,16 @@ def process_registration_inputs(
     Utils.validate_object_name(object_name)
 
     # get return and input types
-    if not return_type and not input_types:
-        return_type, input_types = get_types_from_type_hints(func, object_type)
-    if input_types is None:
-        input_types = []
+    (
+        is_pandas_udf,
+        is_dataframe_input,
+        return_type,
+        input_types,
+    ) = extract_return_input_types(
+        func, return_type, [] if input_types is None else input_types, object_type
+    )
 
-    return object_name, return_type, input_types
+    return object_name, is_pandas_udf, is_dataframe_input, return_type, input_types
 
 
 def cleanup_failed_permanent_registration(
@@ -170,7 +291,13 @@ def cleanup_failed_permanent_registration(
             logger.warning("Failed to clean uploaded file: %s", clean_ex)
 
 
-def generate_python_code(func: Callable, arg_names: List[str]) -> str:
+def generate_python_code(
+    func: Callable,
+    arg_names: List[str],
+    is_pandas_udf: bool,
+    is_dataframe_input: bool,
+    max_batch_size: Optional[int] = None,
+) -> str:
     # clear the annotations because when the user annotates Variant and Geography,
     # which are from snowpark modules and will not work on the server side
     # built-in functions don't have __annotations__
@@ -183,27 +310,61 @@ def generate_python_code(func: Callable, arg_names: List[str]) -> str:
     else:
         pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
     args = ",".join(arg_names)
-    code = f"""
+
+    deserialization_code = f"""
 import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
+""".rstrip()
+    if is_pandas_udf:
+        pandas_code = f"""
+import pandas
 
+{_DEFAULT_HANDLER_NAME}._sf_vectorized_input = pandas.DataFrame
+""".rstrip()
+        if max_batch_size:
+            pandas_code = f"""
+{pandas_code}
+{_DEFAULT_HANDLER_NAME}._sf_target_batch_size = {int(max_batch_size)}
+""".rstrip()
+        if is_dataframe_input:
+            func_code = f"""
+def {_DEFAULT_HANDLER_NAME}(df):
+    return func(df)
+""".rstrip()
+        else:
+            func_code = f"""
+def {_DEFAULT_HANDLER_NAME}(df):
+    return func(*[df[idx] for idx in range(df.shape[1])])
+""".rstrip()
+        func_code = f"""
+{func_code}
+{pandas_code}
+""".rstrip()
+    else:
+        func_code = f"""
 def {_DEFAULT_HANDLER_NAME}({args}):
     return func({args})
-"""
-    return code
+""".rstrip()
+    return f"""
+{deserialization_code}
+{func_code}
+""".strip()
 
 
 def resolve_imports_and_packages(
     session: "snowflake.snowpark.Session",
     object_type: TempObjectType,
-    func: Callable,
+    func: Union[Callable, Tuple[str, str]],
     arg_names: List[str],
     udf_name: str,
     stage_location: Optional[str],
     imports: Optional[List[Union[str, Tuple[str, str]]]],
     packages: Optional[List[Union[str, ModuleType]]],
     parallel: int = 4,
+    is_pandas_udf: bool = False,
+    is_dataframe_input: bool = False,
+    max_batch_size: Optional[int] = None,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         Utils.unwrap_stage_location_single_quote(stage_location)
@@ -233,9 +394,11 @@ def resolve_imports_and_packages(
 
     # resolve packages
     resolved_packages = (
-        session._resolve_packages(packages)
+        session._resolve_packages(packages, include_pandas=is_pandas_udf)
         if packages
-        else session._resolve_packages([], session._packages, validate_package=False)
+        else session._resolve_packages(
+            [], session._packages, validate_package=False, include_pandas=is_pandas_udf
+        )
     )
 
     dest_prefix = Utils.get_udf_upload_prefix(udf_name)
@@ -246,7 +409,9 @@ def resolve_imports_and_packages(
         # and we compress it first then upload it
         udf_file_name_base = f"udf_py_{Utils.random_number()}"
         udf_file_name = f"{udf_file_name_base}.zip"
-        code = generate_python_code(func, arg_names)
+        code = generate_python_code(
+            func, arg_names, is_pandas_udf, is_dataframe_input, max_batch_size
+        )
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = Utils.get_udf_upload_prefix(udf_name)
             upload_file_stage_location = Utils.normalize_remote_file_or_dir(
