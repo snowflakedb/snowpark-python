@@ -1795,7 +1795,7 @@ def udf(
     replace: bool = False,
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
-    max_batch_size: Optional[int] = None,
+    **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -1846,11 +1846,6 @@ def udf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDF files.
-        max_batch_size: The maximum length of a Pandas DataFrame or a Pandas Series inside a Pandas UDF.
-            Because a Pandas UDF will be executed within a time limit, this optional argument can be
-            used to reduce the running time of every batch by setting a smaller batch size. Note
-            that setting a larger value does not guarantee that Snowflake will encode batches with
-            the specified number of rows. It will be ignored when registering a non-Pandas UDF.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -1886,12 +1881,6 @@ def udf(
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
               to annotate a geography when defining a UDF.
 
-            - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
-              a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
-              to annotate a Pandas DataFrame when defining a Pandas UDF. Note that they
-              are generic types so you can specify the element type in a Pandas Series
-              and DataFrame.
-
             - :class:`typing.Union` is not a valid type annotation for UDFs,
               but :class:`typing.Optional` can be used to indicate the optional type.
 
@@ -1922,7 +1911,7 @@ def udf(
             packages=packages,
             replace=replace,
             parallel=parallel,
-            max_batch_size=max_batch_size,
+            **kwargs,
         )
     else:
         return session.udf.register(
@@ -1936,11 +1925,11 @@ def udf(
             packages=packages,
             replace=replace,
             parallel=parallel,
-            max_batch_size=max_batch_size,
+            **kwargs,
         )
 
 
-def pandas_udf(
+def _pandas_udf(
     func: Optional[Callable] = None,
     *,
     return_type: Optional[DataType] = None,
