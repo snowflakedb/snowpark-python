@@ -377,9 +377,12 @@ class ServerConnection:
         if to_pandas:
             try:
                 data_or_iter = (
-                    results_cursor.fetch_pandas_batches()
+                    map(
+                        self._fix_pandas_df_integer,
+                        results_cursor.fetch_pandas_batches(),
+                    )
                     if to_iter
-                    else results_cursor.fetch_pandas_all()
+                    else self._fix_pandas_df_integer(results_cursor.fetch_pandas_all())
                 )
             except NotSupportedError:
                 data_or_iter = (
@@ -529,3 +532,18 @@ class ServerConnection:
                 QueryRecord(unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
             )
         logger.info(f"Execute batch insertion query %s", query)
+
+    def _fix_pandas_df_integer(self, pddf: pandas.DataFrame) -> pandas.DataFrame:
+        """To fix https://snowflakecomputing.atlassian.net/browse/SNOW-562208"""
+        for column_metadata, pandas_dtype, pandas_col_name in zip(
+            self._cursor.description, pddf.dtypes, pddf.columns
+        ):
+            if (
+                column_metadata.precision is not None
+                and column_metadata.scale == 0
+                and not str(pandas_dtype).startswith("int")
+            ):
+                pddf[pandas_col_name] = pandas.to_numeric(
+                    pddf[pandas_col_name], downcast="integer"
+                )
+        return pddf
