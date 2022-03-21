@@ -47,14 +47,15 @@ def test_to_pandas_new_df_from_range(session):
 @pytest.mark.parametrize("to_pandas_api", ["to_pandas", "to_pandas_batches"])
 def test_to_pandas_cast_integer(session, to_pandas_api):
     snowpark_df = session.create_dataframe(
-        [["1"] * 6, ["2"] * 6], schema=["a", "b", "c", "d", "e", "f"]
+        [["1", "1" * 20], ["2", "2" * 20]], schema=["a", "b"]
     ).select(
-        col("b").cast(DecimalType(2, 0)),
-        col("c").cast(DecimalType(4, 0)),
-        col("d").cast(DecimalType(6, 0)),
-        col("d").cast(DecimalType(18, 0)),
+        col("a").cast(DecimalType(2, 0)),
+        col("a").cast(DecimalType(4, 0)),
+        col("a").cast(DecimalType(6, 0)),
+        col("a").cast(DecimalType(18, 0)),
         col("a").cast(IntegerType()),
-        col("e"),
+        col("a"),
+        col("b").cast(IntegerType()),
     )
     pandas_df = (
         snowpark_df.to_pandas()
@@ -71,6 +72,9 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
     assert (
         str(pandas_df.dtypes[5]) == "object"
     )  # No cast so it's a string. dtype is "object".
+    assert (
+        str(pandas_df.dtypes[6]) == "float64"
+    )  #  A 20-digit number is over int64 max. Convert to float64 in Pandas.
 
 
 def test_to_pandas_non_select(session):
