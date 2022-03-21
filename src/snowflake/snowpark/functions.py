@@ -2105,16 +2105,15 @@ def call_udf(
 
     Example::
         >>> from snowflake.snowpark.types import IntegerType
-        >>> udf_def = session.udf.register(lambda x, y: x + y, name="add", input_types=[IntegerType()], return_type=IntegerType())
+        >>> udf_def = session.udf.register(lambda x, y: x + y, name="add_columns", input_types=[IntegerType(), IntegerType()], return_type=IntegerType(), replace=True)
         >>> df = session.create_dataframe([[1, 2]], schema=["a", "b"])
-        >>> df.select(call_udf("add", col("a"), col("b"))).show()
-        -----------------------
-        |"ADD(""A"", ""B"")"  |
-        -----------------------
-        |3                    |
-        -----------------------
+        >>> df.select(call_udf("add_columns", col("a"), col("b"))).show()
+        -------------------------------
+        |"ADD_COLUMNS(""A"", ""B"")"  |
+        -------------------------------
+        |3                            |
+        -------------------------------
         <BLANKLINE>
-
     """
 
     Utils.validate_object_name(udf_name)
