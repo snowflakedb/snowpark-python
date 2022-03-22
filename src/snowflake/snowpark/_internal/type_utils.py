@@ -43,14 +43,15 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     _NumericType,
-    installed_typing_extensions,
 )
 
-if installed_pandas and installed_typing_extensions:
-    from snowflake.snowpark.types import PandasSeries, PandasSeriesType
-
-    if installed_typing_extensions:
-        from snowflake.snowpark.types import PandasDataFrame, PandasDataFrameType
+if installed_pandas:
+    from snowflake.snowpark.types import (
+        PandasDataFrame,
+        PandasDataFrameType,
+        PandasSeries,
+        PandasSeriesType,
+    )
 
 
 def convert_to_sf_type(datatype: DataType) -> str:

@@ -9,13 +9,6 @@ from typing import Generic, Iterable, List, Optional, TypeVar, Union
 
 from snowflake.connector.options import installed_pandas, pandas
 
-try:
-    import typing_extensions
-
-    installed_typing_extensions = True
-except ImportError:
-    installed_typing_extensions = False
-
 
 class DataType:
     """The base class of Snowpark data types"""
@@ -362,16 +355,15 @@ if installed_pandas:
 
         pass
 
-    if installed_typing_extensions:
-        from typing_extensions import TypeVarTuple
+    from typing_extensions import TypeVarTuple
 
-        _TT = TypeVarTuple("_TT")
+    _TT = TypeVarTuple("_TT")
 
-        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
-            """
-            The type hint for annotating Pandas DataFrame data when registering UDFs.
-            The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a Pandas UDF.
-            """
+    class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+        """
+        The type hint for annotating Pandas DataFrame data when registering UDFs.
+        The input should be a list of data types for all columns in order.
+        It cannot be used to annotate the return value of a Pandas UDF.
+        """
 
-            pass
+        pass
