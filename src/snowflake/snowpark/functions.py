@@ -1968,11 +1968,12 @@ def udf(
     It can be used as either a function call or a decorator. In most cases you work with a single session.
     This function uses that session to register the UDF. If you have multiple sessions, you need to
     explicitly specify the ``session`` parameter of this function. If you have a function and would
-    like to register it to multiple databases, use ``session.udf.register`` instead.
+    like to register it to multiple databases, use ``session.udf.register`` instead. See examples
+    in :class:`~snowflake.snowpark.udf.UDFRegistration`.
 
     Args:
         func: A Python function used for creating the UDF.
-        return_type: A :class:`types.DataType` representing the return data
+        return_type: A :class:`~snowflake.snowpark.types.DataType` representing the return data
             type of the UDF. Optional if type hints are provided.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the UDF. Optional if
@@ -2015,27 +2016,6 @@ def udf(
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
-
-    Examples::
-
-        from snowflake.snowpark.types import IntegerType
-        # register a temporary udf
-        add_one = udf(lambda x: x+1, return_type=IntegerType(), input_types=[IntegerType()])
-
-        # register a permanent udf by setting is_permanent to True
-        @udf(name="minus_one", is_permanent=True, stage_location="@mystage")
-        def minus_one(x: int) -> int:
-            return x-1
-
-        # use udf-level imports
-        from my_math import sqrt
-        @udf(name="my_sqrt", is_permanent=True, stage_location="@mystage", imports=["my_math.py"])
-        def my_sqrt(x: float) -> float:
-            return sqrt(x)
-
-        df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
-        df.select(add_one("a"), minus_one("b"), my_sqrt("b"))
-        session.sql("select minus_one(1)")
 
     Note:
         1. When type hints are provided and are complete for a function,
