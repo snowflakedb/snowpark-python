@@ -1,4 +1,23 @@
 # Release History
+## 0.5.0 (2022-03-22)
+
+### New Features
+- Added stored procedure API
+  - Added `sproc` in `Session` and `functions`, so you can register stored procedures.
+  - Added `call` in `Session` to call stored procedures by name.
+- Added `UDFRegistration.describe()` to describe a UDF.
+- Added `DataFrame.random_split()` to provide a way to randomly split a dataframe.
+- Added `UDFRegistration.register_from_file()` to allow registering UDFs from Python source files or zip files directly.
+- Added functions `md5()`, `sha1()`, `sha2()`, `ascii()`, `initcap()`, `length()`, `lower()`, `lpad()`, `ltrim()`, `rpad()`, `rtrim()`, `repeat()`, `soundex()`, `regexp_count()`, `replace()`, `charindex()`, `collate()`, `collation()`, `insert()`, `left()`, `right()`, `endswith()` to `snowflake.snowflake.functions`.
+
+### Improvements
+- Allowed `call_udf()` accepts literal values.
+- Provided a `distinct` keyword in `array_agg()`.
+
+### Bug fixes:
+- Fixed an issue that caused `DataFrame.to_pandas()` to have a string column if `Column.cast(IntegerType())` is used.
+- Fixed a bug in `DataFrame.describe()` when there are more than one string columns.
+
 ## 0.4.0 (2022-02-15)
 
 ### New Features
