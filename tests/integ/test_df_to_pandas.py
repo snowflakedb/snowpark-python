@@ -15,6 +15,7 @@ import snowflake.connector
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
 from snowflake.snowpark.functions import col
+from snowflake.snowpark.types import DecimalType, IntegerType
 from tests.utils import Utils
 
 
@@ -41,6 +42,39 @@ def test_to_pandas_new_df_from_range(session):
     assert all(pandas_df["ID"][i] == i + 3 for i in range(5))
     assert isinstance(pandas_df["OTHER"], PandasSeries)
     assert all(pandas_df["OTHER"][i] == i + 3 for i in range(5))
+
+
+@pytest.mark.parametrize("to_pandas_api", ["to_pandas", "to_pandas_batches"])
+def test_to_pandas_cast_integer(session, to_pandas_api):
+    snowpark_df = session.create_dataframe(
+        [["1", "1" * 20], ["2", "2" * 20]], schema=["a", "b"]
+    ).select(
+        col("a").cast(DecimalType(2, 0)),
+        col("a").cast(DecimalType(4, 0)),
+        col("a").cast(DecimalType(6, 0)),
+        col("a").cast(DecimalType(18, 0)),
+        col("a").cast(IntegerType()),
+        col("a"),
+        col("b").cast(IntegerType()),
+    )
+    pandas_df = (
+        snowpark_df.to_pandas()
+        if to_pandas_api == "to_pandas"
+        else next(snowpark_df.to_pandas_batches())
+    )
+    assert str(pandas_df.dtypes[0]) == "int8"
+    assert str(pandas_df.dtypes[1]) == "int16"
+    assert str(pandas_df.dtypes[2]) == "int32"
+    assert str(pandas_df.dtypes[3]) == "int64"
+    assert (
+        str(pandas_df.dtypes[4]) == "int8"
+    )  # When static type can possibly be greater than int64 max, use the actual value to infer the int type.
+    assert (
+        str(pandas_df.dtypes[5]) == "object"
+    )  # No cast so it's a string. dtype is "object".
+    assert (
+        str(pandas_df.dtypes[6]) == "float64"
+    )  #  A 20-digit number is over int64 max. Convert to float64 in Pandas.
 
 
 def test_to_pandas_non_select(session):
