@@ -309,7 +309,8 @@ class Session:
         """
         Registers a remote file in stage or a local file as an import of a user-defined function
         (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
-        a directory, or any other file resource.
+        a directory, or any other file resource. You can also find examples in
+        :class:`~snowflake.snowpark.udf.UDFRegistration`.
 
         Args:
             path: The path of a local file or a remote file in the stage. In each case:
@@ -330,25 +331,19 @@ class Session:
                 directly without any leading package/module. This argument will become
                 a no-op if the path  points to a stage file or a non-Python local file.
 
-        Examples::
+        Example::
 
-            # import a local file
-            from my_module import g
-            session.add_import(“/tmp/my_dir/my_module.py”)
-            @udf
-            def f():
-                return g()
-
-            # import a local file with "import_path"
-            # `my_dir.my_module` is a valid import path used to import the module locally
-            from my_dir.my_module import g
-            session.add_import(“/tmp/my_dir/my_module.py”, import_path="my_dir.my_module")
-            @udf
-            def f():
-                return g()
-
-            # import a stage file
-            session.add_import(“@stage/test.py”)
+            >>> from snowflake.snowpark.types import IntegerType
+            >>> from resources.test_udf_dir.test_udf_file import mod5
+            >>> session.add_import("tests/resources/test_udf_dir/test_udf_file.py", import_path="resources.test_udf_dir.test_udf_file")
+            >>> mod5_and_plus1_udf = session.udf.register(
+            ...     lambda x: mod5(x) + 1,
+            ...     return_type=IntegerType(),
+            ...     input_types=[IntegerType()]
+            ... )
+            >>> session.range(1, 8, 2).select(mod5_and_plus1_udf("id")).to_df("col1").collect()
+            [Row(COL1=2), Row(COL1=4), Row(COL1=1), Row(COL1=3)]
+            >>> session.clear_imports()
 
         Note:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
@@ -391,9 +386,15 @@ class Session:
 
         Examples::
 
-            session.remove_import(“/tmp/dir1/test.py”)
-            session.remove_import(“/tmp/dir1”)
-            session.remove_import(“@stage/test.py”)
+            >>> session.clear_imports()
+            >>> len(session.get_imports())
+            0
+            >>> session.add_import("tests/resources/test_udf_dir/test_udf_file.py")
+            >>> len(session.get_imports())
+            1
+            >>> session.remove_import("tests/resources/test_udf_dir/test_udf_file.py")
+            >>> len(session.get_imports())
+            0
         """
         trimmed_path = path.strip()
         abs_path = (
@@ -562,7 +563,8 @@ class Session:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
         Use this method to add packages for UDFs as installing packages using
-        `conda <https://docs.conda.io/en/latest/>`_.
+        `conda <https://docs.conda.io/en/latest/>`_. You can also find examples in
+        :class:`~snowflake.snowpark.udf.UDFRegistration`.
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -575,23 +577,32 @@ class Session:
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
 
-        Examples::
+        Example::
 
-            import numpy as np
-
-            # add numpy with the latest version on Snowflake Anaconda
-            session.add_packages("numpy")
-
-            @udf
-            def numpy_sin(x: float) -> float:
-                return np.sin(x)
-
-            # or use version specifiers
-            session.add_packages("numpy==1.20.1")
-            session.add_packages("numpy==1.20.*", "pandas==1.3.*")
-
-            # add numpy with the local version
-            session.add_packages(np)
+            >>> import numpy as np
+            >>> from snowflake.snowpark.functions import udf
+            >>> import numpy
+            >>> import pandas
+            >>> import dateutil
+            >>> # add numpy with the latest version on Snowflake Anaconda
+            >>> # and pandas with the version "1.3.*"
+            >>> # and dateutil with the local version in your environment
+            >>> session.add_packages("numpy", "pandas==1.3.*", dateutil)
+            >>> @udf
+            ... def get_package_name_udf() -> list:
+            ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
+            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()
+            ----------------
+            |"COL1"        |
+            ----------------
+            |[             |
+            |  "numpy",    |
+            |  "pandas",   |
+            |  "dateutil"  |
+            |]             |
+            ----------------
+            <BLANKLINE>
+            >>> session.clear_packages()
 
         Note:
             1. This method will add packages for all UDFs created later in the current
@@ -616,8 +627,18 @@ class Session:
 
         Examples::
 
-            session.remove_package("numpy")
-            session.remove_package("numpy==1.21.1")
+            >>> session.clear_packages()
+            >>> len(session.get_packages())
+            0
+            >>> session.add_packages("numpy", "pandas==1.3.5")
+            >>> len(session.get_packages())
+            2
+            >>> session.remove_package("numpy")
+            >>> len(session.get_packages())
+            1
+            >>> session.remove_package("pandas")
+            >>> len(session.get_packages())
+            0
         """
         package_name = pkg_resources.Requirement.parse(package).key
         if package_name in self._packages:
@@ -641,7 +662,25 @@ class Session:
 
         Example::
 
-            session.add_requirements("mydir/requirements.txt")
+            >>> from snowflake.snowpark.functions import udf
+            >>> import numpy
+            >>> import pandas
+            >>> # test_requirements.txt contains "numpy" and "pandas"
+            >>> session.add_requirements("tests/resources/test_requirements.txt")
+            >>> @udf
+            ... def get_package_name_udf() -> list:
+            ...     return [numpy.__name__, pandas.__name__]
+            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()
+            --------------
+            |"COL1"      |
+            --------------
+            |[           |
+            |  "numpy",  |
+            |  "pandas"  |
+            |]           |
+            --------------
+            <BLANKLINE>
+            >>> session.clear_packages()
 
         Note:
             1. This method will add packages for all UDFs created later in the current
