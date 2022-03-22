@@ -123,16 +123,29 @@ class UDFRegistration:
           Python function will be serialized. During the deserialization, Python will look up the
           corresponding modules and objects by names. For example::
 
-                import nump
-                import mymodule
-
-                a = 1
-
-                def f():
-                    return 1
+                >>> import numpy
+                >>> from resources.test_udf_dir.test_udf_file import mod5
+                >>> a = 1
+                >>> def f():
+                ...     return 2
+                >>>
+                >>> from snowflake.snowpark.functions import udf
+                >>> session.add_import("tests/resources/test_udf_dir/test_udf_file.py", import_path="resources.test_udf_dir.test_udf_file")
+                >>> session.add_packages("numpy")
+                >>> @udf
+                ... def g(x: int) -> int:
+                ...     return mod5(numpy.square(x)) + a + f()
+                >>> df = session.create_dataframe([4], schema=["a"])
+                >>> df.select(g("a")).to_df("col1").show()
+                ----------
+                |"COL1"  |
+                ----------
+                |4       |
+                ----------
+                <BLANKLINE>
 
           Here the variable ``a`` and function ``f`` will be serialized into the bytecode, but
-          only the name of ``numpy`` and ``mymodule`` will be included in the bytecode. Therefore,
+          only the name of ``numpy`` and ``mod5`` will be included in the bytecode. Therefore,
           in order to have these modules on the server side, you can use
           :meth:`~snowflake.snowpark.Session.add_import` and :meth:`~snowflake.snowpark.Session.add_packages`
           to add your first-party and third-party librarys.
@@ -144,7 +157,8 @@ class UDFRegistration:
 
             * All code inside the function will be executed on every row, so you are not able to
               perform some initializations before executing this function. For example, if you want
-              to read a file from a stage in a UDF, this file will be read on every row.
+              to read a file from a stage in a UDF, this file will be read on every row. However,
+              we still have a workaround for this scenario, which can be found in Example 8 here.
 
             * If the runtime function references some very large global variables (e.g., a machine
               learning model with a large number of parameters), they will also be serialized and

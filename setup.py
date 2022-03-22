@@ -64,6 +64,7 @@ setup(
             "pytest-cov",
             "coverage",
             "sphinx",
+            "cachetools",
         ],
     },
     classifiers=[
