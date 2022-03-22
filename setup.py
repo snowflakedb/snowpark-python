@@ -64,7 +64,7 @@ setup(
             "pytest-cov",
             "coverage",
             "sphinx",
-            "cachetools",
+            "cachetools",  # used in UDF doctest
         ],
     },
     classifiers=[

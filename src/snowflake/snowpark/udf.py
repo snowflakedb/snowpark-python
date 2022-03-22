@@ -5,7 +5,6 @@
 #
 """User-defined functions (UDFs) in Snowpark."""
 import inspect
-from logging import getLogger
 from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
@@ -28,22 +27,13 @@ from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType
 
-logger = getLogger(__name__)
-
-# the default handler name for generated udf python file
-_DEFAULT_HANDLER_NAME = "compute"
-
-# Max code size to inline generated closure. Beyond this threshold, the closure will be uploaded to a stage for imports.
-# Current number is the same as scala. We might have the potential to make it larger but that requires further benchmark
-# because zip compression ratio is quite high.
-_MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
-
 
 class UserDefinedFunction:
     """
     Encapsulates a user defined lambda or function that is returned by
-    :func:`~snowflake.snowpark.functions.udf` or by :func:`UDFRegistration.register`.
-    The constructor of this class is not supposed to be called directly.
+    :func:`~snowflake.snowpark.functions.udf`, :meth:`UDFRegistration.register` or
+    :meth:`UDFRegistration.register_from_file`. The constructor of this class is not supposed
+    to be called directly.
 
     Call an instance of :class:`UserDefinedFunction` to generate
     :class:`~snowflake.snowpark.Column` expressions. The input type can be
