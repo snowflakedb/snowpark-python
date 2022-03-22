@@ -354,7 +354,7 @@ Variant = TypeVar("Variant")
 Geography = TypeVar("Geography")
 
 
-if installed_pandas and installed_typing_extensions:
+if installed_pandas:
     _T = TypeVar("_T")
 
     class PandasSeries(pandas.Series, Generic[_T]):
@@ -362,15 +362,16 @@ if installed_pandas and installed_typing_extensions:
 
         pass
 
-    from typing_extensions import TypeVarTuple
+    if installed_typing_extensions:
+        from typing_extensions import TypeVarTuple
 
-    _TT = TypeVarTuple("_TT")
+        _TT = TypeVarTuple("_TT")
 
-    class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
-        """
-        The type hint for annotating Pandas DataFrame data when registering UDFs.
-        The input should be a list of data types for all columns in order.
-        It cannot be used to annotate the return value of a Pandas UDF.
-        """
+        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+            """
+            The type hint for annotating Pandas DataFrame data when registering UDFs.
+            The input should be a list of data types for all columns in order.
+            It cannot be used to annotate the return value of a Pandas UDF.
+            """
 
-        pass
+            pass
