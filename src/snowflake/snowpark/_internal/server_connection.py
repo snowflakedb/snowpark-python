@@ -533,17 +533,19 @@ class ServerConnection:
             )
         logger.info(f"Execute batch insertion query %s", query)
 
-    def _fix_pandas_df_integer(self, pddf: pandas.DataFrame) -> pandas.DataFrame:
-        """To fix https://snowflakecomputing.atlassian.net/browse/SNOW-562208"""
+    def _fix_pandas_df_integer(self, pd_df: pandas.DataFrame) -> pandas.DataFrame:
+        """To fix https://snowflakecomputing.atlassian.net/browse/SNOW-562208
+        TODO: remove this after Python connector does the conversion: https://snowflakecomputing.atlassian.net/browse/SNOW-562586
+        """
         for column_metadata, pandas_dtype, pandas_col_name in zip(
-            self._cursor.description, pddf.dtypes, pddf.columns
+            self._cursor.description, pd_df.dtypes, pd_df.columns
         ):
             if (
                 column_metadata.precision is not None
                 and column_metadata.scale == 0
                 and not str(pandas_dtype).startswith("int")
             ):
-                pddf[pandas_col_name] = pandas.to_numeric(
-                    pddf[pandas_col_name], downcast="integer"
+                pd_df[pandas_col_name] = pandas.to_numeric(
+                    pd_df[pandas_col_name], downcast="integer"
                 )
-        return pddf
+        return pd_df
