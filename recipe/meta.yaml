@@ -28,6 +28,7 @@ requirements:
     - setuptools >34.0.0
   run_constrained:
     - pandas >1,<1.4
+    - typing-extensions >=4.1.0
 
 test:
   imports:
