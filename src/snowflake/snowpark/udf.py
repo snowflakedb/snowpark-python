@@ -156,9 +156,10 @@ class UDFRegistration:
           the Python runtime on the Snowflake server during UDF creation. Then this function will be
           executed and applied to every row of your dataframe or table when exeucting this UDF.
           This approach can address the deficiency of the previous approach that uses cloudpickle,
-          because the source code in this file other than the target function will only be loaded
-          during UDF creation, and will not be executed during UDF execution. Therefore, this
-          approach is useful and efficient when all your Python code is already in source files.
+          because the source code in this file other than the target function will be loaded
+          during UDF creation, and will not be executed on every row during UDF execution.
+          Therefore, this approach is useful and efficient when all your Python code is already in
+          source files.
 
     Snowflake supports the following data types for the parameters for a UDF:
 
