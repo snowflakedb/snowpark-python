@@ -355,19 +355,15 @@ if installed_pandas:
 
         pass
 
-    try:
-        from typing_extensions import TypeVarTuple
+    from typing_extensions import TypeVarTuple
 
-        _TT = TypeVarTuple("_TT")
+    _TT = TypeVarTuple("_TT")
 
-        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
-            """
-            The type hint for annotating Pandas DataFrame data when registering UDFs.
-            The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a Pandas UDF.
-            """
+    class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+        """
+        The type hint for annotating Pandas DataFrame data when registering UDFs.
+        The input should be a list of data types for all columns in order.
+        It cannot be used to annotate the return value of a Pandas UDF.
+        """
 
-            pass
-
-    except ImportError:
         pass
