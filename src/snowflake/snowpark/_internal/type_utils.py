@@ -43,9 +43,10 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     _NumericType,
+    installed_typing_extensions,
 )
 
-if installed_pandas:
+if installed_pandas and installed_typing_extensions:
     from snowflake.snowpark.types import (
         PandasDataFrame,
         PandasDataFrameType,

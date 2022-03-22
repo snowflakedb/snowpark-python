@@ -9,6 +9,13 @@ from typing import Generic, Iterable, List, Optional, TypeVar, Union
 
 from snowflake.connector.options import installed_pandas, pandas
 
+try:
+    import typing_extensions
+
+    installed_typing_extensions = True
+except ImportError:
+    installed_typing_extensions = False
+
 
 class DataType:
     """The base class of Snowpark data types"""
@@ -347,7 +354,7 @@ Variant = TypeVar("Variant")
 Geography = TypeVar("Geography")
 
 
-if installed_pandas:
+if installed_pandas and installed_typing_extensions:
     _T = TypeVar("_T")
 
     class PandasSeries(pandas.Series, Generic[_T]):
