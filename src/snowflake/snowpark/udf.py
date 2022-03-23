@@ -4,7 +4,6 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """User-defined functions (UDFs) in Snowpark."""
-import inspect
 from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
@@ -429,12 +428,6 @@ class UDFRegistration:
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
-        # whether called from pandas_udf
-        caller_frame = inspect.getouterframes(inspect.currentframe())
-        from_pandas_udf_function = (
-            len(caller_frame) > 1 and caller_frame[1].function == "_pandas_udf"
-        )
-
         # register udf
         return self.__do_register_udf(
             func,
@@ -447,7 +440,7 @@ class UDFRegistration:
             replace,
             parallel,
             kwargs.get("max_batch_size"),
-            from_pandas_udf_function,
+            kwargs.get("_from_pandas_udf_function", False),
         )
 
     def register_from_file(
