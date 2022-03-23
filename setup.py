@@ -38,6 +38,7 @@ setup(
         "wheel",
         "cloudpickle>=1.6.0",
         f"snowflake-connector-python>={CONNECTOR_DEPENDENCY_VERSION}",
+        "typing-extensions>=4.1.0",
     ],
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here
@@ -57,7 +58,6 @@ setup(
     extras_require={
         "pandas": [
             f"snowflake-connector-python[pandas]>={CONNECTOR_DEPENDENCY_VERSION}",
-            "typing-extensions>=4.1.0",
         ],
         "development": [
             "pytest",
