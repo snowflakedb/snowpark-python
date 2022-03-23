@@ -440,7 +440,7 @@ class UDFRegistration:
             replace,
             parallel,
             kwargs.get("max_batch_size"),
-            kwargs.get("_from_pandas_udf_function"),
+            kwargs.get("_from_pandas_udf_function", False),
         )
 
     def register_from_file(
