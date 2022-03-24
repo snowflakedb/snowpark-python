@@ -63,7 +63,10 @@ from snowflake.snowpark._internal.sp_expressions import (
     Star as SPStar,
     TableFunctionExpression as SPTableFunctionExpression,
 )
-from snowflake.snowpark._internal.telemetry import df_action_telemetry
+from snowflake.snowpark._internal.telemetry import (
+    df_action_telemetry,
+    df_usage_telemetry,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import TempObjectType, Utils, deprecate
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -1260,6 +1263,7 @@ class DataFrame:
         """
         return self.__union_by_name_internal(other, is_all=True)
 
+    @df_usage_telemetry
     def __union_by_name_internal(
         self, other: "DataFrame", is_all: bool = False
     ) -> "DataFrame":

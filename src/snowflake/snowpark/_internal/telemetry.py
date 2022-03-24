@@ -41,10 +41,12 @@ class TelemetryField(Enum):
     KEY_DATA = "data"
     KEY_CATEGORY = "category"
     # function categories
-    CAT_ACTION = "action"
-    CAT_USAGE = "usage"
-    CAT_JOIN = "join"
-    CAT_COPY = "copy"
+    FUNC_CAT_ACTION = "action"
+    FUNC_CAT_USAGE = "usage"
+    FUNC_CAT_JOIN = "join"
+    FUNC_CAT_COPY = "copy"
+    # performance categories
+    PERF_CAT_UPLOAD_FILE = "upload_file"
 
 
 def safe_telemetry(func):
@@ -64,7 +66,7 @@ def df_action_telemetry(func):
     def wrap(*args, **kwargs):
         result = func(*args, **kwargs)
         args[0].session._conn._telemetry_client.send_function_usage_telemetry(
-            f"action_{func.__name__}", TelemetryField.CAT_ACTION.value
+            f"action_{func.__name__}", TelemetryField.FUNC_CAT_ACTION.value
         )
         return result
 
@@ -75,22 +77,21 @@ def dfw_action_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         result = func(*args, **kwargs)
-        args[
-            0
-        ]._dataframe.session._conn._telemetry_client.send_function_usage_telemetry(
-            f"action_{func.__name__}", TelemetryField.CAT_ACTION.value
+        session = args[0]._dataframe.session
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            f"action_{func.__name__}", TelemetryField.FUNC_CAT_ACTION.value
         )
         return result
 
     return wrap
 
 
-def dw_usage_telemetry(func):
+def df_usage_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         result = func(*args, **kwargs)
         args[0].session._conn._telemetry_client.send_function_usage_telemetry(
-            f"usage_{func.__name__}", TelemetryField.CAT_USAGE.value
+            f"usage_{func.__name__}", TelemetryField.FUNC_CAT_USAGE.value
         )
         return result
 
@@ -122,16 +123,19 @@ class TelemetryClient:
         return message
 
     @safe_telemetry
-    def send_performance_telemetry(
-        self, func_name: str, duration: float, msg: str, sfqid: str
+    def send_upload_file_perf_telemetry(
+        self, func_name: str, duration: float, sfqid: str
     ):
         message = {
             **self._create_basic_telemetry_data(
                 TelemetryField.TYPE_PERFORMANCE_DATA.value
             ),
             PCTelemetryField.KEY_SFQID.value: sfqid,
-            TelemetryField.KEY_FUNC_NAME.value: func_name,
-            TelemetryField.KEY_DURATION.value: duration,
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_UPLOAD_FILE.value,
+                TelemetryField.KEY_FUNC_NAME.value: func_name,
+                TelemetryField.KEY_DURATION.value: duration,
+            },
         }
         self.send(message)
 
@@ -150,10 +154,10 @@ class TelemetryClient:
 
     def send_alias_in_join_telemetry(self):
         self.send_function_usage_telemetry(
-            "name_alias_in_join", TelemetryField.CAT_JOIN.value
+            "name_alias_in_join", TelemetryField.FUNC_CAT_JOIN.value
         )
 
     def send_copy_pattern_telemetry(self):
         self.send_function_usage_telemetry(
-            "copy_pattern", TelemetryField.CAT_COPY.value
+            "copy_pattern", TelemetryField.FUNC_CAT_COPY.value
         )

@@ -80,7 +80,6 @@ class ServerConnection:
             def log_and_telemetry(func):
                 @functools.wraps(func)
                 def wrap(*args, **kwargs):
-                    # TODO: SNOW-363951 handle telemetry
                     logger.info(msg)
                     start_time = time.perf_counter()
                     result = func(*args, **kwargs)
@@ -89,7 +88,7 @@ class ServerConnection:
                     sfqid = result["sfqid"] if "sfqid" in result else None
                     # If we don't have a query id, then its pretty useless to send perf telemetry
                     if sfqid:
-                        args[0]._telemetry_client.send_performance_telemetry(
+                        args[0]._telemetry_client.send_upload_file_perf_telemetry(
                             func.__name__, duration, sfqid
                         )
                     logger.info(f"Finished in {duration:.4f} secs")
