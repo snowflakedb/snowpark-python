@@ -35,7 +35,7 @@ class DataFrameWriter:
     """
 
     def __init__(self, dataframe: "snowflake.snowpark.DataFrame"):
-        self.__dataframe = dataframe
+        self._dataframe = dataframe
         self.__save_mode = _SaveMode.APPEND  # spark default value is error.
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
@@ -107,10 +107,10 @@ class DataFrameWriter:
         create_table_logic_plan = SnowflakeCreateTable(
             full_table_name,
             save_mode,
-            self.__dataframe._plan,
+            self._dataframe._plan,
             create_temp_table,
         )
-        session = self.__dataframe.session
+        session = self._dataframe.session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
         session._conn.execute(snowflake_plan)
 
@@ -150,9 +150,9 @@ class DataFrameWriter:
             raise TypeError(
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
-        return self.__dataframe._with_plan(
+        return self._dataframe._with_plan(
             CopyIntoLocationNode(
-                self.__dataframe._plan,
+                self._dataframe._plan,
                 stage_location,
                 partition_by=partition_by,
                 file_format_name=file_format_name,
