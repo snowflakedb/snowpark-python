@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.sp_expressions import Attribute
+from snowflake.snowpark._internal.telemetry import TelemetryClient, TelemetryField
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
@@ -75,16 +76,22 @@ class ServerConnection:
             return wrap
 
         @classmethod
-        def log_msg_and_telemetry(cls, msg):
+        def log_msg_and_perf_telemetry(cls, msg):
             def log_and_telemetry(func):
                 @functools.wraps(func)
                 def wrap(*args, **kwargs):
                     # TODO: SNOW-363951 handle telemetry
                     logger.info(msg)
                     start_time = time.perf_counter()
-                    func(*args, **kwargs)
+                    result = func(*args, **kwargs)
                     end_time = time.perf_counter()
                     duration = end_time - start_time
+                    sfqid = result["sfqid"] if "sfqid" in result else None
+                    # If we don't have a query id, then its pretty useless to send perf telemetry
+                    if sfqid:
+                        args[0]._telemetry_client.send_performance_telemetry(
+                            func.__name__, duration, sfqid
+                        )
                     logger.info(f"Finished in {duration:.4f} secs")
 
                 return wrap
@@ -100,6 +107,7 @@ class ServerConnection:
         self.__add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         self._cursor = self._conn.cursor()
+        self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener = set()  # type: set[QueryHistory]
 
     def __add_application_name(self):
@@ -246,7 +254,7 @@ class ServerConnection:
             self._cursor.describe(query)
         )
 
-    @_Decorator.log_msg_and_telemetry("Uploading file to stage")
+    @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
         self,
         path: str,
@@ -256,7 +264,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
-    ) -> None:
+    ) -> Optional[Dict[str, Any]]:
         if Utils.is_in_stored_procedure():
             file_name = os.path.basename(path)
             target_path = self.__build_target_path(stage_location, dest_prefix)
@@ -264,7 +272,7 @@ class ServerConnection:
             self._cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
         else:
             uri = Utils.normalize_local_file(path)
-            self.run_query(
+            return self.run_query(
                 self.__build_put_statement(
                     uri,
                     stage_location,
@@ -276,7 +284,7 @@ class ServerConnection:
                 )
             )
 
-    @_Decorator.log_msg_and_telemetry("Uploading stream to stage")
+    @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
     def upload_stream(
         self,
         input_stream: IO[bytes],
@@ -287,7 +295,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
-    ) -> None:
+    ) -> Optional[Dict[str, Any]]:
         uri = Utils.normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
             if Utils.is_in_stored_procedure():
@@ -298,7 +306,7 @@ class ServerConnection:
                     input_stream, f"{target_path}/{dest_filename}"
                 )
             else:
-                self.run_query(
+                return self.run_query(
                     self.__build_put_statement(
                         uri,
                         stage_location,

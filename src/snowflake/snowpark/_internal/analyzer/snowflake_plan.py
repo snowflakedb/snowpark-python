@@ -591,8 +591,8 @@ class SnowflakePlanBuilder:
         pattern = options.get("PATTERN", None)
         # TODO track usage of pattern, will refactor this function in future
         # Telemetry: https://snowflakecomputing.atlassian.net/browse/SNOW-363951
-        # if pattern:
-        #   session._conn.telemetry.reportUsageOfCopyPattern()
+        if pattern:
+            self.__session._conn._telemetry_client.send_copy_pattern_telemetry()
 
         pkg = AnalyzerPackage()
         if not copy_options:  # use select
@@ -703,6 +703,9 @@ class SnowflakePlanBuilder:
         transformations: Optional[List[str]] = None,
         user_schema: Optional[StructType] = None,
     ) -> SnowflakePlan:
+        if pattern:
+            self.__session._conn._telemetry_client.send_copy_pattern_telemetry()
+
         copy_command = self.pkg.copy_into_table(
             table_name=table_name,
             file_path=path,

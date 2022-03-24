@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.sp_expressions import (
     InsertMergeExpression,
     UpdateMergeExpression,
 )
+from snowflake.snowpark._internal.telemetry import action_telemetry
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
@@ -298,6 +299,7 @@ class Table(DataFrame):
         sql_text = f"select * from {self.table_name} sample {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         return self.session.sql(sql_text)
 
+    @action_telemetry
     def update(
         self,
         # TODO SNOW-526251: also accept Column as a key when Column is hashable
@@ -354,6 +356,7 @@ class Table(DataFrame):
         )
         return _get_update_result(new_df._internal_collect_with_tag())
 
+    @action_telemetry
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -399,6 +402,7 @@ class Table(DataFrame):
         )
         return _get_delete_result(new_df._internal_collect_with_tag())
 
+    @action_telemetry
     def merge(
         self,
         source: DataFrame,
