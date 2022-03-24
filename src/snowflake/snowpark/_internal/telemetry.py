@@ -14,7 +14,6 @@ from snowflake.connector.telemetry import (
     TelemetryData as PCTelemetryData,
     TelemetryField as PCTelemetryField,
 )
-from snowflake.snowpark import DataFrame, DataFrameWriter
 from snowflake.snowpark._internal.utils import Utils
 
 
@@ -60,19 +59,11 @@ def safe_telemetry(func):
     return wrap
 
 
-def action_telemetry(func):
+def df_action_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         result = func(*args, **kwargs)
-        obj = args[0]
-        if isinstance(obj, DataFrame):
-            session = obj.session
-        elif isinstance(obj, DataFrameWriter):
-            session = obj._dataframe.session
-        else:
-            # Skip telemetry if we can't tell what the parent object is
-            return result
-        session._conn._telemetry_client.send_function_usage_telemetry(
+        args[0].session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}", TelemetryField.CAT_ACTION.value
         )
         return result
@@ -80,19 +71,25 @@ def action_telemetry(func):
     return wrap
 
 
-def usage_telemetry(func):
+def dfw_action_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         result = func(*args, **kwargs)
-        obj = args[0]
-        if isinstance(obj, DataFrame):
-            session = obj.session
-        elif isinstance(obj, DataFrameWriter):
-            session = obj._dataframe.session
-        else:
-            # Skip telemetry if we can't tell what the parent object is
-            return result
-        session._conn._telemetry_client.send_function_usage_telemetry(
+        args[
+            0
+        ]._dataframe.session._conn._telemetry_client.send_function_usage_telemetry(
+            f"action_{func.__name__}", TelemetryField.CAT_ACTION.value
+        )
+        return result
+
+    return wrap
+
+
+def dw_usage_telemetry(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        result = func(*args, **kwargs)
+        args[0].session._conn._telemetry_client.send_function_usage_telemetry(
             f"usage_{func.__name__}", TelemetryField.CAT_USAGE.value
         )
         return result

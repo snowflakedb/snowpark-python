@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     CopyIntoLocationNode,
     SnowflakeCreateTable,
 )
-from snowflake.snowpark._internal.telemetry import action_telemetry
+from snowflake.snowpark._internal.telemetry import dfw_action_telemetry
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import Utils, _SaveMode
 from snowflake.snowpark.functions import sql_expr
@@ -62,7 +62,7 @@ class DataFrameWriter:
         )
         return self
 
-    @action_telemetry
+    @dfw_action_telemetry
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
