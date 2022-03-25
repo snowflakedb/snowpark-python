@@ -108,6 +108,9 @@ class ServerConnection:
         self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener = set()  # type: set[QueryHistory]
+        # The session in this case refers to a Snowflake session, not a
+        # Snowpark session
+        self._telemetry_client.send_session_created_telemetry(bool(conn))
 
     def __add_application_name(self):
         if PARAM_APPLICATION not in self._lower_case_parameters:

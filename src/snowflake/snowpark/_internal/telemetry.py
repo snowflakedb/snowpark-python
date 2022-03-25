@@ -21,17 +21,17 @@ from snowflake.snowpark._internal.utils import Utils
 @unique
 class TelemetryField(Enum):
     # constants
-    START_TIME: str = "start_time"
-    MESSAGE: str = "message"
-    NAME: str = "name"
-    ERROR_CODE: str = "error_code"
-    STACK_TRACE: str = "stack_trace"
+    MESSAGE = "message"
+    NAME = "name"
+    ERROR_CODE = "error_code"
+    STACK_TRACE = "stack_trace"
     # Types of telemetry
     TYPE_PERFORMANCE_DATA = "snowpark_performance_data"
     TYPE_FUNCTION_USAGE = "snowpark_function_usage"
     TYPE_SESSION_CREATED = "snowpark_session_created"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
+    KEY_START_TIME = "start_time"
     KEY_DURATION = "duration"
     KEY_FUNC_NAME = "func_name"
     KEY_MSG = "msg"
@@ -41,6 +41,7 @@ class TelemetryField(Enum):
     KEY_OS = "operating_system"
     KEY_DATA = "data"
     KEY_CATEGORY = "category"
+    KEY_CREATED_BY_SNOWPARK = "created_by_snowpark"
     # function categories
     FUNC_CAT_ACTION = "action"
     FUNC_CAT_USAGE = "usage"
@@ -114,7 +115,7 @@ class TelemetryClient:
         self.python_version: str = Utils.get_python_version()
         self.os: str = Utils.get_os_name()
 
-    def send(self, msg: str, timestamp: Optional[int] = None):
+    def send(self, msg: Dict, timestamp: Optional[int] = None):
         if self.telemetry:
             if not timestamp:
                 timestamp = get_time_millis()
@@ -132,6 +133,21 @@ class TelemetryClient:
         return message
 
     @safe_telemetry
+    def send_session_created_telemetry(self, created_by_snowpark: bool):
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_SESSION_CREATED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.START_TIME.value: get_time_millis(),
+                TelemetryField.KEY_CREATED_BY_SNOWPARK.value: PCTelemetryData.TRUE
+                if created_by_snowpark
+                else PCTelemetryData.FALSE,
+            },
+        }
+        self.send(message)
+
+    @safe_telemetry
     def send_upload_file_perf_telemetry(
         self, func_name: str, duration: float, sfqid: str
     ):
@@ -139,8 +155,8 @@ class TelemetryClient:
             **self._create_basic_telemetry_data(
                 TelemetryField.TYPE_PERFORMANCE_DATA.value
             ),
-            PCTelemetryField.KEY_SFQID.value: sfqid,
             TelemetryField.KEY_DATA.value: {
+                PCTelemetryField.KEY_SFQID.value: sfqid,
                 TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_UPLOAD_FILE.value,
                 TelemetryField.KEY_FUNC_NAME.value: func_name,
                 TelemetryField.KEY_DURATION.value: duration,
