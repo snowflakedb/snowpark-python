@@ -1413,6 +1413,20 @@ class Session:
             raise ValueError("'role' must not be empty or None.")
 
     @property
+    def telemetry_enabled(self):
+        return self._conn._conn.telemetry_enabled
+
+    @telemetry_enabled.setter
+    def telemetry_enabled(self, value):
+        # Set both in-band and out-of-band telemetry to True/False
+        if value:
+            self._conn._conn.telemetry_enabled = True
+            self._conn._telemetry_client.telemetry._enabled = True
+        else:
+            self._conn._conn.telemetry_enabled = False
+            self._conn._telemetry_client.telemetry._enabled = False
+
+    @property
     def file(self) -> FileOperation:
         """Returns a :class:`FileOperation` object that you can use to perform file operations on stages.
 
