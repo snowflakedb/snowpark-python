@@ -589,8 +589,7 @@ class SnowflakePlanBuilder:
                     format_type_options[k] = v
 
         pattern = options.get("PATTERN", None)
-        # TODO track usage of pattern, will refactor this function in future
-        # Telemetry: https://snowflakecomputing.atlassian.net/browse/SNOW-363951
+        # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.__session._conn._telemetry_client.send_copy_pattern_telemetry()
 
@@ -703,6 +702,7 @@ class SnowflakePlanBuilder:
         transformations: Optional[List[str]] = None,
         user_schema: Optional[StructType] = None,
     ) -> SnowflakePlan:
+        # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.__session._conn._telemetry_client.send_copy_pattern_telemetry()
 

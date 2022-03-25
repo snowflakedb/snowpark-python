@@ -6,7 +6,7 @@
 import functools
 from datetime import datetime
 from enum import Enum, unique
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -14,6 +14,7 @@ from snowflake.connector.telemetry import (
     TelemetryData as PCTelemetryData,
     TelemetryField as PCTelemetryField,
 )
+from snowflake.connector.time_util import get_time_millis
 from snowflake.snowpark._internal.utils import Utils
 
 
@@ -49,6 +50,8 @@ class TelemetryField(Enum):
     PERF_CAT_UPLOAD_FILE = "upload_file"
 
 
+# A decorator to use in the Telemetry client to make sure operations
+# don't cause exceptions to be raised
 def safe_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
@@ -61,6 +64,7 @@ def safe_telemetry(func):
     return wrap
 
 
+# Action telemetry decorator for DataFrame class
 def df_action_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
@@ -73,6 +77,7 @@ def df_action_telemetry(func):
     return wrap
 
 
+# Action telemetry decorator for DataFrameWriter class
 def dfw_action_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
@@ -86,6 +91,7 @@ def dfw_action_telemetry(func):
     return wrap
 
 
+# Usage telemetry decorator for DataFrame class
 def df_usage_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
@@ -100,17 +106,20 @@ def df_usage_telemetry(func):
 
 class TelemetryClient:
     def __init__(self, conn: SnowflakeConnection):
-        self.telemetry: PCTelemetryClient = conn._telemetry
+        self.telemetry: PCTelemetryClient = (
+            None if Utils.is_in_stored_procedure() else conn._telemetry
+        )
         self.source: str = Utils.get_application_name()
         self.version: str = Utils.get_version()
         self.python_version: str = Utils.get_python_version()
         self.os: str = Utils.get_os_name()
 
-    def send(self, msg, timestamp=None):
-        if not timestamp:
-            timestamp = datetime.now()
-        telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
-        self.telemetry.try_add_log_to_batch(telemetry_data)
+    def send(self, msg: str, timestamp: Optional[int] = None):
+        if self.telemetry:
+            if not timestamp:
+                timestamp = get_time_millis()
+            telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
+            self.telemetry.try_add_log_to_batch(telemetry_data)
 
     def _create_basic_telemetry_data(self, telemetry_type: str) -> Dict[str, Any]:
         message = {
