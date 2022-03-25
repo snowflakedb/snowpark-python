@@ -63,6 +63,10 @@ from snowflake.snowpark._internal.sp_expressions import (
     Star as SPStar,
     TableFunctionExpression as SPTableFunctionExpression,
 )
+from snowflake.snowpark._internal.telemetry import (
+    df_action_telemetry,
+    df_usage_telemetry,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import TempObjectType, Utils, deprecate
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -362,6 +366,7 @@ class DataFrame:
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
 
+    @df_action_telemetry
     def collect(self) -> List["Row"]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
@@ -379,6 +384,7 @@ class DataFrame:
             else None,
         )
 
+    @df_action_telemetry
     def to_local_iterator(self) -> Iterator[Row]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
@@ -1257,6 +1263,7 @@ class DataFrame:
         """
         return self.__union_by_name_internal(other, is_all=True)
 
+    @df_usage_telemetry
     def __union_by_name_internal(
         self, other: "DataFrame", is_all: bool = False
     ) -> "DataFrame":
@@ -1674,6 +1681,7 @@ class DataFrame:
         # Put it all together
         return self.select([*old_cols, *new_cols])
 
+    @df_action_telemetry
     def count(self) -> int:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
@@ -1703,6 +1711,7 @@ class DataFrame:
 
         return DataFrameWriter(self)
 
+    @df_action_telemetry
     def copy_into_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -1835,6 +1844,7 @@ class DataFrame:
             ),
         )._internal_collect_with_tag()
 
+    @df_action_telemetry
     def show(self, n: int = 10, max_width: int = 50) -> None:
         """Evaluates this DataFrame and prints out the first ``n`` rows with the
         specified maximum number of characters per column.
@@ -2016,6 +2026,7 @@ class DataFrame:
             + line
         )
 
+    @df_action_telemetry
     def create_or_replace_view(
         self, name: Union[str, List[str], Tuple[str, ...]]
     ) -> List[Row]:
@@ -2048,6 +2059,7 @@ class DataFrame:
             else None,
         )
 
+    @df_action_telemetry
     def create_or_replace_temp_view(
         self, name: Union[str, List[str], Tuple[str, ...]]
     ) -> List[Row]:
@@ -2103,6 +2115,7 @@ class DataFrame:
 
         return self.session._conn.execute(self.session._analyzer.resolve(cmd), **kwargs)
 
+    @df_action_telemetry
     def first(self, n: Optional[int] = None) -> Union[Optional[Row], List[Row]]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
@@ -2295,6 +2308,7 @@ class DataFrame:
         ]
         return self.select(new_columns)
 
+    @df_action_telemetry
     def cache_result(self) -> "DataFrame":
         """Caches the content of this DataFrame to create a new cached DataFrame.
 
@@ -2350,6 +2364,7 @@ class DataFrame:
         new_plan = self.session.table(temp_table_name)._plan
         return DataFrame(session=self.session, plan=new_plan, is_cached=True)
 
+    @df_action_telemetry
     def random_split(
         self, weights: List[float], seed: Optional[int] = None
     ) -> List["DataFrame"]:
@@ -2498,6 +2513,10 @@ Query List:
             for n in lhs_names
             if n in set(rhs_names) and n not in normalized_using_columns
         ]
+
+        if common_col_names:
+            # We use the session of the LHS DataFrame to report this telemetry
+            lhs.session._conn._telemetry_client.send_alias_in_join_telemetry()
 
         lhs_prefix = DataFrame.__generate_prefix("l")
         rhs_prefix = DataFrame.__generate_prefix("r")
