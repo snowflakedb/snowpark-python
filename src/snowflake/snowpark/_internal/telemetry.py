@@ -4,7 +4,6 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import functools
-from datetime import datetime
 from enum import Enum, unique
 from typing import Any, Dict, Optional
 
