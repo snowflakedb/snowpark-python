@@ -8,7 +8,7 @@
 - Added `UDFRegistration.register_from_file()` to allow registering UDFs from Python source files or zip files directly.
 - Added `UDFRegistration.describe()` to describe a UDF.
 - Added `DataFrame.random_split()` to provide a way to randomly split a dataframe.
-- Added functions `md5()`, `sha1()`, `sha2()`, `ascii()`, `initcap()`, `length()`, `lower()`, `lpad()`, `ltrim()`, `rpad()`, `rtrim()`, `repeat()`, `soundex()`, `regexp_count()`, `replace()`, `charindex()`, `collate()`, `collation()`, `insert()`, `left()`, `right()`, `endswith()` to `snowflake.snowflake.functions`.
+- Added functions `md5()`, `sha1()`, `sha2()`, `ascii()`, `initcap()`, `length()`, `lower()`, `lpad()`, `ltrim()`, `rpad()`, `rtrim()`, `repeat()`, `soundex()`, `regexp_count()`, `replace()`, `charindex()`, `collate()`, `collation()`, `insert()`, `left()`, `right()`, `endswith()` to `snowflake.snowpark.functions`.
 - Allowed `call_udf()` to accept literal values.
 - Provided a `distinct` keyword in `array_agg()`.
 
