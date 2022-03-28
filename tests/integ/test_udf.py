@@ -1407,3 +1407,33 @@ def test_pandas_udf_negative(session):
     with pytest.raises(TypeError) as ex_info:
         pandas_udf(add)
     assert "The return type must be specified" in str(ex_info)
+
+
+def test_register_udf_no_commit(session):
+    def plus1(x: int) -> int:
+        return x + 1
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    perm_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    try:
+        # Test function registration
+        session.sql("begin").collect()
+        session.udf.register(func=plus1, name=temp_func_name)
+        assert Utils.is_active_transaction(session)
+        session.udf.register(
+            func=plus1, name=perm_func_name, stage_location=tmp_stage_name
+        )
+        assert Utils.is_active_transaction(session)
+
+        # Test UDF call
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(df.select(call_udf(temp_func_name, col("a"))), [Row(2)])
+        Utils.check_answer(df.select(call_udf(perm_func_name, col("a"))), [Row(2)])
+        assert Utils.is_active_transaction(session)
+
+        session.sql("commit").collect()
+        assert not Utils.is_active_transaction(session)
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}(int)")
+        session._run_query(f"drop function if exists {perm_func_name}(int)")

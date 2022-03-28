@@ -123,6 +123,7 @@ class SnowflakePlan(LogicalPlan):
         expr_to_alias=None,
         session=None,
         source_plan=None,
+        is_ddl_on_temp_object=False,
     ):
         super().__init__()
         self.queries: List[Query] = queries
@@ -131,6 +132,7 @@ class SnowflakePlan(LogicalPlan):
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
         self.session = session
         self.source_plan = source_plan
+        self.is_ddl_on_temp_object = is_ddl_on_temp_object
 
         # use this to simulate scala's lazy val
         self.__placeholder_for_attributes = None
@@ -214,10 +216,21 @@ class SnowflakePlanBuilder:
         self.pkg = AnalyzerPackage()
 
     @SnowflakePlan.Decorator.wrap_exception
-    def build(self, sql_generator, child, source_plan, schema_query=None):
+    def build(
+        self,
+        sql_generator,
+        child,
+        source_plan,
+        schema_query=None,
+        is_ddl_on_temp_object=False,
+    ):
         select_child = self._add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
-            Query(sql_generator(select_child.queries[-1].sql), "")
+            Query(
+                sql_generator(select_child.queries[-1].sql),
+                query_id_place_holder="",
+                is_ddl_on_temp_object=is_ddl_on_temp_object,
+            )
         ]
         new_schema_query = (
             schema_query if schema_query else sql_generator(child._schema_query)
@@ -230,15 +243,22 @@ class SnowflakePlanBuilder:
             select_child.expr_to_alias,
             self.__session,
             source_plan,
+            is_ddl_on_temp_object,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
     def build_from_multiple_queries(
-        self, multi_sql_generator, child, source_plan, schema_query=None
+        self,
+        multi_sql_generator,
+        child,
+        source_plan,
+        schema_query=None,
+        is_ddl_on_temp_object=False,
     ):
         select_child = self._add_result_scan_if_not_select(child)
         queries = select_child.queries[0:-1] + [
-            Query(msg) for msg in multi_sql_generator(select_child.queries[-1].sql)
+            Query(msg, is_ddl_on_temp_object=is_ddl_on_temp_object)
+            for msg in multi_sql_generator(select_child.queries[-1].sql)
         ]
         new_schema_query = (
             schema_query
@@ -334,14 +354,14 @@ class SnowflakePlanBuilder:
         drop_table_stmt = self.pkg.drop_table_if_exists_statement(temp_table_name)
         schema_query = self.pkg.schema_value_statement(attributes)
         queries = [
-            Query(create_table_stmt),
+            Query(create_table_stmt, is_ddl_on_temp_object=True),
             BatchInsertQuery(insert_stmt, data),
             Query(select_stmt),
         ]
         return SnowflakePlan(
             queries=queries,
             schema_query=schema_query,
-            post_actions=[drop_table_stmt],
+            post_actions=[Query(drop_table_stmt, is_ddl_on_temp_object=True)],
             session=self.__session,
             source_plan=source_plan,
         )
@@ -558,6 +578,7 @@ class SnowflakePlanBuilder:
             child,
             None,
             child._schema_query,
+            is_ddl_on_temp_object=True,
         )
 
     def create_table_and_insert(
@@ -609,7 +630,8 @@ class SnowflakePlanBuilder:
                         format_type_options,
                         temp=True,
                         if_not_exist=True,
-                    )
+                    ),
+                    is_ddl_on_temp_object=True,
                 ),
                 Query(
                     pkg.select_from_path_with_format_statement(
@@ -623,7 +645,12 @@ class SnowflakePlanBuilder:
             return SnowflakePlan(
                 queries,
                 pkg.schema_value_statement(schema),
-                [pkg.drop_file_format_if_exists_statement(temp_file_format_name)],
+                [
+                    Query(
+                        pkg.drop_file_format_if_exists_statement(temp_file_format_name),
+                        is_ddl_on_temp_object=True,
+                    )
+                ],
                 {},
                 self.__session,
                 None,
@@ -656,7 +683,8 @@ class SnowflakePlanBuilder:
                     pkg.create_temp_table_statement(
                         temp_table_name,
                         pkg.attribute_to_schema_string(temp_table_schema),
-                    )
+                    ),
+                    is_ddl_on_temp_object=True,
                 ),
                 Query(
                     pkg.copy_into_table(
@@ -679,7 +707,12 @@ class SnowflakePlanBuilder:
                 ),
             ]
 
-            post_actions = [pkg.drop_table_if_exists_statement(temp_table_name)]
+            post_actions = [
+                Query(
+                    pkg.drop_table_if_exists_statement(temp_table_name),
+                    is_ddl_on_temp_object=True,
+                )
+            ]
             return SnowflakePlan(
                 queries,
                 pkg.schema_value_statement(schema),
@@ -856,13 +889,19 @@ class SnowflakePlanBuilder:
 
 
 class Query:
-    def __init__(self, sql: str, query_id_place_holder: Optional[str] = None):
+    def __init__(
+        self,
+        sql: str,
+        query_id_place_holder: Optional[str] = None,
+        is_ddl_on_temp_object: bool = False,
+    ):
         self.sql = sql
         self.query_id_place_holder = (
             query_id_place_holder
             if query_id_place_holder
             else f"query_id_place_holder_{Utils.generate_random_alphanumeric()}"
         )
+        self.is_ddl_on_temp_object = is_ddl_on_temp_object
 
 
 class BatchInsertQuery(Query):

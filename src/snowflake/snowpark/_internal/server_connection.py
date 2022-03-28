@@ -355,9 +355,19 @@ class ServerConnection:
 
     @_Decorator.wrap_exception
     def run_query(
-        self, query: str, to_pandas: bool = False, to_iter: bool = False, **kwargs
+        self,
+        query: str,
+        to_pandas: bool = False,
+        to_iter: bool = False,
+        is_ddl_on_temp_object: bool = False,
+        **kwargs,
     ) -> Dict[str, Any]:
         try:
+            # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
+            if is_ddl_on_temp_object:
+                if "_statement_params" not in kwargs:
+                    kwargs["_statement_params"] = {}
+                kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
             results_cursor = self._cursor.execute(query, **kwargs)
             self.notify_query_listeners(
                 QueryRecord(results_cursor.sfqid, results_cursor.query)
@@ -477,6 +487,7 @@ class ServerConnection:
                         final_query,
                         to_pandas,
                         to_iter and (i == len(plan.queries) - 1),
+                        is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                         **kwargs,
                     )
                     placeholders[query.query_id_place_holder] = result["sfqid"]
@@ -486,7 +497,11 @@ class ServerConnection:
         finally:
             # delete created tmp object
             for action in plan.post_actions:
-                self.run_query(action, **kwargs)
+                self.run_query(
+                    action.sql,
+                    is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+                    **kwargs,
+                )
 
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
