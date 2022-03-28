@@ -895,8 +895,10 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
-    def _run_query(self, query: str) -> List[Any]:
-        return self._conn.run_query(query)["data"]
+    def _run_query(self, query: str, is_ddl_on_temp_object: bool = False) -> List[Any]:
+        return self._conn.run_query(query, is_ddl_on_temp_object=is_ddl_on_temp_object)[
+            "data"
+        ]
 
     def _get_result_attributes(self, query: str) -> List[SPAttribute]:
         return self._conn.get_result_attributes(query)
@@ -921,7 +923,8 @@ class Session:
         )
         if not self.__stage_created:
             self._run_query(
-                f"create temporary stage if not exists {qualified_stage_name}"
+                f"create temporary stage if not exists {qualified_stage_name}",
+                is_ddl_on_temp_object=True,
             )
             self.__stage_created = True
         return f"@{qualified_stage_name}"
