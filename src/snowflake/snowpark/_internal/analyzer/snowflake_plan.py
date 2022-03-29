@@ -759,7 +759,11 @@ class SnowflakePlanBuilder:
                         self.pkg.attribute_to_schema_string(attributes),
                         False,
                         False,
-                    )
+                    ),
+                    # This is an exception. The principle is to avoid surprising behavior and most of the time
+                    # it applies to temp object. But this perm table creation is also one place where we create
+                    # table on behalf of the user automatically.
+                    is_ddl_on_temp_object=True,
                 ),
                 Query(copy_command),
             ]

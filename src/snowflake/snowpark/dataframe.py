@@ -2421,7 +2421,7 @@ class DataFrame:
         """
         return {
             "queries": [query.sql.strip() for query in self._plan.queries],
-            "post_actions": [query.strip() for query in self._plan.post_actions],
+            "post_actions": [query.sql.strip() for query in self._plan.post_actions],
         }
 
     def explain(self) -> None:

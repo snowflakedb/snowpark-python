@@ -365,7 +365,7 @@ class ServerConnection:
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
-                if "_statement_params" not in kwargs:
+                if not kwargs.get("_statement_params"):
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
             results_cursor = self._cursor.execute(query, **kwargs)
