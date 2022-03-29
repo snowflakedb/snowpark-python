@@ -750,21 +750,6 @@ class AnalyzerPackage:
             else (child + self._Space + sql_operator)
         )
 
-    def unary_minus_expression(self, child: str) -> str:
-        return self._Minus + child
-
-    def not_expression(self, child: str) -> str:
-        return self._Not + child
-
-    def is_nan_expression(self, child: str) -> str:
-        return child + self._IsNaN
-
-    def is_null_expression(self, child: str) -> str:
-        return child + self._Is + self._Null
-
-    def is_not_null_expression(self, child: str) -> str:
-        return child + self._Is + self._Not + self._Null
-
     def window_expression(self, window_function: str, window_spec: str) -> str:
         return (
             window_function
