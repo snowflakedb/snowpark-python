@@ -8,7 +8,7 @@ THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 SNOWPARK_DIR="$( dirname "${THIS_DIR}")"
 SNOWPARK_WHL="$(ls $SNOWPARK_DIR/dist/*.whl | sort -r | head -n 1)"
 
-python3.6 -m venv fips_env
+python3.8 -m venv fips_env
 source fips_env/bin/activate
 pip install -U setuptools pip
 pip install "cryptography<3.3.0" --no-binary cryptography
