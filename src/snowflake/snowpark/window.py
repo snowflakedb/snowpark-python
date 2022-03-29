@@ -8,21 +8,19 @@ import sys
 from typing import List, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.sp_expressions import (
-    Ascending as SPAscending,
-    CurrentRow as SPCurrentRow,
-    Expression as SPExpression,
-    Literal as SPLiteral,
-    RangeFrame as SPRangeFrame,
-    RowFrame as SPRowFrame,
-    SortOrder as SPSortOrder,
-    SpecifiedWindowFrame as SPSpecifiedWindowFrame,
-    UnboundedFollowing as SPUnboundedFollowing,
-    UnboundedPreceding as SPUnboundedPreceding,
-    UnspecifiedFrame as SPUnspecifiedFrame,
-    WindowExpression as SPWindowExpression,
-    WindowFrame as SPWindowFrame,
-    WindowSpecDefinition as SPWindowSpecDefinition,
+from snowflake.snowpark._internal.analyzer.expression import Expression, Literal
+from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
+from snowflake.snowpark._internal.analyzer.window_expression import (
+    CurrentRow,
+    RangeFrame,
+    RowFrame,
+    SpecifiedWindowFrame,
+    UnboundedFollowing,
+    UnboundedPreceding,
+    UnspecifiedFrame,
+    WindowExpression,
+    WindowFrame,
+    WindowSpecDefinition,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import Utils
@@ -128,7 +126,7 @@ class Window:
 
     @staticmethod
     def _spec() -> "WindowSpec":
-        return WindowSpec([], [], SPUnspecifiedFrame())
+        return WindowSpec([], [], UnspecifiedFrame())
 
     orderBy = order_by
     partitionBy = partition_by
@@ -141,9 +139,9 @@ class WindowSpec:
 
     def __init__(
         self,
-        partition_spec: List[SPExpression],
-        order_spec: List[SPSortOrder],
-        frame: SPWindowFrame,
+        partition_spec: List[Expression],
+        order_spec: List[SortOrder],
+        frame: WindowFrame,
     ):
         self.partition_spec = partition_spec
         self.order_spec = order_spec
@@ -192,15 +190,15 @@ class WindowSpec:
         for e in exprs:
             if isinstance(e, str):
                 order_spec.append(
-                    SPSortOrder(
-                        snowflake.snowpark.column.Column(e).expression, SPAscending()
+                    SortOrder(
+                        snowflake.snowpark.column.Column(e).expression, Ascending()
                     )
                 )
             elif isinstance(e, snowflake.snowpark.column.Column):
-                if isinstance(e.expression, SPSortOrder):
+                if isinstance(e.expression, SortOrder):
                     order_spec.append(e.expression)
-                elif isinstance(e.expression, SPExpression):
-                    order_spec.append(SPSortOrder(e.expression, SPAscending()))
+                elif isinstance(e.expression, Expression):
+                    order_spec.append(SortOrder(e.expression, Ascending()))
 
         return WindowSpec(self.partition_spec, order_spec, self.frame)
 
@@ -215,7 +213,7 @@ class WindowSpec:
         return WindowSpec(
             self.partition_spec,
             self.order_spec,
-            SPSpecifiedWindowFrame(SPRowFrame(), boundary_start, boundary_end),
+            SpecifiedWindowFrame(RowFrame(), boundary_start, boundary_end),
         )
 
     def range_between(self, start: int, end: int) -> "WindowSpec":
@@ -229,33 +227,33 @@ class WindowSpec:
         return WindowSpec(
             self.partition_spec,
             self.order_spec,
-            SPSpecifiedWindowFrame(SPRangeFrame(), boundary_start, boundary_end),
+            SpecifiedWindowFrame(RangeFrame(), boundary_start, boundary_end),
         )
 
     def _convert_boundary_to_expr(
         self, start: int, end: int
-    ) -> Tuple[SPExpression, SPExpression]:
+    ) -> Tuple[Expression, Expression]:
         if start == 0:
-            boundary_start = SPCurrentRow()
+            boundary_start = CurrentRow()
         elif start <= Window.UNBOUNDED_PRECEDING:
-            boundary_start = SPUnboundedPreceding()
+            boundary_start = UnboundedPreceding()
         else:
-            boundary_start = SPLiteral(start)
+            boundary_start = Literal(start)
 
         if end == 0:
-            boundary_end = SPCurrentRow()
+            boundary_end = CurrentRow()
         elif end >= Window.UNBOUNDED_FOLLOWING:
-            boundary_end = SPUnboundedFollowing()
+            boundary_end = UnboundedFollowing()
         else:
-            boundary_end = SPLiteral(end)
+            boundary_end = Literal(end)
 
         return boundary_start, boundary_end
 
     def _with_aggregate(
-        self, aggregate: SPExpression
+        self, aggregate: Expression
     ) -> "snowflake.snowpark.column.Column":
-        spec = SPWindowSpecDefinition(self.partition_spec, self.order_spec, self.frame)
-        return snowflake.snowpark.column.Column(SPWindowExpression(aggregate, spec))
+        spec = WindowSpecDefinition(self.partition_spec, self.order_spec, self.frame)
+        return snowflake.snowpark.column.Column(WindowExpression(aggregate, spec))
 
     orderBy = order_by
     partitionBy = partition_by

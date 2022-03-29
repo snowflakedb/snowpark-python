@@ -26,8 +26,8 @@ from typing import IO, List, Optional, Tuple, Type
 import snowflake.snowpark
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.version import VERSION as connector_version
+from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.sp_expressions import Attribute
 from snowflake.snowpark.types import DecimalType, LongType, StringType
 from snowflake.snowpark.version import VERSION as snowpark_version
 

@@ -175,23 +175,15 @@ from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.sp_expressions import (
-    ArrayIntersect as SPArrayIntersect,
-    ArraysOverlap as SPArraysOverlap,
-    CaseWhen as SPCaseWhen,
-    FunctionExpression as SPFunctionExpression,
-    IsNaN as SPIsNan,
-    IsNull as SPIsNull,
-    Lag as SPLag,
-    Lead as SPLead,
-    ListAgg as SPListAgg,
-    Literal as SPLiteral,
-    MultipleExpression as SPMultipleExpression,
-    NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
-    Star as SPStar,
-    TableFunction as SPTableFunction,
-    TableFunctionExpression as SPTableFunctionExpression,
+from snowflake.snowpark._internal.analyzer.expression import (
+    CaseWhen,
+    FunctionExpression,
+    ListAgg,
+    Literal,
+    MultipleExpression,
+    Star,
 )
+from snowflake.snowpark._internal.analyzer.window_expression import Lag, Lead
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrName,
@@ -227,7 +219,7 @@ def lit(literal: LiteralType) -> Column:
     ``datetime.datetime``, ``decimal.Decimal``. Structured data types,
     such as: ``list``, ``tuple``, ``dict`` are not supported.
     """
-    return literal if isinstance(literal, Column) else Column(SPLiteral(literal))
+    return literal if isinstance(literal, Column) else Column(Literal(literal))
 
 
 def sql_expr(sql: str) -> Column:
@@ -262,8 +254,8 @@ def count(e: ColumnOrName) -> Column:
     total number of records."""
     c = _to_col_if_str(e, "count")
     return (
-        builtin("count")(SPLiteral(1))
-        if isinstance(c.expression, SPStar)
+        builtin("count")(Literal(1))
+        if isinstance(c.expression, Star)
         else builtin("count")(c.expression)
     )
 
@@ -274,7 +266,7 @@ def count_distinct(*cols: ColumnOrName) -> Column:
     """
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
-        SPFunctionExpression("count", [c.expression for c in cs], is_distinct=True)
+        FunctionExpression("count", [c.expression for c in cs], is_distinct=True)
     )
 
 
@@ -446,13 +438,13 @@ def coalesce(*e: ColumnOrName) -> Column:
 def equal_nan(e: ColumnOrName) -> Column:
     """Return true if the value in the column is not a number (NaN)."""
     c = _to_col_if_str(e, "equal_nan")
-    return Column(SPIsNan(c.expression))
+    return c.equal_nan()
 
 
 def is_null(e: ColumnOrName) -> Column:
     """Return true if the value in the column is null."""
     c = _to_col_if_str(e, "is_null")
-    return Column(SPIsNull(c.expression))
+    return c.is_null()
 
 
 def negate(e: ColumnOrName) -> Column:
@@ -470,7 +462,7 @@ def not_(e: ColumnOrName) -> Column:
 def random(seed: Optional[int] = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
     s = seed if seed is not None else randint(-(2 ** 63), 2 ** 63 - 1)
-    return builtin("random")(SPLiteral(s))
+    return builtin("random")(Literal(s))
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
@@ -1027,7 +1019,7 @@ def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     is NULL-safe, meaning it treats NULLs as known values for comparing equality."""
     a1 = _to_col_if_str(array1, "arrays_overlap")
     a2 = _to_col_if_str(array2, "arrays_overlap")
-    return Column(SPArraysOverlap(a1.expression, a2.expression))
+    return builtin("arrays_overlap")(a1, a2)
 
 
 def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
@@ -1040,7 +1032,7 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
         array2: An ARRAY that contains elements to be compared."""
     a1 = _to_col_if_str(array1, "array_intersection")
     a2 = _to_col_if_str(array2, "array_intersection")
-    return Column(SPArrayIntersect(a1.expression, a2.expression))
+    return builtin("array_intersection")(a1, a2)
 
 
 def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
@@ -1728,7 +1720,7 @@ def when(condition: Union[Column, str], value: Union[ColumnOrLiteral]) -> CaseEx
             if ``condition`` is true.
     """
     return CaseExpr(
-        SPCaseWhen(
+        CaseWhen(
             [
                 (
                     _to_col_if_sql_expr(condition, "when").expression,
@@ -1811,7 +1803,7 @@ def in_(
     """
     vals = Utils.parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
-    return Column(SPMultipleExpression([c.expression for c in columns])).in_(vals)
+    return Column(MultipleExpression([c.expression for c in columns])).in_(vals)
 
 
 def cume_dist() -> Column:
@@ -1867,7 +1859,7 @@ def lag(
     """
     c = _to_col_if_str(e, "lag")
     return Column(
-        SPLag(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lag(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
     )
 
 
@@ -1883,7 +1875,7 @@ def lead(
     """
     c = _to_col_if_str(e, "lead")
     return Column(
-        SPLead(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lead(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
     )
 
 
@@ -1925,7 +1917,7 @@ def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> 
         df.select(listagg(df["col2"], ",", False)
     """
     c = _to_col_if_str(e, "listagg")
-    return Column(SPListAgg(c.expression, delimiter, is_distinct))
+    return Column(ListAgg(c.expression, delimiter, is_distinct))
 
 
 def when_matched(
@@ -2261,40 +2253,7 @@ def _call_function(
     expressions = [
         Column._to_expr(arg) for arg in Utils.parse_positional_args_to_list(*args)
     ]
-    return Column(SPFunctionExpression(name, expressions, is_distinct=is_distinct))
-
-
-def _create_table_function_expression(
-    func_name: Union[str, List[str]],
-    *args: ColumnOrName,
-    **named_args: ColumnOrName,
-) -> SPTableFunctionExpression:
-    if args and named_args:
-        raise ValueError("A table function shouldn't have both args and named args")
-    if isinstance(func_name, str):
-        fqdn = func_name
-    elif isinstance(func_name, list):
-        for n in func_name:
-            Utils.validate_object_name(n)
-        fqdn = ".".join(func_name)
-    else:
-        raise TypeError("The table function name should be a str or a list of strs.")
-    func_arguments = args
-    if func_arguments:
-        return SPTableFunction(
-            fqdn,
-            (
-                _to_col_if_str(arg, "table_function").expression
-                for arg in func_arguments
-            ),
-        )
-    return SPNamedArgumentsTableFunction(
-        fqdn,
-        {
-            arg_name: _to_col_if_str(arg, "table_function").expression
-            for arg_name, arg in named_args.items()
-        },
-    )
+    return Column(FunctionExpression(name, expressions, is_distinct=is_distinct))
 
 
 def sproc(

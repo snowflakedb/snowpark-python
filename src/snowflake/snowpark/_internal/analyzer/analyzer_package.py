@@ -14,8 +14,8 @@ from snowflake.snowpark._internal.analyzer.binary_plan_nodes import (
     UsingJoin as SPUsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.sp_expressions import Attribute
 from snowflake.snowpark._internal.type_utils import convert_to_sf_type
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.row import Row
@@ -739,6 +739,15 @@ class AnalyzerPackage:
             )
             if format_statement or pattern_statement
             else self._EmptyString
+        )
+
+    def unary_expression(
+        self, child: str, sql_operator: str, operator_first: bool
+    ) -> str:
+        return (
+            (sql_operator + self._Space + child)
+            if operator_first
+            else (child + self._Space + sql_operator)
         )
 
     def unary_minus_expression(self, child: str) -> str:
