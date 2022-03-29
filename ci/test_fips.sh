@@ -3,7 +3,6 @@
 # Test Snowflake Connector
 # Note this is the script that test_docker.sh runs inside of the docker container
 #
-scl enable rh-python38 bash
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck disable=SC1090
 SNOWPARK_DIR="$( dirname "${THIS_DIR}")"
