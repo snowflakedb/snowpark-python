@@ -19,6 +19,7 @@ echo "Default installed OpenSSL version"
 openssl version
 python -c "import ssl; print('Python openssl library: ' + ssl.OPENSSL_VERSION)"
 python -c  "from cryptography.hazmat.backends.openssl import backend;print('Cryptography openssl library: ' + backend.openssl_version_text())"
+python -c "import hashlib;print(hashlib.md5(b'G').digest());"
 pip freeze
 
 cd $SNOWPARK_DIR
