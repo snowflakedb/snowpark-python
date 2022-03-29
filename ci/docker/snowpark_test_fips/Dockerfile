@@ -12,7 +12,7 @@ RUN chmod 777 /home/user
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
-RUN yum install -y python3 redhat-rpm-config gcc libffi-devel python3-devel openssl openssl-devel bzip2-devel wget make
-RUN cd /opt && wget --no-check-certificate https://www.python.org/ftp/python/3.8.12/Python-3.8.12.tgz && tar xzf Python-3.8.12.tgz && cd Python-3.8*/ && ./configure --enable-optimizations && make altinstall && rm -rf /opt/Python*
+RUN yum install -y python3 redhat-rpm-config gcc libffi-devel python3-devel openssl openssl-devel bzip2-devel wget make sqlite-devel
+RUN cd /opt && wget --no-check-certificate https://www.python.org/ftp/python/3.8.12/Python-3.8.12.tgz && tar xzf Python-3.8.12.tgz && cd Python-3.8*/ && ./configure --enable-loadable-sqlite-extensions --enable-optimizations && make altinstall && rm -rf /opt/Python*
 RUN python3.8 -m pip install --upgrade pip setuptools wheel
 RUN python3.8 -m pip install virtualenv
