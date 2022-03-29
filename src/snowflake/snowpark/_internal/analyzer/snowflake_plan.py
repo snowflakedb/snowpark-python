@@ -623,7 +623,7 @@ class SnowflakePlanBuilder:
             return SnowflakePlan(
                 queries,
                 pkg.schema_value_statement(schema),
-                [],
+                [pkg.drop_file_format_if_exists_statement(temp_file_format_name)],
                 {},
                 self.__session,
                 None,
