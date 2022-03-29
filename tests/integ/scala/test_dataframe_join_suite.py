@@ -50,7 +50,6 @@ def test_join_using_multiple_columns(session):
 
 
 def test_full_outer_join_followed_by_inner_join(session):
-
     a = session.create_dataframe([[1, 2], [2, 3]]).to_df(["a", "b"])
     b = session.create_dataframe([[2, 5], [3, 4]]).to_df(["a", "c"])
     c = session.create_dataframe([[3, 1]]).to_df(["a", "d"])
@@ -93,7 +92,6 @@ def test_default_inner_join(session):
 
 
 def test_default_inner_join_using_column(session):
-
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -104,7 +102,6 @@ def test_default_inner_join_using_column(session):
 
 
 def test_3_way_joins(session):
-
     df1 = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -119,7 +116,6 @@ def test_3_way_joins(session):
 
 
 def test_default_inner_join_with_join_conditions(session):
-
     df1 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
     )
@@ -135,7 +131,6 @@ def test_default_inner_join_with_join_conditions(session):
 
 
 def test_join_with_multiple_conditions(session):
-
     df1 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
     )
@@ -147,16 +142,15 @@ def test_join_with_multiple_conditions(session):
     assert res == []
 
 
-def test_join_with_ambiguous_column_in_condidtion(session_cnx):
-    with session_cnx() as session:
-        df = session.create_dataframe([1, 2]).to_df(["a"])
-        df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
-            ["a", "b"]
-        )
+def test_join_with_ambiguous_column_in_condidtion(session):
+    df = session.create_dataframe([1, 2]).to_df(["a"])
+    df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
+        ["a", "b"]
+    )
 
-        with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-            df.join(df2, col("a") == col("a")).collect()
-        assert "The reference to the column 'A' is ambiguous." in ex_info.value.message
+    with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
+        df.join(df2, col("a") == col("a")).collect()
+    assert "The reference to the column 'A' is ambiguous." in ex_info.value.message
 
 
 def test_join_using_multiple_columns_and_specifying_join_type(session):
@@ -282,7 +276,6 @@ def test_cross_join(session):
 
 
 def test_join_ambiguous_columns_with_specified_sources(session):
-
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]
@@ -298,29 +291,28 @@ def test_join_ambiguous_columns_with_specified_sources(session):
     assert sorted(res, key=lambda x: x[0]) == [Row(1, "test1"), Row(4, "test2")]
 
 
-def test_join_ambiguous_columns_without_specified_sources(session_cnx):
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, "one"], [2, "two"]]).to_df(
-            ["intcol", " stringcol"]
-        )
-        df2 = session.create_dataframe([[1, "one"], [3, "three"]]).to_df(
-            ["intcol", " bcol"]
+def test_join_ambiguous_columns_without_specified_sources(session):
+    df = session.create_dataframe([[1, "one"], [2, "two"]]).to_df(
+        ["intcol", " stringcol"]
+    )
+    df2 = session.create_dataframe([[1, "one"], [3, "three"]]).to_df(
+        ["intcol", " bcol"]
+    )
+
+    for join_type in ["inner", "leftouter", "rightouter", "full_outer"]:
+        with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
+            df.join(df2, col("intcol") == col("intcol")).collect()
+        assert (
+            "The reference to the column 'INTCOL' is ambiguous."
+            in ex_info.value.message
         )
 
-        for join_type in ["inner", "leftouter", "rightouter", "full_outer"]:
-            with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-                df.join(df2, col("intcol") == col("intcol")).collect()
-            assert (
-                "The reference to the column 'INTCOL' is ambiguous."
-                in ex_info.value.message
-            )
-
-            with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-                df.join(df2, df["intcol"] == df2["intcol"]).select("intcol").collect()
-            assert (
-                "The reference to the column 'INTCOL' is ambiguous."
-                in ex_info.value.message
-            )
+        with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
+            df.join(df2, df["intcol"] == df2["intcol"]).select("intcol").collect()
+        assert (
+            "The reference to the column 'INTCOL' is ambiguous."
+            in ex_info.value.message
+        )
 
 
 def test_join_expression_ambiguous_columns(session):
@@ -344,28 +336,27 @@ def test_join_expression_ambiguous_columns(session):
 
 
 @pytest.mark.skip("Ignored in Scala tests since this only produces a warning")
-def test_semi_join_expression_ambiguous_columns(session_cnx):
-    with session_cnx() as session:
-        lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
-            ["intcol", "negcol", "lhscol"]
-        )
-        rhs = session.create_dataframe([[1, -10, "one"], [2, -20, "two"]]).to_df(
-            ["intcol", "negcol", "rhscol"]
-        )
+def test_semi_join_expression_ambiguous_columns(session):
+    lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
+        ["intcol", "negcol", "lhscol"]
+    )
+    rhs = session.create_dataframe([[1, -10, "one"], [2, -20, "two"]]).to_df(
+        ["intcol", "negcol", "rhscol"]
+    )
 
-        with pytest.raises(SnowparkSQLInvalidIdException) as ex_info:
-            lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftsemi").select(
-                rhs["intcol"]
-            ).collect()
-        assert 'Column referenced with df["INTCOL"]' in str(ex_info)
-        assert "not present" in str(ex_info)
+    with pytest.raises(SnowparkSQLInvalidIdException) as ex_info:
+        lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftsemi").select(
+            rhs["intcol"]
+        ).collect()
+    assert 'Column referenced with df["INTCOL"]' in str(ex_info)
+    assert "not present" in str(ex_info)
 
-        with pytest.raises(SnowparkSQLInvalidIdException) as ex_info:
-            lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftanti").select(
-                rhs["intcol"]
-            ).collect()
-        assert 'Column referenced with df["INTCOL"]' in str(ex_info)
-        assert "not present" in str(ex_info)
+    with pytest.raises(SnowparkSQLInvalidIdException) as ex_info:
+        lhs.join(rhs, lhs["intcol"] == rhs["intcol"], "leftanti").select(
+            rhs["intcol"]
+        ).collect()
+    assert 'Column referenced with df["INTCOL"]' in str(ex_info)
+    assert "not present" in str(ex_info)
 
 
 def test_semi_join_with_columns_from_LHS(session):
@@ -463,7 +454,6 @@ def test_using_joins(session):
 
 
 def test_columns_with_and_without_quotes(session):
-
     lhs = session.create_dataframe([[1, 1.0]]).to_df(["intcol", "doublecol"])
     rhs = session.create_dataframe([[1, 2.0]]).to_df(['"INTCOL"', '"DoubleCol"'])
 
@@ -495,7 +485,6 @@ def test_columns_with_and_without_quotes(session):
 
 
 def test_aliases_multiple_levels_deep(session):
-
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
     )
@@ -517,7 +506,6 @@ def test_aliases_multiple_levels_deep(session):
 
 
 def test_join_sql_as_the_backing_dataframe(session):
-
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "int int, int2 int, str string")
@@ -561,7 +549,6 @@ def test_join_sql_as_the_backing_dataframe(session):
 
 
 def test_negative_test_for_self_join_with_conditions(session):
-
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -625,7 +612,6 @@ def test_clone_can_help_these_self_joins(session):
 
 
 def test_natural_cross_joins(session):
-
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -662,7 +648,6 @@ def test_natural_cross_joins(session):
 
 
 def test_clone_with_join_dataframe(session):
-
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, table_name1, "c1 int, c2 int")
@@ -710,23 +695,22 @@ def test_join_of_join(session):
         Utils.drop_table(session, table_name1)
 
 
-def test_negative_test_join_of_join(session_cnx):
-    with session_cnx() as session:
-        table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-        try:
-            Utils.create_table(session, table_name1, "c1 int, c2 int")
-            session.sql(f"insert into {table_name1} values(1, 1), (2, 2)").collect()
-            df_l = session.table(table_name1)
-            df_r = copy.copy(df_l)
-            df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
-            df_j_clone = copy.copy(df_j)
+def test_negative_test_join_of_join(session):
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        Utils.create_table(session, table_name1, "c1 int, c2 int")
+        session.sql(f"insert into {table_name1} values(1, 1), (2, 2)").collect()
+        df_l = session.table(table_name1)
+        df_r = copy.copy(df_l)
+        df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
+        df_j_clone = copy.copy(df_j)
 
-            with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-                df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
-            assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
+        with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
+            df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
+        assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
 
-        finally:
-            Utils.drop_table(session, table_name1)
+    finally:
+        Utils.drop_table(session, table_name1)
 
 
 def test_drop_on_join(session):
@@ -816,7 +800,6 @@ def test_process_outer_join_results_using_the_non_nullable_columns_in_the_join_o
 
 
 def test_outer_join_conversion(session):
-
     df = session.create_dataframe([(1, 2, "1"), (3, 4, "3")]).to_df(
         ["int", "int2", "str"]
     )
@@ -910,7 +893,6 @@ def test_name_alias_on_multiple_join(session):
 
 
 def test_name_alias_on_multiple_join_unnormalized_name(session):
-
     table_trips = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_stations = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -951,23 +933,21 @@ def test_name_alias_on_multiple_join_unnormalized_name(session):
         Utils.drop_table(session, table_stations)
 
 
-def test_report_error_when_refer_common_col(session_cnx):
-    with session_cnx() as session:
-        df1 = session.create_dataframe([[1, 2]]).to_df(["a", "b"])
-        df2 = session.create_dataframe([[1, 2]]).to_df(["c", "d"])
-        df3 = session.create_dataframe([[1, 2]]).to_df(["e", "f"])
+def test_report_error_when_refer_common_col(session):
+    df1 = session.create_dataframe([[1, 2]]).to_df(["a", "b"])
+    df2 = session.create_dataframe([[1, 2]]).to_df(["c", "d"])
+    df3 = session.create_dataframe([[1, 2]]).to_df(["e", "f"])
 
-        df4 = df1.join(df2, df1["a"] == df2["c"])
-        df5 = df3.join(df2, df2["c"] == df3["e"])
-        df6 = df4.join(df5, df4["a"] == df5["e"])
+    df4 = df1.join(df2, df1["a"] == df2["c"])
+    df5 = df3.join(df2, df2["c"] == df3["e"])
+    df6 = df4.join(df5, df4["a"] == df5["e"])
 
-        with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-            df6.select("*").select(df2["c"]).collect()
-        assert "The reference to the column 'C' is ambiguous." in ex_info.value.message
+    with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
+        df6.select("*").select(df2["c"]).collect()
+    assert "The reference to the column 'C' is ambiguous." in ex_info.value.message
 
 
 def test_select_all_on_join_result(session):
-
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
 
@@ -1013,7 +993,6 @@ def test_select_all_on_join_result(session):
 
 
 def test_select_left_right_on_join_result(session):
-
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
 
@@ -1040,7 +1019,6 @@ def test_select_left_right_on_join_result(session):
 
 
 def test_select_left_right_combination_on_join_result(session):
-
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
 

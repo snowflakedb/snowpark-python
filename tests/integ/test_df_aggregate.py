@@ -12,251 +12,250 @@ from snowflake.snowpark.functions import col
 from tests.utils import Utils
 
 
-def test_df_agg_tuples_basic(session_cnx):
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
-            ["first", "second"]
-        )
+def test_df_agg_tuples_basic(session):
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
 
-        # Aggregations on 'first' column
-        res = df.agg([("first", "min")]).collect()
-        Utils.assert_rows(res, [Row(1)])
+    # Aggregations on 'first' column
+    res = df.agg([("first", "min")]).collect()
+    Utils.assert_rows(res, [Row(1)])
 
-        res = df.agg([("first", "count")]).collect()
-        Utils.assert_rows(res, [Row(4)])
+    res = df.agg([("first", "count")]).collect()
+    Utils.assert_rows(res, [Row(4)])
 
-        res = df.agg([("first", "max")]).collect()
-        Utils.assert_rows(res, [Row(2)])
+    res = df.agg([("first", "max")]).collect()
+    Utils.assert_rows(res, [Row(2)])
 
-        res = df.agg([("first", "avg")]).collect()
-        Utils.assert_rows(res, [Row(1.5)])
+    res = df.agg([("first", "avg")]).collect()
+    Utils.assert_rows(res, [Row(1.5)])
 
-        res = df.agg([("first", "std")]).collect()
-        Utils.assert_rows(res, [Row(0.577349980514419)])
+    res = df.agg([("first", "std")]).collect()
+    Utils.assert_rows(res, [Row(0.577349980514419)])
 
-        # combine those together
-        res = df.agg(
-            [
-                ("first", "min"),
-                ("first", "count"),
-                ("first", "max"),
-                ("first", "avg"),
-                ("first", "std"),
-            ]
-        ).collect()
-        Utils.assert_rows(res, [Row(1, 4, 2, 1.5, 0.577349980514419)])
+    # combine those together
+    res = df.agg(
+        [
+            ("first", "min"),
+            ("first", "count"),
+            ("first", "max"),
+            ("first", "avg"),
+            ("first", "std"),
+        ]
+    ).collect()
+    Utils.assert_rows(res, [Row(1, 4, 2, 1.5, 0.577349980514419)])
 
-        # Aggregations on 'second' column
-        res = df.agg([("second", "min")]).collect()
-        Utils.assert_rows(res, [Row(4)])
+    # Aggregations on 'second' column
+    res = df.agg([("second", "min")]).collect()
+    Utils.assert_rows(res, [Row(4)])
 
-        res = df.agg([("second", "count")]).collect()
-        Utils.assert_rows(res, [Row(4)])
+    res = df.agg([("second", "count")]).collect()
+    Utils.assert_rows(res, [Row(4)])
 
-        res = df.agg([("second", "max")]).collect()
-        Utils.assert_rows(res, [Row(6)])
+    res = df.agg([("second", "max")]).collect()
+    Utils.assert_rows(res, [Row(6)])
 
-        res = df.agg([("second", "avg")]).collect()
-        Utils.assert_rows(res, [Row(4.75)])
+    res = df.agg([("second", "avg")]).collect()
+    Utils.assert_rows(res, [Row(4.75)])
 
-        res = df.agg([("second", "std")]).collect()
-        Utils.assert_rows(res, [Row(0.9574272818339783)])
+    res = df.agg([("second", "std")]).collect()
+    Utils.assert_rows(res, [Row(0.9574272818339783)])
 
-        # combine those together
-        res = df.agg(
-            [
-                ("second", "min"),
-                ("second", "count"),
-                ("second", "max"),
-                ("second", "avg"),
-                ("second", "std"),
-            ]
-        ).collect()
-        Utils.assert_rows(res, [Row(4, 4, 6, 4.75, 0.9574272818339783)])
+    # combine those together
+    res = df.agg(
+        [
+            ("second", "min"),
+            ("second", "count"),
+            ("second", "max"),
+            ("second", "avg"),
+            ("second", "std"),
+        ]
+    ).collect()
+    Utils.assert_rows(res, [Row(4, 4, 6, 4.75, 0.9574272818339783)])
 
-        # Get aggregations for both columns
-        res = df.agg(
-            [
-                ("first", "min"),
-                ("second", "count"),
-                ("first", "max"),
-                ("second", "avg"),
-                ("first", "std"),
-            ]
-        ).collect()
-        Utils.assert_rows(res, [Row(1, 4, 2, 4.75, 0.577349980514419)])
+    # Get aggregations for both columns
+    res = df.agg(
+        [
+            ("first", "min"),
+            ("second", "count"),
+            ("first", "max"),
+            ("second", "avg"),
+            ("first", "std"),
+        ]
+    ).collect()
+    Utils.assert_rows(res, [Row(1, 4, 2, 4.75, 0.577349980514419)])
 
 
-def test_df_agg_tuples_avg_basic(session_cnx):
+def test_df_agg_tuples_avg_basic(session):
     """Test for making sure all avg word-variations work as expected"""
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
-            ["first", "second"]
-        )
-        # Aggregations on 'first' column
-        res = df.agg([("first", "avg")]).collect()
-        Utils.assert_rows(res, [Row(1.5)])
 
-        res = df.agg([("first", "average")]).collect()
-        Utils.assert_rows(res, [Row(1.5)])
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
+    # Aggregations on 'first' column
+    res = df.agg([("first", "avg")]).collect()
+    Utils.assert_rows(res, [Row(1.5)])
 
-        res = df.agg([("first", "mean")]).collect()
-        Utils.assert_rows(res, [Row(1.5)])
+    res = df.agg([("first", "average")]).collect()
+    Utils.assert_rows(res, [Row(1.5)])
+
+    res = df.agg([("first", "mean")]).collect()
+    Utils.assert_rows(res, [Row(1.5)])
 
 
-def test_df_agg_tuples_std_basic(session_cnx):
+def test_df_agg_tuples_std_basic(session):
     """Test for making sure all stddev variations work as expected"""
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
-            ["first", "second"]
-        )
-        # Aggregations on 'first' column
-        res = df.agg([("first", "stddev")]).collect()
-        Utils.assert_rows(res, [Row(0.577349980514419)])
 
-        res = df.agg([("first", "std")]).collect()
-        Utils.assert_rows(res, [Row(0.577349980514419)])
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
+    # Aggregations on 'first' column
+    res = df.agg([("first", "stddev")]).collect()
+    Utils.assert_rows(res, [Row(0.577349980514419)])
+
+    res = df.agg([("first", "std")]).collect()
+    Utils.assert_rows(res, [Row(0.577349980514419)])
 
 
-def test_df_agg_tuples_count_basic(session_cnx):
+def test_df_agg_tuples_count_basic(session):
     """Test for making sure all count variations work as expected"""
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
-            ["first", "second"]
-        )
-        # Aggregations on 'first' column
-        res = df.agg([("first", "count")]).collect()
-        Utils.assert_rows(res, [Row(4)])
 
-        res = df.agg([("second", "size")]).collect()
-        Utils.assert_rows(res, [Row(4)])
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
+    # Aggregations on 'first' column
+    res = df.agg([("first", "count")]).collect()
+    Utils.assert_rows(res, [Row(4)])
+
+    res = df.agg([("second", "size")]).collect()
+    Utils.assert_rows(res, [Row(4)])
 
 
-def test_df_groupBy_invalid_input(session_cnx):
+def test_df_groupBy_invalid_input(session):
     """Test for check invalid input for group_by function"""
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
-            ["first", "second"]
-        )
-        with pytest.raises(TypeError) as ex_info:
-            df.group_by([], []).count().collect()
-        assert (
-            "group_by() only accepts str and Column objects,"
-            " or a list containing str and Column objects" in str(ex_info)
-        )
-        with pytest.raises(TypeError) as ex_info:
-            df.group_by(1).count().collect()
-        assert (
-            "group_by() only accepts str and Column objects,"
-            " or a list containing str and Column objects" in str(ex_info)
-        )
+
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
+    with pytest.raises(TypeError) as ex_info:
+        df.group_by([], []).count().collect()
+    assert (
+        "group_by() only accepts str and Column objects,"
+        " or a list containing str and Column objects" in str(ex_info)
+    )
+    with pytest.raises(TypeError) as ex_info:
+        df.group_by(1).count().collect()
+    assert (
+        "group_by() only accepts str and Column objects,"
+        " or a list containing str and Column objects" in str(ex_info)
+    )
 
 
-def test_df_agg_tuples_sum_basic(session_cnx):
+def test_df_agg_tuples_sum_basic(session):
     """Test for making sure sum works as expected"""
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
-            ["first", "second"]
-        )
-        # Aggregations on 'first' column
-        res = df.agg([("first", "sum")]).collect()
-        Utils.assert_rows(res, [Row(6)])
 
-        res = df.agg([("second", "sum")]).collect()
-        Utils.assert_rows(res, [Row(19)])
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
+    # Aggregations on 'first' column
+    res = df.agg([("first", "sum")]).collect()
+    Utils.assert_rows(res, [Row(6)])
 
-        res = df.agg([("second", "sum"), ("first", "sum")]).collect()
-        Utils.assert_rows(res, [Row(19, 6)])
+    res = df.agg([("second", "sum")]).collect()
+    Utils.assert_rows(res, [Row(19)])
 
-        res = df.group_by("first").sum("second").collect()
-        res.sort(key=lambda x: x[0])
-        Utils.assert_rows(res, [Row(1, 8), Row(2, 11)])
+    res = df.agg([("second", "sum"), ("first", "sum")]).collect()
+    Utils.assert_rows(res, [Row(19, 6)])
 
-        # same as above, but pass Column object to group_by() and sum()
-        res = df.group_by(col("first")).sum(col("second")).collect()
-        res.sort(key=lambda x: x[0])
-        Utils.assert_rows(res, [Row(1, 8), Row(2, 11)])
+    res = df.group_by("first").sum("second").collect()
+    res.sort(key=lambda x: x[0])
+    Utils.assert_rows(res, [Row(1, 8), Row(2, 11)])
+
+    # same as above, but pass Column object to group_by() and sum()
+    res = df.group_by(col("first")).sum(col("second")).collect()
+    res.sort(key=lambda x: x[0])
+    Utils.assert_rows(res, [Row(1, 8), Row(2, 11)])
 
 
-def test_df_agg_dict_arg(session_cnx):
+def test_df_agg_dict_arg(session):
     """Test for making sure dict when passed to agg() works as expected"""
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
-            ["first", "second"]
-        )
-        res = df.agg({"first": "sum"}).collect()
-        Utils.assert_rows(res, [Row(6)])
 
-        res = df.agg({"second": "sum"}).collect()
-        Utils.assert_rows(res, [Row(19)])
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
+    res = df.agg({"first": "sum"}).collect()
+    Utils.assert_rows(res, [Row(6)])
 
-        res = df.agg({"second": "sum", "first": "sum"}).collect()
-        Utils.assert_rows(res, [Row(19, 6)])
+    res = df.agg({"second": "sum"}).collect()
+    Utils.assert_rows(res, [Row(19)])
 
-        res = df.agg({"first": "count", "second": "size"}).collect()
-        Utils.assert_rows(res, [Row(4, 4)])
+    res = df.agg({"second": "sum", "first": "sum"}).collect()
+    Utils.assert_rows(res, [Row(19, 6)])
 
-        # negative tests
-        with pytest.raises(TypeError) as ex_info:
-            df.agg({"second": 1, "first": "sum"})
-        assert (
-            "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'str'>, <class 'int'>)"
-            in str(ex_info)
-        )
+    res = df.agg({"first": "count", "second": "size"}).collect()
+    Utils.assert_rows(res, [Row(4, 4)])
 
-        with pytest.raises(TypeError) as ex_info:
-            df.agg({"second": "sum", 1: "sum"})
-        assert (
-            "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'str'>)"
-            in str(ex_info)
-        )
+    # negative tests
+    with pytest.raises(TypeError) as ex_info:
+        df.agg({"second": 1, "first": "sum"})
+    assert (
+        "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'str'>, <class 'int'>)"
+        in str(ex_info)
+    )
 
-        with pytest.raises(TypeError) as ex_info:
-            df.agg({"second": "sum", 1: 1})
-        assert (
-            "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'int'>)"
-            in str(ex_info)
-        )
+    with pytest.raises(TypeError) as ex_info:
+        df.agg({"second": "sum", 1: "sum"})
+    assert (
+        "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'str'>)"
+        in str(ex_info)
+    )
+
+    with pytest.raises(TypeError) as ex_info:
+        df.agg({"second": "sum", 1: 1})
+    assert (
+        "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'int'>)"
+        in str(ex_info)
+    )
 
 
-def test_df_agg_invalid_args_in_list(session_cnx):
+def test_df_agg_invalid_args_in_list(session):
     """Test for making sure when a list passed to agg() produces correct errors."""
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
-            ["first", "second"]
-        )
 
-        assert df.agg([("first", "count")]).collect() == [Row(4)]
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
 
-        # invalid type
-        with pytest.raises(TypeError) as ex_info:
-            df.agg([int])
-        assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    assert df.agg([("first", "count")]).collect() == [Row(4)]
 
-        with pytest.raises(TypeError) as ex_info:
-            df.agg(["first"])
-        assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    # invalid type
+    with pytest.raises(TypeError) as ex_info:
+        df.agg([int])
+    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
 
-        # not a pair
-        with pytest.raises(TypeError) as ex_info:
-            df.agg([("first", "count", "invalid_arg")])
-        assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    with pytest.raises(TypeError) as ex_info:
+        df.agg(["first"])
+    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
 
-        # pairs with invalid type
-        with pytest.raises(TypeError) as ex_info:
-            df.agg([("first", 123)])
-        assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    # not a pair
+    with pytest.raises(TypeError) as ex_info:
+        df.agg([("first", "count", "invalid_arg")])
+    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
 
-        with pytest.raises(TypeError) as ex_info:
-            df.agg([(123, "sum")])
-        assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    # pairs with invalid type
+    with pytest.raises(TypeError) as ex_info:
+        df.agg([("first", 123)])
+    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.agg([(123, "sum")])
+    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
 
 
-def test_df_agg_empty_args(session_cnx):
+def test_df_agg_empty_args(session):
     """Test for making sure dict when passed to agg() works as expected"""
-    with session_cnx() as session:
-        df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
-            ["first", "second"]
-        )
 
-        Utils.assert_rows(df.agg({}).collect(), [Row(1, 4)])
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
+
+    Utils.assert_rows(df.agg({}).collect(), [Row(1, 4)])
