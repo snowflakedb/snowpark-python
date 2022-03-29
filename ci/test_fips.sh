@@ -11,8 +11,8 @@ SNOWPARK_WHL="$(ls $SNOWPARK_DIR/dist/*.whl | sort -r | head -n 1)"
 python3.8 -m venv fips_env
 source fips_env/bin/activate
 pip install -U setuptools pip
-pip install "cryptography<3.3.0" --no-binary cryptography
 pip install "${SNOWPARK_WHL}[pandas,secure-local-storage,development]"
+pip install "cryptography<3.3.0" --force-reinstall --no-binary cryptography
 
 echo "!!! Environment description !!!"
 echo "Default installed OpenSSL version"
