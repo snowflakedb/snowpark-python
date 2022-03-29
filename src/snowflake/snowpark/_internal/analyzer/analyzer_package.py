@@ -1194,6 +1194,16 @@ class AnalyzerPackage:
     def drop_table_if_exists_statement(self, table_name: str) -> str:
         return self._Drop + self._Table + self._If + self._Exists + table_name
 
+    def drop_file_format_if_exists_statement(self, format_name: str) -> str:
+        return (
+            self._Drop
+            + self._File
+            + self._Format
+            + self._If
+            + self._Exists
+            + format_name
+        )
+
     def attribute_to_schema_string(self, attributes: List[Attribute]) -> str:
         return self._Comma.join(
             attr.name + self._Space + convert_to_sf_type(attr.datatype)
