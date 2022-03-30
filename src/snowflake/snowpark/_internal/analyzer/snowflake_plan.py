@@ -11,6 +11,7 @@ import snowflake.connector
 import snowflake.snowpark.dataframe
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
     SetOperation,
@@ -18,10 +19,6 @@ from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
 from snowflake.snowpark._internal.plans.logical.logical_plan import (
     LeafNode,
     LogicalPlan,
-)
-from snowflake.snowpark._internal.sp_expressions import (
-    Attribute,
-    Expression as SPExpression,
 )
 from snowflake.snowpark._internal.utils import (
     SchemaUtils,
@@ -940,7 +937,7 @@ class CopyIntoLocationNode(LeafNode):
         child: SnowflakePlan,
         stage_location: str,
         *,
-        partition_by: Optional[SPExpression] = None,
+        partition_by: Optional[Expression] = None,
         file_format_name: Optional[str] = None,
         file_format_type: Optional[str] = None,
         format_type_options: Optional[str] = None,
@@ -956,49 +953,3 @@ class CopyIntoLocationNode(LeafNode):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
-
-
-class TableUpdate(LogicalPlan):
-    def __init__(
-        self,
-        table_name: str,
-        assignments: Dict[SPExpression, SPExpression],
-        condition: Optional[SPExpression],
-        source_data: Optional[LogicalPlan],
-    ):
-        super().__init__()
-        self.table_name = table_name
-        self.assignments = assignments
-        self.condition = condition
-        self.source_data = source_data
-        self.children = [source_data] if source_data else []
-
-
-class TableDelete(LogicalPlan):
-    def __init__(
-        self,
-        table_name: str,
-        condition: Optional[SPExpression],
-        source_data: Optional[LogicalPlan],
-    ):
-        super().__init__()
-        self.table_name = table_name
-        self.condition = condition
-        self.source_data = source_data
-        self.children = [source_data] if source_data else []
-
-
-class TableMerge(LogicalPlan):
-    def __init__(
-        self,
-        table_name: str,
-        source: LogicalPlan,
-        join_expr: SPExpression,
-        clauses: List[SPExpression],
-    ):
-        super().__init__()
-        self.table_name = table_name
-        self.source = source
-        self.join_expr = join_expr
-        self.clauses = clauses
-        self.children = [source] if source else []

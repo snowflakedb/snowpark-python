@@ -8,10 +8,7 @@ from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.sp_expressions import (
-    Expression as SPExpression,
-    SnowflakeUDF,
-)
+from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -77,7 +74,7 @@ class UserDefinedFunction:
 
         return Column(self.__create_udf_expression(exprs))
 
-    def __create_udf_expression(self, exprs: List[SPExpression]) -> SnowflakeUDF:
+    def __create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         if len(exprs) != len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"

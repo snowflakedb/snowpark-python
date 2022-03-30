@@ -15,10 +15,7 @@ import pytest
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Column, Row
-from snowflake.snowpark._internal.sp_expressions import (
-    Attribute as SPAttribute,
-    Star as SPStar,
-)
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkColumnException
 from snowflake.snowpark.functions import col, concat, lit, when
@@ -735,11 +732,11 @@ def test_df_col(session_cnx):
         df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
         c = df.col("id")
         assert isinstance(c, Column)
-        assert isinstance(c.expression, SPAttribute)
+        assert isinstance(c.expression, Attribute)
 
         c = df.col("*")
         assert isinstance(c, Column)
-        assert isinstance(c.expression, SPStar)
+        assert isinstance(c.expression, Star)
 
 
 def test_create_dataframe_with_basic_data_types(session_cnx):

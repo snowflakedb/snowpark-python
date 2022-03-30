@@ -6,7 +6,7 @@ import datetime
 from decimal import Decimal
 
 from snowflake.snowpark import Column
-from snowflake.snowpark._internal.sp_expressions import Literal
+from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import DecimalType
 
