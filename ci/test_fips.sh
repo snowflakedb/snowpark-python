@@ -19,7 +19,7 @@ echo "!!! Environment description !!!"
 echo "Default installed OpenSSL version"
 openssl version
 openssl md5 <<< "12345" || echo "OpenSSL md5 test fails (this is GOOD)"
-python -c "import ssl; print('Python openssl library: ' + ssl.OPENSSL_VERSION + '\n Python openssl FIPS mode: ' + ssl.FIPS_mode())"
+python -c "import ssl; print('Python openssl library: ' + ssl.OPENSSL_VERSION)"
 python -c "from cryptography.hazmat.backends.openssl import backend; print('Cryptography openssl library: ' + backend.openssl_version_text())"
 python -c "import hashlib; print(hashlib.md5('test_str'.encode('utf-8')).hexdigest());"
 pip freeze
