@@ -22,9 +22,19 @@ from snowflake.snowpark._internal.analyzer.binary_plan_nodes import (
     UsingJoin as SPUsingJoin,
     create_join_type,
 )
-from snowflake.snowpark._internal.analyzer.lateral import Lateral as SPLateral
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    Literal,
+    NamedExpression,
+    Star,
+)
 from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.snowflake_plan import CopyIntoNode
+from snowflake.snowpark._internal.analyzer.sort_expression import (
+    Ascending,
+    Descending,
+    SortOrder,
+)
 from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
 from snowflake.snowpark._internal.analyzer.sp_views import (
     CreateViewCommand as SPCreateViewCommand,
@@ -33,7 +43,11 @@ from snowflake.snowpark._internal.analyzer.sp_views import (
     ViewType as SPViewType,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
-    TableFunctionJoin as SPTableFunctionJoin,
+    FlattenFunction,
+    Lateral,
+    TableFunctionExpression,
+    TableFunctionJoin,
+    create_table_function_expression,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
@@ -51,18 +65,6 @@ from snowflake.snowpark._internal.plans.logical.logical_plan import (
     Project as SPProject,
     Sample as SPSample,
 )
-from snowflake.snowpark._internal.sp_expressions import (
-    Ascending as SPAscending,
-    Attribute as SPAttribute,
-    Descending as SPDescending,
-    Expression as SPExpression,
-    FlattenFunction,
-    Literal as SPLiteral,
-    NamedExpression as SPNamedExpression,
-    SortOrder as SPSortOrder,
-    Star as SPStar,
-    TableFunctionExpression as SPTableFunctionExpression,
-)
 from snowflake.snowpark._internal.telemetry import (
     df_action_telemetry,
     df_usage_telemetry,
@@ -75,7 +77,6 @@ from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
-    _create_table_function_expression,
     abs as abs_,
     col,
     count,
@@ -553,7 +554,7 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
-            return Column(SPStar(self._plan.output()))
+            return Column(Star(self._plan.output()))
         else:
             return Column(self.__resolve(col_name))
 
@@ -673,13 +674,13 @@ class DataFrame:
         for c in exprs:
             if isinstance(c, str):
                 names.append(c)
-            elif isinstance(c, Column) and isinstance(c.expression, SPAttribute):
+            elif isinstance(c, Column) and isinstance(c.expression, Attribute):
                 names.append(
                     self._plan.expr_to_alias.get(
                         c.expression.expr_id, c.expression.name
                     )
                 )
-            elif isinstance(c, Column) and isinstance(c.expression, SPNamedExpression):
+            elif isinstance(c, Column) and isinstance(c.expression, NamedExpression):
                 names.append(c.expression.name)
             else:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
@@ -778,9 +779,9 @@ class DataFrame:
         orders = []
         if ascending is not None:
             if isinstance(ascending, (list, tuple)):
-                orders = [SPAscending() if asc else SPDescending() for asc in ascending]
+                orders = [Ascending() if asc else Descending() for asc in ascending]
             elif isinstance(ascending, (bool, int)):
-                orders = [SPAscending() if ascending else SPDescending()]
+                orders = [Ascending() if ascending else Descending()]
             else:
                 raise TypeError(
                     "ascending can only be boolean or list,"
@@ -794,18 +795,17 @@ class DataFrame:
 
         sort_exprs = []
         for idx in range(len(exprs)):
-            expr = exprs[idx]
             # orders will overwrite current orders in expression (but will not overwrite null ordering)
             # if no order is provided, use ascending order
-            if isinstance(exprs[idx], SPSortOrder):
+            if isinstance(exprs[idx], SortOrder):
                 sort_exprs.append(
-                    SPSortOrder(expr.child, orders[idx], expr.null_ordering)
+                    SortOrder(exprs[idx].child, orders[idx], exprs[idx].null_ordering)
                     if orders
-                    else expr
+                    else exprs[idx]
                 )
             else:
                 sort_exprs.append(
-                    SPSortOrder(expr, orders[idx] if orders else SPAscending())
+                    SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
         return self._with_plan(SPSort(sort_exprs, True, self._plan))
@@ -1108,7 +1108,7 @@ class DataFrame:
         """
         pc = self.__convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
-            v.expression if isinstance(v, Column) else SPLiteral(v) for v in values
+            v.expression if isinstance(v, Column) else Literal(v) for v in values
         ]
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
@@ -1162,7 +1162,7 @@ class DataFrame:
         Args:
             n: Number of rows to return.
         """
-        return self._with_plan(SPLimit(SPLiteral(n), self._plan))
+        return self._with_plan(SPLimit(Literal(n), self._plan))
 
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -1513,10 +1513,10 @@ class DataFrame:
             - :meth:`Session.table_function`, which creates a new :class:`DataFrame` by using the SQL table function.
 
         """
-        func_expr = _create_table_function_expression(
+        func_expr = create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
-        return DataFrame(self.session, SPTableFunctionJoin(self._plan, func_expr))
+        return DataFrame(self.session, TableFunctionJoin(self._plan, func_expr))
 
     def cross_join(self, right: "DataFrame") -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
@@ -1560,7 +1560,7 @@ class DataFrame:
 
         if isinstance(join_type, (SPLeftSemi, SPLeftAnti)):
             # Create a Column with expression 'true AND <expr> AND <expr> .."
-            join_cond = Column(SPLiteral(True))
+            join_cond = Column(Literal(True))
             for c in using_columns:
                 quoted = AnalyzerPackage.quote_name(c)
                 join_cond = join_cond & (self.col(quoted) == right.col(quoted))
@@ -1937,16 +1937,16 @@ class DataFrame:
             FlattenFunction(input.expression, path, outer, recursive, mode)
         )
 
-    def _lateral(self, table_function: SPTableFunctionExpression) -> "DataFrame":
+    def _lateral(self, table_function: TableFunctionExpression) -> "DataFrame":
         result_columns = [
             attr.name
             for attr in self.session._analyzer.resolve(
-                SPLateral(self._plan, table_function)
+                Lateral(self._plan, table_function)
             ).attributes()
         ]
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
-            return DataFrame(self.session, SPLateral(self._plan, table_function))
+            return DataFrame(self.session, Lateral(self._plan, table_function))
         prefix = DataFrame.__generate_prefix("a")
         child = self.select(
             [
@@ -1954,7 +1954,7 @@ class DataFrame:
                 for attr in self.__output()
             ]
         )
-        return DataFrame(self.session, SPLateral(child._plan, table_function))
+        return DataFrame(self.session, Lateral(child._plan, table_function))
 
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
@@ -2279,10 +2279,10 @@ class DataFrame:
         if isinstance(existing, str):
             old_name = AnalyzerPackage.quote_name(existing)
         elif isinstance(existing, Column):
-            if isinstance(existing.expression, SPAttribute):
+            if isinstance(existing.expression, Attribute):
                 att = existing.expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
-            elif isinstance(existing.expression, SPNamedExpression):
+            elif isinstance(existing.expression, NamedExpression):
                 old_name = existing.expression.name
             else:
                 raise ValueError(
@@ -2468,7 +2468,7 @@ Query List:
         return f"{msg}\n--------------------------------------------"
 
     # Utils
-    def __resolve(self, col_name: str) -> SPNamedExpression:
+    def __resolve(self, col_name: str) -> NamedExpression:
         normalized_col_name = AnalyzerPackage.quote_name(col_name)
         cols = list(
             filter(lambda attr: attr.name == normalized_col_name, self.__output())
@@ -2543,7 +2543,7 @@ Query List:
         )
         return lhs_remapped, rhs_remapped
 
-    def __output(self) -> List[SPAttribute]:
+    def __output(self) -> List[Attribute]:
         if not self.__placeholder_output:
             self.__placeholder_output = self._plan.output()
         return self.__placeholder_output
