@@ -131,7 +131,7 @@ def test_df_agg_tuples_count_basic(session):
     Utils.assert_rows(res, [Row(4)])
 
 
-def test_df_groupBy_invalid_input(session):
+def test_df_group_by_invalid_input(session):
     """Test for check invalid input for group_by function"""
 
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
