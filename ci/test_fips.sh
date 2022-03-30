@@ -18,6 +18,7 @@ pip install "cryptography<3.3.0" --force-reinstall --no-binary cryptography
 echo "!!! Environment description !!!"
 echo "Default installed OpenSSL version"
 openssl version
+openssl md5 <<< "12345"
 sysctl crypto.fips_enabled
 python -c "import ssl; print('Python openssl library: ' + ssl.OPENSSL_VERSION)"
 python -c  "from cryptography.hazmat.backends.openssl import backend;print('Cryptography openssl library: ' + backend.openssl_version_text())"
