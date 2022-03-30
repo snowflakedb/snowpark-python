@@ -11,13 +11,14 @@ https://github.com/apache/spark/blob/master/sql/catalyst/src/main/scala/org/apac
 
 from typing import List, Optional
 
+from snowflake.snowpark._internal.analyzer.expression import Expression
+from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 from snowflake.snowpark._internal.plans.logical.logical_plan import (
     BinaryNode,
     LeafNode,
     LogicalPlan,
     UnaryNode,
 )
-from snowflake.snowpark._internal.sp_expressions import Expression, SortOrder
 
 
 class Join(BinaryNode):
@@ -93,7 +94,7 @@ class Unpivot(UnaryNode):
 
 
 class Sort(UnaryNode):
-    def __init__(self, order: List["SortOrder"], is_global: bool, child: LogicalPlan):
+    def __init__(self, order: List[SortOrder], is_global: bool, child: LogicalPlan):
         super().__init__()
         self.order = order
         self.is_global = is_global
