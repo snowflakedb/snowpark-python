@@ -114,16 +114,3 @@ def temp_schema(connection, session) -> None:
         )
         yield temp_schema_name
         cursor.execute("DROP SCHEMA IF EXISTS {}".format(temp_schema_name))
-
-
-@pytest.fixture(scope="module")
-def session_cnx(session) -> Callable[..., "Session"]:
-    # For back-compatible with test code that uses `with session_cnx() as session:`.
-    # Tests should be able to use session directly.
-    # This should be removed once all test uses `session` instead of `session_cnx()`
-    return functools.partial(get_session, session)
-
-
-@contextmanager
-def get_session(session):
-    yield session
