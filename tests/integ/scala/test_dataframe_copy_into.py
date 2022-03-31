@@ -743,3 +743,23 @@ def test_copy_into_with_files_no_match(session, tmp_stage_name1, tmp_table_name)
         "The file might not exist." in rows[0]["ERROR"]
         and rows[0]["FILE"] == "asdf.csv"
     )
+
+
+# This is not in scala test, but we should cover it
+def test_copy_into_new_table_no_commit(session, tmp_stage_name1):
+    test_file_on_stage = f"@{tmp_stage_name1}/"
+    new_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    try:
+        session.sql("begin").collect()
+        df = session.read.schema(user_schema).csv(test_file_on_stage)
+        assert Utils.is_active_transaction(session)
+        df.copy_into_table(
+            new_table_name, files=["testCSV.csv"], validation_mode="RETURN_2_ROWS"
+        )
+        assert Utils.is_active_transaction(session)
+
+        session.sql("commit").collect()
+        assert not Utils.is_active_transaction(session)
+    finally:
+        Utils.drop_table(session, new_table_name)

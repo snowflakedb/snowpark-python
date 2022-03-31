@@ -212,6 +212,11 @@ class Utils:
                 == field.datatype
             )
 
+    @staticmethod
+    def is_active_transaction(session: Session) -> bool:
+        # `SELECT CURRENT_TRANSACTION()` returns a valid txn ID if there is active txn or NULL otherwise
+        return session.sql("SELECT CURRENT_TRANSACTION()").collect()[0][0] is not None
+
 
 class TestData:
     Data = NamedTuple("Data", [("num", int), ("bool", bool), ("str", str)])
