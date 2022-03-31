@@ -698,3 +698,21 @@ def test_pattern(session, mode):
         .count()
         == 4
     )
+
+
+def test_read_staged_file_no_commit(session):
+    path = f"@{tmp_stage_name1}/{test_file_csv}"
+
+    # Test reading from staged file with TEMP FILE FORMAT
+    session.sql("begin").collect()
+    session.read.schema(user_schema).csv(path).collect()
+    assert Utils.is_active_transaction(session)
+    session.sql("commit").collect()
+    assert not Utils.is_active_transaction(session)
+
+    # Test reading from staged file with TEMP TABLE
+    session.sql("begin").collect()
+    session.read.option("purge", False).schema(user_schema).csv(path).collect()
+    assert Utils.is_active_transaction(session)
+    session.sql("commit").collect()
+    assert not Utils.is_active_transaction(session)

@@ -704,6 +704,16 @@ class AnalyzerPackage:
             + self._Space
         )
 
+    def drop_file_format_if_exists_statement(self, format_name: str) -> str:
+        return (
+            self._Drop
+            + self._File
+            + self._Format
+            + self._If
+            + self._Exists
+            + format_name
+        )
+
     def select_from_path_with_format_statement(
         self, project: List[str], path: str, format_name: str, pattern: str
     ) -> str:

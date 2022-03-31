@@ -746,3 +746,32 @@ def test_describe_sp(session):
         if row[0] == "packages":
             assert "snowflake-snowpark-python" in row[1]
             break
+
+
+def test_register_sp_no_commit(session):
+    def plus1(_: Session, x: int) -> int:
+        return x + 1
+
+    temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    perm_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
+    try:
+        # Test stored proc registration
+        session.sql("begin").collect()
+        session.sproc.register(func=plus1, name=temp_sp_name)
+        assert Utils.is_active_transaction(session)
+        session.sproc.register(
+            func=plus1, name=perm_sp_name, stage_location=tmp_stage_name
+        )
+        assert Utils.is_active_transaction(session)
+
+        # Test stored proc call
+        assert session.call(temp_sp_name, 1) == 2
+        assert session.call(perm_sp_name, 1) == 2
+        assert Utils.is_active_transaction(session)
+
+        session.sql("commit").collect()
+        assert not Utils.is_active_transaction(session)
+    finally:
+        session._run_query(f"drop procedure if exists {temp_sp_name}(int)")
+        session._run_query(f"drop procedure if exists {perm_sp_name}(int)")

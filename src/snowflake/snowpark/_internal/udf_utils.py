@@ -514,4 +514,4 @@ RUNTIME_VERSION=3.8
 HANDLER='{handler}'
 {inline_python_code_in_sql}
 """
-    session._run_query(create_query)
+    session._run_query(create_query, is_ddl_on_temp_object=is_temporary)
