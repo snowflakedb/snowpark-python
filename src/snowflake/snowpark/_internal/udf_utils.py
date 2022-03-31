@@ -298,15 +298,21 @@ def generate_python_code(
     is_dataframe_input: bool,
     max_batch_size: Optional[int] = None,
 ) -> str:
+    # if func is a method object, we need to extra the target function first to check
+    # annotations. However, we still serialize the original method because the extracted
+    # function will have an extra argument `cls` or `self` from the class.
+    target_func = getattr(func, "__func__", func)
+
     # clear the annotations because when the user annotates Variant and Geography,
     # which are from snowpark modules and will not work on the server side
     # built-in functions don't have __annotations__
     if hasattr(func, "__annotations__"):
-        annotations = func.__annotations__
-        func.__annotations__ = {}
+        annotations = target_func.__annotations__
+        target_func.__annotations__ = {}
+        # we still serialize the original function
         pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
         # restore the annotations so we don't change the original function
-        func.__annotations__ = annotations
+        target_func.__annotations__ = annotations
     else:
         pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
     args = ",".join(arg_names)
