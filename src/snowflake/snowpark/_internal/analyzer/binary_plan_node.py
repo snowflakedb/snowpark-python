@@ -2,8 +2,10 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import List
+from typing import List, Optional
 
+from snowflake.snowpark._internal.analyzer.expression import Expression
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 SUPPORTED_JOIN_TYPE_STR = [
@@ -52,8 +54,40 @@ def create_join_type(join_type: str) -> "JoinType":
     )
 
 
+class BinaryNode(LogicalPlan):
+    sql: str
+
+    def __init__(self, left: LogicalPlan, right: LogicalPlan):
+        super().__init__()
+        self.left = left
+        self.right = right
+        self.children = [self.left, self.right]
+
+
+class SetOperation(BinaryNode):
+    pass
+
+
+class Except(SetOperation):
+    sql = "EXCEPT"
+
+
+class Intersect(SetOperation):
+    sql = "INTERSECT"
+
+
+class Union(SetOperation):
+    def __init__(self, left: LogicalPlan, right: LogicalPlan, is_all: bool):
+        super().__init__(left, right)
+        self.is_all = is_all
+
+    @property
+    def sql(self) -> str:
+        return f"UNION{' ALL' if self.is_all else ''}"
+
+
 class JoinType:
-    sql = None
+    sql: str
 
 
 class InnerLike(JoinType):
@@ -125,3 +159,20 @@ class UsingJoin(JoinType):
         self.sql = "USING " + tpe.sql
         self.tpe = tpe
         self.using_columns = using_columns
+
+
+class Join(BinaryNode):
+    def __init__(
+        self,
+        left: LogicalPlan,
+        right: LogicalPlan,
+        join_type: JoinType,
+        condition: Optional["Expression"],
+    ):
+        super().__init__(left, right)
+        self.join_type = join_type
+        self.condition = condition
+
+    @property
+    def sql(self) -> str:
+        return self.join_type.sql

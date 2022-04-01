@@ -443,15 +443,6 @@ class PythonObjJSONEncoder(JSONEncoder):
             return super().default(value)
 
 
-class _SaveMode(Enum):
-    # Tempararily put in utils.py because snowflake_play.py uses _SaveMode.
-    # There would be circular error if _SaveMode is put in dataframe_writer.py
-    APPEND = "append"
-    OVERWRITE = "overwrite"
-    ERROR_IF_EXISTS = "errorifexists"
-    IGNORE = "ignore"
-
-
 logger = logging.getLogger("snowflake.snowpark")
 
 

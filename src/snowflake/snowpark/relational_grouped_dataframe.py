@@ -23,11 +23,8 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
 )
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Pivot
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
-    Aggregate as SPAggregate,
-    Pivot as SPPivot,
-)
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import Column
@@ -92,14 +89,16 @@ class RelationalGroupedDataFrame:
     The method :py:func:`DataFrame.group_by()`
     returns a :class:`RelationalGroupedDataFrame` object."""
 
-    def __init__(self, df, grouping_exprs: List[Expression], group_type: _GroupType):
+    def __init__(
+        self, df: DataFrame, grouping_exprs: List[Expression], group_type: _GroupType
+    ):
         self.df = df
         self.grouping_exprs = grouping_exprs
         self.group_type = group_type
 
     # subscriptable returns new object
 
-    def __toDF(self, agg_exprs: List[Expression]):
+    def __toDF(self, agg_exprs: List[Expression]) -> DataFrame:
         aliased_agg = []
         for grouping_expr in self.grouping_exprs:
             if isinstance(grouping_expr, GroupingSetsExpression):
@@ -126,12 +125,12 @@ class RelationalGroupedDataFrame:
         if isinstance(self.group_type, _GroupByType):
             return DataFrame(
                 self.df.session,
-                SPAggregate(self.grouping_exprs, aliased_agg, self.df._plan),
+                Aggregate(self.grouping_exprs, aliased_agg, self.df._plan),
             )
         if isinstance(self.group_type, _RollupType):
             return DataFrame(
                 self.df.session,
-                SPAggregate(
+                Aggregate(
                     [Rollup(self.grouping_exprs)],
                     aliased_agg,
                     self.df._plan,
@@ -140,14 +139,14 @@ class RelationalGroupedDataFrame:
         if isinstance(self.group_type, _CubeType):
             return DataFrame(
                 self.df.session,
-                SPAggregate([Cube(self.grouping_exprs)], aliased_agg, self.df._plan),
+                Aggregate([Cube(self.grouping_exprs)], aliased_agg, self.df._plan),
             )
         if isinstance(self.group_type, _PivotType):
             if len(agg_exprs) != 1:
                 raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             return DataFrame(
                 self.df.session,
-                SPPivot(
+                Pivot(
                     self.group_type.pivot_col,
                     self.group_type.values,
                     agg_exprs,
@@ -167,7 +166,7 @@ class RelationalGroupedDataFrame:
             )
 
     @staticmethod
-    def __strip_invalid_sf_identifier_chars(identifier: str):
+    def __strip_invalid_sf_identifier_chars(identifier: str) -> str:
         p = re.compile("[^\\x20-\\x7E]")
         return p.sub("", identifier.replace('"', ""))
 
@@ -186,7 +185,7 @@ class RelationalGroupedDataFrame:
         else:
             return functions.builtin(lowered)(input_expr).expression
 
-    def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> "DataFrame":
+    def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> DataFrame:
         """Returns a :class:`DataFrame` with computed aggregates. The first element of
         the ``exprs`` pair is the column to aggregate and the second element is the
         aggregate function to compute. The following example computes the mean of the
@@ -224,31 +223,31 @@ class RelationalGroupedDataFrame:
 
         return self.__toDF(agg_exprs)
 
-    def avg(self, *cols: ColumnOrName) -> "DataFrame":
+    def avg(self, *cols: ColumnOrName) -> DataFrame:
         """Return the average for the specified numeric columns."""
         return self.__non_empty_argument_function("avg", *cols)
 
-    def mean(self, *cols: ColumnOrName) -> "DataFrame":
+    def mean(self, *cols: ColumnOrName) -> DataFrame:
         """Return the average for the specified numeric columns. Alias of :obj:`avg`."""
         return self.avg(*cols)
 
-    def sum(self, *cols: ColumnOrName) -> "DataFrame":
+    def sum(self, *cols: ColumnOrName) -> DataFrame:
         """Return the sum for the specified numeric columns."""
         return self.__non_empty_argument_function("sum", *cols)
 
-    def median(self, *cols: ColumnOrName) -> "DataFrame":
+    def median(self, *cols: ColumnOrName) -> DataFrame:
         """Return the median for the specified numeric columns."""
         return self.__non_empty_argument_function("median", *cols)
 
-    def min(self, *cols: ColumnOrName) -> "DataFrame":
+    def min(self, *cols: ColumnOrName) -> DataFrame:
         """Return the min for the specified numeric columns."""
         return self.__non_empty_argument_function("min", *cols)
 
-    def max(self, *cols: ColumnOrName) -> "DataFrame":
+    def max(self, *cols: ColumnOrName) -> DataFrame:
         """Return the max for the specified numeric columns."""
         return self.__non_empty_argument_function("max", *cols)
 
-    def count(self) -> "DataFrame":
+    def count(self) -> DataFrame:
         """Return the number of rows for each group."""
         return self.__toDF(
             [
@@ -269,7 +268,7 @@ class RelationalGroupedDataFrame:
         """
         return lambda *cols: self.__builtin_internal(agg_name, *cols)
 
-    def __builtin_internal(self, agg_name: str, *cols: ColumnOrName) -> "DataFrame":
+    def __builtin_internal(self, agg_name: str, *cols: ColumnOrName) -> DataFrame:
         agg_exprs = []
         for c in cols:
             c_expr = Column(c).expression if isinstance(c, str) else c.expression
@@ -279,7 +278,7 @@ class RelationalGroupedDataFrame:
 
     def __non_empty_argument_function(
         self, func_name: str, *cols: ColumnOrName
-    ) -> "DataFrame":
+    ) -> DataFrame:
         if not cols:
             raise ValueError(
                 f"You must pass a list of one or more Columns to function: {func_name}"

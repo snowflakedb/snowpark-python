@@ -25,8 +25,9 @@ from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    SnowflakePlanBuilder,
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    Range,
     SnowflakeValues,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -36,7 +37,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
