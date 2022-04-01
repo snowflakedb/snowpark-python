@@ -892,7 +892,7 @@ class AnalyzerPackage:
         file_path: str,
         file_format: str,
         format_type_options: Dict[str, Any],
-        copy_options: Dict[str, str],
+        copy_options: Dict[str, Any],
         pattern: str,
         *,
         files: Optional[str] = None,

@@ -664,7 +664,7 @@ class SnowflakePlanBuilder:
             # it is useless since we always create new temp table.
             # setting it helps users to understand generated queries.
 
-            copy_options_with_force = {**copy_options, "FORCE": "true"}
+            copy_options_with_force = {**copy_options, "FORCE": True}
 
             temp_table_schema = []
             for index, att in enumerate(schema):
