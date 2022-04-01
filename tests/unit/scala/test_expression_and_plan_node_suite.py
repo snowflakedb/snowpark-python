@@ -4,12 +4,12 @@
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.binary_plan_nodes import (
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    Join,
     NaturalJoin,
     UsingJoin,
     create_join_type,
 )
-from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Join
 from snowflake.snowpark.exceptions import SnowparkJoinException
 
 
