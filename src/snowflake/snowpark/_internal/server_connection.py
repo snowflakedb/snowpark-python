@@ -543,7 +543,7 @@ class ServerConnection:
             )
         logger.info(f"Execute batch insertion query %s", query)
 
-    def _fix_pandas_df_integer(self, pd_df: pandas.DataFrame) -> pandas.DataFrame:
+    def _fix_pandas_df_integer(self, pd_df: "pandas.DataFrame") -> "pandas.DataFrame":
         """To fix https://snowflakecomputing.atlassian.net/browse/SNOW-562208
         TODO: remove this after Python connector does the conversion: https://snowflakecomputing.atlassian.net/browse/SNOW-562586
         """
