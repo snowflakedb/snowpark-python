@@ -5,7 +5,7 @@
 from typing import Dict, List, Union
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
-from snowflake.snowpark._internal.plans.logical.logical_plan import LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import Utils
 from snowflake.snowpark.column import _to_col_if_str

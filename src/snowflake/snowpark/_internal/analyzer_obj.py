@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryArithmeticExpression,
     BinaryExpression,
 )
+from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
@@ -35,21 +36,20 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
-from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    CopyIntoLocationNode,
-    CopyIntoNode,
-    SnowflakeCreateTable,
     SnowflakePlan,
     SnowflakePlanBuilder,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CopyIntoLocationNode,
+    CopyIntoTableNode,
+    Limit,
+    Range,
+    SnowflakeCreateTable,
     SnowflakeValues,
+    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
-from snowflake.snowpark._internal.analyzer.sp_views import (
-    CreateViewCommand as SPCreateViewCommand,
-    LocalTempView as SPLocalTempView,
-    PersistedView as SPPersistedView,
-)
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
     Lateral,
@@ -73,6 +73,18 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnaryExpression,
     UnresolvedAlias,
 )
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    Aggregate,
+    CreateViewCommand,
+    Filter,
+    LocalTempView,
+    PersistedView,
+    Pivot,
+    Project,
+    Sample,
+    Sort,
+    Unpivot,
+)
 from snowflake.snowpark._internal.analyzer.window_expression import (
     RankRelatedFunctionExpression,
     SpecialFrameBoundary,
@@ -82,23 +94,6 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowSpecDefinition,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
-    Aggregate as SPAggregate,
-    Except as SPExcept,
-    Intersect as SPIntersect,
-    Join as SPJoin,
-    Pivot as SPPivot,
-    Range as SPRange,
-    Sort as SPSort,
-    Union as SPUnion,
-    Unpivot as SPUnpivot,
-)
-from snowflake.snowpark._internal.plans.logical.logical_plan import (
-    Filter as SPFilter,
-    Project as SPProject,
-    Sample as SPSample,
-    UnresolvedRelation as SPUnresolvedRelation,
-)
 from snowflake.snowpark.types import VariantType, _IntegralType
 
 ARRAY_BIND_THRESHOLD = 512
@@ -367,7 +362,6 @@ class Analyzer:
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
 
-        result.analyze_if_needed()
         return result
 
     def do_resolve(self, logical_plan, is_lazy_mode=True):
@@ -416,7 +410,7 @@ class Analyzer:
                 logical_plan,
             )
 
-        if isinstance(logical_plan, SPAggregate):
+        if isinstance(logical_plan, Aggregate):
             return self.plan_builder.aggregate(
                 list(map(self.to_sql_avoid_offset, logical_plan.grouping_expressions)),
                 list(map(self.analyze, logical_plan.aggregate_expressions)),
@@ -424,14 +418,14 @@ class Analyzer:
                 logical_plan,
             )
 
-        if isinstance(logical_plan, SPProject):
+        if isinstance(logical_plan, Project):
             return self.plan_builder.project(
                 list(map(self.analyze, logical_plan.project_list)),
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
 
-        if isinstance(logical_plan, SPFilter):
+        if isinstance(logical_plan, Filter):
             return self.plan_builder.filter(
                 self.analyze(logical_plan.condition),
                 resolved_children[logical_plan.child],
@@ -439,7 +433,7 @@ class Analyzer:
             )
 
         # Add a sample stop to the plan being built
-        if isinstance(logical_plan, SPSample):
+        if isinstance(logical_plan, Sample):
             return self.plan_builder.sample(
                 resolved_children[logical_plan.child],
                 logical_plan,
@@ -447,7 +441,7 @@ class Analyzer:
                 logical_plan.row_count,
             )
 
-        if isinstance(logical_plan, SPJoin):
+        if isinstance(logical_plan, Join):
             return self.plan_builder.join(
                 resolved_children[logical_plan.left],
                 resolved_children[logical_plan.right],
@@ -456,14 +450,14 @@ class Analyzer:
                 logical_plan,
             )
 
-        if isinstance(logical_plan, SPSort):
+        if isinstance(logical_plan, Sort):
             return self.plan_builder.sort(
                 list(map(self.analyze, logical_plan.order)),
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
 
-        if isinstance(logical_plan, (SPIntersect, SPUnion, SPExcept)):
+        if isinstance(logical_plan, SetOperation):
             return self.plan_builder.set_operator(
                 resolved_children[logical_plan.left],
                 resolved_children[logical_plan.right],
@@ -471,7 +465,7 @@ class Analyzer:
                 logical_plan,
             )
 
-        if isinstance(logical_plan, SPRange):
+        if isinstance(logical_plan, Range):
             # The column name id lower-case is hard-coded by Spark as the output
             # schema of Range. Since this corresponds to the Snowflake column "id"
             # (quoted lower-case) it's a little hard for users. So we switch it to
@@ -505,7 +499,7 @@ class Analyzer:
                     logical_plan,
                 )
 
-        if isinstance(logical_plan, SPUnresolvedRelation):
+        if isinstance(logical_plan, UnresolvedRelation):
             return self.plan_builder.table(logical_plan.name)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
@@ -516,14 +510,14 @@ class Analyzer:
                 resolved_children[logical_plan.children[0]],
             )
 
-        if isinstance(logical_plan, SPLimit):
-            if isinstance(logical_plan.child, SPSort):
+        if isinstance(logical_plan, Limit):
+            if isinstance(logical_plan.child, Sort):
                 on_top_of_order_by = True
             elif (
                 isinstance(logical_plan.child, SnowflakePlan)
                 and logical_plan.child.source_plan
             ):
-                on_top_of_order_by = isinstance(logical_plan.child.source_plan, SPSort)
+                on_top_of_order_by = isinstance(logical_plan.child.source_plan, Sort)
             else:
                 on_top_of_order_by = False
 
@@ -534,7 +528,7 @@ class Analyzer:
                 logical_plan,
             )
 
-        if isinstance(logical_plan, SPPivot):
+        if isinstance(logical_plan, Pivot):
             if len(logical_plan.aggregates) != 1:
                 raise ValueError("Only one aggregate is supported with pivot")
 
@@ -546,7 +540,7 @@ class Analyzer:
                 logical_plan,
             )
 
-        if isinstance(logical_plan, SPUnpivot):
+        if isinstance(logical_plan, Unpivot):
             return self.plan_builder.unpivot(
                 logical_plan.value_column,
                 logical_plan.name_column,
@@ -555,10 +549,10 @@ class Analyzer:
                 logical_plan,
             )
 
-        if isinstance(logical_plan, SPCreateViewCommand):
-            if isinstance(logical_plan.view_type, SPPersistedView):
+        if isinstance(logical_plan, CreateViewCommand):
+            if isinstance(logical_plan.view_type, PersistedView):
                 is_temp = False
-            elif isinstance(logical_plan.view_type, SPLocalTempView):
+            elif isinstance(logical_plan.view_type, LocalTempView):
                 is_temp = True
             else:
                 raise SnowparkClientExceptionMessages.PLAN_ANALYZER_UNSUPPORTED_VIEW_TYPE(
@@ -566,10 +560,10 @@ class Analyzer:
                 )
 
             return self.plan_builder.create_or_replace_view(
-                logical_plan.name.table, self.resolve(logical_plan.child), is_temp
+                logical_plan.name, self.resolve(logical_plan.child), is_temp
             )
 
-        if isinstance(logical_plan, CopyIntoNode):
+        if isinstance(logical_plan, CopyIntoTableNode):
             if logical_plan.table_name:
                 return self.plan_builder.copy_into_table(
                     path=logical_plan.file_path,

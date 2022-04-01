@@ -6,7 +6,8 @@
 from typing import Dict, Iterable, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.binary_plan_nodes import create_join_type
+from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
     InsertMergeExpression,
@@ -16,7 +17,6 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.plans.logical.logical_plan import UnresolvedRelation
 from snowflake.snowpark._internal.telemetry import df_action_telemetry
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
