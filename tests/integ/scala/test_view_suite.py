@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkCreateViewException
 from snowflake.snowpark.functions import col, sql_expr, sum
@@ -44,7 +44,7 @@ def test_view_name_with_special_character(session):
         TestData.column_has_special_char(session).create_or_replace_view(view_name)
 
         res = session.sql(
-            f"select * from {AnalyzerPackage.quote_name(view_name)}"
+            f"select * from {AnalyzerUtils.quote_name(view_name)}"
         ).collect()
         # don't sort
         assert res == [Row(1, 2), Row(3, 4)]

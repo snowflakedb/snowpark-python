@@ -16,7 +16,7 @@ from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
-from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
@@ -145,14 +145,14 @@ class ServerConnection:
 
     def get_default_database(self) -> Optional[str]:
         return (
-            AnalyzerPackage.quote_name(self._lower_case_parameters["database"])
+            AnalyzerUtils.quote_name(self._lower_case_parameters["database"])
             if "database" in self._lower_case_parameters
             else None
         )
 
     def get_default_schema(self) -> Optional[str]:
         return (
-            AnalyzerPackage.quote_name(self._lower_case_parameters["schema"])
+            AnalyzerUtils.quote_name(self._lower_case_parameters["schema"])
             if "schema" in self._lower_case_parameters
             else None
         )
@@ -166,9 +166,9 @@ class ServerConnection:
         )
         return (
             (
-                AnalyzerPackage.quote_name_without_upper_casing(name)
+                AnalyzerUtils.quote_name_without_upper_casing(name)
                 if not unquoted
-                else AnalyzerPackage._escape_quotes(name)
+                else AnalyzerUtils.escape_quotes(name)
             )
             if name
             else None
@@ -238,7 +238,7 @@ class ServerConnection:
     def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
         attributes = []
         for column_name, type_value, _, _, precision, scale, nullable in meta:
-            quoted_name = AnalyzerPackage.quote_name_without_upper_casing(column_name)
+            quoted_name = AnalyzerUtils.quote_name_without_upper_casing(column_name)
             attributes.append(
                 Attribute(
                     quoted_name,

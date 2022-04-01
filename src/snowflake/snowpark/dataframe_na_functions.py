@@ -7,7 +7,7 @@ from logging import getLogger
 from typing import Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -162,11 +162,11 @@ class DataFrameNaFunctions:
             return self.df.limit(0)
         else:
             df_col_type_dict = {
-                AnalyzerPackage.quote_name(field.name): field.datatype
+                AnalyzerUtils.quote_name(field.name): field.datatype
                 for field in self.df.schema.fields
             }
             normalized_col_name_set = {
-                AnalyzerPackage.quote_name(col_name) for col_name in subset
+                AnalyzerUtils.quote_name(col_name) for col_name in subset
             }
             col_counter = None
             for normalized_col_name in normalized_col_name_set:
@@ -296,12 +296,12 @@ class DataFrameNaFunctions:
 
         # the dictionary is ordered after Python3.7
         df_col_type_dict = {
-            AnalyzerPackage.quote_name(field.name): field.datatype
+            AnalyzerUtils.quote_name(field.name): field.datatype
             for field in self.df.schema.fields
         }
         normalized_value_dict = {}
         for col_name, value in value_dict.items():
-            normalized_col_name = AnalyzerPackage.quote_name(col_name)
+            normalized_col_name = AnalyzerUtils.quote_name(col_name)
             if normalized_col_name not in df_col_type_dict:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
                     normalized_col_name
@@ -476,11 +476,11 @@ class DataFrameNaFunctions:
 
         # the dictionary is ordered after Python3.7
         df_col_type_dict = {
-            AnalyzerPackage.quote_name(field.name): field.datatype
+            AnalyzerUtils.quote_name(field.name): field.datatype
             for field in self.df.schema.fields
         }
         normalized_col_name_set = {
-            AnalyzerPackage.quote_name(col_name) for col_name in subset
+            AnalyzerUtils.quote_name(col_name) for col_name in subset
         }
         for normalized_col_name in normalized_col_name_set:
             if normalized_col_name not in df_col_type_dict:

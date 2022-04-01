@@ -3,7 +3,7 @@
 #
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.utils import TempObjectType
@@ -44,11 +44,10 @@ def test_multiple_queries(session):
         Query(f"select * from {table_name1}"),
     ]
     attrs = [Attribute("A", IntegerType()), Attribute("B", IntegerType())]
-    pkg = AnalyzerPackage()
 
     try:
         plan = SnowflakePlan(
-            queries, pkg.schema_value_statement(attrs), None, None, session
+            queries, AnalyzerUtils.schema_value_statement(attrs), None, None, session
         )
         plan1 = session._Session__plan_builder.project(["A"], plan, None)
 
@@ -77,7 +76,7 @@ def test_multiple_queries(session):
 
     try:
         plan2 = SnowflakePlan(
-            queries2, pkg.schema_value_statement(attrs2), None, None, session
+            queries2, AnalyzerUtils.schema_value_statement(attrs2), None, None, session
         )
         plan3 = session._Session__plan_builder.set_operator(
             plan1, plan2, "UNION ALL", None

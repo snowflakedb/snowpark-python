@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import snowflake.connector
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
     SetOperation,
@@ -158,8 +158,7 @@ class SnowflakePlan(LogicalPlan):
     def attributes(self) -> List[Attribute]:
         if not self._attributes:
             output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
-            pkg = AnalyzerPackage()
-            self._schema_query = pkg.schema_value_statement(output)
+            self._schema_query = AnalyzerUtils.schema_value_statement(output)
             self._attributes = output
         return self._attributes
 
@@ -199,7 +198,6 @@ class SnowflakePlanBuilder:
 
     def __init__(self, session: "snowflake.snowpark.session.Session"):
         self.session = session
-        self.pkg = AnalyzerPackage()
 
     @SnowflakePlan.Decorator.wrap_exception
     def build(
@@ -284,8 +282,12 @@ class SnowflakePlanBuilder:
             ]
         )
 
-        left_schema_query = self.pkg.schema_value_statement(select_left.attributes())
-        right_schema_query = self.pkg.schema_value_statement(select_right.attributes())
+        left_schema_query = AnalyzerUtils.schema_value_statement(
+            select_left.attributes()
+        )
+        right_schema_query = AnalyzerUtils.schema_value_statement(
+            select_right.attributes()
+        )
         schema_query = sql_generator(left_schema_query, right_schema_query)
 
         common_columns = set(select_left.expr_to_alias.keys()).intersection(
@@ -327,15 +329,15 @@ class SnowflakePlanBuilder:
         attributes = [
             Attribute(attr.name, attr.datatype, attr.nullable) for attr in output
         ]
-        create_table_stmt = self.pkg.create_temp_table_statement(
-            temp_table_name, self.pkg.attribute_to_schema_string(attributes)
+        create_table_stmt = AnalyzerUtils.create_temp_table_statement(
+            temp_table_name, AnalyzerUtils.attribute_to_schema_string(attributes)
         )
-        insert_stmt = self.pkg.batch_insert_into_statement(
+        insert_stmt = AnalyzerUtils.batch_insert_into_statement(
             temp_table_name, [attr.name for attr in attributes]
         )
-        select_stmt = self.pkg.project_statement([], temp_table_name)
-        drop_table_stmt = self.pkg.drop_table_if_exists_statement(temp_table_name)
-        schema_query = self.pkg.schema_value_statement(attributes)
+        select_stmt = AnalyzerUtils.project_statement([], temp_table_name)
+        drop_table_stmt = AnalyzerUtils.drop_table_if_exists_statement(temp_table_name)
+        schema_query = AnalyzerUtils.schema_value_statement(attributes)
         queries = [
             Query(create_table_stmt, is_ddl_on_temp_object=True),
             BatchInsertQuery(insert_stmt, data),
@@ -350,13 +352,13 @@ class SnowflakePlanBuilder:
         )
 
     def table(self, table_name: str) -> SnowflakePlan:
-        return self.query(self.pkg.project_statement([], table_name), None)
+        return self.query(AnalyzerUtils.project_statement([], table_name), None)
 
     def file_operation_plan(
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
     ) -> SnowflakePlan:
         return self.query(
-            self.pkg.file_operation_statement(
+            AnalyzerUtils.file_operation_statement(
                 command, file_name, stage_location, options
             ),
             None,
@@ -370,7 +372,7 @@ class SnowflakePlanBuilder:
         is_distinct: bool = False,
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.project_statement(
+            lambda x: AnalyzerUtils.project_statement(
                 project_list, x, is_distinct=is_distinct
             ),
             child,
@@ -385,7 +387,9 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.aggregate_statement(grouping_exprs, aggregate_exprs, x),
+            lambda x: AnalyzerUtils.aggregate_statement(
+                grouping_exprs, aggregate_exprs, x
+            ),
             child,
             source_plan,
         )
@@ -394,7 +398,7 @@ class SnowflakePlanBuilder:
         self, condition: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.filter_statement(condition, x), child, source_plan
+            lambda x: AnalyzerUtils.filter_statement(condition, x), child, source_plan
         )
 
     def sample(
@@ -406,7 +410,7 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         """Builds the sample part of the resultant sql statement"""
         return self.build(
-            lambda x: self.pkg.sample_statement(
+            lambda x: AnalyzerUtils.sample_statement(
                 x, probability_fraction=probability_fraction, row_count=row_count
             ),
             child,
@@ -417,7 +421,7 @@ class SnowflakePlanBuilder:
         self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.sort_statement(order, x), child, source_plan
+            lambda x: AnalyzerUtils.sort_statement(order, x), child, source_plan
         )
 
     def set_operator(
@@ -428,7 +432,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build_binary(
-            lambda x, y: self.pkg.set_operator_statement(x, y, op),
+            lambda x, y: AnalyzerUtils.set_operator_statement(x, y, op),
             left,
             right,
             source_plan,
@@ -449,7 +453,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ):
         return self.build_binary(
-            lambda x, y: self.pkg.join_statement(x, y, join_type, condition),
+            lambda x, y: AnalyzerUtils.join_statement(x, y, join_type, condition),
             left,
             right,
             source_plan,
@@ -463,9 +467,9 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         if mode == SaveMode.APPEND:
-            create_table = self.pkg.create_table_statement(
+            create_table = AnalyzerUtils.create_table_statement(
                 table_name,
-                self.pkg.attribute_to_schema_string(child.attributes()),
+                AnalyzerUtils.attribute_to_schema_string(child.attributes()),
                 error=False,
                 temp=create_temp_table,
             )
@@ -474,7 +478,7 @@ class SnowflakePlanBuilder:
                     *child.queries[0:-1],
                     Query(create_table),
                     Query(
-                        self.pkg.insert_into_statement(
+                        AnalyzerUtils.insert_into_statement(
                             table_name, child.queries[-1].sql
                         )
                     ),
@@ -487,7 +491,7 @@ class SnowflakePlanBuilder:
             )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
-                lambda x: self.pkg.create_table_as_select_statement(
+                lambda x: AnalyzerUtils.create_table_as_select_statement(
                     table_name, x, replace=True, temp=create_temp_table
                 ),
                 child,
@@ -495,7 +499,7 @@ class SnowflakePlanBuilder:
             )
         elif mode == SaveMode.IGNORE:
             return self.build(
-                lambda x: self.pkg.create_table_as_select_statement(
+                lambda x: AnalyzerUtils.create_table_as_select_statement(
                     table_name, x, error=False, temp=create_temp_table
                 ),
                 child,
@@ -503,7 +507,7 @@ class SnowflakePlanBuilder:
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
-                lambda x: self.pkg.create_table_as_select_statement(
+                lambda x: AnalyzerUtils.create_table_as_select_statement(
                     table_name, x, temp=create_temp_table
                 ),
                 child,
@@ -518,7 +522,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.limit_statement(limit_expr, x, on_top_of_oder_by),
+            lambda x: AnalyzerUtils.limit_statement(limit_expr, x, on_top_of_oder_by),
             child,
             source_plan,
         )
@@ -532,7 +536,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.pivot_statement(
+            lambda x: AnalyzerUtils.pivot_statement(
                 pivot_column, pivot_values, aggregate, x
             ),
             child,
@@ -548,7 +552,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.unpivot_statement(
+            lambda x: AnalyzerUtils.unpivot_statement(
                 value_column, name_column, column_list, x
             ),
             child,
@@ -565,7 +569,7 @@ class SnowflakePlanBuilder:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         return self.build(
-            lambda x: self.pkg.create_or_replace_view_statement(name, x, is_temp),
+            lambda x: AnalyzerUtils.create_or_replace_view_statement(name, x, is_temp),
             child,
             None,
         )
@@ -585,11 +589,11 @@ class SnowflakePlanBuilder:
         self, session, name: str, schema_query: str, query: str
     ) -> List[str]:
         attributes = session._get_result_attributes(schema_query)
-        create_table = self.pkg.create_temp_table_statement(
-            name, self.pkg.attribute_to_schema_string(attributes)
+        create_table = AnalyzerUtils.create_temp_table_statement(
+            name, AnalyzerUtils.attribute_to_schema_string(attributes)
         )
 
-        return [create_table, self.pkg.insert_into_statement(name, query)]
+        return [create_table, AnalyzerUtils.insert_into_statement(name, query)]
 
     def read_file(
         self,
@@ -614,7 +618,6 @@ class SnowflakePlanBuilder:
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
-        pkg = AnalyzerPackage()
         if not copy_options:  # use select
             temp_file_format_name = (
                 fully_qualified_schema
@@ -623,7 +626,7 @@ class SnowflakePlanBuilder:
             )
             queries = [
                 Query(
-                    pkg.create_file_format_statement(
+                    AnalyzerUtils.create_file_format_statement(
                         temp_file_format_name,
                         format,
                         format_type_options,
@@ -633,8 +636,8 @@ class SnowflakePlanBuilder:
                     is_ddl_on_temp_object=True,
                 ),
                 Query(
-                    pkg.select_from_path_with_format_statement(
-                        pkg.schema_cast_seq(schema),
+                    AnalyzerUtils.select_from_path_with_format_statement(
+                        AnalyzerUtils.schema_cast_seq(schema),
                         path,
                         temp_file_format_name,
                         pattern,
@@ -643,10 +646,12 @@ class SnowflakePlanBuilder:
             ]
             return SnowflakePlan(
                 queries,
-                pkg.schema_value_statement(schema),
+                AnalyzerUtils.schema_value_statement(schema),
                 [
                     Query(
-                        pkg.drop_file_format_if_exists_statement(temp_file_format_name),
+                        AnalyzerUtils.drop_file_format_if_exists_statement(
+                            temp_file_format_name
+                        ),
                         is_ddl_on_temp_object=True,
                     )
                 ],
@@ -679,14 +684,14 @@ class SnowflakePlanBuilder:
             )
             queries = [
                 Query(
-                    pkg.create_temp_table_statement(
+                    AnalyzerUtils.create_temp_table_statement(
                         temp_table_name,
-                        pkg.attribute_to_schema_string(temp_table_schema),
+                        AnalyzerUtils.attribute_to_schema_string(temp_table_schema),
                     ),
                     is_ddl_on_temp_object=True,
                 ),
                 Query(
-                    pkg.copy_into_table(
+                    AnalyzerUtils.copy_into_table(
                         temp_table_name,
                         path,
                         format,
@@ -696,7 +701,7 @@ class SnowflakePlanBuilder:
                     )
                 ),
                 Query(
-                    pkg.project_statement(
+                    AnalyzerUtils.project_statement(
                         [
                             f"{new_att.name} AS {input_att.name}"
                             for new_att, input_att in zip(temp_table_schema, schema)
@@ -708,13 +713,13 @@ class SnowflakePlanBuilder:
 
             post_actions = [
                 Query(
-                    pkg.drop_table_if_exists_statement(temp_table_name),
+                    AnalyzerUtils.drop_table_if_exists_statement(temp_table_name),
                     is_ddl_on_temp_object=True,
                 )
             ]
             return SnowflakePlan(
                 queries,
-                pkg.schema_value_statement(schema),
+                AnalyzerUtils.schema_value_statement(schema),
                 post_actions,
                 {},
                 self.session,
@@ -739,7 +744,7 @@ class SnowflakePlanBuilder:
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
-        copy_command = self.pkg.copy_into_table(
+        copy_command = AnalyzerUtils.copy_into_table(
             table_name=table_name,
             file_path=path,
             files=files,
@@ -757,9 +762,9 @@ class SnowflakePlanBuilder:
             attributes = user_schema._to_attributes()
             queries = [
                 Query(
-                    self.pkg.create_table_statement(
+                    AnalyzerUtils.create_table_statement(
                         table_name,
-                        self.pkg.attribute_to_schema_string(attributes),
+                        AnalyzerUtils.attribute_to_schema_string(attributes),
                         False,
                         False,
                     ),
@@ -788,7 +793,7 @@ class SnowflakePlanBuilder:
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.copy_into_location(
+            lambda x: AnalyzerUtils.copy_into_location(
                 query=x,
                 stage_location=stage_location,
                 partition_by=partition_by,
@@ -811,7 +816,7 @@ class SnowflakePlanBuilder:
         source_data: Optional[SnowflakePlan],
     ) -> SnowflakePlan:
         return self.query(
-            self.pkg.update_statement(
+            AnalyzerUtils.update_statement(
                 table_name,
                 assignments,
                 condition,
@@ -829,7 +834,7 @@ class SnowflakePlanBuilder:
         source_data: Optional[SnowflakePlan],
     ) -> SnowflakePlan:
         return self.query(
-            self.pkg.delete_statement(
+            AnalyzerUtils.delete_statement(
                 table_name,
                 condition,
                 source_data.queries[-1].sql
@@ -843,7 +848,7 @@ class SnowflakePlanBuilder:
         self, table_name: str, source: SnowflakePlan, join_expr: str, clauses: List[str]
     ) -> SnowflakePlan:
         return self.query(
-            self.pkg.merge_statement(
+            AnalyzerUtils.merge_statement(
                 table_name, source.queries[-1].sql, join_expr, clauses
             ),
             None,
@@ -856,17 +861,19 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.lateral_statement(table_function, x), child, source_plan
+            lambda x: AnalyzerUtils.lateral_statement(table_function, x),
+            child,
+            source_plan,
         )
 
     def from_table_function(self, func: str) -> SnowflakePlan:
-        return self.query(self.pkg.table_function_statement(func), None)
+        return self.query(AnalyzerUtils.table_function_statement(func), None)
 
     def join_table_function(
         self, func: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: self.pkg.join_table_function_statement(func, x),
+            lambda x: AnalyzerUtils.join_table_function_statement(func, x),
             child,
             source_plan,
         )
@@ -879,7 +886,7 @@ class SnowflakePlanBuilder:
         else:
             new_queries = plan.queries + [
                 Query(
-                    self.pkg.result_scan_statement(
+                    AnalyzerUtils.result_scan_statement(
                         plan.queries[-1].query_id_place_holder
                     ),
                     None,
@@ -887,7 +894,7 @@ class SnowflakePlanBuilder:
             ]
             return SnowflakePlan(
                 new_queries,
-                self.pkg.schema_value_statement(plan.attributes()),
+                AnalyzerUtils.schema_value_statement(plan.attributes()),
                 plan.post_actions,
                 plan.expr_to_alias,
                 self.session,

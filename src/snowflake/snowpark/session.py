@@ -22,7 +22,8 @@ import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
-from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
@@ -35,7 +36,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
     create_table_function_expression,
 )
-from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.type_utils import (
@@ -1089,7 +1089,7 @@ class Session:
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         if installed_pandas and isinstance(data, pandas.DataFrame):
-            table_name = AnalyzerPackage._escape_quotes(
+            table_name = AnalyzerUtils.escape_quotes(
                 Utils.random_name_for_temp_object(TempObjectType.TABLE)
             )
             sf_database = self.get_current_database(unquoted=True)
@@ -1180,9 +1180,7 @@ class Session:
                 else field.datatype
             )
             attrs.append(
-                Attribute(
-                    AnalyzerPackage.quote_name(field.name), sf_type, field.nullable
-                )
+                Attribute(AnalyzerUtils.quote_name(field.name), sf_type, field.nullable)
             )
             data_types.append(field.datatype)
 
