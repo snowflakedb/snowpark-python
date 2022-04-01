@@ -13,13 +13,17 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 import snowflake.snowpark
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark._internal.analyzer.binary_plan_nodes import (
-    Cross as SPCrossJoin,
-    JoinType as SPJoinType,
-    LeftAnti as SPLeftAnti,
-    LeftSemi as SPLeftSemi,
-    NaturalJoin as SPNaturalJoin,
-    UsingJoin as SPUsingJoin,
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    Cross,
+    Except,
+    Intersect,
+    Join,
+    JoinType,
+    LeftAnti,
+    LeftSemi,
+    NaturalJoin,
+    Union as UnionPlan,
+    UsingJoin,
     create_join_type,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -28,19 +32,15 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     Star,
 )
-from snowflake.snowpark._internal.analyzer.limit import Limit as SPLimit
-from snowflake.snowpark._internal.analyzer.snowflake_plan import CopyIntoNode
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CopyIntoTableNode,
+    Limit,
+    LogicalPlan,
+)
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
     Descending,
     SortOrder,
-)
-from snowflake.snowpark._internal.analyzer.sp_identifiers import TableIdentifier
-from snowflake.snowpark._internal.analyzer.sp_views import (
-    CreateViewCommand as SPCreateViewCommand,
-    LocalTempView as SPLocalTempView,
-    PersistedView as SPPersistedView,
-    ViewType as SPViewType,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
@@ -49,22 +49,18 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionJoin,
     create_table_function_expression,
 )
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    CreateViewCommand,
+    Filter,
+    LocalTempView,
+    PersistedView,
+    Project,
+    Sample,
+    Sort,
+    Unpivot,
+    ViewType,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
-    Except as SPExcept,
-    Intersect as SPIntersect,
-    Join as SPJoin,
-    Sort as SPSort,
-    Union as SPUnion,
-    Unpivot as SPUnpivot,
-)
-from snowflake.snowpark._internal.plans.logical.hints import JoinHint as SPJoinHint
-from snowflake.snowpark._internal.plans.logical.logical_plan import (
-    Filter as SPFilter,
-    LogicalPlan,
-    Project as SPProject,
-    Sample as SPSample,
-)
 from snowflake.snowpark._internal.telemetry import (
     df_action_telemetry,
     df_usage_telemetry,
@@ -602,7 +598,7 @@ class DataFrame:
                     "The input of select() must be Column, column name, or a list of them"
                 )
 
-        return self._with_plan(SPProject(names, self._plan))
+        return self._with_plan(Project(names, self._plan))
 
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
         """
@@ -714,7 +710,7 @@ class DataFrame:
         :meth:`where` is an alias of :meth:`filter`.
         """
         return self._with_plan(
-            SPFilter(
+            Filter(
                 _to_col_if_sql_expr(expr, "filter/where").expression,
                 self._plan,
             )
@@ -808,7 +804,7 @@ class DataFrame:
                     SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
-        return self._with_plan(SPSort(sort_exprs, True, self._plan))
+        return self._with_plan(Sort(sort_exprs, True, self._plan))
 
     def agg(
         self,
@@ -1150,7 +1146,7 @@ class DataFrame:
         """
         column_exprs = self.__convert_cols_to_exprs("unpivot()", column_list)
         return self._with_plan(
-            SPUnpivot(value_column, name_column, column_exprs, self._plan)
+            Unpivot(value_column, name_column, column_exprs, self._plan)
         )
 
     def limit(self, n: int) -> "DataFrame":
@@ -1162,7 +1158,7 @@ class DataFrame:
         Args:
             n: Number of rows to return.
         """
-        return self._with_plan(SPLimit(Literal(n), self._plan))
+        return self._with_plan(Limit(Literal(n), self._plan))
 
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -1185,7 +1181,7 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
-        return self._with_plan(SPUnion(self._plan, other._plan, is_all=False))
+        return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
     def union_all(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -1210,7 +1206,7 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
-        return self._with_plan(SPUnion(self._plan, other._plan, is_all=True))
+        return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
     def union_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -1291,10 +1287,10 @@ class DataFrame:
         ]
 
         right_child = self._with_plan(
-            SPProject(right_project_list + not_found_attrs, other._plan)
+            Project(right_project_list + not_found_attrs, other._plan)
         )
 
-        return self._with_plan(SPUnion(self._plan, right_child._plan, is_all))
+        return self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
 
     def intersect(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the
@@ -1317,7 +1313,7 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
         """
-        return self._with_plan(SPIntersect(self._plan, other._plan))
+        return self._with_plan(Intersect(self._plan, other._plan))
 
     def except_(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
@@ -1340,7 +1336,7 @@ class DataFrame:
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
-        return self._with_plan(SPExcept(self._plan, other._plan))
+        return self._with_plan(Except(self._plan, other._plan))
 
     @deprecate(
         deprecate_version="0.4.0",
@@ -1387,14 +1383,12 @@ class DataFrame:
             join_type: The type of join ("inner", "full", "left", "right"). The default value is "left".
         """
         join_type = join_type or "inner"
-        # TODO: Snowflake db doesn't have inner natural join. We shouldn't list it as a join_type value option?
         return self._with_plan(
-            SPJoin(
+            Join(
                 self._plan,
                 right._plan,
-                SPNaturalJoin(create_join_type(join_type)),
+                NaturalJoin(create_join_type(join_type)),
                 None,
-                SPJoinHint.none(),
             )
         )
 
@@ -1433,7 +1427,7 @@ class DataFrame:
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
 
-            if isinstance(join_type, SPCrossJoin) or (
+            if isinstance(join_type, Cross) or (
                 isinstance(join_type, str)
                 and join_type.strip().lower().replace("_", "").startswith("cross")
             ):
@@ -1551,14 +1545,14 @@ class DataFrame:
         self,
         right: "DataFrame",
         using_columns: Union[Column, List[str]],
-        join_type: SPJoinType,
+        join_type: JoinType,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self.__join_dataframes_internal(
                 right, join_type, join_exprs=using_columns
             )
 
-        if isinstance(join_type, (SPLeftSemi, SPLeftAnti)):
+        if isinstance(join_type, (LeftSemi, LeftAnti)):
             # Create a Column with expression 'true AND <expr> AND <expr> .."
             join_cond = Column(Literal(True))
             for c in using_columns:
@@ -1568,27 +1562,25 @@ class DataFrame:
         else:
             lhs, rhs = self._disambiguate(self, right, join_type, using_columns)
             return self._with_plan(
-                SPJoin(
+                Join(
                     lhs._plan,
                     rhs._plan,
-                    SPUsingJoin(join_type, using_columns),
+                    UsingJoin(join_type, using_columns),
                     None,
-                    SPJoinHint.none(),
                 )
             )
 
     def __join_dataframes_internal(
-        self, right: "DataFrame", join_type: SPJoinType, join_exprs: Optional[Column]
+        self, right: "DataFrame", join_type: JoinType, join_exprs: Optional[Column]
     ) -> "DataFrame":
         (lhs, rhs) = self._disambiguate(self, right, join_type, [])
         expression = join_exprs.expression if join_exprs is not None else None
         return self._with_plan(
-            SPJoin(
+            Join(
                 lhs._plan,
                 rhs._plan,
                 join_type,
                 expression,
-                SPJoinHint.none(),
             )
         )
 
@@ -1828,7 +1820,7 @@ class DataFrame:
         )
         return DataFrame(
             self.session,
-            CopyIntoNode(
+            CopyIntoTableNode(
                 full_table_name,
                 file_path=self._reader._file_path,
                 files=files,
@@ -2053,7 +2045,7 @@ class DataFrame:
 
         return self.__do_create_or_replace_view(
             formatted_name,
-            SPPersistedView(),
+            PersistedView(),
             _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
             if not self.session.query_tag
             else None,
@@ -2090,27 +2082,20 @@ class DataFrame:
 
         return self.__do_create_or_replace_view(
             formatted_name,
-            SPLocalTempView(),
+            LocalTempView(),
             _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
             if not self.session.query_tag
             else None,
         )
 
     def __do_create_or_replace_view(
-        self, view_name: str, view_type: SPViewType, **kwargs
+        self, view_name: str, view_type: ViewType, **kwargs
     ):
         Utils.validate_object_name(view_name)
-        name = TableIdentifier(view_name)
-        cmd = SPCreateViewCommand(
-            name=name,
-            user_specified_columns=[],
-            comment=None,
-            properties={},
-            original_text="",
-            child=self._plan,
-            allow_existing=False,
-            replace=True,
-            view_type=view_type,
+        cmd = CreateViewCommand(
+            view_name,
+            view_type,
+            self._plan,
         )
 
         return self.session._conn.execute(self.session._analyzer.resolve(cmd), **kwargs)
@@ -2152,7 +2137,7 @@ class DataFrame:
         """
         DataFrame._validate_sample_input(frac, n)
         return self._with_plan(
-            SPSample(self._plan, probability_fraction=frac, row_count=n)
+            Sample(self._plan, probability_fraction=frac, row_count=n)
         )
 
     @staticmethod
@@ -2495,7 +2480,7 @@ Query List:
     def _disambiguate(
         lhs: "DataFrame",
         rhs: "DataFrame",
-        join_type: SPJoinType,
+        join_type: JoinType,
         using_columns: List[str],
     ) -> Tuple["DataFrame", "DataFrame"]:
         # Normalize the using columns.
@@ -2528,7 +2513,7 @@ Query List:
                     name,
                     lhs_prefix,
                     []
-                    if isinstance(join_type, (SPLeftSemi, SPLeftAnti))
+                    if isinstance(join_type, (LeftSemi, LeftAnti))
                     else common_col_names,
                 )
                 for name in lhs_names

@@ -7,7 +7,7 @@
 #
 #  File containing the Expression definitions for ASTs (Spark).
 import uuid
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan

@@ -6,12 +6,12 @@
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from snowflake.snowpark._internal.analyzer.binary_plan_nodes import (
-    JoinType as SPJoinType,
-    LeftAnti as SPLeftAnti,
-    LeftSemi as SPLeftSemi,
-    NaturalJoin as SPNaturalJoin,
-    UsingJoin as SPUsingJoin,
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    JoinType,
+    LeftAnti,
+    LeftSemi,
+    NaturalJoin,
+    UsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -477,14 +477,14 @@ class AnalyzerPackage:
         )
 
     def left_semi_or_anti_join_statement(
-        self, left: str, right: str, join_type: type, condition: str
+        self, left: str, right: str, join_type: JoinType, condition: str
     ) -> str:
         left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
-        if join_type == SPLeftSemi:
+        if isinstance(join_type, LeftSemi):
             where_condition = self._Where + self._Exists
-        else:  # join_type == SPLeftAnti:
+        else:
             where_condition = self._Where + self._Not + self._Exists
 
         # this generates sql like "Where a = b"
@@ -514,21 +514,21 @@ class AnalyzerPackage:
         )
 
     def snowflake_supported_join_statement(
-        self, left: str, right: str, join_type: SPJoinType, condition: str
+        self, left: str, right: str, join_type: JoinType, condition: str
     ) -> str:
         left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
-        if isinstance(join_type, SPUsingJoin):
+        if isinstance(join_type, UsingJoin):
             join_sql = join_type.tpe.sql
-        elif isinstance(join_type, SPNaturalJoin):
+        elif isinstance(join_type, NaturalJoin):
             join_sql = self._Natural + join_type.tpe.sql
         else:
             join_sql = join_type.sql
 
         # This generates sql like "USING(a, b)"
         using_condition = None
-        if isinstance(join_type, SPUsingJoin):
+        if isinstance(join_type, UsingJoin):
             if len(join_type.using_columns) != 0:
                 using_condition = (
                     self._Using
@@ -568,22 +568,18 @@ class AnalyzerPackage:
         return self.project_statement([], source)
 
     def join_statement(
-        self, left: str, right: str, join_type: SPJoinType, condition: str
+        self, left: str, right: str, join_type: JoinType, condition: str
     ) -> str:
-        if isinstance(join_type, SPLeftSemi):
+        if isinstance(join_type, (LeftSemi, LeftAnti)):
             return self.left_semi_or_anti_join_statement(
-                left, right, SPLeftSemi, condition
+                left, right, join_type, condition
             )
-        if isinstance(join_type, SPLeftAnti):
-            return self.left_semi_or_anti_join_statement(
-                left, right, SPLeftAnti, condition
-            )
-        if isinstance(join_type, SPUsingJoin):
-            if isinstance(join_type.tpe, SPLeftSemi):
+        if isinstance(join_type, UsingJoin):
+            if isinstance(join_type.tpe, LeftSemi):
                 raise Exception(
                     "Internal error: Unexpected Using clause in left semi join"
                 )
-            if isinstance(join_type.tpe, SPLeftAnti):
+            if isinstance(join_type.tpe, LeftAnti):
                 raise Exception(
                     "Internal error: Unexpected Using clause in left anti join"
                 )
