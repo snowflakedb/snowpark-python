@@ -998,6 +998,192 @@ def current_time() -> Column:
     return builtin("current_time")()
 
 
+def hour(e: ColumnOrName) -> Column:
+    """
+    Extracts the hour from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(hour("a")).collect()
+        [Row(HOUR("A")=13), Row(HOUR("A")=1)]
+    """
+    c = _to_col_if_str(e, "hour")
+    return builtin("hour")(c)
+
+
+def last_day(e: ColumnOrName) -> Column:
+    """
+    Returns the last day of the specified date part for a date or timestamp.
+    Commonly used to return the last day of the month for a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(last_day("a")).collect()
+        [Row(LAST_DAY("A")=datetime.date(2020, 5, 31)), Row(LAST_DAY("A")=datetime.date(2020, 8, 31))]
+    """
+    c = _to_col_if_str(e, "last_day")
+    return builtin("last_day")(c)
+
+
+def minute(e: ColumnOrName) -> Column:
+    """
+    Extracts the minute from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(minute("a")).collect()
+        [Row(MINUTE("A")=11), Row(MINUTE("A")=30)]
+    """
+    c = _to_col_if_str(e, "minute")
+    return builtin("minute")(c)
+
+
+def next_day(date: ColumnOrName, day_of_week: ColumnOrLiteral) -> Column:
+    """
+    Returns the date of the first specified DOW (day of week) that occurs after the input date.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     (datetime.date.fromisoformat("2020-08-01"), "mo"),
+        ...     (datetime.date.fromisoformat("2020-12-01"), "we"),
+        ... ], schema=["a", "b"])
+        >>> df.select(next_day("a", col("b"))).collect()
+        [Row(NEXT_DAY("A", "B")=datetime.date(2020, 8, 3)), Row(NEXT_DAY("A", "B")=datetime.date(2020, 12, 2))]
+        >>> df.select(next_day("a", "fr")).collect()
+        [Row(NEXT_DAY("A", 'FR')=datetime.date(2020, 8, 7)), Row(NEXT_DAY("A", 'FR')=datetime.date(2020, 12, 4))]
+    """
+    c = _to_col_if_str(date, "next_day")
+    return builtin("next_day")(c, Column._to_expr(day_of_week))
+
+
+def previous_day(date: ColumnOrName, day_of_week: ColumnOrLiteral) -> Column:
+    """
+    Returns the date of the first specified DOW (day of week) that occurs before the input date.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     (datetime.date.fromisoformat("2020-08-01"), "mo"),
+        ...     (datetime.date.fromisoformat("2020-12-01"), "we"),
+        ... ], schema=["a", "b"])
+        >>> df.select(previous_day("a", col("b"))).collect()
+        [Row(PREVIOUS_DAY("A", "B")=datetime.date(2020, 7, 27)), Row(PREVIOUS_DAY("A", "B")=datetime.date(2020, 11, 25))]
+        >>> df.select(previous_day("a", "fr")).collect()
+        [Row(PREVIOUS_DAY("A", 'FR')=datetime.date(2020, 7, 31)), Row(PREVIOUS_DAY("A", 'FR')=datetime.date(2020, 11, 27))]
+    """
+    c = _to_col_if_str(date, "previous_day")
+    return builtin("previous_day")(c, Column._to_expr(day_of_week))
+
+
+def second(e: ColumnOrName) -> Column:
+    """
+    Extracts the second from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(second("a")).collect()
+        [Row(SECOND("A")=20), Row(SECOND("A")=5)]
+    """
+    c = _to_col_if_str(e, "second")
+    return builtin("second")(c)
+
+
+def month(e: ColumnOrName) -> Column:
+    """
+    Extracts the month from a date or timestamp.
+
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(month("a")).collect()
+        [Row(MONTH("A")=5), Row(MONTH("A")=8)]
+    """
+    c = _to_col_if_str(e, "month")
+    return builtin("month")(c)
+
+
+def monthname(e: ColumnOrName) -> Column:
+    """
+    Extracts the three-letter month name from the specified date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(monthname("a")).collect()
+        [Row(MONTHNAME("A")='May'), Row(MONTHNAME("A")='Aug')]
+    """
+    c = _to_col_if_str(e, "monthname")
+    return builtin("monthname")(c)
+
+
+def quarter(e: ColumnOrName) -> Column:
+    """
+    Extracts the quarter from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(quarter("a")).collect()
+        [Row(QUARTER("A")=2), Row(QUARTER("A")=3)]
+    """
+    c = _to_col_if_str(e, "quarter")
+    return builtin("quarter")(c)
+
+
+def year(e: ColumnOrName) -> Column:
+    """
+    Extracts the year from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(year("a")).collect()
+        [Row(YEAR("A")=2020), Row(YEAR("A")=2020)]
+    """
+    c = _to_col_if_str(e, "year")
+    return builtin("year")(c)
+
+
 def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
     """Returns the number of months between two DATE or TIMESTAMP values.
     For example, MONTHS_BETWEEN('2020-02-01'::DATE, '2020-01-01'::DATE) returns 1.0.
