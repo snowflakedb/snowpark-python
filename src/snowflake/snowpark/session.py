@@ -1078,8 +1078,9 @@ class Session:
         if isinstance(data, Row):
             raise TypeError("create_dataframe() function does not accept a Row object.")
 
-        if not isinstance(data, (list, tuple)) or (
-            installed_pandas and not isinstance(data, pandas.DataFrame)
+        if not isinstance(data, (list, tuple)) and (
+            not installed_pandas
+            or (installed_pandas and not isinstance(data, pandas.DataFrame))
         ):
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
