@@ -197,6 +197,7 @@ from snowflake.snowpark.column import (
     Column,
     _to_col_if_sql_expr,
     _to_col_if_str,
+    _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import DataType
@@ -731,6 +732,28 @@ def random(seed: Optional[int] = None) -> Column:
     return builtin("random")(Literal(s))
 
 
+def uniform(
+    min_: Union[ColumnOrName, int, float],
+    max_: Union[ColumnOrName, int, float],
+    gen: Column,
+) -> Column:
+    min_col = (
+        lit(min_) if isinstance(min_, (int, float)) else _to_col_if_str(min_, "uniform")
+    )
+    max_col = (
+        lit(max_) if isinstance(max_, (int, float)) else _to_col_if_str(max_, "uniform")
+    )
+    return builtin("uniform")(min_col, max_col, gen)
+
+
+def seq4(starts_from_zero: Optional[bool] = True) -> Column:
+    return builtin("seq4")(0 if starts_from_zero else 1)
+
+
+def seq8(starts_from_zero: Optional[bool] = True) -> Column:
+    return builtin("seq8")(0 if starts_from_zero else 1)
+
+
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal."""
     c = _to_col_if_str(e, "to_decimal")
@@ -982,6 +1005,14 @@ def upper(e: ColumnOrName) -> Column:
     """Returns the input string with all characters converted to uppercase."""
     c = _to_col_if_str(e, "upper")
     return builtin("upper")(c)
+
+
+def strtok_to_array(
+    text: ColumnOrName, delimiter: Optional[ColumnOrName] = None
+) -> Column:
+    t = _to_col_if_str(text, "strtok_to_array")
+    d = _to_col_if_str(delimiter, "strtok_to_array") if delimiter else None
+    return builtin("strtok_to_array")(t, d) if d else builtin("strtok_to_array")(t)
 
 
 def log(
@@ -1450,6 +1481,10 @@ def year(e: ColumnOrName) -> Column:
     return builtin("year")(c)
 
 
+def sysdate() -> Column:
+    return builtin("sysdate")()
+
+
 def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
     """Returns the number of months between two DATE or TIMESTAMP values.
     For example, MONTHS_BETWEEN('2020-02-01'::DATE, '2020-01-01'::DATE) returns 1.0.
@@ -1771,6 +1806,130 @@ def is_timestamp_tz(col: ColumnOrName) -> Column:
     """Returns true if the specified VARIANT column contains a TIMESTAMP value with a time zone."""
     c = _to_col_if_str(col, "is_timestamp_tz")
     return builtin("is_timestamp_tz")(c)
+
+
+def __timestamp_from_parts_internal(func_name, *args, **kwargs) -> Tuple:
+    num_args = len(args)
+    if num_args == 2:
+        # expression mode
+        date_expr = _to_col_if_str(args[0], func_name)
+        time_expr = _to_col_if_str(args[1], func_name)
+        return date_expr, time_expr
+    elif 6 <= num_args <= 8:
+        # parts mode
+        year_ = _to_col_if_str_or_int(args[0], func_name)
+        month = _to_col_if_str_or_int(args[1], func_name)
+        day = _to_col_if_str_or_int(args[2], func_name)
+        hour = _to_col_if_str_or_int(args[3], func_name)
+        minute = _to_col_if_str_or_int(args[4], func_name)
+        second = _to_col_if_str_or_int(args[5], func_name)
+        ns_arg = args[6] if num_args == 7 else kwargs.get("nanoseconds")
+        # Timezone is only accepted in timestamp_from_parts function
+        tz_arg = args[7] if num_args == 8 else kwargs.get("timezone")
+        if tz_arg and func_name != "timestamp_from_parts":
+            raise ValueError(f"{func_name} does not accept timezone as an argument")
+        nanoseconds = _to_col_if_str_or_int(ns_arg, func_name) if ns_arg else None
+        timezone = _to_col_if_sql_expr(tz_arg, func_name) if tz_arg else None
+        if nanoseconds and timezone:
+            return year_, month, day, hour, minute, second, nanoseconds, timezone
+        elif nanoseconds:
+            return year_, month, day, hour, minute, second, nanoseconds
+        elif timezone:
+            # We need to fill in nanoseconds as 0 to make the sql function work
+            return year_, month, day, hour, minute, second, lit(0), timezone
+        else:
+            return year_, month, day, hour, minute, second
+    else:
+        raise ValueError(
+            f"{func_name} expected 2 or 6 required arguments, got {num_args}"
+        )
+
+
+def time_from_parts(
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanoseconds: Optional[Union[ColumnOrName, int]] = None,
+) -> Column:
+    h = _to_col_if_str_or_int(hour, "time_from_parts")
+    m = _to_col_if_str_or_int(minute, "time_from_parts")
+    s = _to_col_if_str_or_int(second, "time_from_parts")
+    ns = _to_col_if_str_or_int(nanoseconds, "time_from_parts") if nanoseconds else None
+    return (
+        builtin("time_from_parts")(h, m, s, ns)
+        if ns
+        else builtin("time_from_parts")(h, m, s)
+    )
+
+
+def timestamp_from_parts(*args, **kwargs) -> Column:
+    return builtin("timestamp_from_parts")(
+        *__timestamp_from_parts_internal("timestamp_from_parts", *args, **kwargs)
+    )
+
+
+def timestamp_ltz_from_parts(
+    year: Union[ColumnOrName, int],
+    month: Union[ColumnOrName, int],
+    day: Union[ColumnOrName, int],
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanoseconds: Optional[Union[ColumnOrName, int]] = None,
+) -> Column:
+    func_name = "timestamp_ltz_from_parts"
+    y = _to_col_if_str_or_int(year, func_name)
+    m = _to_col_if_str_or_int(month, func_name)
+    d = _to_col_if_str_or_int(day, func_name)
+    h = _to_col_if_str_or_int(hour, func_name)
+    min_ = _to_col_if_str_or_int(minute, func_name)
+    s = _to_col_if_str_or_int(second, func_name)
+    ns = _to_col_if_str_or_int(nanoseconds, func_name) if nanoseconds else None
+    return (
+        builtin(func_name)(y, m, d, h, min_, s, ns)
+        if ns
+        else builtin(func_name)(y, m, d, h, min_, s)
+    )
+
+
+def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
+    return builtin("timestamp_ntz_from_parts")(
+        *__timestamp_from_parts_internal("timestamp_ntz_from_parts", *args, **kwargs)
+    )
+
+
+def timestamp_tz_from_parts(
+    year: Union[ColumnOrName, int],
+    month: Union[ColumnOrName, int],
+    day: Union[ColumnOrName, int],
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanoseconds: Optional[Union[ColumnOrName, int]] = None,
+    timezone: Optional[Union[Column, str]] = None,
+) -> Column:
+    func_name = "timestamp_tz_from_parts"
+    y = _to_col_if_str_or_int(year, func_name)
+    m = _to_col_if_str_or_int(month, func_name)
+    d = _to_col_if_str_or_int(day, func_name)
+    h = _to_col_if_str_or_int(hour, func_name)
+    min_ = _to_col_if_str_or_int(minute, func_name)
+    s = _to_col_if_str_or_int(second, func_name)
+    ns = _to_col_if_str_or_int(nanoseconds, func_name) if nanoseconds else None
+    tz = _to_col_if_sql_expr(timezone, func_name) if timezone else None
+    if ns and tz:
+        return builtin(func_name)(y, m, d, h, min_, s, ns, tz)
+    elif ns:
+        return builtin(func_name)(y, m, d, h, min_, s, ns)
+    elif tz:
+        return builtin(func_name)(y, m, d, h, min_, s, lit(0), tz)
+    else:
+        return builtin(func_name)(y, m, d, h, min_, s)
+
+
+def weekofyear(e: ColumnOrName) -> Column:
+    c = _to_col_if_str(e, "weekofyear")
+    return builtin("weekofyear")(c)
 
 
 def typeof(col: ColumnOrName) -> Column:

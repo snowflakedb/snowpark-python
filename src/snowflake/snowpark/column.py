@@ -106,6 +106,19 @@ def _to_col_if_str(col: ColumnOrName, func_name: str) -> "Column":
         )
 
 
+def _to_col_if_str_or_int(col: Union[ColumnOrName, int], func_name: str) -> "Column":
+    if isinstance(col, Column):
+        return col
+    elif isinstance(col, str):
+        return Column(col)
+    elif isinstance(col, int):
+        return Column(SPLiteral(col))
+    else:
+        raise TypeError(
+            f"'{func_name.upper()}' expected Column, int or str, got: {type(col)}"
+        )
+
+
 class Column:
     """Represents a column or an expression in a :class:`DataFrame`.
 
