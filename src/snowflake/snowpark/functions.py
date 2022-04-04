@@ -500,12 +500,12 @@ def grouping(*cols: ColumnOrName) -> Column:
         >>> df = session.create_dataframe([[1, 2, 3], [4, 5, 6]],schema=["a", "b", "c"])
         >>> grouping_sets = GroupingSets([col("a")], [col("b")], [col("a"), col("b")])
         >>> df.group_by_grouping_sets(grouping_sets).agg([count("c"), grouping("a"), grouping("b"), grouping("a", "b")]).collect()
-        [Row(A=1, B=2, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0),
-        Row(A=4, B=5, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0),
-        Row(A=1, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1),
-        Row(A=4, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1),
-        Row(A=None, B=2, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2),
-        Row(A=None, B=5, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2)]
+        [Row(A=1, B=2, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
+Row(A=4, B=5, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
+Row(A=1, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
+Row(A=4, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
+Row(A=None, B=2, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2), \
+Row(A=None, B=5, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2)]
     """
     columns = [_to_col_if_str(c, "grouping") for c in cols]
     return builtin("grouping")(*columns)
@@ -1380,7 +1380,7 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("dateadd")(part, c1, c2)
 
 
-def date_from_parts(y: ColumnOrName, m: ColumnOrName, d: ColumnOrName):
+def date_from_parts(y: ColumnOrName, m: ColumnOrName, d: ColumnOrName) -> Column:
     """
     Creates a date from individual numeric components that represent the year, month, and day of the month.
 
@@ -1395,7 +1395,7 @@ def date_from_parts(y: ColumnOrName, m: ColumnOrName, d: ColumnOrName):
     return builtin("date_from_parts")(y_col, m_col, d_col)
 
 
-def date_trunc(part: ColumnOrName, expr: ColumnOrName):
+def date_trunc(part: ColumnOrName, expr: ColumnOrName) -> Column:
     """
     Truncates a DATE, TIME, or TIMESTAMP to the specified precision.
 
@@ -1422,7 +1422,7 @@ def date_trunc(part: ColumnOrName, expr: ColumnOrName):
     return builtin("date_trunc")(part_col, expr_col)
 
 
-def dayname(e: ColumnOrName):
+def dayname(e: ColumnOrName) -> Column:
     """
     Extracts the three-letter day-of-week name from the specified date or timestamp.
 
@@ -1439,7 +1439,7 @@ def dayname(e: ColumnOrName):
     return builtin("dayname")(c)
 
 
-def dayofmonth(e: ColumnOrName):
+def dayofmonth(e: ColumnOrName) -> Column:
     """
     Extracts the corresponding day (number) of the month from a date or timestamp.
 
@@ -1456,7 +1456,7 @@ def dayofmonth(e: ColumnOrName):
     return builtin("dayofmonth")(c)
 
 
-def dayofweek(e: ColumnOrName):
+def dayofweek(e: ColumnOrName) -> Column:
     """
     Extracts the corresponding day (number) of the week from a date or timestamp.
 
@@ -1466,14 +1466,14 @@ def dayofweek(e: ColumnOrName):
         ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
         ...     schema=["a"],
         ... )
-        >>> df.select(dayofmonth("a")).collect()
+        >>> df.select(dayofweek("a")).collect()
         [Row(DAYOFWEEK("A")=5)]
     """
     c = _to_col_if_str(e, "dayofweek")
     return builtin("dayofweek")(c)
 
 
-def dayofyear(e: ColumnOrName):
+def dayofyear(e: ColumnOrName) -> Column:
     """
     Extracts the corresponding day (number) of the year from a date or timestamp.
 
@@ -1483,7 +1483,7 @@ def dayofyear(e: ColumnOrName):
         ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
         ...     schema=["a"],
         ... )
-        >>> df.select(dayofmonth("a")).collect()
+        >>> df.select(dayofyear("a")).collect()
         [Row(DAYOFYEAR("A")=122)]
     """
     c = _to_col_if_str(e, "dayofyear")
