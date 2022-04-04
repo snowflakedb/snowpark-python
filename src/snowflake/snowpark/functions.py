@@ -228,6 +228,67 @@ def sql_expr(sql: str) -> Column:
     return Column._expr(sql)
 
 
+def current_session() -> Column:
+    """
+    Returns a unique system identifier for the Snowflake session corresponding to the present connection.
+    This will generally be a system-generated alphanumeric string. It is NOT derived from the user name or user account.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_session()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_session")()
+
+
+def current_statement() -> Column:
+    """
+    Returns the SQL text of the statement that is currently executing.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_statement()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_statement")()
+
+
+def current_user() -> Column:
+    """
+    Returns the name of the user currently logged into the system.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_user()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_user")()
+
+
+def current_version() -> Column:
+    """
+    Returns the current Snowflake version.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_version()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_version")()
+
+
+def current_warehouse() -> Column:
+    """
+    Returns the name of the warehouse in use for the current session.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_warehouse()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_warehouse")()
+
+
 def approx_count_distinct(e: ColumnOrName) -> Column:
     """Uses HyperLogLog to return an approximation of the distinct cardinality of the input (i.e. HLL(col1, col2, ... )
     returns an approximation of COUNT(DISTINCT col1, col2, ... ))."""
@@ -426,6 +487,31 @@ def approx_percentile_combine(state: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(state, "approx_percentile_combine")
     return builtin("approx_percentile_combine")(c)
+
+
+def grouping(*cols: ColumnOrName) -> Column:
+    """
+    Describes which of a list of expressions are grouped in a row produced by a GROUP BY query.
+
+    :func:`grouping_id` is an alias of :func:`grouping`.
+
+    Example::
+        >>> from snowflake.snowpark import GroupingSets
+        >>> df = session.create_dataframe([[1, 2, 3], [4, 5, 6]],schema=["a", "b", "c"])
+        >>> grouping_sets = GroupingSets([col("a")], [col("b")], [col("a"), col("b")])
+        >>> df.group_by_grouping_sets(grouping_sets).agg([count("c"), grouping("a"), grouping("b"), grouping("a", "b")]).collect()
+        [Row(A=1, B=2, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0),
+        Row(A=4, B=5, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0),
+        Row(A=1, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1),
+        Row(A=4, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1),
+        Row(A=None, B=2, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2),
+        Row(A=None, B=5, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2)]
+    """
+    columns = [_to_col_if_str(c, "grouping") for c in cols]
+    return builtin("grouping")(*columns)
+
+
+grouping_id = grouping
 
 
 def coalesce(*e: ColumnOrName) -> Column:
@@ -1292,6 +1378,116 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     c1 = _to_col_if_str(col1, "dateadd")
     c2 = _to_col_if_str(col2, "dateadd")
     return builtin("dateadd")(part, c1, c2)
+
+
+def date_from_parts(y: ColumnOrName, m: ColumnOrName, d: ColumnOrName):
+    """
+    Creates a date from individual numeric components that represent the year, month, and day of the month.
+
+    Example::
+        >>> df = session.create_dataframe([[2022, 4, 1]], schema=["year", "month", "day"])
+        >>> df.select(date_from_parts("year", "month", "day")).collect()
+        [Row(DATE_FROM_PARTS("YEAR", "MONTH", "DAY")=datetime.date(2022, 4, 1))]
+    """
+    y_col = _to_col_if_str(y, "date_from_parts")
+    m_col = _to_col_if_str(m, "date_from_parts")
+    d_col = _to_col_if_str(d, "date_from_parts")
+    return builtin("date_from_parts")(y_col, m_col, d_col)
+
+
+def date_trunc(part: ColumnOrName, expr: ColumnOrName):
+    """
+    Truncates a DATE, TIME, or TIMESTAMP to the specified precision.
+
+    Note that truncation is not the same as extraction. For example:
+    - Truncating a timestamp down to the quarter returns the timestamp corresponding to midnight of the first day of the
+      quarter for the input timestamp.
+    - Extracting the quarter date part from a timestamp returns the quarter number of the year in the timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(date_trunc("YEAR", "a"), date_trunc("MONTH", "a"), date_trunc("DAY", "a")).collect()
+        [Row(DATE_TRUNC("YEAR", "A")=datetime.datetime(2020, 1, 1, 0, 0), DATE_TRUNC("MONTH", "A")=datetime.datetime(2020, 5, 1, 0, 0), DATE_TRUNC("DAY", "A")=datetime.datetime(2020, 5, 1, 0, 0))]
+        >>> df.select(date_trunc("HOUR", "a"), date_trunc("MINUTE", "a"), date_trunc("SECOND", "a")).collect()
+        [Row(DATE_TRUNC("HOUR", "A")=datetime.datetime(2020, 5, 1, 13, 0), DATE_TRUNC("MINUTE", "A")=datetime.datetime(2020, 5, 1, 13, 11), DATE_TRUNC("SECOND", "A")=datetime.datetime(2020, 5, 1, 13, 11, 20))]
+        >>> df.select(date_trunc("QUARTER", "a")).collect()
+        [Row(DATE_TRUNC("QUARTER", "A")=datetime.datetime(2020, 4, 1, 0, 0))]
+    """
+    part_col = _to_col_if_str(part, "date_trunc")
+    expr_col = _to_col_if_str(expr, "date_trunc")
+    return builtin("date_trunc")(part_col, expr_col)
+
+
+def dayname(e: ColumnOrName):
+    """
+    Extracts the three-letter day-of-week name from the specified date or timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(dayname("a")).collect()
+        [Row(DAYNAME("A")='Fri')]
+    """
+    c = _to_col_if_str(e, "dayname")
+    return builtin("dayname")(c)
+
+
+def dayofmonth(e: ColumnOrName):
+    """
+    Extracts the corresponding day (number) of the month from a date or timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(dayofmonth("a")).collect()
+        [Row(DAYOFMONTH("A")=1)]
+    """
+    c = _to_col_if_str(e, "dayofmonth")
+    return builtin("dayofmonth")(c)
+
+
+def dayofweek(e: ColumnOrName):
+    """
+    Extracts the corresponding day (number) of the week from a date or timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(dayofmonth("a")).collect()
+        [Row(DAYOFWEEK("A")=5)]
+    """
+    c = _to_col_if_str(e, "dayofweek")
+    return builtin("dayofweek")(c)
+
+
+def dayofyear(e: ColumnOrName):
+    """
+    Extracts the corresponding day (number) of the year from a date or timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(dayofmonth("a")).collect()
+        [Row(DAYOFYEAR("A")=122)]
+    """
+    c = _to_col_if_str(e, "dayofyear")
+    return builtin("dayofyear")(c)
 
 
 def is_array(col: ColumnOrName) -> Column:
