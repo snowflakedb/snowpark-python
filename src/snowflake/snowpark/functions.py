@@ -1401,7 +1401,7 @@ def date_trunc(part: ColumnOrName, expr: ColumnOrName):
 
     Note that truncation is not the same as extraction. For example:
     - Truncating a timestamp down to the quarter returns the timestamp corresponding to midnight of the first day of the
-      quarter for the input timestamp.
+    quarter for the input timestamp.
     - Extracting the quarter date part from a timestamp returns the quarter number of the year in the timestamp.
 
     Example::
