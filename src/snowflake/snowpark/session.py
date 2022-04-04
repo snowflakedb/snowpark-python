@@ -20,7 +20,7 @@ import pkg_resources
 
 import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.options import pandas
+from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
@@ -1078,14 +1078,16 @@ class Session:
         if isinstance(data, Row):
             raise TypeError("create_dataframe() function does not accept a Row object.")
 
-        if not isinstance(data, (list, tuple, pandas.DataFrame)):
+        if not isinstance(data, (list, tuple)) or (
+            installed_pandas and not isinstance(data, pandas.DataFrame)
+        ):
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
             )
 
         # check to see if it is a Pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
-        if isinstance(data, pandas.DataFrame):
+        if installed_pandas and isinstance(data, pandas.DataFrame):
             table_name = AnalyzerPackage._escape_quotes(
                 Utils.random_name_for_temp_object(TempObjectType.TABLE)
             )
