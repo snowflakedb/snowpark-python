@@ -6,7 +6,7 @@
 from typing import Iterable, Optional, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
+from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
@@ -200,7 +200,7 @@ class Column:
             if expr == "*":
                 self.expression = Star([])
             else:
-                self.expression = UnresolvedAttribute(AnalyzerPackage.quote_name(expr))
+                self.expression = UnresolvedAttribute(quote_name(expr))
         elif isinstance(expr, Expression):
             self.expression = expr
         else:
@@ -605,7 +605,7 @@ class Column:
 
     def name(self, alias: str) -> "Column":
         """Returns a new renamed Column."""
-        return Column(Alias(self.expression, AnalyzerPackage.quote_name(alias)))
+        return Column(Alias(self.expression, quote_name(alias)))
 
     def over(self, window: Optional[WindowSpec] = None) -> "Column":
         """
