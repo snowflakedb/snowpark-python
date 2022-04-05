@@ -307,7 +307,7 @@ def case_when_expression(branches: List[Tuple[str, str]], else_value: str) -> st
 def project_statement(project: List[str], child: str, is_distinct: bool = False) -> str:
     return (
         SELECT
-        + f"{DISTINCT if is_distinct else ''}"
+        + f"{DISTINCT if is_distinct else EMPTY_STRING}"
         + f"{STAR if not project else COMMA.join(project)}"
         + FROM
         + LEFT_PARENTHESIS
@@ -363,7 +363,7 @@ def aggregate_statement(
 
 
 def sort_statement(order: List[str], child: str) -> str:
-    return project_statement([], child) + ORDER_BY + ",".join(order)
+    return project_statement([], child) + ORDER_BY + COMMA.join(order)
 
 
 def range_statement(start: int, end: int, step: int, column_name: str) -> str:
@@ -556,7 +556,7 @@ def create_table_statement(
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING} "
         f"{TEMPORARY if temp else EMPTY_STRING}"
-        f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else ''}"
+        f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
     )
 
@@ -642,7 +642,7 @@ def get_options_statement(options: Dict[str, Any]) -> str:
         SPACE
         + SPACE.join(
             # repr("a") return "'a'" instead of "a". This is what we need for str values. For bool, int, float, repr(v) and str(v) return the same.
-            f"{k}={v if (isinstance(v, str) and Utils.is_single_quoted(v)) else repr(v)}"
+            f"{k}{EQUALS}{v if (isinstance(v, str) and Utils.is_single_quoted(v)) else repr(v)}"
             for k, v in options.items()
             if v is not None
         )
@@ -863,7 +863,9 @@ def copy_into_table(
         else EMPTY_STRING
     )
     validation_str = (
-        f"{VALIDATION_MODE} = {validation_mode}" if validation_mode else EMPTY_STRING
+        f"{VALIDATION_MODE}{EQUALS}{validation_mode}"
+        if validation_mode
+        else EMPTY_STRING
     )
     ftostr = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS + TYPE + EQUALS + file_format
     if format_type_options:
@@ -944,7 +946,7 @@ def copy_into_location(
     copy_options_clause = (
         get_options_statement(copy_options) if copy_options else EMPTY_STRING
     )
-    header_clause = f"{HEADER}={header}" if header is not None else EMPTY_STRING
+    header_clause = f"{HEADER}{EQUALS}{header}" if header is not None else EMPTY_STRING
     return (
         COPY
         + INTO
