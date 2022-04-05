@@ -22,7 +22,7 @@ from typing import (
 
 import snowflake.snowpark
 from snowflake.snowpark._internal import type_utils
-from snowflake.snowpark._internal.sp_expressions import (
+from snowflake.snowpark._internal.analyzer.expression import (
     Expression as SPExpression,
     SnowflakeUDTF,
 )
@@ -68,7 +68,6 @@ class UserDefinedTableFunction:
         return_type: StructType,
         input_types: List[DataType],
         name: str,
-        is_return_nullable: bool = False,
     ):
         #: The Python function or a tuple containing the Python file path and the function name.
         self.handler = handler
@@ -77,7 +76,6 @@ class UserDefinedTableFunction:
 
         self._return_type = return_type
         self._input_types = input_types
-        self._is_return_nullable = is_return_nullable
 
     def __call__(
         self,
