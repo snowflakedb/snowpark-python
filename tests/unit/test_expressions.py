@@ -8,7 +8,7 @@ import decimal
 
 import pytest
 
-from snowflake.snowpark._internal.sp_expressions import Literal
+from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.type_utils import _type_mappings
 from snowflake.snowpark.exceptions import SnowparkPlanException
 

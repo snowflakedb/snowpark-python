@@ -6,16 +6,16 @@
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from snowflake.snowpark._internal.analyzer.binary_plan_nodes import (
-    JoinType as SPJoinType,
-    LeftAnti as SPLeftAnti,
-    LeftSemi as SPLeftSemi,
-    NaturalJoin as SPNaturalJoin,
-    UsingJoin as SPUsingJoin,
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    JoinType,
+    LeftAnti,
+    LeftSemi,
+    NaturalJoin,
+    UsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.sp_expressions import Attribute
 from snowflake.snowpark._internal.type_utils import convert_to_sf_type
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.row import Row
@@ -477,14 +477,14 @@ class AnalyzerPackage:
         )
 
     def left_semi_or_anti_join_statement(
-        self, left: str, right: str, join_type: type, condition: str
+        self, left: str, right: str, join_type: JoinType, condition: str
     ) -> str:
         left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
-        if join_type == SPLeftSemi:
+        if isinstance(join_type, LeftSemi):
             where_condition = self._Where + self._Exists
-        else:  # join_type == SPLeftAnti:
+        else:
             where_condition = self._Where + self._Not + self._Exists
 
         # this generates sql like "Where a = b"
@@ -514,21 +514,21 @@ class AnalyzerPackage:
         )
 
     def snowflake_supported_join_statement(
-        self, left: str, right: str, join_type: SPJoinType, condition: str
+        self, left: str, right: str, join_type: JoinType, condition: str
     ) -> str:
         left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
-        if isinstance(join_type, SPUsingJoin):
+        if isinstance(join_type, UsingJoin):
             join_sql = join_type.tpe.sql
-        elif isinstance(join_type, SPNaturalJoin):
+        elif isinstance(join_type, NaturalJoin):
             join_sql = self._Natural + join_type.tpe.sql
         else:
             join_sql = join_type.sql
 
         # This generates sql like "USING(a, b)"
         using_condition = None
-        if isinstance(join_type, SPUsingJoin):
+        if isinstance(join_type, UsingJoin):
             if len(join_type.using_columns) != 0:
                 using_condition = (
                     self._Using
@@ -568,22 +568,18 @@ class AnalyzerPackage:
         return self.project_statement([], source)
 
     def join_statement(
-        self, left: str, right: str, join_type: SPJoinType, condition: str
+        self, left: str, right: str, join_type: JoinType, condition: str
     ) -> str:
-        if isinstance(join_type, SPLeftSemi):
+        if isinstance(join_type, (LeftSemi, LeftAnti)):
             return self.left_semi_or_anti_join_statement(
-                left, right, SPLeftSemi, condition
+                left, right, join_type, condition
             )
-        if isinstance(join_type, SPLeftAnti):
-            return self.left_semi_or_anti_join_statement(
-                left, right, SPLeftAnti, condition
-            )
-        if isinstance(join_type, SPUsingJoin):
-            if isinstance(join_type.tpe, SPLeftSemi):
+        if isinstance(join_type, UsingJoin):
+            if isinstance(join_type.tpe, LeftSemi):
                 raise Exception(
                     "Internal error: Unexpected Using clause in left semi join"
                 )
-            if isinstance(join_type.tpe, SPLeftAnti):
+            if isinstance(join_type.tpe, LeftAnti):
                 raise Exception(
                     "Internal error: Unexpected Using clause in left anti join"
                 )
@@ -704,6 +700,16 @@ class AnalyzerPackage:
             + self._Space
         )
 
+    def drop_file_format_if_exists_statement(self, format_name: str) -> str:
+        return (
+            self._Drop
+            + self._File
+            + self._Format
+            + self._If
+            + self._Exists
+            + format_name
+        )
+
     def select_from_path_with_format_statement(
         self, project: List[str], path: str, format_name: str, pattern: str
     ) -> str:
@@ -741,20 +747,14 @@ class AnalyzerPackage:
             else self._EmptyString
         )
 
-    def unary_minus_expression(self, child: str) -> str:
-        return self._Minus + child
-
-    def not_expression(self, child: str) -> str:
-        return self._Not + child
-
-    def is_nan_expression(self, child: str) -> str:
-        return child + self._IsNaN
-
-    def is_null_expression(self, child: str) -> str:
-        return child + self._Is + self._Null
-
-    def is_not_null_expression(self, child: str) -> str:
-        return child + self._Is + self._Not + self._Null
+    def unary_expression(
+        self, child: str, sql_operator: str, operator_first: bool
+    ) -> str:
+        return (
+            (sql_operator + self._Space + child)
+            if operator_first
+            else (child + self._Space + sql_operator)
+        )
 
     def window_expression(self, window_function: str, window_spec: str) -> str:
         return (
@@ -892,7 +892,7 @@ class AnalyzerPackage:
         file_path: str,
         file_format: str,
         format_type_options: Dict[str, Any],
-        copy_options: Dict[str, str],
+        copy_options: Dict[str, Any],
         pattern: str,
         *,
         files: Optional[str] = None,
@@ -1193,6 +1193,16 @@ class AnalyzerPackage:
 
     def drop_table_if_exists_statement(self, table_name: str) -> str:
         return self._Drop + self._Table + self._If + self._Exists + table_name
+
+    def drop_file_format_if_exists_statement(self, format_name: str) -> str:
+        return (
+            self._Drop
+            + self._File
+            + self._Format
+            + self._If
+            + self._Exists
+            + format_name
+        )
 
     def attribute_to_schema_string(self, attributes: List[Attribute]) -> str:
         return self._Comma.join(

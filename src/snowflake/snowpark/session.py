@@ -24,21 +24,20 @@ from snowflake.connector.options import pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
 from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    SnowflakePlanBuilder,
+from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    Range,
     SnowflakeValues,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
-    TableFunctionRelation as SPTableFunctionRelation,
+    FlattenFunction,
+    TableFunctionRelation,
+    create_table_function_expression,
 )
 from snowflake.snowpark._internal.analyzer_obj import Analyzer
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.plans.logical.basic_logical_operators import Range
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.sp_expressions import (
-    Attribute as SPAttribute,
-    FlattenFunction as SPFlattenFunction,
-)
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     _infer_schema,
@@ -56,7 +55,6 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
-    _create_table_function_expression,
     col,
     column,
     parse_json,
@@ -865,12 +863,12 @@ class Session:
         See Also:
             - :meth:`DataFrame.join_table_function`, which lateral joins an existing :class:`DataFrame` and a SQL function.
         """
-        func_expr = _create_table_function_expression(
+        func_expr = create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
         return DataFrame(
             self,
-            SPTableFunctionRelation(func_expr),
+            TableFunctionRelation(func_expr),
         )
 
     def sql(self, query: str) -> DataFrame:
@@ -897,10 +895,12 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
-    def _run_query(self, query: str) -> List[Any]:
-        return self._conn.run_query(query)["data"]
+    def _run_query(self, query: str, is_ddl_on_temp_object: bool = False) -> List[Any]:
+        return self._conn.run_query(query, is_ddl_on_temp_object=is_ddl_on_temp_object)[
+            "data"
+        ]
 
-    def _get_result_attributes(self, query: str) -> List[SPAttribute]:
+    def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
 
     @deprecate(
@@ -923,7 +923,8 @@ class Session:
         )
         if not self.__stage_created:
             self._run_query(
-                f"create temporary stage if not exists {qualified_stage_name}"
+                f"create temporary stage if not exists {qualified_stage_name}",
+                is_ddl_on_temp_object=True,
             )
             self.__stage_created = True
         return f"@{qualified_stage_name}"
@@ -1178,7 +1179,7 @@ class Session:
                 else field.datatype
             )
             attrs.append(
-                SPAttribute(
+                Attribute(
                     AnalyzerPackage.quote_name(field.name), sf_type, field.nullable
                 )
             )
@@ -1415,6 +1416,20 @@ class Session:
             raise ValueError("'role' must not be empty or None.")
 
     @property
+    def telemetry_enabled(self):
+        return self._conn._conn.telemetry_enabled
+
+    @telemetry_enabled.setter
+    def telemetry_enabled(self, value):
+        # Set both in-band and out-of-band telemetry to True/False
+        if value:
+            self._conn._conn.telemetry_enabled = True
+            self._conn._telemetry_client.telemetry._enabled = True
+        else:
+            self._conn._conn.telemetry_enabled = False
+            self._conn._telemetry_client.telemetry._enabled = False
+
+    @property
     def file(self) -> FileOperation:
         """Returns a :class:`FileOperation` object that you can use to perform file operations on stages.
 
@@ -1542,8 +1557,8 @@ class Session:
             input = col(input)
         return DataFrame(
             self,
-            SPTableFunctionRelation(
-                SPFlattenFunction(input.expression, path, outer, recursive, mode)
+            TableFunctionRelation(
+                FlattenFunction(input.expression, path, outer, recursive, mode)
             ),
         )
 

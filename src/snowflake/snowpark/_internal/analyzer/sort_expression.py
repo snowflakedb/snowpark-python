@@ -1,0 +1,50 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+#
+from typing import Optional
+
+from snowflake.snowpark._internal.analyzer.expression import Expression
+
+
+class NullOrdering:
+    sql: str
+
+
+class NullsFirst(NullOrdering):
+    sql = "NULLS FIRST"
+
+
+class NullsLast(NullOrdering):
+    sql = "NULLS LAST"
+
+
+class SortDirection:
+    sql: str
+    default_null_ordering: NullOrdering
+
+
+class Ascending(SortDirection):
+    sql = "ASC"
+    default_null_ordering = NullsFirst
+
+
+class Descending(SortDirection):
+    sql = "DESC"
+    default_null_ordering = NullsLast
+
+
+class SortOrder(Expression):
+    def __init__(
+        self,
+        child: Expression,
+        direction: SortDirection,
+        null_ordering: Optional[NullOrdering] = None,
+    ):
+        super().__init__(child)
+        self.direction = direction
+        self.null_ordering = (
+            null_ordering if null_ordering else direction.default_null_ordering
+        )
+        self.datatype = child.datatype
+        self.nullable = child.nullable

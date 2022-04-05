@@ -4,31 +4,24 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
+import uuid
 from functools import reduce
 from typing import Any, Callable, Dict, List, Optional
 
 import snowflake.connector
-import snowflake.snowpark.dataframe
-from snowflake.snowpark import Column
+import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_package import AnalyzerPackage
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.plans.logical.basic_logical_operators import (
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    JoinType,
     SetOperation,
 )
-from snowflake.snowpark._internal.plans.logical.logical_plan import (
-    LeafNode,
+from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
+    SaveMode,
 )
-from snowflake.snowpark._internal.sp_expressions import (
-    Attribute,
-    Expression as SPExpression,
-)
-from snowflake.snowpark._internal.utils import (
-    SchemaUtils,
-    TempObjectType,
-    Utils,
-    _SaveMode,
-)
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.utils import SchemaUtils, TempObjectType, Utils
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -117,29 +110,25 @@ class SnowflakePlan(LogicalPlan):
 
     def __init__(
         self,
-        queries,
-        schema_query,
-        post_actions=None,
-        expr_to_alias=None,
-        session=None,
-        source_plan=None,
+        queries: List["Query"],
+        schema_query: str,
+        post_actions: Optional[List["Query"]] = None,
+        expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
+        source_plan: Optional[LogicalPlan] = None,
+        is_ddl_on_temp_object: bool = False,
     ):
         super().__init__()
-        self.queries: List[Query] = queries
-        self._schema_query: str = schema_query
+        self.queries = queries
+        self._schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
         self.session = session
         self.source_plan = source_plan
+        self.is_ddl_on_temp_object = is_ddl_on_temp_object
 
-        # use this to simulate scala's lazy val
-        self.__placeholder_for_attributes = None
-        self.__placeholder_for_output = None
-
-    # TODO
-    @Decorator.wrap_exception
-    def analyze_if_needed(self):
-        pass
+        self._attributes = None
+        self._output = None
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
@@ -167,20 +156,19 @@ class SnowflakePlan(LogicalPlan):
         )
 
     def attributes(self) -> List[Attribute]:
-        if not self.__placeholder_for_attributes:
+        if not self._attributes:
             output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
             pkg = AnalyzerPackage()
             self._schema_query = pkg.schema_value_statement(output)
-            self.__placeholder_for_attributes = output
-        return self.__placeholder_for_attributes
+            self._attributes = output
+        return self._attributes
 
-    # Convert to 'Spark' AttributeReference
     def output(self) -> List[Attribute]:
-        if not self.__placeholder_for_output:
-            self.__placeholder_for_output = [
+        if not self._output:
+            self._output = [
                 Attribute(a.name, a.datatype, a.nullable) for a in self.attributes()
             ]
-        return self.__placeholder_for_output
+        return self._output
 
     def __copy__(self) -> "SnowflakePlan":
         return SnowflakePlan(
@@ -192,7 +180,7 @@ class SnowflakePlan(LogicalPlan):
             self.source_plan,
         )
 
-    def add_aliases(self, to_add: Dict):
+    def add_aliases(self, to_add: Dict) -> None:
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
 
@@ -209,15 +197,26 @@ class SnowflakePlanBuilder:
         "LOAD_UNCERTAIN_FILES",
     }
 
-    def __init__(self, session):
-        self.__session = session
+    def __init__(self, session: "snowflake.snowpark.session.Session"):
+        self.session = session
         self.pkg = AnalyzerPackage()
 
     @SnowflakePlan.Decorator.wrap_exception
-    def build(self, sql_generator, child, source_plan, schema_query=None):
+    def build(
+        self,
+        sql_generator: Callable[[str], str],
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        schema_query: Optional[str] = None,
+        is_ddl_on_temp_object: bool = False,
+    ) -> SnowflakePlan:
         select_child = self._add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
-            Query(sql_generator(select_child.queries[-1].sql), "")
+            Query(
+                sql_generator(select_child.queries[-1].sql),
+                query_id_place_holder="",
+                is_ddl_on_temp_object=is_ddl_on_temp_object,
+            )
         ]
         new_schema_query = (
             schema_query if schema_query else sql_generator(child._schema_query)
@@ -228,17 +227,24 @@ class SnowflakePlanBuilder:
             new_schema_query,
             select_child.post_actions,
             select_child.expr_to_alias,
-            self.__session,
+            self.session,
             source_plan,
+            is_ddl_on_temp_object,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
     def build_from_multiple_queries(
-        self, multi_sql_generator, child, source_plan, schema_query=None
-    ):
+        self,
+        multi_sql_generator: Callable[[str], str],
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        schema_query: Optional[str] = None,
+        is_ddl_on_temp_object: bool = False,
+    ) -> SnowflakePlan:
         select_child = self._add_result_scan_if_not_select(child)
         queries = select_child.queries[0:-1] + [
-            Query(msg) for msg in multi_sql_generator(select_child.queries[-1].sql)
+            Query(msg, is_ddl_on_temp_object=is_ddl_on_temp_object)
+            for msg in multi_sql_generator(select_child.queries[-1].sql)
         ]
         new_schema_query = (
             schema_query
@@ -251,18 +257,18 @@ class SnowflakePlanBuilder:
             new_schema_query,
             select_child.post_actions,
             select_child.expr_to_alias,
-            self.__session,
+            self.session,
             source_plan,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
-    def __build_binary(
+    def build_binary(
         self,
         sql_generator: Callable[[str, str], str],
         left: SnowflakePlan,
         right: SnowflakePlan,
-        source_plan: LogicalPlan,
-    ):
+        source_plan: Optional[LogicalPlan],
+    ) -> SnowflakePlan:
         select_left = self._add_result_scan_if_not_select(left)
         select_right = self._add_result_scan_if_not_select(right)
         queries = (
@@ -299,18 +305,15 @@ class SnowflakePlanBuilder:
             schema_query,
             select_left.post_actions + select_right.post_actions,
             new_expr_to_alias,
-            self.__session,
+            self.session,
             source_plan,
         )
 
-    def query(self, sql, source_plan):
-        """
-        :rtype: SnowflakePlan
-        """
+    def query(self, sql: str, source_plan: Optional[LogicalPlan]) -> SnowflakePlan:
         return SnowflakePlan(
-            queries=[Query(sql, None)],
+            queries=[Query(sql)],
             schema_query=sql,
-            session=self.__session,
+            session=self.session,
             source_plan=source_plan,
         )
 
@@ -334,23 +337,23 @@ class SnowflakePlanBuilder:
         drop_table_stmt = self.pkg.drop_table_if_exists_statement(temp_table_name)
         schema_query = self.pkg.schema_value_statement(attributes)
         queries = [
-            Query(create_table_stmt),
+            Query(create_table_stmt, is_ddl_on_temp_object=True),
             BatchInsertQuery(insert_stmt, data),
             Query(select_stmt),
         ]
         return SnowflakePlan(
             queries=queries,
             schema_query=schema_query,
-            post_actions=[drop_table_stmt],
-            session=self.__session,
+            post_actions=[Query(drop_table_stmt, is_ddl_on_temp_object=True)],
+            session=self.session,
             source_plan=source_plan,
         )
 
-    def table(self, table_name):
+    def table(self, table_name: str) -> SnowflakePlan:
         return self.query(self.pkg.project_statement([], table_name), None)
 
     def file_operation_plan(
-        self, command, file_name, stage_location, options: Dict[str, str]
+        self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
     ) -> SnowflakePlan:
         return self.query(
             self.pkg.file_operation_statement(
@@ -359,7 +362,13 @@ class SnowflakePlanBuilder:
             None,
         )
 
-    def project(self, project_list, child, source_plan, is_distinct=False):
+    def project(
+        self,
+        project_list: List[str],
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        is_distinct: bool = False,
+    ) -> SnowflakePlan:
         return self.build(
             lambda x: self.pkg.project_statement(
                 project_list, x, is_distinct=is_distinct
@@ -381,7 +390,9 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def filter(self, condition, child, source_plan):
+    def filter(
+        self, condition: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+    ) -> SnowflakePlan:
         return self.build(
             lambda x: self.pkg.filter_statement(condition, x), child, source_plan
         )
@@ -389,10 +400,10 @@ class SnowflakePlanBuilder:
     def sample(
         self,
         child: SnowflakePlan,
-        source_plan: LogicalPlan,
+        source_plan: Optional[LogicalPlan],
         probability_fraction: Optional[float] = None,
         row_count: Optional[int] = None,
-    ):
+    ) -> SnowflakePlan:
         """Builds the sample part of the resultant sql statement"""
         return self.build(
             lambda x: self.pkg.sample_statement(
@@ -404,7 +415,7 @@ class SnowflakePlanBuilder:
 
     def sort(
         self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]
-    ):
+    ) -> SnowflakePlan:
         return self.build(
             lambda x: self.pkg.sort_statement(order, x), child, source_plan
         )
@@ -415,20 +426,29 @@ class SnowflakePlanBuilder:
         right: SnowflakePlan,
         op: str,
         source_plan: Optional[LogicalPlan],
-    ):
-        return self.__build_binary(
+    ) -> SnowflakePlan:
+        return self.build_binary(
             lambda x, y: self.pkg.set_operator_statement(x, y, op),
             left,
             right,
             source_plan,
         )
 
-    def union(self, children: List[SnowflakePlan], source_plan: Optional[LogicalPlan]):
+    def union(
+        self, children: List[SnowflakePlan], source_plan: Optional[LogicalPlan]
+    ) -> SnowflakePlan:
         func = lambda x, y: self.set_operator(x, y, "UNION ALL ", source_plan)
         return reduce(func, children)
 
-    def join(self, left, right, join_type, condition, source_plan):
-        return self.__build_binary(
+    def join(
+        self,
+        left: SnowflakePlan,
+        right: SnowflakePlan,
+        join_type: JoinType,
+        condition: str,
+        source_plan: Optional[LogicalPlan],
+    ):
+        return self.build_binary(
             lambda x, y: self.pkg.join_statement(x, y, join_type, condition),
             left,
             right,
@@ -438,11 +458,11 @@ class SnowflakePlanBuilder:
     def save_as_table(
         self,
         table_name: str,
-        mode: _SaveMode,
+        mode: SaveMode,
         create_temp_table: bool,
         child: SnowflakePlan,
     ) -> SnowflakePlan:
-        if mode == _SaveMode.APPEND:
+        if mode == SaveMode.APPEND:
             create_table = self.pkg.create_table_statement(
                 table_name,
                 self.pkg.attribute_to_schema_string(child.attributes()),
@@ -462,10 +482,10 @@ class SnowflakePlanBuilder:
                 create_table,
                 child.post_actions,
                 {},
-                self.__session,
+                self.session,
                 None,
             )
-        elif mode == _SaveMode.OVERWRITE:
+        elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: self.pkg.create_table_as_select_statement(
                     table_name, x, replace=True, temp=create_temp_table
@@ -473,7 +493,7 @@ class SnowflakePlanBuilder:
                 child,
                 None,
             )
-        elif mode == _SaveMode.IGNORE:
+        elif mode == SaveMode.IGNORE:
             return self.build(
                 lambda x: self.pkg.create_table_as_select_statement(
                     table_name, x, error=False, temp=create_temp_table
@@ -481,7 +501,7 @@ class SnowflakePlanBuilder:
                 child,
                 None,
             )
-        elif mode == _SaveMode.ERROR_IF_EXISTS:
+        elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
                 lambda x: self.pkg.create_table_as_select_statement(
                     table_name, x, temp=create_temp_table
@@ -496,7 +516,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         on_top_of_oder_by: bool,
         source_plan: Optional[LogicalPlan],
-    ):
+    ) -> SnowflakePlan:
         return self.build(
             lambda x: self.pkg.limit_statement(limit_expr, x, on_top_of_oder_by),
             child,
@@ -553,11 +573,12 @@ class SnowflakePlanBuilder:
     def create_temp_table(self, name: str, child: SnowflakePlan) -> SnowflakePlan:
         return self.build_from_multiple_queries(
             lambda x: self.create_table_and_insert(
-                self.__session, name, child._schema_query, x
+                self.session, name, child._schema_query, x
             ),
             child,
             None,
             child._schema_query,
+            is_ddl_on_temp_object=True,
         )
 
     def create_table_and_insert(
@@ -574,7 +595,7 @@ class SnowflakePlanBuilder:
         self,
         path: str,
         format: str,
-        options: Dict,
+        options: Dict[str, str],
         fully_qualified_schema: str,
         schema: List[Attribute],
     ):
@@ -589,10 +610,9 @@ class SnowflakePlanBuilder:
                     format_type_options[k] = v
 
         pattern = options.get("PATTERN", None)
-        # TODO track usage of pattern, will refactor this function in future
-        # Telemetry: https://snowflakecomputing.atlassian.net/browse/SNOW-363951
-        # if pattern:
-        #   session._conn.telemetry.reportUsageOfCopyPattern()
+        # tracking usage of pattern, will refactor this function in future
+        if pattern:
+            self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
         pkg = AnalyzerPackage()
         if not copy_options:  # use select
@@ -609,7 +629,8 @@ class SnowflakePlanBuilder:
                         format_type_options,
                         temp=True,
                         if_not_exist=True,
-                    )
+                    ),
+                    is_ddl_on_temp_object=True,
                 ),
                 Query(
                     pkg.select_from_path_with_format_statement(
@@ -623,9 +644,14 @@ class SnowflakePlanBuilder:
             return SnowflakePlan(
                 queries,
                 pkg.schema_value_statement(schema),
-                [],
+                [
+                    Query(
+                        pkg.drop_file_format_if_exists_statement(temp_file_format_name),
+                        is_ddl_on_temp_object=True,
+                    )
+                ],
                 {},
-                self.__session,
+                self.session,
                 None,
             )
         else:  # otherwise use COPY
@@ -656,7 +682,8 @@ class SnowflakePlanBuilder:
                     pkg.create_temp_table_statement(
                         temp_table_name,
                         pkg.attribute_to_schema_string(temp_table_schema),
-                    )
+                    ),
+                    is_ddl_on_temp_object=True,
                 ),
                 Query(
                     pkg.copy_into_table(
@@ -679,13 +706,18 @@ class SnowflakePlanBuilder:
                 ),
             ]
 
-            post_actions = [pkg.drop_table_if_exists_statement(temp_table_name)]
+            post_actions = [
+                Query(
+                    pkg.drop_table_if_exists_statement(temp_table_name),
+                    is_ddl_on_temp_object=True,
+                )
+            ]
             return SnowflakePlan(
                 queries,
                 pkg.schema_value_statement(schema),
                 post_actions,
                 {},
-                self.__session,
+                self.session,
                 None,
             )
 
@@ -703,6 +735,10 @@ class SnowflakePlanBuilder:
         transformations: Optional[List[str]] = None,
         user_schema: Optional[StructType] = None,
     ) -> SnowflakePlan:
+        # tracking usage of pattern, will refactor this function in future
+        if pattern:
+            self.session._conn._telemetry_client.send_copy_pattern_telemetry()
+
         copy_command = self.pkg.copy_into_table(
             table_name=table_name,
             file_path=path,
@@ -715,7 +751,7 @@ class SnowflakePlanBuilder:
             column_names=column_names,
             transformations=transformations,
         )
-        if self.__session._table_exists(table_name):
+        if self.session._table_exists(table_name):
             queries = [Query(copy_command)]
         elif user_schema and not transformations:
             attributes = user_schema._to_attributes()
@@ -726,7 +762,11 @@ class SnowflakePlanBuilder:
                         self.pkg.attribute_to_schema_string(attributes),
                         False,
                         False,
-                    )
+                    ),
+                    # This is an exception. The principle is to avoid surprising behavior and most of the time
+                    # it applies to temp object. But this perm table creation is also one place where we create
+                    # table on behalf of the user automatically.
+                    is_ddl_on_temp_object=True,
                 ),
                 Query(copy_command),
             ]
@@ -734,7 +774,7 @@ class SnowflakePlanBuilder:
             raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
                 table_name
             )
-        return SnowflakePlan(queries, copy_command, [], {}, self.__session, None)
+        return SnowflakePlan(queries, copy_command, [], {}, self.session, None)
 
     def copy_into_location(
         self,
@@ -831,7 +871,7 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def _add_result_scan_if_not_select(self, plan):
+    def _add_result_scan_if_not_select(self, plan: SnowflakePlan) -> SnowflakePlan:
         if isinstance(plan.source_plan, SetOperation):
             return plan
         elif plan.queries[-1].sql.strip().lower().startswith("select"):
@@ -850,19 +890,25 @@ class SnowflakePlanBuilder:
                 self.pkg.schema_value_statement(plan.attributes()),
                 plan.post_actions,
                 plan.expr_to_alias,
-                self.__session,
+                self.session,
                 plan.source_plan,
             )
 
 
 class Query:
-    def __init__(self, sql: str, query_id_place_holder: Optional[str] = None):
+    def __init__(
+        self,
+        sql: str,
+        query_id_place_holder: Optional[str] = None,
+        is_ddl_on_temp_object: bool = False,
+    ):
         self.sql = sql
         self.query_id_place_holder = (
             query_id_place_holder
             if query_id_place_holder
             else f"query_id_place_holder_{Utils.generate_random_alphanumeric()}"
         )
+        self.is_ddl_on_temp_object = is_ddl_on_temp_object
 
 
 class BatchInsertQuery(Query):
@@ -873,129 +919,3 @@ class BatchInsertQuery(Query):
     ):
         super().__init__(sql)
         self.rows = rows
-
-
-# TODO: this class was taken from SnowflakePlanNonde.scala, we might have to move it to a new file
-class SnowflakeValues(LeafNode):
-    def __init__(self, output: List[Attribute], data: List[Row]):
-        super(SnowflakeValues, self).__init__()
-        self.output = output
-        self.data = data
-
-
-# TODO: Similar to the above SnowflakeValues, this should be moved to a different file
-class SnowflakeCreateTable(LogicalPlan):
-    def __init__(
-        self,
-        table_name: str,
-        mode: "_SaveMode",
-        query: Optional[LogicalPlan],
-        create_temp_table: bool = False,
-    ):
-        super().__init__()
-        self.table_name = table_name
-        self.mode = mode
-        self.create_temp_table = create_temp_table
-        self.children.append(query)
-
-
-class CopyIntoNode(LeafNode):
-    def __init__(
-        self,
-        table_name: str,
-        *,
-        file_path: Optional[str] = None,
-        files: Optional[str] = None,
-        pattern: Optional[str] = None,
-        file_format: Optional[str] = None,
-        format_type_options: Optional[Dict[str, Any]],
-        column_names: Optional[List[str]] = None,
-        transformations: Optional[List[Column]] = None,
-        copy_options: Optional[Dict[str, Any]] = None,
-        validation_mode: Optional[str] = None,
-        user_schema: Optional[StructType] = None,
-        cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
-    ):
-        super().__init__()
-        self.table_name = table_name
-        self.file_path = file_path
-        self.files = files
-        self.pattern = pattern
-        self.file_format = file_format
-        self.column_names = column_names
-        self.transformations = transformations
-        self.copy_options = copy_options
-        self.format_type_options = format_type_options
-        self.validation_mode = validation_mode
-        self.user_schema = user_schema
-        self.cur_options = cur_options
-
-
-class CopyIntoLocationNode(LeafNode):
-    def __init__(
-        self,
-        child: SnowflakePlan,
-        stage_location: str,
-        *,
-        partition_by: Optional[SPExpression] = None,
-        file_format_name: Optional[str] = None,
-        file_format_type: Optional[str] = None,
-        format_type_options: Optional[str] = None,
-        header: bool = False,
-        copy_options: Dict[str, Any],
-    ):
-        super().__init__()
-        self.child = child
-        self.stage_location = stage_location
-        self.partition_by = partition_by
-        self.format_type_options = format_type_options
-        self.header = header
-        self.file_format_name = file_format_name
-        self.file_format_type = file_format_type
-        self.copy_options = copy_options
-
-
-class TableUpdate(LogicalPlan):
-    def __init__(
-        self,
-        table_name: str,
-        assignments: Dict[SPExpression, SPExpression],
-        condition: Optional[SPExpression],
-        source_data: Optional[LogicalPlan],
-    ):
-        super().__init__()
-        self.table_name = table_name
-        self.assignments = assignments
-        self.condition = condition
-        self.source_data = source_data
-        self.children = [source_data] if source_data else []
-
-
-class TableDelete(LogicalPlan):
-    def __init__(
-        self,
-        table_name: str,
-        condition: Optional[SPExpression],
-        source_data: Optional[LogicalPlan],
-    ):
-        super().__init__()
-        self.table_name = table_name
-        self.condition = condition
-        self.source_data = source_data
-        self.children = [source_data] if source_data else []
-
-
-class TableMerge(LogicalPlan):
-    def __init__(
-        self,
-        table_name: str,
-        source: LogicalPlan,
-        join_expr: SPExpression,
-        clauses: List[SPExpression],
-    ):
-        super().__init__()
-        self.table_name = table_name
-        self.source = source
-        self.join_expr = join_expr
-        self.clauses = clauses
-        self.children = [source] if source else []

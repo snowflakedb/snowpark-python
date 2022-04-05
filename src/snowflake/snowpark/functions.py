@@ -175,23 +175,15 @@ from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.sp_expressions import (
-    ArrayIntersect as SPArrayIntersect,
-    ArraysOverlap as SPArraysOverlap,
-    CaseWhen as SPCaseWhen,
-    FunctionExpression as SPFunctionExpression,
-    IsNaN as SPIsNan,
-    IsNull as SPIsNull,
-    Lag as SPLag,
-    Lead as SPLead,
-    ListAgg as SPListAgg,
-    Literal as SPLiteral,
-    MultipleExpression as SPMultipleExpression,
-    NamedArgumentsTableFunction as SPNamedArgumentsTableFunction,
-    Star as SPStar,
-    TableFunction as SPTableFunction,
-    TableFunctionExpression as SPTableFunctionExpression,
+from snowflake.snowpark._internal.analyzer.expression import (
+    CaseWhen,
+    FunctionExpression,
+    ListAgg,
+    Literal,
+    MultipleExpression,
+    Star,
 )
+from snowflake.snowpark._internal.analyzer.window_expression import Lag, Lead
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrName,
@@ -227,13 +219,74 @@ def lit(literal: LiteralType) -> Column:
     ``datetime.datetime``, ``decimal.Decimal``. Structured data types,
     such as: ``list``, ``tuple``, ``dict`` are not supported.
     """
-    return literal if isinstance(literal, Column) else Column(SPLiteral(literal))
+    return literal if isinstance(literal, Column) else Column(Literal(literal))
 
 
 def sql_expr(sql: str) -> Column:
     """Creates a :class:`~snowflake.snowpark.Column` expression from raw SQL text.
     Note that the function does not interpret or check the SQL text."""
     return Column._expr(sql)
+
+
+def current_session() -> Column:
+    """
+    Returns a unique system identifier for the Snowflake session corresponding to the present connection.
+    This will generally be a system-generated alphanumeric string. It is NOT derived from the user name or user account.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_session()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_session")()
+
+
+def current_statement() -> Column:
+    """
+    Returns the SQL text of the statement that is currently executing.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_statement()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_statement")()
+
+
+def current_user() -> Column:
+    """
+    Returns the name of the user currently logged into the system.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_user()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_user")()
+
+
+def current_version() -> Column:
+    """
+    Returns the current Snowflake version.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_version()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_version")()
+
+
+def current_warehouse() -> Column:
+    """
+    Returns the name of the warehouse in use for the current session.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_warehouse()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_warehouse")()
 
 
 def approx_count_distinct(e: ColumnOrName) -> Column:
@@ -262,8 +315,8 @@ def count(e: ColumnOrName) -> Column:
     total number of records."""
     c = _to_col_if_str(e, "count")
     return (
-        builtin("count")(SPLiteral(1))
-        if isinstance(c.expression, SPStar)
+        builtin("count")(Literal(1))
+        if isinstance(c.expression, Star)
         else builtin("count")(c.expression)
     )
 
@@ -274,7 +327,7 @@ def count_distinct(*cols: ColumnOrName) -> Column:
     """
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
-        SPFunctionExpression("count", [c.expression for c in cs], is_distinct=True)
+        FunctionExpression("count", [c.expression for c in cs], is_distinct=True)
     )
 
 
@@ -436,6 +489,31 @@ def approx_percentile_combine(state: ColumnOrName) -> Column:
     return builtin("approx_percentile_combine")(c)
 
 
+def grouping(*cols: ColumnOrName) -> Column:
+    """
+    Describes which of a list of expressions are grouped in a row produced by a GROUP BY query.
+
+    :func:`grouping_id` is an alias of :func:`grouping`.
+
+    Example::
+        >>> from snowflake.snowpark import GroupingSets
+        >>> df = session.create_dataframe([[1, 2, 3], [4, 5, 6]],schema=["a", "b", "c"])
+        >>> grouping_sets = GroupingSets([col("a")], [col("b")], [col("a"), col("b")])
+        >>> df.group_by_grouping_sets(grouping_sets).agg([count("c"), grouping("a"), grouping("b"), grouping("a", "b")]).collect()
+        [Row(A=1, B=2, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
+Row(A=4, B=5, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
+Row(A=1, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
+Row(A=4, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
+Row(A=None, B=2, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2), \
+Row(A=None, B=5, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2)]
+    """
+    columns = [_to_col_if_str(c, "grouping") for c in cols]
+    return builtin("grouping")(*columns)
+
+
+grouping_id = grouping
+
+
 def coalesce(*e: ColumnOrName) -> Column:
     """Returns the first non-NULL expression among its arguments, or NULL if all its
     arguments are NULL."""
@@ -446,13 +524,13 @@ def coalesce(*e: ColumnOrName) -> Column:
 def equal_nan(e: ColumnOrName) -> Column:
     """Return true if the value in the column is not a number (NaN)."""
     c = _to_col_if_str(e, "equal_nan")
-    return Column(SPIsNan(c.expression))
+    return c.equal_nan()
 
 
 def is_null(e: ColumnOrName) -> Column:
     """Return true if the value in the column is null."""
     c = _to_col_if_str(e, "is_null")
-    return Column(SPIsNull(c.expression))
+    return c.is_null()
 
 
 def negate(e: ColumnOrName) -> Column:
@@ -470,7 +548,7 @@ def not_(e: ColumnOrName) -> Column:
 def random(seed: Optional[int] = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
     s = seed if seed is not None else randint(-(2 ** 63), 2 ** 63 - 1)
-    return builtin("random")(SPLiteral(s))
+    return builtin("random")(Literal(s))
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
@@ -1006,6 +1084,192 @@ def current_time() -> Column:
     return builtin("current_time")()
 
 
+def hour(e: ColumnOrName) -> Column:
+    """
+    Extracts the hour from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(hour("a")).collect()
+        [Row(HOUR("A")=13), Row(HOUR("A")=1)]
+    """
+    c = _to_col_if_str(e, "hour")
+    return builtin("hour")(c)
+
+
+def last_day(e: ColumnOrName) -> Column:
+    """
+    Returns the last day of the specified date part for a date or timestamp.
+    Commonly used to return the last day of the month for a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(last_day("a")).collect()
+        [Row(LAST_DAY("A")=datetime.date(2020, 5, 31)), Row(LAST_DAY("A")=datetime.date(2020, 8, 31))]
+    """
+    c = _to_col_if_str(e, "last_day")
+    return builtin("last_day")(c)
+
+
+def minute(e: ColumnOrName) -> Column:
+    """
+    Extracts the minute from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(minute("a")).collect()
+        [Row(MINUTE("A")=11), Row(MINUTE("A")=30)]
+    """
+    c = _to_col_if_str(e, "minute")
+    return builtin("minute")(c)
+
+
+def next_day(date: ColumnOrName, day_of_week: ColumnOrLiteral) -> Column:
+    """
+    Returns the date of the first specified DOW (day of week) that occurs after the input date.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     (datetime.date.fromisoformat("2020-08-01"), "mo"),
+        ...     (datetime.date.fromisoformat("2020-12-01"), "we"),
+        ... ], schema=["a", "b"])
+        >>> df.select(next_day("a", col("b"))).collect()
+        [Row(NEXT_DAY("A", "B")=datetime.date(2020, 8, 3)), Row(NEXT_DAY("A", "B")=datetime.date(2020, 12, 2))]
+        >>> df.select(next_day("a", "fr")).collect()
+        [Row(NEXT_DAY("A", 'FR')=datetime.date(2020, 8, 7)), Row(NEXT_DAY("A", 'FR')=datetime.date(2020, 12, 4))]
+    """
+    c = _to_col_if_str(date, "next_day")
+    return builtin("next_day")(c, Column._to_expr(day_of_week))
+
+
+def previous_day(date: ColumnOrName, day_of_week: ColumnOrLiteral) -> Column:
+    """
+    Returns the date of the first specified DOW (day of week) that occurs before the input date.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     (datetime.date.fromisoformat("2020-08-01"), "mo"),
+        ...     (datetime.date.fromisoformat("2020-12-01"), "we"),
+        ... ], schema=["a", "b"])
+        >>> df.select(previous_day("a", col("b"))).collect()
+        [Row(PREVIOUS_DAY("A", "B")=datetime.date(2020, 7, 27)), Row(PREVIOUS_DAY("A", "B")=datetime.date(2020, 11, 25))]
+        >>> df.select(previous_day("a", "fr")).collect()
+        [Row(PREVIOUS_DAY("A", 'FR')=datetime.date(2020, 7, 31)), Row(PREVIOUS_DAY("A", 'FR')=datetime.date(2020, 11, 27))]
+    """
+    c = _to_col_if_str(date, "previous_day")
+    return builtin("previous_day")(c, Column._to_expr(day_of_week))
+
+
+def second(e: ColumnOrName) -> Column:
+    """
+    Extracts the second from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(second("a")).collect()
+        [Row(SECOND("A")=20), Row(SECOND("A")=5)]
+    """
+    c = _to_col_if_str(e, "second")
+    return builtin("second")(c)
+
+
+def month(e: ColumnOrName) -> Column:
+    """
+    Extracts the month from a date or timestamp.
+
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(month("a")).collect()
+        [Row(MONTH("A")=5), Row(MONTH("A")=8)]
+    """
+    c = _to_col_if_str(e, "month")
+    return builtin("month")(c)
+
+
+def monthname(e: ColumnOrName) -> Column:
+    """
+    Extracts the three-letter month name from the specified date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(monthname("a")).collect()
+        [Row(MONTHNAME("A")='May'), Row(MONTHNAME("A")='Aug')]
+    """
+    c = _to_col_if_str(e, "monthname")
+    return builtin("monthname")(c)
+
+
+def quarter(e: ColumnOrName) -> Column:
+    """
+    Extracts the quarter from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(quarter("a")).collect()
+        [Row(QUARTER("A")=2), Row(QUARTER("A")=3)]
+    """
+    c = _to_col_if_str(e, "quarter")
+    return builtin("quarter")(c)
+
+
+def year(e: ColumnOrName) -> Column:
+    """
+    Extracts the year from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(year("a")).collect()
+        [Row(YEAR("A")=2020), Row(YEAR("A")=2020)]
+    """
+    c = _to_col_if_str(e, "year")
+    return builtin("year")(c)
+
+
 def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
     """Returns the number of months between two DATE or TIMESTAMP values.
     For example, MONTHS_BETWEEN('2020-02-01'::DATE, '2020-01-01'::DATE) returns 1.0.
@@ -1027,7 +1291,7 @@ def arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     is NULL-safe, meaning it treats NULLs as known values for comparing equality."""
     a1 = _to_col_if_str(array1, "arrays_overlap")
     a2 = _to_col_if_str(array2, "arrays_overlap")
-    return Column(SPArraysOverlap(a1.expression, a2.expression))
+    return builtin("arrays_overlap")(a1, a2)
 
 
 def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
@@ -1040,7 +1304,7 @@ def array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
         array2: An ARRAY that contains elements to be compared."""
     a1 = _to_col_if_str(array1, "array_intersection")
     a2 = _to_col_if_str(array2, "array_intersection")
-    return Column(SPArrayIntersect(a1.expression, a2.expression))
+    return builtin("array_intersection")(a1, a2)
 
 
 def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
@@ -1114,6 +1378,116 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     c1 = _to_col_if_str(col1, "dateadd")
     c2 = _to_col_if_str(col2, "dateadd")
     return builtin("dateadd")(part, c1, c2)
+
+
+def date_from_parts(y: ColumnOrName, m: ColumnOrName, d: ColumnOrName) -> Column:
+    """
+    Creates a date from individual numeric components that represent the year, month, and day of the month.
+
+    Example::
+        >>> df = session.create_dataframe([[2022, 4, 1]], schema=["year", "month", "day"])
+        >>> df.select(date_from_parts("year", "month", "day")).collect()
+        [Row(DATE_FROM_PARTS("YEAR", "MONTH", "DAY")=datetime.date(2022, 4, 1))]
+    """
+    y_col = _to_col_if_str(y, "date_from_parts")
+    m_col = _to_col_if_str(m, "date_from_parts")
+    d_col = _to_col_if_str(d, "date_from_parts")
+    return builtin("date_from_parts")(y_col, m_col, d_col)
+
+
+def date_trunc(part: ColumnOrName, expr: ColumnOrName) -> Column:
+    """
+    Truncates a DATE, TIME, or TIMESTAMP to the specified precision.
+
+    Note that truncation is not the same as extraction. For example:
+    - Truncating a timestamp down to the quarter returns the timestamp corresponding to midnight of the first day of the
+    quarter for the input timestamp.
+    - Extracting the quarter date part from a timestamp returns the quarter number of the year in the timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(date_trunc("YEAR", "a"), date_trunc("MONTH", "a"), date_trunc("DAY", "a")).collect()
+        [Row(DATE_TRUNC("YEAR", "A")=datetime.datetime(2020, 1, 1, 0, 0), DATE_TRUNC("MONTH", "A")=datetime.datetime(2020, 5, 1, 0, 0), DATE_TRUNC("DAY", "A")=datetime.datetime(2020, 5, 1, 0, 0))]
+        >>> df.select(date_trunc("HOUR", "a"), date_trunc("MINUTE", "a"), date_trunc("SECOND", "a")).collect()
+        [Row(DATE_TRUNC("HOUR", "A")=datetime.datetime(2020, 5, 1, 13, 0), DATE_TRUNC("MINUTE", "A")=datetime.datetime(2020, 5, 1, 13, 11), DATE_TRUNC("SECOND", "A")=datetime.datetime(2020, 5, 1, 13, 11, 20))]
+        >>> df.select(date_trunc("QUARTER", "a")).collect()
+        [Row(DATE_TRUNC("QUARTER", "A")=datetime.datetime(2020, 4, 1, 0, 0))]
+    """
+    part_col = _to_col_if_str(part, "date_trunc")
+    expr_col = _to_col_if_str(expr, "date_trunc")
+    return builtin("date_trunc")(part_col, expr_col)
+
+
+def dayname(e: ColumnOrName) -> Column:
+    """
+    Extracts the three-letter day-of-week name from the specified date or timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(dayname("a")).collect()
+        [Row(DAYNAME("A")='Fri')]
+    """
+    c = _to_col_if_str(e, "dayname")
+    return builtin("dayname")(c)
+
+
+def dayofmonth(e: ColumnOrName) -> Column:
+    """
+    Extracts the corresponding day (number) of the month from a date or timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(dayofmonth("a")).collect()
+        [Row(DAYOFMONTH("A")=1)]
+    """
+    c = _to_col_if_str(e, "dayofmonth")
+    return builtin("dayofmonth")(c)
+
+
+def dayofweek(e: ColumnOrName) -> Column:
+    """
+    Extracts the corresponding day (number) of the week from a date or timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(dayofweek("a")).collect()
+        [Row(DAYOFWEEK("A")=5)]
+    """
+    c = _to_col_if_str(e, "dayofweek")
+    return builtin("dayofweek")(c)
+
+
+def dayofyear(e: ColumnOrName) -> Column:
+    """
+    Extracts the corresponding day (number) of the year from a date or timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(dayofyear("a")).collect()
+        [Row(DAYOFYEAR("A")=122)]
+    """
+    c = _to_col_if_str(e, "dayofyear")
+    return builtin("dayofyear")(c)
 
 
 def is_array(col: ColumnOrName) -> Column:
@@ -1728,7 +2102,7 @@ def when(condition: Union[Column, str], value: Union[ColumnOrLiteral]) -> CaseEx
             if ``condition`` is true.
     """
     return CaseExpr(
-        SPCaseWhen(
+        CaseWhen(
             [
                 (
                     _to_col_if_sql_expr(condition, "when").expression,
@@ -1811,7 +2185,7 @@ def in_(
     """
     vals = Utils.parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
-    return Column(SPMultipleExpression([c.expression for c in columns])).in_(vals)
+    return Column(MultipleExpression([c.expression for c in columns])).in_(vals)
 
 
 def cume_dist() -> Column:
@@ -1867,7 +2241,7 @@ def lag(
     """
     c = _to_col_if_str(e, "lag")
     return Column(
-        SPLag(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lag(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
     )
 
 
@@ -1883,7 +2257,7 @@ def lead(
     """
     c = _to_col_if_str(e, "lead")
     return Column(
-        SPLead(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lead(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
     )
 
 
@@ -1925,7 +2299,7 @@ def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> 
         df.select(listagg(df["col2"], ",", False)
     """
     c = _to_col_if_str(e, "listagg")
-    return Column(SPListAgg(c.expression, delimiter, is_distinct))
+    return Column(ListAgg(c.expression, delimiter, is_distinct))
 
 
 def when_matched(
@@ -2385,40 +2759,7 @@ def _call_function(
     expressions = [
         Column._to_expr(arg) for arg in Utils.parse_positional_args_to_list(*args)
     ]
-    return Column(SPFunctionExpression(name, expressions, is_distinct=is_distinct))
-
-
-def _create_table_function_expression(
-    func_name: Union[str, List[str]],
-    *args: ColumnOrName,
-    **named_args: ColumnOrName,
-) -> SPTableFunctionExpression:
-    if args and named_args:
-        raise ValueError("A table function shouldn't have both args and named args")
-    if isinstance(func_name, str):
-        fqdn = func_name
-    elif isinstance(func_name, list):
-        for n in func_name:
-            Utils.validate_object_name(n)
-        fqdn = ".".join(func_name)
-    else:
-        raise TypeError("The table function name should be a str or a list of strs.")
-    func_arguments = args
-    if func_arguments:
-        return SPTableFunction(
-            fqdn,
-            (
-                _to_col_if_str(arg, "table_function").expression
-                for arg in func_arguments
-            ),
-        )
-    return SPNamedArgumentsTableFunction(
-        fqdn,
-        {
-            arg_name: _to_col_if_str(arg, "table_function").expression
-            for arg_name, arg in named_args.items()
-        },
-    )
+    return Column(FunctionExpression(name, expressions, is_distinct=is_distinct))
 
 
 def sproc(

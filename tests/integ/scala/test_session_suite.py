@@ -227,3 +227,27 @@ def test_dataframe_close_session(
     with pytest.raises(SnowparkSessionException) as ex_info:
         new_session.range(10).collect()
     assert ex_info.value.error_code == "1404"
+
+
+def test_create_temp_table_no_commit(session):
+    # test large local relation
+    session.sql("begin").collect()
+    assert Utils.is_active_transaction(session)
+    session.range(1000000).to_df("id").collect()
+    assert Utils.is_active_transaction(session)
+    session.sql("commit").collect()
+    assert not Utils.is_active_transaction(session)
+
+    # test cache result
+    test_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        Utils.create_table(session, test_table, "c1 int", is_temporary=True)
+        session.sql(f"insert into {test_table} values (1), (2)").collect()
+        session.sql("begin").collect()
+        assert Utils.is_active_transaction(session)
+        session.table(test_table).cache_result()
+        assert Utils.is_active_transaction(session)
+        session.sql("commit").collect()
+        assert not Utils.is_active_transaction(session)
+    finally:
+        Utils.drop_table(session, test_table)
