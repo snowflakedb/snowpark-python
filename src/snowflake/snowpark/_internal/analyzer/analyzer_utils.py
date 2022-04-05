@@ -1295,7 +1295,9 @@ class AnalyzerUtils:
 
     @classmethod
     def validate_quoted_name(cls, name: str) -> str:
-        if '"' in name[1:-1].replace('""', ""):
+        if cls._DoubleQuote in name[1:-1].replace(
+            cls._DoubleQuote + cls._DoubleQuote, cls._EmptyString
+        ):
             raise SnowparkClientExceptionMessages.PLAN_ANALYZER_INVALID_IDENTIFIER(name)
         else:
             return name
