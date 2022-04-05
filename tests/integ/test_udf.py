@@ -1437,3 +1437,62 @@ def test_register_udf_no_commit(session):
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session._run_query(f"drop function if exists {perm_func_name}(int)")
+
+
+def test_udf_class_method(session):
+    # Note that we never mention in the doc that we support registering UDF from a class method.
+    # However, some users might still be interested in doing that.
+    class UDFTest:
+        a = 1
+
+        def __init__(self, b):
+            self.b = b
+
+        @staticmethod
+        def plus1(x: int) -> int:
+            return x + 1
+
+        @classmethod
+        def plus_a(cls, x):
+            return x + cls.a
+
+        def plus_b(self, x):
+            return x + self.b
+
+        @property
+        def double_b(self):
+            return self.b * 2
+
+    # test staticmethod
+    plus1_udf = session.udf.register(UDFTest.plus1)
+    Utils.check_answer(
+        session.range(5).select(plus1_udf("id")),
+        [Row(1), Row(2), Row(3), Row(4), Row(5)],
+    )
+
+    # test classmethod (type hint does not work here because it has an extra argument cls)
+    plus_a_udf = session.udf.register(
+        UDFTest.plus_a, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    Utils.check_answer(
+        session.range(5).select(plus_a_udf("id")),
+        [Row(1), Row(2), Row(3), Row(4), Row(5)],
+    )
+
+    # test the general method
+    udf_test = UDFTest(b=-1)
+    plus_b_udf = session.udf.register(
+        udf_test.plus_b, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    Utils.check_answer(
+        session.range(5).select(plus_b_udf("id")),
+        [Row(-1), Row(0), Row(1), Row(2), Row(3)],
+    )
+
+    # test property
+    with pytest.raises(TypeError) as ex_info:
+        session.udf.register(udf_test.double_b, return_type=IntegerType())
+    assert (
+        "Invalid function: not a function or callable (__call__ is not defined)"
+        in str(ex_info)
+    )
