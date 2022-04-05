@@ -3,16 +3,35 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-"""User-defined functions (UDFs) in Snowpark."""
+"""User-defined table functions (UDTFs) in Snowpark."""
+import collections.abc
 from types import ModuleType
-from typing import Callable, Iterable, List, Optional, Tuple, Type, Union
+from typing import (
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 import snowflake.snowpark
+from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.sp_expressions import (
     Expression as SPExpression,
-    SnowflakeUDF,
+    SnowflakeUDTF,
 )
-from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_to_sf_type
+from snowflake.snowpark._internal.type_utils import (
+    ColumnOrName,
+    _python_type_str_to_object,
+    _retrieve_func_type_hints_from_source,
+    convert_to_sf_type,
+)
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
     check_register_args,
@@ -24,17 +43,17 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, StructField, StructType
 
 
 class UserDefinedTableFunction:
     """
-    Encapsulates a user defined lambda or function that is returned by
+    Encapsulates a user defined table function that is returned by
     :func:`~snowflake.snowpark.functions.udtf`, :meth:`UDTFRegistration.register` or
     :meth:`UDTFRegistration.register_from_file`. The constructor of this class is not supposed
     to be called directly.
 
-    Call an instance of :class:`UserDefinedFunction` to generate
+    Call an instance of :class:`UserDefinedTableFunction` to generate
     :class:`~snowflake.snowpark.Column` expressions. The input type can be
     a column name as a :class:`str`, or a :class:`~snowflake.snowpark.Column` object.
 
@@ -46,7 +65,7 @@ class UserDefinedTableFunction:
     def __init__(
         self,
         handler: Union[Callable, Tuple[str, str]],
-        return_type: DataType,
+        return_type: StructType,
         input_types: List[DataType],
         name: str,
         is_return_nullable: bool = False,
@@ -75,9 +94,15 @@ class UserDefinedTableFunction:
                     f"The input of UDTF {self.name} must be Column, column name, or a list of them"
                 )
 
-        return Column(self.__create_udf_expression(exprs))
+        return Column(self.__create_udtf_expression(exprs))
 
-    def __create_udf_expression(self, exprs: List[SPExpression]) -> SnowflakeUDF:
+    def partition_by(self, partition_columns):
+        pass
+
+    def order_by(self, order_by_columns):
+        pass
+
+    def __create_udtf_expression(self, exprs: List[SPExpression]) -> SnowflakeUDTF:
         if len(exprs) != len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"
@@ -93,241 +118,27 @@ class UserDefinedTableFunction:
 
 class UDTFRegistration:
     """
-    Provides methods to register lambdas and functions as UDFs in the Snowflake database.
+    Provides methods to register classes as UDFs in the Snowflake database.
     For more information about Snowflake Python UDFs, see `Python UDFs <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python.html>`__.
 
-    :attr:`session.udf <snowflake.snowpark.Session.udf>` returns an object of this class.
+    :attr:`session.udtf <snowflake.snowpark.Session.udf>` returns an object of this class.
     You can use this object to register UDFs that you plan to use in the current session or
-    permanently. The methods that register a UDF return a :class:`UserDefinedFunction` object,
+    permanently. The methods that register a UDF return a :class:`UserDefinedTableFunction` object,
     which you can also use in :class:`~snowflake.snowpark.Column` expressions.
 
     There are two ways to register a UDF with Snowpark:
 
-        - Use :func:`~snowflake.snowpark.functions.udf` or :meth:`register`. By pointing to a
-          `runtime Python function`, Snowpark uses `cloudpickle <https://github.com/cloudpipe/cloudpickle>`_
-          to serialize this function to bytecode, and deserialize the bytecode to a Python
-          function on the Snowflake server during UDF creation. During the serialization, the
+        - Use :func:`~snowflake.snowpark.functions.udtf` or :meth:`register`. By pointing to a
+          `runtime Python class`, Snowpark uses `cloudpickle <https://github.com/cloudpipe/cloudpickle>`_
+          to serialize this class to bytecode, and deserialize the bytecode to a Python
+          class on the Snowflake server during UDF creation. During the serialization, the
           global variables used in the Python function will be serialized into the bytecode,
           but only the name of the module object or any objects from a module that are used in the
-          Python function will be serialized. During the deserialization, Python will look up the
-          corresponding modules and objects by names. For example::
-
-                >>> import numpy
-                >>> from resources.test_udf_dir.test_udf_file import mod5
-                >>> a = 1
-                >>> def f():
-                ...     return 2
-                >>>
-                >>> from snowflake.snowpark.functions import udf
-                >>> session.add_import("tests/resources/test_udf_dir/test_udf_file.py", import_path="resources.test_udf_dir.test_udf_file")
-                >>> session.add_packages("numpy")
-                >>> @udf
-                ... def g(x: int) -> int:
-                ...     return mod5(numpy.square(x)) + a + f()
-                >>> df = session.create_dataframe([4], schema=["a"])
-                >>> df.select(g("a")).to_df("col1").show()
-                ----------
-                |"COL1"  |
-                ----------
-                |4       |
-                ----------
-                <BLANKLINE>
-
-          Here the variable ``a`` and function ``f`` will be serialized into the bytecode, but
-          only the name of ``numpy`` and ``mod5`` will be included in the bytecode. Therefore,
-          in order to have these modules on the server side, you can use
-          :meth:`~snowflake.snowpark.Session.add_import` and :meth:`~snowflake.snowpark.Session.add_packages`
-          to add your first-party and third-party librarys.
-
-          After deserialization, this function will be executed and applied to every row of your
-          dataframe or table during UDF execution. This approach is very flexible because you can
-          either create a UDF from a function in your current file/notebook, and you can also import
-          the function from elsewhere. However, the limitations of this approach are:
-
-            * All code inside the function will be executed on every row, so you are not able to
-              perform some initializations before executing this function. For example, if you want
-              to read a file from a stage in a UDF, this file will be read on every row. However,
-              we still have a workaround for this scenario, which can be found in Example 8 here.
-
-            * If the runtime function references some very large global variables (e.g., a machine
-              learning model with a large number of parameters), they will also be serialized and
-              the size of bytecode can be very large, which will take more time for uploading files.
-
-        - Use :meth:`register_from_file`. By pointing to a `Python file` or a `zip file containing
-          Python source code` and the target function name, Snowpark uploads this file to a stage
-          (which can also be customized), and load the corresponding function from this file to
-          the Python runtime on the Snowflake server during UDF creation. Then this function will be
-          executed and applied to every row of your dataframe or table when exeucting this UDF.
-          This approach can address the deficiency of the previous approach that uses cloudpickle,
-          because the source code in this file other than the target function will be loaded
-          during UDF creation, and will not be executed on every row during UDF execution.
-          Therefore, this approach is useful and efficient when all your Python code is already in
-          source files.
-
-    Snowflake supports the following data types for the parameters for a UDF:
-
-    =============================================  ======================================================= ============
-    Python Type                                    Snowpark Type                                           SQL Type
-    =============================================  ======================================================= ============
-    ``int``                                        :class:`~snowflake.snowpark.types.LongType`             NUMBER
-    ``decimal.Decimal``                            :class:`~snowflake.snowpark.types.DecimalType`          NUMBER
-    ``float``                                      :class:`~snowflake.snowpark.types.FloatType`            FLOAT
-    ``str``                                        :class:`~snowflake.snowpark.types.StringType`           STRING
-    ``bool``                                       :class:`~snowflake.snowpark.types.BooleanType`          BOOL
-    ``datetime.time``                              :class:`~snowflake.snowpark.types.TimeType`             TIME
-    ``datetime.date``                              :class:`~snowflake.snowpark.types.DateType`             DATE
-    ``datetime.datetime``                          :class:`~snowflake.snowpark.types.TimestampType`        TIMESTAMP
-    ``bytes`` or ``bytearray``                     :class:`~snowflake.snowpark.types.BinaryType`           BINARY
-    ``list``                                       :class:`~snowflake.snowpark.types.ArrayType`            ARRAY
-    ``dict``                                       :class:`~snowflake.snowpark.types.MapType`              OBJECT
-    Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`          VARIANT
-    ``dict``                                       :class:`~snowflake.snowpark.types.GeographyType`        GEOGRAPHY
-    =============================================  ======================================================= ============
-
-    Note:
-        1. Data with the VARIANT SQL type will be converted to a Python type
-        dynamically inside a UDF. The following SQL types are converted to :class:`str`
-        in UDFs rather than native Python types: TIME, DATE, TIMESTAMP and BINARY.
-
-        2. Data returned as :class:`~snowflake.snowpark.types.ArrayType` (``list``),
-        :class:`~snowflake.snowpark.types.MapType` (``dict``) or
-        :class:`~snowflake.snowpark.types.VariantType` (:attr:`~snowflake.snowpark.types.Variant`)
-        by a UDF will be represented as a json string. You can call ``eval()`` or ``json.loads()``
-        to convert the result to a native Python object. Data returned as
-        :class:`~snowflake.snowpark.types.GeographyType` (:attr:`~snowflake.snowpark.types.Geography`)
-        by a UDF will be represented as a `GeoJSON <https://datatracker.ietf.org/doc/html/rfc7946>`_
-        string.
-
-    Example 1
-        Create a temporary UDF from a lambda and apply it to a dataframe::
-
-            >>> from snowflake.snowpark.types import IntegerType
-            >>> from snowflake.snowpark.functions import udf
-            >>> add_one_udf = udf(lambda x: x+1, return_type=IntegerType(), input_types=[IntegerType()])
-            >>> session.range(1, 8, 2).select(add_one_udf("id")).to_df("col1").collect()
-            [Row(COL1=2), Row(COL1=4), Row(COL1=6), Row(COL1=8)]
-
-    Example 2
-        Create a UDF with type hints and ``@udf`` decorator and apply it to a dataframe::
-
-            >>> from snowflake.snowpark.functions import udf
-            >>> @udf
-            ... def add_udf(x: int, y: int) -> int:
-            ...        return x + y
-            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["x", "y"])
-            >>> df.select(add_udf("x", "y")).to_df("add_result").collect()
-            [Row(ADD_RESULT=3), Row(ADD_RESULT=7)]
-
-    Example 3
-        Create a permanent UDF with a name and call it in SQL::
-
-            >>> from snowflake.snowpark.types import IntegerType
-            >>> _ = session.sql("create or replace temp stage mystage").collect()
-            >>> _ = session.udf.register(
-            ...     lambda x, y: x * y, return_type=IntegerType(),
-            ...     input_types=[IntegerType(), IntegerType()],
-            ...     is_permanent=True, name="mul", replace=True,
-            ...     stage_location="@mystage",
-            ... )
-            >>> session.sql("select mul(5, 6)").show()
-            ---------------
-            |"MUL(5, 6)"  |
-            ---------------
-            |30           |
-            ---------------
-            <BLANKLINE>
-
-    Example 4
-        Create a UDF with UDF-level imports and apply it to a dataframe::
-
-            >>> from resources.test_udf_dir.test_udf_file import mod5
-            >>> from snowflake.snowpark.functions import udf
-            >>> @udf(imports=[("tests/resources/test_udf_dir/test_udf_file.py", "resources.test_udf_dir.test_udf_file")])
-            ... def mod5_and_plus1_udf(x: int) -> int:
-            ...     return mod5(x) + 1
-            >>> session.range(1, 8, 2).select(mod5_and_plus1_udf("id")).to_df("col1").collect()
-            [Row(COL1=2), Row(COL1=4), Row(COL1=1), Row(COL1=3)]
-
-    Example 5
-        Create a UDF with UDF-level packages and apply it to a dataframe::
-
-            >>> from snowflake.snowpark.functions import udf
-            >>> import numpy as np
-            >>> import math
-            >>> @udf(packages=["numpy"])
-            ... def sin_udf(x: float) -> float:
-            ...     return np.sin(x)
-            >>> df = session.create_dataframe([0.25 * math.pi, 0.5 * math.pi], schema=["d"])
-            >>> df.select(sin_udf("d")).to_df("col1").collect()
-            [Row(COL1=0.7071067811865475), Row(COL1=1.0)]
-
-    Example 6
-        Creating a UDF from a local Python file::
-
-            >>> # mod5() in that file has type hints
-            >>> mod5_udf = session.udf.register_from_file(
-            ...     file_path="tests/resources/test_udf_dir/test_udf_file.py",
-            ...     func_name="mod5",
-            ... )
-            >>> session.range(1, 8, 2).select(mod5_udf("id")).to_df("col1").collect()
-            [Row(COL1=1), Row(COL1=3), Row(COL1=0), Row(COL1=2)]
-
-    Example 7
-        Creating a UDF from a Python file on an internal stage::
-
-            >>> from snowflake.snowpark.types import IntegerType
-            >>> _ = session.sql("create or replace temp stage mystage").collect()
-            >>> _ = session.file.put("tests/resources/test_udf_dir/test_udf_file.py", "@mystage", auto_compress=False)
-            >>> mod5_udf = session.udf.register_from_file(
-            ...     file_path="@mystage/test_udf_file.py",
-            ...     func_name="mod5",
-            ...     return_type=IntegerType(),
-            ...     input_types=[IntegerType()],
-            ... )
-            >>> session.range(1, 8, 2).select(mod5_udf("id")).to_df("col1").collect()
-            [Row(COL1=1), Row(COL1=3), Row(COL1=0), Row(COL1=2)]
-
-    Example 8
-        Use cache to read a file once from a stage in a UDF::
-
-            >>> import sys
-            >>> import os
-            >>> import cachetools
-            >>> from snowflake.snowpark.types import StringType
-            >>> @cachetools.cached(cache={})
-            ... def read_file(filename):
-            ...     import_dir = sys._xoptions.get("snowflake_import_directory")
-            ...     if import_dir:
-            ...         with open(os.path.join(import_dir, filename), "r") as f:
-            ...             return f.read()
-            >>>
-            >>> # create a temporary text file for test
-            >>> temp_file_name = "/tmp/temp.txt"
-            >>> with open(temp_file_name, "w") as t:
-            ...     _ = t.write("snowpark")
-            >>> session.add_import(temp_file_name)
-            >>> session.add_packages("cachetools")
-            >>> concat_file_content_with_str_udf = session.udf.register(
-            ...     lambda s: f"{read_file(os.path.basename(temp_file_name))}-{s}",
-            ...     return_type=StringType(),
-            ...     input_types=[StringType()]
-            ... )
-            >>>
-            >>> df = session.create_dataframe(["snowflake", "python"], schema=["a"])
-            >>> df.select(concat_file_content_with_str_udf("a")).to_df("col1").collect()
-            [Row(COL1='snowpark-snowflake'), Row(COL1='snowpark-python')]
-            >>> os.remove(temp_file_name)
-            >>> session.clear_imports()
-
-        In this example, the file will only be read once during UDF creation, and will not
-        be read again during UDF execution. This is acheived with a third-party library
-        `cachetools <https://pypi.org/project/cachetools/>`_. You can also use ``LRUCache``
-        and ``TTLCache`` in this package to avoid the cache growing too large. Note that Python
-        built-in `cache decorators <https://docs.python.org/3/library/functools.html#functools.cache>`_
-        are not working when registering UDFs using Snowpark, due to the limitation of cloudpickle.
+          Python class will be serialized. During the deserialization, Python will look up the
+          corresponding modules and objects by names.
 
     See Also:
-        - :func:`~snowflake.snowpark.functions.udf`
+        - :func:`~snowflake.snowpark.functions.udtf`
         - :meth:`register`
         - :meth:`register_from_file`
         - :meth:`~snowflake.snowpark.Session.add_import`
@@ -345,7 +156,7 @@ class UDTFRegistration:
 
         Args:
             udf_obj: A :class:`UserDefinedFunction` returned by
-                :func:`~snowflake.snowpark.functions.udf` or :meth:`register`.
+                :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or :meth:`register_from_file`.
         """
         func_args = [convert_to_sf_type(t) for t in udf_obj._input_types]
         return self._session.sql(
@@ -355,7 +166,7 @@ class UDTFRegistration:
     def register(
         self,
         handler: Callable,
-        return_type: Optional[DataType] = None,
+        return_schema: [Union[StructType], Iterable[str]],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
@@ -364,60 +175,57 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
-        **kwargs,
     ) -> UserDefinedTableFunction:
         """
-        Registers a Python function as a Snowflake Python UDF and returns the UDF.
+        Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
         The usage, input arguments, and return value of this method are the same as
-        they are for :func:`~snowflake.snowpark.functions.udf`, but :meth:`register`
+        they are for :func:`~snowflake.snowpark.functions.udtf`, but :meth:`register`
         cannot be used as a decorator. See examples in
-        :class:`~snowflake.snowpark.udf.UDFRegistration`.
+        :class:`~snowflake.snowpark.udtf.UDTFRegistration`.
 
         Args:
-            func: A Python function used for creating the UDF.
-            return_type: A :class:`~snowflake.snowpark.types.DataType` representing the return data
-                type of the UDF. Optional if type hints are provided.
+            handler: A Python class used for creating the UDTF.
+            return_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
-                representing the input data types of the UDF. Optional if
+                representing the input data types of the UDTF. Optional if
                 type hints are provided.
             name: A string or list of strings that specify the name or fully-qualified
                 object identifier (database name, schema name, and function name) for
-                the UDF in Snowflake, which allows you to call this UDF in a SQL
-                command or via :func:`~snowflake.snowpark.functions.call_udf`.
-                If it is not provided, a name will be automatically generated for the UDF.
+                the UDTF in Snowflake.
+                If it is not provided, a name will be automatically generated for the UDTF.
                 A name must be specified when ``is_permanent`` is ``True``.
-            is_permanent: Whether to create a permanent UDF. The default is ``False``.
+            is_permanent: Whether to create a permanent UDTF. The default is ``False``.
                 If it is ``True``, a valid ``stage_location`` must be provided.
-            stage_location: The stage location where the Python file for the UDF
+            stage_location: The stage location where the Python file for the UDTF
                 and its dependencies should be uploaded. The stage location must be specified
                 when ``is_permanent`` is ``True``, and it will be ignored when
                 ``is_permanent`` is ``False``. It can be any stage other than temporary
                 stages and external stages.
-            imports: A list of imports that only apply to this UDF. You can use a string to
+            imports: A list of imports that only apply to this UDTF. You can use a string to
                 represent a file path (similar to the ``path`` argument in
                 :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
                 strings to represent a file path and an import path (similar to the ``import_path``
-                argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDF-level imports
+                argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDTF-level imports
                 will override the session-level imports added by
                 :meth:`~snowflake.snowpark.Session.add_import`.
-            packages: A list of packages that only apply to this UDF. These UDF-level packages
+            packages: A list of packages that only apply to this UDTF. These UDTF-level packages
                 will override the session-level packages added by
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`.
-            replace: Whether to replace a UDF that already was registered. The default is ``False``.
-                If it is ``False``, attempting to register a UDF with a name that already exists
+            replace: Whether to replace a UDTF that already was registered. The default is ``False``.
+                If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
-                an existing UDF with the same name is overwritten.
-            session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
+                an existing UDTF with the same name is overwritten.
+            session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.
-            parallel: The number of threads to use for uploading UDF files with the
+            parallel: The number of threads to use for uploading UDTF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
-                large UDF files.
+                large UDTF files.
 
         See Also:
-            - :func:`~snowflake.snowpark.functions.udf`
+            - :func:`~snowflake.snowpark.functions.udtf`
             - :meth:`register_from_file`
         """
         if not callable(handler):
@@ -427,13 +235,13 @@ class UDTFRegistration:
             )
 
         check_register_args(
-            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
+            TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
         )
 
-        # register udf
+        # register udtf
         return self.__do_register_udtf(
             handler,
-            return_type,
+            return_schema,
             input_types,
             name,
             stage_location,
@@ -441,15 +249,13 @@ class UDTFRegistration:
             packages,
             replace,
             parallel,
-            kwargs.get("max_batch_size"),
-            kwargs.get("_from_pandas_udf_function", False),
         )
 
     def register_from_file(
         self,
         file_path: str,
         handler_name: str,
-        return_type: Optional[DataType] = None,
+        return_schema: [Union[StructType], Iterable[str]],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
@@ -460,10 +266,10 @@ class UDTFRegistration:
         parallel: int = 4,
     ) -> UserDefinedTableFunction:
         """
-        Registers a Python function as a Snowflake Python UDF from a Python or zip file,
-        and returns the UDF. Apart from ``file_path`` and ``func_name``, the input arguments
+        Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
+        and returns the UDTF. Apart from ``file_path`` and ``func_name``, the input arguments
         of this method are the same as :meth:`register`. See examples in
-        :class:`~snowflake.snowpark.udf.UDFRegistration`.
+        :class:`~snowflake.snowpark.udtf.UDTFRegistration`.
 
         Args:
             file_path: The path of a local file or a remote file in the stage. See
@@ -473,68 +279,67 @@ class UDTFRegistration:
                 :meth:`session.add_import() <snowflake.snowpark.Session.add_import>`,
                 here the file can only be a Python file or a compressed file
                 (e.g., .zip file) containing Python modules.
-            func_name: The Python function name in the file that will be created
-                as a UDF.
-            return_type: A :class:`~snowflake.snowpark.types.DataType` representing the return data
-                type of the UDF. Optional if type hints are provided.
+            handler_name: The Python class name in the file that will be created
+                as a UDTF.
+            return_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
-                representing the input data types of the UDF. Optional if
+                representing the input data types of the UDTF. Optional if
                 type hints are provided.
             name: A string or list of strings that specify the name or fully-qualified
                 object identifier (database name, schema name, and function name) for
-                the UDF in Snowflake, which allows you to call this UDF in a SQL
-                command or via :func:`~snowflake.snowpark.functions.call_udf`.
-                If it is not provided, a name will be automatically generated for the UDF.
+                the UDTF in Snowflake, which allows you to call this UDTF in a SQL
+                command or via :func:`~snowflake.snowpark.functions.call_udtf`.
+                If it is not provided, a name will be automatically generated for the UDTF.
                 A name must be specified when ``is_permanent`` is ``True``.
-            is_permanent: Whether to create a permanent UDF. The default is ``False``.
+            is_permanent: Whether to create a permanent UDTF. The default is ``False``.
                 If it is ``True``, a valid ``stage_location`` must be provided.
-            stage_location: The stage location where the Python file for the UDF
+            stage_location: The stage location where the Python file for the UDTF
                 and its dependencies should be uploaded. The stage location must be specified
                 when ``is_permanent`` is ``True``, and it will be ignored when
                 ``is_permanent`` is ``False``. It can be any stage other than temporary
                 stages and external stages.
-            imports: A list of imports that only apply to this UDF. You can use a string to
+            imports: A list of imports that only apply to this UDTF. You can use a string to
                 represent a file path (similar to the ``path`` argument in
                 :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
                 strings to represent a file path and an import path (similar to the ``import_path``
-                argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDF-level imports
+                argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDTF-level imports
                 will override the session-level imports added by
                 :meth:`~snowflake.snowpark.Session.add_import`.
-            packages: A list of packages that only apply to this UDF. These UDF-level packages
+            packages: A list of packages that only apply to this UDTF. These UDTF-level packages
                 will override the session-level packages added by
                 :meth:`~snowflake.snowpark.Session.add_packages` and
                 :meth:`~snowflake.snowpark.Session.add_requirements`.
-            replace: Whether to replace a UDF that already was registered. The default is ``False``.
-                If it is ``False``, attempting to register a UDF with a name that already exists
+            replace: Whether to replace a UDTF that already was registered. The default is ``False``.
+                If it is ``False``, attempting to register a UDTF with a name that already exists
                 results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
-                an existing UDF with the same name is overwritten.
-            session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
+                an existing UDTF with the same name is overwritten.
+            session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.
-            parallel: The number of threads to use for uploading UDF files with the
+            parallel: The number of threads to use for uploading UDTF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
-                large UDF files.
+                large UDTF files.
 
         Note::
             The type hints can still be extracted from the source Python file if they
             are provided, but currently are not working for a zip file. Therefore,
-            you have to provide ``return_type`` and ``input_types`` when ``path``
+            you have to provide ``return_schema`` and ``input_types`` when ``path``
             points to a zip file.
 
         See Also:
-            - :func:`~snowflake.snowpark.functions.udf`
+            - :func:`~snowflake.snowpark.functions.udtf`
             - :meth:`register`
         """
         file_path = process_file_path(file_path)
         check_register_args(
-            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
+            TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
         )
 
-        # register udf
+        # register udtf
         return self.__do_register_udtf(
             (file_path, handler_name),
-            return_type,
+            return_schema,
             input_types,
             name,
             stage_location,
@@ -547,7 +352,7 @@ class UDTFRegistration:
     def __do_register_udtf(
         self,
         handler: Union[Callable, Tuple[str, str]],
-        return_type: Optional[DataType],
+        return_schema: [Union[StructType], Iterable[str]],
         input_types: Optional[List[DataType]],
         name: Optional[str],
         stage_location: Optional[str] = None,
@@ -555,14 +360,81 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
-        max_batch_size: Optional[int] = None,
     ) -> UserDefinedTableFunction:
-        # get the udf name, return and input types
-        (udtf_name, _, _, return_type, input_types,) = process_registration_inputs(
+        if not isinstance(return_schema, (Iterable, StructType)):
+            raise ValueError(
+                "'return_schema' must be a list of column names or StructType instance to create a UDTF."
+            )
+
+        if isinstance(
+            return_schema, Iterable
+        ):  # with column names instead of StructType. Read type hints to infer column types.
+            return_schema = tuple(return_schema)
+            # A typical type hint for method process is like Iterable[Tuple[int, str, datetime]], or Iterable[Tuple[str, ...]]
+            # The inner Tuple is a single row of the table function result.
+            if isinstance(handler, Callable):
+                type_hints = get_type_hints(getattr(handler, "process"))
+            else:
+                type_hints = _retrieve_func_type_hints_from_source(
+                    handler[0], func_name="process", class_name=handler[1]
+                )
+            return_type_hint = type_hints.get("return")
+            if return_type_hint:
+                return_type_hint = _python_type_str_to_object(type_hints.get("return"))
+                if get_origin(return_type_hint) in (
+                    list,
+                    tuple,
+                    collections.abc.Iterable,
+                    collections.abc.Iterator,
+                ):
+                    row_type_hint = get_args(return_type_hint)[0]  # The inner Tuple
+                    column_type_hints = get_args(row_type_hint)
+                    if len(column_type_hints) > 1 and column_type_hints[1] == Ellipsis:
+                        return_schema = StructType(
+                            [
+                                StructField(
+                                    name,
+                                    type_utils._python_type_to_snow_type(
+                                        column_type_hints[0]
+                                    )[0],
+                                )
+                                for name in return_schema
+                            ]
+                        )
+                    else:
+                        if len(column_type_hints) == len(return_schema):
+                            return_schema = StructType(
+                                [
+                                    StructField(
+                                        name,
+                                        type_utils._python_type_to_snow_type(
+                                            column_type
+                                        )[0],
+                                    )
+                                    for name, column_type in zip(
+                                        return_schema, column_type_hints
+                                    )
+                                ]
+                            )
+                        else:
+                            raise ValueError(
+                                "'return_schema' names and type hints don't match in size."
+                            )
+                else:
+                    raise ValueError(
+                        "The type hint for a UDTF handler must but a collection type."
+                    )
+            else:
+                raise ValueError(
+                    "Result type hints must be set if 'result_schema' only has schema names."
+                )
+
+        # get the udtf name, input types
+        (udtf_name, _, _, _, input_types,) = process_registration_inputs(
             self._session,
             TempObjectType.TABLE_FUNCTION,
             handler,
-            return_type,
+            return_schema,
             input_types,
             name,
         )
@@ -572,14 +444,14 @@ class UDTFRegistration:
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names)
         ]
         (
-            handler,
+            handler_name,
             code,
             all_imports,
             all_packages,
             upload_file_stage_location,
         ) = resolve_imports_and_packages(
             self._session,
-            TempObjectType.FUNCTION,
+            TempObjectType.TABLE_FUNCTION,
             handler,
             arg_names,
             udtf_name,
@@ -589,15 +461,14 @@ class UDTFRegistration:
             parallel,
             False,
             False,
-            max_batch_size,
         )
 
         try:
             create_python_udf_or_sp(
                 session=self._session,
-                return_type=return_type,
+                return_type=return_schema,
                 input_args=input_args,
-                handler=handler,
+                handler=handler_name,
                 object_type=TempObjectType.FUNCTION,
                 object_name=udtf_name,
                 all_imports=all_imports,
@@ -616,4 +487,4 @@ class UDTFRegistration:
             )
             raise
 
-        return UserDefinedTableFunction(handler, return_type, input_types, udtf_name)
+        return UserDefinedTableFunction(handler, return_schema, input_types, udtf_name)

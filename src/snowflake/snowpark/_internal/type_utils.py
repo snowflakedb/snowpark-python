@@ -14,7 +14,20 @@ import re
 import sys
 import typing  # type: ignore
 from array import array
-from typing import Any, Dict, List, Optional, Tuple, Type, Union, get_args, get_origin
+from typing import (  # eval() used in this file needs Generator, Iterable and Iterator.
+    Any,
+    Dict,
+    Generator,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    get_args,
+    get_origin,
+)
 
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.options import installed_pandas, pandas
@@ -412,8 +425,11 @@ def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
 
 
 def _retrieve_func_type_hints_from_source(
-    file_path: str, func_name: str, _source: Optional[str] = None
-) -> Dict[str, Type]:
+    file_path: str,
+    func_name: str,
+    class_name: Optional[str] = None,
+    _source: Optional[str] = None,
+) -> Dict[str, str]:
     """
     Retrieve type hints of a function from a source file, or a source string (test only).
     """
@@ -433,7 +449,7 @@ def _retrieve_func_type_hints_from_source(
             return annotation.id
         raise TypeError(f"invalid type annotation: {annotation}")
 
-    class NodeVisitor(ast.NodeVisitor):
+    class FuncNodeVisitor(ast.NodeVisitor):
         type_hints = {}
         func_exist = False
 
@@ -450,10 +466,29 @@ def _retrieve_func_type_hints_from_source(
         with open(file_path, "r") as f:
             _source = f.read()
 
-    visitor = NodeVisitor()
-    visitor.visit(ast.parse(_source))
+    if class_name:
+
+        class ClassNodeVisitor(ast.NodeVisitor):
+            class_node = None
+
+            def visit_ClassDef(self, node):
+                if node.name == class_name:
+                    self.class_node = node
+
+        class_visitor = ClassNodeVisitor()
+        class_visitor.visit(ast.parse(_source))
+        if class_visitor.class_node is None:
+            raise ValueError(f"class {class_name} is not found in file {file_path}")
+        to_visit_node_for_func = class_visitor.class_node
+    else:
+        to_visit_node_for_func = ast.parse(_source)
+
+    visitor = FuncNodeVisitor()
+    visitor.visit(to_visit_node_for_func)
     if not visitor.func_exist:
-        raise ValueError(f"function {func_name} is not found in file {file_path}")
+        raise ValueError(
+            f"function {class_name}{'.' if class_name else ''}{func_name} is not found in file {file_path}"
+        )
     return visitor.type_hints
 
 

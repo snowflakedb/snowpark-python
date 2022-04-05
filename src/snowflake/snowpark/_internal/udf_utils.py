@@ -28,7 +28,12 @@ from snowflake.snowpark._internal.type_utils import (
     convert_to_sf_type,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
-from snowflake.snowpark.types import DataType, PandasDataFrameType, PandasSeriesType
+from snowflake.snowpark.types import (
+    DataType,
+    PandasDataFrameType,
+    PandasSeriesType,
+    StructType,
+)
 
 logger = getLogger(__name__)
 
@@ -62,17 +67,29 @@ def get_types_from_type_hints(
         # here at that time. https://www.python.org/dev/peps/pep-0563/
         python_types_dict = get_type_hints(func)
     else:
-        python_types_dict = (
-            _retrieve_func_type_hints_from_source(func[0], func[1])
-            if is_local_python_file(func[0])
-            else {}
-        )
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            python_types_dict = (
+                _retrieve_func_type_hints_from_source(
+                    func[0], "process", class_name=func[1]
+                )  # use method process of a UDTF handler class.
+                if is_local_python_file(func[0])
+                else {}
+            )
+        else:
+            python_types_dict = (
+                _retrieve_func_type_hints_from_source(func[0], func[1])
+                if is_local_python_file(func[0])
+                else {}
+            )
 
-    return_type = (
-        _python_type_to_snow_type(python_types_dict["return"])[0]
-        if "return" in python_types_dict
-        else None
-    )
+    if object_type == TempObjectType.TABLE_FUNCTION:
+        return_type = None  # The return type is processed in udtf.py. Return None here.
+    else:
+        return_type = (
+            _python_type_to_snow_type(python_types_dict["return"])[0]
+            if "return" in python_types_dict
+            else None
+        )
     input_types = []
 
     # types are in order
@@ -316,7 +333,11 @@ import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
 """.rstrip()
-    if is_pandas_udf:
+    if getattr(func, "process") != None:
+        func_code = f"""
+compute = func
+    """
+    elif is_pandas_udf:
         pandas_code = f"""
 import pandas
 
@@ -486,7 +507,10 @@ def create_python_udf_or_sp(
     replace: bool,
     inline_python_code: Optional[str] = None,
 ) -> None:
-    return_sql_type = convert_to_sf_type(return_type)
+    if isinstance(return_type, StructType):
+        return_sql = f"""RETURNS TABLE ({",".join(f"{field.name} {convert_to_sf_type(field.datatype)}" for field in return_type.fields)})"""
+    else:
+        return_sql = f"RETURNS {convert_to_sf_type(return_type)}"
     input_sql_types = [convert_to_sf_type(arg.datatype) for arg in input_args]
     sql_func_args = ",".join(
         [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
@@ -506,7 +530,7 @@ $$
     create_query = f"""
 CREATE {"OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} {object_type.value} {object_name}({sql_func_args})
-RETURNS {return_sql_type}
+{return_sql}
 LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
 {imports_in_sql}

@@ -21,7 +21,7 @@ from snowflake.snowpark._internal.type_utils import (
     _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
     _infer_type,
 )
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, StructType
 
 
 class Expression:
@@ -513,6 +513,21 @@ class SnowflakeUDF(Expression):
         udf_name: str,
         children: List[Expression],
         datatype: DataType,
+        nullable: bool = True,
+    ):
+        super().__init__()
+        self.udf_name = udf_name
+        self.children = children
+        self.datatype = datatype
+        self.nullable = nullable
+
+
+class SnowflakeUDTF(Expression):
+    def __init__(
+        self,
+        udf_name: str,
+        children: List[Expression],
+        datatype: StructType,
         nullable: bool = True,
     ):
         super().__init__()

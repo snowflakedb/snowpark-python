@@ -87,6 +87,7 @@ from snowflake.snowpark.types import (
     _AtomicType,
 )
 from snowflake.snowpark.udf import UDFRegistration
+from snowflake.snowpark.udtf import UDTFRegistration
 
 logger = getLogger(__name__)
 
@@ -222,6 +223,7 @@ class Session:
         self.__session_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
         self.__stage_created = False
         self.__udf_registration = None
+        self.__udtf_registration = None
         self.__sp_registration = None
         self.__plan_builder = SnowflakePlanBuilder(self)
 
@@ -1434,6 +1436,16 @@ class Session:
         if not self.__udf_registration:
             self.__udf_registration = UDFRegistration(self)
         return self.__udf_registration
+
+    @property
+    def udtf(self) -> UDTFRegistration:
+        """
+        Returns a :class:`udf.UDTFRegistration` object that you can use to register UDFs.
+        See details of how to use this object in :class:`udf.UDFRegistration`.
+        """
+        if not self.__udtf_registration:
+            self.__udtf_registration = UDTFRegistration(self)
+        return self.__udtf_registration
 
     @property
     def sproc(self) -> StoredProcedureRegistration:
