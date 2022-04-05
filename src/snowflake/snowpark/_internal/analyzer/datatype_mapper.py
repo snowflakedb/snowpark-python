@@ -11,7 +11,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-import snowflake.snowpark._internal.analyzer.analyzer_package as analyzer_package
+import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.type_utils import convert_to_sf_type
 from snowflake.snowpark.types import (
     ArrayType,
@@ -125,7 +125,7 @@ class DataTypeMapper:
             return f"'{value}' :: DOUBLE"
 
         if isinstance(value, Decimal) and isinstance(datatype, DecimalType):
-            return f"{value} :: {analyzer_package.AnalyzerPackage.number(datatype.precision, datatype.scale)}"
+            return f"{value} :: {analyzer_utils.number(datatype.precision, datatype.scale)}"
 
         if isinstance(datatype, DateType):
             if isinstance(value, int):

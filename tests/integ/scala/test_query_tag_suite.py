@@ -9,7 +9,7 @@
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer_obj import ARRAY_BIND_THRESHOLD
+from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import Utils
 

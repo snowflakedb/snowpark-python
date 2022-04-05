@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-from snowflake.snowpark._internal.analyzer_obj import ARRAY_BIND_THRESHOLD
+from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 
 
 def test_query_history(session):
