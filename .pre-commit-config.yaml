@@ -1,11 +1,11 @@
 exclude: '^(.*egg.info.*|.*/parameters.py).*$'
 repos:
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v2.15.0
+    rev: v2.31.1
     hooks:
         -   id: pyupgrade
 -   repo: https://github.com/PyCQA/isort
-    rev: 5.8.0
+    rev: 5.10.1
     hooks:
       - id: isort
         exclude: ^docs/
@@ -20,7 +20,7 @@ repos:
                "--project", "snowflake.snowpark",
         ]
 -   repo: https://github.com/psf/black
-    rev: 21.5b1
+    rev: 22.3.0
     hooks:
       - id: black
         exclude: ^docs/
@@ -28,7 +28,7 @@ repos:
           - --safe
         language_version: python3
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.4.0
+    rev: v4.1.0
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
@@ -48,7 +48,7 @@ repos:
     -   id: debug-statements
     -   id: check-ast
 -   repo: https://github.com/Lucas-C/pre-commit-hooks.git
-    rev: v1.1.10
+    rev: v1.1.13
     hooks:
     -   id: insert-license
         name: insert-py-license
