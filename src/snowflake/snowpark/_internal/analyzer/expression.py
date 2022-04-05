@@ -106,7 +106,7 @@ class Attribute(Expression, NamedExpression):
             return self
         else:
             return Attribute(
-                analyzer_utils.AnalyzerUtils.quote_name(new_name),
+                analyzer_utils.quote_name(new_name),
                 self.datatype,
                 self.nullable,
             )

@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
-from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
+from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Cross,
     Except,
@@ -681,7 +681,7 @@ class DataFrame:
             else:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
 
-        normalized_names = {AnalyzerUtils.quote_name(n) for n in names}
+        normalized_names = {quote_name(n) for n in names}
         existing_names = [attr.name for attr in self.__output()]
         keep_col_names = [c for c in existing_names if c not in normalized_names]
         if not keep_col_names:
@@ -1030,7 +1030,7 @@ class DataFrame:
         This is equivalent to performing a SELECT DISTINCT in SQL.
         """
         return self.group_by(
-            [self.col(AnalyzerUtils.quote_name(f.name)) for f in self.schema.fields]
+            [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
 
     def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
@@ -1556,7 +1556,7 @@ class DataFrame:
             # Create a Column with expression 'true AND <expr> AND <expr> .."
             join_cond = Column(Literal(True))
             for c in using_columns:
-                quoted = AnalyzerUtils.quote_name(c)
+                quoted = quote_name(c)
                 join_cond = join_cond & (self.col(quoted) == right.col(quoted))
             return self.__join_dataframes_internal(right, join_type, join_cond)
         else:
@@ -1653,7 +1653,7 @@ class DataFrame:
             )
 
         # Get a list of the new columns and their dedupped values
-        qualified_names = [AnalyzerUtils.quote_name(n) for n in col_names]
+        qualified_names = [quote_name(n) for n in col_names]
         new_column_names = set(qualified_names)
 
         if len(col_names) != len(new_column_names):
@@ -1806,7 +1806,7 @@ class DataFrame:
             "validation_mode"
         )
         normalized_column_names = (
-            [AnalyzerUtils.quote_name(col_name) for col_name in target_columns]
+            [quote_name(col_name) for col_name in target_columns]
             if target_columns
             else None
         )
@@ -2260,9 +2260,9 @@ class DataFrame:
 
         :meth:`with_column_renamed` is an alias of :meth:`rename`.
         """
-        new_quoted_name = AnalyzerUtils.quote_name(new)
+        new_quoted_name = quote_name(new)
         if isinstance(existing, str):
-            old_name = AnalyzerUtils.quote_name(existing)
+            old_name = quote_name(existing)
         elif isinstance(existing, Column):
             if isinstance(existing.expression, Attribute):
                 att = existing.expression
@@ -2454,7 +2454,7 @@ Query List:
 
     # Utils
     def __resolve(self, col_name: str) -> NamedExpression:
-        normalized_col_name = AnalyzerUtils.quote_name(col_name)
+        normalized_col_name = quote_name(col_name)
         cols = list(
             filter(lambda attr: attr.name == normalized_col_name, self.__output())
         )
@@ -2484,7 +2484,7 @@ Query List:
         using_columns: List[str],
     ) -> Tuple["DataFrame", "DataFrame"]:
         # Normalize the using columns.
-        normalized_using_columns = {AnalyzerUtils.quote_name(c) for c in using_columns}
+        normalized_using_columns = {quote_name(c) for c in using_columns}
         #  Check if the LHS and RHS have columns in common. If they don't just return them as-is. If
         #  they do have columns in common, alias the common columns with randomly generated l_
         #  and r_ prefixes for the left and right sides respectively.

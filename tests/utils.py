@@ -15,7 +15,10 @@ from typing import List, NamedTuple, Optional, Union
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
 from snowflake.snowpark._internal import utils
-from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name,
+    quote_name_without_upper_casing,
+)
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import (
@@ -78,20 +81,20 @@ class Utils:
     @staticmethod
     def create_stage(session: "Session", name: str, is_temporary: bool = True):
         session._run_query(
-            f"create or replace {'temporary' if is_temporary else ''} stage {AnalyzerUtils.quote_name(name)}"
+            f"create or replace {'temporary' if is_temporary else ''} stage {quote_name(name)}"
         )
 
     @staticmethod
     def drop_stage(session: "Session", name: str):
-        session._run_query(f"drop stage if exists {AnalyzerUtils.quote_name(name)}")
+        session._run_query(f"drop stage if exists {quote_name(name)}")
 
     @staticmethod
     def drop_table(session: "Session", name: str):
-        session._run_query(f"drop table if exists {AnalyzerUtils.quote_name(name)}")
+        session._run_query(f"drop table if exists {quote_name(name)}")
 
     @staticmethod
     def drop_view(session: "Session", name: str):
-        session._run_query(f"drop view if exists {AnalyzerUtils.quote_name(name)}")
+        session._run_query(f"drop view if exists {quote_name(name)}")
 
     @staticmethod
     def unset_query_tag(session: "Session"):
@@ -200,7 +203,7 @@ class Utils:
         assert len(result_meta) == len(expected_schema.fields)
         for meta, field in zip(result_meta, expected_schema.fields):
             assert (
-                AnalyzerUtils.quote_name_without_upper_casing(meta.name)
+                quote_name_without_upper_casing(meta.name)
                 == field.column_identifier.quoted_name
             )
             assert meta.is_nullable == field.nullable

@@ -9,7 +9,7 @@ import pytest
 
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
+from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.utils import TempObjectType, Utils as snowpark_utils
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
@@ -55,8 +55,8 @@ def test_default_and_current_database_and_schema(session):
     assert Utils.equals_ignore_case(default_database, session.get_current_database())
     assert Utils.equals_ignore_case(default_schema, session.get_current_schema())
 
+    schema_name = Utils.random_temp_schema()
     try:
-        schema_name = Utils.random_temp_schema()
         session._run_query("create schema {}".format(schema_name))
 
         assert Utils.equals_ignore_case(default_database, session.getDefaultDatabase())
@@ -66,7 +66,7 @@ def test_default_and_current_database_and_schema(session):
             default_database, session.get_current_database()
         )
         assert Utils.equals_ignore_case(
-            AnalyzerUtils.quote_name(schema_name), session.get_current_schema()
+            quote_name(schema_name), session.get_current_schema()
         )
     finally:
         # restore

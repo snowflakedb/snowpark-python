@@ -3,7 +3,7 @@
 #
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
+from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.utils import TempObjectType
@@ -47,7 +47,7 @@ def test_multiple_queries(session):
 
     try:
         plan = SnowflakePlan(
-            queries, AnalyzerUtils.schema_value_statement(attrs), None, None, session
+            queries, schema_value_statement(attrs), None, None, session
         )
         plan1 = session._Session__plan_builder.project(["A"], plan, None)
 
@@ -76,7 +76,7 @@ def test_multiple_queries(session):
 
     try:
         plan2 = SnowflakePlan(
-            queries2, AnalyzerUtils.schema_value_statement(attrs2), None, None, session
+            queries2, schema_value_statement(attrs2), None, None, session
         )
         plan3 = session._Session__plan_builder.set_operator(
             plan1, plan2, "UNION ALL", None

@@ -7,7 +7,39 @@ from collections import Counter
 from typing import Dict, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.analyzer_utils import AnalyzerUtils
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    alias_expression,
+    binary_arithmetic_expression,
+    block_expression,
+    case_when_expression,
+    cast_expression,
+    collate_expression,
+    delete_merge_statement,
+    empty_values_statement,
+    flatten_expression,
+    function_expression,
+    grouping_set_expression,
+    in_expression,
+    insert_merge_statement,
+    like_expression,
+    list_agg,
+    named_arguments_function,
+    order_expression,
+    quote_name,
+    range_statement,
+    rank_related_function_expression,
+    regexp_expression,
+    specified_window_frame_expression,
+    subfield_expression,
+    subquery_expression,
+    unary_expression,
+    update_merge_statement,
+    values_statement,
+    window_expression,
+    window_frame_boundary_expression,
+    window_spec_expression,
+    within_group_expression,
+)
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryArithmeticExpression,
     BinaryExpression,
@@ -113,32 +145,26 @@ class Analyzer:
 
     def analyze(self, expr: Union[Expression, NamedExpression]) -> str:
         if isinstance(expr, GroupingSetsExpression):
-            return AnalyzerUtils.grouping_set_expression(
+            return grouping_set_expression(
                 [[self.analyze(a) for a in arg] for arg in expr.args]
             )
 
         if isinstance(expr, Like):
-            return AnalyzerUtils.like_expression(
-                self.analyze(expr.expr), self.analyze(expr.pattern)
-            )
+            return like_expression(self.analyze(expr.expr), self.analyze(expr.pattern))
 
         if isinstance(expr, RegExp):
-            return AnalyzerUtils.regexp_expression(
+            return regexp_expression(
                 self.analyze(expr.expr), self.analyze(expr.pattern)
             )
 
         if isinstance(expr, Collate):
-            return AnalyzerUtils.collate_expression(
-                self.analyze(expr.expr), expr.collation_spec
-            )
+            return collate_expression(self.analyze(expr.expr), expr.collation_spec)
 
         if isinstance(expr, (SubfieldString, SubfieldInt)):
-            return AnalyzerUtils.subfield_expression(
-                self.analyze(expr.expr), expr.field
-            )
+            return subfield_expression(self.analyze(expr.expr), expr.field)
 
         if isinstance(expr, CaseWhen):
-            return AnalyzerUtils.case_when_expression(
+            return case_when_expression(
                 [
                     (self.analyze(condition), self.analyze(value))
                     for condition, value in expr.branches
@@ -147,12 +173,12 @@ class Analyzer:
             )
 
         if isinstance(expr, MultipleExpression):
-            return AnalyzerUtils.block_expression(
+            return block_expression(
                 [self.analyze(expression) for expression in expr.expressions]
             )
 
         if isinstance(expr, InExpression):
-            return AnalyzerUtils.in_expression(
+            return in_expression(
                 self.analyze(expr.columns),
                 [self.analyze(expression) for expression in expr.values],
             )
@@ -161,17 +187,17 @@ class Analyzer:
             return self.grouping_extractor(expr)
 
         if isinstance(expr, WindowExpression):
-            return AnalyzerUtils.window_expression(
+            return window_expression(
                 self.analyze(expr.window_function), self.analyze(expr.window_spec)
             )
         if isinstance(expr, WindowSpecDefinition):
-            return AnalyzerUtils.window_spec_expression(
+            return window_spec_expression(
                 list(map(self.analyze, expr.partition_spec)),
                 list(map(self.analyze, expr.order_spec)),
                 self.analyze(expr.frame_spec),
             )
         if isinstance(expr, SpecifiedWindowFrame):
-            return AnalyzerUtils.specified_window_frame_expression(
+            return specified_window_frame_expression(
                 expr.frame_type.sql,
                 self.window_frame_boundary(self.to_sql_avoid_offset(expr.lower)),
                 self.window_frame_boundary(self.to_sql_avoid_offset(expr.upper)),
@@ -186,22 +212,22 @@ class Analyzer:
 
         if isinstance(expr, Attribute):
             name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
-            return AnalyzerUtils.quote_name(name)
+            return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
             return expr.name
 
         if isinstance(expr, Alias):
-            quoted_name = AnalyzerUtils.quote_name(expr.name)
+            quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
-            return AnalyzerUtils.alias_expression(self.analyze(expr.child), quoted_name)
+            return alias_expression(self.analyze(expr.child), quoted_name)
 
         if isinstance(expr, FunctionExpression):
-            return AnalyzerUtils.function_expression(
+            return function_expression(
                 expr.name,
                 [self.to_sql_avoid_offset(c) for c in expr.children],
                 expr.is_distinct,
@@ -214,7 +240,7 @@ class Analyzer:
                 return ",".join(list(map(self.analyze, expr.expressions)))
 
         if isinstance(expr, SnowflakeUDF):
-            return AnalyzerUtils.function_expression(
+            return function_expression(
                 expr.udf_name, list(map(self.analyze, expr.children)), False
             )
 
@@ -225,16 +251,16 @@ class Analyzer:
             return self.unary_expression_extractor(expr)
 
         if isinstance(expr, SortOrder):
-            return AnalyzerUtils.order_expression(
+            return order_expression(
                 self.analyze(expr.child), expr.direction.sql, expr.null_ordering.sql
             )
 
         if isinstance(expr, ScalarSubquery):
             self.subquery_plans.append(expr.plan)
-            return AnalyzerUtils.subquery_expression(expr.plan.queries[-1].sql)
+            return subquery_expression(expr.plan.queries[-1].sql)
 
         if isinstance(expr, WithinGroup):
-            return AnalyzerUtils.within_group_expression(
+            return within_group_expression(
                 self.analyze(expr.expr), [self.analyze(e) for e in expr.order_by_cols]
             )
 
@@ -242,32 +268,32 @@ class Analyzer:
             return self.binary_operator_extractor(expr)
 
         if isinstance(expr, InsertMergeExpression):
-            return AnalyzerUtils.insert_merge_statement(
+            return insert_merge_statement(
                 self.analyze(expr.condition) if expr.condition else None,
                 [self.analyze(k) for k in expr.keys],
                 [self.analyze(v) for v in expr.values],
             )
 
         if isinstance(expr, UpdateMergeExpression):
-            return AnalyzerUtils.update_merge_statement(
+            return update_merge_statement(
                 self.analyze(expr.condition) if expr.condition else None,
                 {self.analyze(k): self.analyze(v) for k, v in expr.assignments.items()},
             )
 
         if isinstance(expr, DeleteMergeExpression):
-            return AnalyzerUtils.delete_merge_statement(
+            return delete_merge_statement(
                 self.analyze(expr.condition) if expr.condition else None
             )
 
         if isinstance(expr, ListAgg):
-            return AnalyzerUtils.list_agg(
+            return list_agg(
                 self.analyze(expr.col),
                 DataTypeMapper.str_to_sql(expr.delimiter),
                 expr.is_distinct,
             )
 
         if isinstance(expr, RankRelatedFunctionExpression):
-            return AnalyzerUtils.rank_related_function_expression(
+            return rank_related_function_expression(
                 expr.sql,
                 self.analyze(expr.expr),
                 expr.offset,
@@ -279,7 +305,7 @@ class Analyzer:
 
     def table_function_expression_extractor(self, expr: TableFunctionExpression) -> str:
         if isinstance(expr, FlattenFunction):
-            return AnalyzerUtils.flatten_expression(
+            return flatten_expression(
                 self.analyze(expr.input),
                 expr.path,
                 expr.outer,
@@ -288,43 +314,41 @@ class Analyzer:
             )
 
         if isinstance(expr, TableFunction):
-            return AnalyzerUtils.function_expression(
+            return function_expression(
                 expr.func_name, [self.analyze(x) for x in expr.args], False
             )
 
         if isinstance(expr, NamedArgumentsTableFunction):
-            return AnalyzerUtils.named_arguments_function(
+            return named_arguments_function(
                 expr.func_name,
                 {key: self.analyze(value) for key, value in expr.args.items()},
             )
 
     def unary_expression_extractor(self, expr: UnaryExpression) -> str:
         if isinstance(expr, Alias):
-            quoted_name = AnalyzerUtils.quote_name(expr.name)
+            quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
-            return AnalyzerUtils.alias_expression(self.analyze(expr.child), quoted_name)
+            return alias_expression(self.analyze(expr.child), quoted_name)
         if isinstance(expr, UnresolvedAlias):
             return self.analyze(expr.child)
         elif isinstance(expr, Cast):
-            return AnalyzerUtils.cast_expression(
-                self.analyze(expr.child), expr.to, expr.try_
-            )
+            return cast_expression(self.analyze(expr.child), expr.to, expr.try_)
         else:
-            return AnalyzerUtils.unary_expression(
+            return unary_expression(
                 self.analyze(expr.child), expr.sql_operator, expr.operator_first
             )
 
     def binary_operator_extractor(self, expr: BinaryExpression) -> str:
         if isinstance(expr, BinaryArithmeticExpression):
-            return AnalyzerUtils.binary_arithmetic_expression(
+            return binary_arithmetic_expression(
                 expr.sql_operator, self.analyze(expr.left), self.analyze(expr.right)
             )
         else:
-            return AnalyzerUtils.function_expression(
+            return function_expression(
                 expr.sql_operator,
                 [self.analyze(expr.left), self.analyze(expr.right)],
                 False,
@@ -342,9 +366,7 @@ class Analyzer:
     def window_frame_boundary(self, offset: str) -> str:
         try:
             num = int(offset)
-            return AnalyzerUtils.window_frame_boundary_expression(
-                str(abs(num)), num >= 0
-            )
+            return window_frame_boundary_expression(str(abs(num)), num >= 0)
         except:
             return offset
 
@@ -479,7 +501,7 @@ class Analyzer:
             # (quoted lower-case) it's a little hard for users. So we switch it to
             # the column name "ID" == id == Id
             return self.plan_builder.query(
-                AnalyzerUtils.range_statement(
+                range_statement(
                     logical_plan.start, logical_plan.end, logical_plan.step, "id"
                 ),
                 logical_plan,
@@ -492,9 +514,7 @@ class Analyzer:
                     < ARRAY_BIND_THRESHOLD
                 ):
                     return self.plan_builder.query(
-                        AnalyzerUtils.values_statement(
-                            logical_plan.output, logical_plan.data
-                        ),
+                        values_statement(logical_plan.output, logical_plan.data),
                         logical_plan,
                     )
                 else:
@@ -503,7 +523,7 @@ class Analyzer:
                     )
             else:
                 return self.plan_builder.query(
-                    AnalyzerUtils.empty_values_statement(logical_plan.output),
+                    empty_values_statement(logical_plan.output),
                     logical_plan,
                 )
 

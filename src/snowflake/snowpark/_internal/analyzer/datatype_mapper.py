@@ -125,7 +125,7 @@ class DataTypeMapper:
             return f"'{value}' :: DOUBLE"
 
         if isinstance(value, Decimal) and isinstance(datatype, DecimalType):
-            return f"{value} :: {analyzer_utils.AnalyzerUtils.number(datatype.precision, datatype.scale)}"
+            return f"{value} :: {analyzer_utils.number(datatype.precision, datatype.scale)}"
 
         if isinstance(datatype, DateType):
             if isinstance(value, int):
