@@ -321,7 +321,6 @@ def filter_statement(condition: str, child: str) -> str:
 
 
 def sample_statement(
-    cls,
     child: str,
     probability_fraction: Optional[float] = None,
     row_count: Optional[int] = None,
@@ -546,7 +545,6 @@ def join_statement(left: str, right: str, join_type: JoinType, condition: str) -
 
 
 def create_table_statement(
-    cls,
     table_name: str,
     schema: str,
     replace: bool = False,
@@ -575,7 +573,6 @@ def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str
 
 
 def create_table_as_select_statement(
-    cls,
     table_name: str,
     child: str,
     replace: bool = False,
@@ -608,7 +605,6 @@ def schema_cast_seq(schema: List[Attribute]) -> List[str]:
 
 
 def create_file_format_statement(
-    cls,
     format_name: str,
     file_type: str,
     options: Dict,
@@ -804,7 +800,6 @@ def unpivot_statement(
 
 
 def copy_into_table(
-    cls,
     table_name: str,
     file_path: str,
     file_format: str,
@@ -893,7 +888,6 @@ def copy_into_table(
 
 
 def copy_into_location(
-    cls,
     query: str,
     stage_location: str,
     partition_by: Optional[str] = None,
@@ -965,7 +959,6 @@ def copy_into_location(
 
 
 def update_statement(
-    cls,
     table_name: str,
     assignments: Dict[str, str],
     condition: Optional[str],
