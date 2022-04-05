@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 from functools import cached_property
 
-import snowflake.snowpark._internal.analyzer.analyzer_package as analyzer_package
+import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
     _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -106,7 +106,7 @@ class Attribute(Expression, NamedExpression):
             return self
         else:
             return Attribute(
-                analyzer_package.AnalyzerPackage.quote_name(new_name),
+                analyzer_utils.quote_name(new_name),
                 self.datatype,
                 self.nullable,
             )
