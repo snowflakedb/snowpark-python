@@ -91,7 +91,7 @@ def test_basic_udf(session):
     )
     int2str_udf = udf(int2str, return_type=StringType(), input_types=[IntegerType()])
     pow_udf = udf(
-        lambda x, y: x ** y,
+        lambda x, y: x**y,
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
     )
@@ -204,7 +204,7 @@ def test_nested_udf(session):
         return "{}-{}".format(inner_func(), inner_func())
 
     def square(x):
-        return x ** 2
+        return x**2
 
     def cube(x):
         return square(x) * x

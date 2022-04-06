@@ -111,7 +111,7 @@ def test_udf_with_map_input(session):
         input_types=[MapType(StringType(), StringType())],
     )
     array_sum_udf = udf(
-        lambda x: sum([int(i) for i in x]),
+        lambda x: sum(int(i) for i in x),
         return_type=IntegerType(),
         input_types=[ArrayType(StringType())],
     )
@@ -165,7 +165,7 @@ def test_udf_with_multiple_args_of_map_array(session):
 
     def f(map1, map2, id):
         values = [map2[key] for key in map1.values()]
-        res = sum([int(v) for v in values])
+        res = sum(int(v) for v in values)
         return {id: str(res)}
 
     map_udf = udf(
@@ -282,16 +282,13 @@ def test_call_udf_api(session):
         input_types=[IntegerType()],
         name=function_name,
     )
-    assert (
-        df.with_column(
-            "c",
-            call_udf(
-                f"{session.get_fully_qualified_current_schema()}.{function_name}",
-                col("a"),
-            ),
-        ).collect()
-        == [Row(1, 2), Row(2, 4), Row(3, 6)]
-    )
+    assert df.with_column(
+        "c",
+        call_udf(
+            f"{session.get_fully_qualified_current_schema()}.{function_name}",
+            col("a"),
+        ),
+    ).collect() == [Row(1, 2), Row(2, 4), Row(3, 6)]
 
 
 def test_long_type(session):

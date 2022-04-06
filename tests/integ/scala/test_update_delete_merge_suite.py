@@ -209,25 +209,19 @@ def test_merge_with_update_clause_only(session):
     target = session.table(table_name)
     source = session.createDataFrame([(10, "new")], schema=["id", "desc"])
 
-    assert (
-        target.merge(
-            source,
-            target["id"] == source["id"],
-            [when_matched().update({"desc": source["desc"]})],
-        )
-        == MergeResult(0, 2, 0)
-    )
+    assert target.merge(
+        source,
+        target["id"] == source["id"],
+        [when_matched().update({"desc": source["desc"]})],
+    ) == MergeResult(0, 2, 0)
     Utils.check_answer(target, [Row(10, "new"), Row(10, "new"), Row(11, "old")])
 
     target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
-    assert (
-        target.merge(
-            source,
-            target["id"] == source["id"],
-            [when_matched(target["desc"] == "old").update({"desc": source["desc"]})],
-        )
-        == MergeResult(0, 1, 0)
-    )
+    assert target.merge(
+        source,
+        target["id"] == source["id"],
+        [when_matched(target["desc"] == "old").update({"desc": source["desc"]})],
+    ) == MergeResult(0, 1, 0)
     Utils.check_answer(target, [Row(10, "new"), Row(10, "too_old"), Row(11, "old")])
 
 
@@ -245,14 +239,11 @@ def test_merge_with_delete_clause_only(session):
     Utils.check_answer(target, [Row(11, "old")])
 
     target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
-    assert (
-        target.merge(
-            source,
-            target["id"] == source["id"],
-            [when_matched(target["desc"] == "old").delete()],
-        )
-        == MergeResult(0, 0, 1)
-    )
+    assert target.merge(
+        source,
+        target["id"] == source["id"],
+        [when_matched(target["desc"] == "old").delete()],
+    ) == MergeResult(0, 0, 1)
     Utils.check_answer(target, [Row(10, "too_old"), Row(11, "old")])
 
 
@@ -264,44 +255,35 @@ def test_merge_with_insert_clause_only(session):
     target = session.table(table_name)
     source = session.createDataFrame([(12, "old"), (12, "new")], schema=["id", "desc"])
 
-    assert (
-        target.merge(
-            source,
-            target["id"] == source["id"],
-            [when_not_matched().insert({"id": source["id"], "desc": source["desc"]})],
-        )
-        == MergeResult(2, 0, 0)
-    )
+    assert target.merge(
+        source,
+        target["id"] == source["id"],
+        [when_not_matched().insert({"id": source["id"], "desc": source["desc"]})],
+    ) == MergeResult(2, 0, 0)
     Utils.check_answer(
         target, [Row(10, "old"), Row(11, "new"), Row(12, "new"), Row(12, "old")]
     )
 
     target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
-    assert (
-        target.merge(
-            source,
-            target["id"] == source["id"],
-            [when_not_matched().insert([source["id"], source["desc"]])],
-        )
-        == MergeResult(2, 0, 0)
-    )
+    assert target.merge(
+        source,
+        target["id"] == source["id"],
+        [when_not_matched().insert([source["id"], source["desc"]])],
+    ) == MergeResult(2, 0, 0)
     Utils.check_answer(
         target, [Row(10, "old"), Row(11, "new"), Row(12, "new"), Row(12, "old")]
     )
 
     target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
-    assert (
-        target.merge(
-            source,
-            target["id"] == source["id"],
-            [
-                when_not_matched(source.desc == "new").insert(
-                    {"id": source["id"], "desc": source["desc"]}
-                )
-            ],
-        )
-        == MergeResult(1, 0, 0)
-    )
+    assert target.merge(
+        source,
+        target["id"] == source["id"],
+        [
+            when_not_matched(source.desc == "new").insert(
+                {"id": source["id"], "desc": source["desc"]}
+            )
+        ],
+    ) == MergeResult(1, 0, 0)
     Utils.check_answer(target, [Row(10, "old"), Row(11, "new"), Row(12, "new")])
 
 
@@ -315,21 +297,18 @@ def test_merge_with_matched_and_not_matched_clauses(session):
         [(10, "new"), (12, "new"), (13, "old")], schema=["id", "desc"]
     )
 
-    assert (
-        target.merge(
-            source,
-            target["id"] == source["id"],
-            [
-                when_matched(target["desc"] == "too_old").delete(),
-                when_matched().update({"desc": source["desc"]}),
-                when_not_matched(source["desc"] == "old").insert(
-                    {"id": source["id"], "desc": "new"}
-                ),
-                when_not_matched().insert({"id": source["id"], "desc": source["desc"]}),
-            ],
-        )
-        == MergeResult(2, 1, 1)
-    )
+    assert target.merge(
+        source,
+        target["id"] == source["id"],
+        [
+            when_matched(target["desc"] == "too_old").delete(),
+            when_matched().update({"desc": source["desc"]}),
+            when_not_matched(source["desc"] == "old").insert(
+                {"id": source["id"], "desc": "new"}
+            ),
+            when_not_matched().insert({"id": source["id"], "desc": source["desc"]}),
+        ],
+    ) == MergeResult(2, 1, 1)
     Utils.check_answer(
         target, [Row(10, "new"), Row(11, "old"), Row(12, "new"), Row(13, "new")]
     )
@@ -342,17 +321,14 @@ def test_merge_with_aggregated_source(session):
     source_df = session.createDataFrame([(0, 10), (0, 11), (0, 12)], schema=["k", "v"])
     source = source_df.groupBy("k").agg(max_(col("v")).as_("v"))
 
-    assert (
-        target.merge(
-            source,
-            target["k"] == source["k"],
-            [
-                when_matched().update({"v": source["v"]}),
-                when_not_matched().insert({"k": source["k"], "v": source["v"]}),
-            ],
-        )
-        == MergeResult(0, 1, 0)
-    )
+    assert target.merge(
+        source,
+        target["k"] == source["k"],
+        [
+            when_matched().update({"v": source["v"]}),
+            when_not_matched().insert({"k": source["k"], "v": source["v"]}),
+        ],
+    ) == MergeResult(0, 1, 0)
     Utils.check_answer(target, [Row(0, 12)])
 
 
@@ -367,25 +343,20 @@ def test_merge_with_multiple_clause_conditions(session):
         schema=["k", "v"],
     )
 
-    assert (
-        target.merge(
-            source,
-            target["k"] == source["k"],
-            [
-                when_matched(source["v"] < 21).delete(),
-                when_matched(source["v"] > 22).update({"v": (source["v"] - 20)}),
-                when_matched(source["v"] != 21).delete(),
-                when_matched().update({"v": source["v"]}),
-                when_not_matched(source["v"] < 25).insert(
-                    [source["k"], source["v"] - 20]
-                ),
-                when_not_matched(source["v"] > 26).insert({"k": source["k"]}),
-                when_not_matched(source["v"] != 25).insert({"v": source["v"]}),
-                when_not_matched().insert({"k": source["k"], "v": source["v"]}),
-            ],
-        )
-        == MergeResult(4, 2, 2)
-    )
+    assert target.merge(
+        source,
+        target["k"] == source["k"],
+        [
+            when_matched(source["v"] < 21).delete(),
+            when_matched(source["v"] > 22).update({"v": (source["v"] - 20)}),
+            when_matched(source["v"] != 21).delete(),
+            when_matched().update({"v": source["v"]}),
+            when_not_matched(source["v"] < 25).insert([source["k"], source["v"] - 20]),
+            when_not_matched(source["v"] > 26).insert({"k": source["k"]}),
+            when_not_matched(source["v"] != 25).insert({"v": source["v"]}),
+            when_not_matched().insert({"k": source["k"], "v": source["v"]}),
+        ],
+    ) == MergeResult(4, 2, 2)
     Utils.check_answer(
         target,
         [Row(1, 21), Row(3, 3), Row(4, 4), Row(5, 25), Row(7, None), Row(None, 26)],

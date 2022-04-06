@@ -164,7 +164,7 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     assert df.select(df["A"] - df["B"]).collect() == [Row(-2)]
     assert df.select(df["A"] * df["B"]).collect() == [Row(143)]
     assert df.select(df["A"] % df["B"]).collect() == [Row(11)]
-    assert df.select(df["A"] ** df["B"]).collect() == [Row(11 ** 13)]
+    assert df.select(df["A"] ** df["B"]).collect() == [Row(11**13)]
     res = df.select(df["A"] / df["B"]).collect()
     assert len(res) == 1
     assert len(res[0]) == 1
@@ -175,7 +175,7 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     assert df.select(2 - df["B"]).collect() == [Row(-11)]
     assert df.select(2 * df["B"]).collect() == [Row(26)]
     assert df.select(2 % df["B"]).collect() == [Row(2)]
-    assert df.select(2 ** df["B"]).collect() == [Row(2 ** 13)]
+    assert df.select(2 ** df["B"]).collect() == [Row(2**13)]
     res = df.select(2 / df["B"]).collect()
     assert len(res) == 1
     assert len(res[0]) == 1

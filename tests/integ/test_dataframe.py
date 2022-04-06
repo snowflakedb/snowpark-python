@@ -803,7 +803,7 @@ def test_create_dataframe_with_semi_structured_data_types(session):
 
 
 def test_create_dataframe_with_dict(session):
-    data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
+    data = {"snow_{}".format(idx + 1): idx**3 for idx in range(5)}
     expected_names = [name.upper() for name in data.keys()]
     expected_rows = [Row(*data.values())]
     df = session.create_dataframe([data])
@@ -835,7 +835,7 @@ def test_create_dataframe_with_dict(session):
 
 def test_create_dataframe_with_namedtuple(session):
     Data = namedtuple("Data", ["snow_{}".format(idx + 1) for idx in range(5)])
-    data = Data(*[idx ** 3 for idx in range(5)])
+    data = Data(*[idx**3 for idx in range(5)])
     expected_names = [name.upper() for name in data._fields]
     expected_rows = [Row(*data)]
     df = session.createDataFrame([data])
