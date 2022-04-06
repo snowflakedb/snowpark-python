@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -57,7 +56,7 @@ def test_default_and_current_database_and_schema(session):
 
     schema_name = Utils.random_temp_schema()
     try:
-        session._run_query("create schema {}".format(schema_name))
+        session._run_query(f"create schema {schema_name}")
 
         assert Utils.equals_ignore_case(default_database, session.getDefaultDatabase())
         assert Utils.equals_ignore_case(default_schema, session.getDefaultSchema())
@@ -70,8 +69,8 @@ def test_default_and_current_database_and_schema(session):
         )
     finally:
         # restore
-        session._run_query("drop schema if exists {}".format(schema_name))
-        session._run_query("use schema {}".format(default_schema))
+        session._run_query(f"drop schema if exists {schema_name}")
+        session._run_query(f"use schema {default_schema}")
 
 
 def test_quote_all_database_and_schema_names(session):
@@ -100,7 +99,11 @@ def test_create_dataframe_sequence(session):
 
 
 def test_create_dataframe_namedtuple(session):
-    P1 = NamedTuple("P1", [("a", int), ("b", str), ("c", float)])
+    class P1(NamedTuple):
+        a: int
+        b: str
+        c: float
+
     df = session.create_dataframe([P1(1, "one", 1.0), P1(2, "two", 2.0)])
     assert [field.name for field in df.schema.fields] == ["A", "B", "C"]
 
@@ -117,7 +120,7 @@ def test_get_schema_database_works_after_use_role(session):
         assert session.get_current_database() == db
         assert session.get_current_schema() == schema
     finally:
-        session._run_query("use role {}".format(current_role))
+        session._run_query(f"use role {current_role}")
 
 
 def test_negative_test_for_missing_required_parameter_schema(db_parameters):

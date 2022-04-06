@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -68,7 +67,7 @@ def test_range_test(session):
 
 def test_range_with_randomized_parameters(session):
     MAX_NUM_STEPS = 10 * 1000
-    MAX_VALUE = 2 ** 31 - 1
+    MAX_VALUE = 2**31 - 1
     seed = int(time.time())
     random.seed(seed)
 
