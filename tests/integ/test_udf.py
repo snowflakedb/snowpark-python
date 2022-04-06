@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -201,7 +200,7 @@ def test_nested_udf(session):
         def inner_func():
             return "snow"
 
-        return "{}-{}".format(inner_func(), inner_func())
+        return f"{inner_func()}-{inner_func()}"
 
     def square(x):
         return x**2

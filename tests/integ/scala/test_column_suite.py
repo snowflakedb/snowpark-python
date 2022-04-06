@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -379,9 +378,9 @@ def test_fully_qualified_column_name(session):
     schema = "{}.{}".format(
         session.get_current_database(), session.get_current_schema()
     )
-    r_name = '"r_tr#!.{}"'.format(random_name)
-    s_name = '"s_tr#!.{}"'.format(random_name)
-    udf_name = '"u_tr#!.{}"'.format(random_name)
+    r_name = f'"r_tr#!.{random_name}"'
+    s_name = f'"s_tr#!.{random_name}"'
+    udf_name = f'"u_tr#!.{random_name}"'
     try:
         session._run_query(f'create or replace table {schema}.{r_name} ("d(" int)')
         session._run_query(f'create or replace table {schema}.{s_name} ("c(" int)')
