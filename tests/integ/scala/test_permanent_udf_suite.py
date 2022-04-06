@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -200,12 +199,12 @@ def test_udf_read_file_with_snowflake_import_directory_basic(session, resources_
         IMPORT_DIRECTORY_NAME = "snowflake_import_directory"
         import_dir = sys._xoptions[IMPORT_DIRECTORY_NAME]
         file_path = import_dir + name
-        file = open(file_path, "r")
+        file = open(file_path)
         return file.read()
 
     test_csv_file = TestFiles(resources_path).test_file_csv
     filename = os.path.basename(test_csv_file)
-    with open(test_csv_file, "r") as f:
+    with open(test_csv_file) as f:
         file_content = f.read()
     func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     stage_name = Utils.random_stage_name()
@@ -232,7 +231,7 @@ def test_udf_read_file_with_snowflake_import_directory_complex(
         IMPORT_DIRECTORY_NAME = "snowflake_import_directory"
         import_dir = sys._xoptions[IMPORT_DIRECTORY_NAME]
         file_path = import_dir + name
-        file = open(file_path, "r")
+        file = open(file_path)
         return file.read()
 
     # Two session to read two files (same file name, but different content) in UDF
@@ -279,12 +278,12 @@ def test_udf_read_file_with_staged_file(session, resources_path):
         IMPORT_DIRECTORY_NAME = "snowflake_import_directory"
         import_dir = sys._xoptions[IMPORT_DIRECTORY_NAME]
         file_path = import_dir + name
-        file = open(file_path, "r")
+        file = open(file_path)
         return file.read()
 
     test_csv_file = TestFiles(resources_path).test_file_csv
     filename = os.path.basename(test_csv_file)
-    with open(test_csv_file, "r") as f:
+    with open(test_csv_file) as f:
         file_content = f.read()
     func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     stage_name = Utils.random_stage_name()

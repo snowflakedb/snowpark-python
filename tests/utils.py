@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -221,18 +220,47 @@ class Utils:
 
 
 class TestData:
-    Data = NamedTuple("Data", [("num", int), ("bool", bool), ("str", str)])
-    Data2 = NamedTuple("Data2", [("a", int), ("b", int)])
-    Data3 = NamedTuple("Data3", [("a", int), ("b", Optional[int])])
-    Data4 = NamedTuple("Data4", [("key", int), ("value", str)])
-    LowerCaseData = NamedTuple("LowerCaseData", [("n", int), ("l", str)])
-    UpperCaseData = NamedTuple("UpperCaseData", [("N", int), ("L", str)])
+    class Data(NamedTuple):
+        num: int
+        bool: bool
+        str: str
+
+    class Data2(NamedTuple):
+        a: int
+        b: int
+
+    class Data3(NamedTuple):
+        a: int
+        b: Optional[int]
+
+    class Data4(NamedTuple):
+        key: int
+        value: str
+
+    class LowerCaseData(NamedTuple):
+        n: int
+        l: str
+
+    class UpperCaseData(NamedTuple):
+        N: int
+        L: str
+
     NullInt = NamedTuple("NullInts", [("a", Optional[int])])
-    Number1 = NamedTuple("Number1", [("K", int), ("v1", float), ("v2", float)])
-    Number2 = NamedTuple("Number2", [("x", int), ("y", int), ("z", int)])
-    MonthlySales = NamedTuple(
-        "MonthlySales", [("empid", int), ("amount", int), ("month", str)]
-    )
+
+    class Number1(NamedTuple):
+        K: int
+        v1: float
+        v2: float
+
+    class Number2(NamedTuple):
+        x: int
+        y: int
+        z: int
+
+    class MonthlySales(NamedTuple):
+        empid: int
+        amount: int
+        month: str
 
     @classmethod
     def test_data1(cls, session: "Session") -> DataFrame:

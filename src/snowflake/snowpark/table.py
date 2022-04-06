@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -277,7 +276,7 @@ class Table(DataFrame):
 
         """
         if sampling_method is None and seed is None:
-            return super(Table, self).sample(frac=frac, n=n)
+            return super().sample(frac=frac, n=n)
         DataFrame._validate_sample_input(frac, n)
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",

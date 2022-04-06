@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -197,7 +196,7 @@ class Utils:
     @staticmethod
     def random_number() -> int:
         """Get a random unsigned integer."""
-        return random.randint(0, 2 ** 31)
+        return random.randint(0, 2**31)
 
     @staticmethod
     def generated_py_file_ext() -> Tuple[str, ...]:

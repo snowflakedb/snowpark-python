@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -164,7 +163,7 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     assert df.select(df["A"] - df["B"]).collect() == [Row(-2)]
     assert df.select(df["A"] * df["B"]).collect() == [Row(143)]
     assert df.select(df["A"] % df["B"]).collect() == [Row(11)]
-    assert df.select(df["A"] ** df["B"]).collect() == [Row(11 ** 13)]
+    assert df.select(df["A"] ** df["B"]).collect() == [Row(11**13)]
     res = df.select(df["A"] / df["B"]).collect()
     assert len(res) == 1
     assert len(res[0]) == 1
@@ -175,7 +174,7 @@ def test_add_subtract_multiply_divide_mod_pow(session):
     assert df.select(2 - df["B"]).collect() == [Row(-11)]
     assert df.select(2 * df["B"]).collect() == [Row(26)]
     assert df.select(2 % df["B"]).collect() == [Row(2)]
-    assert df.select(2 ** df["B"]).collect() == [Row(2 ** 13)]
+    assert df.select(2 ** df["B"]).collect() == [Row(2**13)]
     res = df.select(2 / df["B"]).collect()
     assert len(res) == 1
     assert len(res[0]) == 1
@@ -379,9 +378,9 @@ def test_fully_qualified_column_name(session):
     schema = "{}.{}".format(
         session.get_current_database(), session.get_current_schema()
     )
-    r_name = '"r_tr#!.{}"'.format(random_name)
-    s_name = '"s_tr#!.{}"'.format(random_name)
-    udf_name = '"u_tr#!.{}"'.format(random_name)
+    r_name = f'"r_tr#!.{random_name}"'
+    s_name = f'"s_tr#!.{random_name}"'
+    udf_name = f'"u_tr#!.{random_name}"'
     try:
         session._run_query(f'create or replace table {schema}.{r_name} ("d(" int)')
         session._run_query(f'create or replace table {schema}.{s_name} ("c(" int)')

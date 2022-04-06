@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -155,7 +154,7 @@ class DataTypeMapper:
         if isinstance(value, (list, bytes, bytearray)) and isinstance(
             datatype, BinaryType
         ):
-            return "'{}' :: binary".format(binascii.hexlify(value).decode())
+            return f"'{binascii.hexlify(value).decode()}' :: binary"
 
         if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
             return f"parse_json({DataTypeMapper.str_to_sql(json.dumps(value))})"
@@ -163,9 +162,7 @@ class DataTypeMapper:
         if isinstance(value, dict) and isinstance(datatype, MapType):
             return f"parse_json({DataTypeMapper.str_to_sql(json.dumps(value))})"
 
-        raise TypeError(
-            "Unsupported datatype {}, value {} by to_sql()".format(datatype, value)
-        )
+        raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
     @staticmethod
     def schema_expression(data_type: DataType, is_nullable: bool) -> str:
