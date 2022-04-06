@@ -289,6 +289,177 @@ def current_warehouse() -> Column:
     return builtin("current_warehouse")()
 
 
+def current_database() -> Column:
+    """Returns the name of the database in use for the current session.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_database()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_database")()
+
+
+def current_role() -> Column:
+    """Returns the name of the role in use for the current session.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_role()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_role")()
+
+
+def current_schema() -> Column:
+    """Returns the name of the schema in use for the current session.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_schema()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_schema")()
+
+
+def current_schemas() -> Column:
+    """Returns active search path schemas.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_schemas()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_schemas")()
+
+
+def current_region() -> Column:
+    """Returns the name of the region for the account where the current user is logged in.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_region()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_region")()
+
+
+def current_available_roles() -> Column:
+    """Returns a JSON string that lists all roles granted to the current user.
+
+    Example::
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_available_roles()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_available_roles")()
+
+
+def add_months(date_or_timestamp: ColumnOrName, number_of_months: Union[Column, int]):
+    """Adds or subtracts a specified number of months to a date or timestamp, preserving the end-of-month information.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe([datetime.date(2022, 4, 6)], schema=["d"])
+        >>> df.select(add_months("d", 4)).collect()[0][0]
+        datetime.date(2022, 8, 6)
+    """
+    c = _to_col_if_str(date_or_timestamp, "add_months")
+    return builtin("add_months")(c, number_of_months)
+
+
+def any_value(e: ColumnOrName):
+    """Returns a non-deterministic any value for the specified column.
+    This is an aggregate and window function.
+
+    Example::
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        >>> result = df.select(any_value("a")).collect()
+        >>> assert len(result) == 1  # non-deterministic value in result.
+    """
+    c = _to_col_if_str(e, "any_value")
+    return call_builtin("any_value", c)
+
+
+def bitnot(e: ColumnOrName):
+    """Returns the bitwise negation of a numeric expression.
+
+    Example::
+        >>> df = session.create_dataframe([1], schema=["a"])
+        >>> df.select(bitnot("a")).collect()[0][0]
+        -2
+    """
+    c = _to_col_if_str(e, "bitnot")
+    return call_builtin("bitnot", c)
+
+
+def bitshiftleft(to_shift_column: ColumnOrName, n: Union[Column, int]):
+    """Returns the bitwise negation of a numeric expression.
+
+    Example::
+        >>> df = session.create_dataframe([2], schema=["a"])
+        >>> df.select(bitshiftleft("a", 1)).collect()[0][0]
+        4
+    """
+    c = _to_col_if_str(to_shift_column, "bitshiftleft")
+    return call_builtin("bitshiftleft", c, n)
+
+
+def bitshiftright(to_shift_column: ColumnOrName, n: Union[Column, int]):
+    """Returns the bitwise negation of a numeric expression.
+
+    Example::
+        >>> df = session.create_dataframe([2], schema=["a"])
+        >>> df.select(bitshiftright("a", 1)).collect()[0][0]
+        1
+    """
+    c = _to_col_if_str(to_shift_column, "bitshiftright")
+    return call_builtin("bitshiftright", c, n)
+
+
+def convert_timezone(
+    target_timezone: ColumnOrName,
+    source_time: ColumnOrName,
+    source_timezone: Optional[ColumnOrName] = None,
+):
+    """Converts the given source_time to the target timezone.
+
+    For timezone information, refer to the `Snowflake SQL convert_timezone notes <https://docs.snowflake.com/en/sql-reference/functions/convert_timezone.html#usage-notes>`_
+
+        Args:
+            target_timezone: Specifying the time zone to which the input timestamp should be converted.
+            source_time: specifying the timestamp to convert. When it's a TIMESTAMP_LTZ, use ``None`` for ``source_timezone``.
+            source_timezone: Specifying the time zone for the ``source_time``. Required for timestamps with no time zone
+              (i.e. TIMESTAMP_NTZ).
+              Use ``None`` if the timestamps have time zone (i.e. TIMESTAMP_LTZ). Default ``None``.
+
+        Example:
+            >>> import datetime
+            >>> from dateutil import tz
+            >>> datetime_with_tz = datetime.datetime(2022, 4, 6, 9, 0, 0, tzinfo=tz.tzoffset("myzone", -3600*7))
+            >>> datetime_with_no_tz = datetime.datetime(2022, 4, 6, 9, 0, 0)
+            >>> df = session.create_dataframe([[datetime_with_tz, datetime_with_no_tz]], schema=["a", "b"])
+            >>> result = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai"))).collect()
+            >>> result[0][0]
+            datetime.datetime(2022, 4, 6, 16, 0, tzinfo=<UTC>)
+            >>> result[0][1]
+            datetime.datetime(2022, 4, 6, 1, 0)
+    """
+    source_tz = (
+        _to_col_if_str(source_timezone, "convert_timezone")
+        if source_timezone is not None
+        else None
+    )
+    target_tz = _to_col_if_str(target_timezone, "convert_timezone")
+    source_time_to_convert = _to_col_if_str(source_time, "convert_timezone")
+
+    if source_timezone is None:
+        return call_builtin("convert_timezone", target_tz, source_time_to_convert)
+    return call_builtin(
+        "convert_timezone", source_tz, target_tz, source_time_to_convert
+    )
+
+
 def approx_count_distinct(e: ColumnOrName) -> Column:
     """Uses HyperLogLog to return an approximation of the distinct cardinality of the input (i.e. HLL(col1, col2, ... )
     returns an approximation of COUNT(DISTINCT col1, col2, ... ))."""
