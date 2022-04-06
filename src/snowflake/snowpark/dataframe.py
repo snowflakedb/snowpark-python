@@ -47,7 +47,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     Lateral,
     TableFunctionExpression,
     TableFunctionJoin,
-    create_table_function_expression,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateViewCommand,
@@ -87,6 +86,10 @@ from snowflake.snowpark.functions import (
     to_char,
 )
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.table_function import (
+    TableFunction,
+    _create_table_function_expression,
+)
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 logger = getLogger(__name__)
@@ -1473,7 +1476,7 @@ class DataFrame:
 
     def join_table_function(
         self,
-        func_name: Union[str, List[str]],
+        func: Union[str, List[str], TableFunction],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> "DataFrame":
@@ -1507,8 +1510,8 @@ class DataFrame:
             - :meth:`Session.table_function`, which creates a new :class:`DataFrame` by using the SQL table function.
 
         """
-        func_expr = create_table_function_expression(
-            func_name, *func_arguments, **func_named_arguments
+        func_expr = _create_table_function_expression(
+            func, *func_arguments, **func_named_arguments
         )
         return DataFrame(self.session, TableFunctionJoin(self._plan, func_expr))
 

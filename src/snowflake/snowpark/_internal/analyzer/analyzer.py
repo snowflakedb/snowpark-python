@@ -32,6 +32,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     specified_window_frame_expression,
     subfield_expression,
     subquery_expression,
+    table_function_partition_spec,
     unary_expression,
     update_merge_statement,
     values_statement,
@@ -90,9 +91,10 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
     Lateral,
     NamedArgumentsTableFunction,
-    TableFunction,
+    PosArgumentsTableFunction,
     TableFunctionExpression,
     TableFunctionJoin,
+    TableFunctionPartitionSpecDefinition,
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -247,6 +249,15 @@ class Analyzer:
         if isinstance(expr, TableFunctionExpression):
             return self.table_function_expression_extractor(expr)
 
+        if isinstance(expr, TableFunctionPartitionSpecDefinition):
+            return table_function_partition_spec(
+                expr.over,
+                list(map(self.analyze, expr.partition_spec))
+                if expr.partition_spec
+                else [],
+                list(map(self.analyze, expr.order_spec)) if expr.order_spec else [],
+            )
+
         if isinstance(expr, UnaryExpression):
             return self.unary_expression_extractor(expr)
 
@@ -313,16 +324,24 @@ class Analyzer:
                 expr.mode,
             )
 
-        if isinstance(expr, TableFunction):
-            return function_expression(
+        elif isinstance(expr, PosArgumentsTableFunction):
+            sql = function_expression(
                 expr.func_name, [self.analyze(x) for x in expr.args], False
             )
 
-        if isinstance(expr, NamedArgumentsTableFunction):
-            return named_arguments_function(
+        elif isinstance(expr, NamedArgumentsTableFunction):
+            sql = named_arguments_function(
                 expr.func_name,
                 {key: self.analyze(value) for key, value in expr.args.items()},
             )
+        else:
+            raise TypeError(
+                "A table function expression should be any of PosArgumentsTableFunction, NamedArgumentsTableFunction, and FlattenFunction."
+            )
+        partition_spec_sql = (
+            self.analyze(expr.partition_spec) if expr.partition_spec else ""
+        )
+        return f"{sql} {partition_spec_sql}"
 
     def unary_expression_extractor(self, expr: UnaryExpression) -> str:
         if isinstance(expr, Alias):

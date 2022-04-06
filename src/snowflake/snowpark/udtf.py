@@ -43,6 +43,7 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.table_function import TableFunction
 from snowflake.snowpark.types import DataType, StructField, StructType
 
 
@@ -80,38 +81,8 @@ class UserDefinedTableFunction:
     def __call__(
         self,
         *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-    ) -> Column:
-        exprs = []
-        for c in Utils.parse_positional_args_to_list(*cols):
-            if isinstance(c, Column):
-                exprs.append(c.expression)
-            elif isinstance(c, str):
-                exprs.append(Column(c).expression)
-            else:
-                raise TypeError(
-                    f"The input of UDTF {self.name} must be Column, column name, or a list of them"
-                )
-
-        return Column(self.__create_udtf_expression(exprs))
-
-    def partition_by(self, partition_columns):
-        pass
-
-    def order_by(self, order_by_columns):
-        pass
-
-    def __create_udtf_expression(self, exprs: List[SPExpression]) -> SnowflakeUDTF:
-        if len(exprs) != len(self._input_types):
-            raise ValueError(
-                f"Incorrect number of arguments passed to the UDF:"
-                f" Expected: {len(exprs)}, Found: {len(self._input_types)}"
-            )
-        return SnowflakeUDTF(
-            self.name,
-            exprs,
-            self._return_type,
-            nullable=self._is_return_nullable,
-        )
+    ) -> TableFunction:
+        return TableFunction(self.name, *cols)
 
 
 class UDTFRegistration:

@@ -159,6 +159,12 @@ def named_arguments_function(name: str, args: Dict[str, str]) -> str:
     )
 
 
+def table_function_partition_spec(
+    over: bool, partition_spec: List[str], order_spec: List[str]
+) -> str:
+    return f"""{OVER if over else EMPTY_STRING}{LEFT_PARENTHESIS}{f"PARTITION BY {COMMA.join(partition_spec)}" if partition_spec else EMPTY_STRING}{SPACE}{f" ORDER BY {COMMA.join(order_spec)}" if order_spec else EMPTY_STRING}{RIGHT_PARENTHESIS}"""
+
+
 def binary_comparison(left: str, right: str, symbol: str) -> str:
     return left + SPACE + symbol + SPACE + right
 

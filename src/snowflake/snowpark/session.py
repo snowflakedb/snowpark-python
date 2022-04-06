@@ -37,7 +37,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
     TableFunctionRelation,
-    create_table_function_expression,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import ServerConnection
@@ -74,6 +73,10 @@ from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.table import Table
+from snowflake.snowpark.table_function import (
+    TableFunction,
+    _create_table_function_expression,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
@@ -842,7 +845,7 @@ class Session:
 
     def table_function(
         self,
-        func_name: Union[str, List[str]],
+        func_name: Union[str, List[str], TableFunction],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
@@ -866,7 +869,7 @@ class Session:
         See Also:
             - :meth:`DataFrame.join_table_function`, which lateral joins an existing :class:`DataFrame` and a SQL function.
         """
-        func_expr = create_table_function_expression(
+        func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
         return DataFrame(

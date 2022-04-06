@@ -248,23 +248,6 @@ class SnowflakeUDF(Expression):
         self.nullable = nullable
 
 
-class SnowflakeUDTF(Expression):
-    def __init__(
-        self,
-        udtf_name: str,
-        children: List[Expression],
-        datatype: StructType,
-        order_by_cols: List[Expression],
-        partition_by_cols: List[Expression],
-    ):
-        super().__init__()
-        self.udtf_name = udtf_name
-        self.children = children
-        self.datatype = datatype
-        self.order_by_cols = order_by_cols
-        self.partition_by_cols = partition_by_cols
-
-
 class ListAgg(Expression):
     def __init__(self, col: Expression, delimiter: str, is_distinct: bool):
         super().__init__()
