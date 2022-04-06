@@ -445,6 +445,11 @@ def convert_timezone(
             >>> result[0][1]
             datetime.datetime(2022, 4, 6, 1, 0)
     """
+    # The sequence of the 3 params is different from the SQL function.
+    # SQL has two overloads:
+    #   CONVERT_TIMEZONE( <source_tz> , <target_tz> , <source_timestamp_ntz> )
+    #   CONVERT_TIMEZONE( <target_tz> , <source_timestamp> )
+    # So source_tz is optional. But in Python an optional argument should be placed at the end.
     source_tz = (
         _to_col_if_str(source_timezone, "convert_timezone")
         if source_timezone is not None
