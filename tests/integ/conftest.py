@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -85,13 +84,11 @@ def is_sample_data_available(connection) -> bool:
 def test_schema(connection) -> None:
     """Set up and tear down the test schema. This is automatically called per test session."""
     with connection.cursor() as cursor:
-        cursor.execute("CREATE SCHEMA IF NOT EXISTS {}".format(TEST_SCHEMA))
+        cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}")
         # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
-        cursor.execute(
-            "GRANT ALL PRIVILEGES ON SCHEMA {} TO ROLE PUBLIC".format(TEST_SCHEMA)
-        )
+        cursor.execute(f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC")
         yield
-        cursor.execute("DROP SCHEMA IF EXISTS {}".format(TEST_SCHEMA))
+        cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
 
 @pytest.fixture(scope="module")
@@ -107,10 +104,10 @@ def temp_schema(connection, session) -> None:
     This is automatically called per test module."""
     temp_schema_name = Utils.get_fully_qualified_temp_schema(session)
     with connection.cursor() as cursor:
-        cursor.execute("CREATE SCHEMA IF NOT EXISTS {}".format(temp_schema_name))
+        cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {temp_schema_name}")
         # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
         cursor.execute(
-            "GRANT ALL PRIVILEGES ON SCHEMA {} TO ROLE PUBLIC".format(temp_schema_name)
+            f"GRANT ALL PRIVILEGES ON SCHEMA {temp_schema_name} TO ROLE PUBLIC"
         )
         yield temp_schema_name
-        cursor.execute("DROP SCHEMA IF EXISTS {}".format(temp_schema_name))
+        cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -386,11 +385,9 @@ class ServerConnection:
             self.notify_query_listeners(
                 QueryRecord(results_cursor.sfqid, results_cursor.query)
             )
-            logger.info(
-                "Execute query [queryID: {}] {}".format(results_cursor.sfqid, query)
-            )
+            logger.info(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
         except Exception as ex:
-            logger.error("Failed to execute query {}\n{}".format(query, ex))
+            logger.error(f"Failed to execute query {query}\n{ex}")
             raise ex
 
         # fetch_pandas_all/batches() only works for SELECT statements

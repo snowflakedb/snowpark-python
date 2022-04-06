@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -262,9 +261,7 @@ def _infer_schema(
         try:
             fields.append(StructField(k, _infer_type(v), True))
         except TypeError as e:
-            raise TypeError(
-                "Unable to infer the type of the field {}.".format(k)
-            ) from e
+            raise TypeError(f"Unable to infer the type of the field {k}.") from e
     return StructType(fields)
 
 
@@ -273,8 +270,8 @@ def _merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataTyp
         new_msg = lambda msg: msg
         new_name = lambda n: "field %s" % n
     else:
-        new_msg = lambda msg: "{}: {}".format(name, msg)
-        new_name = lambda n: "field {} in {}".format(n, name)
+        new_msg = lambda msg: f"{name}: {msg}"
+        new_name = lambda n: f"field {n} in {name}"
 
     # null type
     if isinstance(a, NullType):
@@ -282,7 +279,7 @@ def _merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataTyp
     elif isinstance(b, NullType):
         return a
     elif type(a) is not type(b):
-        raise TypeError(new_msg("Cannot merge type {} and {}".format(type(a), type(b))))
+        raise TypeError(new_msg(f"Cannot merge type {type(a)} and {type(b)}"))
 
     # same type
     if isinstance(a, StructType):
@@ -447,7 +444,7 @@ def _retrieve_func_type_hints_from_source(
                 self.func_exist = True
 
     if not _source:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             _source = f.read()
 
     visitor = NodeVisitor()

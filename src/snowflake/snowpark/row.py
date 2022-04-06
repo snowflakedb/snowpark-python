@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -89,7 +88,7 @@ class Row(tuple):
             elif self._fields and self._check_if_having_duplicates():
                 try:
                     index = self._fields.index(item)  # may throw ValueError
-                    return super(Row, self).__getitem__(index)  # may throw IndexError
+                    return super().__getitem__(index)  # may throw IndexError
                 except (IndexError, ValueError):
                     raise KeyError(item)
             # no column names/keys/fields
@@ -125,7 +124,7 @@ class Row(tuple):
         elif self._fields:
             return item in self._fields
         else:
-            return super(Row, self).__contains__(item)
+            return super().__contains__(item)
 
     def __call__(self, *args, **kwargs):
         """Create a new Row from current row."""
@@ -174,14 +173,14 @@ class Row(tuple):
     def __repr__(self):
         if self._fields:
             return "Row({})".format(
-                ", ".join("{}={!r}".format(k, v) for k, v in zip(self._fields, self))
+                ", ".join(f"{k}={v!r}" for k, v in zip(self._fields, self))
             )
         elif self._named_values:
             return "Row({})".format(
-                ", ".join("{}={!r}".format(k, v) for k, v in self._named_values.items())
+                ", ".join(f"{k}={v!r}" for k, v in self._named_values.items())
             )
         else:
-            return "Row({})".format(", ".join("{!r}".format(v) for v in self))
+            return "Row({})".format(", ".join(f"{v!r}" for v in self))
 
     def __reduce__(self):
         return (

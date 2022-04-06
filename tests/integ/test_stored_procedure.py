@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -78,16 +77,17 @@ def test_basic_stored_procedure(session):
 
 
 def test_call_named_stored_procedure(session, temp_schema, db_parameters):
-    session._run_query("drop function if exists test_mul(int, int)")
+    sproc_name = f"test_mul_{Utils.random_alphanumeric_str(3)}"
+    session._run_query("drop function if exists sproc_name(int, int)")
     sproc(
         lambda session_, x, y: session_.sql(f"select {x} * {y}").collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        name="test_mul",
+        name=sproc_name,
     )
-    assert session.call("test_mul", 13, 19) == 13 * 19
+    assert session.call(sproc_name, 13, 19) == 13 * 19
     assert (
-        session.call(f"{session.get_fully_qualified_current_schema()}.test_mul", 13, 19)
+        session.call(f"{session.get_fully_qualified_current_schema()}.{sproc_name}", 13, 19)
         == 13 * 19
     )
 
