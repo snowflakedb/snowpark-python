@@ -2270,6 +2270,35 @@ def ntile(e: ColumnOrName) -> Column:
     return builtin("ntile")(c)
 
 
+def percentile_cont(percentile: float) -> Column:
+    """
+    Return a percentile value based on a continuous distribution of the
+    input column. If no input row lies exactly at the desired percentile,
+    the result is calculated using linear interpolation of the two nearest
+    input values. NULL values are ignored in the calculation.
+
+    Args:
+        percentile: the percentile of the value that you want to find.
+            The percentile must be a constant between 0.0 and 1.0. For example,
+            if you want to find the value at the 90th percentile, specify 0.9.
+
+    Example:
+
+        >>> df = session.create_dataframe([
+        ...     (0, 0), (0, 10), (0, 20), (0, 30), (0, 40),
+        ...     (1, 10), (1, 20), (2, 10), (2, 20), (2, 25),
+        ...     (2, 30), (3, 60), (4, None)
+        ... ], schema=["k", "v"])
+        >>> df.group_by("k").agg(percentile_cont(0.25).within_group("v").as_("percentile")).sort("k").collect()
+        [Row(K=0, PERCENTILE=Decimal('10.000')), \
+Row(K=1, PERCENTILE=Decimal('12.500')), \
+Row(K=2, PERCENTILE=Decimal('17.500')), \
+Row(K=3, PERCENTILE=Decimal('60.000')), \
+Row(K=4, PERCENTILE=None)]
+    """
+    return builtin("percentile_cont")(percentile)
+
+
 def greatest(*columns: ColumnOrName) -> Column:
     """Returns the largest value from a list of expressions. If any of the argument values is NULL, the result is NULL. GREATEST supports all data types, including VARIANT."""
     c = [_to_col_if_str(ex, "greatest") for ex in columns]

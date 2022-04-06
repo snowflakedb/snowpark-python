@@ -130,7 +130,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowSpecDefinition,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.types import VariantType, _IntegralType
+from snowflake.snowpark.types import VariantType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -371,9 +371,9 @@ class Analyzer:
             return offset
 
     def to_sql_avoid_offset(self, expr: Expression) -> str:
-        # if expression is an integral literal, return the number without casting,
+        # if expression is a numeric literal, return the number without casting,
         # otherwise process as normal
-        if isinstance(expr, Literal) and isinstance(expr.datatype, _IntegralType):
+        if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
             return DataTypeMapper.to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(expr)
