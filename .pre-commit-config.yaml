@@ -1,31 +1,23 @@
 exclude: '^(.*egg.info.*|.*/parameters.py|docs/).*$'
 repos:
--   repo: https://github.com/asottile/pyupgrade
-    rev: v2.31.1
+-   repo: https://github.com/Lucas-C/pre-commit-hooks.git
+    rev: v1.1.13
     hooks:
-        -   id: pyupgrade
-            args: [--py38-plus]
--   repo: https://github.com/PyCQA/isort
-    rev: 5.10.1
-    hooks:
-      - id: isort
-        args: ["--multi-line", "3",
-               "--trailing-comma",
-               "--force-grid-wrap", "0",
-               "--use-parentheses",
-               "--ensure-newline-before-comments",
-               "--line-length", "88",
-               "--combine-as",
-               "--project", "snowflake.connector",
-               "--project", "snowflake.snowpark",
-        ]
--   repo: https://github.com/psf/black
-    rev: 22.3.0
-    hooks:
-      - id: black
+    -   id: insert-license
+        name: insert-py-license
+        files: >
+            (?x)^(
+                src/snowflake/snowpark/.*\.py|
+                tests/.*\.py|
+            )$
+        exclude: >
+            (?x)^(
+                src/snowflake/snowpark/version.py|
+                tests/resources/.*\.py|
+            )$
         args:
-          - --safe
-        language_version: python3
+            - --license-filepath
+            - license_header.txt
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.1.0
     hooks:
@@ -45,24 +37,32 @@ repos:
             )$
     -   id: debug-statements
     -   id: check-ast
--   repo: https://github.com/Lucas-C/pre-commit-hooks.git
-    rev: v1.1.13
+-   repo: https://github.com/PyCQA/isort
+    rev: 5.10.1
     hooks:
-    -   id: insert-license
-        name: insert-py-license
-        files: >
-            (?x)^(
-                src/snowflake/snowpark/.*\.py|
-                tests/.*\.py|
-            )$
-        exclude: >
-            (?x)^(
-                src/snowflake/snowpark/version.py|
-                tests/resources/.*\.py|
-            )$
+      - id: isort
+        args: ["--multi-line", "3",
+               "--trailing-comma",
+               "--force-grid-wrap", "0",
+               "--use-parentheses",
+               "--ensure-newline-before-comments",
+               "--line-length", "88",
+               "--combine-as",
+               "--project", "snowflake.connector",
+               "--project", "snowflake.snowpark",
+        ]
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v2.31.1
+    hooks:
+        -   id: pyupgrade
+            args: [--py38-plus]
+-   repo: https://github.com/psf/black
+    rev: 22.3.0
+    hooks:
+      - id: black
         args:
-            - --license-filepath
-            - license_header.txt
+          - --safe
+        language_version: python3
 # TODO: SNOW-370289 Reformat the codebase to pass flake8 precommit hook
 #-   repo: https://gitlab.com/pycqa/flake8
 #    rev: 3.9.2
