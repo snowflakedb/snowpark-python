@@ -1,4 +1,4 @@
-exclude: '^(.*egg.info.*|.*/parameters.py).*$'
+exclude: '^(.*egg.info.*|.*/parameters.py|docs/).*$'
 repos:
 -   repo: https://github.com/asottile/pyupgrade
     rev: v2.31.1
