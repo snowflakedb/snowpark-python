@@ -1299,8 +1299,8 @@ def test_window_function_array_agg_within_group(session):
 def test_array_append(session):
     Utils.check_answer(
         [
-            Row('[\n  1,\n  2,\n  3,\n  "amount",\n  3.221000000000000e+01\n]'),
-            Row('[\n  6,\n  7,\n  8,\n  "amount",\n  3.221000000000000e+01\n]'),
+            Row('[\n  1,\n  2,\n  3,\n  "amount",\n  32.21\n]'),
+            Row('[\n  6,\n  7,\n  8,\n  "amount",\n  32.21\n]'),
         ],
         TestData.array1(session).select(
             array_append(array_append(col("arr1"), lit("amount")), lit(32.21))
@@ -1314,9 +1314,9 @@ def test_array_append(session):
         .select(array_append(array_append(col("arr1"), lit("amount")), lit(32.21)))
         .collect()
     )
-    row1 = ["1", "2", "3", '"amount"', "3.221000000000000e+01"]
+    row1 = ["1", "2", "3", '"amount"', "32.21"]
     assert [s.strip() for s in result_set[0][0][1:-1].split(",")] == row1
-    row2 = ["6", "7", "8", '"amount"', "3.221000000000000e+01"]
+    row2 = ["6", "7", "8", '"amount"', "32.21"]
     assert [s.strip() for s in result_set[1][0][1:-1].split(",")] == row2
 
     Utils.check_answer(
@@ -1332,8 +1332,8 @@ def test_array_append(session):
     # Same as above, but pass str instead of Column
     Utils.check_answer(
         [
-            Row('[\n  1,\n  2,\n  3,\n  "amount",\n  3.221000000000000e+01\n]'),
-            Row('[\n  6,\n  7,\n  8,\n  "amount",\n  3.221000000000000e+01\n]'),
+            Row('[\n  1,\n  2,\n  3,\n  "amount",\n  32.21\n]'),
+            Row('[\n  6,\n  7,\n  8,\n  "amount",\n  32.21\n]'),
         ],
         TestData.array1(session).select(
             array_append(array_append("arr1", lit("amount")), lit(32.21))
@@ -1347,9 +1347,9 @@ def test_array_append(session):
         .select(array_append(array_append("arr1", lit("amount")), lit(32.21)))
         .collect()
     )
-    row1 = ["1", "2", "3", '"amount"', "3.221000000000000e+01"]
+    row1 = ["1", "2", "3", '"amount"', "32.21"]
     assert [s.strip() for s in result_set[0][0][1:-1].split(",")] == row1
-    row2 = ["6", "7", "8", '"amount"', "3.221000000000000e+01"]
+    row2 = ["6", "7", "8", '"amount"', "32.21"]
     assert [s.strip() for s in result_set[1][0][1:-1].split(",")] == row2
 
     Utils.check_answer(
@@ -1402,7 +1402,7 @@ def test_array_construct(session):
         TestData.zero1(session)
         .select(array_construct(lit(1), lit(1.2), lit("string"), lit(""), lit(None)))
         .collect()[0][0]
-        == '[\n  1,\n  1.200000000000000e+00,\n  "string",\n  "",\n  undefined\n]'
+        == '[\n  1,\n  1.2,\n  "string",\n  "",\n  undefined\n]'
     )
 
     assert TestData.zero1(session).select(array_construct()).collect()[0][0] == "[]"
@@ -1412,9 +1412,9 @@ def test_array_construct(session):
             array_construct(col("a"), lit(1.2), lit(None))
         ),
         [
-            Row("[\n  1,\n  1.200000000000000e+00,\n  undefined\n]"),
-            Row("[\n  2,\n  1.200000000000000e+00,\n  undefined\n]"),
-            Row("[\n  3,\n  1.200000000000000e+00,\n  undefined\n]"),
+            Row("[\n  1,\n  1.2,\n  undefined\n]"),
+            Row("[\n  2,\n  1.2,\n  undefined\n]"),
+            Row("[\n  3,\n  1.2,\n  undefined\n]"),
         ],
         sort=False,
     )
@@ -1423,9 +1423,9 @@ def test_array_construct(session):
     Utils.check_answer(
         TestData.integer1(session).select(array_construct("a", lit(1.2), lit(None))),
         [
-            Row("[\n  1,\n  1.200000000000000e+00,\n  undefined\n]"),
-            Row("[\n  2,\n  1.200000000000000e+00,\n  undefined\n]"),
-            Row("[\n  3,\n  1.200000000000000e+00,\n  undefined\n]"),
+            Row("[\n  1,\n  1.2,\n  undefined\n]"),
+            Row("[\n  2,\n  1.2,\n  undefined\n]"),
+            Row("[\n  3,\n  1.2,\n  undefined\n]"),
         ],
         sort=False,
     )
@@ -1438,7 +1438,7 @@ def test_array_construct_compact(session):
             array_construct_compact(lit(1), lit(1.2), lit("string"), lit(""), lit(None))
         )
         .collect()[0][0]
-        == '[\n  1,\n  1.200000000000000e+00,\n  "string",\n  ""\n]'
+        == '[\n  1,\n  1.2,\n  "string",\n  ""\n]'
     )
 
     assert (
@@ -1451,9 +1451,9 @@ def test_array_construct_compact(session):
             array_construct_compact(col("a"), lit(1.2), lit(None))
         ),
         [
-            Row("[\n  1,\n  1.200000000000000e+00\n]"),
-            Row("[\n  2,\n  1.200000000000000e+00\n]"),
-            Row("[\n  3,\n  1.200000000000000e+00\n]"),
+            Row("[\n  1,\n  1.2\n]"),
+            Row("[\n  2,\n  1.2\n]"),
+            Row("[\n  3,\n  1.2\n]"),
         ],
         sort=False,
     )
@@ -1464,9 +1464,9 @@ def test_array_construct_compact(session):
             array_construct_compact("a", lit(1.2), lit(None))
         ),
         [
-            Row("[\n  1,\n  1.200000000000000e+00\n]"),
-            Row("[\n  2,\n  1.200000000000000e+00\n]"),
-            Row("[\n  3,\n  1.200000000000000e+00\n]"),
+            Row("[\n  1,\n  1.2\n]"),
+            Row("[\n  2,\n  1.2\n]"),
+            Row("[\n  3,\n  1.2\n]"),
         ],
         sort=False,
     )
@@ -1543,8 +1543,8 @@ def test_array_prepend(session):
             array_prepend(array_prepend(col("arr1"), lit("amount")), lit(32.21))
         ),
         [
-            Row('[\n  3.221000000000000e+01,\n  "amount",\n  1,\n  2,\n  3\n]'),
-            Row('[\n  3.221000000000000e+01,\n  "amount",\n  6,\n  7,\n  8\n]'),
+            Row('[\n  32.21,\n  "amount",\n  1,\n  2,\n  3\n]'),
+            Row('[\n  32.21,\n  "amount",\n  6,\n  7,\n  8\n]'),
         ],
         sort=False,
     )
@@ -1566,8 +1566,8 @@ def test_array_prepend(session):
             array_prepend(array_prepend("arr1", lit("amount")), lit(32.21))
         ),
         [
-            Row('[\n  3.221000000000000e+01,\n  "amount",\n  1,\n  2,\n  3\n]'),
-            Row('[\n  3.221000000000000e+01,\n  "amount",\n  6,\n  7,\n  8\n]'),
+            Row('[\n  32.21,\n  "amount",\n  1,\n  2,\n  3\n]'),
+            Row('[\n  32.21,\n  "amount",\n  6,\n  7,\n  8\n]'),
         ],
         sort=False,
     )
