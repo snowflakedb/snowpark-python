@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 from typing import Dict, Iterable, Optional, Union
 
 import snowflake.snowpark  # for forward references of type hints
@@ -35,11 +37,11 @@ class DataFrameWriter:
 
     """
 
-    def __init__(self, dataframe: "snowflake.snowpark.DataFrame"):
+    def __init__(self, dataframe: snowflake.snowpark.DataFrame):
         self._dataframe = dataframe
         self.__save_mode = SaveMode.APPEND  # spark default value is error.
 
-    def mode(self, save_mode: str) -> "DataFrameWriter":
+    def mode(self, save_mode: str) -> DataFrameWriter:
         """Set the save mode of this :class:`DataFrameWriter`.
 
         Args:
@@ -64,9 +66,9 @@ class DataFrameWriter:
     @dfw_action_telemetry
     def save_as_table(
         self,
-        table_name: Union[str, Iterable[str]],
+        table_name: str | Iterable[str],
         *,
-        mode: Optional[str] = None,
+        mode: str | None = None,
         create_temp_table: bool = False,
     ) -> None:
         """Writes the data to the specified table in a Snowflake database.
@@ -117,12 +119,12 @@ class DataFrameWriter:
         self,
         location: str,
         *,
-        partition_by: Optional[ColumnOrName] = None,
-        file_format_name: Optional[str] = None,
-        file_format_type: Optional[str] = None,
-        format_type_options: Optional[Dict[str, str]] = None,
+        partition_by: ColumnOrName | None = None,
+        file_format_name: str | None = None,
+        file_format_type: str | None = None,
+        format_type_options: dict[str, str] | None = None,
         header: bool = False,
-        **copy_options: Optional[str],
+        **copy_options: str | None,
     ) -> None:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
 

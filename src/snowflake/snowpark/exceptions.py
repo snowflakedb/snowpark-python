@@ -3,13 +3,15 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """This package contains all Snowpark client-side exceptions."""
+from __future__ import annotations
+
 from typing import Optional
 
 
 class SnowparkClientException(Exception):
     """Base Snowpark exception class"""
 
-    def __init__(self, message: str, error_code: Optional[str] = None):
+    def __init__(self, message: str, error_code: str | None = None):
         self.message = message
         self.error_code = error_code
         self.telemetry_message = message

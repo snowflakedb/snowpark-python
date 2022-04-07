@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import Any, Dict, Iterable, Union
 
 
@@ -73,7 +75,7 @@ class Row(tuple):
         row.__dict__["_has_duplicates"] = None
         return row
 
-    def __getitem__(self, item: Union[int, str, slice]):
+    def __getitem__(self, item: int | str | slice):
         if isinstance(item, int):
             return super().__getitem__(item)
         elif isinstance(item, slice):
@@ -188,7 +190,7 @@ class Row(tuple):
             (tuple(self), self._named_values, self._fields),
         )
 
-    def as_dict(self, recursive: bool = False) -> Dict:
+    def as_dict(self, recursive: bool = False) -> dict:
         """Convert to a dict if this row object has both keys and values.
 
         Args:

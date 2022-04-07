@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import List
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -58,8 +60,8 @@ class SpecifiedWindowFrame(WindowFrame):
 class WindowSpecDefinition(Expression):
     def __init__(
         self,
-        partition_spec: List[Expression],
-        order_spec: List[SortOrder],
+        partition_spec: list[Expression],
+        order_spec: list[SortOrder],
         frame_spec: WindowFrame,
     ):
         super().__init__()

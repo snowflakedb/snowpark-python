@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 from typing import Dict, List, Union
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -29,14 +31,14 @@ class FlattenFunction(TableFunctionExpression):
 
 
 class TableFunction(TableFunctionExpression):
-    def __init__(self, func_name: str, args: List[Expression]):
+    def __init__(self, func_name: str, args: list[Expression]):
         super().__init__()
         self.func_name = func_name
         self.args = args
 
 
 class NamedArgumentsTableFunction(TableFunctionExpression):
-    def __init__(self, func_name: str, args: Dict[str, Expression]):
+    def __init__(self, func_name: str, args: dict[str, Expression]):
         super().__init__()
         self.func_name = func_name
         self.args = args
@@ -63,7 +65,7 @@ class Lateral(LogicalPlan):
 
 
 def create_table_function_expression(
-    func_name: Union[str, List[str]],
+    func_name: str | list[str],
     *args: ColumnOrName,
     **named_args: ColumnOrName,
 ) -> TableFunctionExpression:

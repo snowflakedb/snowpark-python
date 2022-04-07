@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import array
 import contextlib
 import datetime
@@ -199,7 +201,7 @@ class Utils:
         return random.randint(0, 2**31)
 
     @staticmethod
-    def generated_py_file_ext() -> Tuple[str, ...]:
+    def generated_py_file_ext() -> tuple[str, ...]:
         # ignore byte-compiled (.pyc), optimized (.pyo), DLL (.pyd)
         # and interface (.pyi) python files
         return ".pyc", ".pyo", ".pyd", ".pyi"
@@ -208,7 +210,7 @@ class Utils:
     @contextlib.contextmanager
     def zip_file_or_directory_to_stream(
         path: str,
-        leading_path: Optional[str] = None,
+        leading_path: str | None = None,
         add_init_py: bool = False,
         ignore_generated_py_file: bool = True,
     ) -> IO[bytes]:
@@ -271,7 +273,7 @@ class Utils:
         input_stream.close()
 
     @staticmethod
-    def parse_positional_args_to_list(*inputs) -> List:
+    def parse_positional_args_to_list(*inputs) -> list:
         """Convert the positional arguments to a list."""
         if len(inputs) == 1:
             return (
@@ -287,7 +289,7 @@ class Utils:
         path: str,
         chunk_size: int = 8192,
         ignore_generated_py_file: bool = True,
-        additional_info: Optional[str] = None,
+        additional_info: str | None = None,
     ) -> str:
         """Calculates the checksum (md5) of a file or a directory.
 
@@ -348,7 +350,7 @@ class Utils:
         return hash_md5.hexdigest()
 
     @staticmethod
-    def str_to_enum(value: str, enum_class: Type[Enum], except_str: str) -> Enum:
+    def str_to_enum(value: str, enum_class: type[Enum], except_str: str) -> Enum:
         try:
             return enum_class(value)
         except:
@@ -471,11 +473,11 @@ def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
 
 class SchemaUtils:
     @staticmethod
-    def command_attributes() -> List[Attribute]:
+    def command_attributes() -> list[Attribute]:
         return [Attribute('"status"', StringType())]
 
     @staticmethod
-    def list_stage_attributes() -> List[Attribute]:
+    def list_stage_attributes() -> list[Attribute]:
         return [
             Attribute('"name"', StringType()),
             Attribute('"size"', LongType()),
@@ -484,11 +486,11 @@ class SchemaUtils:
         ]
 
     @staticmethod
-    def remove_state_file_attributes() -> List[Attribute]:
+    def remove_state_file_attributes() -> list[Attribute]:
         return [Attribute('"name"', StringType()), Attribute('"result"', StringType())]
 
     @staticmethod
-    def put_attributes() -> List[Attribute]:
+    def put_attributes() -> list[Attribute]:
         return [
             Attribute('"source"', StringType(), nullable=False),
             Attribute('"target"', StringType(), nullable=False),
@@ -502,7 +504,7 @@ class SchemaUtils:
         ]
 
     @staticmethod
-    def get_attributes() -> List[Attribute]:
+    def get_attributes() -> list[Attribute]:
         return [
             Attribute('"file"', StringType(), nullable=False),
             Attribute('"size"', DecimalType(10, 0), nullable=False),
@@ -513,8 +515,8 @@ class SchemaUtils:
 
     @staticmethod
     def analyze_attributes(
-        sql: str, session: "snowflake.snowpark.Session"
-    ) -> List[Attribute]:
+        sql: str, session: snowflake.snowpark.Session
+    ) -> list[Attribute]:
         lowercase = sql.strip().lower()
 
         # SQL commands which cannot be prepared

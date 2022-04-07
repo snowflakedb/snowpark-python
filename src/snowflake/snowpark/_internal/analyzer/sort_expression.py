@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -38,7 +40,7 @@ class SortOrder(Expression):
         self,
         child: Expression,
         direction: SortDirection,
-        null_ordering: Optional[NullOrdering] = None,
+        null_ordering: NullOrdering | None = None,
     ):
         super().__init__(child)
         self.direction = direction

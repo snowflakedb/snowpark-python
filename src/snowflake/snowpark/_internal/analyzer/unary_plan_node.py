@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
@@ -19,8 +21,8 @@ class Sample(UnaryNode):
     def __init__(
         self,
         child: LogicalPlan,
-        probability_fraction: Optional[float] = None,
-        row_count: Optional[int] = None,
+        probability_fraction: float | None = None,
+        row_count: int | None = None,
     ):
         super().__init__(child)
         if probability_fraction is None and row_count is None:
@@ -33,7 +35,7 @@ class Sample(UnaryNode):
 
 
 class Sort(UnaryNode):
-    def __init__(self, order: List[SortOrder], is_global: bool, child: LogicalPlan):
+    def __init__(self, order: list[SortOrder], is_global: bool, child: LogicalPlan):
         super().__init__(child)
         self.order = order
         self.is_global = is_global
@@ -42,8 +44,8 @@ class Sort(UnaryNode):
 class Aggregate(UnaryNode):
     def __init__(
         self,
-        grouping_expressions: List[Expression],
-        aggregate_expressions: List[NamedExpression],
+        grouping_expressions: list[Expression],
+        aggregate_expressions: list[NamedExpression],
         child: LogicalPlan,
     ):
         super().__init__(child)
@@ -55,8 +57,8 @@ class Pivot(UnaryNode):
     def __init__(
         self,
         pivot_column: Expression,
-        pivot_values: List[Expression],
-        aggregates: List[Expression],
+        pivot_values: list[Expression],
+        aggregates: list[Expression],
         child: LogicalPlan,
     ):
         super().__init__(child)
@@ -70,7 +72,7 @@ class Unpivot(UnaryNode):
         self,
         value_column: str,
         name_column: str,
-        column_list: List[Expression],
+        column_list: list[Expression],
         child: LogicalPlan,
     ):
         super().__init__(child)
@@ -86,7 +88,7 @@ class Filter(UnaryNode):
 
 
 class Project(UnaryNode):
-    def __init__(self, project_list: List[NamedExpression], child: LogicalPlan):
+    def __init__(self, project_list: list[NamedExpression], child: LogicalPlan):
         super().__init__(child)
         self.project_list = project_list
 

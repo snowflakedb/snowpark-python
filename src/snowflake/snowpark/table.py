@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import Dict, Iterable, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
@@ -56,13 +58,11 @@ class WhenMatchedClause:
             specified condition.
     """
 
-    def __init__(self, condition: Optional[Column] = None):
+    def __init__(self, condition: Column | None = None):
         self.condition_expr = condition.expression if condition is not None else None
         self.clause = None
 
-    def update(
-        self, assignments: Dict[str, Union[ColumnOrLiteral]]
-    ) -> "WhenMatchedClause":
+    def update(self, assignments: dict[str, ColumnOrLiteral]) -> WhenMatchedClause:
         """
         Defines an update action for the matched clause and
         returns an updated :class:`WhenMatchedClause` with the new
@@ -142,13 +142,13 @@ class WhenNotMatchedClause:
             specified condition.
     """
 
-    def __init__(self, condition: Optional[Column] = None):
+    def __init__(self, condition: Column | None = None):
         self.condition_expr = condition.expression if condition is not None else None
         self.clause = None
 
     def insert(
-        self, assignments: Union[Iterable[ColumnOrLiteral], Dict[str, ColumnOrLiteral]]
-    ) -> "WhenNotMatchedClause":
+        self, assignments: Iterable[ColumnOrLiteral] | dict[str, ColumnOrLiteral]
+    ) -> WhenNotMatchedClause:
         """
         Defines an insert action for the not-matched clause and
         returns an updated :class:`WhenNotMatchedClause` with the new
@@ -191,16 +191,16 @@ class WhenNotMatchedClause:
         return self
 
 
-def _get_update_result(rows: List[Row]) -> UpdateResult:
+def _get_update_result(rows: list[Row]) -> UpdateResult:
     return UpdateResult(int(rows[0][0]), int(rows[0][1]))
 
 
-def _get_delete_result(rows: List[Row]) -> DeleteResult:
+def _get_delete_result(rows: list[Row]) -> DeleteResult:
     return DeleteResult(int(rows[0][0]))
 
 
 def _get_merge_result(
-    rows: List[Row], inserted: bool, updated: bool, deleted: bool
+    rows: list[Row], inserted: bool, updated: bool, deleted: bool
 ) -> MergeResult:
     idx = 0
     rows_inserted, rows_updated, rows_deleted = 0, 0, 0
@@ -230,29 +230,29 @@ class Table(DataFrame):
     """
 
     def __init__(
-        self, table_name: str, session: Optional["snowflake.snowpark.Session"] = None
+        self, table_name: str, session: snowflake.snowpark.Session | None = None
     ):
         super().__init__(
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
         self.table_name = table_name
 
-    def clone(self) -> "Table":
+    def clone(self) -> Table:
         """Returns a clone of this :class:`Table`."""
         return Table(self.table_name, self.session)
 
-    def __copy__(self) -> "Table":
+    def __copy__(self) -> Table:
         """Returns a clone of this :class:`Table`."""
         return Table(self.table_name, self.session)
 
     def sample(
         self,
-        frac: Optional[float] = None,
-        n: Optional[int] = None,
+        frac: float | None = None,
+        n: int | None = None,
         *,
-        seed: Optional[float] = None,
-        sampling_method: Optional[str] = None,
-    ) -> "DataFrame":
+        seed: float | None = None,
+        sampling_method: str | None = None,
+    ) -> DataFrame:
         """Samples rows based on either the number of rows to be returned or a percentage of rows to be returned.
 
         Sampling with a seed is not supported on views or subqueries. This method works on tables so it supports ``seed``.
@@ -300,9 +300,9 @@ class Table(DataFrame):
     def update(
         self,
         # TODO SNOW-526251: also accept Column as a key when Column is hashable
-        assignments: Dict[str, ColumnOrLiteral],
-        condition: Optional[Column] = None,
-        source: Optional[DataFrame] = None,
+        assignments: dict[str, ColumnOrLiteral],
+        condition: Column | None = None,
+        source: DataFrame | None = None,
     ) -> UpdateResult:
         """
         Updates rows in the Table with specified ``assignments`` and returns a
@@ -356,8 +356,8 @@ class Table(DataFrame):
     @df_action_telemetry
     def delete(
         self,
-        condition: Optional[Column] = None,
-        source: Optional[DataFrame] = None,
+        condition: Column | None = None,
+        source: DataFrame | None = None,
     ) -> DeleteResult:
         """
         Deletes rows in a Table and returns a :class:`DeleteResult`,
@@ -404,7 +404,7 @@ class Table(DataFrame):
         self,
         source: DataFrame,
         join_expr: Column,
-        clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
+        clauses: Iterable[WhenMatchedClause | WhenNotMatchedClause],
     ) -> MergeResult:
         """
         Merges this :class:`Table` with :class:`DataFrame` source on the specified

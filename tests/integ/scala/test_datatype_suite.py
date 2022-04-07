@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
 

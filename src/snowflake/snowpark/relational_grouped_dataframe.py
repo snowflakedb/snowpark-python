@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import re
 from typing import Callable, List, Tuple, Union
 
@@ -48,7 +50,7 @@ class _RollupType(_GroupType):
 
 
 class _PivotType(_GroupType):
-    def __init__(self, pivot_col: Expression, values: List[Expression]):
+    def __init__(self, pivot_col: Expression, values: list[Expression]):
         self.pivot_col = pivot_col
         self.values = values
 
@@ -66,7 +68,7 @@ class GroupingSets:
         GroupingSets(col("a"), col("b"))  # Becomes "GROUPING SETS ((a, b))"
     """
 
-    def __init__(self, *sets: Union[Column, List[Column]]):
+    def __init__(self, *sets: Column | list[Column]):
         prepared_sets = Utils.parse_positional_args_to_list(*sets)
         prepared_sets = (
             prepared_sets if isinstance(prepared_sets[0], list) else [prepared_sets]
@@ -89,7 +91,7 @@ class RelationalGroupedDataFrame:
     returns a :class:`RelationalGroupedDataFrame` object."""
 
     def __init__(
-        self, df: DataFrame, grouping_exprs: List[Expression], group_type: _GroupType
+        self, df: DataFrame, grouping_exprs: list[Expression], group_type: _GroupType
     ):
         self.df = df
         self.grouping_exprs = grouping_exprs
@@ -97,7 +99,7 @@ class RelationalGroupedDataFrame:
 
     # subscriptable returns new object
 
-    def __toDF(self, agg_exprs: List[Expression]) -> DataFrame:
+    def __toDF(self, agg_exprs: list[Expression]) -> DataFrame:
         aliased_agg = []
         for grouping_expr in self.grouping_exprs:
             if isinstance(grouping_expr, GroupingSetsExpression):
@@ -184,7 +186,7 @@ class RelationalGroupedDataFrame:
         else:
             return functions.builtin(lowered)(input_expr).expression
 
-    def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> DataFrame:
+    def agg(self, exprs: list[Column | tuple[Column, str]]) -> DataFrame:
         """Returns a :class:`DataFrame` with computed aggregates. The first element of
         the ``exprs`` pair is the column to aggregate and the second element is the
         aggregate function to compute. The following example computes the mean of the

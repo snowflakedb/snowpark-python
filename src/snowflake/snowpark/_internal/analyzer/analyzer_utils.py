@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -139,7 +141,7 @@ def result_scan_statement(uuid_place_holder: str) -> str:
     )
 
 
-def function_expression(name: str, children: List[str], is_distinct: bool) -> str:
+def function_expression(name: str, children: list[str], is_distinct: bool) -> str:
     return (
         name
         + LEFT_PARENTHESIS
@@ -149,7 +151,7 @@ def function_expression(name: str, children: List[str], is_distinct: bool) -> st
     )
 
 
-def named_arguments_function(name: str, args: Dict[str, str]) -> str:
+def named_arguments_function(name: str, args: dict[str, str]) -> str:
     return (
         name
         + LEFT_PARENTHESIS
@@ -174,7 +176,7 @@ def alias_expression(origin: str, alias: str) -> str:
     return origin + AS + alias
 
 
-def within_group_expression(column: str, order_by_cols: List[str]) -> str:
+def within_group_expression(column: str, order_by_cols: list[str]) -> str:
     return (
         column
         + WITHIN_GROUP
@@ -189,7 +191,7 @@ def limit_expression(num: int) -> str:
     return LIMIT + str(num)
 
 
-def grouping_set_expression(args: List[List[str]]) -> str:
+def grouping_set_expression(args: list[list[str]]) -> str:
     flat_args = [LEFT_PARENTHESIS + COMMA.join(arg) + RIGHT_PARENTHESIS for arg in args]
     return GROUPING_SETS + LEFT_PARENTHESIS + COMMA.join(flat_args) + RIGHT_PARENTHESIS
 
@@ -198,11 +200,11 @@ def like_expression(expr: str, pattern: str) -> str:
     return expr + LIKE + pattern
 
 
-def block_expression(expressions: List[str]) -> str:
+def block_expression(expressions: list[str]) -> str:
     return LEFT_PARENTHESIS + COMMA.join(expressions) + RIGHT_PARENTHESIS
 
 
-def in_expression(column: str, values: List[str]) -> str:
+def in_expression(column: str, values: list[str]) -> str:
     return column + IN + block_expression(values)
 
 
@@ -214,7 +216,7 @@ def collate_expression(expr: str, collation_spec: str) -> str:
     return expr + COLLATE + single_quote(collation_spec)
 
 
-def subfield_expression(expr: str, field: Union[str, int]) -> str:
+def subfield_expression(expr: str, field: str | int) -> str:
     return (
         expr
         + LEFT_BRACKET
@@ -228,7 +230,7 @@ def subfield_expression(expr: str, field: Union[str, int]) -> str:
 
 
 def flatten_expression(
-    input_: str, path: Optional[str], outer: bool, recursive: bool, mode: str
+    input_: str, path: str | None, outer: bool, recursive: bool, mode: str
 ) -> str:
     return (
         FLATTEN
@@ -291,7 +293,7 @@ def table_function_statement(func: str) -> str:
     return project_statement([], table(func))
 
 
-def case_when_expression(branches: List[Tuple[str, str]], else_value: str) -> str:
+def case_when_expression(branches: list[tuple[str, str]], else_value: str) -> str:
     return (
         CASE
         + EMPTY_STRING.join(
@@ -303,7 +305,7 @@ def case_when_expression(branches: List[Tuple[str, str]], else_value: str) -> st
     )
 
 
-def project_statement(project: List[str], child: str, is_distinct: bool = False) -> str:
+def project_statement(project: list[str], child: str, is_distinct: bool = False) -> str:
     return (
         SELECT
         + f"{DISTINCT if is_distinct else EMPTY_STRING}"
@@ -321,8 +323,8 @@ def filter_statement(condition: str, child: str) -> str:
 
 def sample_statement(
     child: str,
-    probability_fraction: Optional[float] = None,
-    row_count: Optional[int] = None,
+    probability_fraction: float | None = None,
+    row_count: int | None = None,
 ):
     """Generates the sql text for the sample part of the plan being executed"""
     if probability_fraction is not None:
@@ -349,7 +351,7 @@ def sample_statement(
 
 
 def aggregate_statement(
-    grouping_exprs: List[str], aggregate_exprs: List[str], child: str
+    grouping_exprs: list[str], aggregate_exprs: list[str], child: str
 ) -> str:
     # add limit 1 because Spark may aggregate on non-aggregate function in a scalar aggregation
     # for example, df.agg(lit(1))
@@ -360,7 +362,7 @@ def aggregate_statement(
     )
 
 
-def sort_statement(order: List[str], child: str) -> str:
+def sort_statement(order: list[str], child: str) -> str:
     return project_statement([], child) + ORDER_BY + COMMA.join(order)
 
 
@@ -399,7 +401,7 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
     )
 
 
-def values_statement(output: List[Attribute], data: List[Row]) -> str:
+def values_statement(output: list[Attribute], data: list[Row]) -> str:
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     data_types = [attr.datatype for attr in output]
     names = [quote_name(attr.name) for attr in output]
@@ -422,7 +424,7 @@ def values_statement(output: List[Attribute], data: List[Row]) -> str:
     return project_statement([], query_source)
 
 
-def empty_values_statement(output: List[Attribute]) -> str:
+def empty_values_statement(output: list[Attribute]) -> str:
     data = [Row(*[None] * len(output))]
     return filter_statement(UNSAT_FILTER, values_statement(output, data))
 
@@ -562,7 +564,7 @@ def insert_into_statement(table_name: str, child: str) -> str:
     return f"{INSERT}{INTO}{table_name} {project_statement([], child)}"
 
 
-def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str:
+def batch_insert_into_statement(table_name: str, column_names: list[str]) -> str:
     return (
         f"{INSERT}{INTO}{table_name}"
         f"{LEFT_PARENTHESIS}{COMMA.join(column_names)}{RIGHT_PARENTHESIS}"
@@ -593,7 +595,7 @@ def limit_statement(row_count: str, child: str, on_top_of_order_by: bool) -> str
     )
 
 
-def schema_cast_seq(schema: List[Attribute]) -> List[str]:
+def schema_cast_seq(schema: list[Attribute]) -> list[str]:
     res = []
     for index, attr in enumerate(schema):
         name = (
@@ -606,7 +608,7 @@ def schema_cast_seq(schema: List[Attribute]) -> List[str]:
 def create_file_format_statement(
     format_name: str,
     file_type: str,
-    options: Dict,
+    options: dict,
     temp: bool,
     if_not_exist: bool,
 ) -> str:
@@ -623,7 +625,7 @@ def create_file_format_statement(
 
 
 def file_operation_statement(
-    command: str, file_name: str, stage_location: str, options: Dict[str, str]
+    command: str, file_name: str, stage_location: str, options: dict[str, str]
 ) -> str:
     if command.lower() == "put":
         return f"{PUT}{file_name}{SPACE}{stage_location}{SPACE}{get_options_statement(options)}"
@@ -632,7 +634,7 @@ def file_operation_statement(
     raise ValueError(f"Unsupported file operation type {command}")
 
 
-def get_options_statement(options: Dict[str, Any]) -> str:
+def get_options_statement(options: dict[str, Any]) -> str:
     return (
         SPACE
         + SPACE.join(
@@ -650,7 +652,7 @@ def drop_file_format_if_exists_statement(format_name: str) -> str:
 
 
 def select_from_path_with_format_statement(
-    project: List[str], path: str, format_name: str, pattern: str
+    project: list[str], path: str, format_name: str, pattern: str
 ) -> str:
     select_statement = (
         SELECT + (STAR if not project else COMMA.join(project)) + FROM + path
@@ -691,7 +693,7 @@ def window_expression(window_function: str, window_spec: str) -> str:
 
 
 def window_spec_expression(
-    partition_spec: List[str], order_spec: List[str], frame_spec: str
+    partition_spec: list[str], order_spec: list[str], frame_spec: str
 ) -> str:
     return (
         (PARTITION_BY + COMMA.join(partition_spec) if partition_spec else EMPTY_STRING)
@@ -753,7 +755,7 @@ def create_or_replace_view_statement(name: str, child: str, is_temp: bool) -> st
 
 
 def pivot_statement(
-    pivot_column: str, pivot_values: List[str], aggregate: str, child: str
+    pivot_column: str, pivot_values: list[str], aggregate: str, child: str
 ) -> str:
     return (
         SELECT
@@ -776,7 +778,7 @@ def pivot_statement(
 
 
 def unpivot_statement(
-    value_column: str, name_column: str, column_list: List[str], child: str
+    value_column: str, name_column: str, column_list: list[str], child: str
 ) -> str:
     return (
         SELECT
@@ -802,14 +804,14 @@ def copy_into_table(
     table_name: str,
     file_path: str,
     file_format: str,
-    format_type_options: Dict[str, Any],
-    copy_options: Dict[str, Any],
+    format_type_options: dict[str, Any],
+    copy_options: dict[str, Any],
     pattern: str,
     *,
-    files: Optional[str] = None,
-    validation_mode: Optional[str] = None,
-    column_names: Optional[List[str]] = None,
-    transformations: Optional[List[str]] = None,
+    files: str | None = None,
+    validation_mode: str | None = None,
+    column_names: list[str] | None = None,
+    transformations: list[str] | None = None,
 ) -> str:
     """
     /* Standard data load */
@@ -889,10 +891,10 @@ def copy_into_table(
 def copy_into_location(
     query: str,
     stage_location: str,
-    partition_by: Optional[str] = None,
-    file_format_name: Optional[str] = None,
-    file_format_type: Optional[str] = None,
-    format_type_options: Optional[Dict[str, Any]] = None,
+    partition_by: str | None = None,
+    file_format_name: str | None = None,
+    file_format_type: str | None = None,
+    format_type_options: dict[str, Any] | None = None,
     header: bool = False,
     **copy_options: Any,
 ) -> str:
@@ -959,9 +961,9 @@ def copy_into_location(
 
 def update_statement(
     table_name: str,
-    assignments: Dict[str, str],
-    condition: Optional[str],
-    source_data: Optional[str],
+    assignments: dict[str, str],
+    condition: str | None,
+    source_data: str | None,
 ) -> str:
     return (
         UPDATE
@@ -978,7 +980,7 @@ def update_statement(
 
 
 def delete_statement(
-    table_name: str, condition: Optional[str], source_data: Optional[str]
+    table_name: str, condition: str | None, source_data: str | None
 ) -> str:
     return (
         DELETE
@@ -994,7 +996,7 @@ def delete_statement(
 
 
 def insert_merge_statement(
-    condition: Optional[str], keys: List[str], values: List[str]
+    condition: str | None, keys: list[str], values: list[str]
 ) -> str:
     return (
         WHEN
@@ -1015,7 +1017,7 @@ def insert_merge_statement(
     )
 
 
-def update_merge_statement(condition: Optional[str], assignment: Dict[str, str]) -> str:
+def update_merge_statement(condition: str | None, assignment: dict[str, str]) -> str:
     return (
         WHEN
         + MATCHED
@@ -1027,7 +1029,7 @@ def update_merge_statement(condition: Optional[str], assignment: Dict[str, str])
     )
 
 
-def delete_merge_statement(condition: Optional[str]) -> str:
+def delete_merge_statement(condition: str | None) -> str:
     return (
         WHEN
         + MATCHED
@@ -1038,7 +1040,7 @@ def delete_merge_statement(condition: Optional[str]) -> str:
 
 
 def merge_statement(
-    table_name: str, source: str, join_expr: str, clauses: List[str]
+    table_name: str, source: str, join_expr: str, clauses: list[str]
 ) -> str:
     return (
         MERGE
@@ -1070,13 +1072,13 @@ def drop_table_if_exists_statement(table_name: str) -> str:
     return DROP + TABLE + IF + EXISTS + table_name
 
 
-def attribute_to_schema_string(attributes: List[Attribute]) -> str:
+def attribute_to_schema_string(attributes: list[Attribute]) -> str:
     return COMMA.join(
         attr.name + SPACE + convert_to_sf_type(attr.datatype) for attr in attributes
     )
 
 
-def schema_value_statement(output: List[Attribute]) -> str:
+def schema_value_statement(output: list[Attribute]) -> str:
     return SELECT + COMMA.join(
         [
             DataTypeMapper.schema_expression(attr.datatype, attr.nullable)

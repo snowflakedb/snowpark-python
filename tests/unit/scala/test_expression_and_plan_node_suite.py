@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 import pytest
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (

@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import List
 
 from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
@@ -18,7 +20,7 @@ class UnaryExpression(Expression):
         self.children = [child]
         self.datatype = self.child.datatype
 
-    def children(self) -> List[Expression]:
+    def children(self) -> list[Expression]:
         return self.children
 
     def __repr__(self):

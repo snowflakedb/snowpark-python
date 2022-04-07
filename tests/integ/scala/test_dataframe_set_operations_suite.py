@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import random
 from datetime import date, datetime
 from decimal import Decimal
@@ -19,7 +21,7 @@ from tests.utils import TestData, Utils
 def test_union_with_filters(session):
     """Tests union queries with a filter added"""
 
-    def check(new_col: Column, cfilter: Column, result: List[Row]):
+    def check(new_col: Column, cfilter: Column, result: list[Row]):
         df1 = (
             session.create_dataframe([[1, 1]])
             .to_df(["a", "b"])
@@ -52,7 +54,7 @@ def test_union_with_filters(session):
 def test_union_all_with_filters(session):
     """Tests union queries with a filter added"""
 
-    def check(new_col: Column, cfilter: Column, result: List[Row]):
+    def check(new_col: Column, cfilter: Column, result: list[Row]):
         df1 = (
             session.create_dataframe([[1, 1]])
             .to_df(["a", "b"])

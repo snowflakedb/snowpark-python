@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import List, NamedTuple
 
 import snowflake.snowpark
@@ -16,7 +18,7 @@ class QueryRecord(NamedTuple):
 class QueryHistory:
     """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database."""
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
+    def __init__(self, session: snowflake.snowpark.Session):
         self.session = session
         self._queries = []  # type: List[QueryRecord]
 
@@ -30,5 +32,5 @@ class QueryHistory:
         self._queries.append(query_record)
 
     @property
-    def queries(self) -> List[QueryRecord]:
+    def queries(self) -> list[QueryRecord]:
         return self._queries

@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 from functools import reduce
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -27,14 +29,14 @@ class DataFrameStatFunctions:
     To access an object of this class, use :attr:`DataFrame.stat`.
     """
 
-    def __init__(self, df: "snowflake.snowpark.DataFrame"):
+    def __init__(self, df: snowflake.snowpark.DataFrame):
         self._df = df
 
     def approx_quantile(
         self,
-        col: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-        percentile: Union[List[float], Tuple[float, ...]],
-    ) -> Union[List[float], List[List[float]]]:
+        col: ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...],
+        percentile: list[float] | tuple[float, ...],
+    ) -> list[float] | list[list[float]]:
         """For a specified numeric column and a list of desired quantiles, returns an approximate value for the column at each of the desired quantiles.
         This function uses the t-Digest algorithm.
 
@@ -94,7 +96,7 @@ class DataFrameStatFunctions:
                 "'col' must be a column name, a column object, or a list of them."
             )
 
-    def corr(self, col1: ColumnOrName, col2: ColumnOrName) -> Optional[float]:
+    def corr(self, col1: ColumnOrName, col2: ColumnOrName) -> float | None:
         """Calculates the correlation coefficient for non-null pairs in two numeric columns.
 
         Example::
@@ -114,7 +116,7 @@ class DataFrameStatFunctions:
         res = self._df.select(corr_func(col1, col2))._internal_collect_with_tag()
         return res[0][0] if res[0] is not None else None
 
-    def cov(self, col1: ColumnOrName, col2: ColumnOrName) -> Optional[float]:
+    def cov(self, col1: ColumnOrName, col2: ColumnOrName) -> float | None:
         """Calculates the sample covariance for non-null pairs in two numeric columns.
 
         Example::
@@ -136,7 +138,7 @@ class DataFrameStatFunctions:
 
     def crosstab(
         self, col1: ColumnOrName, col2: ColumnOrName
-    ) -> "snowflake.snowpark.DataFrame":
+    ) -> snowflake.snowpark.DataFrame:
         """Computes a pair-wise frequency table (a ``contingency table``) for the specified columns.
         The method returns a DataFrame containing this table.
 
@@ -181,8 +183,8 @@ class DataFrameStatFunctions:
         return self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
 
     def sample_by(
-        self, col: ColumnOrName, fractions: Dict[LiteralType, float]
-    ) -> "snowflake.snowpark.DataFrame":
+        self, col: ColumnOrName, fractions: dict[LiteralType, float]
+    ) -> snowflake.snowpark.DataFrame:
         """Returns a DataFrame containing a stratified sample without replacement, based on a ``dict`` that specifies the fraction for each stratum.
 
         Example::

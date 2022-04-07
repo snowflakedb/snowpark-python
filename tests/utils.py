@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import functools
 import math
 import os
@@ -71,37 +73,37 @@ class Utils:
 
     @staticmethod
     def create_table(
-        session: "Session", name: str, schema: str, is_temporary: bool = False
+        session: Session, name: str, schema: str, is_temporary: bool = False
     ):
         session._run_query(
             f"create or replace {'temporary' if is_temporary else ''} table {name} ({schema})"
         )
 
     @staticmethod
-    def create_stage(session: "Session", name: str, is_temporary: bool = True):
+    def create_stage(session: Session, name: str, is_temporary: bool = True):
         session._run_query(
             f"create or replace {'temporary' if is_temporary else ''} stage {quote_name(name)}"
         )
 
     @staticmethod
-    def drop_stage(session: "Session", name: str):
+    def drop_stage(session: Session, name: str):
         session._run_query(f"drop stage if exists {quote_name(name)}")
 
     @staticmethod
-    def drop_table(session: "Session", name: str):
+    def drop_table(session: Session, name: str):
         session._run_query(f"drop table if exists {quote_name(name)}")
 
     @staticmethod
-    def drop_view(session: "Session", name: str):
+    def drop_view(session: Session, name: str):
         session._run_query(f"drop view if exists {quote_name(name)}")
 
     @staticmethod
-    def unset_query_tag(session: "Session"):
+    def unset_query_tag(session: Session):
         session.query_tag = None
 
     @staticmethod
     def upload_to_stage(
-        session: "Session", stage_name: str, filename: str, compress: bool
+        session: Session, stage_name: str, filename: str, compress: bool
     ):
         session._conn.upload_file(
             stage_location=stage_name, path=filename, compress_data=compress
@@ -149,11 +151,11 @@ class Utils:
 
     @staticmethod
     def check_answer(
-        actual: Union[Row, List[Row], DataFrame],
-        expected: Union[Row, List[Row], DataFrame],
+        actual: Row | list[Row] | DataFrame,
+        expected: Row | list[Row] | DataFrame,
         sort=True,
     ):
-        def get_rows(input_data: Union[Row, List[Row], DataFrame]):
+        def get_rows(input_data: Row | list[Row] | DataFrame):
             if isinstance(input_data, list):
                 rows = input_data
             elif isinstance(input_data, DataFrame):
@@ -231,7 +233,7 @@ class TestData:
 
     class Data3(NamedTuple):
         a: int
-        b: Optional[int]
+        b: int | None
 
     class Data4(NamedTuple):
         key: int
@@ -263,13 +265,13 @@ class TestData:
         month: str
 
     @classmethod
-    def test_data1(cls, session: "Session") -> DataFrame:
+    def test_data1(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [cls.Data(1, True, "a"), cls.Data(2, False, "b")]
         )
 
     @classmethod
-    def test_data2(cls, session: "Session") -> DataFrame:
+    def test_data2(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [
                 cls.Data2(1, 1),
@@ -282,15 +284,15 @@ class TestData:
         )
 
     @classmethod
-    def test_data3(cls, session: "Session") -> DataFrame:
+    def test_data3(cls, session: Session) -> DataFrame:
         return session.create_dataframe([cls.Data3(1, None), cls.Data3(2, 2)])
 
     @classmethod
-    def test_data4(cls, session: "Session") -> DataFrame:
+    def test_data4(cls, session: Session) -> DataFrame:
         return session.create_dataframe([cls.Data4(i, str(i)) for i in range(1, 101)])
 
     @classmethod
-    def lower_case_data(cls, session: "Session") -> DataFrame:
+    def lower_case_data(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [
                 cls.LowerCaseData(1, "a"),
@@ -301,7 +303,7 @@ class TestData:
         )
 
     @classmethod
-    def upper_case_data(cls, session: "Session") -> DataFrame:
+    def upper_case_data(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [
                 cls.UpperCaseData(1, "A"),
@@ -314,30 +316,30 @@ class TestData:
         )
 
     @classmethod
-    def null_ints(cls, session: "Session") -> DataFrame:
+    def null_ints(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [cls.NullInt(1), cls.NullInt(2), cls.NullInt(3), cls.NullInt(None)]
         )
 
     @classmethod
-    def all_nulls(cls, session: "Session") -> DataFrame:
+    def all_nulls(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [cls.NullInt(None), cls.NullInt(None), cls.NullInt(None), cls.NullInt(None)]
         )
 
     @classmethod
-    def null_data1(cls, session: "Session") -> DataFrame:
+    def null_data1(cls, session: Session) -> DataFrame:
         return session.sql("select * from values(null),(2),(1),(3),(null) as T(a)")
 
     @classmethod
-    def null_data2(cls, session: "Session") -> DataFrame:
+    def null_data2(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values(1,2,3),(null,2,3),(null,null,3),(null,null,null),"
             "(1,null,3),(1,null,null),(1,2,null) as T(a,b,c)"
         )
 
     @classmethod
-    def null_data3(cls, session: "Session") -> DataFrame:
+    def null_data3(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values(1.0, 1, true, 'a'),('NaN'::Double, 2, null, 'b'),"
             "(null, 3, false, null), (4.0, null, null, 'd'), (null, null, null, null),"
@@ -345,115 +347,115 @@ class TestData:
         )
 
     @classmethod
-    def integer1(cls, session: "Session") -> DataFrame:
+    def integer1(cls, session: Session) -> DataFrame:
         return session.sql("select * from values(1),(2),(3) as T(a)")
 
     @classmethod
-    def double1(cls, session: "Session") -> DataFrame:
+    def double1(cls, session: Session) -> DataFrame:
         return session.sql("select * from values(1.111),(2.222),(3.333) as T(a)")
 
     @classmethod
-    def double2(cls, session: "Session") -> DataFrame:
+    def double2(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values(0.1, 0.5),(0.2, 0.6),(0.3, 0.7) as T(a,b)"
         )
 
     @classmethod
-    def double3(cls, session: "Session") -> DataFrame:
+    def double3(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values(1.0, 1),('NaN'::Double, 2),(null, 3),"
             "(4.0, null), (null, null), ('NaN'::Double, null) as T(a, b)"
         )
 
     @classmethod
-    def nan_data1(cls, session: "Session") -> DataFrame:
+    def nan_data1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values(1.2),('NaN'::Double),(null),(2.3) as T(a)"
         )
 
     @classmethod
-    def double4(cls, session: "Session") -> DataFrame:
+    def double4(cls, session: Session) -> DataFrame:
         return session.sql("select * from values(1.0, 1) as T(a, b)")
 
     @classmethod
-    def duplicated_numbers(cls, session: "Session") -> DataFrame:
+    def duplicated_numbers(cls, session: Session) -> DataFrame:
         return session.sql("select * from values(3),(2),(1),(3),(2) as T(a)")
 
     @classmethod
-    def approx_numbers(cls, session: "Session") -> DataFrame:
+    def approx_numbers(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values(1),(2),(3),(4),(5),(6),(7),(8),(9),(0) as T(a)"
         )
 
     @classmethod
-    def approx_numbers2(cls, session: "Session") -> DataFrame:
+    def approx_numbers2(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values(1, 1),(2, 1),(3, 3),(4, 3),(5, 3),(6, 3),(7, 3),"
             + "(8, 5),(9, 5),(0, 5) as T(a, T)"
         )
 
     @classmethod
-    def string1(cls, session: "Session") -> DataFrame:
+    def string1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values('test1', 'a'),('test2', 'b'),('test3', 'c') as T(a, b)"
         )
 
     @classmethod
-    def string2(cls, session: "Session") -> DataFrame:
+    def string2(cls, session: Session) -> DataFrame:
         return session.sql("select * from values('asdFg'),('qqq'),('Qw') as T(a)")
 
     @classmethod
-    def string3(cls, session: "Session") -> DataFrame:
+    def string3(cls, session: Session) -> DataFrame:
         return session.sql("select * from values('  abcba  '), (' a12321a   ') as T(a)")
 
     @classmethod
-    def string4(cls, session: "Session") -> DataFrame:
+    def string4(cls, session: Session) -> DataFrame:
         return session.sql("select * from values('apple'),('banana'),('peach') as T(a)")
 
     @classmethod
-    def string5(cls, session: "Session") -> DataFrame:
+    def string5(cls, session: Session) -> DataFrame:
         return session.sql("select * from values('1,2,3,4,5') as T(a)")
 
     @classmethod
-    def string6(cls, session: "Session") -> DataFrame:
+    def string6(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values('1,2,3,4,5', ','),('1 2 3 4 5', ' ') as T(a, b)"
         )
 
     @classmethod
-    def string7(cls, session: "Session") -> DataFrame:
+    def string7(cls, session: Session) -> DataFrame:
         return session.sql("select * from values('str', 1),(null, 2) as T(a, b)")
 
     @classmethod
-    def array1(cls, session: "Session") -> DataFrame:
+    def array1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select array_construct(a,b,c) as arr1, array_construct(d,e,f) as arr2 "
             "from values(1,2,3,3,4,5),(6,7,8,9,0,1) as T(a,b,c,d,e,f)"
         )
 
     @classmethod
-    def array2(cls, session: "Session") -> DataFrame:
+    def array2(cls, session: Session) -> DataFrame:
         return session.sql(
             "select array_construct(a,b,c) as arr1, d, e, f from"
             " values(1,2,3,2,'e1','[{a:1}]'),(6,7,8,1,'e2','[{a:1},{b:2}]') as T(a,b,c,d,e,f)"
         )
 
     @classmethod
-    def array3(cls, session: "Session") -> DataFrame:
+    def array3(cls, session: Session) -> DataFrame:
         return session.sql(
             "select array_construct(a,b,c) as arr1, d, e, f "
             "from values(1,2,3,1,2,','),(4,5,6,1,-1,', '),(6,7,8,0,2,';') as T(a,b,c,d,e,f)"
         )
 
     @classmethod
-    def object1(cls, session: "Session") -> DataFrame:
+    def object1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select key, to_variant(value) as value from "
             "values('age', 21),('zip', 94401) as T(key,value)"
         )
 
     @classmethod
-    def object2(cls, session: "Session") -> DataFrame:
+    def object2(cls, session: Session) -> DataFrame:
         return session.sql(
             "select object_construct(a,b,c,d,e,f) as obj, k, v, flag from "
             "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0, true),"
@@ -461,25 +463,25 @@ class TestData:
         )
 
     @classmethod
-    def object3(cls, session: "Session") -> DataFrame:
+    def object3(cls, session: Session) -> DataFrame:
         return session.sql(
             "select key, to_variant(value) as value from "
             "values(null, 21),('zip', null) as T(key,value)"
         )
 
     @classmethod
-    def null_array1(cls, session: "Session") -> DataFrame:
+    def null_array1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select array_construct(a,b,c) as arr1, array_construct(d,e,f) as arr2 "
             "from values(1,null,3,3,null,5),(6,null,8,9,null,1) as T(a,b,c,d,e,f)"
         )
 
     @classmethod
-    def zero1(cls, session: "Session") -> DataFrame:
+    def zero1(cls, session: Session) -> DataFrame:
         return session.sql("select * from values(0) as T(a)")
 
     @classmethod
-    def variant1(cls, session: "Session") -> DataFrame:
+    def variant1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select to_variant(to_array('Example')) as arr1,"
             + ' to_variant(to_object(parse_json(\'{"Tree": "Pine"}\'))) as obj1, '
@@ -497,7 +499,7 @@ class TestData:
         )
 
     @classmethod
-    def variant2(cls, session: "Session") -> DataFrame:
+    def variant2(cls, session: Session) -> DataFrame:
         return session.sql(
             """
             select parse_json(column1) as src
@@ -519,7 +521,7 @@ class TestData:
         )
 
     @classmethod
-    def geography(cls, session: "Session") -> DataFrame:
+    def geography(cls, session: Session) -> DataFrame:
         return session.sql(
             """
             select *
@@ -535,7 +537,7 @@ class TestData:
         )
 
     @classmethod
-    def geography_type(cls, session: "Session") -> DataFrame:
+    def geography_type(cls, session: Session) -> DataFrame:
         return session.sql(
             """
             select to_geography(a) as geo
@@ -551,34 +553,34 @@ class TestData:
         )
 
     @classmethod
-    def null_json1(cls, session: "Session") -> DataFrame:
+    def null_json1(cls, session: Session) -> DataFrame:
         return session.sql(
             'select parse_json(column1) as v from values (\'{"a": null}\'), (\'{"a": "foo"}\'),'
             " (null)"
         )
 
     @classmethod
-    def valid_json1(cls, session: "Session") -> DataFrame:
+    def valid_json1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select parse_json(column1) as v, column2 as k from values ('{\"a\": null}','a'), "
             "('{\"a\": \"foo\"}','a'), ('{\"a\": \"foo\"}','b'), (null,'a')"
         )
 
     @classmethod
-    def invalid_json1(cls, session: "Session") -> DataFrame:
+    def invalid_json1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select (column1) as v from values ('{\"a\": null'), ('{\"a: \"foo\"}'), ('{\"a:')"
         )
 
     @classmethod
-    def null_xml1(cls, session: "Session") -> DataFrame:
+    def null_xml1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select (column1) as v from values ('<t1>foo<t2>bar</t2><t3></t3></t1>'), "
             "('<t1></t1>'), (null), ('')"
         )
 
     @classmethod
-    def valid_xml1(cls, session: "Session") -> DataFrame:
+    def valid_xml1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select parse_xml(a) as v, b as t2, c as t3, d as instance from values"
             + "('<t1>foo<t2>bar</t2><t3></t3></t1>','t2','t3',0),('<t1></t1>','t2','t3',0),"
@@ -586,19 +588,19 @@ class TestData:
         )
 
     @classmethod
-    def invalid_xml1(cls, session: "Session") -> DataFrame:
+    def invalid_xml1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select (column1) as v from values ('<t1></t>'), ('<t1><t1>'), ('<t1</t1>')"
         )
 
     @classmethod
-    def date1(cls, session: "Session") -> DataFrame:
+    def date1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values('2020-08-01'::Date, 1),('2010-12-01'::Date, 2) as T(a,b)"
         )
 
     @classmethod
-    def decimal_data(cls, session: "Session") -> DataFrame:
+    def decimal_data(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [
                 [Decimal(1), Decimal(1)],
@@ -629,14 +631,14 @@ class TestData:
         )
 
     @classmethod
-    def timestamp1(cls, session: "Session") -> DataFrame:
+    def timestamp1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values('2020-05-01 13:11:20.000' :: timestamp),"
             "('2020-08-21 01:30:05.000' :: timestamp) as T(a)"
         )
 
     @classmethod
-    def xyz(cls, session: "Session") -> DataFrame:
+    def xyz(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [
                 cls.Number2(1, 2, 1),
@@ -648,13 +650,13 @@ class TestData:
         )
 
     @classmethod
-    def long1(cls, session: "Session") -> DataFrame:
+    def long1(cls, session: Session) -> DataFrame:
         return session.sql(
             "select * from values(1561479557),(1565479557),(1161479557) as T(a)"
         )
 
     @classmethod
-    def monthly_sales(cls, session: "Session") -> DataFrame:
+    def monthly_sales(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [
                 cls.MonthlySales(1, 10000, "JAN"),
@@ -677,7 +679,7 @@ class TestData:
         )
 
     @classmethod
-    def monthly_sales_flat(cls, session: "Session"):
+    def monthly_sales_flat(cls, session: Session):
         return session.create_dataframe(
             [
                 (1, "electronics", 100, 200, 300, 100),
@@ -688,11 +690,11 @@ class TestData:
         )
 
     @classmethod
-    def column_has_special_char(cls, session: "Session") -> DataFrame:
+    def column_has_special_char(cls, session: Session) -> DataFrame:
         return session.create_dataframe([[1, 2], [3, 4]]).to_df(['"col %"', '"col *"'])
 
     @classmethod
-    def nurse(cls, session: "Session") -> DataFrame:
+    def nurse(cls, session: Session) -> DataFrame:
         return session.create_dataframe(
             [
                 [201, "Thomas Leonard Vicente", "LVN", "Technician"],

@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute

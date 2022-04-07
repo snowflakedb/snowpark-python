@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 
 

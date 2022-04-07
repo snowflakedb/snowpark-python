@@ -7,6 +7,8 @@
 # the tests below differ from Scala tests.
 # For scala test code, refer to APIInternalSuite.scala and QueryTagSuite.scala
 
+from __future__ import annotations
+
 import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD

@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -24,7 +26,7 @@ SUPPORTED_JOIN_TYPE_STR = [
 ]
 
 
-def create_join_type(join_type: str) -> "JoinType":
+def create_join_type(join_type: str) -> JoinType:
     jt = join_type.strip().lower().replace("_", "")
 
     if jt == "inner":
@@ -140,7 +142,7 @@ class NaturalJoin(JoinType):
 
 
 class UsingJoin(JoinType):
-    def __init__(self, tpe: JoinType, using_columns: List[str]):
+    def __init__(self, tpe: JoinType, using_columns: list[str]):
         if not isinstance(
             tpe,
             (
@@ -166,7 +168,7 @@ class Join(BinaryNode):
         left: LogicalPlan,
         right: LogicalPlan,
         join_type: JoinType,
-        condition: Optional["Expression"],
+        condition: Expression | None,
     ):
         super().__init__(left, right)
         self.join_type = join_type

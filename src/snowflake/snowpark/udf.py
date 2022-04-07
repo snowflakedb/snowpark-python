@@ -3,6 +3,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """User-defined functions (UDFs) in Snowpark."""
+from __future__ import annotations
+
 from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
@@ -41,14 +43,14 @@ class UserDefinedFunction:
 
     def __init__(
         self,
-        func: Union[Callable, Tuple[str, str]],
+        func: Callable | tuple[str, str],
         return_type: DataType,
-        input_types: List[DataType],
+        input_types: list[DataType],
         name: str,
         is_return_nullable: bool = False,
     ):
         #: The Python function or a tuple containing the Python file path and the function name.
-        self.func: Union[Callable, Tuple[str, str]] = func
+        self.func: Callable | tuple[str, str] = func
         #: The UDF name.
         self.name: str = name
 
@@ -58,7 +60,7 @@ class UserDefinedFunction:
 
     def __call__(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        *cols: ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...],
     ) -> Column:
         exprs = []
         for c in Utils.parse_positional_args_to_list(*cols):
@@ -73,7 +75,7 @@ class UserDefinedFunction:
 
         return Column(self.__create_udf_expression(exprs))
 
-    def __create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
+    def __create_udf_expression(self, exprs: list[Expression]) -> SnowflakeUDF:
         if len(exprs) != len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"
@@ -330,10 +332,10 @@ class UDFRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
+    def __init__(self, session: snowflake.snowpark.Session):
         self._session = session
 
-    def describe(self, udf_obj: UserDefinedFunction) -> "snowflake.snowpark.DataFrame":
+    def describe(self, udf_obj: UserDefinedFunction) -> snowflake.snowpark.DataFrame:
         """
         Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a UDF.
 
@@ -349,13 +351,13 @@ class UDFRegistration:
     def register(
         self,
         func: Callable,
-        return_type: Optional[DataType] = None,
-        input_types: Optional[List[DataType]] = None,
-        name: Optional[Union[str, Iterable[str]]] = None,
+        return_type: DataType | None = None,
+        input_types: list[DataType] | None = None,
+        name: str | Iterable[str] | None = None,
         is_permanent: bool = False,
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
+        stage_location: str | None = None,
+        imports: list[str | tuple[str, str]] | None = None,
+        packages: list[str | ModuleType] | None = None,
         replace: bool = False,
         parallel: int = 4,
         **kwargs,
@@ -443,13 +445,13 @@ class UDFRegistration:
         self,
         file_path: str,
         func_name: str,
-        return_type: Optional[DataType] = None,
-        input_types: Optional[List[DataType]] = None,
-        name: Optional[Union[str, Iterable[str]]] = None,
+        return_type: DataType | None = None,
+        input_types: list[DataType] | None = None,
+        name: str | Iterable[str] | None = None,
         is_permanent: bool = False,
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
+        stage_location: str | None = None,
+        imports: list[str | tuple[str, str]] | None = None,
+        packages: list[str | ModuleType] | None = None,
         replace: bool = False,
         parallel: int = 4,
     ) -> UserDefinedFunction:
@@ -540,16 +542,16 @@ class UDFRegistration:
 
     def __do_register_udf(
         self,
-        func: Union[Callable, Tuple[str, str]],
-        return_type: Optional[DataType],
-        input_types: Optional[List[DataType]],
-        name: Optional[str],
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
+        func: Callable | tuple[str, str],
+        return_type: DataType | None,
+        input_types: list[DataType] | None,
+        name: str | None,
+        stage_location: str | None = None,
+        imports: list[str | tuple[str, str]] | None = None,
+        packages: list[str | ModuleType] | None = None,
         replace: bool = False,
         parallel: int = 4,
-        max_batch_size: Optional[int] = None,
+        max_batch_size: int | None = None,
         from_pandas_udf_function: bool = False,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types

@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import datetime
 import logging
 import math
@@ -607,11 +609,11 @@ def test_type_hints(session):
         return x + y
 
     @udf
-    def snow_udf(x: int) -> Optional[str]:
+    def snow_udf(x: int) -> str | None:
         return "snow" if x % 2 else None
 
     @udf
-    def double_str_list_udf(x: str) -> List[str]:
+    def double_str_list_udf(x: str) -> list[str]:
         return [x, x]
 
     dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
@@ -621,11 +623,11 @@ def test_type_hints(session):
         return dt
 
     @udf
-    def return_variant_dict_udf(v: Variant) -> Dict[str, str]:
+    def return_variant_dict_udf(v: Variant) -> dict[str, str]:
         return {str(k): f"{str(k)} {str(v)}" for k, v in v.items()}
 
     @udf
-    def return_geography_dict_udf(g: Geography) -> Dict[str, str]:
+    def return_geography_dict_udf(g: Geography) -> dict[str, str]:
         return g
 
     df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
@@ -825,7 +827,7 @@ def test_udf_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @udf
-        def add_udf(x: int, y: Union[int, float]) -> Union[int, float]:
+        def add_udf(x: int, y: int | float) -> int | float:
             return x + y
 
     assert "invalid type typing.Union[int, float]" in str(ex_info)

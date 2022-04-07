@@ -3,6 +3,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """Stored procedures in Snowpark."""
+from __future__ import annotations
+
 import functools
 from types import ModuleType
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
@@ -59,7 +61,7 @@ class StoredProcedure:
         self,
         func: Callable,
         return_type: DataType,
-        input_types: List[DataType],
+        input_types: list[DataType],
         name: str,
     ):
         #: The Python function.
@@ -73,7 +75,7 @@ class StoredProcedure:
     def __call__(
         self,
         *args: Any,
-        session: Optional["snowflake.snowpark.Session"] = None,
+        session: snowflake.snowpark.Session | None = None,
     ) -> any:
         session = session or snowflake.snowpark.session._get_active_session()
         if len(self._input_types) != len(args):
@@ -164,10 +166,10 @@ class StoredProcedureRegistration:
         :func:`~snowflake.snowpark.functions.sproc`
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
+    def __init__(self, session: snowflake.snowpark.Session):
         self._session = session
 
-    def describe(self, sproc_obj: StoredProcedure) -> "snowflake.snowpark.DataFrame":
+    def describe(self, sproc_obj: StoredProcedure) -> snowflake.snowpark.DataFrame:
         """
         Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a stored procedure.
 
@@ -182,14 +184,14 @@ class StoredProcedureRegistration:
 
     def register(
         self,
-        func: Union[Callable, Tuple[str, str]],
-        return_type: Optional[DataType] = None,
-        input_types: Optional[List[DataType]] = None,
-        name: Optional[Union[str, Iterable[str]]] = None,
+        func: Callable | tuple[str, str],
+        return_type: DataType | None = None,
+        input_types: list[DataType] | None = None,
+        name: str | Iterable[str] | None = None,
         is_permanent: bool = False,
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
+        stage_location: str | None = None,
+        imports: list[str | tuple[str, str]] | None = None,
+        packages: list[str | ModuleType] | None = None,
         replace: bool = False,
         parallel: int = 4,
     ) -> StoredProcedure:
@@ -229,13 +231,13 @@ class StoredProcedureRegistration:
         self,
         file_path: str,
         func_name: str,
-        return_type: Optional[DataType] = None,
-        input_types: Optional[List[DataType]] = None,
-        name: Optional[Union[str, Iterable[str]]] = None,
+        return_type: DataType | None = None,
+        input_types: list[DataType] | None = None,
+        name: str | Iterable[str] | None = None,
         is_permanent: bool = False,
-        stage_location: Optional[str] = None,
-        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-        packages: Optional[List[Union[str, ModuleType]]] = None,
+        stage_location: str | None = None,
+        imports: list[str | tuple[str, str]] | None = None,
+        packages: list[str | ModuleType] | None = None,
         replace: bool = False,
         parallel: int = 4,
     ) -> StoredProcedure:
@@ -306,13 +308,13 @@ class StoredProcedureRegistration:
 
     def __do_register_sp(
         self,
-        func: Union[Callable, Tuple[str, str]],
+        func: Callable | tuple[str, str],
         return_type: DataType,
-        input_types: List[DataType],
+        input_types: list[DataType],
         sp_name: str,
-        stage_location: Optional[str],
-        imports: Optional[List[Union[str, Tuple[str, str]]]],
-        packages: Optional[List[Union[str, ModuleType]]],
+        stage_location: str | None,
+        imports: list[str | tuple[str, str]] | None,
+        packages: list[str | ModuleType] | None,
         replace: bool,
         parallel: int,
     ) -> StoredProcedure:

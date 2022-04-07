@@ -3,6 +3,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """This package contains all Snowpark logical types."""
+from __future__ import annotations
+
 import re
 from typing import Generic, Iterable, List, Optional, TypeVar, Union
 
@@ -246,7 +248,7 @@ class StructField:
 
     def __init__(
         self,
-        column_identifier: Union[ColumnIdentifier, str],
+        column_identifier: ColumnIdentifier | str,
         datatype: DataType,
         nullable: bool = True,
     ):
@@ -277,7 +279,7 @@ class StructField:
 class StructType(DataType):
     """Represents a table schema. Contains :class:`StructField` for each column."""
 
-    def __init__(self, fields: List["StructField"]):
+    def __init__(self, fields: list[StructField]):
         self.fields = fields
 
     @classmethod
@@ -325,7 +327,7 @@ class _PandasType(DataType):
 class PandasSeriesType(_PandasType):
     """Pandas Series data type."""
 
-    def __init__(self, element_type: Optional[DataType]):
+    def __init__(self, element_type: DataType | None):
         self.element_type = element_type
 
 

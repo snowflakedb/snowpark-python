@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import functools
 from enum import Enum, unique
 from typing import Any, Dict, Optional
@@ -113,14 +115,14 @@ class TelemetryClient:
         self.python_version: str = Utils.get_python_version()
         self.os: str = Utils.get_os_name()
 
-    def send(self, msg: Dict, timestamp: Optional[int] = None):
+    def send(self, msg: dict, timestamp: int | None = None):
         if self.telemetry:
             if not timestamp:
                 timestamp = get_time_millis()
             telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
             self.telemetry.try_add_log_to_batch(telemetry_data)
 
-    def _create_basic_telemetry_data(self, telemetry_type: str) -> Dict[str, Any]:
+    def _create_basic_telemetry_data(self, telemetry_type: str) -> dict[str, Any]:
         message = {
             PCTelemetryField.KEY_SOURCE.value: self.source,
             TelemetryField.KEY_VERSION.value: self.version,

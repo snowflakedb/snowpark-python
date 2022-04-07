@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from collections import Counter
 from typing import Dict, Union
 
@@ -135,14 +137,14 @@ ARRAY_BIND_THRESHOLD = 512
 
 
 class Analyzer:
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: snowflake.snowpark.session.Session):
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use = None
 
-    def analyze(self, expr: Union[Expression, NamedExpression]) -> str:
+    def analyze(self, expr: Expression | NamedExpression) -> str:
         if isinstance(expr, GroupingSetsExpression):
             return grouping_set_expression(
                 [[self.analyze(a) for a in arg] for arg in expr.args]
@@ -415,7 +417,7 @@ class Analyzer:
     def do_resolve_with_resolved_children(
         self,
         logical_plan: LogicalPlan,
-        resolved_children: Dict[LogicalPlan, SnowflakePlan],
+        resolved_children: dict[LogicalPlan, SnowflakePlan],
     ) -> SnowflakePlan:
         if isinstance(logical_plan, SnowflakePlan):
             return logical_plan

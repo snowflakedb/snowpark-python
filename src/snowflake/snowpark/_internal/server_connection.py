@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import functools
 import os
 import time
@@ -102,8 +104,8 @@ class ServerConnection:
 
     def __init__(
         self,
-        options: Dict[str, Union[int, str]],
-        conn: Optional[SnowflakeConnection] = None,
+        options: dict[str, int | str],
+        conn: SnowflakeConnection | None = None,
     ):
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self.__add_application_name()
@@ -146,14 +148,14 @@ class ServerConnection:
     def get_session_id(self) -> int:
         return self._conn.session_id
 
-    def get_default_database(self) -> Optional[str]:
+    def get_default_database(self) -> str | None:
         return (
             quote_name(self._lower_case_parameters["database"])
             if "database" in self._lower_case_parameters
             else None
         )
 
-    def get_default_schema(self) -> Optional[str]:
+    def get_default_schema(self) -> str | None:
         return (
             quote_name(self._lower_case_parameters["schema"])
             if "schema" in self._lower_case_parameters
@@ -161,9 +163,7 @@ class ServerConnection:
         )
 
     @_Decorator.wrap_exception
-    def _get_current_parameter(
-        self, param: str, unquoted: bool = False
-    ) -> Optional[str]:
+    def _get_current_parameter(self, param: str, unquoted: bool = False) -> str | None:
         name = getattr(self._conn, param) or self._get_string_datum(
             f"SELECT CURRENT_{param.upper()}()"
         )
@@ -178,11 +178,11 @@ class ServerConnection:
         )
 
     @_Decorator.wrap_exception
-    def get_parameter_value(self, parameter_name: str) -> Optional[str]:
+    def get_parameter_value(self, parameter_name: str) -> str | None:
         # TODO: logging and running show command to get the parameter value if it's not present in connector
         return self._conn._session_parameters.get(parameter_name.upper(), None)
 
-    def _get_string_datum(self, query: str) -> Optional[str]:
+    def _get_string_datum(self, query: str) -> str | None:
         rows = ServerConnection.result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
@@ -238,7 +238,7 @@ class ServerConnection:
         )
 
     @staticmethod
-    def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
+    def convert_result_meta_to_attribute(meta: list[ResultMetadata]) -> list[Attribute]:
         attributes = []
         for column_name, type_value, _, _, precision, scale, nullable in meta:
             quoted_name = quote_name_without_upper_casing(column_name)
@@ -254,7 +254,7 @@ class ServerConnection:
         return attributes
 
     @_Decorator.wrap_exception
-    def get_result_attributes(self, query: str) -> List[Attribute]:
+    def get_result_attributes(self, query: str) -> list[Attribute]:
         return ServerConnection.convert_result_meta_to_attribute(
             self._cursor.describe(query)
         )
@@ -269,7 +269,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         if Utils.is_in_stored_procedure():
             file_name = os.path.basename(path)
             target_path = self.__build_target_path(stage_location, dest_prefix)
@@ -300,7 +300,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         uri = Utils.normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
             if Utils.is_in_stored_procedure():
@@ -374,7 +374,7 @@ class ServerConnection:
         to_iter: bool = False,
         is_ddl_on_temp_object: bool = False,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
@@ -424,8 +424,8 @@ class ServerConnection:
 
     @staticmethod
     def result_set_to_rows(
-        result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
-    ) -> List[Row]:
+        result_set: list[Any], result_meta: list[ResultMetadata] | None = None
+    ) -> list[Row]:
         if result_meta:
             col_names = [col.name for col in result_meta]
             rows = []
@@ -440,7 +440,7 @@ class ServerConnection:
 
     @staticmethod
     def result_set_to_iter(
-        result_set: SnowflakeCursor, result_meta: Optional[List[ResultMetadata]] = None
+        result_set: SnowflakeCursor, result_meta: list[ResultMetadata] | None = None
     ) -> Iterator[Row]:
         col_names = [col.name for col in result_meta] if result_meta else None
         for data in result_set:
@@ -455,9 +455,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         **kwargs,
-    ) -> Union[
-        List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
-    ]:
+    ) -> list[Row] | pandas.DataFrame | Iterator[Row] | Iterator[pandas.DataFrame]:
         result_set, result_meta = self.get_result_set(
             plan, to_pandas, to_iter, **kwargs
         )
@@ -477,10 +475,8 @@ class ServerConnection:
         to_iter: bool = False,
         **kwargs,
     ) -> (
-        Union[
-            List[Any], "pandas.DataFrame", SnowflakeCursor, Iterator["pandas.DataFrame"]
-        ],
-        List[ResultMetadata],
+        list[Any] | pandas.DataFrame | SnowflakeCursor | Iterator[pandas.DataFrame],
+        list[ResultMetadata],
     ):
         action_id = plan.session._generate_new_action_id()
 
@@ -521,14 +517,14 @@ class ServerConnection:
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
-    ) -> (List[Row], List[Attribute]):
+    ) -> (list[Row], list[Attribute]):
         result_set, result_meta = self.get_result_set(plan, **kwargs)
         result = ServerConnection.result_set_to_rows(result_set)
         meta = ServerConnection.convert_result_meta_to_attribute(result_meta)
         return result, meta
 
     @_Decorator.wrap_exception
-    def run_batch_insert(self, query: str, rows: List[Row], **kwargs) -> None:
+    def run_batch_insert(self, query: str, rows: list[Row], **kwargs) -> None:
         # with qmark, Python data type will be dynamically mapped to Snowflake data type
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings
         params = [list(row) for row in rows]
@@ -559,7 +555,7 @@ class ServerConnection:
             )
         logger.info(f"Execute batch insertion query %s", query)
 
-    def _fix_pandas_df_integer(self, pd_df: "pandas.DataFrame") -> "pandas.DataFrame":
+    def _fix_pandas_df_integer(self, pd_df: pandas.DataFrame) -> pandas.DataFrame:
         """To fix https://snowflakecomputing.atlassian.net/browse/SNOW-562208
         TODO: remove this after Python connector does the conversion: https://snowflakecomputing.atlassian.net/browse/SNOW-562586
         """

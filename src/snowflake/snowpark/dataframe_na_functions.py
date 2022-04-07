@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from logging import getLogger
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -45,15 +47,15 @@ def _is_value_type_matching_for_na_function(
 class DataFrameNaFunctions:
     """Provides functions for handling missing values in a :class:`DataFrame`."""
 
-    def __init__(self, df: "snowflake.snowpark.dataframe.DataFrame"):
+    def __init__(self, df: snowflake.snowpark.dataframe.DataFrame):
         self.df = df
 
     def drop(
         self,
         how: str = "any",
-        thresh: Optional[int] = None,
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        thresh: int | None = None,
+        subset: str | list[str] | tuple[str, ...] | None = None,
+    ) -> snowflake.snowpark.dataframe.DataFrame:
         """
         Returns a new DataFrame that excludes all rows containing fewer than
         a specified number of non-null and non-NaN values in the specified
@@ -188,9 +190,9 @@ class DataFrameNaFunctions:
 
     def fill(
         self,
-        value: Union[LiteralType, Dict[str, LiteralType]],
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        value: LiteralType | dict[str, LiteralType],
+        subset: str | list[str] | tuple[str, ...] | None = None,
+    ) -> snowflake.snowpark.dataframe.DataFrame:
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified
         columns with the values provided.
@@ -335,17 +337,16 @@ class DataFrameNaFunctions:
 
     def replace(
         self,
-        to_replace: Union[
-            LiteralType,
-            List[LiteralType],
-            Tuple[LiteralType, ...],
-            Dict[LiteralType, LiteralType],
-        ],
-        value: Optional[
-            Union[LiteralType, List[LiteralType], Tuple[LiteralType, ...]]
-        ] = None,
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> "snowflake.snowpark.dataframe.DataFrame":
+        to_replace: (
+            LiteralType
+            | list[LiteralType]
+            | tuple[LiteralType, ...]
+            | dict[LiteralType, LiteralType]
+        ),
+        value: None
+        | (LiteralType | list[LiteralType] | tuple[LiteralType, ...]) = None,
+        subset: str | list[str] | tuple[str, ...] | None = None,
+    ) -> snowflake.snowpark.dataframe.DataFrame:
         """
         Returns a new DataFrame that replaces values in the specified columns.
 

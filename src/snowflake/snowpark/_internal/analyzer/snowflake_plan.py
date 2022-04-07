@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import re
 import uuid
 from functools import reduce
@@ -143,12 +145,12 @@ class SnowflakePlan(LogicalPlan):
 
     def __init__(
         self,
-        queries: List["Query"],
+        queries: list[Query],
         schema_query: str,
-        post_actions: Optional[List["Query"]] = None,
-        expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
-        session: Optional["snowflake.snowpark.session.Session"] = None,
-        source_plan: Optional[LogicalPlan] = None,
+        post_actions: list[Query] | None = None,
+        expr_to_alias: dict[uuid.UUID, str] | None = None,
+        session: snowflake.snowpark.session.Session | None = None,
+        source_plan: LogicalPlan | None = None,
         is_ddl_on_temp_object: bool = False,
     ):
         super().__init__()
@@ -163,7 +165,7 @@ class SnowflakePlan(LogicalPlan):
         self._attributes = None
         self._output = None
 
-    def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
+    def with_subqueries(self, subquery_plans: list[SnowflakePlan]) -> SnowflakePlan:
         pre_queries = self.queries[:-1]
         new_schema_query = self._schema_query
         new_post_actions = [*self.post_actions]
@@ -188,21 +190,21 @@ class SnowflakePlan(LogicalPlan):
             source_plan=self.source_plan,
         )
 
-    def attributes(self) -> List[Attribute]:
+    def attributes(self) -> list[Attribute]:
         if not self._attributes:
             output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
             self._schema_query = schema_value_statement(output)
             self._attributes = output
         return self._attributes
 
-    def output(self) -> List[Attribute]:
+    def output(self) -> list[Attribute]:
         if not self._output:
             self._output = [
                 Attribute(a.name, a.datatype, a.nullable) for a in self.attributes()
             ]
         return self._output
 
-    def __copy__(self) -> "SnowflakePlan":
+    def __copy__(self) -> SnowflakePlan:
         return SnowflakePlan(
             self.queries.copy() if self.queries else [],
             self._schema_query,
@@ -212,7 +214,7 @@ class SnowflakePlan(LogicalPlan):
             self.source_plan,
         )
 
-    def add_aliases(self, to_add: Dict) -> None:
+    def add_aliases(self, to_add: dict) -> None:
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
 
@@ -229,7 +231,7 @@ class SnowflakePlanBuilder:
         "LOAD_UNCERTAIN_FILES",
     }
 
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: snowflake.snowpark.session.Session):
         self.session = session
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -237,8 +239,8 @@ class SnowflakePlanBuilder:
         self,
         sql_generator: Callable[[str], str],
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
-        schema_query: Optional[str] = None,
+        source_plan: LogicalPlan | None,
+        schema_query: str | None = None,
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self._add_result_scan_if_not_select(child)
@@ -268,8 +270,8 @@ class SnowflakePlanBuilder:
         self,
         multi_sql_generator: Callable[[str], str],
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
-        schema_query: Optional[str] = None,
+        source_plan: LogicalPlan | None,
+        schema_query: str | None = None,
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self._add_result_scan_if_not_select(child)
@@ -298,7 +300,7 @@ class SnowflakePlanBuilder:
         sql_generator: Callable[[str, str], str],
         left: SnowflakePlan,
         right: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan | None,
     ) -> SnowflakePlan:
         select_left = self._add_result_scan_if_not_select(left)
         select_right = self._add_result_scan_if_not_select(right)
@@ -340,7 +342,7 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def query(self, sql: str, source_plan: Optional[LogicalPlan]) -> SnowflakePlan:
+    def query(self, sql: str, source_plan: LogicalPlan | None) -> SnowflakePlan:
         return SnowflakePlan(
             queries=[Query(sql)],
             schema_query=sql,
@@ -350,9 +352,9 @@ class SnowflakePlanBuilder:
 
     def large_local_relation_plan(
         self,
-        output: List[Attribute],
-        data: List[Row],
-        source_plan: Optional[LogicalPlan],
+        output: list[Attribute],
+        data: list[Row],
+        source_plan: LogicalPlan | None,
     ) -> SnowflakePlan:
         temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         attributes = [
@@ -384,7 +386,7 @@ class SnowflakePlanBuilder:
         return self.query(project_statement([], table_name), None)
 
     def file_operation_plan(
-        self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
+        self, command: str, file_name: str, stage_location: str, options: dict[str, str]
     ) -> SnowflakePlan:
         return self.query(
             file_operation_statement(command, file_name, stage_location, options),
@@ -393,9 +395,9 @@ class SnowflakePlanBuilder:
 
     def project(
         self,
-        project_list: List[str],
+        project_list: list[str],
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan | None,
         is_distinct: bool = False,
     ) -> SnowflakePlan:
         return self.build(
@@ -406,10 +408,10 @@ class SnowflakePlanBuilder:
 
     def aggregate(
         self,
-        grouping_exprs: List[str],
-        aggregate_exprs: List[str],
+        grouping_exprs: list[str],
+        aggregate_exprs: list[str],
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan | None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: aggregate_statement(grouping_exprs, aggregate_exprs, x),
@@ -418,16 +420,16 @@ class SnowflakePlanBuilder:
         )
 
     def filter(
-        self, condition: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+        self, condition: str, child: SnowflakePlan, source_plan: LogicalPlan | None
     ) -> SnowflakePlan:
         return self.build(lambda x: filter_statement(condition, x), child, source_plan)
 
     def sample(
         self,
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
-        probability_fraction: Optional[float] = None,
-        row_count: Optional[int] = None,
+        source_plan: LogicalPlan | None,
+        probability_fraction: float | None = None,
+        row_count: int | None = None,
     ) -> SnowflakePlan:
         """Builds the sample part of the resultant sql statement"""
         return self.build(
@@ -439,7 +441,7 @@ class SnowflakePlanBuilder:
         )
 
     def sort(
-        self, order: List[str], child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+        self, order: list[str], child: SnowflakePlan, source_plan: LogicalPlan | None
     ) -> SnowflakePlan:
         return self.build(lambda x: sort_statement(order, x), child, source_plan)
 
@@ -448,7 +450,7 @@ class SnowflakePlanBuilder:
         left: SnowflakePlan,
         right: SnowflakePlan,
         op: str,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan | None,
     ) -> SnowflakePlan:
         return self.build_binary(
             lambda x, y: set_operator_statement(x, y, op),
@@ -458,7 +460,7 @@ class SnowflakePlanBuilder:
         )
 
     def union(
-        self, children: List[SnowflakePlan], source_plan: Optional[LogicalPlan]
+        self, children: list[SnowflakePlan], source_plan: LogicalPlan | None
     ) -> SnowflakePlan:
         func = lambda x, y: self.set_operator(x, y, "UNION ALL ", source_plan)
         return reduce(func, children)
@@ -469,7 +471,7 @@ class SnowflakePlanBuilder:
         right: SnowflakePlan,
         join_type: JoinType,
         condition: str,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan | None,
     ):
         return self.build_binary(
             lambda x, y: join_statement(x, y, join_type, condition),
@@ -534,7 +536,7 @@ class SnowflakePlanBuilder:
         limit_expr: str,
         child: SnowflakePlan,
         on_top_of_oder_by: bool,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan | None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: limit_statement(limit_expr, x, on_top_of_oder_by),
@@ -545,10 +547,10 @@ class SnowflakePlanBuilder:
     def pivot(
         self,
         pivot_column: str,
-        pivot_values: List[str],
+        pivot_values: list[str],
         aggregate: str,
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan | None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: pivot_statement(pivot_column, pivot_values, aggregate, x),
@@ -560,9 +562,9 @@ class SnowflakePlanBuilder:
         self,
         value_column: str,
         name_column: str,
-        column_list: List[str],
+        column_list: list[str],
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan | None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: unpivot_statement(value_column, name_column, column_list, x),
@@ -598,7 +600,7 @@ class SnowflakePlanBuilder:
 
     def create_table_and_insert(
         self, session, name: str, schema_query: str, query: str
-    ) -> List[str]:
+    ) -> list[str]:
         attributes = session._get_result_attributes(schema_query)
         create_table = create_temp_table_statement(
             name, attribute_to_schema_string(attributes)
@@ -610,9 +612,9 @@ class SnowflakePlanBuilder:
         self,
         path: str,
         format: str,
-        options: Dict[str, str],
+        options: dict[str, str],
         fully_qualified_schema: str,
-        schema: List[Attribute],
+        schema: list[Attribute],
     ):
         copy_options = {}
         format_type_options = {}
@@ -739,15 +741,15 @@ class SnowflakePlanBuilder:
         self,
         file_format: str,
         table_name: str,
-        path: Optional[str] = None,
-        files: Optional[str] = None,
-        pattern: Optional[str] = None,
-        format_type_options: Optional[Dict[str, Any]] = None,
-        copy_options: Optional[Dict[str, Any]] = None,
-        validation_mode: Optional[str] = None,
-        column_names: Optional[List[str]] = None,
-        transformations: Optional[List[str]] = None,
-        user_schema: Optional[StructType] = None,
+        path: str | None = None,
+        files: str | None = None,
+        pattern: str | None = None,
+        format_type_options: dict[str, Any] | None = None,
+        copy_options: dict[str, Any] | None = None,
+        validation_mode: str | None = None,
+        column_names: list[str] | None = None,
+        transformations: list[str] | None = None,
+        user_schema: StructType | None = None,
     ) -> SnowflakePlan:
         # tracking usage of pattern, will refactor this function in future
         if pattern:
@@ -794,12 +796,12 @@ class SnowflakePlanBuilder:
         self,
         query: SnowflakePlan,
         stage_location: str,
-        partition_by: Optional[str] = None,
-        file_format_name: Optional[str] = None,
-        file_format_type: Optional[str] = None,
-        format_type_options: Optional[Dict[str, Any]] = None,
+        partition_by: str | None = None,
+        file_format_name: str | None = None,
+        file_format_type: str | None = None,
+        format_type_options: dict[str, Any] | None = None,
         header: bool = False,
-        **copy_options: Optional[Any],
+        **copy_options: Any | None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: copy_into_location(
@@ -820,9 +822,9 @@ class SnowflakePlanBuilder:
     def update(
         self,
         table_name: str,
-        assignments: Dict[str, str],
-        condition: Optional[str],
-        source_data: Optional[SnowflakePlan],
+        assignments: dict[str, str],
+        condition: str | None,
+        source_data: SnowflakePlan | None,
     ) -> SnowflakePlan:
         return self.query(
             update_statement(
@@ -839,8 +841,8 @@ class SnowflakePlanBuilder:
     def delete(
         self,
         table_name: str,
-        condition: Optional[str],
-        source_data: Optional[SnowflakePlan],
+        condition: str | None,
+        source_data: SnowflakePlan | None,
     ) -> SnowflakePlan:
         return self.query(
             delete_statement(
@@ -854,7 +856,7 @@ class SnowflakePlanBuilder:
         )
 
     def merge(
-        self, table_name: str, source: SnowflakePlan, join_expr: str, clauses: List[str]
+        self, table_name: str, source: SnowflakePlan, join_expr: str, clauses: list[str]
     ) -> SnowflakePlan:
         return self.query(
             merge_statement(table_name, source.queries[-1].sql, join_expr, clauses),
@@ -865,7 +867,7 @@ class SnowflakePlanBuilder:
         self,
         table_function: str,
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
+        source_plan: LogicalPlan | None,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: lateral_statement(table_function, x),
@@ -877,7 +879,7 @@ class SnowflakePlanBuilder:
         return self.query(table_function_statement(func), None)
 
     def join_table_function(
-        self, func: str, child: SnowflakePlan, source_plan: Optional[LogicalPlan]
+        self, func: str, child: SnowflakePlan, source_plan: LogicalPlan | None
     ) -> SnowflakePlan:
         return self.build(
             lambda x: join_table_function_statement(func, x),
@@ -911,7 +913,7 @@ class Query:
     def __init__(
         self,
         sql: str,
-        query_id_place_holder: Optional[str] = None,
+        query_id_place_holder: str | None = None,
         is_ddl_on_temp_object: bool = False,
     ):
         self.sql = sql
@@ -927,7 +929,7 @@ class BatchInsertQuery(Query):
     def __init__(
         self,
         sql: str,
-        rows: Optional[List[Row]] = None,
+        rows: list[Row] | None = None,
     ):
         super().__init__(sql)
         self.rows = rows

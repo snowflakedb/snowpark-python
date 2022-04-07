@@ -6,6 +6,8 @@
 # Apache Spark project, under the Apache License, Version 2.0.
 #
 #  File containing the Expression definitions for ASTs (Spark).
+from __future__ import annotations
+
 import uuid
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
@@ -30,14 +32,14 @@ class Expression:
     But the constructor accepts a single child. This might be refactored in the future.
     """
 
-    def __init__(self, child: Optional["Expression"] = None):
+    def __init__(self, child: Expression | None = None):
         """
         Subclasses will override these attributes
         """
         self.child = child
         self.nullable = True
         self.children = [child] if child else None
-        self.datatype: Optional[DataType] = None
+        self.datatype: DataType | None = None
 
     @property
     def pretty_name(self) -> str:
@@ -70,26 +72,26 @@ class NamedExpression:
 
 
 class ScalarSubquery(Expression):
-    def __init__(self, plan: "SnowflakePlan"):
+    def __init__(self, plan: SnowflakePlan):
         super().__init__()
         self.plan = plan
 
 
 class MultipleExpression(Expression):
-    def __init__(self, expressions: List[Expression]):
+    def __init__(self, expressions: list[Expression]):
         super().__init__()
         self.expressions = expressions
 
 
 class InExpression(Expression):
-    def __init__(self, columns: Expression, values: List[Expression]):
+    def __init__(self, columns: Expression, values: list[Expression]):
         super().__init__()
         self.columns = columns
         self.values = values
 
 
 class Star(Expression):
-    def __init__(self, expressions: List[NamedExpression]):
+    def __init__(self, expressions: list[NamedExpression]):
         super().__init__()
         self.expressions = expressions
 
@@ -101,7 +103,7 @@ class Attribute(Expression, NamedExpression):
         self.datatype = datatype
         self.nullable = nullable
 
-    def with_name(self, new_name: str) -> "Attribute":
+    def with_name(self, new_name: str) -> Attribute:
         if self.name == new_name:
             return self
         else:
@@ -139,7 +141,7 @@ class UnresolvedAttribute(Expression, NamedExpression):
 
 
 class Literal(Expression):
-    def __init__(self, value: Any, datatype: Optional[DataType] = None):
+    def __init__(self, value: Any, datatype: DataType | None = None):
         super().__init__()
 
         # check value
@@ -196,7 +198,7 @@ class SubfieldInt(Expression):
 
 
 class FunctionExpression(Expression):
-    def __init__(self, name: str, arguments: List[Expression], is_distinct: bool):
+    def __init__(self, name: str, arguments: list[Expression], is_distinct: bool):
         super().__init__()
         self.name = name
         self.children = arguments
@@ -215,7 +217,7 @@ class FunctionExpression(Expression):
 
 
 class WithinGroup(Expression):
-    def __init__(self, expr: Expression, order_by_cols: List[Expression]):
+    def __init__(self, expr: Expression, order_by_cols: list[Expression]):
         super().__init__(expr)
         self.expr = expr
         self.order_by_cols = order_by_cols
@@ -225,8 +227,8 @@ class WithinGroup(Expression):
 class CaseWhen(Expression):
     def __init__(
         self,
-        branches: List[Tuple[Expression, Expression]],
-        else_value: Optional[Expression] = None,
+        branches: list[tuple[Expression, Expression]],
+        else_value: Expression | None = None,
     ):
         super().__init__()
         self.branches = branches
@@ -237,7 +239,7 @@ class SnowflakeUDF(Expression):
     def __init__(
         self,
         udf_name: str,
-        children: List[Expression],
+        children: list[Expression],
         datatype: DataType,
         nullable: bool = True,
     ):

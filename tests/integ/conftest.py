@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import functools
 import os
 import uuid
@@ -41,7 +43,7 @@ CONNECTION_PARAMETERS = {
 
 
 @pytest.fixture(scope="session")
-def db_parameters() -> Dict[str, str]:
+def db_parameters() -> dict[str, str]:
     # If its running on our public CI, replace the schema
     if running_on_public_ci():
         CONNECTION_PARAMETERS["schema"] = TEST_SCHEMA

@@ -6,6 +6,8 @@
 """
 Contains core classes of Snowpark.
 """
+from __future__ import annotations
+
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions

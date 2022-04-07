@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -8,14 +10,14 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
 
 
 class MergeExpression(Expression):
-    def __init__(self, condition: Optional[Expression]):
+    def __init__(self, condition: Expression | None):
         super().__init__()
         self.condition = condition
 
 
 class UpdateMergeExpression(MergeExpression):
     def __init__(
-        self, condition: Optional[Expression], assignments: Dict[Expression, Expression]
+        self, condition: Expression | None, assignments: dict[Expression, Expression]
     ):
         super().__init__(condition)
         self.assignments = assignments
@@ -28,9 +30,9 @@ class DeleteMergeExpression(MergeExpression):
 class InsertMergeExpression(MergeExpression):
     def __init__(
         self,
-        condition: Optional[Expression],
-        keys: List[Expression],
-        values: List[Expression],
+        condition: Expression | None,
+        keys: list[Expression],
+        values: list[Expression],
     ):
         super().__init__(condition)
         self.keys = keys
@@ -41,9 +43,9 @@ class TableUpdate(LogicalPlan):
     def __init__(
         self,
         table_name: str,
-        assignments: Dict[Expression, Expression],
-        condition: Optional[Expression],
-        source_data: Optional[LogicalPlan],
+        assignments: dict[Expression, Expression],
+        condition: Expression | None,
+        source_data: LogicalPlan | None,
     ):
         super().__init__()
         self.table_name = table_name
@@ -57,8 +59,8 @@ class TableDelete(LogicalPlan):
     def __init__(
         self,
         table_name: str,
-        condition: Optional[Expression],
-        source_data: Optional[LogicalPlan],
+        condition: Expression | None,
+        source_data: LogicalPlan | None,
     ):
         super().__init__()
         self.table_name = table_name
@@ -73,7 +75,7 @@ class TableMerge(LogicalPlan):
         table_name: str,
         source: LogicalPlan,
         join_expr: Expression,
-        clauses: List[Expression],
+        clauses: list[Expression],
     ):
         super().__init__()
         self.table_name = table_name

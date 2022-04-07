@@ -3,6 +3,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """Window frames in Snowpark."""
+from __future__ import annotations
+
 import sys
 from typing import List, Tuple, Union
 
@@ -51,12 +53,8 @@ class Window:
 
     @staticmethod
     def partition_by(
-        *cols: Union[
-            ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
-        ]
-    ) -> "WindowSpec":
+        *cols: (ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...])
+    ) -> WindowSpec:
         """
         Returns a :class:`WindowSpec` object with partition by clause.
 
@@ -68,12 +66,8 @@ class Window:
 
     @staticmethod
     def order_by(
-        *cols: Union[
-            ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
-        ]
-    ) -> "WindowSpec":
+        *cols: (ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...])
+    ) -> WindowSpec:
         """
         Returns a :class:`WindowSpec` object with order by clause.
 
@@ -84,7 +78,7 @@ class Window:
         return Window._spec().order_by(*cols)
 
     @staticmethod
-    def rows_between(start: int, end: int) -> "WindowSpec":
+    def rows_between(start: int, end: int) -> WindowSpec:
         """
         Returns a :class:`WindowSpec` object with the row frame clause.
 
@@ -104,7 +98,7 @@ class Window:
         return Window._spec().rows_between(start, end)
 
     @staticmethod
-    def range_between(start: int, end: int) -> "WindowSpec":
+    def range_between(start: int, end: int) -> WindowSpec:
         """
         Returns a :class:`WindowSpec` object with the range frame clause.
 
@@ -124,7 +118,7 @@ class Window:
         return Window._spec().range_between(start, end)
 
     @staticmethod
-    def _spec() -> "WindowSpec":
+    def _spec() -> WindowSpec:
         return WindowSpec([], [], UnspecifiedFrame())
 
     orderBy = order_by
@@ -138,8 +132,8 @@ class WindowSpec:
 
     def __init__(
         self,
-        partition_spec: List[Expression],
-        order_spec: List[SortOrder],
+        partition_spec: list[Expression],
+        order_spec: list[SortOrder],
         frame: WindowFrame,
     ):
         self.partition_spec = partition_spec
@@ -147,13 +141,8 @@ class WindowSpec:
         self.frame = frame
 
     def partition_by(
-        self,
-        *cols: Union[
-            ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
-        ]
-    ) -> "WindowSpec":
+        self, *cols: (ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...])
+    ) -> WindowSpec:
         """
         Returns a new :class:`WindowSpec` object with the new partition by clause.
 
@@ -171,13 +160,8 @@ class WindowSpec:
         return WindowSpec(partition_spec, self.order_spec, self.frame)
 
     def order_by(
-        self,
-        *cols: Union[
-            ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
-        ]
-    ) -> "WindowSpec":
+        self, *cols: (ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...])
+    ) -> WindowSpec:
         """
         Returns a new :class:`WindowSpec` object with the new order by clause.
 
@@ -201,7 +185,7 @@ class WindowSpec:
 
         return WindowSpec(self.partition_spec, order_spec, self.frame)
 
-    def rows_between(self, start: int, end: int) -> "WindowSpec":
+    def rows_between(self, start: int, end: int) -> WindowSpec:
         """
         Returns a new :class:`WindowSpec` object with the new row frame clause.
 
@@ -215,7 +199,7 @@ class WindowSpec:
             SpecifiedWindowFrame(RowFrame(), boundary_start, boundary_end),
         )
 
-    def range_between(self, start: int, end: int) -> "WindowSpec":
+    def range_between(self, start: int, end: int) -> WindowSpec:
         """
         Returns a new :class:`WindowSpec` object with the new range frame clause.
 
@@ -231,7 +215,7 @@ class WindowSpec:
 
     def _convert_boundary_to_expr(
         self, start: int, end: int
-    ) -> Tuple[Expression, Expression]:
+    ) -> tuple[Expression, Expression]:
         if start == 0:
             boundary_start = CurrentRow()
         elif start <= Window.UNBOUNDED_PRECEDING:
@@ -250,7 +234,7 @@ class WindowSpec:
 
     def _with_aggregate(
         self, aggregate: Expression
-    ) -> "snowflake.snowpark.column.Column":
+    ) -> snowflake.snowpark.column.Column:
         spec = WindowSpecDefinition(self.partition_spec, self.order_spec, self.frame)
         return snowflake.snowpark.column.Column(WindowExpression(aggregate, spec))
 

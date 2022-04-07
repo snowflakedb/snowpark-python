@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import copy
 import itertools
 import re
@@ -315,8 +317,8 @@ class DataFrame:
 
     def __init__(
         self,
-        session: Optional["snowflake.snowpark.Session"] = None,
-        plan: Optional[LogicalPlan] = None,
+        session: snowflake.snowpark.Session | None = None,
+        plan: LogicalPlan | None = None,
         is_cached: bool = False,
     ):
         self.session = session
@@ -341,7 +343,7 @@ class DataFrame:
         self.replace = self._na.replace
 
     @staticmethod
-    def get_unaliased(col_name: str) -> List[str]:
+    def get_unaliased(col_name: str) -> list[str]:
         unaliased = list()
         c = col_name
         while True:
@@ -363,13 +365,13 @@ class DataFrame:
         return self._stat
 
     @df_action_telemetry
-    def collect(self) -> List["Row"]:
+    def collect(self) -> list[Row]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
         """
         return self._internal_collect_with_tag()
 
-    def _internal_collect_with_tag(self) -> List["Row"]:
+    def _internal_collect_with_tag(self) -> list[Row]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
@@ -404,10 +406,10 @@ class DataFrame:
             else None,
         )
 
-    def __copy__(self) -> "DataFrame":
+    def __copy__(self) -> DataFrame:
         return DataFrame(self.session, copy.copy(self._plan))
 
-    def to_pandas(self, **kwargs) -> "pandas.DataFrame":
+    def to_pandas(self, **kwargs) -> pandas.DataFrame:
         """
         Executes the query representing this DataFrame and returns the result as a
         `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
@@ -440,7 +442,7 @@ class DataFrame:
 
         return result
 
-    def to_pandas_batches(self, **kwargs) -> Iterator["pandas.DataFrame"]:
+    def to_pandas_batches(self, **kwargs) -> Iterator[pandas.DataFrame]:
         """
         Executes the query representing this DataFrame and returns an iterator of
         Pandas dataframes (containing a subset of rows) that you can use to
@@ -473,7 +475,7 @@ class DataFrame:
             self._plan, to_pandas=True, to_iter=True, **kwargs
         )
 
-    def to_df(self, *names: Union[str, List[str], Tuple[str, ...]]) -> "DataFrame":
+    def to_df(self, *names: str | list[str] | tuple[str, ...]) -> DataFrame:
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -528,7 +530,7 @@ class DataFrame:
         return self.col(name)
 
     @property
-    def columns(self) -> List[str]:
+    def columns(self) -> list[str]:
         """Returns all column names as a list.
 
         The returned column names are consistent with the Snowflake database object `identifier syntax <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
@@ -555,8 +557,8 @@ class DataFrame:
 
     def select(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-    ) -> "DataFrame":
+        *cols: ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...],
+    ) -> DataFrame:
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
         present in the resulting DataFrame.
@@ -599,7 +601,7 @@ class DataFrame:
 
         return self._with_plan(Project(names, self._plan))
 
-    def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
+    def select_expr(self, *exprs: str | Iterable[str]) -> DataFrame:
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
         This method is equivalent to ``select(sql_expr(...))`` with :func:`select`
@@ -632,8 +634,8 @@ class DataFrame:
 
     def drop(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-    ) -> "DataFrame":
+        *cols: ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...],
+    ) -> DataFrame:
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
 
@@ -688,7 +690,7 @@ class DataFrame:
         else:
             return self.select(list(keep_col_names))
 
-    def filter(self, expr: Union[Column, str]) -> "DataFrame":
+    def filter(self, expr: Column | str) -> DataFrame:
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
@@ -717,9 +719,9 @@ class DataFrame:
 
     def sort(
         self,
-        *cols: Union[str, Column, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-        ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
-    ) -> "DataFrame":
+        *cols: str | Column | list[ColumnOrName] | tuple[ColumnOrName, ...],
+        ascending: bool | int | list[bool | int] | None = None,
+    ) -> DataFrame:
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
         Examples::
@@ -807,10 +809,14 @@ class DataFrame:
 
     def agg(
         self,
-        exprs: Union[
-            Column, Tuple[str, str], List[Column], List[Tuple[str, str]], Dict[str, str]
-        ],
-    ) -> "DataFrame":
+        exprs: (
+            Column
+            | tuple[str, str]
+            | list[Column]
+            | list[tuple[str, str]]
+            | dict[str, str]
+        ),
+    ) -> DataFrame:
         """Aggregate the data in the DataFrame. Use this method if you don't need to
         group the data (:func:`group_by`).
 
@@ -900,8 +906,8 @@ class DataFrame:
 
     def rollup(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        *cols: ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...],
+    ) -> snowflake.snowpark.RelationalGroupedDataFrame:
         """Performs a SQL
         `GROUP BY ROLLUP <https://docs.snowflake.com/en/sql-reference/constructs/group-by-rollup.html>`_.
         on the DataFrame.
@@ -918,8 +924,8 @@ class DataFrame:
 
     def group_by(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        *cols: ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...],
+    ) -> snowflake.snowpark.RelationalGroupedDataFrame:
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
 
@@ -950,22 +956,22 @@ class DataFrame:
     )
     def groupByGroupingSets(
         self,
-        *grouping_sets: Union[
-            "snowflake.snowpark.GroupingSets",
-            List["snowflake.snowpark.GroupingSets"],
-            Tuple["snowflake.snowpark.GroupingSets", ...],
-        ],
-    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        *grouping_sets: (
+            snowflake.snowpark.GroupingSets
+            | list[snowflake.snowpark.GroupingSets]
+            | tuple[snowflake.snowpark.GroupingSets, ...]
+        ),
+    ) -> snowflake.snowpark.RelationalGroupedDataFrame:
         return self.group_by_grouping_sets(*grouping_sets)
 
     def group_by_grouping_sets(
         self,
-        *grouping_sets: Union[
-            "snowflake.snowpark.GroupingSets",
-            List["snowflake.snowpark.GroupingSets"],
-            Tuple["snowflake.snowpark.GroupingSets", ...],
-        ],
-    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        *grouping_sets: (
+            snowflake.snowpark.GroupingSets
+            | list[snowflake.snowpark.GroupingSets]
+            | tuple[snowflake.snowpark.GroupingSets, ...]
+        ),
+    ) -> snowflake.snowpark.RelationalGroupedDataFrame:
         """Performs a SQL
         `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_.
         on the DataFrame.
@@ -1006,8 +1012,8 @@ class DataFrame:
 
     def cube(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        *cols: ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName, ...],
+    ) -> snowflake.snowpark.RelationalGroupedDataFrame:
         """Performs a SQL
         `GROUP BY CUBE <https://docs.snowflake.com/en/sql-reference/constructs/group-by-cube.html>`_.
         on the DataFrame.
@@ -1022,7 +1028,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
         )
 
-    def distinct(self) -> "DataFrame":
+    def distinct(self) -> DataFrame:
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
 
@@ -1032,7 +1038,7 @@ class DataFrame:
             [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
 
-    def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
+    def drop_duplicates(self, *subset: str | Iterable[str]) -> DataFrame:
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
         If no subset of columns is specified, this function is the same as the :meth:`distinct` function.
@@ -1068,8 +1074,8 @@ class DataFrame:
     def pivot(
         self,
         pivot_col: ColumnOrName,
-        values: Union[List[LiteralType], Tuple[LiteralType, ...]],
-    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        values: list[LiteralType] | tuple[LiteralType, ...],
+    ) -> snowflake.snowpark.RelationalGroupedDataFrame:
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
         remaining column values.
@@ -1114,8 +1120,8 @@ class DataFrame:
         )
 
     def unpivot(
-        self, value_column: str, name_column: str, column_list: List[ColumnOrName]
-    ) -> "DataFrame":
+        self, value_column: str, name_column: str, column_list: list[ColumnOrName]
+    ) -> DataFrame:
         """Rotates a table by transforming columns into rows.
         UNPIVOT is a relational operator that accepts two columns (from a table or subquery), along with a list of columns, and generates a row for each column specified in the list. In a query, it is specified in the FROM clause after the table name or subquery.
         Note that UNPIVOT is not exactly the reverse of PIVOT as it cannot undo aggregations made by PIVOT.
@@ -1148,7 +1154,7 @@ class DataFrame:
             Unpivot(value_column, name_column, column_exprs, self._plan)
         )
 
-    def limit(self, n: int) -> "DataFrame":
+    def limit(self, n: int) -> DataFrame:
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame (similar to LIMIT in SQL).
 
@@ -1159,7 +1165,7 @@ class DataFrame:
         """
         return self._with_plan(Limit(Literal(n), self._plan))
 
-    def union(self, other: "DataFrame") -> "DataFrame":
+    def union(self, other: DataFrame) -> DataFrame:
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows. Both input
         DataFrames must contain the same number of columns.
@@ -1182,7 +1188,7 @@ class DataFrame:
         """
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
-    def union_all(self, other: "DataFrame") -> "DataFrame":
+    def union_all(self, other: DataFrame) -> DataFrame:
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows. Both input
         DataFrames must contain the same number of columns.
@@ -1207,7 +1213,7 @@ class DataFrame:
         """
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
-    def union_by_name(self, other: "DataFrame") -> "DataFrame":
+    def union_by_name(self, other: DataFrame) -> DataFrame:
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows.
 
@@ -1232,7 +1238,7 @@ class DataFrame:
         """
         return self.__union_by_name_internal(other, is_all=False)
 
-    def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
+    def union_all_by_name(self, other: DataFrame) -> DataFrame:
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows.
 
@@ -1260,8 +1266,8 @@ class DataFrame:
 
     @df_usage_telemetry
     def __union_by_name_internal(
-        self, other: "DataFrame", is_all: bool = False
-    ) -> "DataFrame":
+        self, other: DataFrame, is_all: bool = False
+    ) -> DataFrame:
         left_output_attrs = self.__output()
         right_output_attrs = other.__output()
         right_output_attr_by_name = {rattr.name: rattr for rattr in right_output_attrs}
@@ -1291,7 +1297,7 @@ class DataFrame:
 
         return self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
 
-    def intersect(self, other: "DataFrame") -> "DataFrame":
+    def intersect(self, other: DataFrame) -> DataFrame:
         """Returns a new DataFrame that contains the intersection of rows from the
         current DataFrame and another DataFrame (``other``). Duplicate rows are
         eliminated.
@@ -1314,7 +1320,7 @@ class DataFrame:
         """
         return self._with_plan(Intersect(self._plan, other._plan))
 
-    def except_(self, other: "DataFrame") -> "DataFrame":
+    def except_(self, other: DataFrame) -> DataFrame:
         """Returns a new DataFrame that contains all the rows from the current DataFrame
         except for the rows that also appear in the ``other`` DataFrame. Duplicate rows are eliminated.
 
@@ -1342,14 +1348,10 @@ class DataFrame:
         extra_warning_text="Use natural_join.",
         extra_doc_string="Use :meth:`natural_join`.",
     )
-    def naturalJoin(
-        self, right: "DataFrame", join_type: Optional[str] = None
-    ) -> "DataFrame":
+    def naturalJoin(self, right: DataFrame, join_type: str | None = None) -> DataFrame:
         return self.natural_join(right, join_type)
 
-    def natural_join(
-        self, right: "DataFrame", join_type: Optional[str] = None
-    ) -> "DataFrame":
+    def natural_join(self, right: DataFrame, join_type: str | None = None) -> DataFrame:
         """Performs a natural join of the specified type (``joinType``) with the
         current DataFrame and another DataFrame (``right``).
 
@@ -1393,10 +1395,10 @@ class DataFrame:
 
     def join(
         self,
-        right: "DataFrame",
-        using_columns: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
-        join_type: Optional[str] = None,
-    ) -> "DataFrame":
+        right: DataFrame,
+        using_columns: ColumnOrName | list[ColumnOrName] | None = None,
+        join_type: str | None = None,
+    ) -> DataFrame:
         """Performs a join of the specified type (``join_type``) with the current
         DataFrame and another DataFrame (``right``) on a list of columns
         (``using_columns``).
@@ -1462,20 +1464,20 @@ class DataFrame:
     )
     def joinTableFunction(
         self,
-        func_name: Union[str, List[str]],
+        func_name: str | list[str],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
-    ) -> "DataFrame":
+    ) -> DataFrame:
         return self.join_table_function(
             func_name, *func_arguments, **func_named_arguments
         )
 
     def join_table_function(
         self,
-        func_name: Union[str, List[str]],
+        func_name: str | list[str],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
-    ) -> "DataFrame":
+    ) -> DataFrame:
         """Lateral joins the current DataFrame with the output of the specified table function.
 
         References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
@@ -1511,7 +1513,7 @@ class DataFrame:
         )
         return DataFrame(self.session, TableFunctionJoin(self._plan, func_expr))
 
-    def cross_join(self, right: "DataFrame") -> "DataFrame":
+    def cross_join(self, right: DataFrame) -> DataFrame:
         """Performs a cross join, which returns the Cartesian product of the current
         :class:`DataFrame` and another :class:`DataFrame` (``right``).
 
@@ -1542,10 +1544,10 @@ class DataFrame:
 
     def __join_dataframes(
         self,
-        right: "DataFrame",
-        using_columns: Union[Column, List[str]],
+        right: DataFrame,
+        using_columns: Column | list[str],
         join_type: JoinType,
-    ) -> "DataFrame":
+    ) -> DataFrame:
         if isinstance(using_columns, Column):
             return self.__join_dataframes_internal(
                 right, join_type, join_exprs=using_columns
@@ -1570,8 +1572,8 @@ class DataFrame:
             )
 
     def __join_dataframes_internal(
-        self, right: "DataFrame", join_type: JoinType, join_exprs: Optional[Column]
-    ) -> "DataFrame":
+        self, right: DataFrame, join_type: JoinType, join_exprs: Column | None
+    ) -> DataFrame:
         (lhs, rhs) = self._disambiguate(self, right, join_type, [])
         expression = join_exprs.expression if join_exprs is not None else None
         return self._with_plan(
@@ -1584,10 +1586,10 @@ class DataFrame:
         )
 
     # TODO complete function. Requires TableFunction
-    def __join_dataframe_table_function(self, table_function, columns) -> "DataFrame":
+    def __join_dataframe_table_function(self, table_function, columns) -> DataFrame:
         pass
 
-    def with_column(self, col_name: str, col: Column) -> "DataFrame":
+    def with_column(self, col_name: str, col: Column) -> DataFrame:
         """
         Returns a DataFrame with an additional column with the specified name
         ``col_name``. The column is computed by using the specified expression ``col``.
@@ -1618,10 +1620,10 @@ class DataFrame:
         extra_warning_text="Use with_columns.",
         extra_doc_string="Use :meth:`with_columns`.",
     )
-    def withColumns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
+    def withColumns(self, col_names: list[str], values: list[Column]) -> DataFrame:
         return self.with_columns(col_names, values)
 
-    def with_columns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
+    def with_columns(self, col_names: list[str], values: list[Column]) -> DataFrame:
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
         ``values``.
@@ -1705,16 +1707,16 @@ class DataFrame:
     @df_action_telemetry
     def copy_into_table(
         self,
-        table_name: Union[str, Iterable[str]],
+        table_name: str | Iterable[str],
         *,
-        files: Optional[Iterable[str]] = None,
-        pattern: Optional[str] = None,
-        validation_mode: Optional[str] = None,
-        target_columns: Optional[Iterable[str]] = None,
-        transformations: Optional[Iterable[Union[Column, str]]] = None,
-        format_type_options: Optional[Dict[str, Any]] = None,
+        files: Iterable[str] | None = None,
+        pattern: str | None = None,
+        validation_mode: str | None = None,
+        target_columns: Iterable[str] | None = None,
+        transformations: Iterable[Column | str] | None = None,
+        format_type_options: dict[str, Any] | None = None,
         **copy_options: Any,
-    ) -> List[Row]:
+    ) -> list[Row]:
         """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
 
         It returns the load result described in `OUTPUT section of the COPY INTO <table> command <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#output>`__.
@@ -1859,11 +1861,11 @@ class DataFrame:
     def flatten(
         self,
         input: ColumnOrName,
-        path: Optional[str] = None,
+        path: str | None = None,
         outer: bool = False,
         recursive: bool = False,
         mode: str = "BOTH",
-    ) -> "DataFrame":
+    ) -> DataFrame:
         """Flattens (explodes) compound values into multiple rows.
 
         It creates a new ``DataFrame`` from this ``DataFrame``, carries the existing columns to the new ``DataFrame``,
@@ -1928,7 +1930,7 @@ class DataFrame:
             FlattenFunction(input.expression, path, outer, recursive, mode)
         )
 
-    def _lateral(self, table_function: TableFunctionExpression) -> "DataFrame":
+    def _lateral(self, table_function: TableFunctionExpression) -> DataFrame:
         result_columns = [
             attr.name
             for attr in self.session._analyzer.resolve(
@@ -1998,7 +2000,7 @@ class DataFrame:
         total_width = sum(col_width) + col_count + 1
         line = "-" * total_width + "\n"
 
-        def row_to_string(row: List[str]) -> str:
+        def row_to_string(row: list[str]) -> str:
             tokens = []
             for segment, size in zip(row, col_width):
                 if len(segment) > max_width:
@@ -2019,8 +2021,8 @@ class DataFrame:
 
     @df_action_telemetry
     def create_or_replace_view(
-        self, name: Union[str, List[str], Tuple[str, ...]]
-    ) -> List[Row]:
+        self, name: str | list[str] | tuple[str, ...]
+    ) -> list[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
 
         For ``name``, you can include the database and schema name (i.e. specify a
@@ -2052,8 +2054,8 @@ class DataFrame:
 
     @df_action_telemetry
     def create_or_replace_temp_view(
-        self, name: Union[str, List[str], Tuple[str, ...]]
-    ) -> List[Row]:
+        self, name: str | list[str] | tuple[str, ...]
+    ) -> list[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
 
         You can use the view in subsequent SQL queries and statements during the
@@ -2100,7 +2102,7 @@ class DataFrame:
         return self.session._conn.execute(self.session._analyzer.resolve(cmd), **kwargs)
 
     @df_action_telemetry
-    def first(self, n: Optional[int] = None) -> Union[Optional[Row], List[Row]]:
+    def first(self, n: int | None = None) -> Row | None | list[Row]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
 
@@ -2122,9 +2124,7 @@ class DataFrame:
 
     take = first
 
-    def sample(
-        self, frac: Optional[float] = None, n: Optional[int] = None
-    ) -> "DataFrame":
+    def sample(self, frac: float | None = None, n: int | None = None) -> DataFrame:
         """Samples rows based on either the number of rows to be returned or a
         percentage of rows to be returned.
 
@@ -2140,7 +2140,7 @@ class DataFrame:
         )
 
     @staticmethod
-    def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
+    def _validate_sample_input(frac: float | None = None, n: int | None = None):
         if frac is None and n is None:
             raise ValueError(
                 "'frac' and 'n' cannot both be None. "
@@ -2162,7 +2162,7 @@ class DataFrame:
         """
         return self._na
 
-    def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
+    def describe(self, *cols: str | list[str]) -> DataFrame:
         """
         Computes basic statistics for numeric columns, which includes
         ``count``, ``mean``, ``stddev``, ``min``, and ``max``. If no columns
@@ -2237,7 +2237,7 @@ class DataFrame:
 
         return res_df
 
-    def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
+    def with_column_renamed(self, existing: ColumnOrName, new: str) -> DataFrame:
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
         Example::
@@ -2293,7 +2293,7 @@ class DataFrame:
         return self.select(new_columns)
 
     @df_action_telemetry
-    def cache_result(self) -> "DataFrame":
+    def cache_result(self) -> DataFrame:
         """Caches the content of this DataFrame to create a new cached DataFrame.
 
         All subsequent operations on the returned cached DataFrame are performed on the cached data
@@ -2350,8 +2350,8 @@ class DataFrame:
 
     @df_action_telemetry
     def random_split(
-        self, weights: List[float], seed: Optional[int] = None
-    ) -> List["DataFrame"]:
+        self, weights: list[float], seed: int | None = None
+    ) -> list[DataFrame]:
         """
         Randomly splits the current DataFrame into separate DataFrames,
         using the specified weights.
@@ -2412,7 +2412,7 @@ class DataFrame:
             return res_dfs
 
     @property
-    def queries(self) -> Dict[str, List[str]]:
+    def queries(self) -> dict[str, list[str]]:
         """
         Returns a ``dict`` that contains a list of queries that will be executed to
         evaluate this DataFrame with the key `queries`, and a list of post-execution
@@ -2466,7 +2466,7 @@ Query List:
 
     @staticmethod
     def __alias_if_needed(
-        df: "DataFrame", c: str, prefix: str, common_col_names: List[str]
+        df: DataFrame, c: str, prefix: str, common_col_names: list[str]
     ):
         col = df.col(c)
         unquoted = c.strip('"')
@@ -2477,11 +2477,11 @@ Query List:
 
     @staticmethod
     def _disambiguate(
-        lhs: "DataFrame",
-        rhs: "DataFrame",
+        lhs: DataFrame,
+        rhs: DataFrame,
         join_type: JoinType,
-        using_columns: List[str],
-    ) -> Tuple["DataFrame", "DataFrame"]:
+        using_columns: list[str],
+    ) -> tuple[DataFrame, DataFrame]:
         # Normalize the using columns.
         normalized_using_columns = {quote_name(c) for c in using_columns}
         #  Check if the LHS and RHS have columns in common. If they don't just return them as-is. If
@@ -2525,7 +2525,7 @@ Query List:
         )
         return lhs_remapped, rhs_remapped
 
-    def __output(self) -> List[Attribute]:
+    def __output(self) -> list[Attribute]:
         if not self.__placeholder_output:
             self.__placeholder_output = self._plan.output()
         return self.__placeholder_output
@@ -2547,8 +2547,8 @@ Query List:
     def __convert_cols_to_exprs(
         self,
         calling_method: str,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName]],
-    ) -> List["SPExpression"]:
+        *cols: ColumnOrName | list[ColumnOrName] | tuple[ColumnOrName],
+    ) -> list[SPExpression]:
         """Convert a string or a Column, or a list of string and Column objects to expression(s)."""
 
         def convert(col: ColumnOrName):

@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -38,7 +40,7 @@ class UnresolvedRelation(LeafNode):
 
 
 class SnowflakeValues(LeafNode):
-    def __init__(self, output: List[Attribute], data: List[Row]):
+    def __init__(self, output: list[Attribute], data: list[Row]):
         super().__init__()
         self.output = output
         self.data = data
@@ -56,7 +58,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self,
         table_name: str,
         mode: SaveMode,
-        query: Optional[LogicalPlan],
+        query: LogicalPlan | None,
         create_temp_table: bool = False,
     ):
         super().__init__()
@@ -80,17 +82,17 @@ class CopyIntoTableNode(LeafNode):
         self,
         table_name: str,
         *,
-        file_path: Optional[str] = None,
-        files: Optional[str] = None,
-        pattern: Optional[str] = None,
-        file_format: Optional[str] = None,
-        format_type_options: Optional[Dict[str, Any]],
-        column_names: Optional[List[str]] = None,
-        transformations: Optional[List["snowflake.snowpark.column.Column"]] = None,
-        copy_options: Optional[Dict[str, Any]] = None,
-        validation_mode: Optional[str] = None,
-        user_schema: Optional[StructType] = None,
-        cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
+        file_path: str | None = None,
+        files: str | None = None,
+        pattern: str | None = None,
+        file_format: str | None = None,
+        format_type_options: dict[str, Any] | None,
+        column_names: list[str] | None = None,
+        transformations: list[snowflake.snowpark.column.Column] | None = None,
+        copy_options: dict[str, Any] | None = None,
+        validation_mode: str | None = None,
+        user_schema: StructType | None = None,
+        cur_options: dict[str, Any] | None = None,  # the options of DataFrameReader
     ):
         super().__init__()
         self.table_name = table_name
@@ -113,12 +115,12 @@ class CopyIntoLocationNode(LogicalPlan):
         child: LogicalPlan,
         stage_location: str,
         *,
-        partition_by: Optional[Expression] = None,
-        file_format_name: Optional[str] = None,
-        file_format_type: Optional[str] = None,
-        format_type_options: Optional[str] = None,
+        partition_by: Expression | None = None,
+        file_format_name: str | None = None,
+        file_format_type: str | None = None,
+        format_type_options: str | None = None,
         header: bool = False,
-        copy_options: Dict[str, Any],
+        copy_options: dict[str, Any],
     ):
         super().__init__()
         self.child = child

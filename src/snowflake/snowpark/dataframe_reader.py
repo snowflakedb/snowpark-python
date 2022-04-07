@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 from typing import Dict
 
 import snowflake.snowpark
@@ -79,7 +81,7 @@ class DataFrameReader:
             results = csv_df.collect()
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
+    def __init__(self, session: snowflake.snowpark.Session):
         self.session = session
         self._user_schema = None
         self._cur_options = {}
@@ -103,7 +105,7 @@ class DataFrameReader:
         """
         return self.session.table(name)
 
-    def schema(self, schema: StructType) -> "DataFrameReader":
+    def schema(self, schema: StructType) -> DataFrameReader:
         """Returns a :class:`DataFrameReader` instance with the specified schema
         configuration for the data to be read.
 
@@ -264,7 +266,7 @@ class DataFrameReader:
         """
         return self.__read_semi_structured_file(path, "XML")
 
-    def option(self, key: str, value) -> "DataFrameReader":
+    def option(self, key: str, value) -> DataFrameReader:
         """Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
@@ -325,7 +327,7 @@ class DataFrameReader:
         self._cur_options[key.upper()] = value
         return self
 
-    def options(self, configs: Dict) -> "DataFrameReader":
+    def options(self, configs: dict) -> DataFrameReader:
         """Sets multiple specified options in the DataFrameReader.
 
         Use this method to configure any
@@ -356,7 +358,7 @@ class DataFrameReader:
             self.option(k, v)
         return self
 
-    def __read_semi_structured_file(self, path: str, format: str) -> "DataFrame":
+    def __read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path

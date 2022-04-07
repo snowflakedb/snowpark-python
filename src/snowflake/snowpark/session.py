@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import datetime
 import decimal
 import json
@@ -94,7 +96,7 @@ _session_management_lock = RLock()
 _active_sessions = set()  # type: Set["Session"]
 
 
-def _get_active_session() -> Optional["Session"]:
+def _get_active_session() -> Session | None:
     with _session_management_lock:
         if len(_active_sessions) == 1:
             return next(iter(_active_sessions))
@@ -104,12 +106,12 @@ def _get_active_session() -> Optional["Session"]:
             raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
 
 
-def _add_session(session: "Session"):
+def _add_session(session: Session):
     with _session_management_lock:
         _active_sessions.add(session)
 
 
-def _remove_session(session: "Session"):
+def _remove_session(session: Session):
     with _session_management_lock:
         _active_sessions.remove(session)
 
@@ -154,21 +156,19 @@ class Session:
         def __init__(self):
             self.__options = {}
 
-        def _remove_config(self, key: str) -> "Session.SessionBuilder":
+        def _remove_config(self, key: str) -> Session.SessionBuilder:
             """Only used in test."""
             self.__options.pop(key, None)
             return self
 
-        def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
+        def config(self, key: str, value: int | str) -> Session.SessionBuilder:
             """
             Adds the specified connection parameter to the SessionBuilder configuration.
             """
             self.__options[key] = value
             return self
 
-        def configs(
-            self, options: Dict[str, Union[int, str]]
-        ) -> "Session.SessionBuilder":
+        def configs(self, options: dict[str, int | str]) -> Session.SessionBuilder:
             """
             Adds the specified :class:`dict` of connection parameters to
             the SessionBuilder configuration.
@@ -180,15 +180,13 @@ class Session:
             self.__options = {**self.__options, **options}
             return self
 
-        def create(self) -> "Session":
+        def create(self) -> Session:
             """Creates a new Session."""
             if "connection" in self.__options:
                 return self.__create_internal(self.__options["connection"])
             return self.__create_internal(conn=None)
 
-        def __create_internal(
-            self, conn: Optional[SnowflakeConnection] = None
-        ) -> "Session":
+        def __create_internal(self, conn: SnowflakeConnection | None = None) -> Session:
             new_session = Session(
                 ServerConnection({}, conn) if conn else ServerConnection(self.__options)
             )
@@ -209,8 +207,8 @@ class Session:
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
         self.__query_tag = None
-        self.__import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
-        self._packages: Dict[str, str] = {}
+        self.__import_paths: dict[str, tuple[str | None, str | None]] = {}
+        self._packages: dict[str, str] = {}
         self.__session_id = self._conn.get_session_id()
         self._session_info = f"""
 "version" : {Utils.get_version()},
@@ -282,17 +280,17 @@ class Session:
         extra_warning_text="Use get_imports.",
         extra_doc_string="Use :meth:`get_imports`.",
     )
-    def getImports(self) -> List[str]:
+    def getImports(self) -> list[str]:
         return self.get_imports()
 
-    def get_imports(self) -> List[str]:
+    def get_imports(self) -> list[str]:
         """
         Returns a list of imports added for user defined functions (UDFs).
         This list includes any Python or zip files that were added automatically by the library.
         """
         return list(self.__import_paths.keys())
 
-    def _get_local_imports(self) -> List[str]:
+    def _get_local_imports(self) -> list[str]:
         return [
             dep for dep in self.get_imports() if not dep.startswith(self._STAGE_PREFIX)
         ]
@@ -302,10 +300,10 @@ class Session:
         extra_warning_text="Use add_import.",
         extra_doc_string="Use :meth:`add_import`.",
     )
-    def addImport(self, path: str, import_path: Optional[str] = None) -> None:
+    def addImport(self, path: str, import_path: str | None = None) -> None:
         return self.add_import(path, import_path)
 
-    def add_import(self, path: str, import_path: Optional[str] = None) -> None:
+    def add_import(self, path: str, import_path: str | None = None) -> None:
         """
         Registers a remote file in stage or a local file as an import of a user-defined function
         (UDF). The local file can be a compressed file (e.g., zip), a Python file (.py),
@@ -422,8 +420,8 @@ class Session:
         self.__import_paths.clear()
 
     def _resolve_import_path(
-        self, path: str, import_path: Optional[str] = None
-    ) -> Tuple[str, Optional[str], Optional[str]]:
+        self, path: str, import_path: str | None = None
+    ) -> tuple[str, str | None, str | None]:
         trimmed_path = path.strip()
         trimmed_import_path = import_path.strip() if import_path else None
 
@@ -477,10 +475,9 @@ class Session:
     def _resolve_imports(
         self,
         stage_location: str,
-        udf_level_import_paths: Optional[
-            Dict[str, Tuple[Optional[str], Optional[str]]]
-        ] = None,
-    ) -> List[str]:
+        udf_level_import_paths: None
+        | (dict[str, tuple[str | None, str | None]]) = None,
+    ) -> list[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(stage_location)
@@ -536,7 +533,7 @@ class Session:
 
         return resolved_stage_files
 
-    def _list_files_in_stage(self, stage_location: Optional[str] = None) -> Set[str]:
+    def _list_files_in_stage(self, stage_location: str | None = None) -> set[str]:
         normalized = Utils.normalize_remote_file_or_dir(
             Utils.unwrap_single_quote(stage_location)
             if stage_location
@@ -548,7 +545,7 @@ class Session:
         prefix_length = Utils.get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
-    def get_packages(self) -> Dict[str, str]:
+    def get_packages(self) -> dict[str, str]:
         """
         Returns a ``dict`` of packages added for user-defined functions (UDFs).
         The key of this ``dict`` is the package name and the value of this ``dict``
@@ -557,7 +554,7 @@ class Session:
         return self._packages.copy()
 
     def add_packages(
-        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
+        self, *packages: str | ModuleType | Iterable[str | ModuleType]
     ) -> None:
         # TODO: add a link to python udf package doc
         """
@@ -702,11 +699,11 @@ class Session:
 
     def _resolve_packages(
         self,
-        packages: List[str],
-        existing_packages_dict: Optional[Dict[str, str]] = None,
+        packages: list[str],
+        existing_packages_dict: dict[str, str] | None = None,
         validate_package: bool = True,
         include_pandas: bool = False,
-    ) -> List[str]:
+    ) -> list[str]:
         valid_packages = (
             {
                 p[0]: p[1]
@@ -775,9 +772,7 @@ class Session:
             else:
                 result_dict[package_name] = package
 
-        def get_req_identifiers_list(
-            modules: List[Union[str, ModuleType]]
-        ) -> List[str]:
+        def get_req_identifiers_list(modules: list[str | ModuleType]) -> list[str]:
             res = []
             for m in modules:
                 if isinstance(m, str) and m not in result_dict:
@@ -794,7 +789,7 @@ class Session:
         return list(result_dict.values()) + get_req_identifiers_list(extra_modules)
 
     @property
-    def query_tag(self) -> Optional[str]:
+    def query_tag(self) -> str | None:
         """
         The query tag for this session.
 
@@ -818,7 +813,7 @@ class Session:
             self._conn.run_query("alter session unset query_tag")
         self.__query_tag = tag
 
-    def table(self, name: Union[str, Iterable[str]]) -> Table:
+    def table(self, name: str | Iterable[str]) -> Table:
         """
         Returns a DataFrame that points the specified table.
 
@@ -839,7 +834,7 @@ class Session:
 
     def table_function(
         self,
-        func_name: Union[str, List[str]],
+        func_name: str | list[str],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
@@ -890,17 +885,17 @@ class Session:
         return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
 
     @property
-    def read(self) -> "DataFrameReader":
+    def read(self) -> DataFrameReader:
         """Returns a :class:`DataFrameReader` that you can use to read data from various
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
-    def _run_query(self, query: str, is_ddl_on_temp_object: bool = False) -> List[Any]:
+    def _run_query(self, query: str, is_ddl_on_temp_object: bool = False) -> list[Any]:
         return self._conn.run_query(query, is_ddl_on_temp_object=is_ddl_on_temp_object)[
             "data"
         ]
 
-    def _get_result_attributes(self, query: str) -> List[Attribute]:
+    def _get_result_attributes(self, query: str) -> list[Attribute]:
         return self._conn.get_result_attributes(query)
 
     @deprecate(
@@ -932,12 +927,12 @@ class Session:
     # TODO make the table input consistent with session.table
     def write_pandas(
         self,
-        pd: "pandas.DataFrame",
+        pd: pandas.DataFrame,
         table_name: str,
         *,
-        database: Optional[str] = None,
-        schema: Optional[str] = None,
-        chunk_size: Optional[int] = None,
+        database: str | None = None,
+        schema: str | None = None,
+        chunk_size: int | None = None,
         compression: str = "gzip",
         on_error: str = "abort_statement",
         parallel: int = 4,
@@ -1034,8 +1029,8 @@ class Session:
 
     def create_dataframe(
         self,
-        data: Union[List, Tuple, "pandas.DataFrame"],
-        schema: Optional[Union[StructType, List[str]]] = None,
+        data: list | tuple | pandas.DataFrame,
+        schema: StructType | list[str] | None = None,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -1126,9 +1121,7 @@ class Session:
                 "The provided schema or inferred schema cannot be None or empty"
             )
 
-        def convert_row_to_list(
-            row: Union[Dict, List, Tuple], names: List[str]
-        ) -> List:
+        def convert_row_to_list(row: dict | list | tuple, names: list[str]) -> list:
             row_dict = None
             if not row:
                 row = [None]
@@ -1263,7 +1256,7 @@ class Session:
             project_columns
         )
 
-    def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
+    def range(self, start: int, end: int | None = None, step: int = 1) -> DataFrame:
         """
         Creates a new DataFrame from a range of numbers. The resulting DataFrame has
         single column named ``ID``, containing elements in a range from ``start`` to
@@ -1288,14 +1281,14 @@ class Session:
         return DataFrame(session=self, plan=range_plan)
 
     @deprecate(deprecate_version="0.4.0")
-    def getDefaultDatabase(self) -> Optional[str]:
+    def getDefaultDatabase(self) -> str | None:
         """
         Returns the name of the default database configured for this session in :attr:`builder`.
         """
         return self._conn.get_default_database()
 
     @deprecate(deprecate_version="0.4.0")
-    def getDefaultSchema(self) -> Optional[str]:
+    def getDefaultSchema(self) -> str | None:
         """
         Returns the name of the default schema configured for this session in :attr:`builder`.
         """
@@ -1306,7 +1299,7 @@ class Session:
         extra_warning_text="Use get_current_database.",
         extra_doc_string="Use :meth:`get_current_database`.",
     )
-    def getCurrentDatabase(self, unquoted: bool = False) -> Optional[str]:
+    def getCurrentDatabase(self, unquoted: bool = False) -> str | None:
         return self.get_current_schema(unquoted)
 
     @deprecate(
@@ -1314,7 +1307,7 @@ class Session:
         extra_warning_text="Use get_current_schema.",
         extra_doc_string="Use :meth:`get_current_schema`.",
     )
-    def getCurrentSchema(self, unquoted: bool = False) -> Optional[str]:
+    def getCurrentSchema(self, unquoted: bool = False) -> str | None:
         return self.get_current_schema(unquoted)
 
     @deprecate(
@@ -1325,7 +1318,7 @@ class Session:
     def getFullyQualifiedCurrentSchema(self) -> str:
         return self.get_fully_qualified_current_schema()
 
-    def get_current_database(self, unquoted: bool = False) -> Optional[str]:
+    def get_current_database(self, unquoted: bool = False) -> str | None:
         """
         Returns the name of the current database for the Python connector session attached
         to this session.
@@ -1338,7 +1331,7 @@ class Session:
         """
         return self._conn._get_current_parameter("database", unquoted=unquoted)
 
-    def get_current_schema(self, unquoted: bool = False) -> Optional[str]:
+    def get_current_schema(self, unquoted: bool = False) -> str | None:
         """
         Returns the name of the current schema for the Python connector session attached
         to this session.
@@ -1363,11 +1356,11 @@ class Session:
             )
         return database + "." + schema
 
-    def get_current_warehouse(self, unquoted=False) -> Optional[str]:
+    def get_current_warehouse(self, unquoted=False) -> str | None:
         """Returns the name of the warehouse in use for the current session."""
         return self._conn._get_current_parameter("warehouse", unquoted=unquoted)
 
-    def get_current_role(self, unquoted=False) -> Optional[str]:
+    def get_current_role(self, unquoted=False) -> str | None:
         """Returns the name of the primary role in use for the current session."""
         return self._conn._get_current_parameter("role", unquoted)
 
@@ -1496,7 +1489,7 @@ class Session:
     def flatten(
         self,
         input: ColumnOrName,
-        path: Optional[str] = None,
+        path: str | None = None,
         outer: bool = False,
         recursive: bool = False,
         mode: str = "BOTH",
@@ -1568,7 +1561,7 @@ class Session:
         tables = self._run_query(f"show tables like '{table_name}'")
         return tables is not None and len(tables) > 0
 
-    def _explain_query(self, query: str) -> Optional[str]:
+    def _explain_query(self, query: str) -> str | None:
         try:
             return self._run_query(f"explain using text {query}")[0][0]
         # return None for queries which can't be explained

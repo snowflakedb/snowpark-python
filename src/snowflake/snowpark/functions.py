@@ -168,6 +168,8 @@ The return type is always ``Column``. The input types tell you the acceptable va
     --------------------
     <BLANKLINE>
 """
+from __future__ import annotations
+
 import functools
 from random import randint
 from types import ModuleType
@@ -544,7 +546,7 @@ def not_(e: ColumnOrName) -> Column:
     return ~c
 
 
-def random(seed: Optional[int] = None) -> Column:
+def random(seed: int | None = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
     s = seed if seed is not None else randint(-(2**63), 2**63 - 1)
     return builtin("random")(Literal(s))
@@ -557,7 +559,7 @@ def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
 
 
 def div0(
-    dividend: Union[ColumnOrName, int, float], divisor: Union[ColumnOrName, int, float]
+    dividend: ColumnOrName | int | float, divisor: ColumnOrName | int | float
 ) -> Column:
     """Performs division like the division operator (/),
     but returns 0 when the divisor is 0 (rather than reporting an error)."""
@@ -748,7 +750,7 @@ def lower(e: ColumnOrName) -> Column:
     return builtin("lower")(c)
 
 
-def lpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
+def lpad(e: ColumnOrName, len: Column | int, pad: ColumnOrName) -> Column:
     """Left-pads a string with characters from another string, or left-pads a
     binary value with bytes from another binary value."""
     c = _to_col_if_str(e, "lpad")
@@ -756,14 +758,14 @@ def lpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
     return builtin("lpad")(c, lit(len), p)
 
 
-def ltrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
+def ltrim(e: ColumnOrName, trim_string: ColumnOrName | None = None) -> Column:
     """Removes leading characters, including whitespace, from a string."""
     c = _to_col_if_str(e, "ltrim")
     t = _to_col_if_str(trim_string, "ltrim") if trim_string is not None else None
     return builtin("ltrim")(c, t) if t is not None else builtin("ltrim")(c)
 
 
-def rpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
+def rpad(e: ColumnOrName, len: Column | int, pad: ColumnOrName) -> Column:
     """Right-pads a string with characters from another string, or right-pads a
     binary value with bytes from another binary value."""
     c = _to_col_if_str(e, "rpad")
@@ -771,14 +773,14 @@ def rpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
     return builtin("rpad")(c, lit(len), p)
 
 
-def rtrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
+def rtrim(e: ColumnOrName, trim_string: ColumnOrName | None = None) -> Column:
     """Removes trailing characters, including whitespace, from a string."""
     c = _to_col_if_str(e, "rtrim")
     t = _to_col_if_str(trim_string, "rtrim") if trim_string is not None else None
     return builtin("rtrim")(c, t) if t is not None else builtin("rtrim")(c)
 
 
-def repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
+def repeat(s: ColumnOrName, n: Column | int) -> Column:
     """Builds a string by repeating the input for the specified number of times."""
     c = _to_col_if_str(s, "rtrim")
     return builtin("repeat")(c, lit(n))
@@ -803,25 +805,21 @@ def upper(e: ColumnOrName) -> Column:
     return builtin("upper")(c)
 
 
-def log(
-    base: Union[ColumnOrName, int, float], x: Union[ColumnOrName, int, float]
-) -> Column:
+def log(base: ColumnOrName | int | float, x: ColumnOrName | int | float) -> Column:
     """Returns the logarithm of a numeric expression."""
     b = lit(base) if isinstance(base, (int, float)) else _to_col_if_str(base, "log")
     arg = lit(x) if isinstance(x, (int, float)) else _to_col_if_str(x, "log")
     return builtin("log")(b, arg)
 
 
-def pow(
-    l: Union[ColumnOrName, int, float], r: Union[ColumnOrName, int, float]
-) -> Column:
+def pow(l: ColumnOrName | int | float, r: ColumnOrName | int | float) -> Column:
     """Returns a number (l) raised to the specified power (r)."""
     number = lit(l) if isinstance(l, (int, float)) else _to_col_if_str(l, "pow")
     power = lit(r) if isinstance(r, (int, float)) else _to_col_if_str(r, "pow")
     return builtin("pow")(number, power)
 
 
-def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
+def round(e: ColumnOrName, scale: ColumnOrName | int | float = 0) -> Column:
     """Returns values from the specified column rounded to the nearest equal or
     smaller integer."""
     c = _to_col_if_str(e, "round")
@@ -844,9 +842,7 @@ def split(
     return builtin("split")(s, p)
 
 
-def substring(
-    str: ColumnOrName, pos: Union[Column, int], len: Union[Column, int]
-) -> Column:
+def substring(str: ColumnOrName, pos: Column | int, len: Column | int) -> Column:
     """Returns the portion of the string or binary value str, starting from the
     character/byte specified by pos, with limited length. The length should be greater
     than or equal to zero. If the length is a negative number, the function returns an
@@ -868,8 +864,8 @@ substr = substring
 
 def regexp_count(
     subject: ColumnOrName,
-    pattern: Union[Column, str],
-    position: Union[Column, int] = lit(1),
+    pattern: Column | str,
+    position: Column | int = lit(1),
     *parameters: ColumnOrLiteral,
 ) -> Column:
     """Returns the number of times that a pattern occurs in the subject."""
@@ -884,10 +880,10 @@ def regexp_count(
 
 def regexp_replace(
     subject: ColumnOrName,
-    pattern: Union[Column, str],
-    replacement: Union[Column, str] = lit(""),
-    position: Union[Column, int] = lit(1),
-    occurrences: Union[Column, int] = lit(0),
+    pattern: Column | str,
+    replacement: Column | str = lit(""),
+    position: Column | int = lit(1),
+    occurrences: Column | int = lit(0),
     *parameters: ColumnOrLiteral,
 ) -> Column:
     """Returns the subject with the specified pattern (or all occurrences of the pattern) either removed or replaced by a replacement string.
@@ -906,8 +902,8 @@ def regexp_replace(
 
 def replace(
     subject: ColumnOrName,
-    pattern: Union[Column, str],
-    replacement: Union[Column, str] = lit(""),
+    pattern: Column | str,
+    replacement: Column | str = lit(""),
 ) -> Column:
     """
     Removes all occurrences of a specified subject and optionally replaces them with replacement.
@@ -922,7 +918,7 @@ def replace(
 def charindex(
     target_expr: ColumnOrName,
     source_expr: ColumnOrName,
-    position: Optional[Union[Column, int]] = None,
+    position: Column | int | None = None,
 ) -> Column:
     """Searches for ``target_expr`` in ``source_expr`` and, if successful,
     returns the position (1-based) of the ``target_expr`` in ``source_expr``."""
@@ -1002,8 +998,8 @@ def endswith(col: ColumnOrName, str: ColumnOrName) -> Column:
 
 def insert(
     base_expr: ColumnOrName,
-    position: Union[Column, int],
-    length: Union[Column, int],
+    position: Column | int,
+    length: Column | int,
     insert_expr: ColumnOrName,
 ) -> Column:
     """Replaces a substring of the specified length, starting at the specified position,
@@ -1013,13 +1009,13 @@ def insert(
     return builtin("insert")(b, lit(position), lit(length), i)
 
 
-def left(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
+def left(str_expr: ColumnOrName, length: Column | int) -> Column:
     """Returns a left most substring of ``str_expr``."""
     s = _to_col_if_str(str_expr, "left")
     return builtin("left")(s, lit(length))
 
 
-def right(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
+def right(str_expr: ColumnOrName, length: Column | int) -> Column:
     """Returns a right most substring of ``str_expr``."""
     s = _to_col_if_str(str_expr, "right")
     return builtin("right")(s, lit(length))
@@ -1032,7 +1028,7 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName, format: Optional[Union[Column, str]] = None) -> Column:
+def to_char(c: ColumnOrName, format: Column | str | None = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
     c = _to_col_if_str(c, "to_char")
@@ -1046,13 +1042,13 @@ def to_char(c: ColumnOrName, format: Optional[Union[Column, str]] = None) -> Col
 to_varchar = to_char
 
 
-def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_time(e: ColumnOrName, fmt: Column | None = None) -> Column:
     """Converts an input expression into the corresponding time."""
     c = _to_col_if_str(e, "to_time")
     return builtin("to_time")(c, fmt) if fmt is not None else builtin("to_time")(c)
 
 
-def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_timestamp(e: ColumnOrName, fmt: Column | None = None) -> Column:
     """Converts an input expression into the corresponding timestamp."""
     c = _to_col_if_str(e, "to_timestamp")
     return (
@@ -1062,7 +1058,7 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
     )
 
 
-def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_date(e: ColumnOrName, fmt: Column | None = None) -> Column:
     """Converts an input expression into a date."""
     c = _to_col_if_str(e, "to_date")
     return builtin("to_date")(c, fmt) if fmt is not None else builtin("to_date")(c)
@@ -1336,7 +1332,7 @@ def datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("datediff")(part, c1, c2)
 
 
-def trunc(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
+def trunc(e: ColumnOrName, scale: ColumnOrName | int | float = 0) -> Column:
     """Rounds the input expression down to the nearest (or equal) integer closer to zero,
     or to the nearest equal or smaller value with the specified number of
     places after the decimal point."""
@@ -1842,7 +1838,7 @@ def object_insert(
     obj: ColumnOrName,
     key: ColumnOrName,
     value: ColumnOrName,
-    update_flag: Optional[ColumnOrName] = None,
+    update_flag: ColumnOrName | None = None,
 ) -> Column:
     """Returns an object consisting of the input object with a new key-value pair inserted (or an
     existing key updated with a new value)."""
@@ -1899,7 +1895,7 @@ def as_date(variant: ColumnOrName) -> Column:
     return builtin("as_date")(c)
 
 
-def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
+def cast(column: ColumnOrName, to: str | DataType) -> Column:
     """Converts a value of one data type into another data type.
     The semantics of CAST are the same as the semantics of the corresponding to datatype conversion functions.
     If the cast is not possible, an error is raised."""
@@ -1907,7 +1903,7 @@ def cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     return c.cast(to)
 
 
-def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
+def try_cast(column: ColumnOrName, to: str | DataType) -> Column:
     """A special version of CAST for a subset of data type conversions.
     It performs the same operation (i.e. converts a value of one data type into another data type), but returns a NULL value instead of raising an error when the conversion can not be performed.
 
@@ -1920,8 +1916,8 @@ def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
 def __as_decimal_or_number(
     cast_type: str,
     variant: ColumnOrName,
-    precision: Optional[int] = None,
-    scale: Optional[int] = None,
+    precision: int | None = None,
+    scale: int | None = None,
 ) -> Column:
     """Helper funtion that casts a VARIANT value to a decimal or number."""
     c = _to_col_if_str(variant, cast_type)
@@ -1937,8 +1933,8 @@ def __as_decimal_or_number(
 
 def as_decimal(
     variant: ColumnOrName,
-    precision: Optional[int] = None,
-    scale: Optional[int] = None,
+    precision: int | None = None,
+    scale: int | None = None,
 ) -> Column:
     """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
     return __as_decimal_or_number("as_decimal", variant, precision, scale)
@@ -1946,8 +1942,8 @@ def as_decimal(
 
 def as_number(
     variant: ColumnOrName,
-    precision: Optional[int] = None,
-    scale: Optional[int] = None,
+    precision: int | None = None,
+    scale: int | None = None,
 ) -> Column:
     """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
     return __as_decimal_or_number("as_number", variant, precision, scale)
@@ -2001,7 +1997,7 @@ def as_timestamp_tz(variant: ColumnOrName) -> Column:
     return builtin("as_timestamp_tz")(c)
 
 
-def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
+def to_binary(e: ColumnOrName, fmt: str | None = None) -> Column:
     """Converts the input expression to a binary value. For NULL input, the output is
     NULL."""
     c = _to_col_if_str(e, "to_binary")
@@ -2058,7 +2054,7 @@ def object_keys(obj: ColumnOrName) -> Column:
 def xmlget(
     xml: ColumnOrName,
     tag: ColumnOrName,
-    instance_num: Union[ColumnOrName, int] = 0,
+    instance_num: ColumnOrName | int = 0,
 ) -> Column:
     """Extracts an XML element object (often referred to as simply a tag) from a content of outer
     XML element object by the name of the tag and its instance number (counting from 0).
@@ -2087,7 +2083,7 @@ def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("get")(c1, c2)
 
 
-def when(condition: Union[Column, str], value: Union[ColumnOrLiteral]) -> CaseExpr:
+def when(condition: Column | str, value: ColumnOrLiteral) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
     When a condition evaluates to TRUE, the evaluation stops and the associated
@@ -2113,9 +2109,9 @@ def when(condition: Union[Column, str], value: Union[ColumnOrLiteral]) -> CaseEx
 
 
 def iff(
-    condition: Union[Column, str],
-    expr1: Union[ColumnOrLiteral],
-    expr2: Union[ColumnOrLiteral],
+    condition: Column | str,
+    expr1: ColumnOrLiteral,
+    expr2: ColumnOrLiteral,
 ) -> Column:
     """
     Returns one of two specified expressions, depending on a condition.
@@ -2132,10 +2128,8 @@ def iff(
 
 
 def in_(
-    cols: List[ColumnOrName],
-    *vals: Union[
-        "snowflake.snowpark.DataFrame", ColumnOrLiteral, List[ColumnOrLiteral]
-    ],
+    cols: list[ColumnOrName],
+    *vals: snowflake.snowpark.DataFrame | ColumnOrLiteral | list[ColumnOrLiteral],
 ) -> Column:
     """Returns a conditional expression that you can pass to the filter or where methods to
     perform the equivalent of a WHERE ... IN query that matches rows containing a sequence of
@@ -2231,7 +2225,7 @@ def row_number() -> Column:
 def lag(
     e: ColumnOrName,
     offset: int = 1,
-    default_value: Optional[Union[ColumnOrLiteral]] = None,
+    default_value: ColumnOrLiteral | None = None,
     ignore_nulls: bool = False,
 ) -> Column:
     """
@@ -2247,7 +2241,7 @@ def lag(
 def lead(
     e: ColumnOrName,
     offset: int = 1,
-    default_value: Optional[Union[Column, LiteralType]] = None,
+    default_value: Column | LiteralType | None = None,
     ignore_nulls: bool = False,
 ) -> Column:
     """
@@ -2331,8 +2325,8 @@ def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> 
 
 
 def when_matched(
-    condition: Optional[Column] = None,
-) -> "snowflake.snowpark.table.WhenMatchedClause":
+    condition: Column | None = None,
+) -> snowflake.snowpark.table.WhenMatchedClause:
     """
     Specifies a matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
     See :class:`~snowflake.snowpark.table.WhenMatchedClause` for details.
@@ -2341,8 +2335,8 @@ def when_matched(
 
 
 def when_not_matched(
-    condition: Optional[Column] = None,
-) -> "snowflake.snowpark.table.WhenNotMatchedClause":
+    condition: Column | None = None,
+) -> snowflake.snowpark.table.WhenNotMatchedClause:
     """
     Specifies a not-matched clause for the :meth:`Table.merge <snowflake.snowpark.Table.merge>` action.
     See :class:`~snowflake.snowpark.table.WhenNotMatchedClause` for details.
@@ -2351,20 +2345,20 @@ def when_not_matched(
 
 
 def udf(
-    func: Optional[Callable] = None,
+    func: Callable | None = None,
     *,
-    return_type: Optional[DataType] = None,
-    input_types: Optional[List[DataType]] = None,
-    name: Optional[Union[str, Iterable[str]]] = None,
+    return_type: DataType | None = None,
+    input_types: list[DataType] | None = None,
+    name: str | Iterable[str] | None = None,
     is_permanent: bool = False,
-    stage_location: Optional[str] = None,
-    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-    packages: Optional[List[Union[str, ModuleType]]] = None,
+    stage_location: str | None = None,
+    imports: list[str | tuple[str, str]] | None = None,
+    packages: list[str | ModuleType] | None = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: snowflake.snowpark.Session | None = None,
     parallel: int = 4,
     **kwargs,
-) -> Union[UserDefinedFunction, functools.partial]:
+) -> UserDefinedFunction | functools.partial:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.
@@ -2478,20 +2472,20 @@ def udf(
 
 
 def _pandas_udf(
-    func: Optional[Callable] = None,
+    func: Callable | None = None,
     *,
-    return_type: Optional[DataType] = None,
-    input_types: Optional[List[DataType]] = None,
-    name: Optional[Union[str, Iterable[str]]] = None,
+    return_type: DataType | None = None,
+    input_types: list[DataType] | None = None,
+    name: str | Iterable[str] | None = None,
     is_permanent: bool = False,
-    stage_location: Optional[str] = None,
-    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-    packages: Optional[List[Union[str, ModuleType]]] = None,
+    stage_location: str | None = None,
+    imports: list[str | tuple[str, str]] | None = None,
+    packages: list[str | ModuleType] | None = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: snowflake.snowpark.Session | None = None,
     parallel: int = 4,
-    max_batch_size: Optional[int] = None,
-) -> Union[UserDefinedFunction, functools.partial]:
+    max_batch_size: int | None = None,
+) -> UserDefinedFunction | functools.partial:
     """
     Registers a Python function as a Pandas UDF (vectorized UDF) and returns the UDF.
 
@@ -2667,19 +2661,19 @@ def _call_function(
 
 
 def sproc(
-    func: Optional[Callable] = None,
+    func: Callable | None = None,
     *,
-    return_type: Optional[DataType] = None,
-    input_types: Optional[List[DataType]] = None,
-    name: Optional[Union[str, Iterable[str]]] = None,
+    return_type: DataType | None = None,
+    input_types: list[DataType] | None = None,
+    name: str | Iterable[str] | None = None,
     is_permanent: bool = False,
-    stage_location: Optional[str] = None,
-    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-    packages: Optional[List[Union[str, ModuleType]]] = None,
+    stage_location: str | None = None,
+    imports: list[str | tuple[str, str]] | None = None,
+    packages: list[str | ModuleType] | None = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: snowflake.snowpark.Session | None = None,
     parallel: int = 4,
-) -> Union[StoredProcedure, functools.partial]:
+) -> StoredProcedure | functools.partial:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.

@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 import io
 import os
 import pickle
@@ -53,9 +55,9 @@ def is_local_python_file(file_path: str) -> bool:
 
 
 def get_types_from_type_hints(
-    func: Union[Callable, Tuple[str, str]],
+    func: Callable | tuple[str, str],
     object_type: TempObjectType,
-) -> Tuple[DataType, List[DataType]]:
+) -> tuple[DataType, list[DataType]]:
     if isinstance(func, Callable):
         # For Python 3.10+, the result values of get_type_hints()
         # will become strings, which we have to change the implementation
@@ -104,9 +106,9 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
 
 def check_register_args(
     object_type: TempObjectType,
-    name: Optional[Union[str, Iterable[str]]] = None,
+    name: str | Iterable[str] | None = None,
     is_permanent: bool = False,
-    stage_location: Optional[str] = None,
+    stage_location: str | None = None,
     parallel: int = 4,
 ):
     if is_permanent:
@@ -133,11 +135,11 @@ def process_file_path(file_path: str) -> str:
 
 
 def extract_return_input_types(
-    func: Union[Callable, Tuple[str, str]],
-    return_type: Optional[DataType],
-    input_types: Optional[List[DataType]],
+    func: Callable | tuple[str, str],
+    return_type: DataType | None,
+    input_types: list[DataType] | None,
     object_type: TempObjectType,
-) -> Tuple[bool, bool, DataType, List[DataType]]:
+) -> tuple[bool, bool, DataType, list[DataType]]:
     # return results are: is_pandas_udf, is_dataframe_input, return_type, input_types
 
     # there are 3 cases:
@@ -244,13 +246,13 @@ def extract_return_input_types(
 
 
 def process_registration_inputs(
-    session: "snowflake.snowpark.Session",
+    session: snowflake.snowpark.Session,
     object_type: TempObjectType,
-    func: Union[Callable, Tuple[str, str]],
-    return_type: Optional[DataType],
-    input_types: Optional[List[DataType]],
-    name: Optional[Union[str, Iterable[str]]],
-) -> Tuple[str, bool, bool, DataType, List[DataType]]:
+    func: Callable | tuple[str, str],
+    return_type: DataType | None,
+    input_types: list[DataType] | None,
+    name: str | Iterable[str] | None,
+) -> tuple[str, bool, bool, DataType, list[DataType]]:
     # get the udf name
     if name:
         object_name = name if isinstance(name, str) else ".".join(name)
@@ -272,7 +274,7 @@ def process_registration_inputs(
 
 
 def cleanup_failed_permanent_registration(
-    session: "snowflake.snowpark.Session",
+    session: snowflake.snowpark.Session,
     upload_file_stage_location: str,
     stage_location: str,
 ) -> None:
@@ -293,10 +295,10 @@ def cleanup_failed_permanent_registration(
 
 def generate_python_code(
     func: Callable,
-    arg_names: List[str],
+    arg_names: list[str],
     is_pandas_udf: bool,
     is_dataframe_input: bool,
-    max_batch_size: Optional[int] = None,
+    max_batch_size: int | None = None,
 ) -> str:
     # if func is a method object, we need to extract the target function first to check
     # annotations. However, we still serialize the original method because the extracted
@@ -359,19 +361,19 @@ def {_DEFAULT_HANDLER_NAME}({args}):
 
 
 def resolve_imports_and_packages(
-    session: "snowflake.snowpark.Session",
+    session: snowflake.snowpark.Session,
     object_type: TempObjectType,
-    func: Union[Callable, Tuple[str, str]],
-    arg_names: List[str],
+    func: Callable | tuple[str, str],
+    arg_names: list[str],
     udf_name: str,
-    stage_location: Optional[str],
-    imports: Optional[List[Union[str, Tuple[str, str]]]],
-    packages: Optional[List[Union[str, ModuleType]]],
+    stage_location: str | None,
+    imports: list[str | tuple[str, str]] | None,
+    packages: list[str | ModuleType] | None,
     parallel: int = 4,
     is_pandas_udf: bool = False,
     is_dataframe_input: bool = False,
-    max_batch_size: Optional[int] = None,
-) -> Tuple[str, str, str, str, str]:
+    max_batch_size: int | None = None,
+) -> tuple[str, str, str, str, str]:
     upload_stage = (
         Utils.unwrap_stage_location_single_quote(stage_location)
         if stage_location
@@ -480,9 +482,9 @@ def resolve_imports_and_packages(
 
 
 def create_python_udf_or_sp(
-    session: "snowflake.snowpark.Session",
+    session: snowflake.snowpark.Session,
     return_type: DataType,
-    input_args: List[UDFColumn],
+    input_args: list[UDFColumn],
     handler: str,
     object_type: TempObjectType,
     object_name: str,
@@ -490,7 +492,7 @@ def create_python_udf_or_sp(
     all_packages: str,
     is_temporary: bool,
     replace: bool,
-    inline_python_code: Optional[str] = None,
+    inline_python_code: str | None = None,
 ) -> None:
     return_sql_type = convert_to_sf_type(return_type)
     input_sql_types = [convert_to_sf_type(arg.datatype) for arg in input_args]

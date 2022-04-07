@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 from typing import List
 
 from snowflake.snowpark import Session
@@ -23,13 +25,13 @@ from snowflake.snowpark.types import (
 from tests.utils import Utils as utils
 
 
-def get_table_attributes(session: Session, name: str) -> List[Attribute]:
+def get_table_attributes(session: Session, name: str) -> list[Attribute]:
     return session._get_result_attributes(f"select * from {name}")
 
 
 def get_attributes_with_types(
-    session: Session, name: str, types: List[str]
-) -> List[Attribute]:
+    session: Session, name: str, types: list[str]
+) -> list[Attribute]:
     try:
         schema = ",".join([f"col_{idx} {tp}" for idx, tp in enumerate(types)])
         utils.create_table(session, name, schema)

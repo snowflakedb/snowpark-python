@@ -2,6 +2,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import datetime
 import os
 import sys
@@ -87,7 +89,9 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     )
     assert session.call(sproc_name, 13, 19) == 13 * 19
     assert (
-        session.call(f"{session.get_fully_qualified_current_schema()}.{sproc_name}", 13, 19)
+        session.call(
+            f"{session.get_fully_qualified_current_schema()}.{sproc_name}", 13, 19
+        )
         == 13 * 19
     )
 
@@ -378,11 +382,11 @@ def test_type_hints(session):
         return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
 
     @sproc
-    def snow_sp(session_: Session, x: int) -> Optional[str]:
+    def snow_sp(session_: Session, x: int) -> str | None:
         return session_.sql(f"SELECT IFF({x} % 2 = 0, 'snow', NULL)").collect()[0][0]
 
     @sproc
-    def double_str_list_sp(session_: Session, x: str) -> List[str]:
+    def double_str_list_sp(session_: Session, x: str) -> list[str]:
         val = session_.sql(f"SELECT '{x}'").collect()[0][0]
         return [val, val]
 
@@ -393,11 +397,11 @@ def test_type_hints(session):
         return dt
 
     @sproc
-    def first_element_sp(_: Session, x: List[str]) -> str:
+    def first_element_sp(_: Session, x: list[str]) -> str:
         return x[0]
 
     @sproc
-    def get_sp(_: Session, d: Dict[str, str], i: str) -> str:
+    def get_sp(_: Session, d: dict[str, str], i: str) -> str:
         return d[i]
 
     assert add_sp(1, 2) == 3
@@ -571,7 +575,7 @@ def test_sp_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @sproc
-        def add(_: Session, x: int, y: Union[int, float]) -> Union[int, float]:
+        def add(_: Session, x: int, y: int | float) -> int | float:
             return x + y
 
     assert "invalid type typing.Union[int, float]" in str(ex_info)

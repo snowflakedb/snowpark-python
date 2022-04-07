@@ -5,6 +5,8 @@
 # Code in this file may constitute partial or total reimplementation, or modification of
 # existing code originally distributed by the Apache Software Foundation as part of the
 # Apache Spark project, under the Apache License, Version 2.0.
+from __future__ import annotations
+
 import ast
 import ctypes
 import datetime
@@ -152,7 +154,7 @@ _array_unsigned_int_typecode_ctype_mappings = {
 }
 
 
-def _int_size_to_type(size: int) -> Type[DataType]:
+def _int_size_to_type(size: int) -> type[DataType]:
     """
     Return the Catalyst datatype from the size of integers.
     """
@@ -233,9 +235,7 @@ def _infer_type(obj: Any) -> DataType:
         raise TypeError("not supported type: %s" % type(obj))
 
 
-def _infer_schema(
-    row: Union[Dict, List, Tuple], names: Optional[List] = None
-) -> StructType:
+def _infer_schema(row: dict | list | tuple, names: list | None = None) -> StructType:
     if row is None or (isinstance(row, (tuple, list, dict)) and not row):
         items = zip(names if names else ["_1"], [None])
     else:
@@ -265,7 +265,7 @@ def _infer_schema(
     return StructType(fields)
 
 
-def _merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType:
+def _merge_type(a: DataType, b: DataType, name: str | None = None) -> DataType:
     if name is None:
         new_msg = lambda msg: msg
         new_name = lambda n: "field %s" % n
@@ -315,7 +315,7 @@ def _merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataTyp
         return a
 
 
-def _python_type_str_to_object(tp_str: str) -> Type:
+def _python_type_str_to_object(tp_str: str) -> type:
     # handle several special cases, which we want to support currently
     if tp_str == "Decimal":
         return decimal.Decimal
@@ -333,7 +333,7 @@ def _python_type_str_to_object(tp_str: str) -> Type:
         return eval(tp_str)
 
 
-def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
+def _python_type_to_snow_type(tp: str | type) -> tuple[DataType, bool]:
     """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
@@ -409,8 +409,8 @@ def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
 
 
 def _retrieve_func_type_hints_from_source(
-    file_path: str, func_name: str, _source: Optional[str] = None
-) -> Dict[str, Type]:
+    file_path: str, func_name: str, _source: str | None = None
+) -> dict[str, type]:
     """
     Retrieve type hints of a function from a source file, or a source string (test only).
     """
@@ -456,8 +456,8 @@ def _retrieve_func_type_hints_from_source(
 
 # Get a mapping from type string to type object, for cast() function
 def _get_data_type_string_object_mappings(
-    to_fill_dict: Optional[Dict[str, Type[DataType]]] = None,
-    data_type: Optional[Type[DataType]] = None,
+    to_fill_dict: dict[str, type[DataType]] | None = None,
+    data_type: type[DataType] | None = None,
 ) -> None:
     if data_type is None:
         if to_fill_dict is None:
@@ -488,7 +488,7 @@ _DECIMAL_RE = re.compile(
 # support type string format like "  decimal  (  2  ,  1  )  "
 
 
-def _get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
+def _get_number_precision_scale(type_str: str) -> tuple[int, int] | None:
     decimal_matches = _DECIMAL_RE.match(type_str)
     if decimal_matches:
         return int(decimal_matches.group(3)), int(decimal_matches.group(4))

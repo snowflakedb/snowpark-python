@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import os
 from typing import List, NamedTuple, Optional
 
@@ -42,7 +44,7 @@ class FileOperation:
         session.file.get("@myStage/prefix1/file1.csv", "file:///tmp")
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
+    def __init__(self, session: snowflake.snowpark.Session):
         self._session = session
 
     def put(
@@ -54,7 +56,7 @@ class FileOperation:
         auto_compress: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
-    ) -> List[PutResult]:
+    ) -> list[PutResult]:
         """Uploads local files to the stage.
 
         References: `Snowflake PUT command <https://docs.snowflake.com/en/sql-reference/sql/put.html>`_.
@@ -105,8 +107,8 @@ class FileOperation:
         target_directory: str,
         *,
         parallel: int = 10,
-        pattern: Optional[str] = None,
-    ) -> List[GetResult]:
+        pattern: str | None = None,
+    ) -> list[GetResult]:
         """Downloads the specified files from a path in a stage to a local directory.
 
         References: `Snowflake GET command <https://docs.snowflake.com/en/sql-reference/sql/get.html>`_.
