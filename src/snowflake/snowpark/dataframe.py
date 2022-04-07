@@ -66,7 +66,7 @@ from snowflake.snowpark._internal.telemetry import (
     df_usage_telemetry,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
-from snowflake.snowpark._internal.utils import TempObjectType, Utils, deprecate
+from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -944,21 +944,6 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use group_by_grouping_sets.",
-        extra_doc_string="Use :meth:`group_by_grouping_sets`.",
-    )
-    def groupByGroupingSets(
-        self,
-        *grouping_sets: Union[
-            "snowflake.snowpark.GroupingSets",
-            List["snowflake.snowpark.GroupingSets"],
-            Tuple["snowflake.snowpark.GroupingSets", ...],
-        ],
-    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
-        return self.group_by_grouping_sets(*grouping_sets)
-
     def group_by_grouping_sets(
         self,
         *grouping_sets: Union[
@@ -1338,16 +1323,6 @@ class DataFrame:
         """
         return self._with_plan(Except(self._plan, other._plan))
 
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use natural_join.",
-        extra_doc_string="Use :meth:`natural_join`.",
-    )
-    def naturalJoin(
-        self, right: "DataFrame", join_type: Optional[str] = None
-    ) -> "DataFrame":
-        return self.natural_join(right, join_type)
-
     def natural_join(
         self, right: "DataFrame", join_type: Optional[str] = None
     ) -> "DataFrame":
@@ -1455,21 +1430,6 @@ class DataFrame:
             return self.__join_dataframes(right, using_columns, sp_join_type)
 
         raise TypeError("Invalid type for join. Must be Dataframe")
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use join_table_function.",
-        extra_doc_string="Use :meth:`join_table_function`.",
-    )
-    def joinTableFunction(
-        self,
-        func_name: Union[str, List[str]],
-        *func_arguments: ColumnOrName,
-        **func_named_arguments: ColumnOrName,
-    ) -> "DataFrame":
-        return self.join_table_function(
-            func_name, *func_arguments, **func_named_arguments
-        )
 
     def join_table_function(
         self,
@@ -1613,14 +1573,6 @@ class DataFrame:
             col: The :class:`Column` to add or replace.
         """
         return self.with_columns([col_name], [col])
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use with_columns.",
-        extra_doc_string="Use :meth:`with_columns`.",
-    )
-    def withColumns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
-        return self.with_columns(col_names, values)
 
     def with_columns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names

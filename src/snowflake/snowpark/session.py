@@ -52,7 +52,6 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     Utils,
-    deprecate,
 )
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
@@ -278,14 +277,6 @@ class Session:
         self.__last_canceled_id = self.__last_action_id
         self._conn.run_query(f"select system$cancel_all_queries({self.__session_id})")
 
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_imports.",
-        extra_doc_string="Use :meth:`get_imports`.",
-    )
-    def getImports(self) -> List[str]:
-        return self.get_imports()
-
     def get_imports(self) -> List[str]:
         """
         Returns a list of imports added for user defined functions (UDFs).
@@ -297,14 +288,6 @@ class Session:
         return [
             dep for dep in self.get_imports() if not dep.startswith(self._STAGE_PREFIX)
         ]
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use add_import.",
-        extra_doc_string="Use :meth:`add_import`.",
-    )
-    def addImport(self, path: str, import_path: Optional[str] = None) -> None:
-        return self.add_import(path, import_path)
 
     def add_import(self, path: str, import_path: Optional[str] = None) -> None:
         """
@@ -370,14 +353,6 @@ class Session:
         path, checksum, leading_path = self._resolve_import_path(path, import_path)
         self.__import_paths[path] = (checksum, leading_path)
 
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use remove_import.",
-        extra_doc_string="Use :meth:`remove_import`.",
-    )
-    def removeImport(self, path: str) -> None:
-        return self.remove_import(path)
-
     def remove_import(self, path: str) -> None:
         """
         Removes a file in stage or local file from the imports of a user-defined function (UDF).
@@ -407,14 +382,6 @@ class Session:
             raise KeyError(f"{abs_path} is not found in the existing imports")
         else:
             self.__import_paths.pop(abs_path)
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use clear_imports.",
-        extra_doc_string="Use :meth:`clear_imports`.",
-    )
-    def clearImports(self) -> None:
-        return self.clear_imports()
 
     def clear_imports(self) -> None:
         """
@@ -904,14 +871,6 @@ class Session:
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
 
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_session_stage.",
-        extra_doc_string="Use :meth:`get_session_stage`.",
-    )
-    def getSessionStage(self) -> str:
-        return self.get_session_stage()
-
     def get_session_stage(self) -> str:
         """
         Returns the name of the temporary stage created by the Snowpark library
@@ -1287,44 +1246,6 @@ class Session:
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
         return DataFrame(session=self, plan=range_plan)
-
-    @deprecate(deprecate_version="0.4.0")
-    def getDefaultDatabase(self) -> Optional[str]:
-        """
-        Returns the name of the default database configured for this session in :attr:`builder`.
-        """
-        return self._conn.get_default_database()
-
-    @deprecate(deprecate_version="0.4.0")
-    def getDefaultSchema(self) -> Optional[str]:
-        """
-        Returns the name of the default schema configured for this session in :attr:`builder`.
-        """
-        return self._conn.get_default_schema()
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_current_database.",
-        extra_doc_string="Use :meth:`get_current_database`.",
-    )
-    def getCurrentDatabase(self, unquoted: bool = False) -> Optional[str]:
-        return self.get_current_schema(unquoted)
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_current_schema.",
-        extra_doc_string="Use :meth:`get_current_schema`.",
-    )
-    def getCurrentSchema(self, unquoted: bool = False) -> Optional[str]:
-        return self.get_current_schema(unquoted)
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_fully_qualified_current_schema.",
-        extra_doc_string="Use :meth:`get_fully_qualified_current_schema`.",
-    )
-    def getFullyQualifiedCurrentSchema(self) -> str:
-        return self.get_fully_qualified_current_schema()
 
     def get_current_database(self, unquoted: bool = False) -> Optional[str]:
         """
