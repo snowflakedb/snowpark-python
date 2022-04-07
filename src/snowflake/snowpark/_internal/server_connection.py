@@ -83,7 +83,7 @@ class ServerConnection:
             def log_and_telemetry(func):
                 @functools.wraps(func)
                 def wrap(*args, **kwargs):
-                    logger.info(msg)
+                    logger.debug(msg)
                     start_time = time.perf_counter()
                     result = func(*args, **kwargs)
                     end_time = time.perf_counter()
@@ -94,7 +94,7 @@ class ServerConnection:
                         args[0]._telemetry_client.send_upload_file_perf_telemetry(
                             func.__name__, duration, sfqid
                         )
-                    logger.info(f"Finished in {duration:.4f} secs")
+                    logger.debug(f"Finished in {duration:.4f} secs")
 
                 return wrap
 
@@ -385,7 +385,7 @@ class ServerConnection:
             self.notify_query_listeners(
                 QueryRecord(results_cursor.sfqid, results_cursor.query)
             )
-            logger.info(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
+            logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
         except Exception as ex:
             logger.error(f"Failed to execute query {query}\n{ex}")
             raise ex
@@ -557,7 +557,7 @@ class ServerConnection:
             self.notify_query_listeners(
                 QueryRecord(unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
             )
-        logger.info(f"Execute batch insertion query %s", query)
+        logger.debug(f"Execute batch insertion query %s", query)
 
     def _fix_pandas_df_integer(self, pd_df: "pandas.DataFrame") -> "pandas.DataFrame":
         """To fix https://snowflakecomputing.atlassian.net/browse/SNOW-562208

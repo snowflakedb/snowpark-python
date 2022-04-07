@@ -501,7 +501,7 @@ class Session:
                 )
                 filename_with_prefix = f"{prefix}/{filename}"
                 if filename_with_prefix in stage_file_list:
-                    logger.info(
+                    logger.debug(
                         f"{filename} exists on {normalized_stage_location}, skipped"
                     )
                 else:
