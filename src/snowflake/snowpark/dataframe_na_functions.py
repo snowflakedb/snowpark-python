@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name

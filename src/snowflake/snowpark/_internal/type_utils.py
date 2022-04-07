@@ -13,11 +13,9 @@ import datetime
 import decimal
 import re
 import sys
-import typing  # type: ignore
 from array import array
-from typing import Any, Dict, List, Optional, Tuple, Type, Union, get_args, get_origin
+from typing import Any, Dict, List, Tuple, Union, get_args, get_origin, NewType
 
-import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark.types import (
     ArrayType,
@@ -102,7 +100,7 @@ def convert_to_sf_type(datatype: DataType) -> str:
 
 # Mapping Python types to Spark SQL DataType
 NoneType = type(None)
-_type_mappings = {
+_type_mappings: dict[type, DataType] = {
     NoneType: NullType,
     bool: BooleanType,
     int: LongType,
@@ -117,11 +115,8 @@ _type_mappings = {
 }
 
 
-_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = tuple(_type_mappings.keys())
-_VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
-    *_type_mappings.values(),
-    _NumericType,
-)
+_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = type
+_VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = DataType
 
 # Mapping Python array types to Spark SQL DataType
 # We should be careful here. The size of these types in python depends on C
@@ -507,12 +502,6 @@ def _type_string_to_type_object(type_str: str) -> DataType:
 
 
 # Type hints
-ColumnOrName = typing.NewType(
-    "ColumnOrName", Union["snowflake.snowpark.column.Column", str]
-)
-LiteralType = typing.NewType(
-    "LiteralType", Union[_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
-)
-ColumnOrLiteral = typing.NewType(
-    "ColumnOrLiteral", Union["snowflake.snowpark.column.Column", LiteralType]
-)
+ColumnOrName = snowflake.snowpark.column.Column | str
+LiteralType = _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE
+ColumnOrLiteral = snowflake.snowpark.column.Column | LiteralType

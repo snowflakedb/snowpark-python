@@ -13,11 +13,7 @@ from types import ModuleType
 from typing import (
     Callable,
     Iterable,
-    List,
     NamedTuple,
-    Optional,
-    Tuple,
-    Union,
     get_type_hints,
 )
 

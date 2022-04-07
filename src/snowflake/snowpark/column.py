@@ -4,7 +4,7 @@
 #
 from __future__ import annotations
 
-from typing import Iterable, Optional, Union
+from typing import Iterable
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name

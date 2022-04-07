@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, Optional, Union
+from typing import Iterable
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (

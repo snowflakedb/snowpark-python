@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import re
-from typing import Generic, Iterable, List, Optional, TypeVar, Union
+from typing import Generic, Iterable, TypeVar
 
 from snowflake.connector.options import installed_pandas, pandas
 

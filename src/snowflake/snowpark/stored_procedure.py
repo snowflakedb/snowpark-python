@@ -5,9 +5,8 @@
 """Stored procedures in Snowpark."""
 from __future__ import annotations
 
-import functools
 from types import ModuleType
-from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Iterable
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.type_utils import convert_to_sf_type

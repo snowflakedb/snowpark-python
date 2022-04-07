@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import os
-from typing import List, NamedTuple, Optional
+from typing import NamedTuple
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.utils import Utils

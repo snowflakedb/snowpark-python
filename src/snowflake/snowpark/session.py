@@ -14,12 +14,11 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import Any, Iterable
 
 import cloudpickle
 import pkg_resources
 
-import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
@@ -93,7 +92,7 @@ from snowflake.snowpark.udf import UDFRegistration
 logger = getLogger(__name__)
 
 _session_management_lock = RLock()
-_active_sessions = set()  # type: Set["Session"]
+_active_sessions: set[Session] = set()
 
 
 def _get_active_session() -> Session | None:

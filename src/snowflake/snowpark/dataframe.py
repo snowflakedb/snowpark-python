@@ -9,8 +9,7 @@ import itertools
 import re
 from collections import Counter
 from logging import getLogger
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
-
+from typing import Any, Iterable, Iterator
 import snowflake.snowpark
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
@@ -328,7 +327,7 @@ class DataFrame:
         # Use this to simulate scala's lazy val
         self.__placeholder_schema = None
         self.__placeholder_output = None
-        self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
+        self._reader: snowflake.snowpark.DataFrameReader | None = None
 
         self._stat = DataFrameStatFunctions(self)
         self.approxQuantile = self.approx_quantile = self._stat.approx_quantile

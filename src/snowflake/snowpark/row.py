@@ -4,7 +4,7 @@
 #
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Union
+from typing import Any, Dict, Iterable
 
 
 def _restore_row_from_pickle(values, named_values, fields):

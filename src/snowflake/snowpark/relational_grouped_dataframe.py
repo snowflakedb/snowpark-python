@@ -5,9 +5,8 @@
 from __future__ import annotations
 
 import re
-from typing import Callable, List, Tuple, Union
+from typing import Callable
 
-import snowflake.snowpark  # type: ignore
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,

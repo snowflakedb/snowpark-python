@@ -3,7 +3,7 @@
 #
 from __future__ import annotations
 
-from typing import List, NamedTuple
+from typing import NamedTuple
 
 import snowflake.snowpark
 
@@ -20,7 +20,7 @@ class QueryHistory:
 
     def __init__(self, session: snowflake.snowpark.Session):
         self.session = session
-        self._queries = []  # type: List[QueryRecord]
+        self._queries: list[QueryRecord] = []
 
     def __enter__(self):
         return self

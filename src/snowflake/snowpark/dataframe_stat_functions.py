@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
@@ -71,7 +70,7 @@ class DataFrameStatFunctions:
                 ._internal_collect_with_tag()
             )
             return list(res[0])
-        elif isinstance(col, (List, Tuple)):
+        elif isinstance(col, (list, tuple)):
             accumate_cols = [
                 approx_percentile_accumulate(col_i).as_(f"{temp_col_name}_{i}")
                 for i, col_i in enumerate(col)

@@ -22,7 +22,7 @@ import zipfile
 from enum import Enum
 from json import JSONEncoder
 from random import choice
-from typing import IO, List, Optional, Tuple, Type
+from typing import IO
 
 import snowflake.snowpark
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM

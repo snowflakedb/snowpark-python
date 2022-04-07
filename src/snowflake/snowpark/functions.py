@@ -173,7 +173,7 @@ from __future__ import annotations
 import functools
 from random import randint
 from types import ModuleType
-from typing import Callable, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Iterable
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import (

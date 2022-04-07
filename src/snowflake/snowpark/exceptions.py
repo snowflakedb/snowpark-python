@@ -5,8 +5,6 @@
 """This package contains all Snowpark client-side exceptions."""
 from __future__ import annotations
 
-from typing import Optional
-
 
 class SnowparkClientException(Exception):
     """Base Snowpark exception class"""

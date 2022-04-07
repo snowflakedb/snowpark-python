@@ -4,7 +4,7 @@
 #
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, NamedTuple, Optional, Union
+from typing import Iterable, NamedTuple
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type

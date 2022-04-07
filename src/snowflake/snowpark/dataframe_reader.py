@@ -4,8 +4,6 @@
 
 from __future__ import annotations
 
-from typing import Dict
-
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
