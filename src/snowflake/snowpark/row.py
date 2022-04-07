@@ -209,9 +209,11 @@ class Row(tuple):
             return dict(self._named_values)
         return self._convert_dict(self._named_values)
 
-    def _convert_dict(self, obj):
+    def _convert_dict(
+        self, obj: Union["Row", Dict, Iterable[Union["Row", Dict]]]
+    ) -> Union[Dict, Iterable[Dict]]:
         if isinstance(obj, Row):
-            return obj.asDict(True)
+            return obj.as_dict(True)
         elif isinstance(obj, Dict):
             child_dict = {}
             for k, v in obj.items():
@@ -222,7 +224,7 @@ class Row(tuple):
 
         return obj
 
-    def _populate_named_values_from_fields(self):
+    def _populate_named_values_from_fields(self) -> None:
         # populate _named_values dict if we have unduplicated fields
         if (
             self._named_values is None

@@ -100,7 +100,7 @@ def convert_to_sf_type(datatype: DataType) -> str:
 
 # Mapping Python types to Spark SQL DataType
 NoneType = type(None)
-_type_mappings = {
+PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     NoneType: NullType,
     bool: BooleanType,
     int: LongType,
@@ -115,27 +115,14 @@ _type_mappings = {
 }
 
 
-_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = tuple(_type_mappings.keys())
-_VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
-    *_type_mappings.values(),
+VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = tuple(PYTHON_TO_SNOW_TYPE_MAPPINGS.keys())
+VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
+    *PYTHON_TO_SNOW_TYPE_MAPPINGS.values(),
     _NumericType,
 )
 
 # Mapping Python array types to Spark SQL DataType
-# We should be careful here. The size of these types in python depends on C
-# implementation. We need to make sure that this conversion does not lose any
-# precision. Also, JVM only support signed types, when converting unsigned types,
-# keep in mind that it require 1 more bit when stored as signed types.
-#
-# Reference for C integer size, see:
-# ISO/IEC 9899:201x specification, chapter 5.2.4.2.1 Sizes of integer types <limits.h>.
-# Reference for python array typecode, see:
-# https://docs.python.org/2/library/array.html
-# https://docs.python.org/3.6/library/array.html
-# Reference for JVM's supported integral types:
-# http://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.3.1
-
-_array_signed_int_typecode_ctype_mappings = {
+ARRAY_SIGNED_INT_TYPECODE_CTYPE_MAPPINGS = {
     "b": ctypes.c_byte,
     "h": ctypes.c_short,
     "i": ctypes.c_int,
@@ -143,7 +130,7 @@ _array_signed_int_typecode_ctype_mappings = {
     "q": ctypes.c_longlong,
 }
 
-_array_unsigned_int_typecode_ctype_mappings = {
+ARRAY_UNSIGNED_INT_TYPECODE_CTYPE_MAPPINGS = {
     "B": ctypes.c_ubyte,
     "H": ctypes.c_ushort,
     "I": ctypes.c_uint,
@@ -152,7 +139,7 @@ _array_unsigned_int_typecode_ctype_mappings = {
 }
 
 
-def _int_size_to_type(size: int) -> Type[DataType]:
+def int_size_to_type(size: int) -> Type[DataType]:
     """
     Return the Catalyst datatype from the size of integers.
     """
@@ -167,7 +154,7 @@ def _int_size_to_type(size: int) -> Type[DataType]:
 
 
 # The list of all supported array typecodes, is stored here
-_array_type_mappings = {
+ARRAY_TYPE_MAPPINGS = {
     # Warning: Actual properties for float and double in C is not specified in C.
     # On almost every system supported by both python and JVM, they are IEEE 754
     # single-precision binary floating-point format and IEEE 754 double-precision
@@ -177,37 +164,33 @@ _array_type_mappings = {
 }
 
 # compute array typecode mappings for signed integer types
-for _typecode in _array_signed_int_typecode_ctype_mappings.keys():
-    size = ctypes.sizeof(_array_signed_int_typecode_ctype_mappings[_typecode]) * 8
-    dt = _int_size_to_type(size)
+for _typecode in ARRAY_SIGNED_INT_TYPECODE_CTYPE_MAPPINGS.keys():
+    size = ctypes.sizeof(ARRAY_SIGNED_INT_TYPECODE_CTYPE_MAPPINGS[_typecode]) * 8
+    dt = int_size_to_type(size)
     if dt is not None:
-        _array_type_mappings[_typecode] = dt
+        ARRAY_TYPE_MAPPINGS[_typecode] = dt
 
 # compute array typecode mappings for unsigned integer types
-for _typecode in _array_unsigned_int_typecode_ctype_mappings.keys():
+for _typecode in ARRAY_UNSIGNED_INT_TYPECODE_CTYPE_MAPPINGS.keys():
     # JVM does not have unsigned types, so use signed types that is at least 1
     # bit larger to store
-    size = ctypes.sizeof(_array_unsigned_int_typecode_ctype_mappings[_typecode]) * 8 + 1
-    dt = _int_size_to_type(size)
+    size = ctypes.sizeof(ARRAY_UNSIGNED_INT_TYPECODE_CTYPE_MAPPINGS[_typecode]) * 8 + 1
+    dt = int_size_to_type(size)
     if dt is not None:
-        _array_type_mappings[_typecode] = dt
+        ARRAY_TYPE_MAPPINGS[_typecode] = dt
 
 # Type code 'u' in Python's array is deprecated since version 3.3, and will be
 # removed in version 4.0. See: https://docs.python.org/3/library/array.html
 if sys.version_info[0] < 4:
-    _array_type_mappings["u"] = StringType
+    ARRAY_TYPE_MAPPINGS["u"] = StringType
 
 
-def _infer_type(obj: Any) -> DataType:
+def infer_type(obj: Any) -> DataType:
     """Infer the DataType from obj"""
     if obj is None:
         return NullType()
 
-    # user-defined types
-    if hasattr(obj, "__UDT__"):
-        return obj.__UDT__
-
-    datatype = _type_mappings.get(type(obj))
+    datatype = PYTHON_TO_SNOW_TYPE_MAPPINGS.get(type(obj))
     if datatype is DecimalType:
         # the precision and scale of `obj` may be different from row to row.
         return DecimalType(38, 18)
@@ -217,23 +200,23 @@ def _infer_type(obj: Any) -> DataType:
     if isinstance(obj, dict):
         for key, value in obj.items():
             if key is not None and value is not None:
-                return MapType(_infer_type(key), _infer_type(value))
+                return MapType(infer_type(key), infer_type(value))
         return MapType(NullType(), NullType())
     elif isinstance(obj, (list, tuple)):
         for v in obj:
             if v is not None:
-                return ArrayType(_infer_type(obj[0]))
+                return ArrayType(infer_type(obj[0]))
         return ArrayType(NullType())
     elif isinstance(obj, array):
-        if obj.typecode in _array_type_mappings:
-            return ArrayType(_array_type_mappings[obj.typecode]())
+        if obj.typecode in ARRAY_TYPE_MAPPINGS:
+            return ArrayType(ARRAY_TYPE_MAPPINGS[obj.typecode]())
         else:
             raise TypeError("not supported type: array(%s)" % obj.typecode)
     else:
         raise TypeError("not supported type: %s" % type(obj))
 
 
-def _infer_schema(
+def infer_schema(
     row: Union[Dict, List, Tuple], names: Optional[List] = None
 ) -> StructType:
     if row is None or (isinstance(row, (tuple, list, dict)) and not row):
@@ -251,7 +234,7 @@ def _infer_schema(
                 elif len(names) < len(row):
                     names.extend(f"_{i}" for i in range(len(names) + 1, len(row) + 1))
                 items = zip(names, row)
-        elif isinstance(row, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+        elif isinstance(row, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
             items = zip(names if names else ["_1"], [row])
         else:
             raise TypeError("Can not infer schema for type: %s" % type(row))
@@ -259,13 +242,13 @@ def _infer_schema(
     fields = []
     for k, v in items:
         try:
-            fields.append(StructField(k, _infer_type(v), True))
+            fields.append(StructField(k, infer_type(v), True))
         except TypeError as e:
             raise TypeError(f"Unable to infer the type of the field {k}.") from e
     return StructType(fields)
 
 
-def _merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType:
+def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType:
     if name is None:
         new_msg = lambda msg: msg
         new_name = lambda n: "field %s" % n
@@ -287,7 +270,7 @@ def _merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataTyp
         fields = [
             StructField(
                 f.name,
-                _merge_type(
+                merge_type(
                     f.datatype, nfs.get(f.name, NullType()), name=new_name(f.name)
                 ),
             )
@@ -301,21 +284,21 @@ def _merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataTyp
 
     elif isinstance(a, ArrayType):
         return ArrayType(
-            _merge_type(
+            merge_type(
                 a.element_type, b.element_type, name="element in array %s" % name
             )
         )
 
     elif isinstance(a, MapType):
         return MapType(
-            _merge_type(a.key_type, b.key_type, name="key of map %s" % name),
-            _merge_type(a.value_type, b.value_type, name="value of map %s" % name),
+            merge_type(a.key_type, b.key_type, name="key of map %s" % name),
+            merge_type(a.value_type, b.value_type, name="value of map %s" % name),
         )
     else:
         return a
 
 
-def _python_type_str_to_object(tp_str: str) -> Type:
+def python_type_str_to_object(tp_str: str) -> Type:
     # handle several special cases, which we want to support currently
     if tp_str == "Decimal":
         return decimal.Decimal
@@ -333,18 +316,18 @@ def _python_type_str_to_object(tp_str: str) -> Type:
         return eval(tp_str)
 
 
-def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
+def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     """Converts a Python type or a Python type string to a Snowpark type.
     Returns a Snowpark type and whether it's nullable.
     """
     # convert a type string to a type object
     if isinstance(tp, str):
-        tp = _python_type_str_to_object(tp)
+        tp = python_type_str_to_object(tp)
 
     if tp is decimal.Decimal:
         return DecimalType(38, 18), False
-    elif tp in _type_mappings:
-        return _type_mappings[tp](), False
+    elif tp in PYTHON_TO_SNOW_TYPE_MAPPINGS:
+        return PYTHON_TO_SNOW_TYPE_MAPPINGS[tp](), False
 
     tp_origin = get_origin(tp)
     tp_args = get_args(tp)
@@ -357,22 +340,22 @@ def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         and len(tp_args) == 2
         and tp_args[1] == NoneType
     ):
-        return _python_type_to_snow_type(tp_args[0])[0], True
+        return python_type_to_snow_type(tp_args[0])[0], True
 
     # typing.List, typing.Tuple, list, tuple
     list_tps = [list, tuple, List, Tuple]
     if tp in list_tps or (tp_origin and tp_origin in list_tps):
         element_type = (
-            _python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
+            python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
         )
         return ArrayType(element_type), False
 
     # typing.Dict, dict
     dict_tps = [dict, Dict]
     if tp in dict_tps or (tp_origin and tp_origin in dict_tps):
-        key_type = _python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
+        key_type = python_type_to_snow_type(tp_args[0])[0] if tp_args else StringType()
         value_type = (
-            _python_type_to_snow_type(tp_args[1])[0] if tp_args else StringType()
+            python_type_to_snow_type(tp_args[1])[0] if tp_args else StringType()
         )
         return MapType(key_type, value_type), False
 
@@ -381,7 +364,7 @@ def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         if tp in pandas_series_tps or (tp_origin and tp_origin in pandas_series_tps):
             return (
                 PandasSeriesType(
-                    _python_type_to_snow_type(tp_args[0])[0] if tp_args else None
+                    python_type_to_snow_type(tp_args[0])[0] if tp_args else None
                 ),
                 False,
             )
@@ -392,7 +375,7 @@ def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
         ):
             return (
                 PandasDataFrameType(
-                    [_python_type_to_snow_type(tp_arg)[0] for tp_arg in tp_args]
+                    [python_type_to_snow_type(tp_arg)[0] for tp_arg in tp_args]
                     if tp_args
                     else ()
                 ),
@@ -408,7 +391,7 @@ def _python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
     raise TypeError(f"invalid type {tp}")
 
 
-def _retrieve_func_type_hints_from_source(
+def retrieve_func_type_hints_from_source(
     file_path: str, func_name: str, _source: Optional[str] = None
 ) -> Dict[str, Type]:
     """
@@ -455,53 +438,53 @@ def _retrieve_func_type_hints_from_source(
 
 
 # Get a mapping from type string to type object, for cast() function
-def _get_data_type_string_object_mappings(
+def get_data_type_string_object_mappings(
     to_fill_dict: Optional[Dict[str, Type[DataType]]] = None,
     data_type: Optional[Type[DataType]] = None,
 ) -> None:
     if data_type is None:
         if to_fill_dict is None:
             to_fill_dict = dict()
-        return _get_data_type_string_object_mappings(to_fill_dict, DataType)
+        return get_data_type_string_object_mappings(to_fill_dict, DataType)
     for child in data_type.__subclasses__():
         if not child.__name__.startswith("_") and child is not DecimalType:
             to_fill_dict[child.__name__[:-4].lower()] = child
-        _get_data_type_string_object_mappings(to_fill_dict, child)
+        get_data_type_string_object_mappings(to_fill_dict, child)
     return to_fill_dict
 
 
-_DATA_TYPE_STRING_OBJECT_MAPPINGS = {}
-_get_data_type_string_object_mappings(_DATA_TYPE_STRING_OBJECT_MAPPINGS)
+DATA_TYPE_STRING_OBJECT_MAPPINGS = {}
+get_data_type_string_object_mappings(DATA_TYPE_STRING_OBJECT_MAPPINGS)
 # Add additional mappings to match snowflake db data types
-_DATA_TYPE_STRING_OBJECT_MAPPINGS["int"] = IntegerType
-_DATA_TYPE_STRING_OBJECT_MAPPINGS["smallint"] = ShortType
-_DATA_TYPE_STRING_OBJECT_MAPPINGS["byteint"] = ByteType
-_DATA_TYPE_STRING_OBJECT_MAPPINGS["bigint"] = LongType
-_DATA_TYPE_STRING_OBJECT_MAPPINGS["number"] = DecimalType
-_DATA_TYPE_STRING_OBJECT_MAPPINGS["numeric"] = DecimalType
-_DATA_TYPE_STRING_OBJECT_MAPPINGS["object"] = MapType
-_DATA_TYPE_STRING_OBJECT_MAPPINGS["array"] = ArrayType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["int"] = IntegerType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["smallint"] = ShortType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["byteint"] = ByteType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["bigint"] = LongType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["number"] = DecimalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["numeric"] = DecimalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["object"] = MapType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["array"] = ArrayType
 
-_DECIMAL_RE = re.compile(
+DECIMAL_RE = re.compile(
     r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
 
-def _get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
-    decimal_matches = _DECIMAL_RE.match(type_str)
+def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
+    decimal_matches = DECIMAL_RE.match(type_str)
     if decimal_matches:
         return int(decimal_matches.group(3)), int(decimal_matches.group(4))
 
 
-def _type_string_to_type_object(type_str: str) -> DataType:
-    precision_scale = _get_number_precision_scale(type_str)
+def type_string_to_type_object(type_str: str) -> DataType:
+    precision_scale = get_number_precision_scale(type_str)
     if precision_scale:
         return DecimalType(*precision_scale)
     type_str = type_str.replace(" ", "")
     type_str = type_str.lower()
     try:
-        return _DATA_TYPE_STRING_OBJECT_MAPPINGS[type_str]()
+        return DATA_TYPE_STRING_OBJECT_MAPPINGS[type_str]()
     except KeyError:
         raise ValueError(f"'{type_str}' is not a supported type")
 
@@ -510,9 +493,7 @@ def _type_string_to_type_object(type_str: str) -> DataType:
 ColumnOrName = typing.NewType(
     "ColumnOrName", Union["snowflake.snowpark.column.Column", str]
 )
-LiteralType = typing.NewType(
-    "LiteralType", Union[_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
-)
+LiteralType = typing.NewType("LiteralType", Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE])
 ColumnOrLiteral = typing.NewType(
     "ColumnOrLiteral", Union["snowflake.snowpark.column.Column", LiteralType]
 )
