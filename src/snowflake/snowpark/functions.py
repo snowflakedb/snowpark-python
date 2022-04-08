@@ -233,7 +233,7 @@ def current_session() -> Column:
     Returns a unique system identifier for the Snowflake session corresponding to the present connection.
     This will generally be a system-generated alphanumeric string. It is NOT derived from the user name or user account.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_session()).collect()
         >>> assert result is not None
@@ -245,7 +245,7 @@ def current_statement() -> Column:
     """
     Returns the SQL text of the statement that is currently executing.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_statement()).collect()
         >>> assert result is not None
@@ -257,7 +257,7 @@ def current_user() -> Column:
     """
     Returns the name of the user currently logged into the system.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_user()).collect()
         >>> assert result is not None
@@ -269,7 +269,7 @@ def current_version() -> Column:
     """
     Returns the current Snowflake version.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_version()).collect()
         >>> assert result is not None
@@ -281,7 +281,7 @@ def current_warehouse() -> Column:
     """
     Returns the name of the warehouse in use for the current session.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_warehouse()).collect()
         >>> assert result is not None
@@ -292,7 +292,7 @@ def current_warehouse() -> Column:
 def current_database() -> Column:
     """Returns the name of the database in use for the current session.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_database()).collect()
         >>> assert result is not None
@@ -303,7 +303,7 @@ def current_database() -> Column:
 def current_role() -> Column:
     """Returns the name of the role in use for the current session.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_role()).collect()
         >>> assert result is not None
@@ -314,7 +314,7 @@ def current_role() -> Column:
 def current_schema() -> Column:
     """Returns the name of the schema in use for the current session.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_schema()).collect()
         >>> assert result is not None
@@ -325,7 +325,7 @@ def current_schema() -> Column:
 def current_schemas() -> Column:
     """Returns active search path schemas.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_schemas()).collect()
         >>> assert result is not None
@@ -336,7 +336,7 @@ def current_schemas() -> Column:
 def current_region() -> Column:
     """Returns the name of the region for the account where the current user is logged in.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_region()).collect()
         >>> assert result is not None
@@ -347,7 +347,7 @@ def current_region() -> Column:
 def current_available_roles() -> Column:
     """Returns a JSON string that lists all roles granted to the current user.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_available_roles()).collect()
         >>> assert result is not None
@@ -358,7 +358,7 @@ def current_available_roles() -> Column:
 def add_months(date_or_timestamp: ColumnOrName, number_of_months: Union[Column, int]):
     """Adds or subtracts a specified number of months to a date or timestamp, preserving the end-of-month information.
 
-    Example::
+    Example:
         >>> import datetime
         >>> df = session.create_dataframe([datetime.date(2022, 4, 6)], schema=["d"])
         >>> df.select(add_months("d", 4)).collect()[0][0]
@@ -372,7 +372,7 @@ def any_value(e: ColumnOrName):
     """Returns a non-deterministic any value for the specified column.
     This is an aggregate and window function.
 
-    Example::
+    Example:
         >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
         >>> result = df.select(any_value("a")).collect()
         >>> assert len(result) == 1  # non-deterministic value in result.
@@ -384,7 +384,7 @@ def any_value(e: ColumnOrName):
 def bitnot(e: ColumnOrName):
     """Returns the bitwise negation of a numeric expression.
 
-    Example::
+    Example:
         >>> df = session.create_dataframe([1], schema=["a"])
         >>> df.select(bitnot("a")).collect()[0][0]
         -2
@@ -396,7 +396,7 @@ def bitnot(e: ColumnOrName):
 def bitshiftleft(to_shift_column: ColumnOrName, n: Union[Column, int]):
     """Returns the bitwise negation of a numeric expression.
 
-    Example::
+    Example:
         >>> df = session.create_dataframe([2], schema=["a"])
         >>> df.select(bitshiftleft("a", 1)).collect()[0][0]
         4
@@ -408,7 +408,7 @@ def bitshiftleft(to_shift_column: ColumnOrName, n: Union[Column, int]):
 def bitshiftright(to_shift_column: ColumnOrName, n: Union[Column, int]):
     """Returns the bitwise negation of a numeric expression.
 
-    Example::
+    Example:
         >>> df = session.create_dataframe([2], schema=["a"])
         >>> df.select(bitshiftright("a", 1)).collect()[0][0]
         1
@@ -427,11 +427,18 @@ def convert_timezone(
     For timezone information, refer to the `Snowflake SQL convert_timezone notes <https://docs.snowflake.com/en/sql-reference/functions/convert_timezone.html#usage-notes>`_
 
         Args:
-            target_timezone: Specifying the time zone to which the input timestamp should be converted.
-            source_time: specifying the timestamp to convert. When it's a TIMESTAMP_LTZ, use ``None`` for ``source_timezone``.
-            source_timezone: Specifying the time zone for the ``source_time``. Required for timestamps with no time zone
-              (i.e. TIMESTAMP_NTZ).
-              Use ``None`` if the timestamps have time zone (i.e. TIMESTAMP_LTZ). Default ``None``.
+            target_timezone: The time zone to which the input timestamp should be converted.=
+            source_time: The timestamp to convert. When it's a TIMESTAMP_LTZ, use ``None`` for ``source_timezone``.
+            source_timezone: The time zone for the ``source_time``. Required for timestamps with no time zone (i.e. TIMESTAMP_NTZ). Use ``None`` if the timestamps have a time zone (i.e. TIMESTAMP_LTZ). Default is ``None``.
+
+        Note:
+            The sequence of the 3 params is different from the SQL function, which two overloads:
+
+              - ``CONVERT_TIMEZONE( <source_tz> , <target_tz> , <source_timestamp_ntz> )``
+              - ``CONVERT_TIMEZONE( <target_tz> , <source_timestamp> )``
+
+            The first parameter ``source_tz`` is optional. But in Python an optional argument shouldn't be placed at the first.
+            So ``source_timezone`` is after ``source_time``.
 
         Example:
             >>> import datetime
@@ -445,11 +452,6 @@ def convert_timezone(
             >>> result[0][1]
             datetime.datetime(2022, 4, 6, 1, 0)
     """
-    # The sequence of the 3 params is different from the SQL function.
-    # SQL has two overloads:
-    #   CONVERT_TIMEZONE( <source_tz> , <target_tz> , <source_timestamp_ntz> )
-    #   CONVERT_TIMEZONE( <target_tz> , <source_timestamp> )
-    # So source_tz is optional. But in Python an optional argument should be placed at the end.
     source_tz = (
         _to_col_if_str(source_timezone, "convert_timezone")
         if source_timezone is not None
