@@ -188,7 +188,10 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     LiteralType,
 )
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import (
+    parse_positional_args_to_list,
+    validate_object_name,
+)
 from snowflake.snowpark.column import (
     CaseExpr,
     Column,
@@ -1917,7 +1920,7 @@ def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     return c.try_cast(to)
 
 
-def __as_decimal_or_number(
+def _as_decimal_or_number(
     cast_type: str,
     variant: ColumnOrName,
     precision: Optional[int] = None,
@@ -1941,7 +1944,7 @@ def as_decimal(
     scale: Optional[int] = None,
 ) -> Column:
     """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
-    return __as_decimal_or_number("as_decimal", variant, precision, scale)
+    return _as_decimal_or_number("as_decimal", variant, precision, scale)
 
 
 def as_number(
@@ -1950,7 +1953,7 @@ def as_number(
     scale: Optional[int] = None,
 ) -> Column:
     """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
-    return __as_decimal_or_number("as_number", variant, precision, scale)
+    return _as_decimal_or_number("as_number", variant, precision, scale)
 
 
 def as_double(variant: ColumnOrName) -> Column:
@@ -2182,7 +2185,7 @@ def in_(
         cols: A list of the columns to compare for the IN operation.
         vals: A list containing the values to compare for the IN operation.
     """
-    vals = Utils.parse_positional_args_to_list(*vals)
+    vals = parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
     return Column(MultipleExpression([c.expression for c in columns])).in_(vals)
 
@@ -2595,7 +2598,7 @@ def call_udf(
         <BLANKLINE>
     """
 
-    Utils.validate_object_name(udf_name)
+    validate_object_name(udf_name)
     return _call_function(udf_name, False, *args)
 
 
@@ -2660,9 +2663,7 @@ def builtin(function_name: str) -> Callable:
 def _call_function(
     name: str, is_distinct: bool = False, *args: ColumnOrLiteral
 ) -> Column:
-    expressions = [
-        Column._to_expr(arg) for arg in Utils.parse_positional_args_to_list(*args)
-    ]
+    expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
     return Column(FunctionExpression(name, expressions, is_distinct=is_distinct))
 
 

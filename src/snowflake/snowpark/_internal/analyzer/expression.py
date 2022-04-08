@@ -17,9 +17,9 @@ from functools import cached_property
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
-    _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
-    _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
-    _infer_type,
+    VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
+    infer_type,
 )
 from snowflake.snowpark.types import DataType
 
@@ -143,7 +143,7 @@ class Literal(Expression):
         super().__init__()
 
         # check value
-        if not isinstance(value, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+        if not isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
             raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                 type(value)
             )
@@ -151,13 +151,13 @@ class Literal(Expression):
 
         # check datatype
         if datatype:
-            if not isinstance(datatype, _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE):
+            if not isinstance(datatype, VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE):
                 raise SnowparkClientExceptionMessages.PLAN_CANNOT_CREATE_LITERAL(
                     str(datatype)
                 )
             self.datatype = datatype
         else:
-            self.datatype = _infer_type(value)
+            self.datatype = infer_type(value)
 
 
 class Like(Expression):

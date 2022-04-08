@@ -26,7 +26,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -42,16 +42,29 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
-    _infer_schema,
-    _infer_type,
-    _merge_type,
+    infer_schema,
+    infer_type,
+    merge_type,
 )
 from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
-    Utils,
+    calculate_md5,
     deprecate,
+    get_connector_version,
+    get_os_name,
+    get_python_version,
+    get_stage_file_prefix_length,
+    get_version,
+    is_in_stored_procedure,
+    normalize_remote_file_or_dir,
+    parse_positional_args_to_list,
+    random_name_for_temp_object,
+    unwrap_single_quote,
+    unwrap_stage_location_single_quote,
+    validate_object_name,
+    zip_file_or_directory_to_stream,
 )
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
@@ -152,18 +165,18 @@ class Session:
         """
 
         def __init__(self):
-            self.__options = {}
+            self._options = {}
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
-            self.__options.pop(key, None)
+            self._options.pop(key, None)
             return self
 
         def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
             """
             Adds the specified connection parameter to the SessionBuilder configuration.
             """
-            self.__options[key] = value
+            self._options[key] = value
             return self
 
         def configs(
@@ -177,20 +190,20 @@ class Session:
                 Calling this method overwrites any existing connection parameters
                 that you have already set in the SessionBuilder.
             """
-            self.__options = {**self.__options, **options}
+            self._options = {**self._options, **options}
             return self
 
         def create(self) -> "Session":
             """Creates a new Session."""
-            if "connection" in self.__options:
-                return self.__create_internal(self.__options["connection"])
-            return self.__create_internal(conn=None)
+            if "connection" in self._options:
+                return self._create_internal(self._options["connection"])
+            return self._create_internal(conn=None)
 
-        def __create_internal(
+        def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
             new_session = Session(
-                ServerConnection({}, conn) if conn else ServerConnection(self.__options)
+                ServerConnection({}, conn) if conn else ServerConnection(self._options)
             )
             _add_session(new_session)
             return new_session
@@ -205,33 +218,33 @@ class Session:
     builder: SessionBuilder = SessionBuilder()
 
     def __init__(self, conn: ServerConnection):
-        if len(_active_sessions) >= 1 and Utils.is_in_stored_procedure():
+        if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
-        self.__query_tag = None
-        self.__import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+        self._query_tag = None
+        self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
-        self.__session_id = self._conn.get_session_id()
+        self._session_id = self._conn.get_session_id()
         self._session_info = f"""
-"version" : {Utils.get_version()},
-"python.version" : {Utils.get_python_version()},
-"python.connector.version" : {Utils.get_connector_version()},
-"python.connector.session.id" : {self.__session_id},
-"os.name" : {Utils.get_os_name()}
+"version" : {get_version()},
+"python.version" : {get_python_version()},
+"python.connector.version" : {get_connector_version()},
+"python.connector.session.id" : {self._session_id},
+"os.name" : {get_os_name()}
 """
-        self.__session_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
-        self.__stage_created = False
-        self.__udf_registration = None
-        self.__sp_registration = None
-        self.__plan_builder = SnowflakePlanBuilder(self)
+        self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
+        self._stage_created = False
+        self._udf_registration = UDFRegistration(self)
+        self._sp_registration = StoredProcedureRegistration(self)
+        self._plan_builder = SnowflakePlanBuilder(self)
 
-        self.__last_action_id = 0
-        self.__last_canceled_id = 0
+        self._last_action_id = 0
+        self._last_canceled_id = 0
 
-        self.__file = None
+        self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
-        logger.info(f"Python Snowpark Session information: %s", self._session_info)
+        logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
         return self
@@ -240,33 +253,33 @@ class Session:
         self.close()
 
     def _generate_new_action_id(self) -> int:
-        self.__last_action_id += 1
-        return self.__last_action_id
+        self._last_action_id += 1
+        return self._last_action_id
 
     def close(self) -> None:
         """Close this session."""
-        if Utils.is_in_stored_procedure():
+        if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
             if self._conn.is_closed():
                 logger.debug(
                     "No-op because session %s had been previously closed.",
-                    self.__session_id,
+                    self._session_id,
                 )
             else:
-                logger.info(f"Closing session: %s", self.__session_id)
+                logger.info(f"Closing session: %s", self._session_id)
                 self.cancel_all()
         except Exception as ex:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
             try:
                 self._conn.close()
-                logger.info(f"Closed session: %s", self.__session_id)
+                logger.info(f"Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
 
     def _get_last_canceled_id(self) -> int:
-        return self.__last_canceled_id
+        return self._last_canceled_id
 
     def cancel_all(self) -> None:
         """
@@ -274,8 +287,8 @@ class Session:
         This does not affect any action methods called in the future.
         """
         logger.info("Canceling all running queries")
-        self.__last_canceled_id = self.__last_action_id
-        self._conn.run_query(f"select system$cancel_all_queries({self.__session_id})")
+        self._last_canceled_id = self._last_action_id
+        self._conn.run_query(f"select system$cancel_all_queries({self._session_id})")
 
     @deprecate(
         deprecate_version="0.4.0",
@@ -290,7 +303,7 @@ class Session:
         Returns a list of imports added for user defined functions (UDFs).
         This list includes any Python or zip files that were added automatically by the library.
         """
-        return list(self.__import_paths.keys())
+        return list(self._import_paths.keys())
 
     def _get_local_imports(self) -> List[str]:
         return [
@@ -367,7 +380,7 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         path, checksum, leading_path = self._resolve_import_path(path, import_path)
-        self.__import_paths[path] = (checksum, leading_path)
+        self._import_paths[path] = (checksum, leading_path)
 
     @deprecate(
         deprecate_version="0.4.0",
@@ -402,10 +415,10 @@ class Session:
             if not trimmed_path.startswith(self._STAGE_PREFIX)
             else trimmed_path
         )
-        if abs_path not in self.__import_paths:
+        if abs_path not in self._import_paths:
             raise KeyError(f"{abs_path} is not found in the existing imports")
         else:
-            self.__import_paths.pop(abs_path)
+            self._import_paths.pop(abs_path)
 
     @deprecate(
         deprecate_version="0.4.0",
@@ -419,7 +432,7 @@ class Session:
         """
         Clears all files in a stage or local files from the imports of a user-defined function (UDF).
         """
-        self.__import_paths.clear()
+        self._import_paths.clear()
 
     def _resolve_import_path(
         self, path: str, import_path: Optional[str] = None
@@ -468,7 +481,7 @@ class Session:
             # will change and the file in the stage will be overwritten.
             return (
                 abs_path,
-                Utils.calculate_md5(abs_path, additional_info=leading_path),
+                calculate_md5(abs_path, additional_info=leading_path),
                 leading_path,
             )
         else:
@@ -484,11 +497,9 @@ class Session:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(stage_location)
-        normalized_stage_location = Utils.unwrap_stage_location_single_quote(
-            stage_location
-        )
+        normalized_stage_location = unwrap_stage_location_single_quote(stage_location)
 
-        import_paths = udf_level_import_paths or self.__import_paths
+        import_paths = udf_level_import_paths or self._import_paths
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
             if path.startswith(self._STAGE_PREFIX):
@@ -507,7 +518,7 @@ class Session:
                 else:
                     # local directory or .py file
                     if os.path.isdir(path) or path.endswith(".py"):
-                        with Utils.zip_file_or_directory_to_stream(
+                        with zip_file_or_directory_to_stream(
                             path, leading_path, add_init_py=True
                         ) as input_stream:
                             self._conn.upload_stream(
@@ -529,7 +540,7 @@ class Session:
                             overwrite=True,
                         )
                 resolved_stage_files.append(
-                    Utils.normalize_remote_file_or_dir(
+                    normalize_remote_file_or_dir(
                         f"{normalized_stage_location}/{filename_with_prefix}"
                     )
                 )
@@ -537,15 +548,15 @@ class Session:
         return resolved_stage_files
 
     def _list_files_in_stage(self, stage_location: Optional[str] = None) -> Set[str]:
-        normalized = Utils.normalize_remote_file_or_dir(
-            Utils.unwrap_single_quote(stage_location)
+        normalized = normalize_remote_file_or_dir(
+            unwrap_single_quote(stage_location)
             if stage_location
-            else self.__session_stage
+            else self._session_stage
         )
         file_list = (
             self.sql(f"ls {normalized}").select('"name"')._internal_collect_with_tag()
         )
-        prefix_length = Utils.get_stage_file_prefix_length(stage_location)
+        prefix_length = get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
     def get_packages(self) -> Dict[str, str]:
@@ -614,9 +625,7 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        self._resolve_packages(
-            Utils.parse_positional_args_to_list(*packages), self._packages
-        )
+        self._resolve_packages(parse_positional_args_to_list(*packages), self._packages)
 
     def remove_package(self, package: str) -> None:
         """
@@ -808,7 +817,7 @@ class Session:
             :meth:`DataFrame.show`, :meth:`DataFrame.create_or_replace_view` and
             :meth:`DataFrame.create_or_replace_temp_view` will push down the SQL query.
         """
-        return self.__query_tag
+        return self._query_tag
 
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
@@ -816,7 +825,7 @@ class Session:
             self._conn.run_query(f"alter session set query_tag = '{tag}'")
         else:
             self._conn.run_query("alter session unset query_tag")
-        self.__query_tag = tag
+        self._query_tag = tag
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """
@@ -834,7 +843,7 @@ class Session:
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
-        Utils.validate_object_name(name)
+        validate_object_name(name)
         return Table(name, self)
 
     def table_function(
@@ -887,7 +896,7 @@ class Session:
             # execute the query
             df.collect()
         """
-        return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
+        return DataFrame(session=self, plan=self._plan_builder.query(query, None))
 
     @property
     def read(self) -> "DataFrameReader":
@@ -919,14 +928,14 @@ class Session:
         in this session via :func:`add_import`.
         """
         qualified_stage_name = (
-            f"{self.get_fully_qualified_current_schema()}.{self.__session_stage}"
+            f"{self.get_fully_qualified_current_schema()}.{self._session_stage}"
         )
-        if not self.__stage_created:
+        if not self._stage_created:
             self._run_query(
                 f"create temporary stage if not exists {qualified_stage_name}",
                 is_ddl_on_temp_object=True,
             )
-            self.__stage_created = True
+            self._stage_created = True
         return f"@{qualified_stage_name}"
 
     # TODO make the table input consistent with session.table
@@ -1092,7 +1101,7 @@ class Session:
         # table and return as a DataFrame
         if installed_pandas and isinstance(data, pandas.DataFrame):
             table_name = escape_quotes(
-                Utils.random_name_for_temp_object(TempObjectType.TABLE)
+                random_name_for_temp_object(TempObjectType.TABLE)
             )
             sf_database = self.get_current_database(unquoted=True)
             sf_schema = self.get_current_schema(unquoted=True)
@@ -1118,8 +1127,8 @@ class Session:
             if isinstance(schema, list):
                 names = schema
             new_schema = reduce(
-                _merge_type,
-                (_infer_schema(row, names) for row in data),
+                merge_type,
+                (infer_schema(row, names) for row in data),
             )
         if len(new_schema.fields) == 0:
             raise ValueError(
@@ -1437,9 +1446,7 @@ class Session:
             session.file.put("file:///tmp/file1.csv", "@myStage/prefix1")
             session.file.get("@myStage/prefix1", "file:///tmp")
         """
-        if not self.__file:
-            self.__file = FileOperation(self)
-        return self.__file
+        return self._file
 
     @property
     def udf(self) -> UDFRegistration:
@@ -1447,9 +1454,7 @@ class Session:
         Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
-        if not self.__udf_registration:
-            self.__udf_registration = UDFRegistration(self)
-        return self.__udf_registration
+        return self._udf_registration
 
     @property
     def sproc(self) -> StoredProcedureRegistration:
@@ -1457,11 +1462,9 @@ class Session:
         Returns a :class:`stored_procedure.StoredProcedureRegistration` object that you can use to register stored procedures.
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
-        if not self.__sp_registration:
-            self.__sp_registration = StoredProcedureRegistration(self)
-        return self.__sp_registration
+        return self._sp_registration
 
-    def call(self, sproc_name: str, *args: Any):
+    def call(self, sproc_name: str, *args: Any) -> Any:
         """Calls a stored procedure by name.
 
         Args:
@@ -1486,11 +1489,11 @@ class Session:
             >>> session.table("test_to").count()
             10
         """
-        Utils.validate_object_name(sproc_name)
+        validate_object_name(sproc_name)
 
         sql_args = []
         for arg in args:
-            sql_args.append(DataTypeMapper.to_sql(arg, _infer_type(arg)))
+            sql_args.append(to_sql(arg, infer_type(arg)))
         return self.sql(f"CALL {sproc_name}({', '.join(sql_args)})").collect()[0][0]
 
     def flatten(
