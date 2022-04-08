@@ -54,7 +54,7 @@ class Utils:
 
     @staticmethod
     def random_name_for_temp_object(object_type: TempObjectType) -> str:
-        return utils.Utils.random_name_for_temp_object(object_type)
+        return utils.random_name_for_temp_object(object_type)
 
     @staticmethod
     def random_alphanumeric_str(n: int):
