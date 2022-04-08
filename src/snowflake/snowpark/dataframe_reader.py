@@ -79,8 +79,8 @@ class DataFrameReader:
             results = csv_df.collect()
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
-        self.session = session
+    def __init__(self, session: "snowflake.snowpark.session.Session"):
+        self._session = session
         self._user_schema = None
         self._cur_options = {}
         self._file_path = None
@@ -101,7 +101,7 @@ class DataFrameReader:
         Args:
             name: Name of the table to use.
         """
-        return self.session.table(name)
+        return self._session.table(name)
 
     def schema(self, schema: StructType) -> "DataFrameReader":
         """Returns a :class:`DataFrameReader` instance with the specified schema
@@ -144,12 +144,12 @@ class DataFrameReader:
         self._file_path = path
         self._file_type = "csv"
         df = DataFrame(
-            self.session,
-            self.session._Session__plan_builder.read_file(
+            self._session,
+            self._session._plan_builder.read_file(
                 path,
                 self._file_type,
                 self._cur_options,
-                self.session.get_fully_qualified_current_schema(),
+                self._session.get_fully_qualified_current_schema(),
                 self._user_schema._to_attributes(),
             ),
         )
@@ -177,7 +177,7 @@ class DataFrameReader:
             path: The path to the JSON file (including the stage name).
 
         """
-        return self.__read_semi_structured_file(path, "JSON")
+        return self._read_semi_structured_file(path, "JSON")
 
     def avro(self, path: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the
@@ -193,7 +193,7 @@ class DataFrameReader:
             path: The path to the Avro file (including the stage name).
 
         """
-        return self.__read_semi_structured_file(path, "AVRO")
+        return self._read_semi_structured_file(path, "AVRO")
 
     def parquet(self, path: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the specified
@@ -218,7 +218,7 @@ class DataFrameReader:
             path: The path to the Parquet file (including the stage name).
 
         """
-        return self.__read_semi_structured_file(path, "PARQUET")
+        return self._read_semi_structured_file(path, "PARQUET")
 
     def orc(self, path: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the specified
@@ -240,7 +240,7 @@ class DataFrameReader:
             path: The path to the ORC file (including the stage name).
 
         """
-        return self.__read_semi_structured_file(path, "ORC")
+        return self._read_semi_structured_file(path, "ORC")
 
     def xml(self, path: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the specified
@@ -262,7 +262,7 @@ class DataFrameReader:
         Args:
             path: The path to the XML file (including the stage name).
         """
-        return self.__read_semi_structured_file(path, "XML")
+        return self._read_semi_structured_file(path, "XML")
 
     def option(self, key: str, value) -> "DataFrameReader":
         """Sets the specified option in the DataFrameReader.
@@ -356,18 +356,18 @@ class DataFrameReader:
             self.option(k, v)
         return self
 
-    def __read_semi_structured_file(self, path: str, format: str) -> "DataFrame":
+    def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
         self._file_type = format
         df = DataFrame(
-            self.session,
-            self.session._Session__plan_builder.read_file(
+            self._session,
+            self._session._plan_builder.read_file(
                 path,
                 format,
                 self._cur_options,
-                self.session.get_fully_qualified_current_schema(),
+                self._session.get_fully_qualified_current_schema(),
                 [Attribute('"$1"', VariantType())],
             ),
         )

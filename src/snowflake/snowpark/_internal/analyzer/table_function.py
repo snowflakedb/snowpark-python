@@ -7,7 +7,7 @@ from typing import Dict, List, Union
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import validate_object_name
 from snowflake.snowpark.column import _to_col_if_str
 
 
@@ -73,7 +73,7 @@ def create_table_function_expression(
         fqdn = func_name
     elif isinstance(func_name, list):
         for n in func_name:
-            Utils.validate_object_name(n)
+            validate_object_name(n)
         fqdn = ".".join(func_name)
     else:
         raise TypeError("The table function name should be a str or a list of strs.")

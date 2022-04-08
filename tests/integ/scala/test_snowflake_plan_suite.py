@@ -25,7 +25,7 @@ def test_single_query(session):
         assert df.filter(col("num") < 3).count() == 2
 
         # build plan
-        plans = session._Session__plan_builder
+        plans = session._plan_builder
         table_plan = plans.table(table_name)
         project = plans.project(["num"], table_plan, None)
 
@@ -49,14 +49,14 @@ def test_multiple_queries(session):
         plan = SnowflakePlan(
             queries, schema_value_statement(attrs), None, None, session
         )
-        plan1 = session._Session__plan_builder.project(["A"], plan, None)
+        plan1 = session._plan_builder.project(["A"], plan, None)
 
-        assert len(plan1.attributes()) == 1
-        assert plan1.attributes()[0].name == '"A"'
+        assert len(plan1.attributes) == 1
+        assert plan1.attributes[0].name == '"A"'
         # is is always nullable
-        assert plan1.attributes()[0].nullable
+        assert plan1.attributes[0].nullable
         # SF always returns Long Type
-        assert type(plan1.attributes()[0].datatype) == LongType
+        assert type(plan1.attributes[0].datatype) == LongType
 
         res = session._conn.execute(plan1)
         res.sort(key=lambda x: x[0])
@@ -78,14 +78,12 @@ def test_multiple_queries(session):
         plan2 = SnowflakePlan(
             queries2, schema_value_statement(attrs2), None, None, session
         )
-        plan3 = session._Session__plan_builder.set_operator(
-            plan1, plan2, "UNION ALL", None
-        )
+        plan3 = session._plan_builder.set_operator(plan1, plan2, "UNION ALL", None)
 
-        assert len(plan3.attributes()) == 1
-        assert plan3.attributes()[0].name == '"A"'
-        assert plan3.attributes()[0].nullable
-        assert type(plan3.attributes()[0].datatype) == LongType
+        assert len(plan3.attributes) == 1
+        assert plan3.attributes[0].name == '"A"'
+        assert plan3.attributes[0].nullable
+        assert type(plan3.attributes[0].datatype) == LongType
 
         res2 = session._conn.execute(plan3)
         res2.sort(key=lambda x: x[0])

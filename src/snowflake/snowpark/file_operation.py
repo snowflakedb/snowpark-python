@@ -5,7 +5,12 @@ import os
 from typing import List, NamedTuple, Optional
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import (
+    get_local_file_path,
+    is_single_quoted,
+    normalize_local_file,
+    normalize_remote_file_or_dir,
+)
 
 
 class PutResult(NamedTuple):
@@ -42,7 +47,7 @@ class FileOperation:
         session.file.get("@myStage/prefix1/file1.csv", "file:///tmp")
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session"):
         self._session = session
 
     def put(
@@ -88,13 +93,13 @@ class FileOperation:
             "auto_compress": auto_compress,
             "overwrite": overwrite,
         }
-        plan = self._session._Session__plan_builder.file_operation_plan(
+        plan = self._session._plan_builder.file_operation_plan(
             "put",
-            Utils.normalize_local_file(local_file_name),
-            Utils.normalize_remote_file_or_dir(stage_location),
+            normalize_local_file(local_file_name),
+            normalize_remote_file_or_dir(stage_location),
             options,
         )
-        put_result = snowflake.snowpark.DataFrame(
+        put_result = snowflake.snowpark.dataframe.DataFrame(
             self._session, plan
         )._internal_collect_with_tag()
         return [PutResult(**file_result.asDict()) for file_result in put_result]
@@ -144,20 +149,20 @@ class FileOperation:
         """
         options = {"parallel": parallel}
         if pattern is not None:
-            if not Utils.is_single_quoted(pattern):
+            if not is_single_quoted(pattern):
                 pattern_escape_single_quote = pattern.replace("'", "\\'")
                 pattern = f"'{pattern_escape_single_quote}'"  # snowflake pattern is a string with single quote
             options["pattern"] = pattern
-        plan = self._session._Session__plan_builder.file_operation_plan(
+        plan = self._session._plan_builder.file_operation_plan(
             "get",
-            Utils.normalize_local_file(target_directory),
-            Utils.normalize_remote_file_or_dir(stage_location),
+            normalize_local_file(target_directory),
+            normalize_remote_file_or_dir(stage_location),
             options,
         )
         try:
             # JDBC auto-creates directory but python-connector doesn't. So create the folder here.
-            os.makedirs(Utils.get_local_file_path(target_directory), exist_ok=True)
-            get_result = snowflake.snowpark.DataFrame(
+            os.makedirs(get_local_file_path(target_directory), exist_ok=True)
+            get_result = snowflake.snowpark.dataframe.DataFrame(
                 self._session, plan
             )._internal_collect_with_tag()
             return [GetResult(**file_result.asDict()) for file_result in get_result]

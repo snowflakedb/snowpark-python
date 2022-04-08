@@ -9,7 +9,12 @@ import pytest
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
-from snowflake.snowpark._internal.utils import TempObjectType, Utils as snowpark_utils
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    get_application_name,
+    get_python_version,
+    get_version,
+)
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkMissingDbOrSchemaException,
@@ -135,8 +140,8 @@ def test_negative_test_for_missing_required_parameter_schema(db_parameters):
 
 def test_select_current_client(session):
     current_client = session.sql("select current_client()")._show_string(10)
-    assert snowpark_utils.get_application_name() in current_client
-    assert snowpark_utils.get_version() in current_client
+    assert get_application_name() in current_client
+    assert get_version() in current_client
 
 
 def test_negative_test_to_invalid_table_name(session):
@@ -204,8 +209,8 @@ def test_load_table_from_array_multipart_identifier(session):
 
 def test_session_info(session):
     session_info = session._session_info
-    assert snowpark_utils.get_version() in session_info
-    assert snowpark_utils.get_python_version() in session_info
+    assert get_version() in session_info
+    assert get_python_version() in session_info
     assert str(session._conn.get_session_id()) in session_info
     assert "python.connector.version" in session_info
 

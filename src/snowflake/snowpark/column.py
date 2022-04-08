@@ -61,12 +61,12 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.type_utils import (
-    _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
     ColumnOrName,
-    _type_string_to_type_object,
+    type_string_to_type_object,
 )
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.window import Window, WindowSpec
 
@@ -76,7 +76,7 @@ def _to_col_if_lit(
 ) -> "Column":
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
         return col
-    elif isinstance(col, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+    elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
         return Column(Literal(col))
     else:
         raise TypeError(
@@ -330,7 +330,7 @@ class Column:
         Args:
             vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
         """
-        cols = Utils.parse_positional_args_to_list(*vals)
+        cols = parse_positional_args_to_list(*vals)
         cols = [_to_col_if_lit(col, "in_") for col in cols]
 
         column_count = (
@@ -443,7 +443,7 @@ class Column:
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
         if isinstance(to, str):
-            to = _type_string_to_type_object(to)
+            to = type_string_to_type_object(to)
         return Column(Cast(self.expression, to, try_))
 
     def cast(self, to: Union[str, DataType]) -> "Column":
@@ -669,7 +669,7 @@ class Column:
                 self.expression,
                 [
                     _to_col_if_str(col, "within_group").expression
-                    for col in Utils.parse_positional_args_to_list(*cols)
+                    for col in parse_positional_args_to_list(*cols)
                 ],
             )
         )
@@ -743,7 +743,7 @@ class CaseExpr(Column):
 
     def __init__(self, expr: CaseWhen):
         super().__init__(expr)
-        self.__branches = expr.branches
+        self._branches = expr.branches
 
     def when(
         self, condition: Union[Column, str], value: Union[ColumnOrLiteral]
@@ -759,7 +759,7 @@ class CaseExpr(Column):
         return CaseExpr(
             CaseWhen(
                 [
-                    *self.__branches,
+                    *self._branches,
                     (
                         _to_col_if_sql_expr(condition, "when").expression,
                         Column._to_expr(value),
@@ -773,7 +773,7 @@ class CaseExpr(Column):
 
         :meth:`else_` is an alias of :meth:`otherwise`.
         """
-        return CaseExpr(CaseWhen(self.__branches, Column._to_expr(value)))
+        return CaseExpr(CaseWhen(self._branches, Column._to_expr(value)))
 
     # This alias is to sync with snowpark scala
     else_ = otherwise
