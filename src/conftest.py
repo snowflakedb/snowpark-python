@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import os
 import sys
 import uuid
@@ -9,6 +10,8 @@ import uuid
 import pytest
 
 from snowflake.snowpark import Session
+
+logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
