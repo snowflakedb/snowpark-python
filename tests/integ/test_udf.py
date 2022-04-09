@@ -149,7 +149,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
         Session.builder.configs(db_parameters)._remove_config("schema").create()
     )
     try:
-        assert not new_session.getDefaultSchema()
+        assert not new_session.get_current_schema()
         tmp_stage_name_in_temp_schema = (
             f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
         )
