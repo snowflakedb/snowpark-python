@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -10,7 +9,12 @@ import pytest
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
-from snowflake.snowpark._internal.utils import TempObjectType, Utils as snowpark_utils
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    get_application_name,
+    get_python_version,
+    get_version,
+)
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkMissingDbOrSchemaException,
@@ -42,7 +46,7 @@ def test_current_database_and_schema(session, db_parameters):
 
     schema_name = Utils.random_temp_schema()
     try:
-        session._run_query("create schema {}".format(schema_name))
+        session._run_query(f"create schema {schema_name}")
 
         assert Utils.equals_ignore_case(database, session.get_current_database())
         assert Utils.equals_ignore_case(
@@ -50,8 +54,8 @@ def test_current_database_and_schema(session, db_parameters):
         )
     finally:
         # restore
-        session._run_query("drop schema if exists {}".format(schema_name))
-        session._run_query("use schema {}".format(schema))
+        session._run_query(f"drop schema if exists {schema_name}")
+        session._run_query(f"use schema {schema}")
 
 
 def test_quote_all_database_and_schema_names(session):
@@ -78,7 +82,11 @@ def test_create_dataframe_sequence(session):
 
 
 def test_create_dataframe_namedtuple(session):
-    P1 = NamedTuple("P1", [("a", int), ("b", str), ("c", float)])
+    class P1(NamedTuple):
+        a: int
+        b: str
+        c: float
+
     df = session.create_dataframe([P1(1, "one", 1.0), P1(2, "two", 2.0)])
     assert [field.name for field in df.schema.fields] == ["A", "B", "C"]
 
@@ -95,7 +103,7 @@ def test_get_schema_database_works_after_use_role(session):
         assert session.get_current_database() == db
         assert session.get_current_schema() == schema
     finally:
-        session._run_query("use role {}".format(current_role))
+        session._run_query(f"use role {current_role}")
 
 
 def test_negative_test_for_missing_required_parameter_schema(db_parameters):
@@ -110,8 +118,8 @@ def test_negative_test_for_missing_required_parameter_schema(db_parameters):
 
 def test_select_current_client(session):
     current_client = session.sql("select current_client()")._show_string(10)
-    assert snowpark_utils.get_application_name() in current_client
-    assert snowpark_utils.get_version() in current_client
+    assert get_application_name() in current_client
+    assert get_version() in current_client
 
 
 def test_negative_test_to_invalid_table_name(session):
@@ -179,8 +187,8 @@ def test_load_table_from_array_multipart_identifier(session):
 
 def test_session_info(session):
     session_info = session._session_info
-    assert snowpark_utils.get_version() in session_info
-    assert snowpark_utils.get_python_version() in session_info
+    assert get_version() in session_info
+    assert get_python_version() in session_info
     assert str(session._conn.get_session_id()) in session_info
     assert "python.connector.version" in session_info
 

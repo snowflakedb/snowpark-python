@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -20,7 +19,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.telemetry import df_action_telemetry
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.dataframe import DataFrame, _disambiguate
 from snowflake.snowpark.row import Row
 
 
@@ -58,8 +57,8 @@ class WhenMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self.condition_expr = condition.expression if condition is not None else None
-        self.clause = None
+        self._condition_expr = condition.expression if condition is not None else None
+        self._clause = None
 
     def update(
         self, assignments: Dict[str, Union[ColumnOrLiteral]]
@@ -88,15 +87,15 @@ class WhenMatchedClause:
             An exception will be raised if this method or :meth:`WhenMatchedClause.delete`
             is called more than once on the same :class:`WhenMatchedClause` object.
         """
-        if self.clause:
+        if self._clause:
             raise SnowparkClientExceptionMessages.MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
                 "update"
-                if isinstance(self.clause, UpdateMergeExpression)
+                if isinstance(self._clause, UpdateMergeExpression)
                 else "delete",
                 "WhenMatchedClause",
             )
-        self.clause = UpdateMergeExpression(
-            self.condition_expr,
+        self._clause = UpdateMergeExpression(
+            self._condition_expr,
             {Column(k).expression: Column._to_expr(v) for k, v in assignments.items()},
         )
         return self
@@ -120,14 +119,14 @@ class WhenMatchedClause:
             An exception will be raised if this method or :meth:`WhenMatchedClause.update`
             is called more than once on the same :class:`WhenMatchedClause` object.
         """
-        if self.clause:
+        if self._clause:
             raise SnowparkClientExceptionMessages.MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
                 "update"
-                if isinstance(self.clause, UpdateMergeExpression)
+                if isinstance(self._clause, UpdateMergeExpression)
                 else "delete",
                 "WhenMatchedClause",
             )
-        self.clause = DeleteMergeExpression(self.condition_expr)
+        self._clause = DeleteMergeExpression(self._condition_expr)
         return self
 
 
@@ -144,8 +143,8 @@ class WhenNotMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self.condition_expr = condition.expression if condition is not None else None
-        self.clause = None
+        self._condition_expr = condition.expression if condition is not None else None
+        self._clause = None
 
     def insert(
         self, assignments: Union[Iterable[ColumnOrLiteral], Dict[str, ColumnOrLiteral]]
@@ -178,7 +177,7 @@ class WhenNotMatchedClause:
             An exception will be raised if this method is called more than once
             on the same :class:`WhenNotMatchedClause` object.
         """
-        if self.clause:
+        if self._clause:
             raise SnowparkClientExceptionMessages.MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
                 "insert", "WhenNotMatchedClause"
             )
@@ -188,7 +187,7 @@ class WhenNotMatchedClause:
         else:
             keys = []
             values = [Column._to_expr(v) for v in assignments]
-        self.clause = InsertMergeExpression(self.condition_expr, keys, values)
+        self._clause = InsertMergeExpression(self._condition_expr, keys, values)
         return self
 
 
@@ -231,20 +230,17 @@ class Table(DataFrame):
     """
 
     def __init__(
-        self, table_name: str, session: Optional["snowflake.snowpark.Session"] = None
+        self,
+        table_name: str,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
     ):
         super().__init__(
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
-        self.table_name = table_name
-
-    def clone(self) -> "Table":
-        """Returns a clone of this :class:`Table`."""
-        return Table(self.table_name, self.session)
+        self.table_name: str = table_name  #: The table name
 
     def __copy__(self) -> "Table":
-        """Returns a clone of this :class:`Table`."""
-        return Table(self.table_name, self.session)
+        return Table(self.table_name, self._session)
 
     def sample(
         self,
@@ -277,7 +273,7 @@ class Table(DataFrame):
 
         """
         if sampling_method is None and seed is None:
-            return super(Table, self).sample(frac=frac, n=n)
+            return super().sample(frac=frac, n=n)
         DataFrame._validate_sample_input(frac, n)
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
@@ -295,7 +291,7 @@ class Table(DataFrame):
         frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} rows"
         seed_text = f" seed ({seed})" if seed is not None else ""
         sql_text = f"select * from {self.table_name} sample {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
-        return self.session.sql(sql_text)
+        return self._session.sql(sql_text)
 
     @df_action_telemetry
     def update(
@@ -345,9 +341,7 @@ class Table(DataFrame):
                     for k, v in assignments.items()
                 },
                 condition.expression if condition is not None else None,
-                DataFrame._disambiguate(self, source, create_join_type("left"), [])[
-                    1
-                ]._plan
+                _disambiguate(self, source, create_join_type("left"), [])[1]._plan
                 if source
                 else None,
             )
@@ -391,9 +385,7 @@ class Table(DataFrame):
             TableDelete(
                 self.table_name,
                 condition.expression if condition is not None else None,
-                DataFrame._disambiguate(self, source, create_join_type("left"), [])[
-                    1
-                ]._plan
+                _disambiguate(self, source, create_join_type("left"), [])[1]._plan
                 if source
                 else None,
             )
@@ -437,7 +429,7 @@ class Table(DataFrame):
         merge_exprs = []
         for c in clauses:
             if isinstance(c, WhenMatchedClause):
-                if isinstance(c.clause, UpdateMergeExpression):
+                if isinstance(c._clause, UpdateMergeExpression):
                     updated = True
                 else:
                     deleted = True
@@ -447,14 +439,12 @@ class Table(DataFrame):
                 raise TypeError(
                     "clauses only accepts WhenMatchedClause or WhenNotMatchedClause instances"
                 )
-            merge_exprs.append(c.clause)
+            merge_exprs.append(c._clause)
 
         new_df = self._with_plan(
             TableMerge(
                 self.table_name,
-                DataFrame._disambiguate(self, source, create_join_type("left"), [])[
-                    1
-                ]._plan,
+                _disambiguate(self, source, create_join_type("left"), [])[1]._plan,
                 join_expr.expression,
                 merge_exprs,
             )

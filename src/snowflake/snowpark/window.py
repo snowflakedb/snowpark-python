@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """Window frames in Snowpark."""
 import sys
-from typing import List, Tuple, Union
+from typing import Iterable, List, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Expression, Literal
@@ -23,7 +22,25 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowSpecDefinition,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import parse_positional_args_to_list
+
+
+def _convert_boundary_to_expr(start: int, end: int) -> Tuple[Expression, Expression]:
+    if start == 0:
+        boundary_start = CurrentRow()
+    elif start <= Window.UNBOUNDED_PRECEDING:
+        boundary_start = UnboundedPreceding()
+    else:
+        boundary_start = Literal(start)
+
+    if end == 0:
+        boundary_end = CurrentRow()
+    elif end >= Window.UNBOUNDED_FOLLOWING:
+        boundary_end = UnboundedFollowing()
+    else:
+        boundary_end = Literal(end)
+
+    return boundary_start, boundary_end
 
 
 class Window:
@@ -54,8 +71,7 @@ class Window:
     def partition_by(
         *cols: Union[
             ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
+            Iterable[ColumnOrName],
         ]
     ) -> "WindowSpec":
         """
@@ -71,8 +87,7 @@ class Window:
     def order_by(
         *cols: Union[
             ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
+            Iterable[ColumnOrName],
         ]
     ) -> "WindowSpec":
         """
@@ -151,8 +166,7 @@ class WindowSpec:
         self,
         *cols: Union[
             ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
+            Iterable[ColumnOrName],
         ]
     ) -> "WindowSpec":
         """
@@ -161,7 +175,7 @@ class WindowSpec:
         See Also:
             - :func:`Window.partition_by`
         """
-        exprs = Utils.parse_positional_args_to_list(*cols)
+        exprs = parse_positional_args_to_list(*cols)
         partition_spec = [
             e.expression
             if isinstance(e, snowflake.snowpark.column.Column)
@@ -175,8 +189,7 @@ class WindowSpec:
         self,
         *cols: Union[
             ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
+            Iterable[ColumnOrName],
         ]
     ) -> "WindowSpec":
         """
@@ -185,7 +198,7 @@ class WindowSpec:
         See Also:
             - :func:`Window.order_by`
         """
-        exprs = Utils.parse_positional_args_to_list(*cols)
+        exprs = parse_positional_args_to_list(*cols)
         order_spec = []
         for e in exprs:
             if isinstance(e, str):
@@ -209,7 +222,7 @@ class WindowSpec:
         See Also:
             - :func:`Window.rows_between`
         """
-        boundary_start, boundary_end = self._convert_boundary_to_expr(start, end)
+        boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
         return WindowSpec(
             self.partition_spec,
             self.order_spec,
@@ -223,7 +236,7 @@ class WindowSpec:
         See Also:
             - :func:`Window.range_between`
         """
-        boundary_start, boundary_end = self._convert_boundary_to_expr(start, end)
+        boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
         return WindowSpec(
             self.partition_spec,
             self.order_spec,

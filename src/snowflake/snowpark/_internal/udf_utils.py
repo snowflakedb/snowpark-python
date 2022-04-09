@@ -23,11 +23,20 @@ import cloudpickle
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.type_utils import (
-    _python_type_to_snow_type,
-    _retrieve_func_type_hints_from_source,
     convert_to_sf_type,
+    python_type_to_snow_type,
+    retrieve_func_type_hints_from_source,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, Utils
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    get_udf_upload_prefix,
+    is_single_quoted,
+    normalize_remote_file_or_dir,
+    random_name_for_temp_object,
+    random_number,
+    unwrap_stage_location_single_quote,
+    validate_object_name,
+)
 from snowflake.snowpark.types import DataType, PandasDataFrameType, PandasSeriesType
 
 logger = getLogger(__name__)
@@ -63,13 +72,13 @@ def get_types_from_type_hints(
         python_types_dict = get_type_hints(func)
     else:
         python_types_dict = (
-            _retrieve_func_type_hints_from_source(func[0], func[1])
+            retrieve_func_type_hints_from_source(func[0], func[1])
             if is_local_python_file(func[0])
             else {}
         )
 
     return_type = (
-        _python_type_to_snow_type(python_types_dict["return"])[0]
+        python_type_to_snow_type(python_types_dict["return"])[0]
         if "return" in python_types_dict
         else None
     )
@@ -88,7 +97,7 @@ def get_types_from_type_hints(
                     "The first argument of stored proc function should be Session"
                 )
         elif key != "return":
-            input_types.append(_python_type_to_snow_type(python_type)[0])
+            input_types.append(python_type_to_snow_type(python_type)[0])
         index += 1
 
     return return_type, input_types
@@ -255,8 +264,8 @@ def process_registration_inputs(
     if name:
         object_name = name if isinstance(name, str) else ".".join(name)
     else:
-        object_name = f"{session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(object_type)}"
-    Utils.validate_object_name(object_name)
+        object_name = f"{session.get_fully_qualified_current_schema()}.{random_name_for_temp_object(object_type)}"
+    validate_object_name(object_name)
 
     # get return and input types
     (
@@ -278,7 +287,7 @@ def cleanup_failed_permanent_registration(
 ) -> None:
     if stage_location and upload_file_stage_location:
         try:
-            logger.info(
+            logger.debug(
                 "Removing Snowpark uploaded file: %s",
                 upload_file_stage_location,
             )
@@ -373,7 +382,7 @@ def resolve_imports_and_packages(
     max_batch_size: Optional[int] = None,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
-        Utils.unwrap_stage_location_single_quote(stage_location)
+        unwrap_stage_location_single_quote(stage_location)
         if stage_location
         else session.get_session_stage()
     )
@@ -407,20 +416,20 @@ def resolve_imports_and_packages(
         )
     )
 
-    dest_prefix = Utils.get_udf_upload_prefix(udf_name)
+    dest_prefix = get_udf_upload_prefix(udf_name)
 
     # Upload closure to stage if it is beyond inline closure size limit
     if isinstance(func, Callable):
         # generate a random name for udf py file
         # and we compress it first then upload it
-        udf_file_name_base = f"udf_py_{Utils.random_number()}"
+        udf_file_name_base = f"udf_py_{random_number()}"
         udf_file_name = f"{udf_file_name_base}.zip"
         code = generate_python_code(
             func, arg_names, is_pandas_udf, is_dataframe_input, max_batch_size
         )
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
-            dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-            upload_file_stage_location = Utils.normalize_remote_file_or_dir(
+            dest_prefix = get_udf_upload_prefix(udf_name)
+            upload_file_stage_location = normalize_remote_file_or_dir(
                 f"{upload_stage}/{dest_prefix}/{udf_file_name}"
             )
             udf_file_name_base = os.path.splitext(udf_file_name)[0]
@@ -458,7 +467,7 @@ def resolve_imports_and_packages(
             upload_file_stage_location = None
             all_urls.append(func[0])
         else:
-            upload_file_stage_location = Utils.normalize_remote_file_or_dir(
+            upload_file_stage_location = normalize_remote_file_or_dir(
                 f"{upload_stage}/{dest_prefix}/{udf_file_name}"
             )
             session._conn.upload_file(
@@ -473,7 +482,7 @@ def resolve_imports_and_packages(
 
     # build imports and packages string
     all_imports = ",".join(
-        [url if Utils.is_single_quoted(url) else f"'{url}'" for url in all_urls]
+        [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
     )
     all_packages = ",".join([f"'{package}'" for package in resolved_packages])
     return handler, inline_code, all_imports, all_packages, upload_file_stage_location

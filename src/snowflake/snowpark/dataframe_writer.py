@@ -12,7 +12,11 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.telemetry import dfw_action_telemetry
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import (
+    normalize_remote_file_or_dir,
+    str_to_enum,
+    validate_object_name,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import sql_expr
 
@@ -35,9 +39,9 @@ class DataFrameWriter:
 
     """
 
-    def __init__(self, dataframe: "snowflake.snowpark.DataFrame"):
+    def __init__(self, dataframe: "snowflake.snowpark.dataframe.DataFrame"):
         self._dataframe = dataframe
-        self.__save_mode = SaveMode.APPEND  # spark default value is error.
+        self._save_mode = SaveMode.APPEND  # spark default value is error.
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
@@ -58,7 +62,7 @@ class DataFrameWriter:
         Returns:
             The :class:`DataFrameWriter` itself.
         """
-        self.__save_mode = Utils.str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
+        self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
         return self
 
     @dfw_action_telemetry
@@ -95,21 +99,19 @@ class DataFrameWriter:
         # Snowpark scala doesn't have mode as a param but pyspark has it.
         # They both have mode()
         save_mode = (
-            Utils.str_to_enum(mode.lower(), SaveMode, "'mode'")
-            if mode
-            else self.__save_mode
+            str_to_enum(mode.lower(), SaveMode, "'mode'") if mode else self._save_mode
         )
         full_table_name = (
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
-        Utils.validate_object_name(full_table_name)
+        validate_object_name(full_table_name)
         create_table_logic_plan = SnowflakeCreateTable(
             full_table_name,
             save_mode,
             self._dataframe._plan,
             create_temp_table,
         )
-        session = self._dataframe.session
+        session = self._dataframe._session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
         session._conn.execute(snowflake_plan)
 
@@ -140,7 +142,7 @@ class DataFrameWriter:
             header: Specifies whether to include the table column headings in the output files.
             copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
         """
-        stage_location = Utils.normalize_remote_file_or_dir(location)
+        stage_location = normalize_remote_file_or_dir(location)
         if isinstance(partition_by, str):
             partition_by = sql_expr(partition_by).expression
         elif isinstance(partition_by, Column):

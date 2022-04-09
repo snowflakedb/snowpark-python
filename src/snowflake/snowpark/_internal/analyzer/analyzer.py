@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -45,7 +44,11 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryExpression,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
-from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    str_to_sql,
+    to_sql,
+    to_sql_without_cast,
+)
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
@@ -130,7 +133,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowSpecDefinition,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.types import VariantType, _IntegralType
+from snowflake.snowpark.types import VariantType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -208,7 +211,7 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Literal):
-            return DataTypeMapper.to_sql(expr.value, expr.datatype)
+            return to_sql(expr.value, expr.datatype)
 
         if isinstance(expr, Attribute):
             name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
@@ -288,7 +291,7 @@ class Analyzer:
         if isinstance(expr, ListAgg):
             return list_agg(
                 self.analyze(expr.col),
-                DataTypeMapper.str_to_sql(expr.delimiter),
+                str_to_sql(expr.delimiter),
                 expr.is_distinct,
             )
 
@@ -371,10 +374,10 @@ class Analyzer:
             return offset
 
     def to_sql_avoid_offset(self, expr: Expression) -> str:
-        # if expression is an integral literal, return the number without casting,
+        # if expression is a numeric literal, return the number without casting,
         # otherwise process as normal
-        if isinstance(expr, Literal) and isinstance(expr.datatype, _IntegralType):
-            return DataTypeMapper.to_sql_without_cast(expr.value, expr.datatype)
+        if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
+            return to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(expr)
 

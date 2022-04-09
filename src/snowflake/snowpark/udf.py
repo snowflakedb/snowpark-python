@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -19,7 +18,10 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, Utils
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    parse_positional_args_to_list,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType
 
@@ -59,10 +61,10 @@ class UserDefinedFunction:
 
     def __call__(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> Column:
         exprs = []
-        for c in Utils.parse_positional_args_to_list(*cols):
+        for c in parse_positional_args_to_list(*cols):
             if isinstance(c, Column):
                 exprs.append(c.expression)
             elif isinstance(c, str):
@@ -72,9 +74,9 @@ class UserDefinedFunction:
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
                 )
 
-        return Column(self.__create_udf_expression(exprs))
+        return Column(self._create_udf_expression(exprs))
 
-    def __create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
+    def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         if len(exprs) != len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"
@@ -331,10 +333,12 @@ class UDFRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session"):
         self._session = session
 
-    def describe(self, udf_obj: UserDefinedFunction) -> "snowflake.snowpark.DataFrame":
+    def describe(
+        self, udf_obj: UserDefinedFunction
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a UDF.
 
@@ -426,7 +430,7 @@ class UDFRegistration:
         )
 
         # register udf
-        return self.__do_register_udf(
+        return self._do_register_udf(
             func,
             return_type,
             input_types,
@@ -527,7 +531,7 @@ class UDFRegistration:
         )
 
         # register udf
-        return self.__do_register_udf(
+        return self._do_register_udf(
             (file_path, func_name),
             return_type,
             input_types,
@@ -539,7 +543,7 @@ class UDFRegistration:
             parallel,
         )
 
-    def __do_register_udf(
+    def _do_register_udf(
         self,
         func: Union[Callable, Tuple[str, str]],
         return_type: Optional[DataType],

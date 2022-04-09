@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -9,7 +8,7 @@ import decimal
 import pytest
 
 from snowflake.snowpark._internal.analyzer.expression import Literal
-from snowflake.snowpark._internal.type_utils import _type_mappings
+from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
 from snowflake.snowpark.exceptions import SnowparkPlanException
 
 
@@ -30,7 +29,7 @@ def test_literal():
     structured_data = [(1, 1), [2, 2], {"1": 2}]
 
     for d in basic_data:
-        assert isinstance(Literal(d).datatype, _type_mappings[type(d)])
+        assert isinstance(Literal(d).datatype, PYTHON_TO_SNOW_TYPE_MAPPINGS[type(d)])
 
     for d in structured_data:
         with pytest.raises(SnowparkPlanException) as ex_info:

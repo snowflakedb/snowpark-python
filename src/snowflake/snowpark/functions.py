@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -189,7 +188,10 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     LiteralType,
 )
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import (
+    parse_positional_args_to_list,
+    validate_object_name,
+)
 from snowflake.snowpark.column import (
     CaseExpr,
     Column,
@@ -547,7 +549,7 @@ def not_(e: ColumnOrName) -> Column:
 
 def random(seed: Optional[int] = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
-    s = seed if seed is not None else randint(-(2 ** 63), 2 ** 63 - 1)
+    s = seed if seed is not None else randint(-(2**63), 2**63 - 1)
     return builtin("random")(Literal(s))
 
 
@@ -1918,7 +1920,7 @@ def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     return c.try_cast(to)
 
 
-def __as_decimal_or_number(
+def _as_decimal_or_number(
     cast_type: str,
     variant: ColumnOrName,
     precision: Optional[int] = None,
@@ -1942,7 +1944,7 @@ def as_decimal(
     scale: Optional[int] = None,
 ) -> Column:
     """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
-    return __as_decimal_or_number("as_decimal", variant, precision, scale)
+    return _as_decimal_or_number("as_decimal", variant, precision, scale)
 
 
 def as_number(
@@ -1951,7 +1953,7 @@ def as_number(
     scale: Optional[int] = None,
 ) -> Column:
     """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
-    return __as_decimal_or_number("as_number", variant, precision, scale)
+    return _as_decimal_or_number("as_number", variant, precision, scale)
 
 
 def as_double(variant: ColumnOrName) -> Column:
@@ -2183,7 +2185,7 @@ def in_(
         cols: A list of the columns to compare for the IN operation.
         vals: A list containing the values to compare for the IN operation.
     """
-    vals = Utils.parse_positional_args_to_list(*vals)
+    vals = parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
     return Column(MultipleExpression([c.expression for c in columns])).in_(vals)
 
@@ -2268,6 +2270,35 @@ def ntile(e: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(e, "ntile")
     return builtin("ntile")(c)
+
+
+def percentile_cont(percentile: float) -> Column:
+    """
+    Return a percentile value based on a continuous distribution of the
+    input column. If no input row lies exactly at the desired percentile,
+    the result is calculated using linear interpolation of the two nearest
+    input values. NULL values are ignored in the calculation.
+
+    Args:
+        percentile: the percentile of the value that you want to find.
+            The percentile must be a constant between 0.0 and 1.0. For example,
+            if you want to find the value at the 90th percentile, specify 0.9.
+
+    Example:
+
+        >>> df = session.create_dataframe([
+        ...     (0, 0), (0, 10), (0, 20), (0, 30), (0, 40),
+        ...     (1, 10), (1, 20), (2, 10), (2, 20), (2, 25),
+        ...     (2, 30), (3, 60), (4, None)
+        ... ], schema=["k", "v"])
+        >>> df.group_by("k").agg(percentile_cont(0.25).within_group("v").as_("percentile")).sort("k").collect()
+        [Row(K=0, PERCENTILE=Decimal('10.000')), \
+Row(K=1, PERCENTILE=Decimal('12.500')), \
+Row(K=2, PERCENTILE=Decimal('17.500')), \
+Row(K=3, PERCENTILE=Decimal('60.000')), \
+Row(K=4, PERCENTILE=None)]
+    """
+    return builtin("percentile_cont")(percentile)
 
 
 def greatest(*columns: ColumnOrName) -> Column:
@@ -2567,7 +2598,7 @@ def call_udf(
         <BLANKLINE>
     """
 
-    Utils.validate_object_name(udf_name)
+    validate_object_name(udf_name)
     return _call_function(udf_name, False, *args)
 
 
@@ -2632,9 +2663,7 @@ def builtin(function_name: str) -> Callable:
 def _call_function(
     name: str, is_distinct: bool = False, *args: ColumnOrLiteral
 ) -> Column:
-    expressions = [
-        Column._to_expr(arg) for arg in Utils.parse_positional_args_to_list(*args)
-    ]
+    expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
     return Column(FunctionExpression(name, expressions, is_distinct=is_distinct))
 
 

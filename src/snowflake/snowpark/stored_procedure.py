@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -19,7 +18,7 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, Utils
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import DataType
 
 
@@ -74,7 +73,7 @@ class StoredProcedure:
     def __call__(
         self,
         *args: Any,
-        session: Optional["snowflake.snowpark.Session"] = None,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> any:
         session = session or snowflake.snowpark.session._get_active_session()
         if len(self._input_types) != len(args):
@@ -165,10 +164,12 @@ class StoredProcedureRegistration:
         :func:`~snowflake.snowpark.functions.sproc`
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session"):
         self._session = session
 
-    def describe(self, sproc_obj: StoredProcedure) -> "snowflake.snowpark.DataFrame":
+    def describe(
+        self, sproc_obj: StoredProcedure
+    ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a stored procedure.
 
@@ -214,7 +215,7 @@ class StoredProcedureRegistration:
         )
 
         # register stored procedure
-        return self.__do_register_sp(
+        return self._do_register_sp(
             func,
             return_type,
             input_types,
@@ -293,7 +294,7 @@ class StoredProcedureRegistration:
         )
 
         # register udf
-        return self.__do_register_sp(
+        return self._do_register_sp(
             (file_path, func_name),
             return_type,
             input_types,
@@ -305,7 +306,7 @@ class StoredProcedureRegistration:
             parallel,
         )
 
-    def __do_register_sp(
+    def _do_register_sp(
         self,
         func: Union[Callable, Tuple[str, str]],
         return_type: DataType,

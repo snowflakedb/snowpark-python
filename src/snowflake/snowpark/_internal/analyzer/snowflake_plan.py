@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
 import uuid
-from functools import reduce
+from functools import cached_property, reduce
 from typing import Any, Callable, Dict, List, Optional
 
 import snowflake.connector
@@ -50,12 +49,17 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     SetOperation,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.utils import SchemaUtils, TempObjectType, Utils
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    generate_random_alphanumeric,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -96,9 +100,7 @@ class SnowflakePlan(LogicalPlan):
                         ]
                         if col in remapped:
                             unaliased_cols = (
-                                snowflake.snowpark.dataframe.DataFrame.get_unaliased(
-                                    col
-                                )
+                                snowflake.snowpark.dataframe._get_unaliased(col)
                             )
                             orig_col_name = (
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
@@ -111,7 +113,7 @@ class SnowflakePlan(LogicalPlan):
                                 [
                                     unaliased
                                     for item in remapped
-                                    for unaliased in snowflake.snowpark.dataframe.DataFrame.get_unaliased(
+                                    for unaliased in snowflake.snowpark.dataframe._get_unaliased(
                                         item
                                     )
                                     if unaliased == col
@@ -129,19 +131,6 @@ class SnowflakePlan(LogicalPlan):
 
             return wrap
 
-    # for read_file()
-    __copy_option = {
-        "ON_ERROR",
-        "SIZE_LIMIT",
-        "PURGE",
-        "RETURN_FAILED_ONLY",
-        "MATCH_BY_COLUMN_NAME",
-        "ENFORCE_LENGTH",
-        "TRUNCATECOLUMNS",
-        "FORCE",
-        "LOAD_UNCERTAIN_FILES",
-    }
-
     def __init__(
         self,
         queries: List["Query"],
@@ -154,19 +143,16 @@ class SnowflakePlan(LogicalPlan):
     ):
         super().__init__()
         self.queries = queries
-        self._schema_query = schema_query
+        self.schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
 
-        self._attributes = None
-        self._output = None
-
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
-        new_schema_query = self._schema_query
+        new_schema_query = self.schema_query
         new_post_actions = [*self.post_actions]
 
         for plan in subquery_plans:
@@ -174,7 +160,7 @@ class SnowflakePlan(LogicalPlan):
                 if query not in pre_queries:
                     pre_queries.append(query)
             new_schema_query = new_schema_query.replace(
-                plan.queries[-1].sql, plan._schema_query
+                plan.queries[-1].sql, plan.schema_query
             )
             for action in plan.post_actions:
                 if action not in new_post_actions:
@@ -189,24 +175,20 @@ class SnowflakePlan(LogicalPlan):
             source_plan=self.source_plan,
         )
 
+    @cached_property
     def attributes(self) -> List[Attribute]:
-        if not self._attributes:
-            output = SchemaUtils.analyze_attributes(self._schema_query, self.session)
-            self._schema_query = schema_value_statement(output)
-            self._attributes = output
-        return self._attributes
+        output = analyze_attributes(self.schema_query, self.session)
+        self.schema_query = schema_value_statement(output)
+        return output
 
+    @cached_property
     def output(self) -> List[Attribute]:
-        if not self._output:
-            self._output = [
-                Attribute(a.name, a.datatype, a.nullable) for a in self.attributes()
-            ]
-        return self._output
+        return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
     def __copy__(self) -> "SnowflakePlan":
         return SnowflakePlan(
             self.queries.copy() if self.queries else [],
-            self._schema_query,
+            self.schema_query,
             self.post_actions.copy() if self.post_actions else None,
             dict(self.expr_to_alias) if self.expr_to_alias else None,
             self.session,
@@ -242,7 +224,7 @@ class SnowflakePlanBuilder:
         schema_query: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
-        select_child = self._add_result_scan_if_not_select(child)
+        select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
             Query(
                 sql_generator(select_child.queries[-1].sql),
@@ -251,7 +233,7 @@ class SnowflakePlanBuilder:
             )
         ]
         new_schema_query = (
-            schema_query if schema_query else sql_generator(child._schema_query)
+            schema_query if schema_query else sql_generator(child.schema_query)
         )
 
         return SnowflakePlan(
@@ -273,7 +255,7 @@ class SnowflakePlanBuilder:
         schema_query: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
-        select_child = self._add_result_scan_if_not_select(child)
+        select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[0:-1] + [
             Query(msg, is_ddl_on_temp_object=is_ddl_on_temp_object)
             for msg in multi_sql_generator(select_child.queries[-1].sql)
@@ -281,7 +263,7 @@ class SnowflakePlanBuilder:
         new_schema_query = (
             schema_query
             if schema_query is not None
-            else multi_sql_generator(child._schema_query)[-1]
+            else multi_sql_generator(child.schema_query)[-1]
         )
 
         return SnowflakePlan(
@@ -301,8 +283,8 @@ class SnowflakePlanBuilder:
         right: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        select_left = self._add_result_scan_if_not_select(left)
-        select_right = self._add_result_scan_if_not_select(right)
+        select_left = self.add_result_scan_if_not_select(left)
+        select_right = self.add_result_scan_if_not_select(right)
         queries = (
             select_left.queries[:-1]
             + select_right.queries[:-1]
@@ -316,8 +298,8 @@ class SnowflakePlanBuilder:
             ]
         )
 
-        left_schema_query = schema_value_statement(select_left.attributes())
-        right_schema_query = schema_value_statement(select_right.attributes())
+        left_schema_query = schema_value_statement(select_left.attributes)
+        right_schema_query = schema_value_statement(select_right.attributes)
         schema_query = sql_generator(left_schema_query, right_schema_query)
 
         common_columns = set(select_left.expr_to_alias.keys()).intersection(
@@ -355,7 +337,7 @@ class SnowflakePlanBuilder:
         data: List[Row],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         attributes = [
             Attribute(attr.name, attr.datatype, attr.nullable) for attr in output
         ]
@@ -489,7 +471,7 @@ class SnowflakePlanBuilder:
         if mode == SaveMode.APPEND:
             create_table = create_table_statement(
                 table_name,
-                attribute_to_schema_string(child.attributes()),
+                attribute_to_schema_string(child.attributes),
                 error=False,
                 temp=create_temp_table,
             )
@@ -589,11 +571,11 @@ class SnowflakePlanBuilder:
     def create_temp_table(self, name: str, child: SnowflakePlan) -> SnowflakePlan:
         return self.build_from_multiple_queries(
             lambda x: self.create_table_and_insert(
-                self.session, name, child._schema_query, x
+                self.session, name, child.schema_query, x
             ),
             child,
             None,
-            child._schema_query,
+            child.schema_query,
             is_ddl_on_temp_object=True,
         )
 
@@ -634,7 +616,7 @@ class SnowflakePlanBuilder:
             temp_file_format_name = (
                 fully_qualified_schema
                 + "."
-                + Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+                + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
             )
             queries = [
                 Query(
@@ -690,7 +672,7 @@ class SnowflakePlanBuilder:
             temp_table_name = (
                 fully_qualified_schema
                 + "."
-                + Utils.random_name_for_temp_object(TempObjectType.TABLE)
+                + random_name_for_temp_object(TempObjectType.TABLE)
             )
             queries = [
                 Query(
@@ -815,7 +797,7 @@ class SnowflakePlanBuilder:
             ),
             query,
             None,
-            query._schema_query,
+            query.schema_query,
         )
 
     def update(
@@ -886,7 +868,7 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def _add_result_scan_if_not_select(self, plan: SnowflakePlan) -> SnowflakePlan:
+    def add_result_scan_if_not_select(self, plan: SnowflakePlan) -> SnowflakePlan:
         if isinstance(plan.source_plan, SetOperation):
             return plan
         elif plan.queries[-1].sql.strip().lower().startswith("select"):
@@ -900,7 +882,7 @@ class SnowflakePlanBuilder:
             ]
             return SnowflakePlan(
                 new_queries,
-                schema_value_statement(plan.attributes()),
+                schema_value_statement(plan.attributes),
                 plan.post_actions,
                 plan.expr_to_alias,
                 self.session,
@@ -919,7 +901,7 @@ class Query:
         self.query_id_place_holder = (
             query_id_place_holder
             if query_id_place_holder
-            else f"query_id_place_holder_{Utils.generate_random_alphanumeric()}"
+            else f"query_id_place_holder_{generate_random_alphanumeric()}"
         )
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
 

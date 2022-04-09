@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -7,6 +6,7 @@ import copy
 import itertools
 import re
 from collections import Counter
+from functools import cached_property
 from logging import getLogger
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
+    Expression,
     Literal,
     NamedExpression,
     Star,
@@ -66,7 +67,16 @@ from snowflake.snowpark._internal.telemetry import (
     df_usage_telemetry,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
-from snowflake.snowpark._internal.utils import TempObjectType, Utils
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    column_to_bool,
+    create_statement_query_tag,
+    deprecate,
+    generate_random_alphanumeric,
+    parse_positional_args_to_list,
+    random_name_for_temp_object,
+    validate_object_name,
+)
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -92,6 +102,83 @@ from snowflake.snowpark.types import StringType, StructType, _NumericType
 logger = getLogger(__name__)
 
 _ONE_MILLION = 1000000
+_NUM_PREFIX_DIGITS = 4
+_UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
+
+
+def _generate_prefix(prefix: str) -> str:
+    return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
+
+
+def _get_unaliased(col_name: str) -> List[str]:
+    unaliased = []
+    c = col_name
+    while True:
+        match = _UNALIASED_REGEX.match(c)
+        if match:
+            c = match.group(1)
+            unaliased.append(c)
+        else:
+            break
+
+    return unaliased
+
+
+def _alias_if_needed(df: "DataFrame", c: str, prefix: str, common_col_names: List[str]):
+    col = df.col(c)
+    unquoted = c.strip('"')
+    if c in common_col_names:
+        return col.alias(f'"{prefix}{unquoted}"')
+    else:
+        return col.alias(f'"{unquoted}"')
+
+
+def _disambiguate(
+    lhs: "DataFrame",
+    rhs: "DataFrame",
+    join_type: JoinType,
+    using_columns: List[str],
+) -> Tuple["DataFrame", "DataFrame"]:
+    # Normalize the using columns.
+    normalized_using_columns = {quote_name(c) for c in using_columns}
+    #  Check if the LHS and RHS have columns in common. If they don't just return them as-is. If
+    #  they do have columns in common, alias the common columns with randomly generated l_
+    #  and r_ prefixes for the left and right sides respectively.
+    #  We assume the column names from the schema are normalized and quoted.
+    lhs_names = [attr.name for attr in lhs._output]
+    rhs_names = [attr.name for attr in rhs._output]
+    common_col_names = [
+        n
+        for n in lhs_names
+        if n in set(rhs_names) and n not in normalized_using_columns
+    ]
+
+    if common_col_names:
+        # We use the session of the LHS DataFrame to report this telemetry
+        lhs._session._conn._telemetry_client.send_alias_in_join_telemetry()
+
+    lhs_prefix = _generate_prefix("l")
+    rhs_prefix = _generate_prefix("r")
+
+    lhs_remapped = lhs.select(
+        [
+            _alias_if_needed(
+                lhs,
+                name,
+                lhs_prefix,
+                [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
+            )
+            for name in lhs_names
+        ]
+    )
+
+    rhs_remapped = rhs.select(
+        [
+            _alias_if_needed(rhs, name, rhs_prefix, common_col_names)
+            for name in rhs_names
+        ]
+    )
+    return lhs_remapped, rhs_remapped
 
 
 class DataFrame:
@@ -309,25 +396,18 @@ class DataFrame:
             -0.5960395606792697
     """
 
-    __NUM_PREFIX_DIGITS = 4
-    __get_unaliased_regex = re.compile(
-        f"""._[a-zA-Z0-9]{{{__NUM_PREFIX_DIGITS}}}_(.*)"""
-    )
-
     def __init__(
         self,
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
     ):
-        self.session = session
+        self._session = session
         self._plan = session._analyzer.resolve(plan)
-        self.is_cached = is_cached  # whether it is a cached dataframe
+        self.is_cached = is_cached  #: Whether it is a cached dataframe
 
-        # Use this to simulate scala's lazy val
-        self.__placeholder_schema = None
-        self.__placeholder_output = None
         self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
+        self._writer = DataFrameWriter(self)
 
         self._stat = DataFrameStatFunctions(self)
         self.approxQuantile = self.approx_quantile = self._stat.approx_quantile
@@ -340,24 +420,6 @@ class DataFrame:
         self.dropna = self._na.drop
         self.fillna = self._na.fill
         self.replace = self._na.replace
-
-    @staticmethod
-    def get_unaliased(col_name: str) -> List[str]:
-        unaliased = list()
-        c = col_name
-        while True:
-            match = DataFrame.__get_unaliased_regex.match(c)
-            if match:
-                c = match.group(1)
-                unaliased.append(c)
-            else:
-                break
-
-        return unaliased
-
-    @staticmethod
-    def __generate_prefix(prefix: str) -> str:
-        return f"{prefix}_{Utils.generate_random_alphanumeric(DataFrame.__NUM_PREFIX_DIGITS)}_"
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -374,10 +436,10 @@ class DataFrame:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
-        return self.session._conn.execute(
+        return self._session._conn.execute(
             self._plan,
-            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
-            if not self.session.query_tag
+            _statement_params={"QUERY_TAG": create_statement_query_tag(3)}
+            if not self._session.query_tag
             else None,
         )
 
@@ -397,16 +459,16 @@ class DataFrame:
             Row(PRODUCT_ID='id1', AMOUNT=Decimal('10.00'))
             Row(PRODUCT_ID='id2', AMOUNT=Decimal('20.00'))
         """
-        yield from self.session._conn.execute(
+        yield from self._session._conn.execute(
             self._plan,
             to_iter=True,
-            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(3)}
-            if not self.session.query_tag
+            _statement_params={"QUERY_TAG": create_statement_query_tag(3)}
+            if not self._session.query_tag
             else None,
         )
 
     def __copy__(self) -> "DataFrame":
-        return DataFrame(self.session, copy.copy(self._plan))
+        return DataFrame(self._session, copy.copy(self._plan))
 
     def to_pandas(self, **kwargs) -> "pandas.DataFrame":
         """
@@ -421,11 +483,9 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        if not self.session.query_tag:
-            kwargs["_statement_params"] = {
-                "QUERY_TAG": Utils.create_statement_query_tag(2)
-            }
-        result = self.session._conn.execute(self._plan, to_pandas=True, **kwargs)
+        if not self._session.query_tag:
+            kwargs["_statement_params"] = {"QUERY_TAG": create_statement_query_tag(2)}
+        result = self._session._conn.execute(self._plan, to_pandas=True, **kwargs)
 
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
@@ -466,15 +526,13 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        if not self.session.query_tag:
-            kwargs["_statement_params"] = {
-                "QUERY_TAG": Utils.create_statement_query_tag(2)
-            }
-        yield from self.session._conn.execute(
+        if not self._session.query_tag:
+            kwargs["_statement_params"] = {"QUERY_TAG": create_statement_query_tag(2)}
+        yield from self._session._conn.execute(
             self._plan, to_pandas=True, to_iter=True, **kwargs
         )
 
-    def to_df(self, *names: Union[str, List[str], Tuple[str, ...]]) -> "DataFrame":
+    def to_df(self, *names: Union[str, Iterable[str]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
 
@@ -489,22 +547,22 @@ class DataFrame:
         Args:
             names: list of new column names
         """
-        col_names = Utils.parse_positional_args_to_list(*names)
+        col_names = parse_positional_args_to_list(*names)
         if not all(isinstance(n, str) for n in col_names):
             raise TypeError(
                 f"Invalid input type in to_df(), expected str or a list of strs."
             )
 
-        if len(self.__output()) != len(col_names):
+        if len(self._output) != len(col_names):
             raise ValueError(
                 f"The number of columns doesn't match. "
-                f"Old column names ({len(self.__output())}): "
-                f"{','.join(attr.name for attr in self.__output())}. "
+                f"Old column names ({len(self._output)}): "
+                f"{','.join(attr.name for attr in self._output)}. "
                 f"New column names ({len(col_names)}): {','.join(col_names)}."
             )
 
         new_cols = []
-        for attr, name in zip(self.__output(), col_names):
+        for attr, name in zip(self._output, col_names):
             new_cols.append(Column(attr).alias(name))
         return self.select(new_cols)
 
@@ -550,13 +608,13 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
-            return Column(Star(self._plan.output()))
+            return Column(Star(self._plan.output))
         else:
-            return Column(self.__resolve(col_name))
+            return Column(self._resolve(col_name))
 
     def select(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -583,7 +641,7 @@ class DataFrame:
         Args:
             *cols: A :class:`Column`, :class:`str`, or a list of those.
         """
-        exprs = Utils.parse_positional_args_to_list(*cols)
+        exprs = parse_positional_args_to_list(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
 
@@ -626,14 +684,14 @@ class DataFrame:
 
         """
         return self.select(
-            [sql_expr(expr) for expr in Utils.parse_positional_args_to_list(*exprs)]
+            [sql_expr(expr) for expr in parse_positional_args_to_list(*exprs)]
         )
 
     selectExpr = select_expr
 
     def drop(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "DataFrame":
         """Returns a new DataFrame that excludes the columns with the specified names
         from the output.
@@ -664,7 +722,7 @@ class DataFrame:
         # an empty list should be accept, as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
-        exprs = Utils.parse_positional_args_to_list(*cols)
+        exprs = parse_positional_args_to_list(*cols)
 
         names = []
         for c in exprs:
@@ -682,7 +740,7 @@ class DataFrame:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
 
         normalized_names = {quote_name(n) for n in names}
-        existing_names = [attr.name for attr in self.__output()]
+        existing_names = [attr.name for attr in self._output]
         keep_col_names = [c for c in existing_names if c not in normalized_names]
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
@@ -718,7 +776,7 @@ class DataFrame:
 
     def sort(
         self,
-        *cols: Union[str, Column, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
         ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
@@ -769,7 +827,7 @@ class DataFrame:
         """
         if not cols:
             raise ValueError("sort() needs at least one sort expression.")
-        exprs = self.__convert_cols_to_exprs("sort()", *cols)
+        exprs = self._convert_cols_to_exprs("sort()", *cols)
         if not exprs:
             raise ValueError("sort() needs at least one sort expression.")
         orders = []
@@ -901,7 +959,7 @@ class DataFrame:
 
     def rollup(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
         `GROUP BY ROLLUP <https://docs.snowflake.com/en/sql-reference/constructs/group-by-rollup.html>`_.
@@ -910,7 +968,7 @@ class DataFrame:
         Args:
             cols: The columns to group by rollup.
         """
-        rollup_exprs = self.__convert_cols_to_exprs("rollup()", *cols)
+        rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             rollup_exprs,
@@ -919,7 +977,7 @@ class DataFrame:
 
     def group_by(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        *cols: Iterable[ColumnOrName],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -937,7 +995,7 @@ class DataFrame:
             - A list of :class:`Column` objects or column names (:class:`str`)
 
         """
-        grouping_exprs = self.__convert_cols_to_exprs("group_by()", *cols)
+        grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
@@ -948,8 +1006,7 @@ class DataFrame:
         self,
         *grouping_sets: Union[
             "snowflake.snowpark.GroupingSets",
-            List["snowflake.snowpark.GroupingSets"],
-            Tuple["snowflake.snowpark.GroupingSets", ...],
+            Iterable["snowflake.snowpark.GroupingSets"],
         ],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
@@ -983,16 +1040,13 @@ class DataFrame:
         """
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
-            [
-                gs.to_expression
-                for gs in Utils.parse_positional_args_to_list(*grouping_sets)
-            ],
+            [gs._to_expression for gs in parse_positional_args_to_list(*grouping_sets)],
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
     def cube(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
         `GROUP BY CUBE <https://docs.snowflake.com/en/sql-reference/constructs/group-by-cube.html>`_.
@@ -1001,7 +1055,7 @@ class DataFrame:
         Args:
             cols: The columns to group by cube.
         """
-        cube_exprs = self.__convert_cols_to_exprs("cube()", *cols)
+        cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             cube_exprs,
@@ -1037,14 +1091,14 @@ class DataFrame:
         """
         if not subset:
             return self.distinct()
-        subset = Utils.parse_positional_args_to_list(*subset)
+        subset = parse_positional_args_to_list(*subset)
 
         filter_cols = [self.col(x) for x in subset]
         output_cols = [self.col(col_name) for col_name in self.columns]
         rownum = row_number().over(
             snowflake.snowpark.Window.partition_by(*filter_cols).order_by(*filter_cols)
         )
-        rownum_name = Utils.generate_random_alphanumeric()
+        rownum_name = generate_random_alphanumeric()
         return (
             self.select(*output_cols, rownum.as_(rownum_name))
             .where(col(rownum_name) == 1)
@@ -1054,7 +1108,7 @@ class DataFrame:
     def pivot(
         self,
         pivot_col: ColumnOrName,
-        values: Union[List[LiteralType], Tuple[LiteralType, ...]],
+        values: Iterable[LiteralType],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -1087,7 +1141,7 @@ class DataFrame:
             pivot_col: The column or name of the column to use.
             values: A list of values in the column.
         """
-        pc = self.__convert_cols_to_exprs("pivot()", pivot_col)
+        pc = self._convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
             v.expression if isinstance(v, Column) else Literal(v) for v in values
         ]
@@ -1129,7 +1183,7 @@ class DataFrame:
             ---------------------------------------------
             <BLANKLINE>
         """
-        column_exprs = self.__convert_cols_to_exprs("unpivot()", column_list)
+        column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         return self._with_plan(
             Unpivot(value_column, name_column, column_exprs, self._plan)
         )
@@ -1216,7 +1270,7 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
-        return self.__union_by_name_internal(other, is_all=False)
+        return self._union_by_name_internal(other, is_all=False)
 
     def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
@@ -1242,14 +1296,14 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
-        return self.__union_by_name_internal(other, is_all=True)
+        return self._union_by_name_internal(other, is_all=True)
 
     @df_usage_telemetry
-    def __union_by_name_internal(
+    def _union_by_name_internal(
         self, other: "DataFrame", is_all: bool = False
     ) -> "DataFrame":
-        left_output_attrs = self.__output()
-        right_output_attrs = other.__output()
+        left_output_attrs = self._output
+        right_output_attrs = other._output
         right_output_attr_by_name = {rattr.name: rattr for rattr in right_output_attrs}
 
         try:
@@ -1406,7 +1460,7 @@ class DataFrame:
                 isinstance(join_type, str)
                 and join_type.strip().lower().replace("_", "").startswith("cross")
             ):
-                if Utils.column_to_bool(using_columns):
+                if column_to_bool(using_columns):
                     raise Exception("Cross joins cannot take columns as input.")
 
             sp_join_type = (
@@ -1416,7 +1470,7 @@ class DataFrame:
             )
 
             # Parse using_columns arg
-            if Utils.column_to_bool(using_columns) is False:
+            if column_to_bool(using_columns) is False:
                 using_columns = []
             elif isinstance(using_columns, str):
                 using_columns = [using_columns]
@@ -1427,13 +1481,13 @@ class DataFrame:
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
 
-            return self.__join_dataframes(right, using_columns, sp_join_type)
+            return self._join_dataframes(right, using_columns, sp_join_type)
 
         raise TypeError("Invalid type for join. Must be Dataframe")
 
     def join_table_function(
         self,
-        func_name: Union[str, List[str]],
+        func_name: Union[str, Iterable[str]],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> "DataFrame":
@@ -1470,7 +1524,7 @@ class DataFrame:
         func_expr = create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
-        return DataFrame(self.session, TableFunctionJoin(self._plan, func_expr))
+        return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
 
     def cross_join(self, right: "DataFrame") -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
@@ -1499,16 +1553,16 @@ class DataFrame:
         Args:
             right: the right :class:`DataFrame` to join.
         """
-        return self.__join_dataframes_internal(right, create_join_type("cross"), None)
+        return self._join_dataframes_internal(right, create_join_type("cross"), None)
 
-    def __join_dataframes(
+    def _join_dataframes(
         self,
         right: "DataFrame",
         using_columns: Union[Column, List[str]],
         join_type: JoinType,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
-            return self.__join_dataframes_internal(
+            return self._join_dataframes_internal(
                 right, join_type, join_exprs=using_columns
             )
 
@@ -1518,9 +1572,9 @@ class DataFrame:
             for c in using_columns:
                 quoted = quote_name(c)
                 join_cond = join_cond & (self.col(quoted) == right.col(quoted))
-            return self.__join_dataframes_internal(right, join_type, join_cond)
+            return self._join_dataframes_internal(right, join_type, join_cond)
         else:
-            lhs, rhs = self._disambiguate(self, right, join_type, using_columns)
+            lhs, rhs = _disambiguate(self, right, join_type, using_columns)
             return self._with_plan(
                 Join(
                     lhs._plan,
@@ -1530,10 +1584,10 @@ class DataFrame:
                 )
             )
 
-    def __join_dataframes_internal(
+    def _join_dataframes_internal(
         self, right: "DataFrame", join_type: JoinType, join_exprs: Optional[Column]
     ) -> "DataFrame":
-        (lhs, rhs) = self._disambiguate(self, right, join_type, [])
+        (lhs, rhs) = _disambiguate(self, right, join_type, [])
         expression = join_exprs.expression if join_exprs is not None else None
         return self._with_plan(
             Join(
@@ -1543,10 +1597,6 @@ class DataFrame:
                 expression,
             )
         )
-
-    # TODO complete function. Requires TableFunction
-    def __join_dataframe_table_function(self, table_function, columns) -> "DataFrame":
-        pass
 
     def with_column(self, col_name: str, col: Column) -> "DataFrame":
         """
@@ -1618,7 +1668,7 @@ class DataFrame:
         # Get a list of existing column names that are not being replaced
         old_cols = [
             Column(field)
-            for field in self.__output()
+            for field in self._output
             if field.name not in new_column_names
         ]
 
@@ -1653,7 +1703,7 @@ class DataFrame:
             [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
 
-        return DataFrameWriter(self)
+        return self._writer
 
     @df_action_telemetry
     def copy_into_table(
@@ -1737,7 +1787,7 @@ class DataFrame:
         full_table_name = (
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
-        Utils.validate_object_name(full_table_name)
+        validate_object_name(full_table_name)
         pattern = pattern or self._reader._cur_options.get("pattern")
         format_type_options = format_type_options or self._reader._cur_options.get(
             "format_type_options"
@@ -1771,7 +1821,7 @@ class DataFrame:
             else None
         )
         return DataFrame(
-            self.session,
+            self._session,
             CopyIntoTableNode(
                 full_table_name,
                 file_path=self._reader._file_path,
@@ -1803,8 +1853,8 @@ class DataFrame:
             self._show_string(
                 n,
                 max_width,
-                _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
-                if not self.session.query_tag
+                _statement_params={"QUERY_TAG": create_statement_query_tag(2)}
+                if not self._session.query_tag
                 else None,
             )
         )
@@ -1884,31 +1934,33 @@ class DataFrame:
     def _lateral(self, table_function: TableFunctionExpression) -> "DataFrame":
         result_columns = [
             attr.name
-            for attr in self.session._analyzer.resolve(
+            for attr in self._session._analyzer.resolve(
                 Lateral(self._plan, table_function)
-            ).attributes()
+            ).attributes
         ]
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
-            return DataFrame(self.session, Lateral(self._plan, table_function))
-        prefix = DataFrame.__generate_prefix("a")
+            return DataFrame(self._session, Lateral(self._plan, table_function))
+        prefix = _generate_prefix("a")
         child = self.select(
             [
-                self.__alias_if_needed(self, attr.name, prefix, common_col_names)
-                for attr in self.__output()
+                _alias_if_needed(self, attr.name, prefix, common_col_names)
+                for attr in self._output
             ]
         )
-        return DataFrame(self.session, Lateral(child._plan, table_function))
+        return DataFrame(self._session, Lateral(child._plan, table_function))
 
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
         if query.startswith("select"):
-            result, meta = self.session._conn.get_result_and_metadata(
+            result, meta = self._session._conn.get_result_and_metadata(
                 self.limit(n)._plan, **kwargs
             )
         else:
-            res, meta = self.session._conn.get_result_and_metadata(self._plan, **kwargs)
+            res, meta = self._session._conn.get_result_and_metadata(
+                self._plan, **kwargs
+            )
             result = res[:n]
 
         # The query has been executed
@@ -1971,9 +2023,7 @@ class DataFrame:
         )
 
     @df_action_telemetry
-    def create_or_replace_view(
-        self, name: Union[str, List[str], Tuple[str, ...]]
-    ) -> List[Row]:
+    def create_or_replace_view(self, name: Union[str, Iterable[str]]) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
 
         For ``name``, you can include the database and schema name (i.e. specify a
@@ -1995,18 +2045,16 @@ class DataFrame:
                 f"The input of create_or_replace_view() can only a str or list of strs."
             )
 
-        return self.__do_create_or_replace_view(
+        return self._do_create_or_replace_view(
             formatted_name,
             PersistedView(),
-            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
-            if not self.session.query_tag
+            _statement_params={"QUERY_TAG": create_statement_query_tag(2)}
+            if not self._session.query_tag
             else None,
         )
 
     @df_action_telemetry
-    def create_or_replace_temp_view(
-        self, name: Union[str, List[str], Tuple[str, ...]]
-    ) -> List[Row]:
+    def create_or_replace_temp_view(self, name: Union[str, Iterable[str]]) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
 
         You can use the view in subsequent SQL queries and statements during the
@@ -2032,25 +2080,25 @@ class DataFrame:
                 f"The input of create_or_replace_temp_view() can only a str or list of strs."
             )
 
-        return self.__do_create_or_replace_view(
+        return self._do_create_or_replace_view(
             formatted_name,
             LocalTempView(),
-            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
-            if not self.session.query_tag
+            _statement_params={"QUERY_TAG": create_statement_query_tag(2)}
+            if not self._session.query_tag
             else None,
         )
 
-    def __do_create_or_replace_view(
-        self, view_name: str, view_type: ViewType, **kwargs
-    ):
-        Utils.validate_object_name(view_name)
+    def _do_create_or_replace_view(self, view_name: str, view_type: ViewType, **kwargs):
+        validate_object_name(view_name)
         cmd = CreateViewCommand(
             view_name,
             view_type,
             self._plan,
         )
 
-        return self.session._conn.execute(self.session._analyzer.resolve(cmd), **kwargs)
+        return self._session._conn.execute(
+            self._session._analyzer.resolve(cmd), **kwargs
+        )
 
     @df_action_telemetry
     def first(self, n: Optional[int] = None) -> Union[Optional[Row], List[Row]]:
@@ -2140,7 +2188,7 @@ class DataFrame:
         Args:
             cols: The names of columns whose basic statistics are computed.
         """
-        cols = Utils.parse_positional_args_to_list(*cols)
+        cols = parse_positional_args_to_list(*cols)
         df = self.select(cols) if len(cols) > 0 else self
 
         # ignore non-numeric and non-string columns
@@ -2161,7 +2209,7 @@ class DataFrame:
 
         # if no columns should be selected, just return stat names
         if len(numerical_string_col_type_dict) == 0:
-            return self.session.create_dataframe(
+            return self._session.create_dataframe(
                 list(stat_func_dict.keys()), schema=["summary"]
             )
 
@@ -2228,9 +2276,7 @@ class DataFrame:
         else:
             raise TypeError("'exisitng' must be a column name or Column object.")
 
-        to_be_renamed = [
-            x for x in self.__output() if x.name.upper() == old_name.upper()
-        ]
+        to_be_renamed = [x for x in self._output if x.name.upper() == old_name.upper()]
         if not to_be_renamed:
             raise ValueError(
                 f'Unable to rename column "{existing}" because it doesn\'t exist.'
@@ -2241,7 +2287,7 @@ class DataFrame:
             )
         new_columns = [
             Column(att).as_(new_quoted_name) if old_name == att.name else Column(att)
-            for att in self.__output()
+            for att in self._output
         ]
         return self.select(new_columns)
 
@@ -2288,18 +2334,18 @@ class DataFrame:
              A :class:`DataFrame` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
-        temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-        create_temp_table = self.session._Session__plan_builder.create_temp_table(
+        temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        create_temp_table = self._session._plan_builder.create_temp_table(
             temp_table_name, self._plan
         )
-        self.session._conn.execute(
+        self._session._conn.execute(
             create_temp_table,
-            _statement_params={"QUERY_TAG": Utils.create_statement_query_tag(2)}
-            if not self.session.query_tag
+            _statement_params={"QUERY_TAG": create_statement_query_tag(2)}
+            if not self._session.query_tag
             else None,
         )
-        new_plan = self.session.table(temp_table_name)._plan
-        return DataFrame(session=self.session, plan=new_plan, is_cached=True)
+        new_plan = self._session.table(temp_table_name)._plan
+        return DataFrame(session=self._session, plan=new_plan, is_cached=True)
 
     @df_action_telemetry
     def random_split(
@@ -2343,7 +2389,7 @@ class DataFrame:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
 
-            temp_column_name = Utils.random_name_for_temp_object(TempObjectType.COLUMN)
+            temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
                 temp_column_name, abs_(random(seed)) % _ONE_MILLION
             ).cache_result()
@@ -2395,21 +2441,17 @@ Query List:
 {output_queries}"""
         # if query list contains more then one queries, skip execution plan
         if len(self._plan.queries) == 1:
-            exec_plan = self.session._explain_query(self._plan.queries[0].sql)
+            exec_plan = self._session._explain_query(self._plan.queries[0].sql)
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                # skip the query which can't be explained
-                logger.info("%s can't be explained", self._plan.queries[0].sql)
+                msg = f"{self._plan.queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 
-    # Utils
-    def __resolve(self, col_name: str) -> NamedExpression:
+    def _resolve(self, col_name: str) -> Union[Expression, NamedExpression]:
         normalized_col_name = quote_name(col_name)
-        cols = list(
-            filter(lambda attr: attr.name == normalized_col_name, self.__output())
-        )
+        cols = list(filter(lambda attr: attr.name == normalized_col_name, self._output))
         if len(cols) == 1:
             return cols[0].with_name(normalized_col_name)
         else:
@@ -2417,96 +2459,30 @@ Query List:
                 col_name
             )
 
-    @staticmethod
-    def __alias_if_needed(
-        df: "DataFrame", c: str, prefix: str, common_col_names: List[str]
-    ):
-        col = df.col(c)
-        unquoted = c.strip('"')
-        if c in common_col_names:
-            return col.alias(f'"{prefix}{unquoted}"')
-        else:
-            return col.alias(f'"{unquoted}"')
+    @cached_property
+    def _output(self) -> List[Attribute]:
+        return self._plan.output
 
-    @staticmethod
-    def _disambiguate(
-        lhs: "DataFrame",
-        rhs: "DataFrame",
-        join_type: JoinType,
-        using_columns: List[str],
-    ) -> Tuple["DataFrame", "DataFrame"]:
-        # Normalize the using columns.
-        normalized_using_columns = {quote_name(c) for c in using_columns}
-        #  Check if the LHS and RHS have columns in common. If they don't just return them as-is. If
-        #  they do have columns in common, alias the common columns with randomly generated l_
-        #  and r_ prefixes for the left and right sides respectively.
-        #  We assume the column names from the schema are normalized and quoted.
-        lhs_names = [attr.name for attr in lhs.__output()]
-        rhs_names = [attr.name for attr in rhs.__output()]
-        common_col_names = [
-            n
-            for n in lhs_names
-            if n in set(rhs_names) and n not in normalized_using_columns
-        ]
-
-        if common_col_names:
-            # We use the session of the LHS DataFrame to report this telemetry
-            lhs.session._conn._telemetry_client.send_alias_in_join_telemetry()
-
-        lhs_prefix = DataFrame.__generate_prefix("l")
-        rhs_prefix = DataFrame.__generate_prefix("r")
-
-        lhs_remapped = lhs.select(
-            [
-                DataFrame.__alias_if_needed(
-                    lhs,
-                    name,
-                    lhs_prefix,
-                    []
-                    if isinstance(join_type, (LeftSemi, LeftAnti))
-                    else common_col_names,
-                )
-                for name in lhs_names
-            ]
-        )
-
-        rhs_remapped = rhs.select(
-            [
-                DataFrame.__alias_if_needed(rhs, name, rhs_prefix, common_col_names)
-                for name in rhs_names
-            ]
-        )
-        return lhs_remapped, rhs_remapped
-
-    def __output(self) -> List[Attribute]:
-        if not self.__placeholder_output:
-            self.__placeholder_output = self._plan.output()
-        return self.__placeholder_output
-
-    @property
+    @cached_property
     def schema(self) -> StructType:
         """The definition of the columns in this DataFrame (the "relational schema" for
         the DataFrame).
         """
-        if not self.__placeholder_schema:
-            self.__placeholder_schema = StructType._from_attributes(
-                self._plan.attributes()
-            )
-        return self.__placeholder_schema
+        return StructType._from_attributes(self._plan.attributes)
 
     def _with_plan(self, plan):
-        return DataFrame(self.session, plan)
+        return DataFrame(self._session, plan)
 
-    def __convert_cols_to_exprs(
+    def _convert_cols_to_exprs(
         self,
         calling_method: str,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName]],
-    ) -> List["SPExpression"]:
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+    ) -> List[Expression]:
         """Convert a string or a Column, or a list of string and Column objects to expression(s)."""
 
-        def convert(col: ColumnOrName):
+        def convert(col: ColumnOrName) -> Expression:
             if isinstance(col, str):
-                return self.__resolve(col)
+                return self._resolve(col)
             elif isinstance(col, Column):
                 return col.expression
             else:
@@ -2515,7 +2491,7 @@ Query List:
                     " Column objects".format(calling_method)
                 )
 
-        exprs = [convert(col) for col in Utils.parse_positional_args_to_list(*cols)]
+        exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
 
     where = filter

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -753,7 +752,7 @@ def test_create_dataframe_with_basic_data_types(session):
         bytes(),
         Decimal(0),
     ]
-    expected_names = ["_{}".format(idx + 1) for idx in range(len(data1))]
+    expected_names = [f"_{idx + 1}" for idx in range(len(data1))]
     expected_rows = [Row(*data1), Row(*data2)]
     df = session.create_dataframe([data1, data2])
     assert [field.name for field in df.schema.fields] == expected_names
@@ -803,7 +802,7 @@ def test_create_dataframe_with_semi_structured_data_types(session):
 
 
 def test_create_dataframe_with_dict(session):
-    data = {"snow_{}".format(idx + 1): idx ** 3 for idx in range(5)}
+    data = {f"snow_{idx + 1}": idx**3 for idx in range(5)}
     expected_names = [name.upper() for name in data.keys()]
     expected_rows = [Row(*data.values())]
     df = session.create_dataframe([data])
@@ -834,8 +833,8 @@ def test_create_dataframe_with_dict(session):
 
 
 def test_create_dataframe_with_namedtuple(session):
-    Data = namedtuple("Data", ["snow_{}".format(idx + 1) for idx in range(5)])
-    data = Data(*[idx ** 3 for idx in range(5)])
+    Data = namedtuple("Data", [f"snow_{idx + 1}" for idx in range(5)])
+    data = Data(*[idx**3 for idx in range(5)])
     expected_names = [name.upper() for name in data._fields]
     expected_rows = [Row(*data)]
     df = session.createDataFrame([data])
@@ -1191,7 +1190,7 @@ def test_fillna(session):
     ]
     none_data = [None] * len(data)
     none_data[2] = float("nan")
-    col_names = ["col{}".format(idx + 1) for idx in range(len(data))]
+    col_names = [f"col{idx + 1}" for idx in range(len(data))]
     value_dict = {
         col_name: (
             json.dumps(value) if isinstance(value, (list, dict, tuple)) else value

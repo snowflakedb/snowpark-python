@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -8,7 +7,10 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    to_sql,
+    to_sql_without_cast,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -31,8 +33,6 @@ from snowflake.snowpark.types import (
 
 
 def test_to_sql():
-    to_sql = DataTypeMapper.to_sql
-
     # Test nulls
     assert to_sql(None, NullType()) == "NULL"
     assert to_sql(None, ArrayType(DoubleType())) == "NULL"
@@ -95,15 +95,13 @@ def test_to_sql():
 
 
 def test_to_sql_without_cast():
-    f = DataTypeMapper.to_sql_without_cast
+    assert to_sql_without_cast(None, NullType()) == "NULL"
+    assert to_sql_without_cast(None, IntegerType()) == "NULL"
 
-    assert f(None, NullType()) == "NULL"
-    assert f(None, IntegerType()) == "NULL"
+    assert to_sql_without_cast("abc", StringType()) == """abc"""
+    assert to_sql_without_cast(123, StringType()) == "123"
+    assert to_sql_without_cast(0.2, StringType()) == "0.2"
 
-    assert f("abc", StringType()) == """abc"""
-    assert f(123, StringType()) == "123"
-    assert f(0.2, StringType()) == "0.2"
-
-    assert f(123, IntegerType()) == "123"
-    assert f(0.2, FloatType()) == "0.2"
-    assert f(0.2, DoubleType()) == "0.2"
+    assert to_sql_without_cast(123, IntegerType()) == "123"
+    assert to_sql_without_cast(0.2, FloatType()) == "0.2"
+    assert to_sql_without_cast(0.2, DoubleType()) == "0.2"

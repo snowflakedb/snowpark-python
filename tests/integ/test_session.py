@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -57,29 +56,29 @@ def test_no_default_session():
 
 
 def test_create_session_in_sp(session, db_parameters):
-    from snowflake.snowpark._internal.utils import Utils as SourceCodeUtils
+    import snowflake.snowpark._internal.utils as internal_utils
 
-    original_is_in_stored_procedure = SourceCodeUtils.is_in_stored_procedure
-    SourceCodeUtils.is_in_stored_procedure = lambda: True
+    original_platform = internal_utils.PLATFORM
+    internal_utils.PLATFORM = "XP"
     try:
         with pytest.raises(SnowparkSessionException) as exec_info:
             Session.builder.configs(db_parameters).create()
         assert exec_info.value.error_code == "1410"
     finally:
-        SourceCodeUtils.is_in_stored_procedure = original_is_in_stored_procedure
+        internal_utils.PLATFORM = original_platform
 
 
 def test_close_session_in_sp(session):
-    from snowflake.snowpark._internal.utils import Utils as SourceCodeUtils
+    import snowflake.snowpark._internal.utils as internal_utils
 
-    original_is_in_stored_procedure = SourceCodeUtils.is_in_stored_procedure
-    SourceCodeUtils.is_in_stored_procedure = lambda: True
+    original_platform = internal_utils.PLATFORM
+    internal_utils.PLATFORM = "XP"
     try:
         with pytest.raises(SnowparkSessionException) as exec_info:
             session.close()
         assert exec_info.value.error_code == "1411"
     finally:
-        SourceCodeUtils.is_in_stored_procedure = original_is_in_stored_procedure
+        internal_utils.PLATFORM = original_platform
 
 
 def test_list_files_in_stage(session, resources_path):

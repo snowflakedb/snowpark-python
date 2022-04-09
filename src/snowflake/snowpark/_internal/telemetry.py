@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -14,7 +13,13 @@ from snowflake.connector.telemetry import (
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import (
+    get_application_name,
+    get_os_name,
+    get_python_version,
+    get_version,
+    is_in_stored_procedure,
+)
 
 
 @unique
@@ -69,7 +74,7 @@ def df_action_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         result = func(*args, **kwargs)
-        args[0].session._conn._telemetry_client.send_function_usage_telemetry(
+        args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}", TelemetryField.FUNC_CAT_ACTION.value
         )
         return result
@@ -82,7 +87,7 @@ def dfw_action_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         result = func(*args, **kwargs)
-        session = args[0]._dataframe.session
+        session = args[0]._dataframe._session
         session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}", TelemetryField.FUNC_CAT_ACTION.value
         )
@@ -96,7 +101,7 @@ def df_usage_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         result = func(*args, **kwargs)
-        args[0].session._conn._telemetry_client.send_function_usage_telemetry(
+        args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"usage_{func.__name__}", TelemetryField.FUNC_CAT_USAGE.value
         )
         return result
@@ -107,12 +112,12 @@ def df_usage_telemetry(func):
 class TelemetryClient:
     def __init__(self, conn: SnowflakeConnection):
         self.telemetry: PCTelemetryClient = (
-            None if Utils.is_in_stored_procedure() else conn._telemetry
+            None if is_in_stored_procedure() else conn._telemetry
         )
-        self.source: str = Utils.get_application_name()
-        self.version: str = Utils.get_version()
-        self.python_version: str = Utils.get_python_version()
-        self.os: str = Utils.get_os_name()
+        self.source: str = get_application_name()
+        self.version: str = get_version()
+        self.python_version: str = get_python_version()
+        self.os: str = get_os_name()
 
     def send(self, msg: Dict, timestamp: Optional[int] = None):
         if self.telemetry:

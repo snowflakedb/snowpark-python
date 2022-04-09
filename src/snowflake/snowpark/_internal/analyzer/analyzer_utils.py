@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -13,11 +12,18 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     NaturalJoin,
     UsingJoin,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    schema_expression,
+    to_sql,
+)
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import convert_to_sf_type
-from snowflake.snowpark._internal.utils import TempObjectType, Utils
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    is_single_quoted,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
 
@@ -401,15 +407,12 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
 
 
 def values_statement(output: List[Attribute], data: List[Row]) -> str:
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
     data_types = [attr.datatype for attr in output]
     names = [quote_name(attr.name) for attr in output]
     rows = []
     for row in data:
-        cells = [
-            DataTypeMapper.to_sql(value, data_type)
-            for value, data_type in zip(row, data_types)
-        ]
+        cells = [to_sql(value, data_type) for value, data_type in zip(row, data_types)]
         rows.append(LEFT_PARENTHESIS + COMMA.join(cells) + RIGHT_PARENTHESIS)
     query_source = (
         VALUES
@@ -445,8 +448,8 @@ def set_operator_statement(left: str, right: str, operator: str) -> str:
 def left_semi_or_anti_join_statement(
     left: str, right: str, join_type: JoinType, condition: str
 ) -> str:
-    left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    left_alias = random_name_for_temp_object(TempObjectType.TABLE)
+    right_alias = random_name_for_temp_object(TempObjectType.TABLE)
 
     if isinstance(join_type, LeftSemi):
         where_condition = WHERE + EXISTS
@@ -483,8 +486,8 @@ def left_semi_or_anti_join_statement(
 def snowflake_supported_join_statement(
     left: str, right: str, join_type: JoinType, condition: str
 ) -> str:
-    left_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    right_alias = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    left_alias = random_name_for_temp_object(TempObjectType.TABLE)
+    right_alias = random_name_for_temp_object(TempObjectType.TABLE)
 
     if isinstance(join_type, UsingJoin):
         join_sql = join_type.tpe.sql
@@ -638,7 +641,7 @@ def get_options_statement(options: Dict[str, Any]) -> str:
         SPACE
         + SPACE.join(
             # repr("a") return "'a'" instead of "a". This is what we need for str values. For bool, int, float, repr(v) and str(v) return the same.
-            f"{k}{EQUALS}{v if (isinstance(v, str) and Utils.is_single_quoted(v)) else repr(v)}"
+            f"{k}{EQUALS}{v if (isinstance(v, str) and is_single_quoted(v)) else repr(v)}"
             for k, v in options.items()
             if v is not None
         )
@@ -1080,9 +1083,7 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
 def schema_value_statement(output: List[Attribute]) -> str:
     return SELECT + COMMA.join(
         [
-            DataTypeMapper.schema_expression(attr.datatype, attr.nullable)
-            + AS
-            + quote_name(attr.name)
+            schema_expression(attr.datatype, attr.nullable) + AS + quote_name(attr.name)
             for attr in output
         ]
     )

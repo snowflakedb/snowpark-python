@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -37,7 +36,7 @@ from typing import Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import Utils as InternalUtils
+from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
 from snowflake.snowpark.functions import _pandas_udf as pandas_udf, call_udf, col, udf
 from snowflake.snowpark.types import (
@@ -91,7 +90,7 @@ def test_basic_udf(session):
     )
     int2str_udf = udf(int2str, return_type=StringType(), input_types=[IntegerType()])
     pow_udf = udf(
-        lambda x, y: x ** y,
+        lambda x, y: x**y,
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
     )
@@ -162,7 +161,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
             name=[*temp_schema.split("."), "test_add"],
-            stage_location=InternalUtils.unwrap_stage_location_single_quote(
+            stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
         )
@@ -201,10 +200,10 @@ def test_nested_udf(session):
         def inner_func():
             return "snow"
 
-        return "{}-{}".format(inner_func(), inner_func())
+        return f"{inner_func()}-{inner_func()}"
 
     def square(x):
-        return x ** 2
+        return x**2
 
     def cube(x):
         return square(x) * x

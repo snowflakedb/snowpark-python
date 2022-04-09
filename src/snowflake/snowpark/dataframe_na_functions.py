@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 from logging import getLogger
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Iterable, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
-    _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     LiteralType,
-    _python_type_to_snow_type,
+    python_type_to_snow_type,
 )
 from snowflake.snowpark.functions import iff, lit, when
 from snowflake.snowpark.types import (
@@ -39,7 +38,7 @@ def _is_value_type_matching_for_na_function(
             and isinstance(datatype, (IntegerType, LongType, FloatType, DoubleType))
         )
         or (isinstance(value, float) and isinstance(datatype, (FloatType, DoubleType)))
-        or isinstance(datatype, type(_python_type_to_snow_type(type(value))[0]))
+        or isinstance(datatype, type(python_type_to_snow_type(type(value))[0]))
     )
 
 
@@ -47,13 +46,13 @@ class DataFrameNaFunctions:
     """Provides functions for handling missing values in a :class:`DataFrame`."""
 
     def __init__(self, df: "snowflake.snowpark.dataframe.DataFrame"):
-        self.df = df
+        self._df = df
 
     def drop(
         self,
         how: str = "any",
         thresh: Optional[int] = None,
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+        subset: Optional[Iterable[str]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a new DataFrame that excludes all rows containing fewer than
@@ -140,7 +139,7 @@ class DataFrameNaFunctions:
 
         # if subset is not provided, drop will be applied to all columns
         if subset is None:
-            subset = self.df.columns
+            subset = self._df.columns
         elif isinstance(subset, str):
             subset = [subset]
         elif not isinstance(subset, (list, tuple)):
@@ -155,15 +154,15 @@ class DataFrameNaFunctions:
         # if thresh is less than 1, or no column is specified
         # to be dropped, return the dataframe directly
         if thresh < 1 or len(subset) == 0:
-            return self.df
+            return self._df
         # if thresh is greater than the number of columns,
         # drop a row only if all its values are null
         elif thresh > len(subset):
-            return self.df.limit(0)
+            return self._df.limit(0)
         else:
             df_col_type_dict = {
                 quote_name(field.name): field.datatype
-                for field in self.df.schema.fields
+                for field in self._df.schema.fields
             }
             normalized_col_name_set = {quote_name(col_name) for col_name in subset}
             col_counter = None
@@ -172,7 +171,7 @@ class DataFrameNaFunctions:
                     raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
                         normalized_col_name
                     )
-                col = self.df.col(normalized_col_name)
+                col = self._df.col(normalized_col_name)
                 if isinstance(
                     df_col_type_dict[normalized_col_name], (FloatType, DoubleType)
                 ):
@@ -185,12 +184,12 @@ class DataFrameNaFunctions:
                     col_counter += is_na
                 else:
                     col_counter = is_na
-            return self.df.where(col_counter >= thresh)
+            return self._df.where(col_counter >= thresh)
 
     def fill(
         self,
         value: Union[LiteralType, Dict[str, LiteralType]],
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+        subset: Optional[Iterable[str]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified
@@ -267,7 +266,7 @@ class DataFrameNaFunctions:
         # iff(non_float_col is null, replacement, non_float_col) from table where
 
         if subset is None:
-            subset = self.df.columns
+            subset = self._df.columns
         elif isinstance(subset, str):
             subset = [subset]
         elif not isinstance(subset, (list, tuple)):
@@ -280,21 +279,21 @@ class DataFrameNaFunctions:
         else:
             value_dict = {col_name: value for col_name in subset}
         if not value_dict:
-            return self.df
+            return self._df
         if not all(
             [
-                isinstance(v, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
+                isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
                 for v in value_dict.values()
             ]
         ):
             raise ValueError(
                 "All values in value should be in one of "
-                f"{_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
+                f"{VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
             )
 
         # the dictionary is ordered after Python3.7
         df_col_type_dict = {
-            quote_name(field.name): field.datatype for field in self.df.schema.fields
+            quote_name(field.name): field.datatype for field in self._df.schema.fields
         }
         normalized_value_dict = {}
         for col_name, value in value_dict.items():
@@ -307,7 +306,7 @@ class DataFrameNaFunctions:
 
         res_columns = []
         for col_name, datatype in df_col_type_dict.items():
-            col = self.df.col(col_name)
+            col = self._df.col(col_name)
             if col_name in normalized_value_dict:
                 value = normalized_value_dict[col_name]
                 if _is_value_type_matching_for_na_function(value, datatype):
@@ -332,20 +331,17 @@ class DataFrameNaFunctions:
                 # it's not in the value dict, just append the original column
                 res_columns.append(col)
 
-        return self.df.select(res_columns)
+        return self._df.select(res_columns)
 
     def replace(
         self,
         to_replace: Union[
             LiteralType,
-            List[LiteralType],
-            Tuple[LiteralType, ...],
+            Iterable[LiteralType],
             Dict[LiteralType, LiteralType],
         ],
-        value: Optional[
-            Union[LiteralType, List[LiteralType], Tuple[LiteralType, ...]]
-        ] = None,
-        subset: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+        value: Optional[Iterable[LiteralType]] = None,
+        subset: Optional[Iterable[str]] = None,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a new DataFrame that replaces values in the specified columns.
@@ -434,13 +430,13 @@ class DataFrameNaFunctions:
             :func:`DataFrame.replace`
         """
         if subset is None:
-            subset = self.df.columns
+            subset = self._df.columns
         elif isinstance(subset, str):
             subset = [subset]
         elif not isinstance(subset, (list, tuple)):
             raise TypeError("subset should be a list or tuple of column names")
         elif len(subset) == 0:
-            return self.df
+            return self._df
 
         if isinstance(to_replace, dict):
             replacement = to_replace
@@ -458,22 +454,22 @@ class DataFrameNaFunctions:
         else:
             replacement = {to_replace: value}
         if not replacement:
-            return self.df
+            return self._df
         if not all(
             [
-                isinstance(k, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
-                and isinstance(v, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
+                isinstance(k, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
+                and isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
                 for k, v in replacement.items()
             ]
         ):
             raise ValueError(
                 "All keys and values in value should be in one of "
-                f"{_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
+                f"{VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
             )
 
         # the dictionary is ordered after Python3.7
         df_col_type_dict = {
-            quote_name(field.name): field.datatype for field in self.df.schema.fields
+            quote_name(field.name): field.datatype for field in self._df.schema.fields
         }
         normalized_col_name_set = {quote_name(col_name) for col_name in subset}
         for normalized_col_name in normalized_col_name_set:
@@ -484,7 +480,7 @@ class DataFrameNaFunctions:
 
         res_columns = []
         for col_name, datatype in df_col_type_dict.items():
-            col = self.df.col(col_name)
+            col = self._df.col(col_name)
             if col_name in normalized_col_name_set:
                 case_when = None
                 for key, value in replacement.items():
@@ -514,4 +510,4 @@ class DataFrameNaFunctions:
             else:
                 res_columns.append(col)
 
-        return self.df.select(res_columns)
+        return self._df.select(res_columns)
