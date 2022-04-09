@@ -287,7 +287,7 @@ def cleanup_failed_permanent_registration(
 ) -> None:
     if stage_location and upload_file_stage_location:
         try:
-            logger.info(
+            logger.debug(
                 "Removing Snowpark uploaded file: %s",
                 upload_file_stage_location,
             )
