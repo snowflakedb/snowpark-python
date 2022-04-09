@@ -34,52 +34,30 @@ def test_invalid_configs(session, db_parameters):
             assert "Incorrect username or password was specified" in str(ex_info)
 
 
-def test_no_default_database_and_schema(session, db_parameters):
-    new_session = (
-        Session.builder.configs(db_parameters)
-        ._remove_config("database")
-        ._remove_config("schema")
-        .create()
-    )
-    try:
-        assert not new_session.getDefaultDatabase()
-        assert not new_session.getDefaultSchema()
-    finally:
-        new_session.close()
-
-
-def test_default_and_current_database_and_schema(session):
-    default_database = session.getDefaultDatabase()
-    default_schema = session.getDefaultSchema()
-
-    assert Utils.equals_ignore_case(default_database, session.get_current_database())
-    assert Utils.equals_ignore_case(default_schema, session.get_current_schema())
+def test_current_database_and_schema(session, db_parameters):
+    database = quote_name(db_parameters["database"])
+    schema = quote_name(db_parameters["schema"])
+    assert Utils.equals_ignore_case(database, session.get_current_database())
+    assert Utils.equals_ignore_case(schema, session.get_current_schema())
 
     schema_name = Utils.random_temp_schema()
     try:
         session._run_query("create schema {}".format(schema_name))
 
-        assert Utils.equals_ignore_case(default_database, session.getDefaultDatabase())
-        assert Utils.equals_ignore_case(default_schema, session.getDefaultSchema())
-
-        assert Utils.equals_ignore_case(
-            default_database, session.get_current_database()
-        )
+        assert Utils.equals_ignore_case(database, session.get_current_database())
         assert Utils.equals_ignore_case(
             quote_name(schema_name), session.get_current_schema()
         )
     finally:
         # restore
         session._run_query("drop schema if exists {}".format(schema_name))
-        session._run_query("use schema {}".format(default_schema))
+        session._run_query("use schema {}".format(schema))
 
 
 def test_quote_all_database_and_schema_names(session):
     def is_quoted(name: str) -> bool:
         return name[0] == '"' and name[-1] == '"'
 
-    assert is_quoted(session.getDefaultDatabase())
-    assert is_quoted(session.getDefaultSchema())
     assert is_quoted(session.get_current_database())
     assert is_quoted(session.get_current_schema())
 
