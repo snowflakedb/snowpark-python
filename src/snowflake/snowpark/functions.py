@@ -1028,7 +1028,7 @@ def strtok_to_array(
         ...     schema=["text", "delimiter"],
         ... )
         >>> df.select(strtok_to_array("text", "delimiter").alias("TIME_FROM_PARTS")).collect()
-        [Row(TIME_FROM_PARTS='[\n  "a",\n  "b",\n  "c"\n]'), Row(TIME_FROM_PARTS='[\n  "1",\n  "2.3"\n]')]
+        [Row(TIME_FROM_PARTS='[\\n  "a",\\n  "b",\\n  "c"\\n]'), Row(TIME_FROM_PARTS='[\\n  "1",\\n  "2.3"\\n]')]
     """
     t = _to_col_if_str(text, "strtok_to_array")
     d = _to_col_if_str(delimiter, "strtok_to_array") if delimiter else None
