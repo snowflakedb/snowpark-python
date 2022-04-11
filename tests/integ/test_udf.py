@@ -38,7 +38,7 @@ from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
-from snowflake.snowpark.functions import _pandas_udf as pandas_udf, call_udf, col, udf
+from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
