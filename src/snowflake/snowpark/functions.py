@@ -735,23 +735,30 @@ def random(seed: Optional[int] = None) -> Column:
 def uniform(
     min_: Union[ColumnOrName, int, float],
     max_: Union[ColumnOrName, int, float],
-    gen: Column,
+    gen: Union[ColumnOrName, int, float],
 ) -> Column:
+    """
+    Returns a uniformly random number, in the inclusive range [min_, max_].
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[1]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(uniform(1, 100, col("a")).alias("UNIFORM")).collect()
+        [Row(UNIFORM=62)]
+    """
     min_col = (
         lit(min_) if isinstance(min_, (int, float)) else _to_col_if_str(min_, "uniform")
     )
     max_col = (
         lit(max_) if isinstance(max_, (int, float)) else _to_col_if_str(max_, "uniform")
     )
-    return builtin("uniform")(min_col, max_col, gen)
-
-
-def seq4(starts_from_zero: Optional[bool] = True) -> Column:
-    return builtin("seq4")(0 if starts_from_zero else 1)
-
-
-def seq8(starts_from_zero: Optional[bool] = True) -> Column:
-    return builtin("seq8")(0 if starts_from_zero else 1)
+    gen_col = (
+        lit(gen) if isinstance(gen, (int, float)) else _to_col_if_str(gen, "uniform")
+    )
+    return builtin("uniform")(min_col, max_col, gen_col)
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
@@ -1010,6 +1017,22 @@ def upper(e: ColumnOrName) -> Column:
 def strtok_to_array(
     text: ColumnOrName, delimiter: Optional[ColumnOrName] = None
 ) -> Column:
+    """
+    Tokenizes the given string using the given set of delimiters and returns the tokens as an array.
+
+    If either parameter is a NULL, a NULL is returned. An empty array is returned if tokenization produces no tokens.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [["a.b.c", "."], ["1,2.3", ","]],
+        ...     schema=["text", "delimiter"],
+        ... )
+        >>> df.select(strtok_to_array("text", "delimiter").alias("TIME_FROM_PARTS")).collect()
+        [
+            Row(STRTOK_TO_ARRAY=["a", "b", "c"]),
+            Row(STRTOK_TO_ARRAY=["1", "2.3"])
+        ]
+    """
     t = _to_col_if_str(text, "strtok_to_array")
     d = _to_col_if_str(delimiter, "strtok_to_array") if delimiter else None
     return builtin("strtok_to_array")(t, d) if d else builtin("strtok_to_array")(t)
@@ -1482,6 +1505,7 @@ def year(e: ColumnOrName) -> Column:
 
 
 def sysdate() -> Column:
+    """Returns the current timestamp for the system, but in the UTC time zone."""
     return builtin("sysdate")()
 
 
@@ -1865,6 +1889,26 @@ def time_from_parts(
     second: Union[ColumnOrName, int],
     nanoseconds: Optional[Union[ColumnOrName, int]] = None,
 ) -> Column:
+    """
+    Creates a time from individual numeric components.
+
+    TIME_FROM_PARTS is typically used to handle values in “normal” ranges (e.g. hours 0-23, minutes 0-59),
+    but it also handles values from outside these ranges. This allows, for example, choosing the N-th minute
+    in a day, which can be used to simplify some computations.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [[11, 11, 0, 987654321], [10, 10, 0, 987654321]],
+        ...     schema=["hour", "minute", "second", "nanoseconds"],
+        ... )
+        >>> df.select(time_from_parts(
+        ...     "hour", "minute", "second", nanoseconds="nanoseconds"
+        ... ).alias("TIME_FROM_PARTS")).collect()
+        [
+            Row(TIME_FROM_PARTS="11:11:00.987654321"),
+            Row(TIME_FROM_PARTS="11:11:00.987654321")
+        ]
+    """
     h, m, s = __columns_from_timestamp_parts("time_from_parts", hour, minute, second)
     ns = _to_col_if_str_or_int(nanoseconds, "time_from_parts") if nanoseconds else None
     return (
@@ -1875,6 +1919,23 @@ def time_from_parts(
 
 
 def timestamp_from_parts(*args, **kwargs) -> Column:
+    """
+    Creates a timestamp from individual numeric components. If no time zone is in effect,
+    the function can be used to create a timestamp from a date expression and a time expression.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
+        ...     schema=["year", "month", "day", "hour", "minute", "second"],
+        ... )
+        >>> df.select(timestamp_from_parts(
+        ...     "year", "month", "day", "hour", "minute", "second"
+        ... ).alias("TIMESTAMP_FROM_PARTS")).collect()
+        [
+            Row(TIMESTAMP_FROM_PARTS="2022-04-01 11:11:00.000000"),
+            Row(TIMESTAMP_FROM_PARTS="2022-03-31 11:11:00.000000")
+        ]
+    """
     return builtin("timestamp_from_parts")(
         *__timestamp_from_parts_internal("timestamp_from_parts", *args, **kwargs)
     )
@@ -1889,8 +1950,26 @@ def timestamp_ltz_from_parts(
     second: Union[ColumnOrName, int],
     nanoseconds: Optional[Union[ColumnOrName, int]] = None,
 ) -> Column:
+    """
+    Creates a timestamp from individual numeric components.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
+        ...     schema=["year", "month", "day", "hour", "minute", "second"],
+        ... )
+        >>> df.select(timestamp_ltz_from_parts(
+        ...     "year", "month", "day", "hour", "minute", "second"
+        ... ).alias("TIMESTAMP_LTZ_FROM_PARTS")).collect()
+        [
+            Row(TIMESTAMP_LTZ_FROM_PARTS()="2022-04-01 11:11:00.000000 -0700"),
+            Row(TIMESTAMP_LTZ_FROM_PARTS()="2022-03-31 11:11:00.000000 -0700")
+        ]
+    """
     func_name = "timestamp_ltz_from_parts"
-    y, m, d, h, min_, s = __columns_from_timestamp_parts(func_name, year, month, day, hour, minute, second)
+    y, m, d, h, min_, s = __columns_from_timestamp_parts(
+        func_name, year, month, day, hour, minute, second
+    )
     ns = _to_col_if_str_or_int(nanoseconds, func_name) if nanoseconds else None
     return (
         builtin(func_name)(y, m, d, h, min_, s, ns)
@@ -1900,6 +1979,23 @@ def timestamp_ltz_from_parts(
 
 
 def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
+    """
+    Creates a timestamp from individual numeric components. The function can be used to
+    create a timestamp from a date expression and a time expression.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
+        ...     schema=["year", "month", "day", "hour", "minute", "second"],
+        ... )
+        >>> df.select(timestamp_ntz_from_parts(
+        ...     "year", "month", "day", "hour", "minute", "second"
+        ... ).alias("TIMESTAMP_NTZ_FROM_PARTS")).collect()
+        [
+            Row(TIMESTAMP_NTZ_FROM_PARTS="2022-04-01 11:11:00.000000"),
+            Row(TIMESTAMP_NTZ_FROM_PARTS="2022-03-31 11:11:00.000000")
+        ]
+    """
     return builtin("timestamp_ntz_from_parts")(
         *__timestamp_from_parts_internal("timestamp_ntz_from_parts", *args, **kwargs)
     )
@@ -1915,8 +2011,26 @@ def timestamp_tz_from_parts(
     nanoseconds: Optional[Union[ColumnOrName, int]] = None,
     timezone: Optional[Union[Column, str]] = None,
 ) -> Column:
+    """
+    Creates a timestamp from individual numeric components and a string timezone.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [[2022, 4, 1, 11, 11, 0, 'America/Los_Angeles'], [2022, 3, 31, 11, 11, 0, 'America/Los_Angeles']],
+        ...     schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
+        ... )
+        >>> df.select(timestamp_tz_from_parts(
+        ...     "year", "month", "day", "hour", "minute", "second", timezone="timezone"
+        ... ).alias("TIMESTAMP_TZ_FROM_PARTS")).collect()
+        [
+            Row(TIMESTAMP_TZ_FROM_PARTS()="2022-04-01 11:11:00.000000 -0700"),
+            Row(TIMESTAMP_TZ_FROM_PARTS()="2022-03-31 11:11:00.000000 -0700")
+        ]
+    """
     func_name = "timestamp_tz_from_parts"
-    y, m, d, h, min_, s = __columns_from_timestamp_parts(func_name, year, month, day, hour, minute, second)
+    y, m, d, h, min_, s = __columns_from_timestamp_parts(
+        func_name, year, month, day, hour, minute, second
+    )
     ns = _to_col_if_str_or_int(nanoseconds, func_name) if nanoseconds else None
     tz = _to_col_if_sql_expr(timezone, func_name) if timezone else None
     if ns and tz:
@@ -1930,6 +2044,18 @@ def timestamp_tz_from_parts(
 
 
 def weekofyear(e: ColumnOrName) -> Column:
+    """
+    Extracts the corresponding week (number) of the year from a date or timestamp.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(weekofyear("a")).collect()
+        [Row(WEEKOFYEAR("A")=18)]
+    """
     c = _to_col_if_str(e, "weekofyear")
     return builtin("weekofyear")(c)
 

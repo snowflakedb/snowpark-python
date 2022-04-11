@@ -112,7 +112,7 @@ def _to_col_if_str_or_int(col: Union[ColumnOrName, int], func_name: str) -> "Col
     elif isinstance(col, str):
         return Column(col)
     elif isinstance(col, int):
-        return Column(SPLiteral(col))
+        return Column(Literal(col))
     else:
         raise TypeError(
             f"'{func_name.upper()}' expected Column, int or str, got: {type(col)}"
