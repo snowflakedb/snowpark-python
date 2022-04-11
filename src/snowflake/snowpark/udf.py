@@ -163,6 +163,17 @@ class UDFRegistration:
           Therefore, this approach is useful and efficient when all your Python code is already in
           source files.
 
+    Compared to the default row-by-row processing pattern of a normal UDF, which sometimes is
+    inefficient, a Pandas UDF (vectorized UDF) allows vectorized operations on a dataframe, with
+    the input as a `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    or `Pandas Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_. In a
+    Pandas UDF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas Series.
+    You can use :func:`~snowflake.snowpark.functions.udf`, :meth:`register` or
+    :func:`~snowflake.snowpark.functions.pandas_udf` to create a Pandas UDF by providing appropriate
+    return and input types. If you would like to use :meth:`register_from_file` to create a Pandas
+    UDF, you should follow the guide of how to create a vectorized UDF in Snowflake Python UDFs in
+    your Python source files. See Example 9 and 10 here for registering a Pandas UDF.
+
     Snowflake supports the following data types for the parameters for a UDF:
 
     =============================================  ======================================================= ============
