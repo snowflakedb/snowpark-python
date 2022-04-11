@@ -53,7 +53,9 @@ if installed_pandas:
     )
 
 
-def get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
+def convert_sf_to_sp_type(
+    column_type_name: str, precision: int, scale: int
+) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     if column_type_name == "ARRAY":
         return ArrayType(StringType())

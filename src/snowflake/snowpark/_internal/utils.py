@@ -92,6 +92,8 @@ MODULE_NAME_TO_PACKAGE_NAME_MAP = {
 
 GENERATED_PY_FILE_EXT = (".pyc", ".pyo", ".pyd", ".pyi")
 
+INFER_SCHEMA_FORMAT_TYPES = ("PARQUET", "ORC", "AVRO")
+
 
 class TempObjectType(Enum):
     TABLE = "TABLE"

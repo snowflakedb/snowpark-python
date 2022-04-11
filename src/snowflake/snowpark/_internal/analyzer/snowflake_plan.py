@@ -58,12 +58,13 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
+    INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
     generate_random_alphanumeric,
     random_name_for_temp_object,
 )
-from snowflake.snowpark._internal.type_utils import get_data_type
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -612,10 +613,10 @@ class SnowflakePlanBuilder:
                     format_type_options[k] = v
 
         pattern = options.get("PATTERN", None)
-        # Can only infer the schema for parquest, orc and avro
+        # Can only infer the schema for parquet, orc and avro
         infer_schema = (
             options.get("INFER_SCHEMA", True)
-            if format in ("PARQUET", "ORC", "AVRO")
+            if format in INFER_SCHEMA_FORMAT_TYPES
             else False
         )
         # tracking usage of pattern, will refactor this function in future
@@ -654,17 +655,18 @@ class SnowflakePlanBuilder:
                 # pass to determine datatype for schema
                 data_type_parts = r[1].split("(")
                 parts_length = len(data_type_parts)
-                data_type = r[1] if parts_length == 1 else data_type_parts[0]
-                precision = (
-                    0 if parts_length == 1 else int(data_type_parts[1].split(",")[0])
-                )
-                scale = (
-                    0
-                    if parts_length == 1
-                    else int(data_type_parts[1].split(",")[1][:-1])
-                )
+                if parts_length == 1:
+                    data_type = r[1]
+                    precision = 0
+                    scale = 0
+                else:
+                    data_type = data_type_parts[0]
+                    precision = int(data_type_parts[1].split(",")[0])
+                    scale = int(data_type_parts[1].split(",")[1][:-1])
                 new_schema.append(
-                    Attribute(name, get_data_type(data_type, precision, scale), r[2])
+                    Attribute(
+                        name, convert_sf_to_sp_type(data_type, precision, scale), r[2]
+                    )
                 )
                 schema_to_cast.append((r[3], r[0]))
                 transformations.append(r[3])
