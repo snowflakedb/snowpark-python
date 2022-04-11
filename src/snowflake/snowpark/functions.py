@@ -1028,10 +1028,7 @@ def strtok_to_array(
         ...     schema=["text", "delimiter"],
         ... )
         >>> df.select(strtok_to_array("text", "delimiter").alias("TIME_FROM_PARTS")).collect()
-        [
-            Row(STRTOK_TO_ARRAY=["a", "b", "c"]),
-            Row(STRTOK_TO_ARRAY=["1", "2.3"])
-        ]
+        [Row(TIME_FROM_PARTS='[\n  "a",\n  "b",\n  "c"\n]'), Row(TIME_FROM_PARTS='[\n  "1",\n  "2.3"\n]')]
     """
     t = _to_col_if_str(text, "strtok_to_array")
     d = _to_col_if_str(delimiter, "strtok_to_array") if delimiter else None
@@ -1906,10 +1903,7 @@ def time_from_parts(
         >>> df.select(time_from_parts(
         ...     "hour", "minute", "second", nanoseconds="nanoseconds"
         ... ).alias("TIME_FROM_PARTS")).collect()
-        [
-            Row(TIME_FROM_PARTS="11:11:00.987654321"),
-            Row(TIME_FROM_PARTS="11:11:00.987654321")
-        ]
+        [Row(TIME_FROM_PARTS=datetime.time(11, 11, 0, 987654)), Row(TIME_FROM_PARTS=datetime.time(10, 10, 0, 987654))]
     """
     h, m, s = __columns_from_timestamp_parts("time_from_parts", hour, minute, second)
     ns = (
@@ -1937,10 +1931,7 @@ def timestamp_from_parts(*args, **kwargs) -> Column:
         >>> df.select(timestamp_from_parts(
         ...     "year", "month", "day", "hour", "minute", "second"
         ... ).alias("TIMESTAMP_FROM_PARTS")).collect()
-        [
-            Row(TIMESTAMP_FROM_PARTS="2022-04-01 11:11:00.000000"),
-            Row(TIMESTAMP_FROM_PARTS="2022-03-31 11:11:00.000000")
-        ]
+        [Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
     """
     return builtin("timestamp_from_parts")(
         *__timestamp_from_parts_internal("timestamp_from_parts", *args, **kwargs)
@@ -1968,10 +1959,7 @@ def timestamp_ltz_from_parts(
         >>> df.select(timestamp_ltz_from_parts(
         ...     "year", "month", "day", "hour", "minute", "second"
         ... ).alias("TIMESTAMP_LTZ_FROM_PARTS")).collect()
-        [
-            Row(TIMESTAMP_LTZ_FROM_PARTS()=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>)),
-            Row(TIMESTAMP_LTZ_FROM_PARTS()=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>))
-        ]
+        [Row(TIMESTAMP_LTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>)), Row(TIMESTAMP_LTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>))]
     """
     func_name = "timestamp_ltz_from_parts"
     y, m, d, h, min_, s = __columns_from_timestamp_parts(
@@ -1998,10 +1986,7 @@ def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
         >>> df.select(timestamp_ntz_from_parts(
         ...     "year", "month", "day", "hour", "minute", "second"
         ... ).alias("TIMESTAMP_NTZ_FROM_PARTS")).collect()
-        [
-            Row(TIMESTAMP_NTZ_FROM_PARTS="2022-04-01 11:11:00.000000"),
-            Row(TIMESTAMP_NTZ_FROM_PARTS="2022-03-31 11:11:00.000000")
-        ]
+        [Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
     """
     return builtin("timestamp_ntz_from_parts")(
         *__timestamp_from_parts_internal("timestamp_ntz_from_parts", *args, **kwargs)
@@ -2029,10 +2014,7 @@ def timestamp_tz_from_parts(
         >>> df.select(timestamp_tz_from_parts(
         ...     "year", "month", "day", "hour", "minute", "second", timezone="timezone"
         ... ).alias("TIMESTAMP_TZ_FROM_PARTS")).collect()
-        [
-            Row(TIMESTAMP_TZ_FROM_PARTS()="2022-04-01 11:11:00.000000 -0700"),
-            Row(TIMESTAMP_TZ_FROM_PARTS()="2022-03-31 11:11:00.000000 -0700")
-        ]
+        [Row(TIMESTAMP_TZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=pytz.FixedOffset(-420))), Row(TIMESTAMP_TZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11, tzinfo=pytz.FixedOffset(-420)))]
     """
     func_name = "timestamp_tz_from_parts"
     y, m, d, h, min_, s = __columns_from_timestamp_parts(
