@@ -111,20 +111,20 @@ class UDFRegistration:
           Python function will be serialized. During the deserialization, Python will look up the
           corresponding modules and objects by names. For example::
 
-                # >>> import numpy
-                # >>> from resources.test_udf_dir.test_udf_file import mod5
-                # >>> a = 1
-                # >>> def f():
-                # ...     return 2
-                # >>>
-                # >>> from snowflake.snowpark.functions import udf
-                # >>> session.add_import("tests/resources/test_udf_dir/test_udf_file.py", import_path="resources.test_udf_dir.test_udf_file")
-                # >>> session.add_packages("numpy")
-                # >>> @udf
-                # ... def g(x: int) -> int:
-                # ...     return mod5(numpy.square(x)) + a + f()
-                # >>> df = session.create_dataframe([4], schema=["a"])
-                # >>> df.select(g("a")).to_df("col1").show()
+                >>> import numpy
+                >>> from resources.test_udf_dir.test_udf_file import mod5
+                >>> a = 1
+                >>> def f():
+                ...     return 2
+                >>>
+                >>> from snowflake.snowpark.functions import udf
+                >>> session.add_import("tests/resources/test_udf_dir/test_udf_file.py", import_path="resources.test_udf_dir.test_udf_file")
+                >>> session.add_packages("numpy")
+                >>> @udf
+                ... def g(x: int) -> int:
+                ...     return mod5(numpy.square(x)) + a + f()
+                >>> df = session.create_dataframe([4], schema=["a"])
+                >>> df.select(g("a")).to_df("col1").show()
                 ----------
                 |"COL1"  |
                 ----------
@@ -204,7 +204,7 @@ class UDFRegistration:
         (vectorized) UDF, so they are not mapped to any SQL types. ``element_type`` in
         :class:`~snowflake.snowpark.types.PandasSeriesType` and ``col_types`` in
         :class:`~snowflake.snowpark.types.PandasDataFrameType` indicate the SQL types
-        in a Pandas Series and a Panda DataFrame.
+        in a Pandas Series and a Pandas DataFrame.
 
     Example 1
         Create a temporary UDF from a lambda and apply it to a dataframe::
