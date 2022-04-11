@@ -738,7 +738,7 @@ def uniform(
     gen: Union[ColumnOrName, int, float],
 ) -> Column:
     """
-    Returns a uniformly random number, in the inclusive range [min_, max_].
+    Returns a uniformly random number.
 
     Example::
         >>> import datetime
@@ -1035,7 +1035,9 @@ def strtok_to_array(
     """
     t = _to_col_if_str(text, "strtok_to_array")
     d = _to_col_if_str(delimiter, "strtok_to_array") if delimiter else None
-    return builtin("strtok_to_array")(t, d) if d else builtin("strtok_to_array")(t)
+    return (
+        builtin("strtok_to_array")(t, d) if delimiter else builtin("strtok_to_array")(t)
+    )
 
 
 def log(
@@ -1860,7 +1862,7 @@ def __timestamp_from_parts_internal(func_name: str, *args, **kwargs) -> Tuple:
         return date_expr, time_expr
     elif 6 <= num_args <= 8:
         # parts mode
-        y, m, d, h, min_, s = __columns_from_timestamp_parts(func_name, args[:6])
+        y, m, d, h, min_, s = __columns_from_timestamp_parts(func_name, *args[:6])
         ns_arg = args[6] if num_args == 7 else kwargs.get("nanoseconds")
         # Timezone is only accepted in timestamp_from_parts function
         tz_arg = args[7] if num_args == 8 else kwargs.get("timezone")
@@ -1954,6 +1956,7 @@ def timestamp_ltz_from_parts(
     Creates a timestamp from individual numeric components.
 
     Example::
+        >>> import datetime
         >>> df = session.create_dataframe(
         ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
         ...     schema=["year", "month", "day", "hour", "minute", "second"],
@@ -1962,8 +1965,8 @@ def timestamp_ltz_from_parts(
         ...     "year", "month", "day", "hour", "minute", "second"
         ... ).alias("TIMESTAMP_LTZ_FROM_PARTS")).collect()
         [
-            Row(TIMESTAMP_LTZ_FROM_PARTS()="2022-04-01 11:11:00.000000 -0700"),
-            Row(TIMESTAMP_LTZ_FROM_PARTS()="2022-03-31 11:11:00.000000 -0700")
+            Row(TIMESTAMP_LTZ_FROM_PARTS()=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>)),
+            Row(TIMESTAMP_LTZ_FROM_PARTS()=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>))
         ]
     """
     func_name = "timestamp_ltz_from_parts"
@@ -2033,11 +2036,11 @@ def timestamp_tz_from_parts(
     )
     ns = _to_col_if_str_or_int(nanoseconds, func_name) if nanoseconds else None
     tz = _to_col_if_sql_expr(timezone, func_name) if timezone else None
-    if ns and tz:
+    if nanoseconds and timezone:
         return builtin(func_name)(y, m, d, h, min_, s, ns, tz)
-    elif ns:
+    elif nanoseconds:
         return builtin(func_name)(y, m, d, h, min_, s, ns)
-    elif tz:
+    elif timezone:
         return builtin(func_name)(y, m, d, h, min_, s, lit(0), tz)
     else:
         return builtin(func_name)(y, m, d, h, min_, s)
