@@ -5,8 +5,21 @@
 from typing import Dict
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    create_file_format_statement,
+    drop_file_format_if_exists_statement,
+    infer_schema_statement,
+    quote_name_without_upper_casing,
+)
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
+from snowflake.snowpark._internal.utils import (
+    COPY_OPTIONS,
+    INFER_SCHEMA_FORMAT_TYPES,
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.types import StructType, VariantType
 
@@ -372,6 +385,74 @@ class DataFrameReader:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
         self._file_type = format
+
+        format_type_options = {}
+        for k, v in self._cur_options.items():
+            if k not in ("PATTERN", "INFER_SCHEMA"):
+                if k not in COPY_OPTIONS:
+                    format_type_options[k] = v
+
+        infer_schema = (
+            self._cur_options.get("INFER_SCHEMA", True)
+            if format in INFER_SCHEMA_FORMAT_TYPES
+            else False
+        )
+
+        schema = [Attribute('"$1"', VariantType())]
+        transformations = None
+        schema_to_cast = None
+        if infer_schema:
+            temp_file_format_name = (
+                self._session.get_fully_qualified_current_schema()
+                + "."
+                + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+            )
+            create_file_format_query = create_file_format_statement(
+                temp_file_format_name,
+                format,
+                format_type_options,
+                temp=True,
+                if_not_exist=True,
+            )
+            drop_file_format_if_exists_query = drop_file_format_if_exists_statement(
+                temp_file_format_name
+            )
+            infer_schema_query = infer_schema_statement(path, temp_file_format_name)
+            self._session._conn.run_query(
+                create_file_format_query, is_ddl_on_temp_object=True
+            )
+            results = self._session._conn.run_query(infer_schema_query)["data"]
+            new_schema = []
+            schema_to_cast = []
+            transformations = []
+            for r in results:
+                # Columns for r [column_name, type, nullable, expression, filenames]
+                name = quote_name_without_upper_casing(r[0])
+                # Parse the type returned by infer_schema command to
+                # pass to determine datatype for schema
+                data_type_parts = r[1].split("(")
+                parts_length = len(data_type_parts)
+                if parts_length == 1:
+                    data_type = r[1]
+                    precision = 0
+                    scale = 0
+                else:
+                    data_type = data_type_parts[0]
+                    precision = int(data_type_parts[1].split(",")[0])
+                    scale = int(data_type_parts[1].split(",")[1][:-1])
+                new_schema.append(
+                    Attribute(
+                        name, convert_sf_to_sp_type(data_type, precision, scale), r[2]
+                    )
+                )
+                schema_to_cast.append((r[3], r[0]))
+                transformations.append(r[3])
+            schema = new_schema
+            # Clean up the file format we created
+            self._session._conn.run_query(
+                drop_file_format_if_exists_query, is_ddl_on_temp_object=True
+            )
+
         df = DataFrame(
             self._session,
             self._session._plan_builder.read_file(
@@ -379,7 +460,9 @@ class DataFrameReader:
                 format,
                 self._cur_options,
                 self._session.get_fully_qualified_current_schema(),
-                [Attribute('"$1"', VariantType())],
+                schema,
+                schema_to_cast=schema_to_cast,
+                transformations=transformations,
             ),
         )
         df._reader = self

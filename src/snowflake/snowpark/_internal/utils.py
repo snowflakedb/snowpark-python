@@ -94,6 +94,18 @@ GENERATED_PY_FILE_EXT = (".pyc", ".pyo", ".pyd", ".pyi")
 
 INFER_SCHEMA_FORMAT_TYPES = ("PARQUET", "ORC", "AVRO")
 
+COPY_OPTIONS = {
+    "ON_ERROR",
+    "SIZE_LIMIT",
+    "PURGE",
+    "RETURN_FAILED_ONLY",
+    "MATCH_BY_COLUMN_NAME",
+    "ENFORCE_LENGTH",
+    "TRUNCATECOLUMNS",
+    "FORCE",
+    "LOAD_UNCERTAIN_FILES",
+}
+
 
 class TempObjectType(Enum):
     TABLE = "TABLE"
