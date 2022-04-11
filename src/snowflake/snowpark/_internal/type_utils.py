@@ -53,6 +53,57 @@ if installed_pandas:
     )
 
 
+def get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
+    """Convert the Snowflake logical type to the Snowpark type."""
+    if column_type_name == "ARRAY":
+        return ArrayType(StringType())
+    if column_type_name == "VARIANT":
+        return VariantType()
+    if column_type_name == "OBJECT":
+        return MapType(StringType(), StringType())
+    if column_type_name == "GEOGRAPHY":  # not supported by python connector
+        return GeographyType()
+    if column_type_name == "BOOLEAN":
+        return BooleanType()
+    if column_type_name == "BINARY":
+        return BinaryType()
+    if column_type_name == "TEXT":
+        return StringType()
+    if column_type_name == "TIME":
+        return TimeType()
+    if (
+        column_type_name == "TIMESTAMP"
+        or column_type_name == "TIMESTAMP_LTZ"
+        or column_type_name == "TIMESTAMP_TZ"
+        or column_type_name == "TIMESTAMP_NTZ"
+    ):
+        return TimestampType()
+    if column_type_name == "DATE":
+        return DateType()
+    if column_type_name == "DECIMAL" or (
+        (column_type_name == "FIXED" or column_type_name == "NUMBER") and scale != 0
+    ):
+        if precision != 0 or scale != 0:
+            if precision > DecimalType._MAX_PRECISION:
+                return DecimalType(
+                    DecimalType._MAX_PRECISION,
+                    scale + precision - DecimalType._MAX_SCALE,
+                )
+            else:
+                return DecimalType(precision, scale)
+        else:
+            return DecimalType(38, 18)
+    if column_type_name == "REAL":
+        return DoubleType()
+    if (column_type_name == "FIXED" or column_type_name == "NUMBER") and scale == 0:
+        return LongType()
+    raise NotImplementedError(
+        "Unsupported type: {}, precision: {}, scale: {}".format(
+            column_type_name, precision, scale
+        )
+    )
+
+
 def convert_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, DecimalType):
         return f"NUMBER({datatype.precision}, {datatype.scale})"

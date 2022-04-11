@@ -191,7 +191,11 @@ def test_filter_on_top_of_udf(session):
 
 
 def test_compose_on_dataframe_reader(session, resources_path):
-    df = session.read.parquet(f"@{tmp_stage_name}/test.parquet").to_df("a")
+    df = (
+        session.read.option("INFER_SCHEMA", False)
+        .parquet(f"@{tmp_stage_name}/test.parquet")
+        .to_df("a")
+    )
     replace_udf = udf(
         lambda elem: elem.replace("num", "id"),
         return_type=StringType(),

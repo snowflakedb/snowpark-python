@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
     file_operation_statement,
     filter_statement,
+    infer_schema_statement,
     insert_into_statement,
     join_statement,
     join_table_function_statement,
@@ -33,8 +34,10 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     merge_statement,
     pivot_statement,
     project_statement,
+    quote_name_without_upper_casing,
     result_scan_statement,
     sample_statement,
+    schema_cast_named,
     schema_cast_seq,
     schema_value_statement,
     select_from_path_with_format_statement,
@@ -60,6 +63,7 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     random_name_for_temp_object,
 )
+from snowflake.snowpark._internal.type_utils import get_data_type
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -601,37 +605,86 @@ class SnowflakePlanBuilder:
         format_type_options = {}
 
         for k, v in options.items():
-            if k != "PATTERN":
+            if k not in ("PATTERN", "INFER_SCHEMA"):
                 if k in self.CopyOption:
                     copy_options[k] = v
                 else:
                     format_type_options[k] = v
 
         pattern = options.get("PATTERN", None)
+        # Can only infer the schema for parquest, orc and avro
+        infer_schema = (
+            options.get("INFER_SCHEMA", True)
+            if format in ("PARQUET", "ORC", "AVRO")
+            else False
+        )
         # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
-        if not copy_options:  # use select
-            temp_file_format_name = (
-                fully_qualified_schema
-                + "."
-                + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+        temp_file_format_name = (
+            fully_qualified_schema
+            + "."
+            + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+        )
+        create_file_format_query = create_file_format_statement(
+            temp_file_format_name,
+            format,
+            format_type_options,
+            temp=True,
+            if_not_exist=True,
+        )
+        drop_file_format_if_exists_query = drop_file_format_if_exists_statement(
+            temp_file_format_name
+        )
+        schema_to_cast = schema
+        transformations = None
+        if infer_schema:
+            infer_schema_query = infer_schema_statement(path, temp_file_format_name)
+            self.session._conn.run_query(
+                create_file_format_query, is_ddl_on_temp_object=True
             )
+            results = self.session._conn.run_query(infer_schema_query)["data"]
+            new_schema = []
+            schema_to_cast = []
+            transformations = []
+            for r in results:
+                name = quote_name_without_upper_casing(r[0])
+                # Parse the type returned by infer_schema command to
+                # pass to determine datatype for schema
+                data_type_parts = r[1].split("(")
+                parts_length = len(data_type_parts)
+                data_type = r[1] if parts_length == 1 else data_type_parts[0]
+                precision = (
+                    0 if parts_length == 1 else int(data_type_parts[1].split(",")[0])
+                )
+                scale = (
+                    0
+                    if parts_length == 1
+                    else int(data_type_parts[1].split(",")[1][:-1])
+                )
+                new_schema.append(
+                    Attribute(name, get_data_type(data_type, precision, scale), r[2])
+                )
+                schema_to_cast.append((r[3], r[0]))
+                transformations.append(r[3])
+            schema = new_schema
+            # Clean up the file format we created
+            self.session._conn.run_query(
+                drop_file_format_if_exists_query, is_ddl_on_temp_object=True
+            )
+
+        if not copy_options:  # use select
             queries = [
                 Query(
-                    create_file_format_statement(
-                        temp_file_format_name,
-                        format,
-                        format_type_options,
-                        temp=True,
-                        if_not_exist=True,
-                    ),
+                    create_file_format_query,
                     is_ddl_on_temp_object=True,
                 ),
                 Query(
                     select_from_path_with_format_statement(
-                        schema_cast_seq(schema),
+                        schema_cast_named(schema_to_cast)
+                        if infer_schema
+                        else schema_cast_seq(schema_to_cast),
                         path,
                         temp_file_format_name,
                         pattern,
@@ -663,11 +716,15 @@ class SnowflakePlanBuilder:
 
             copy_options_with_force = {**copy_options, "FORCE": True}
 
-            temp_table_schema = []
-            for index, att in enumerate(schema):
-                temp_table_schema.append(
+            # If we have inferred the schema, we want to use those column names
+            temp_table_schema = (
+                schema
+                if infer_schema
+                else [
                     Attribute(f'"COL{index}"', att.datatype, att.nullable)
-                )
+                    for index, att in enumerate(schema)
+                ]
+            )
 
             temp_table_name = (
                 fully_qualified_schema
@@ -690,6 +747,7 @@ class SnowflakePlanBuilder:
                         format_type_options,
                         copy_options_with_force,
                         pattern,
+                        transformations=transformations,
                     )
                 ),
                 Query(

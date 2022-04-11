@@ -424,13 +424,13 @@ def test_read_avro_with_no_schema(session, mode):
     df1 = get_reader(session, mode).avro(avro_path)
     res = df1.collect()
     assert res == [
-        Row('{\n  "num": 1,\n  "str": "str1"\n}'),
-        Row('{\n  "num": 2,\n  "str": "str2"\n}'),
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
     ]
 
     # query_test
-    res = df1.where(sql_expr("$1:num") > 1).collect()
-    assert res == [Row('{\n  "num": 2,\n  "str": "str2"\n}')]
+    res = df1.where(sql_expr('"num"') > 1).collect()
+    assert res == [Row(str="str2", num=2)]
 
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
@@ -440,8 +440,8 @@ def test_read_avro_with_no_schema(session, mode):
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").avro(avro_path)
     res = df2.collect()
     assert res == [
-        Row('{\n  "num": 1,\n  "str": "str1"\n}'),
-        Row('{\n  "num": 2,\n  "str": "str2"\n}'),
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
     ]
 
 
@@ -453,7 +453,10 @@ def test_for_all_parquet_compression_keywords(session, temp_schema, mode):
     reader = get_reader(session, mode)
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_parquet}"
 
-    reader.parquet(test_file_on_stage).to_df("a").write.save_as_table(tmp_table)
+    # Schema inference has to be False since we can only write 1 column as parquet
+    reader.option("INFER_SCHEMA", False).parquet(test_file_on_stage).to_df(
+        "a"
+    ).write.save_as_table(tmp_table)
 
     format_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     session.sql(f"create file format {format_name} type = 'parquet'").collect()
@@ -476,13 +479,13 @@ def test_read_parquet_with_no_schema(session, mode):
     df1 = get_reader(session, mode).parquet(path)
     res = df1.collect()
     assert res == [
-        Row('{\n  "num": 1,\n  "str": "str1"\n}'),
-        Row('{\n  "num": 2,\n  "str": "str2"\n}'),
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
     ]
 
     # query_test
-    res = df1.where(sql_expr("$1:num") > 1).collect()
-    assert res == [Row('{\n  "num": 2,\n  "str": "str2"\n}')]
+    res = df1.where(col('"num"') > 1).collect()
+    assert res == [Row(str="str2", num=2)]
 
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
@@ -492,8 +495,8 @@ def test_read_parquet_with_no_schema(session, mode):
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").parquet(path)
     res = df2.collect()
     assert res == [
-        Row('{\n  "num": 1,\n  "str": "str1"\n}'),
-        Row('{\n  "num": 2,\n  "str": "str2"\n}'),
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
     ]
 
 
@@ -504,13 +507,13 @@ def test_read_orc_with_no_schema(session, mode):
     df1 = get_reader(session, mode).orc(path)
     res = df1.collect()
     assert res == [
-        Row('{\n  "num": 1,\n  "str": "str1"\n}'),
-        Row('{\n  "num": 2,\n  "str": "str2"\n}'),
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
     ]
 
     # query_test
-    res = df1.where(sql_expr("$1:num") > 1).collect()
-    assert res == [Row('{\n  "num": 2,\n  "str": "str2"\n}')]
+    res = df1.where(sql_expr('"num"') > 1).collect()
+    assert res == [Row(str="str2", num=2)]
 
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
@@ -520,8 +523,8 @@ def test_read_orc_with_no_schema(session, mode):
     df2 = get_reader(session, mode).option("TRIM_SPACE", False).orc(path)
     res = df2.collect()
     assert res == [
-        Row('{\n  "num": 1,\n  "str": "str1"\n}'),
-        Row('{\n  "num": 2,\n  "str": "str2"\n}'),
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
     ]
 
 

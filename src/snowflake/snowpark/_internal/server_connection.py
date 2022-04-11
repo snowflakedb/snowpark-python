@@ -150,7 +150,7 @@ class ServerConnection:
         self._query_listener = set()  # type: set[QueryHistory]
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
-        self._telemetry_client.send_session_created_telemetry(bool(conn))
+        self._telemetry_client.send_session_created_telemetry(not bool(conn))
 
     def _add_application_name(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
@@ -250,7 +250,7 @@ class ServerConnection:
         if column_type_name == "DATE":
             return DateType()
         if column_type_name == "DECIMAL" or (
-            column_type_name == "FIXED" and scale != 0
+            (column_type_name == "FIXED" or column_type_name == "NUMBER") and scale != 0
         ):
             if precision != 0 or scale != 0:
                 if precision > DecimalType._MAX_PRECISION:
@@ -264,7 +264,7 @@ class ServerConnection:
                 return DecimalType(38, 18)
         if column_type_name == "REAL":
             return DoubleType()
-        if column_type_name == "FIXED" and scale == 0:
+        if (column_type_name == "FIXED" or column_type_name == "NUMBER") and scale == 0:
             return LongType()
         raise NotImplementedError(
             "Unsupported type: {}, precision: {}, scale: {}".format(

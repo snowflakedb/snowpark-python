@@ -318,6 +318,18 @@ class DataFrameReader:
                 # Load the data into the DataFrame and return an Array of Rows containing the results.
                 results = csv_df.collect()
 
+        By default, we will automatically determine the schema for parquet, avro and orc
+        files and allow you to select from the individual columns. If you would like to
+        disable this, you can set the INFER_SCHEMA option to False
+
+        Example 5:
+            Disabling schema detection::
+
+                # Create a DataFrame from a parquet file
+                parquet_default_schema = session.read.option("INFER_SCHEMA", False).parquet("@stage_location")
+                # Check schema to see that everything is loaded into a column called, $1
+                parquet_default_schema.schema
+
         Args:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
