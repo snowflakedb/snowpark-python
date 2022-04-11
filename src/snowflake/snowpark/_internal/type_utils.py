@@ -106,7 +106,7 @@ def convert_sf_to_sp_type(
     )
 
 
-def convert_to_sf_type(datatype: DataType) -> str:
+def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, DecimalType):
         return f"NUMBER({datatype.precision}, {datatype.scale})"
     if isinstance(datatype, IntegerType):

@@ -18,7 +18,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.type_utils import convert_to_sf_type
+from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     is_single_quoted,
@@ -603,7 +603,10 @@ def schema_cast_seq(schema: List[Attribute]) -> List[str]:
     res = []
     for index, attr in enumerate(schema):
         name = (
-            DOLLAR + str(index + 1) + DOUBLE_COLON + convert_to_sf_type(attr.datatype)
+            DOLLAR
+            + str(index + 1)
+            + DOUBLE_COLON
+            + convert_sp_to_sf_type(attr.datatype)
         )
         res.append(name + AS + quote_name(attr.name))
     return res
@@ -765,7 +768,7 @@ def cast_expression(child: str, datatype: DataType, try_: bool = False) -> str:
         + LEFT_PARENTHESIS
         + child
         + AS
-        + convert_to_sf_type(datatype)
+        + convert_sp_to_sf_type(datatype)
         + RIGHT_PARENTHESIS
     )
 
@@ -1107,7 +1110,7 @@ def drop_table_if_exists_statement(table_name: str) -> str:
 
 def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
-        attr.name + SPACE + convert_to_sf_type(attr.datatype) for attr in attributes
+        attr.name + SPACE + convert_sp_to_sf_type(attr.datatype) for attr in attributes
     )
 
 

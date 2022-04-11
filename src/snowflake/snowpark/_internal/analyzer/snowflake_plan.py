@@ -650,6 +650,7 @@ class SnowflakePlanBuilder:
             schema_to_cast = []
             transformations = []
             for r in results:
+                # Columns for r [column_name, type, nullable, expression, filenames]
                 name = quote_name_without_upper_casing(r[0])
                 # Parse the type returned by infer_schema command to
                 # pass to determine datatype for schema

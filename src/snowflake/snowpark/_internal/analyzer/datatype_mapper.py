@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Any
 
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
-from snowflake.snowpark._internal.type_utils import convert_to_sf_type
+from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -169,10 +169,10 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             return "PARSE_JSON('NULL') :: OBJECT"
         if isinstance(data_type, VariantType):
             return "PARSE_JSON('NULL') :: VARIANT"
-        return "NULL :: " + convert_to_sf_type(data_type)
+        return "NULL :: " + convert_sp_to_sf_type(data_type)
 
     if isinstance(data_type, _NumericType):
-        return "0 :: " + convert_to_sf_type(data_type)
+        return "0 :: " + convert_sp_to_sf_type(data_type)
     if isinstance(data_type, StringType):
         return "'a' :: STRING"
     if isinstance(data_type, BinaryType):
