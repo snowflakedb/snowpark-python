@@ -1866,15 +1866,15 @@ def __timestamp_from_parts_internal(func_name: str, *args, **kwargs) -> Tuple:
         ns_arg = args[6] if num_args == 7 else kwargs.get("nanoseconds")
         # Timezone is only accepted in timestamp_from_parts function
         tz_arg = args[7] if num_args == 8 else kwargs.get("timezone")
-        if tz_arg and func_name != "timestamp_from_parts":
+        if tz_arg is not None and func_name != "timestamp_from_parts":
             raise ValueError(f"{func_name} does not accept timezone as an argument")
-        ns = _to_col_if_str_or_int(ns_arg, func_name) if ns_arg else None
-        tz = _to_col_if_sql_expr(tz_arg, func_name) if tz_arg else None
-        if ns and tz:
+        ns = None if ns_arg is None else _to_col_if_str_or_int(ns_arg, func_name)
+        tz = None if tz_arg is None else _to_col_if_sql_expr(tz_arg, func_name)
+        if ns is not None and tz is not None:
             return y, m, d, h, min_, s, ns, tz
-        elif ns:
+        elif ns is not None:
             return y, m, d, h, min_, s, ns
-        elif tz:
+        elif tz is not None:
             # We need to fill in nanoseconds as 0 to make the sql function work
             return y, m, d, h, min_, s, lit(0), tz
         else:
@@ -1912,11 +1912,15 @@ def time_from_parts(
         ]
     """
     h, m, s = __columns_from_timestamp_parts("time_from_parts", hour, minute, second)
-    ns = _to_col_if_str_or_int(nanoseconds, "time_from_parts") if nanoseconds else None
+    ns = (
+        None
+        if nanoseconds is None
+        else _to_col_if_str_or_int(nanoseconds, "time_from_parts")
+    )
     return (
-        builtin("time_from_parts")(h, m, s, ns)
-        if ns
-        else builtin("time_from_parts")(h, m, s)
+        builtin("time_from_parts")(h, m, s)
+        if ns is None
+        else builtin("time_from_parts")(h, m, s, ns)
     )
 
 
@@ -1973,11 +1977,11 @@ def timestamp_ltz_from_parts(
     y, m, d, h, min_, s = __columns_from_timestamp_parts(
         func_name, year, month, day, hour, minute, second
     )
-    ns = _to_col_if_str_or_int(nanoseconds, func_name) if nanoseconds else None
+    ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
     return (
-        builtin(func_name)(y, m, d, h, min_, s, ns)
-        if ns
-        else builtin(func_name)(y, m, d, h, min_, s)
+        builtin(func_name)(y, m, d, h, min_, s)
+        if ns is None
+        else builtin(func_name)(y, m, d, h, min_, s, ns)
     )
 
 
@@ -2034,13 +2038,13 @@ def timestamp_tz_from_parts(
     y, m, d, h, min_, s = __columns_from_timestamp_parts(
         func_name, year, month, day, hour, minute, second
     )
-    ns = _to_col_if_str_or_int(nanoseconds, func_name) if nanoseconds else None
-    tz = _to_col_if_sql_expr(timezone, func_name) if timezone else None
-    if nanoseconds and timezone:
+    ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
+    tz = None if timezone is None else _to_col_if_sql_expr(timezone, func_name)
+    if nanoseconds is not None and timezone is not None:
         return builtin(func_name)(y, m, d, h, min_, s, ns, tz)
-    elif nanoseconds:
+    elif nanoseconds is not None:
         return builtin(func_name)(y, m, d, h, min_, s, ns)
-    elif timezone:
+    elif timezone is not None:
         return builtin(func_name)(y, m, d, h, min_, s, lit(0), tz)
     else:
         return builtin(func_name)(y, m, d, h, min_, s)
