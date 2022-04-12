@@ -2542,7 +2542,7 @@ def udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
@@ -2596,11 +2596,11 @@ def udf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDF files.
-        max_batch_size: The maximum length of a Pandas DataFrame or a Pandas Series inside a Pandas UDF.
-            Because a Pandas UDF will be executed within a time limit, this optional argument can be
+        max_batch_size: The maximum length of a Pandas DataFrame or a Pandas Series inside a vectorized UDF.
+            Because a vectorized UDF will be executed within a time limit, this optional argument can be
             used to reduce the running time of every batch by setting a smaller batch size. Note
             that setting a larger value does not guarantee that Snowflake will encode batches with
-            the specified number of rows. It will be ignored when registering a non-Pandas UDF.
+            the specified number of rows. It will be ignored when registering a non-vectorized UDF.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -2617,7 +2617,7 @@ def udf(
 
             - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
               a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
-              to annotate a Pandas DataFrame when defining a Pandas (vectorized) UDF.
+              to annotate a Pandas DataFrame when defining a vectorized UDF.
               Note that they are generic types so you can specify the element type in a
               Pandas Series and DataFrame.
 
@@ -2635,7 +2635,7 @@ def udf(
         registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
 
-        4. When registering a Pandas (vectorized) UDF, ``pandas`` will be added as a package
+        4. When registering a vectorized UDF, ``pandas`` library will be added as a package
         automatically, with the latest version on the Snowflake server. If you don't want to
         use this version, you can overwrite it by adding `pandas` with specific version
         requirement using ``package`` argument or :meth:`~snowflake.snowpark.Session.add_packages`.
@@ -2685,14 +2685,14 @@ def pandas_udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
-    Registers a Python function as a Pandas (vectorized) UDF and returns the UDF.
+    Registers a Python function as a vectorized UDF and returns the UDF.
     The arguments, return value and usage of this function are exactly the same as
-    :func:`udf`, but this function can only be used for registering Pandas UDFs.
+    :func:`udf`, but this function can only be used for registering vectorized UDFs.
     See examples in :class:`~snowflake.snowpark.udf.UDFRegistration`.
 
     See Also:
