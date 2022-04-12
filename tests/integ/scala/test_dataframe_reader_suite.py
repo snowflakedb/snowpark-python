@@ -1,8 +1,9 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
+import datetime
 import random
+from decimal import Decimal
 
 import pytest
 
@@ -15,11 +16,16 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.functions import col, sql_expr
 from snowflake.snowpark.types import (
+    DateType,
+    DecimalType,
     DoubleType,
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
+    TimestampType,
+    TimeType,
 )
 from tests.utils import TestFiles, Utils
 
@@ -30,6 +36,7 @@ test_file_csv_quotes = "testCSVquotes.csv"
 test_file_json = "testJson.json"
 test_file_avro = "test.avro"
 test_file_parquet = "test.parquet"
+test_file_all_data_types_parquet = "test_all_data_types.parquet"
 test_file_orc = "test.orc"
 test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
@@ -101,6 +108,12 @@ def setup(session, resources_path):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_parquet,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_all_data_types_parquet,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -497,6 +510,78 @@ def test_read_parquet_with_no_schema(session, mode):
     assert res == [
         Row(str="str1", num=1),
         Row(str="str2", num=2),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_parquet_all_data_types_with_no_schema(session, mode):
+    path = f"@{tmp_stage_name1}/{test_file_all_data_types_parquet}"
+
+    df1 = get_reader(session, mode).parquet(path)
+    res = df1.collect()
+    assert res == [
+        Row(
+            TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
+            TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
+            F=1.2,
+            V='{"key":"value"}',
+            C="a",
+            I=1,
+            T=datetime.time(11, 11, 11),
+            D=datetime.date(2022, 4, 1),
+            N=Decimal("10.123456"),
+            S="string",
+        ),
+    ]
+
+    # type and column test
+    schema = df1.schema
+    assert schema.names == ["TS_NTZ", "TS", "F", "V", "C", "I", "T", "D", "N", "S"]
+    assert schema.fields == [
+        StructField('"TS_NTZ"', TimestampType(), nullable=True),
+        StructField('"TS"', TimestampType(), nullable=True),
+        StructField('"F"', DoubleType(), nullable=True),
+        StructField('"V"', StringType(), nullable=True),
+        StructField('"C"', StringType(), nullable=True),
+        StructField('"I"', LongType(), nullable=True),
+        StructField('"T"', TimeType(), nullable=True),
+        StructField('"D"', DateType(), nullable=True),
+        StructField('"N"', DecimalType(38, 6), nullable=True),
+        StructField('"S"', StringType(), nullable=True),
+    ]
+
+    # user can input customized formatTypeOptions
+    df2 = get_reader(session, mode).option("COMPRESSION", "NONE").parquet(path)
+    res = df2.collect()
+    assert res == [
+        Row(
+            TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
+            TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
+            F=1.2,
+            V='{"key":"value"}',
+            C="a",
+            I=1,
+            T=datetime.time(11, 11, 11),
+            D=datetime.date(2022, 4, 1),
+            N=Decimal("10.123456"),
+            S="string",
+        ),
+    ]
+
+    # type and column test
+    schema = df2.schema
+    assert schema.names == ["TS_NTZ", "TS", "F", "V", "C", "I", "T", "D", "N", "S"]
+    assert schema.fields == [
+        StructField('"TS_NTZ"', TimestampType(), nullable=True),
+        StructField('"TS"', TimestampType(), nullable=True),
+        StructField('"F"', DoubleType(), nullable=True),
+        StructField('"V"', StringType(), nullable=True),
+        StructField('"C"', StringType(), nullable=True),
+        StructField('"I"', LongType(), nullable=True),
+        StructField('"T"', TimeType(), nullable=True),
+        StructField('"D"', DateType(), nullable=True),
+        StructField('"N"', DecimalType(38, 6), nullable=True),
+        StructField('"S"', StringType(), nullable=True),
     ]
 
 
