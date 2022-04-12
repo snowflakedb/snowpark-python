@@ -1374,7 +1374,7 @@ def test_pandas_udf_negative(session):
         pandas_udf(
             lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()]
         )
-    assert "You cannot create a non-Pandas UDF using pandas_udf()" in str(ex_info)
+    assert "You cannot create a non-vectorized UDF using pandas_udf()" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         pandas_udf(
