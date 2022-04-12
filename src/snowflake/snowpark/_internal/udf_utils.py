@@ -300,6 +300,25 @@ def cleanup_failed_permanent_registration(
             logger.warning("Failed to clean uploaded file: %s", clean_ex)
 
 
+def pickle_function(func: Callable) -> bytes:
+    failure_hint = (
+        "you might have to save the object in the UDF locally first, "
+        "upload it to a stage, and read it from the UDF."
+    )
+    try:
+        return cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+    # it happens when copying the global object inside the UDF that can't be pickled
+    except TypeError as ex:
+        error_message = str(ex)
+        if "cannot pickle" in error_message:
+            raise TypeError(f"{error_message}: {failure_hint}")
+        raise ex
+    # it shouldn't happen because the function can always be pickled
+    # but we still catch this exception here in case cloudpickle changes its implementation
+    except pickle.PicklingError as ex:
+        raise pickle.PicklingError(f"{str(ex)}: {failure_hint}")
+
+
 def generate_python_code(
     func: Callable,
     arg_names: List[str],
@@ -317,13 +336,15 @@ def generate_python_code(
     # built-in functions don't have __annotations__
     if hasattr(target_func, "__annotations__"):
         annotations = target_func.__annotations__
-        target_func.__annotations__ = {}
-        # we still serialize the original function
-        pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
-        # restore the annotations so we don't change the original function
-        target_func.__annotations__ = annotations
+        try:
+            target_func.__annotations__ = {}
+            # we still serialize the original function
+            pickled_func = pickle_function(func)
+        finally:
+            # restore the annotations so we don't change the original function
+            target_func.__annotations__ = annotations
     else:
-        pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+        pickled_func = pickle_function(func)
     args = ",".join(arg_names)
 
     deserialization_code = f"""
