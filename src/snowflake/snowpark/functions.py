@@ -199,6 +199,7 @@ from snowflake.snowpark.column import (
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import DataType, StructType
 from snowflake.snowpark.udf import UserDefinedFunction
+from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 
 def col(col_name: str) -> Column:
@@ -2451,8 +2452,8 @@ def udf(
 
 def udtf(
     handler: Optional[Callable] = None,
-    return_schema: Union[StructType, List[str]] = None,
     *,
+    return_schema: Union[StructType, List[str]],
     input_types: Optional[List[DataType]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
@@ -2462,8 +2463,7 @@ def udtf(
     replace: bool = False,
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
-    **kwargs,
-) -> Union[UserDefinedFunction, functools.partial]:
+) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.
@@ -2547,8 +2547,8 @@ def udtf(
     session = session or snowflake.snowpark.session._get_active_session()
     if handler is None:
         return functools.partial(
-            session.udf.register,
-            return_type=return_schema,
+            session.udtf.register,
+            return_schema=return_schema,
             input_types=input_types,
             name=name,
             is_permanent=is_permanent,
@@ -2559,9 +2559,9 @@ def udtf(
             parallel=parallel,
         )
     else:
-        return session.udf.register(
+        return session.udtf.register(
             handler,
-            return_type=return_schema,
+            return_schema=return_schema,
             input_types=input_types,
             name=name,
             is_permanent=is_permanent,

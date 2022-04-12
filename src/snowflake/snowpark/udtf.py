@@ -22,10 +22,6 @@ from typing import (
 
 import snowflake.snowpark
 from snowflake.snowpark._internal import type_utils
-from snowflake.snowpark._internal.analyzer.expression import (
-    Expression as SPExpression,
-    SnowflakeUDTF,
-)
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     _python_type_str_to_object,
@@ -41,8 +37,7 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, Utils
-from snowflake.snowpark.column import Column
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.table_function import TableFunction
 from snowflake.snowpark.types import DataType, StructField, StructType
 
