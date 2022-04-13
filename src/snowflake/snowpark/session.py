@@ -1076,14 +1076,13 @@ class Session:
                 create_temp_table=True,
             )
 
-        if not data:
-            raise ValueError("data cannot be empty.")
-
         # infer the schema based on the data
         names = None
         if isinstance(schema, StructType):
             new_schema = schema
         else:
+            if not data:
+                raise ValueError("Cannot infer schema from empty data")
             if isinstance(schema, list):
                 names = schema
             new_schema = reduce(
