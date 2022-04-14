@@ -1908,6 +1908,7 @@ def time_from_parts(
     in a day, which can be used to simplify some computations.
 
     Example::
+
         >>> df = session.create_dataframe(
         ...     [[11, 11, 0, 987654321], [10, 10, 0, 987654321]],
         ...     schema=["hour", "minute", "second", "nanoseconds"],
@@ -1951,6 +1952,7 @@ def timestamp_from_parts(*args, **kwargs) -> Column:
     the function can be used to create a timestamp from a date expression and a time expression.
 
     Example 1::
+
         >>> df = session.create_dataframe(
         ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
         ...     schema=["year", "month", "day", "hour", "minute", "second"],
@@ -1961,6 +1963,7 @@ def timestamp_from_parts(*args, **kwargs) -> Column:
         [Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
 
     Example 2::
+
         >>> df = session.create_dataframe(
         ...     [['2022-04-01', '11:11:00'], ['2022-03-31', '11:11:00']],
         ...     schema=["date", "time"]
@@ -1988,6 +1991,7 @@ def timestamp_ltz_from_parts(
     Creates a timestamp from individual numeric components.
 
     Example::
+
         >>> import datetime
         >>> df = session.create_dataframe(
         ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
@@ -2036,6 +2040,7 @@ def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
     create a timestamp from a date expression and a time expression.
 
     Example 1::
+
         >>> df = session.create_dataframe(
         ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
         ...     schema=["year", "month", "day", "hour", "minute", "second"],
@@ -2046,6 +2051,7 @@ def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
         [Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
 
     Example 2::
+
         >>> df = session.create_dataframe(
         ...     [['2022-04-01', '11:11:00'], ['2022-03-31', '11:11:00']],
         ...     schema=["date", "time"]
@@ -2074,6 +2080,7 @@ def timestamp_tz_from_parts(
     Creates a timestamp from individual numeric components and a string timezone.
 
     Example::
+
         >>> df = session.create_dataframe(
         ...     [[2022, 4, 1, 11, 11, 0, 'America/Los_Angeles'], [2022, 3, 31, 11, 11, 0, 'America/Los_Angeles']],
         ...     schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
@@ -2104,6 +2111,7 @@ def weekofyear(e: ColumnOrName) -> Column:
     Extracts the corresponding week (number) of the year from a date or timestamp.
 
     Example::
+
         >>> import datetime
         >>> df = session.create_dataframe(
         ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
