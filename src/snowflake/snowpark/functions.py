@@ -171,7 +171,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
 import functools
 from random import randint
 from types import ModuleType
-from typing import Callable, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Iterable, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -1504,7 +1504,15 @@ def year(e: ColumnOrName) -> Column:
 
 
 def sysdate() -> Column:
-    """Returns the current timestamp for the system, but in the UTC time zone."""
+    """
+    Returns the current timestamp for the system, but in the UTC time zone.
+
+    Example::
+
+        >>> df = session.create_dataframe([1], schema=["a"])
+        >>> df.select(sysdate()).collect() is not None
+        True
+    """
     return builtin("sysdate")()
 
 
@@ -1831,7 +1839,9 @@ def is_timestamp_tz(col: ColumnOrName) -> Column:
     return builtin("is_timestamp_tz")(c)
 
 
-def __columns_from_timestamp_parts(func_name: str, *args) -> Tuple:
+def _columns_from_timestamp_parts(
+    func_name: str, *args: Union[ColumnOrName, int]
+) -> Tuple[Column, ...]:
     if len(args) == 3:
         year_ = _to_col_if_str_or_int(args[0], func_name)
         month = _to_col_if_str_or_int(args[1], func_name)
@@ -1850,7 +1860,9 @@ def __columns_from_timestamp_parts(func_name: str, *args) -> Tuple:
         raise ValueError(f"Incorrect number of args passed to {func_name}")
 
 
-def __timestamp_from_parts_internal(func_name: str, *args, **kwargs) -> Tuple:
+def _timestamp_from_parts_internal(
+    func_name: str, *args: Union[ColumnOrName, int], **kwargs: Union[ColumnOrName, int]
+) -> Tuple[Column, ...]:
     num_args = len(args)
     if num_args == 2:
         # expression mode
@@ -1859,7 +1871,7 @@ def __timestamp_from_parts_internal(func_name: str, *args, **kwargs) -> Tuple:
         return date_expr, time_expr
     elif 6 <= num_args <= 8:
         # parts mode
-        y, m, d, h, min_, s = __columns_from_timestamp_parts(func_name, *args[:6])
+        y, m, d, h, min_, s = _columns_from_timestamp_parts(func_name, *args[:6])
         ns_arg = args[6] if num_args == 7 else kwargs.get("nanoseconds")
         # Timezone is only accepted in timestamp_from_parts function
         tz_arg = args[7] if num_args == 8 else kwargs.get("timezone")
@@ -1891,7 +1903,7 @@ def time_from_parts(
     """
     Creates a time from individual numeric components.
 
-    TIME_FROM_PARTS is typically used to handle values in “normal” ranges (e.g. hours 0-23, minutes 0-59),
+    TIME_FROM_PARTS is typically used to handle values in "normal" ranges (e.g. hours 0-23, minutes 0-59),
     but it also handles values from outside these ranges. This allows, for example, choosing the N-th minute
     in a day, which can be used to simplify some computations.
 
@@ -1905,17 +1917,32 @@ def time_from_parts(
         ... ).alias("TIME_FROM_PARTS")).collect()
         [Row(TIME_FROM_PARTS=datetime.time(11, 11, 0, 987654)), Row(TIME_FROM_PARTS=datetime.time(10, 10, 0, 987654))]
     """
-    h, m, s = __columns_from_timestamp_parts("time_from_parts", hour, minute, second)
-    ns = (
-        None
-        if nanoseconds is None
-        else _to_col_if_str_or_int(nanoseconds, "time_from_parts")
-    )
-    return (
-        builtin("time_from_parts")(h, m, s)
-        if ns is None
-        else builtin("time_from_parts")(h, m, s, ns)
-    )
+    h, m, s = _columns_from_timestamp_parts("time_from_parts", hour, minute, second)
+    if nanoseconds:
+        return builtin("time_from_parts")(
+            h, m, s, _to_col_if_str_or_int(nanoseconds, "time_from_parts")
+        )
+    else:
+        return builtin("time_from_parts")(h, m, s)
+
+
+@overload
+def timestamp_from_parts(date_expr: ColumnOrName, time_expr: ColumnOrName) -> Column:
+    ...
+
+
+@overload
+def timestamp_from_parts(
+    year: Union[ColumnOrName, int],
+    month: Union[ColumnOrName, int],
+    day: Union[ColumnOrName, int],
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanosecond: Optional[Union[ColumnOrName, int]] = None,
+    timezone: Optional[Union[Column, str]] = None,
+) -> Column:
+    ...
 
 
 def timestamp_from_parts(*args, **kwargs) -> Column:
@@ -1923,7 +1950,7 @@ def timestamp_from_parts(*args, **kwargs) -> Column:
     Creates a timestamp from individual numeric components. If no time zone is in effect,
     the function can be used to create a timestamp from a date expression and a time expression.
 
-    Example::
+    Example 1::
         >>> df = session.create_dataframe(
         ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
         ...     schema=["year", "month", "day", "hour", "minute", "second"],
@@ -1932,9 +1959,19 @@ def timestamp_from_parts(*args, **kwargs) -> Column:
         ...     "year", "month", "day", "hour", "minute", "second"
         ... ).alias("TIMESTAMP_FROM_PARTS")).collect()
         [Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
+
+    Example 2::
+        >>> df = session.create_dataframe(
+        ...     [['2022-04-01', '11:11:00'], ['2022-03-31', '11:11:00']],
+        ...     schema=["date", "time"]
+        ... )
+        >>> df.select(
+        ...     timestamp_from_parts(to_date("date"), to_time("time")
+        ... ).alias("TIMESTAMP_FROM_PARTS")).collect()
+        [Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
     """
     return builtin("timestamp_from_parts")(
-        *__timestamp_from_parts_internal("timestamp_from_parts", *args, **kwargs)
+        *_timestamp_from_parts_internal("timestamp_from_parts", *args, **kwargs)
     )
 
 
@@ -1962,7 +1999,7 @@ def timestamp_ltz_from_parts(
         [Row(TIMESTAMP_LTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>)), Row(TIMESTAMP_LTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>))]
     """
     func_name = "timestamp_ltz_from_parts"
-    y, m, d, h, min_, s = __columns_from_timestamp_parts(
+    y, m, d, h, min_, s = _columns_from_timestamp_parts(
         func_name, year, month, day, hour, minute, second
     )
     ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
@@ -1973,12 +2010,32 @@ def timestamp_ltz_from_parts(
     )
 
 
+@overload
+def timestamp_ntz_from_parts(
+    date_expr: ColumnOrName, time_expr: ColumnOrName
+) -> Column:
+    ...
+
+
+@overload
+def timestamp_ntz_from_parts(
+    year: Union[ColumnOrName, int],
+    month: Union[ColumnOrName, int],
+    day: Union[ColumnOrName, int],
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanosecond: Optional[Union[ColumnOrName, int]] = None,
+) -> Column:
+    ...
+
+
 def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
     """
     Creates a timestamp from individual numeric components. The function can be used to
     create a timestamp from a date expression and a time expression.
 
-    Example::
+    Example 1::
         >>> df = session.create_dataframe(
         ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
         ...     schema=["year", "month", "day", "hour", "minute", "second"],
@@ -1987,9 +2044,19 @@ def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
         ...     "year", "month", "day", "hour", "minute", "second"
         ... ).alias("TIMESTAMP_NTZ_FROM_PARTS")).collect()
         [Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
+
+    Example 2::
+        >>> df = session.create_dataframe(
+        ...     [['2022-04-01', '11:11:00'], ['2022-03-31', '11:11:00']],
+        ...     schema=["date", "time"]
+        ... )
+        >>> df.select(
+        ...     timestamp_ntz_from_parts(to_date("date"), to_time("time")
+        ... ).alias("TIMESTAMP_NTZ_FROM_PARTS")).collect()
+        [Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
     """
     return builtin("timestamp_ntz_from_parts")(
-        *__timestamp_from_parts_internal("timestamp_ntz_from_parts", *args, **kwargs)
+        *_timestamp_from_parts_internal("timestamp_ntz_from_parts", *args, **kwargs)
     )
 
 
@@ -2017,7 +2084,7 @@ def timestamp_tz_from_parts(
         [Row(TIMESTAMP_TZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=pytz.FixedOffset(-420))), Row(TIMESTAMP_TZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11, tzinfo=pytz.FixedOffset(-420)))]
     """
     func_name = "timestamp_tz_from_parts"
-    y, m, d, h, min_, s = __columns_from_timestamp_parts(
+    y, m, d, h, min_, s = _columns_from_timestamp_parts(
         func_name, year, month, day, hour, minute, second
     )
     ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
