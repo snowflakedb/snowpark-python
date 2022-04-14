@@ -312,6 +312,7 @@ def test_to_read_files_from_stage(session, resources_path, mode):
         session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
 
 
+@pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_for_all_csv_compression_keywords(session, temp_schema, mode):
     tmp_table = (
