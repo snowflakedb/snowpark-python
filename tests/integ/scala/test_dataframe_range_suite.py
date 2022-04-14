@@ -92,7 +92,11 @@ def test_range_with_randomized_parameters(session):
         )
         assert len(res) != 0
         assert res[0][0] == expected_count
-        assert res[0][1] == expected_sum
+        if expected_count == 0:
+            # this dataframe from range is an empty dataframe, so SUM(ID) should be None
+            assert res[0][1] is None
+        else:
+            assert res[0][1] == expected_sum
 
 
 def test_range_with_max_and_min(session):
