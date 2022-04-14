@@ -13,7 +13,18 @@ import re
 import sys
 import typing  # type: ignore
 from array import array
-from typing import Any, Dict, List, Optional, Tuple, Type, Union, get_args, get_origin
+from typing import (
+    Any,
+    Dict,
+    List,
+    NewType,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    get_args,
+    get_origin,
+)
 
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.options import installed_pandas, pandas
@@ -490,10 +501,14 @@ def type_string_to_type_object(type_str: str) -> DataType:
 
 
 # Type hints
-ColumnOrName = typing.NewType(
-    "ColumnOrName", Union["snowflake.snowpark.column.Column", str]
+ColumnOrName = NewType("ColumnOrName", Union["snowflake.snowpark.column.Column", str])
+ColumnOrLiteralStr = NewType(
+    "ColumnOrLiteralStr", Union["snowflake.snowpark.column.Column", str]
 )
-LiteralType = typing.NewType("LiteralType", Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE])
-ColumnOrLiteral = typing.NewType(
+ColumnOrSqlExpr = NewType(
+    "ColumnOrSqlExpr", Union["snowflake.snowpark.column.Column", str]
+)
+LiteralType = NewType("LiteralType", Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE])
+ColumnOrLiteral = NewType(
     "ColumnOrLiteral", Union["snowflake.snowpark.column.Column", LiteralType]
 )
