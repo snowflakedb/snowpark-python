@@ -8,7 +8,7 @@ from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
-from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_to_sf_type
+from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
     check_register_args,
@@ -346,7 +346,7 @@ class UDFRegistration:
             udf_obj: A :class:`UserDefinedFunction` returned by
                 :func:`~snowflake.snowpark.functions.udf` or :meth:`register`.
         """
-        func_args = [convert_to_sf_type(t) for t in udf_obj._input_types]
+        func_args = [convert_sp_to_sf_type(t) for t in udf_obj._input_types]
         return self._session.sql(
             f"describe function {udf_obj.name}({','.join(func_args)})"
         )

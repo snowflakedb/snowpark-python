@@ -8,7 +8,7 @@ from types import ModuleType
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.type_utils import convert_to_sf_type
+from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
     check_register_args,
@@ -177,7 +177,7 @@ class StoredProcedureRegistration:
             sproc_obj: A :class:`StoredProcedure` returned by
                 :func:`~snowflake.snowpark.stored_procedure.sproc` or :meth:`register`.
         """
-        func_args = [convert_to_sf_type(t) for t in sproc_obj._input_types]
+        func_args = [convert_sp_to_sf_type(t) for t in sproc_obj._input_types]
         return self._session.sql(
             f"describe procedure {sproc_obj.name}({','.join(func_args)})"
         )
