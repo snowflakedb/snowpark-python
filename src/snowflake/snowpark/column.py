@@ -63,7 +63,9 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
+    ColumnOrLiteralStr,
     ColumnOrName,
+    ColumnOrSqlExpr,
     type_string_to_type_object,
 )
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
@@ -84,7 +86,7 @@ def _to_col_if_lit(
         )
 
 
-def _to_col_if_sql_expr(col: Union["Column", str], func_name: str) -> "Column":
+def _to_col_if_sql_expr(col: ColumnOrSqlExpr, func_name: str) -> "Column":
     if isinstance(col, Column):
         return col
     elif isinstance(col, str):
@@ -499,7 +501,7 @@ class Column:
         (null values sorted after non-null values)."""
         return Column(SortOrder(self.expression, Ascending(), NullsLast()))
 
-    def like(self, pattern: Union["Column", str]) -> "Column":
+    def like(self, pattern: ColumnOrLiteralStr) -> "Column":
         """Allows case-sensitive matching of strings based on comparison with a pattern.
 
         Args:
@@ -516,7 +518,7 @@ class Column:
             )
         )
 
-    def regexp(self, pattern: Union["Column", str]) -> "Column":
+    def regexp(self, pattern: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column matches the specified regular expression.
 
         Args:
@@ -536,7 +538,7 @@ class Column:
             )
         )
 
-    def startswith(self, other: Union["Column", str]) -> "Column":
+    def startswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column starts with another string.
 
         Args:
@@ -546,7 +548,7 @@ class Column:
         other = snowflake.snowpark.functions.lit(other)
         return snowflake.snowpark.functions.startswith(self, other)
 
-    def endswith(self, other: Union["Column", str]) -> "Column":
+    def endswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column ends with another string.
 
         Args:
@@ -759,7 +761,7 @@ class CaseExpr(Column):
         self._branches = expr.branches
 
     def when(
-        self, condition: Union[Column, str], value: Union[ColumnOrLiteral]
+        self, condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]
     ) -> "CaseExpr":
         """
         Appends one more WHEN condition to the CASE expression.
