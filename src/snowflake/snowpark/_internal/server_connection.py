@@ -125,7 +125,7 @@ class ServerConnection:
                     result = func(*args, **kwargs)
                     end_time = time.perf_counter()
                     duration = end_time - start_time
-                    sfqid = result["sfqid"] if "sfqid" in result else None
+                    sfqid = result["sfqid"] if result and "sfqid" in result else None
                     # If we don't have a query id, then its pretty useless to send perf telemetry
                     if sfqid:
                         args[0]._telemetry_client.send_upload_file_perf_telemetry(
