@@ -18,7 +18,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.type_utils import convert_to_sf_type
+from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     is_single_quoted,
@@ -92,12 +92,14 @@ FILES = " FILES "
 FORMAT = " FORMAT "
 TYPE = " TYPE "
 EQUALS = " = "
+LOCATION = " LOCATION "
 FILE_FORMAT = " FILE_FORMAT "
 FORMAT_NAME = " FORMAT_NAME "
 COPY = " COPY "
 REG_EXP = " REGEXP "
 COLLATE = " COLLATE "
 RESULT_SCAN = " RESULT_SCAN"
+INFER_SCHEMA = " INFER_SCHEMA "
 SAMPLE = " SAMPLE "
 ROWS = " ROWS "
 CASE = " CASE "
@@ -601,10 +603,17 @@ def schema_cast_seq(schema: List[Attribute]) -> List[str]:
     res = []
     for index, attr in enumerate(schema):
         name = (
-            DOLLAR + str(index + 1) + DOUBLE_COLON + convert_to_sf_type(attr.datatype)
+            DOLLAR
+            + str(index + 1)
+            + DOUBLE_COLON
+            + convert_sp_to_sf_type(attr.datatype)
         )
         res.append(name + AS + quote_name(attr.name))
     return res
+
+
+def schema_cast_named(schema: List[Tuple[str, str]]) -> List[str]:
+    return [s[0] + AS + quote_name_without_upper_casing(s[1]) for s in schema]
 
 
 def create_file_format_statement(
@@ -623,6 +632,31 @@ def create_file_format_statement(
         + (IF + NOT + EXISTS if if_not_exist else EMPTY_STRING)
         + format_name
         + options_str
+    )
+
+
+def infer_schema_statement(path: str, file_format_name: str) -> str:
+    return (
+        SELECT
+        + STAR
+        + FROM
+        + TABLE
+        + LEFT_PARENTHESIS
+        + INFER_SCHEMA
+        + LEFT_PARENTHESIS
+        + LOCATION
+        + RIGHT_ARROW
+        + SINGLE_QUOTE
+        + path
+        + SINGLE_QUOTE
+        + COMMA
+        + FILE_FORMAT
+        + RIGHT_ARROW
+        + SINGLE_QUOTE
+        + file_format_name
+        + SINGLE_QUOTE
+        + RIGHT_PARENTHESIS
+        + RIGHT_PARENTHESIS
     )
 
 
@@ -734,7 +768,7 @@ def cast_expression(child: str, datatype: DataType, try_: bool = False) -> str:
         + LEFT_PARENTHESIS
         + child
         + AS
-        + convert_to_sf_type(datatype)
+        + convert_sp_to_sf_type(datatype)
         + RIGHT_PARENTHESIS
     )
 
@@ -1076,7 +1110,7 @@ def drop_table_if_exists_statement(table_name: str) -> str:
 
 def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
-        attr.name + SPACE + convert_to_sf_type(attr.datatype) for attr in attributes
+        attr.name + SPACE + convert_sp_to_sf_type(attr.datatype) for attr in attributes
     )
 
 

@@ -143,7 +143,7 @@ class TelemetryClient:
                 TelemetryField.TYPE_SESSION_CREATED.value
             ),
             TelemetryField.KEY_DATA.value: {
-                TelemetryField.START_TIME.value: get_time_millis(),
+                TelemetryField.KEY_START_TIME.value: get_time_millis(),
                 TelemetryField.KEY_CREATED_BY_SNOWPARK.value: PCTelemetryData.TRUE
                 if created_by_snowpark
                 else PCTelemetryData.FALSE,

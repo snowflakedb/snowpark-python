@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import (
     ArrayType,
@@ -207,7 +208,7 @@ class Utils:
             )
             assert meta.is_nullable == field.nullable
             assert (
-                ServerConnection.get_data_type(
+                convert_sf_to_sp_type(
                     FIELD_ID_TO_NAME[meta.type_code], meta.precision, meta.scale
                 )
                 == field.datatype
@@ -737,6 +738,10 @@ class TestFiles:
     @property
     def test_file_parquet(self):
         return os.path.join(self.resources_path, "test.parquet")
+
+    @property
+    def test_file_all_data_types_parquet(self):
+        return os.path.join(self.resources_path, "test_all_data_types.parquet")
 
     @property
     def test_file_orc(self):
