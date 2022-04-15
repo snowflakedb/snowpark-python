@@ -2008,20 +2008,24 @@ class DataFrame:
 
         def row_to_string(row: List[str]) -> str:
             tokens = []
-            for segment, size in zip(row, col_width):
-                if len(segment) > max_width:
-                    # if truncated, add ... to the end
-                    formatted = (segment[: max_width - 3] + "...").ljust(size, " ")
-                else:
-                    formatted = segment.ljust(size, " ")
-                tokens.append(formatted)
+            if row:
+                for segment, size in zip(row, col_width):
+                    if len(segment) > max_width:
+                        # if truncated, add ... to the end
+                        formatted = (segment[: max_width - 3] + "...").ljust(size, " ")
+                    else:
+                        formatted = segment.ljust(size, " ")
+                    tokens.append(formatted)
+            else:
+                tokens = [" " * size for size in col_width]
             return f"|{'|'.join(tok for tok in tokens)}|\n"
 
         return (
             line
             + row_to_string(header)
             + line
-            + "".join(row_to_string(b) for b in body)
+            # `body` of an empty df is empty
+            + ("".join(row_to_string(b) for b in body) if body else row_to_string([]))
             + line
         )
 

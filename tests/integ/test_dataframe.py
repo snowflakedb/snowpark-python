@@ -978,7 +978,53 @@ def test_create_dataframe_empty(session):
 
     with pytest.raises(ValueError) as ex_info:
         session.createDataFrame([])
-    assert "data cannot be empty" in str(ex_info)
+    assert "Cannot infer schema from empty data" in str(ex_info)
+
+    schema = StructType(
+        [StructField("a", IntegerType()), StructField("b", IntegerType())]
+    )
+    df = session.create_dataframe([], schema=schema)
+
+    # collect
+    Utils.check_answer(df, [])
+    Utils.check_answer(df.select("a"), [])
+
+    # show
+    assert (
+        df._show_string()
+        == """
+-------------
+|"A"  |"B"  |
+-------------
+|     |     |
+-------------
+""".lstrip()
+    )
+
+    # columns
+    assert df.columns == ["A", "B"]
+
+    # count
+    assert df.count() == 0
+
+    # fillna should not fill any value in an empty df
+    Utils.check_answer(df.fillna(1), [])
+
+    # all stats should be 0 or None
+    Utils.check_answer(
+        df.describe("b").collect(),
+        [
+            Row("count", 0),
+            Row("mean", None),
+            Row("stddev", None),
+            Row("min", None),
+            Row("max", None),
+        ],
+    )
+
+    # with_column can append a column, but still no rows
+    Utils.check_answer(df.with_column("c", lit(2)), [])
+    assert df.with_column("c", lit(2)).columns == ["A", "B", "C"]
 
 
 def test_create_dataframe_from_none_data(session):
