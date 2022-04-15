@@ -157,7 +157,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
     -----------------------------
     <BLANKLINE>
 
-  - ``Union[Column, str]`` accepts a ``Column`` object, or a SQL expression. For instance, the first parameter in :func:``when``.
+  - ``ColumnOrSqlExpr`` accepts a ``Column`` object, or a SQL expression. For instance, the first parameter in :func:``when``.
 
     >>> df.select(when("a > 2", "Greater than 2").else_("Less than 2").alias("compare_with_2")).show()
     --------------------
@@ -185,7 +185,9 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.analyzer.window_expression import Lag, Lead
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
+    ColumnOrLiteralStr,
     ColumnOrName,
+    ColumnOrSqlExpr,
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import (
@@ -1102,7 +1104,7 @@ substr = substring
 
 def regexp_count(
     subject: ColumnOrName,
-    pattern: Union[Column, str],
+    pattern: ColumnOrLiteralStr,
     position: Union[Column, int] = lit(1),
     *parameters: ColumnOrLiteral,
 ) -> Column:
@@ -1118,8 +1120,8 @@ def regexp_count(
 
 def regexp_replace(
     subject: ColumnOrName,
-    pattern: Union[Column, str],
-    replacement: Union[Column, str] = lit(""),
+    pattern: ColumnOrLiteralStr,
+    replacement: ColumnOrLiteralStr = lit(""),
     position: Union[Column, int] = lit(1),
     occurrences: Union[Column, int] = lit(0),
     *parameters: ColumnOrLiteral,
@@ -1140,8 +1142,8 @@ def regexp_replace(
 
 def replace(
     subject: ColumnOrName,
-    pattern: Union[Column, str],
-    replacement: Union[Column, str] = lit(""),
+    pattern: ColumnOrLiteralStr,
+    replacement: ColumnOrLiteralStr = lit(""),
 ) -> Column:
     """
     Removes all occurrences of a specified subject and optionally replaces them with replacement.
@@ -1266,7 +1268,7 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName, format: Optional[Union[Column, str]] = None) -> Column:
+def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
     c = _to_col_if_str(c, "to_char")
@@ -1941,7 +1943,7 @@ def timestamp_from_parts(
     minute: Union[ColumnOrName, int],
     second: Union[ColumnOrName, int],
     nanosecond: Optional[Union[ColumnOrName, int]] = None,
-    timezone: Optional[Union[Column, str]] = None,
+    timezone: Optional[ColumnOrLiteralStr] = None,
 ) -> Column:
     ...
 
@@ -2074,7 +2076,7 @@ def timestamp_tz_from_parts(
     minute: Union[ColumnOrName, int],
     second: Union[ColumnOrName, int],
     nanoseconds: Optional[Union[ColumnOrName, int]] = None,
-    timezone: Optional[Union[Column, str]] = None,
+    timezone: Optional[ColumnOrLiteralStr] = None,
 ) -> Column:
     """
     Creates a timestamp from individual numeric components and a string timezone.
@@ -2619,7 +2621,7 @@ def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("get")(c1, c2)
 
 
-def when(condition: Union[Column, str], value: Union[ColumnOrLiteral]) -> CaseExpr:
+def when(condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
     When a condition evaluates to TRUE, the evaluation stops and the associated
@@ -2645,7 +2647,7 @@ def when(condition: Union[Column, str], value: Union[ColumnOrLiteral]) -> CaseEx
 
 
 def iff(
-    condition: Union[Column, str],
+    condition: ColumnOrSqlExpr,
     expr1: Union[ColumnOrLiteral],
     expr2: Union[ColumnOrLiteral],
 ) -> Column:

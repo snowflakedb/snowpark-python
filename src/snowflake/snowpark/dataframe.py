@@ -66,12 +66,15 @@ from snowflake.snowpark._internal.telemetry import (
     df_action_telemetry,
     df_usage_telemetry,
 )
-from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
+from snowflake.snowpark._internal.type_utils import (
+    ColumnOrName,
+    ColumnOrSqlExpr,
+    LiteralType,
+)
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     column_to_bool,
     create_statement_query_tag,
-    deprecate,
     generate_random_alphanumeric,
     parse_positional_args_to_list,
     random_name_for_temp_object,
@@ -747,7 +750,7 @@ class DataFrame:
         else:
             return self.select(list(keep_col_names))
 
-    def filter(self, expr: Union[Column, str]) -> "DataFrame":
+    def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
@@ -1714,7 +1717,7 @@ class DataFrame:
         pattern: Optional[str] = None,
         validation_mode: Optional[str] = None,
         target_columns: Optional[Iterable[str]] = None,
-        transformations: Optional[Iterable[Union[Column, str]]] = None,
+        transformations: Optional[Iterable[ColumnOrName]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         **copy_options: Any,
     ) -> List[Row]:
