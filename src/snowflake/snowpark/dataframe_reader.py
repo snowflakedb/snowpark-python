@@ -334,7 +334,7 @@ class DataFrameReader:
         By default, we will automatically determine the schema for parquet, avro and orc
         files and allow you to select from the individual columns. If you would like to
         disable this, you can set the `INFER_SCHEMA <https://docs.snowflake.com/en/sql-reference/functions/infer_schema.html>`_
-        option to False. If you disable this schema detection, then everything is loaded into a column called, $1.
+        option to False. If you disable this schema detection, then everything is loaded into a VARIANT column called, $1.
 
         Example 5:
             Disabling schema detection::

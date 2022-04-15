@@ -73,11 +73,11 @@ def convert_sf_to_sp_type(
         return StringType()
     if column_type_name == "TIME":
         return TimeType()
-    if (
-        column_type_name == "TIMESTAMP"
-        or column_type_name == "TIMESTAMP_LTZ"
-        or column_type_name == "TIMESTAMP_TZ"
-        or column_type_name == "TIMESTAMP_NTZ"
+    if column_type_name in (
+        "TIMESTAMP",
+        "TIMESTAMP_LTZ",
+        "TIMESTAMP_TZ",
+        "TIMESTAMP_NTZ",
     ):
         return TimestampType()
     if column_type_name == "DATE":
