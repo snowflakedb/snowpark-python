@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
+from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     get_application_name,
     get_version,
@@ -150,7 +151,7 @@ class ServerConnection:
         self._query_listener = set()  # type: set[QueryHistory]
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
-        self._telemetry_client.send_session_created_telemetry(bool(conn))
+        self._telemetry_client.send_session_created_telemetry(not bool(conn))
 
     def _add_application_name(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
@@ -222,57 +223,6 @@ class ServerConnection:
         return rows[0][0] if len(rows) > 0 else None
 
     @staticmethod
-    def get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
-        """Convert the Snowflake logical type to the Snowpark type."""
-        if column_type_name == "ARRAY":
-            return ArrayType(StringType())
-        if column_type_name == "VARIANT":
-            return VariantType()
-        if column_type_name == "OBJECT":
-            return MapType(StringType(), StringType())
-        if column_type_name == "GEOGRAPHY":  # not supported by python connector
-            return GeographyType()
-        if column_type_name == "BOOLEAN":
-            return BooleanType()
-        if column_type_name == "BINARY":
-            return BinaryType()
-        if column_type_name == "TEXT":
-            return StringType()
-        if column_type_name == "TIME":
-            return TimeType()
-        if (
-            column_type_name == "TIMESTAMP"
-            or column_type_name == "TIMESTAMP_LTZ"
-            or column_type_name == "TIMESTAMP_TZ"
-            or column_type_name == "TIMESTAMP_NTZ"
-        ):
-            return TimestampType()
-        if column_type_name == "DATE":
-            return DateType()
-        if column_type_name == "DECIMAL" or (
-            column_type_name == "FIXED" and scale != 0
-        ):
-            if precision != 0 or scale != 0:
-                if precision > DecimalType._MAX_PRECISION:
-                    return DecimalType(
-                        DecimalType._MAX_PRECISION,
-                        scale + precision - DecimalType._MAX_SCALE,
-                    )
-                else:
-                    return DecimalType(precision, scale)
-            else:
-                return DecimalType(38, 18)
-        if column_type_name == "REAL":
-            return DoubleType()
-        if column_type_name == "FIXED" and scale == 0:
-            return LongType()
-        raise NotImplementedError(
-            "Unsupported type: {}, precision: {}, scale: {}".format(
-                column_type_name, precision, scale
-            )
-        )
-
-    @staticmethod
     def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
         attributes = []
         for column_name, type_value, _, _, precision, scale, nullable in meta:
@@ -280,7 +230,7 @@ class ServerConnection:
             attributes.append(
                 Attribute(
                     quoted_name,
-                    ServerConnection.get_data_type(
+                    convert_sf_to_sp_type(
                         FIELD_ID_TO_NAME[type_value], precision, scale
                     ),
                     nullable,

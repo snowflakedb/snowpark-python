@@ -5,7 +5,7 @@
 import re
 import uuid
 from functools import cached_property, reduce
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import snowflake.connector
 import snowflake.snowpark
@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
     file_operation_statement,
     filter_statement,
+    infer_schema_statement,
     insert_into_statement,
     join_statement,
     join_table_function_statement,
@@ -33,8 +34,10 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     merge_statement,
     pivot_statement,
     project_statement,
+    quote_name_without_upper_casing,
     result_scan_statement,
     sample_statement,
+    schema_cast_named,
     schema_cast_seq,
     schema_value_statement,
     select_from_path_with_format_statement,
@@ -55,7 +58,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
+    COPY_OPTIONS,
+    INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
     generate_random_alphanumeric,
     random_name_for_temp_object,
@@ -200,18 +206,6 @@ class SnowflakePlan(LogicalPlan):
 
 
 class SnowflakePlanBuilder:
-    CopyOption = {
-        "ON_ERROR",
-        "SIZE_LIMIT",
-        "PURGE",
-        "RETURN_FAILED_ONLY",
-        "MATCH_BY_COLUMN_NAME",
-        "ENFORCE_LENGTH",
-        "TRUNCATECOLUMNS",
-        "FORCE",
-        "LOAD_UNCERTAIN_FILES",
-    }
-
     def __init__(self, session: "snowflake.snowpark.session.Session"):
         self.session = session
 
@@ -596,18 +590,26 @@ class SnowflakePlanBuilder:
         options: Dict[str, str],
         fully_qualified_schema: str,
         schema: List[Attribute],
+        schema_to_cast: Optional[List[Tuple[str, str]]] = None,
+        transformations: Optional[List[str]] = None,
     ):
         copy_options = {}
         format_type_options = {}
 
         for k, v in options.items():
-            if k != "PATTERN":
-                if k in self.CopyOption:
+            if k not in ("PATTERN", "INFER_SCHEMA"):
+                if k in COPY_OPTIONS:
                     copy_options[k] = v
                 else:
                     format_type_options[k] = v
 
         pattern = options.get("PATTERN", None)
+        # Can only infer the schema for parquet, orc and avro
+        infer_schema = (
+            options.get("INFER_SCHEMA", True)
+            if format in INFER_SCHEMA_FORMAT_TYPES
+            else False
+        )
         # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
@@ -631,7 +633,9 @@ class SnowflakePlanBuilder:
                 ),
                 Query(
                     select_from_path_with_format_statement(
-                        schema_cast_seq(schema),
+                        schema_cast_named(schema_to_cast)
+                        if infer_schema
+                        else schema_cast_seq(schema),
                         path,
                         temp_file_format_name,
                         pattern,
@@ -663,11 +667,15 @@ class SnowflakePlanBuilder:
 
             copy_options_with_force = {**copy_options, "FORCE": True}
 
-            temp_table_schema = []
-            for index, att in enumerate(schema):
-                temp_table_schema.append(
+            # If we have inferred the schema, we want to use those column names
+            temp_table_schema = (
+                schema
+                if infer_schema
+                else [
                     Attribute(f'"COL{index}"', att.datatype, att.nullable)
-                )
+                    for index, att in enumerate(schema)
+                ]
+            )
 
             temp_table_name = (
                 fully_qualified_schema
@@ -690,6 +698,7 @@ class SnowflakePlanBuilder:
                         format_type_options,
                         copy_options_with_force,
                         pattern,
+                        transformations=transformations,
                     )
                 ),
                 Query(

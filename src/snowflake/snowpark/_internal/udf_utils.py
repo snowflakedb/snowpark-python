@@ -23,7 +23,7 @@ import cloudpickle
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.type_utils import (
-    convert_to_sf_type,
+    convert_sp_to_sf_type,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
 )
@@ -501,8 +501,8 @@ def create_python_udf_or_sp(
     replace: bool,
     inline_python_code: Optional[str] = None,
 ) -> None:
-    return_sql_type = convert_to_sf_type(return_type)
-    input_sql_types = [convert_to_sf_type(arg.datatype) for arg in input_args]
+    return_sql_type = convert_sp_to_sf_type(return_type)
+    input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
     sql_func_args = ",".join(
         [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
     )

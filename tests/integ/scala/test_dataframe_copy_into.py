@@ -45,11 +45,11 @@ def create_df_for_file_format(session, file_format, file_location):
     if "json" == file_format:
         df = session.read.json(file_location)
     elif "parquet" == file_format:
-        df = session.read.parquet(file_location)
+        df = session.read.option("INFER_SCHEMA", False).parquet(file_location)
     elif "avro" == file_format:
-        df = session.read.avro(file_location)
+        df = session.read.option("INFER_SCHEMA", False).avro(file_location)
     elif "orc" == file_format:
-        df = session.read.orc(file_location)
+        df = session.read.option("INFER_SCHEMA", False).orc(file_location)
     else:  # "xml" == file_format:
         df = session.read.xml(file_location)
     return df

@@ -206,6 +206,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/testCSVcolon.csv",
                 "resources/testCSVquotes.csv",
                 "resources/testJson.json",
+                "resources/test_all_data_types.parquet",
                 "resources/test_requirements.txt",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
