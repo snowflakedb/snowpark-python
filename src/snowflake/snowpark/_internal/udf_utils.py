@@ -302,8 +302,8 @@ def cleanup_failed_permanent_registration(
 
 def pickle_function(func: Callable) -> bytes:
     failure_hint = (
-        "you might have to save the object in the UDF locally first, "
-        "upload it to a stage, and read it from the UDF."
+        "you might have to save the unpicklable object in the local environment first, "
+        "add it to the UDF with session.add_import(), and read it from the UDF."
     )
     try:
         return cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
