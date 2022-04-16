@@ -8,7 +8,7 @@ import zipfile
 import pytest
 
 from snowflake.snowpark._internal.utils import (
-    calculate_md5,
+    calculate_checksum,
     get_stage_file_prefix_length,
     get_udf_upload_prefix,
     normalize_path,
@@ -53,18 +53,31 @@ def test_utils_validate_object_name():
         validate_object_name(identifier)
 
 
-def test_md5():
+def test_calculate_checksum():
     assert (
-        calculate_md5(test_files.test_file_avro) == "85bd7b9363853f1815254b1cbc608c22"
+        calculate_checksum(test_files.test_file_avro)
+        == "3317ed5a935104274f4c7ae12b81fac063ed252570876e3f535cd8e13d8cbbb8"
+    )
+    assert (
+        calculate_checksum(test_files.test_file_avro, algorithm="md5")
+        == "85bd7b9363853f1815254b1cbc608c22"
     )
     if IS_WINDOWS:
         assert (
-            calculate_md5(test_files.test_udf_directory)
+            calculate_checksum(test_files.test_udf_directory)
+            == "dacc9a957e526063c57a9d5c03644b24dfbe0f789efa224ff1b4d88138a2a6d8"
+        )
+        assert (
+            calculate_checksum(test_files.test_udf_directory, algorithm="md5")
             == "c3988b8dcab346a2e8152e06276b4033"
         )
     else:
         assert (
-            calculate_md5(test_files.test_udf_directory)
+            calculate_checksum(test_files.test_udf_directory)
+            == "83582388fa5d2b2f0a71666bca88a8f11a6c0d40b20096c8aeb2fccf113d3ca6"
+        )
+        assert (
+            calculate_checksum(test_files.test_udf_directory, algorithm="md5")
             == "728a79922e1b869dc9578c4f8d51cc73"
         )
 

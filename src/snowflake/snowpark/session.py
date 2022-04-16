@@ -50,8 +50,7 @@ from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
-    calculate_md5,
-    deprecate,
+    calculate_checksum,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -346,8 +345,8 @@ class Session:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
             immediately, and it will be uploaded when a UDF is created.
 
-            2. The Snowpark library calculates an MD5 checksum for every file/directory.
-            Each file is uploaded to a subdirectory named after the MD5 checksum for the
+            2. The Snowpark library calculates a sha256 checksum for every file/directory.
+            Each file is uploaded to a subdirectory named after the checksum for the
             file in the stage. If there is an existing file or directory, the Snowpark
             library will compare their checksums to determine whether it should be re-uploaded.
             Therefore, after uploading a local file to the stage, if the user makes
@@ -449,7 +448,7 @@ class Session:
             # will change and the file in the stage will be overwritten.
             return (
                 abs_path,
-                calculate_md5(abs_path, additional_info=leading_path),
+                calculate_checksum(abs_path, additional_info=leading_path),
                 leading_path,
             )
         else:
