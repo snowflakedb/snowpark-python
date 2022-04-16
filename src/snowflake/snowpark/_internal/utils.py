@@ -287,13 +287,14 @@ def parse_positional_args_to_list(*inputs) -> List:
         return [*inputs]
 
 
-def calculate_md5(
+def calculate_checksum(
     path: str,
     chunk_size: int = 8192,
     ignore_generated_py_file: bool = True,
     additional_info: Optional[str] = None,
+    algorithm: str = "sha256",
 ) -> str:
-    """Calculates the checksum (md5) of a file or a directory.
+    """Calculates the checksum of a file or a directory.
 
     Args:
         path: the path to a local file or directory.
@@ -307,17 +308,18 @@ def calculate_md5(
             in the directory.
         additional_info: Any additional information we might want to include
             for checksum computation.
+        algorithm: the hash algorithm.
 
     Returns:
-        The result checksum (md5).
+        The result checksum.
     """
     if not os.path.exists(path):
         raise FileNotFoundError(f"{path} is not found")
 
-    hash_md5 = hashlib.md5()
+    hash_algo = hashlib.new(algorithm)
     if os.path.isfile(path):
         with open(path, "rb") as f:
-            hash_md5.update(f.read(chunk_size))
+            hash_algo.update(f.read(chunk_size))
     elif os.path.isdir(path):
         current_size = 0
         for dirname, dirs, files in os.walk(path):
@@ -328,26 +330,26 @@ def calculate_md5(
             for dir in sorted(dirs):
                 if ignore_generated_py_file and dir == "__pycache__":
                     continue
-                hash_md5.update(dir.encode("utf8"))
+                hash_algo.update(dir.encode("utf8"))
             for file in sorted(files):
                 # ignore generated python files
                 if ignore_generated_py_file and file.endswith(GENERATED_PY_FILE_EXT):
                     continue
-                hash_md5.update(file.encode("utf8"))
+                hash_algo.update(file.encode("utf8"))
                 if current_size < chunk_size:
                     filename = os.path.join(dirname, file)
                     file_size = os.path.getsize(filename)
                     read_size = min(file_size, chunk_size - current_size)
                     current_size += read_size
                     with open(filename, "rb") as f:
-                        hash_md5.update(f.read(read_size))
+                        hash_algo.update(f.read(read_size))
     else:
-        raise ValueError("md5 can only be calculated for a file or directory")
+        raise ValueError(f"{algorithm} can only be calculated for a file or directory")
 
     if additional_info:
-        hash_md5.update(additional_info.encode("utf8"))
+        hash_algo.update(additional_info.encode("utf8"))
 
-    return hash_md5.hexdigest()
+    return hash_algo.hexdigest()
 
 
 def str_to_enum(value: str, enum_class: Type[Enum], except_str: str) -> Enum:
