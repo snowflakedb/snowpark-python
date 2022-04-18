@@ -2895,9 +2895,9 @@ def udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
-    **kwargs,
+    max_batch_size: Optional[int] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -2949,6 +2949,12 @@ def udf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDF files.
+        max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+            inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
+            which is `60` seconds, this optional argument can be used to reduce the running time of
+            every batch by setting a smaller batch size. Note that setting a larger value does not
+            guarantee that Snowflake will encode batches with the specified number of rows. It will
+            be ignored when registering a non-vectorized UDF.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -2963,6 +2969,12 @@ def udf(
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
               to annotate a geography when defining a UDF.
 
+            - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
+              a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
+              to annotate a Pandas DataFrame when defining a vectorized UDF.
+              Note that they are generic types so you can specify the element type in a
+              Pandas Series and DataFrame.
+
             - :class:`typing.Union` is not a valid type annotation for UDFs,
               but :class:`typing.Optional` can be used to indicate the optional type.
 
@@ -2976,6 +2988,11 @@ def udf(
         3. By default, UDF registration fails if a function with the same name is already
         registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
+
+        4. When registering a vectorized UDF, ``pandas`` library will be added as a package
+        automatically, with the latest version on the Snowflake server. If you don't want to
+        use this version, you can overwrite it by adding `pandas` with specific version
+        requirement using ``package`` argument or :meth:`~snowflake.snowpark.Session.add_packages`.
 
     See Also:
         :class:`~snowflake.snowpark.udf.UDFRegistration`
@@ -2993,7 +3010,7 @@ def udf(
             packages=packages,
             replace=replace,
             parallel=parallel,
-            **kwargs,
+            max_batch_size=max_batch_size,
         )
     else:
         return session.udf.register(
@@ -3007,11 +3024,11 @@ def udf(
             packages=packages,
             replace=replace,
             parallel=parallel,
-            **kwargs,
+            max_batch_size=max_batch_size,
         )
 
 
-def _pandas_udf(
+def pandas_udf(
     func: Optional[Callable] = None,
     *,
     return_type: Optional[DataType] = None,
@@ -3022,49 +3039,15 @@ def _pandas_udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
-    Registers a Python function as a Pandas UDF (vectorized UDF) and returns the UDF.
-
-    Examples::
-
-        from snowflake.snowpark.functions import pandas_udf
-        from snowflake.snowpark.types import IntegerType, PandasDataFrameType, PandasSeriesType, PandasDataFrame, PandasSeries,
-
-        df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
-        add_udf = pandas_udf(lambda x, y: x + y, return_type=PandasSeriesType(IntegerType()),
-                             input_types=[PandasSeriesType(IntegerType()), PandasSeriesType(IntegerType())])
-        df.select(add_udf("a", "b")).collect()
-
-        @pandas_udf(max_batch_size=20)
-        def apply_mod5_udf(x: PandasSeries[int]) -> PandasSeries[int]:
-            return x.apply(lambda x: x % 5)
-
-        df.select(apply_mod5_udf("a")).collect()
-
-        import pandas as pd
-
-        def add_df_one(df: pd.DataFrame) -> pd.Series:
-            return df[0] + df[1] + 1
-
-        add_df_one_udf = pandas_udf(lambda x, y: x + y, return_type=IntegerType(),
-                                    input_types=[IntegerType()), IntegerType()])
-
-        df.select(add_df_one_udf("a", "b")).collect()
-
-    Note:
-        1. This function can only be used to register Pandas UDFs. :func:`udf` and
-        :meth:`UDFRegistration.register() <snowflake.snowpark.udf.UDFRegistration.register>`
-        can be used to register both non-Pandas UDFs and Pandas UDFs, by providing
-        appropriate return and input types.
-
-        2. When registering a Pandas UDF, ``pandas`` will be added as a package automatically,
-        with the latest version on the Snowflake server. If you don't want to use this version,
-        you can overwrite it by adding `pandas` with specific version requirement using
-        ``package`` argument or :meth:`~snowflake.snowpark.Session.add_packages`.
+    Registers a Python function as a vectorized UDF and returns the UDF.
+    The arguments, return value and usage of this function are exactly the same as
+    :func:`udf`, but this function can only be used for registering vectorized UDFs.
+    See examples in :class:`~snowflake.snowpark.udf.UDFRegistration`.
 
     See Also:
         - :func:`udf`

@@ -167,6 +167,18 @@ class UDFRegistration:
           Therefore, this approach is useful and efficient when all your Python code is already in
           source files.
 
+    Compared to the default row-by-row processing pattern of a normal UDF, which sometimes is
+    inefficient, a vectorized UDF allows vectorized operations on a dataframe, with the input as a
+    `Pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
+    or `Pandas Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_. In a
+    vectorized UDF, you can operate on a batches of rows by handling Pandas DataFrame or Pandas
+    Series. You can use :func:`~snowflake.snowpark.functions.udf`, :meth:`register` or
+    :func:`~snowflake.snowpark.functions.pandas_udf` to create a vectorized UDF by providing
+    appropriate return and input types. If you would like to use :meth:`register_from_file` to
+    create a vectorized UDF, you should follow the guide of
+    `Python UDF Batch API <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-batch.html>`_ in
+    your Python source files. See Example 9, 10 and 11 here for registering a vectorized UDF.
+
     Snowflake supports the following data types for the parameters for a UDF:
 
     =============================================  ======================================================= ============
@@ -185,6 +197,8 @@ class UDFRegistration:
     ``dict``                                       :class:`~snowflake.snowpark.types.MapType`              OBJECT
     Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`          VARIANT
     ``dict``                                       :class:`~snowflake.snowpark.types.GeographyType`        GEOGRAPHY
+    ``pandas.Series``                              :class:`~snowflake.snowpark.types.PandasSeriesType`     No SQL type
+    ``pandas.DataFrame``                           :class:`~snowflake.snowpark.types.PandasDataFrameType`  No SQL type
     =============================================  ======================================================= ============
 
     Note:
@@ -200,6 +214,13 @@ class UDFRegistration:
         :class:`~snowflake.snowpark.types.GeographyType` (:attr:`~snowflake.snowpark.types.Geography`)
         by a UDF will be represented as a `GeoJSON <https://datatracker.ietf.org/doc/html/rfc7946>`_
         string.
+
+        3. :class:`~snowflake.snowpark.types.PandasSeriesType` and
+        :class:`~snowflake.snowpark.types.PandasDataFrameType` are used when creating a Pandas
+        (vectorized) UDF, so they are not mapped to any SQL types. ``element_type`` in
+        :class:`~snowflake.snowpark.types.PandasSeriesType` and ``col_types`` in
+        :class:`~snowflake.snowpark.types.PandasDataFrameType` indicate the SQL types
+        in a Pandas Series and a Pandas DataFrame.
 
     Example 1
         Create a temporary UDF from a lambda and apply it to a dataframe::
@@ -329,6 +350,61 @@ class UDFRegistration:
         built-in `cache decorators <https://docs.python.org/3/library/functools.html#functools.cache>`_
         are not working when registering UDFs using Snowpark, due to the limitation of cloudpickle.
 
+    Example 9
+        Create a vectorized UDF from a lambda with a max batch size and apply it to a dataframe::
+
+            >>> from snowflake.snowpark.functions import udf
+            >>> from snowflake.snowpark.types import IntegerType, PandasSeriesType, PandasDataFrameType
+            >>> df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+            >>> add_udf1 = udf(lambda series1, series2: series1 + series2, return_type=PandasSeriesType(IntegerType()),
+            ...               input_types=[PandasSeriesType(IntegerType()), PandasSeriesType(IntegerType())],
+            ...               max_batch_size=20)
+            >>> df.select(add_udf1("a", "b")).to_df("add_result").collect()
+            [Row(ADD_RESULT=3), Row(ADD_RESULT=7)]
+            >>> add_udf2 = udf(lambda df: df[0] + df[1], return_type=PandasSeriesType(IntegerType()),
+            ...               input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
+            ...               max_batch_size=20)
+            >>> df.select(add_udf2("a", "b")).to_df("add_result").collect()
+            [Row(ADD_RESULT=3), Row(ADD_RESULT=7)]
+
+    Example 10
+        Create a vectorized UDF with type hints and apply it to a dataframe::
+
+            >>> from snowflake.snowpark.functions import udf
+            >>> from snowflake.snowpark.types import PandasSeries, PandasDataFrame
+            >>> @udf
+            ... def apply_mod5_udf(series: PandasSeries[int]) -> PandasSeries[int]:
+            ...     return series.apply(lambda x: x % 5)
+            >>> session.range(1, 8, 2).select(apply_mod5_udf("id")).to_df("col1").collect()
+            [Row(COL1=1), Row(COL1=3), Row(COL1=0), Row(COL1=2)]
+            >>> @udf
+            ... def mul_udf(df: PandasDataFrame[int, int]) -> PandasSeries[int]:
+            ...     return df[0] * df[1]
+            >>> df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+            >>> df.select(mul_udf("a", "b")).to_df("col1").collect()
+            [Row(COL1=2), Row(COL1=12)]
+
+    Example 11
+        Create a vectorized UDF with original ``pandas`` types and Snowpark types and apply it to a dataframe::
+
+            >>> # `pandas_udf` is an alias of `udf`, but it can only be used to create a vectorized UDF
+            >>> from snowflake.snowpark.functions import pandas_udf
+            >>> from snowflake.snowpark.types import IntegerType
+            >>> import pandas as pd
+            >>> df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+            >>> def add1(series1: pd.Series, series2: pd.Series) -> pd.Series:
+            ...     return series1 + series2
+            >>> add_udf1 = pandas_udf(add1, return_type=IntegerType(),
+            ...                       input_types=[IntegerType(), IntegerType()])
+            >>> df.select(add_udf1("a", "b")).to_df("add_result").collect()
+            [Row(ADD_RESULT=3), Row(ADD_RESULT=7)]
+            >>> def add2(df: pd.DataFrame) -> pd.Series:
+            ...     return df[0] + df[1]
+            >>> add_udf2 = pandas_udf(add2, return_type=IntegerType(),
+            ...                       input_types=[IntegerType(), IntegerType()])
+            >>> df.select(add_udf2("a", "b")).to_df("add_result").collect()
+            [Row(ADD_RESULT=3), Row(ADD_RESULT=7)]
+
     See Also:
         - :func:`~snowflake.snowpark.functions.udf`
         - :meth:`register`
@@ -367,6 +443,7 @@ class UDFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        max_batch_size: Optional[int] = None,
         **kwargs,
     ) -> UserDefinedFunction:
         """
@@ -374,7 +451,8 @@ class UDFRegistration:
         The usage, input arguments, and return value of this method are the same as
         they are for :func:`~snowflake.snowpark.functions.udf`, but :meth:`register`
         cannot be used as a decorator. See examples in
-        :class:`~snowflake.snowpark.udf.UDFRegistration`.
+        :class:`~snowflake.snowpark.udf.UDFRegistration` and notes in
+        :func:`~snowflake.snowpark.functions.udf`.
 
         Args:
             func: A Python function used for creating the UDF.
@@ -418,6 +496,12 @@ class UDFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
+            max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+                inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
+                which is `60` seconds, this optional argument can be used to reduce the running time of
+                every batch by setting a smaller batch size. Note that setting a larger value does not
+                guarantee that Snowflake will encode batches with the specified number of rows. It will
+                be ignored when registering a non-vectorized UDF.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
@@ -444,7 +528,7 @@ class UDFRegistration:
             packages,
             replace,
             parallel,
-            kwargs.get("max_batch_size"),
+            max_batch_size,
             kwargs.get("_from_pandas_udf_function", False),
         )
 
@@ -581,7 +665,7 @@ class UDFRegistration:
         # but not allow registering non-pandas UDF from pandas_udf()
         if from_pandas_udf_function and not is_pandas_udf:
             raise ValueError(
-                "You cannot create a non-Pandas UDF using pandas_udf(). "
+                "You cannot create a non-vectorized UDF using pandas_udf(). "
                 "Use udf() instead."
             )
 
