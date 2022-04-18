@@ -136,7 +136,7 @@ class UDFRegistration:
           only the name of ``numpy`` and ``mod5`` will be included in the bytecode. Therefore,
           in order to have these modules on the server side, you can use
           :meth:`~snowflake.snowpark.Session.add_import` and :meth:`~snowflake.snowpark.Session.add_packages`
-          to add your first-party and third-party librarys.
+          to add your first-party and third-party libraries.
 
           After deserialization, this function will be executed and applied to every row of your
           dataframe or table during UDF execution. This approach is very flexible because you can
@@ -151,6 +151,10 @@ class UDFRegistration:
             * If the runtime function references some very large global variables (e.g., a machine
               learning model with a large number of parameters), they will also be serialized and
               the size of bytecode can be very large, which will take more time for uploading files.
+              Also, the UDF creation will fail if the referenced global variables cannot be pickled
+              (e.g., ``weakref`` object). In this case, you usually have to save such objects in the
+              local environment first, add it to the UDF using  :meth:`~snowflake.snowpark.Session.add_import`,
+              and read it from the UDF (see Example 8 here).
 
         - Use :meth:`register_from_file`. By pointing to a `Python file` or a `zip file containing
           Python source code` and the target function name, Snowpark uploads this file to a stage

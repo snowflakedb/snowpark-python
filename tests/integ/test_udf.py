@@ -1495,3 +1495,17 @@ def test_udf_class_method(session):
         "Invalid function: not a function or callable (__call__ is not defined)"
         in str(ex_info)
     )
+
+
+def test_udf_pickle_failure(session):
+    from weakref import WeakValueDictionary
+
+    d = WeakValueDictionary()
+
+    with pytest.raises(TypeError) as ex_info:
+        session.udf.register(lambda: len(d), return_type=IntegerType())
+    assert (
+        "cannot pickle 'weakref' object: you might have to save the unpicklable object in the "
+        "local environment first, add it to the UDF with session.add_import(), and read it from "
+        "the UDF." in str(ex_info)
+    )
