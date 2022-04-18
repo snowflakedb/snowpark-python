@@ -38,7 +38,7 @@ from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
-from snowflake.snowpark.functions import _pandas_udf as pandas_udf, call_udf, col, udf
+from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
@@ -1374,7 +1374,7 @@ def test_pandas_udf_negative(session):
         pandas_udf(
             lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()]
         )
-    assert "You cannot create a non-Pandas UDF using pandas_udf()" in str(ex_info)
+    assert "You cannot create a non-vectorized UDF using pandas_udf()" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         pandas_udf(

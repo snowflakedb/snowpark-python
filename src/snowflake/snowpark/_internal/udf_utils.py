@@ -361,7 +361,7 @@ import pandas
         if max_batch_size:
             pandas_code = f"""
 {pandas_code}
-{_DEFAULT_HANDLER_NAME}._sf_target_batch_size = {int(max_batch_size)}
+{_DEFAULT_HANDLER_NAME}._sf_max_batch_size = {int(max_batch_size)}
 """.rstrip()
         if is_dataframe_input:
             func_code = f"""
