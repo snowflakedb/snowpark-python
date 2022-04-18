@@ -2596,11 +2596,12 @@ def udf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDF files.
-        max_batch_size: The maximum length of a Pandas DataFrame or a Pandas Series inside a vectorized UDF.
-            Because a vectorized UDF will be executed within a time limit, this optional argument can be
-            used to reduce the running time of every batch by setting a smaller batch size. Note
-            that setting a larger value does not guarantee that Snowflake will encode batches with
-            the specified number of rows. It will be ignored when registering a non-vectorized UDF.
+        max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+            inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
+            which is `60` seconds, this optional argument can be used to reduce the running time of
+            every batch by setting a smaller batch size. Note that setting a larger value does not
+            guarantee that Snowflake will encode batches with the specified number of rows. It will
+            be ignored when registering a non-vectorized UDF.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.

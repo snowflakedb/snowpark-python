@@ -171,8 +171,9 @@ class UDFRegistration:
     Series. You can use :func:`~snowflake.snowpark.functions.udf`, :meth:`register` or
     :func:`~snowflake.snowpark.functions.pandas_udf` to create a vectorized UDF by providing
     appropriate return and input types. If you would like to use :meth:`register_from_file` to
-    create a vectorized UDF, you should follow the guide of how to create a vectorized Python UDF in
-    SQL in your Python source files. See Example 9, 10 and 11 here for registering a vectorized UDF.
+    create a vectorized UDF, you should follow the guide of
+    `Python UDF Batch API <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-batch.html>`_ in
+    your Python source files. See Example 9, 10 and 11 here for registering a vectorized UDF.
 
     Snowflake supports the following data types for the parameters for a UDF:
 
@@ -351,7 +352,7 @@ class UDFRegistration:
             >>> from snowflake.snowpark.functions import udf
             >>> from snowflake.snowpark.types import IntegerType, PandasSeriesType, PandasDataFrameType
             >>> df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
-            >>> add_udf1 = udf(lambda x, y: x + y, return_type=PandasSeriesType(IntegerType()),
+            >>> add_udf1 = udf(lambda series1, series2: series1 + series2, return_type=PandasSeriesType(IntegerType()),
             ...               input_types=[PandasSeriesType(IntegerType()), PandasSeriesType(IntegerType())],
             ...               max_batch_size=20)
             >>> df.select(add_udf1("a", "b")).to_df("add_result").collect()
@@ -368,8 +369,8 @@ class UDFRegistration:
             >>> from snowflake.snowpark.functions import udf
             >>> from snowflake.snowpark.types import PandasSeries, PandasDataFrame
             >>> @udf
-            ... def apply_mod5_udf(x: PandasSeries[int]) -> PandasSeries[int]:
-            ...     return x.apply(lambda x: x % 5)
+            ... def apply_mod5_udf(series: PandasSeries[int]) -> PandasSeries[int]:
+            ...     return series.apply(lambda x: x % 5)
             >>> session.range(1, 8, 2).select(apply_mod5_udf("id")).to_df("col1").collect()
             [Row(COL1=1), Row(COL1=3), Row(COL1=0), Row(COL1=2)]
             >>> @udf
@@ -387,8 +388,8 @@ class UDFRegistration:
             >>> from snowflake.snowpark.types import IntegerType
             >>> import pandas as pd
             >>> df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
-            >>> def add1(x: pd.Series, y: pd.Series) -> pd.Series:
-            ...     return x + y
+            >>> def add1(series1: pd.Series, series2: pd.Series) -> pd.Series:
+            ...     return series1 + series2
             >>> add_udf1 = pandas_udf(add1, return_type=IntegerType(),
             ...                       input_types=[IntegerType(), IntegerType()])
             >>> df.select(add_udf1("a", "b")).to_df("add_result").collect()
@@ -491,11 +492,12 @@ class UDFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
-            max_batch_size: The maximum length of a Pandas DataFrame or a Pandas Series inside a vectorized UDF.
-                Because a vectorized UDF will be executed within a time limit, this optional argument can be
-                used to reduce the running time of every batch by setting a smaller batch size. Note
-                that setting a larger value does not guarantee that Snowflake will encode batches with
-                the specified number of rows. It will be ignored when registering a non-vectorized UDF.
+            max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+                inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
+                which is `60` seconds, this optional argument can be used to reduce the running time of
+                every batch by setting a smaller batch size. Note that setting a larger value does not
+                guarantee that Snowflake will encode batches with the specified number of rows. It will
+                be ignored when registering a non-vectorized UDF.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
