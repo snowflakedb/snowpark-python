@@ -1,4 +1,8 @@
 # Release History
+## 0.5.1 (2022-04-20)
+### Bug Fixes
+- Fixed an issue that required pandas to be installed.
+
 ## 0.5.0 (2022-03-22)
 
 ### New Features
