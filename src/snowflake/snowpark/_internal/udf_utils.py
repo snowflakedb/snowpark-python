@@ -333,7 +333,7 @@ import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
 """.rstrip()
-    if getattr(func, "process") != None:
+    if hasattr(func, "process"):
         func_code = f"""
 compute = func
     """

@@ -487,7 +487,7 @@ def _retrieve_func_type_hints_from_source(
     visitor.visit(to_visit_node_for_func)
     if not visitor.func_exist:
         raise ValueError(
-            f"function {class_name}{'.' if class_name else ''}{func_name} is not found in file {file_path}"
+            f"function {class_name if class_name else ''}{'.' if class_name else ''}{func_name} is not found in file {file_path}"
         )
     return visitor.type_hints
 
