@@ -5,13 +5,13 @@ import os
 from typing import List, NamedTuple, Optional
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.utils import (
     get_local_file_path,
     is_in_stored_procedure,
     is_single_quoted,
     normalize_local_file,
     normalize_remote_file_or_dir,
+    result_set_to_rows,
 )
 
 
@@ -100,7 +100,7 @@ class FileOperation:
             cursor._upload(local_file_name, stage_location, options)
             result_meta = cursor.description
             result_data = cursor.fetchall()
-            put_result = ServerConnection.result_set_to_rows(result_data, result_meta)
+            put_result = result_set_to_rows(result_data, result_meta)
         else:
             plan = self._session._plan_builder.file_operation_plan(
                 "put",
@@ -169,9 +169,7 @@ class FileOperation:
                 cursor._download(stage_location, target_directory, options)
                 result_meta = cursor.description
                 result_data = cursor.fetchall()
-                get_result = ServerConnection.result_set_to_rows(
-                    result_data, result_meta
-                )
+                get_result = result_set_to_rows(result_data, result_meta)
             else:
                 plan = self._session._plan_builder.file_operation_plan(
                     "get",
