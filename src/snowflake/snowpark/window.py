@@ -50,22 +50,25 @@ class Window:
 
     Examples::
 
-        from snowflake.snowpark.functions import col, avg
-        window1 = Window.partition_by("value").order_by("key").rows_between(Window.currentRow, 2)
-        window2 = Window.order_by(col("key").desc()).range_between(Window.UNBOUNDED_PRECEDING, Window.UNBOUNDED_FOLLOWING)
-        df.select("key", "value", avg("value").over(window1), avg("value").over(window2)
+        >>> from snowflake.snowpark.functions import col, avg
+        >>> window1 = Window.partition_by("value").order_by("key").rows_between(Window.CURRENT_ROW, 2)
+        >>> window2 = Window.order_by(col("key").desc()).range_between(Window.UNBOUNDED_PRECEDING, Window.UNBOUNDED_FOLLOWING)
+        >>> df = session.create_dataframe([(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"])
+        >>> df.select(avg("value").over(window1).as_("window1"), avg("value").over(window2).as_("window2")).collect()
+        [Row(WINDOW1=3.0, WINDOW2=2.5), Row(WINDOW1=2.0, WINDOW2=2.5), Row(WINDOW1=1.0, WINDOW2=2.5), Row(WINDOW1=4.0, WINDOW2=2.5)]
     """
 
     #: Returns a value representing unbounded preceding.
     UNBOUNDED_PRECEDING: int = -sys.maxsize
-    unboundedPreceding = UNBOUNDED_PRECEDING
+    unboundedPreceding: int = UNBOUNDED_PRECEDING
 
     #: Returns a value representing unbounded following.
     UNBOUNDED_FOLLOWING: int = sys.maxsize
-    unboundedFollowing = UNBOUNDED_FOLLOWING
+    unboundedFollowing: int = UNBOUNDED_FOLLOWING
 
     #: Returns a value representing current row.
-    currentRow: int = 0
+    CURRENT_ROW: int = 0
+    currentRow: int = CURRENT_ROW
 
     @staticmethod
     def partition_by(
@@ -114,7 +117,7 @@ class Window:
 
         Note:
             You can use :attr:`Window.UNBOUNDED_PRECEDING`, :attr:`Window.UNBOUNDED_FOLLOWING`,
-            and :attr:`Window.currentRow` to specify ``start`` and ``end``, instead of using
+            and :attr:`Window.CURRENT_ROW` to specify ``start`` and ``end``, instead of using
             integral values directly.
         """
         return Window._spec().rows_between(start, end)
@@ -134,7 +137,7 @@ class Window:
 
         Note:
             You can use :attr:`Window.UNBOUNDED_PRECEDING`, :attr:`Window.UNBOUNDED_FOLLOWING`,
-            and :attr:`Window.currentRow` to specify ``start`` and ``end``, instead of using
+            and :attr:`Window.CURRENT_ROW` to specify ``start`` and ``end``, instead of using
             integral values directly.
         """
         return Window._spec().range_between(start, end)
