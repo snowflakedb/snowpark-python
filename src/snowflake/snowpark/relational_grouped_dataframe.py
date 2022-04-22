@@ -188,6 +188,7 @@ class RelationalGroupedDataFrame:
         aggregate function to compute. The name of the aggregate
         function to compute must be a valid Snowflake `aggregate function
         <https://docs.snowflake.com/en/sql-reference/functions-aggregation.html>`_.
+        See examples in :meth:`DataFrame.group_by`.
 
         Valid input:
 
@@ -218,7 +219,7 @@ class RelationalGroupedDataFrame:
         return self._non_empty_argument_function("avg", *cols)
 
     def mean(self, *cols: ColumnOrName) -> DataFrame:
-        """Return the average for the specified numeric columns. Alias of :obj:`avg`."""
+        """Return the average for the specified numeric columns. Alias of :meth:`avg`."""
         return self.avg(*cols)
 
     def sum(self, *cols: ColumnOrName) -> DataFrame:
@@ -251,10 +252,7 @@ class RelationalGroupedDataFrame:
     def builtin(self, agg_name: str) -> Callable:
         """Computes the builtin aggregate ``agg_name`` over the specified columns. Use
         this function to invoke any aggregates not explicitly listed in this class.
-
-        Example::
-
-                df.group_by("a").builtin("max")(col("b"))
+        See examples in :meth:`DataFrame.group_by`.
         """
         return lambda *cols: self._builtin_internal(agg_name, *cols)
 
