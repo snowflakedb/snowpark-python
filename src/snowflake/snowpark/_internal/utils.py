@@ -20,12 +20,14 @@ import zipfile
 from enum import Enum
 from json import JSONEncoder
 from random import choice
-from typing import IO, List, Optional, Type
+from typing import IO, Any, Iterator, List, Optional, Type
 
 import snowflake.snowpark
+from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
@@ -428,6 +430,33 @@ def column_to_bool(col_):
     if isinstance(col_, snowflake.snowpark.Column):
         return True
     return bool(col_)
+
+
+def result_set_to_rows(
+    result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
+) -> List[Row]:
+    if result_meta:
+        col_names = [col.name for col in result_meta]
+        rows = []
+        for data in result_set:
+            row = Row(*data)
+            # row might have duplicated column names
+            row._fields = col_names
+            rows.append(row)
+    else:
+        rows = [Row(*row) for row in result_set]
+    return rows
+
+
+def result_set_to_iter(
+    result_set: SnowflakeCursor, result_meta: Optional[List[ResultMetadata]] = None
+) -> Iterator[Row]:
+    col_names = [col.name for col in result_meta] if result_meta else None
+    for data in result_set:
+        row = Row(*data)
+        if col_names:
+            row._fields = col_names
+        yield row
 
 
 class PythonObjJSONEncoder(JSONEncoder):
