@@ -10,6 +10,9 @@ import string
 import pytest
 
 from snowflake.connector import ProgrammingError
+
+# TODO(SNOW-568420): Remove this after UDF server supports rmdir
+from snowflake.snowpark._internal.utils import is_in_stored_procedure
 from tests.utils import TestFiles, Utils
 
 
@@ -24,14 +27,16 @@ def random_alphanumeric_name():
 def temp_source_directory(tmpdir_factory):
     directory = tmpdir_factory.mktemp("snowpark_test_source")
     yield directory
-    shutil.rmtree(str(directory))
+    if not is_in_stored_procedure():
+        shutil.rmtree(str(directory))
 
 
 @pytest.fixture(scope="module")
 def temp_target_directory(tmpdir_factory):
     directory = tmpdir_factory.mktemp("snowpark_test_target")
     yield directory
-    shutil.rmtree(str(directory))
+    if not is_in_stored_procedure():
+        shutil.rmtree(str(directory))
 
 
 @pytest.fixture(scope="module")
@@ -179,9 +184,7 @@ def test_put_negative(session, temp_stage, temp_source_directory, path1):
     assert "File doesn't exist" in str(file_not_exist_info)
 
     with pytest.raises(ProgrammingError) as stage_not_exist_info:
-        session.file.put(
-            f"file://{temp_source_directory}/{path1}", "@NOT_EXIST_STAGE_NAME_TEST"
-        )
+        session.file.put(f"file://{path1}", "@NOT_EXIST_STAGE_NAME_TEST")
     assert "does not exist or not authorized." in str(stage_not_exist_info)
 
 
@@ -310,7 +313,8 @@ def test_get_negative_test_file_name_collision(
             and "has same name as" in results[1].message
         ) or (results[1].status == "DOWNLOADED" and results[1].message == "")
     finally:
-        shutil.rmtree(target_directory)
+        if not is_in_stored_procedure():
+            shutil.rmtree(target_directory)
 
 
 def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
@@ -338,13 +342,14 @@ def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
         assert len(get1) == 2
         assert len(list(dest_directory.iterdir())) == 2
     finally:
-        shutil.rmtree(special_directory)
+        if not is_in_stored_procedure():
+            shutil.rmtree(special_directory)
 
 
 def test_path_with_special_chars(session, tmp_path_factory):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     temp_stage = "s peci'al chars"
-    Utils.create_stage(session, f'"{temp_stage}"', is_temporary=True)
+    Utils.create_stage(session, f'"{temp_stage}"', is_temporary=False)
     stage_with_prefix = f'"{temp_stage}"/{stage_prefix}/"'
     special_directory = tmp_path_factory.mktemp("dir !_")
     try:
@@ -368,4 +373,6 @@ def test_path_with_special_chars(session, tmp_path_factory):
         assert len(get1) == 2
         assert len(list(dest_directory.iterdir())) == 2
     finally:
-        shutil.rmtree(special_directory)
+        Utils.drop_stage(session, temp_stage)
+        if not is_in_stored_procedure():
+            shutil.rmtree(special_directory)
