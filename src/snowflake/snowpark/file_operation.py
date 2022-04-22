@@ -5,8 +5,10 @@ import os
 from typing import List, NamedTuple, Optional
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.utils import (
     get_local_file_path,
+    is_in_stored_procedure,
     is_single_quoted,
     normalize_local_file,
     normalize_remote_file_or_dir,
@@ -93,15 +95,22 @@ class FileOperation:
             "auto_compress": auto_compress,
             "overwrite": overwrite,
         }
-        plan = self._session._plan_builder.file_operation_plan(
-            "put",
-            normalize_local_file(local_file_name),
-            normalize_remote_file_or_dir(stage_location),
-            options,
-        )
-        put_result = snowflake.snowpark.dataframe.DataFrame(
-            self._session, plan
-        )._internal_collect_with_tag()
+        if is_in_stored_procedure():
+            cursor = self._session._conn._cursor
+            cursor._upload(local_file_name, stage_location, options)
+            result_meta = cursor.description
+            result_data = cursor.fetchall()
+            put_result = ServerConnection.result_set_to_rows(result_data, result_meta)
+        else:
+            plan = self._session._plan_builder.file_operation_plan(
+                "put",
+                normalize_local_file(local_file_name),
+                normalize_remote_file_or_dir(stage_location),
+                options,
+            )
+            put_result = snowflake.snowpark.dataframe.DataFrame(
+                self._session, plan
+            )._internal_collect_with_tag()
         return [PutResult(**file_result.asDict()) for file_result in put_result]
 
     def get(
@@ -153,18 +162,30 @@ class FileOperation:
                 pattern_escape_single_quote = pattern.replace("'", "\\'")
                 pattern = f"'{pattern_escape_single_quote}'"  # snowflake pattern is a string with single quote
             options["pattern"] = pattern
-        plan = self._session._plan_builder.file_operation_plan(
-            "get",
-            normalize_local_file(target_directory),
-            normalize_remote_file_or_dir(stage_location),
-            options,
-        )
+
         try:
-            # JDBC auto-creates directory but python-connector doesn't. So create the folder here.
-            os.makedirs(get_local_file_path(target_directory), exist_ok=True)
-            get_result = snowflake.snowpark.dataframe.DataFrame(
-                self._session, plan
-            )._internal_collect_with_tag()
+            if is_in_stored_procedure():
+                cursor = self._session._conn._cursor
+                cursor._download(stage_location, target_directory, options)
+                result_meta = cursor.description
+                result_data = cursor.fetchall()
+                get_result = ServerConnection.result_set_to_rows(
+                    result_data, result_meta
+                )
+            else:
+                plan = self._session._plan_builder.file_operation_plan(
+                    "get",
+                    normalize_local_file(target_directory),
+                    normalize_remote_file_or_dir(stage_location),
+                    options,
+                )
+                # TODO(SNOW-574617): Remove this after connector fixes this
+                # This is not needed for stored proc because sp connector already fixed it
+                # JDBC auto-creates directory but python-connector doesn't. So create the folder here.
+                os.makedirs(get_local_file_path(target_directory), exist_ok=True)
+                get_result = snowflake.snowpark.dataframe.DataFrame(
+                    self._session, plan
+                )._internal_collect_with_tag()
             return [GetResult(**file_result.asDict()) for file_result in get_result]
         # connector raises IndexError when no file is downloaded from python connector.
         # TODO: https://snowflakecomputing.atlassian.net/browse/SNOW-499333. Discuss with python connector whether
