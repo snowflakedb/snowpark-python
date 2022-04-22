@@ -88,16 +88,20 @@ class _PivotType(_GroupType):
 
 
 class GroupingSets:
-    """Creates a GroupingSets object from a list of column/expression sets that you pass
+    """Creates a :class:`GroupingSets` object from a list of column/expression sets that you pass
     to :meth:`DataFrame.group_by_grouping_sets`. See :meth:`DataFrame.group_by_grouping_sets` for
-    examples of how to use this class with a :class:`DataFrame`.
+    examples of how to use this class with a :class:`DataFrame`. See
+    `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_
+    for its counterpart in SQL (several examples are shown below).
 
-    Examples::
-
-        GroupingSets([col("a")], [col("b")])  # Becomes "GROUPING SETS ((a), (b))"
-        GroupingSets([col("a") , col("b")], [col("c"), col("d")])   # Becomes "GROUPING SETS ((a, b), (c, d))"
-        GroupingSets([col("a"), col("b")])        # Becomes "GROUPING SETS ((a, b))"
-        GroupingSets(col("a"), col("b"))  # Becomes "GROUPING SETS ((a, b))"
+    =============================================================  ==================================
+    Python interface                                               SQL interface
+    =============================================================  ==================================
+    ``GroupingSets([col("a")], [col("b")])``                       ``GROUPING SETS ((a), (b))``
+    ``GroupingSets([col("a") , col("b")], [col("c"), col("d")])``  ``GROUPING SETS ((a, b), (c, d))``
+    ``GroupingSets([col("a"), col("b")])``                         ``GROUPING SETS ((a, b))``
+    ``GroupingSets(col("a"), col("b"))``                           ``GROUPING SETS ((a, b))``
+    =============================================================  ==================================
     """
 
     def __init__(self, *sets: Union[Column, List[Column]]):
@@ -113,14 +117,7 @@ class GroupingSets:
 class RelationalGroupedDataFrame:
     """Represents an underlying DataFrame with rows that are grouped by common values.
     Can be used to define aggregations on these grouped DataFrames.
-
-    Example::
-
-        grouped_df = df.group_by("dept")
-        agg_df = grouped_df.agg([(grouped_df["salary"], "mean")])
-
-    The method :py:func:`DataFrame.group_by()`
-    returns a :class:`RelationalGroupedDataFrame` object."""
+    """
 
     def __init__(
         self, df: DataFrame, grouping_exprs: List[Expression], group_type: _GroupType
@@ -188,22 +185,15 @@ class RelationalGroupedDataFrame:
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> DataFrame:
         """Returns a :class:`DataFrame` with computed aggregates. The first element of
         the ``exprs`` pair is the column to aggregate and the second element is the
-        aggregate function to compute. The following example computes the mean of the
-        price column and the sum of the sales column. The name of the aggregate
+        aggregate function to compute. The name of the aggregate
         function to compute must be a valid Snowflake `aggregate function
         <https://docs.snowflake.com/en/sql-reference/functions-aggregation.html>`_.
-        :func:`avg` and :func:`mean` can be used to specify ``average``.
 
         Valid input:
 
             - A Column object
             - A tuple where the first element is a column and the second element is a name (str) of the aggregate function
             - A list of the above
-
-        Example::
-
-            from snowflake.snowpark.functions import col
-            df.group_by("itemType").agg([(col("price"), "mean"), (col("sales"), "sum")])
         """
         if not isinstance(exprs, (list, tuple)):
             exprs = [exprs]
