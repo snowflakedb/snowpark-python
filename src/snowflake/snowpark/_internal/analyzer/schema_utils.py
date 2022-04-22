@@ -4,7 +4,13 @@
 from typing import List
 
 import snowflake.snowpark
+from snowflake.connector.constants import FIELD_ID_TO_NAME
+from snowflake.connector.cursor import ResultMetadata
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
+)
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark.types import DecimalType, LongType, StringType
 
 
@@ -70,8 +76,20 @@ def analyze_attributes(
         return get_attributes()
     if lowercase.startswith("describe"):
         session._run_query(sql)
-        return session._conn.convert_result_meta_to_attribute(
-            session._conn._cursor.description
-        )
+        return convert_result_meta_to_attribute(session._conn._cursor.description)
 
     return session._get_result_attributes(sql)
+
+
+def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
+    attributes = []
+    for column_name, type_value, _, _, precision, scale, nullable in meta:
+        quoted_name = quote_name_without_upper_casing(column_name)
+        attributes.append(
+            Attribute(
+                quoted_name,
+                convert_sf_to_sp_type(FIELD_ID_TO_NAME[type_value], precision, scale),
+                nullable,
+            )
+        )
+    return attributes

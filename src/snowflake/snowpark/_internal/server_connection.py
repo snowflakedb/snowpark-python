@@ -10,7 +10,6 @@ from typing import IO, Any, Dict, Iterator, List, Optional, Union
 
 import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
-from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
@@ -21,39 +20,27 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.schema_utils import (
+    convert_result_meta_to_attribute,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
-from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     get_application_name,
     get_version,
     is_in_stored_procedure,
     normalize_local_file,
     normalize_remote_file_or_dir,
+    result_set_to_iter,
+    result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types import (
-    ArrayType,
-    BinaryType,
-    BooleanType,
-    DataType,
-    DateType,
-    DecimalType,
-    DoubleType,
-    GeographyType,
-    LongType,
-    MapType,
-    StringType,
-    TimestampType,
-    TimeType,
-    VariantType,
-)
 
 logger = getLogger(__name__)
 
@@ -219,30 +206,12 @@ class ServerConnection:
         return self._conn._session_parameters.get(parameter_name.upper(), None)
 
     def _get_string_datum(self, query: str) -> Optional[str]:
-        rows = ServerConnection.result_set_to_rows(self.run_query(query)["data"])
+        rows = result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
-
-    @staticmethod
-    def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
-        attributes = []
-        for column_name, type_value, _, _, precision, scale, nullable in meta:
-            quoted_name = quote_name_without_upper_casing(column_name)
-            attributes.append(
-                Attribute(
-                    quoted_name,
-                    convert_sf_to_sp_type(
-                        FIELD_ID_TO_NAME[type_value], precision, scale
-                    ),
-                    nullable,
-                )
-            )
-        return attributes
 
     @_Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
-        return ServerConnection.convert_result_meta_to_attribute(
-            self._cursor.describe(query)
-        )
+        return convert_result_meta_to_attribute(self._cursor.describe(query))
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
@@ -378,33 +347,6 @@ class ServerConnection:
 
         return {"data": data_or_iter, "sfqid": results_cursor.sfqid}
 
-    @staticmethod
-    def result_set_to_rows(
-        result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
-    ) -> List[Row]:
-        if result_meta:
-            col_names = [col.name for col in result_meta]
-            rows = []
-            for data in result_set:
-                row = Row(*data)
-                # row might have duplicated column names
-                row._fields = col_names
-                rows.append(row)
-        else:
-            rows = [Row(*row) for row in result_set]
-        return rows
-
-    @staticmethod
-    def result_set_to_iter(
-        result_set: SnowflakeCursor, result_meta: Optional[List[ResultMetadata]] = None
-    ) -> Iterator[Row]:
-        col_names = [col.name for col in result_meta] if result_meta else None
-        for data in result_set:
-            row = Row(*data)
-            if col_names:
-                row._fields = col_names
-            yield row
-
     def execute(
         self,
         plan: SnowflakePlan,
@@ -421,9 +363,9 @@ class ServerConnection:
             return result_set
         else:
             if to_iter:
-                return ServerConnection.result_set_to_iter(result_set, result_meta)
+                return result_set_to_iter(result_set, result_meta)
             else:
-                return ServerConnection.result_set_to_rows(result_set, result_meta)
+                return result_set_to_rows(result_set, result_meta)
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -479,8 +421,8 @@ class ServerConnection:
         self, plan: SnowflakePlan, **kwargs
     ) -> (List[Row], List[Attribute]):
         result_set, result_meta = self.get_result_set(plan, **kwargs)
-        result = ServerConnection.result_set_to_rows(result_set)
-        meta = ServerConnection.convert_result_meta_to_attribute(result_meta)
+        result = result_set_to_rows(result_set)
+        meta = convert_result_meta_to_attribute(result_meta)
         return result, meta
 
     @_Decorator.wrap_exception
