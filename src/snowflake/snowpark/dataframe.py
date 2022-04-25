@@ -473,6 +473,7 @@ class DataFrame:
     def __copy__(self) -> "DataFrame":
         return DataFrame(self._session, copy.copy(self._plan))
 
+    @df_action_telemetry
     def to_pandas(self, **kwargs) -> "pandas.DataFrame":
         """
         Executes the query representing this DataFrame and returns the result as a
@@ -504,6 +505,7 @@ class DataFrame:
 
         return result
 
+    @df_action_telemetry
     def to_pandas_batches(self, **kwargs) -> Iterator["pandas.DataFrame"]:
         """
         Executes the query representing this DataFrame and returns an iterator of
@@ -1250,6 +1252,7 @@ class DataFrame:
         """
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
+    @df_usage_telemetry
     def union_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows.
@@ -1275,6 +1278,7 @@ class DataFrame:
         """
         return self._union_by_name_internal(other, is_all=False)
 
+    @df_usage_telemetry
     def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows.
@@ -1301,7 +1305,6 @@ class DataFrame:
         """
         return self._union_by_name_internal(other, is_all=True)
 
-    @df_usage_telemetry
     def _union_by_name_internal(
         self, other: "DataFrame", is_all: bool = False
     ) -> "DataFrame":
