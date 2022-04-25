@@ -997,6 +997,22 @@ class DataFrame:
             - One or multiple :class:`Column` object(s) or column name(s) (:class:`str`)
             - A list of :class:`Column` objects or column names (:class:`str`)
 
+        Examples:
+
+            >>> from snowflake.snowpark.functions import col, lit, sum as sum_, max as max_
+            >>> df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
+            >>> df.group_by().agg(sum_("b")).collect()
+            [Row(SUM(B)=9)]
+            >>> df.group_by("a").agg(sum_("b")).collect()
+            [Row(A=1, SUM(B)=3), Row(A=2, SUM(B)=3), Row(A=3, SUM(B)=3)]
+            >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).collect()
+            [Row(A=1, LITERAL()='snow', SUM(B)=3), Row(A=2, LITERAL()='snow', SUM(B)=3), Row(A=3, LITERAL()='snow', SUM(B)=3)]
+            >>> df.group_by("a").agg([(col("*"), "count"), max_("b")]).collect()
+            [Row(A=1, COUNT(LITERAL())=2, MAX(B)=2), Row(A=2, COUNT(LITERAL())=2, MAX(B)=2), Row(A=3, COUNT(LITERAL())=2, MAX(B)=2)]
+            >>> df.group_by("a").median("b").collect()
+            [Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500')), Row(A=1, MEDIAN(B)=Decimal('1.500'))]
+            >>> df.group_by("a").builtin("avg")("b").collect()
+            [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
