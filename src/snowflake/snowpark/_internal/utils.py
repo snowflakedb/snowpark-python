@@ -30,6 +30,8 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
+STAGE_PREFIX = "@"
+
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
 QUERY_TAG_TRACEBACK_LIMIT = 3
 
@@ -165,7 +167,7 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
-    symbol = "file://" if is_local else "@"
+    symbol = "file://" if is_local else STAGE_PREFIX
     if is_single_quoted(path):
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
@@ -186,9 +188,9 @@ def normalize_local_file(file: str) -> str:
 
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
-    if new_name.startswith("@"):
+    if new_name.startswith(STAGE_PREFIX):
         return new_name
-    return f"@{new_name}"
+    return f"{STAGE_PREFIX}{new_name}"
 
 
 def get_local_file_path(file: str) -> str:
@@ -374,7 +376,7 @@ def get_stage_file_prefix_length(stage_location: str) -> int:
         normalized = f"{normalized}/"
 
     # Remove the first three characters from @~/...
-    if normalized.startswith("@~"):
+    if normalized.startswith(f"{STAGE_PREFIX}~"):
         return len(normalized) - 3
 
     is_quoted = False
@@ -413,11 +415,6 @@ def random_name_for_temp_object(object_type: TempObjectType) -> str:
 
 def generate_random_alphanumeric(length: int = 10) -> str:
     return "".join(choice(ALPHANUMERIC) for _ in range(length))
-
-
-def double_quote_identifier(name: str) -> str:
-    name = name.replace('"', '""')
-    return f'"{name}"'
 
 
 def column_to_bool(col_):

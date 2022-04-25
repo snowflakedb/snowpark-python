@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.type_utils import (
     retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark._internal.utils import (
+    STAGE_PREFIX,
     TempObjectType,
     get_udf_upload_prefix,
     is_single_quoted,
@@ -49,8 +50,6 @@ _DEFAULT_HANDLER_NAME = "compute"
 # because zip compression ratio is quite high.
 _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 
-_STAGE_PREFIX = "@"
-
 
 class UDFColumn(NamedTuple):
     datatype: DataType
@@ -58,7 +57,7 @@ class UDFColumn(NamedTuple):
 
 
 def is_local_python_file(file_path: str) -> bool:
-    return not file_path.startswith(_STAGE_PREFIX) and file_path.endswith(".py")
+    return not file_path.startswith(STAGE_PREFIX) and file_path.endswith(".py")
 
 
 def get_types_from_type_hints(
@@ -136,7 +135,7 @@ def check_register_args(
 
 def process_file_path(file_path: str) -> str:
     file_path = file_path.strip()
-    if not file_path.startswith(_STAGE_PREFIX) and not os.path.exists(file_path):
+    if not file_path.startswith(STAGE_PREFIX) and not os.path.exists(file_path):
         raise ValueError(f"file_path {file_path} does not exist")
     return file_path
 
@@ -484,7 +483,7 @@ def resolve_imports_and_packages(
         inline_code = None
         handler = f"{udf_file_name_base}.{func[1]}"
 
-        if func[0].startswith(session._STAGE_PREFIX):
+        if func[0].startswith(STAGE_PREFIX):
             upload_file_stage_location = None
             all_urls.append(func[0])
         else:
