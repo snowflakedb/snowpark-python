@@ -1358,7 +1358,8 @@ class Session:
     @property
     def telemetry_enabled(self):
         """
-        Returns whether telemetry is enabled and can be set to False to disable telemetry
+        Returns whether telemetry is enabled. The default value is ``True`` and can
+        be set to ``False`` to disable telemetry.
 
         Example::
 
