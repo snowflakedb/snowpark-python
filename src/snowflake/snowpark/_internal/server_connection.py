@@ -200,11 +200,6 @@ class ServerConnection:
             else None
         )
 
-    @_Decorator.wrap_exception
-    def get_parameter_value(self, parameter_name: str) -> Optional[str]:
-        # TODO: logging and running show command to get the parameter value if it's not present in connector
-        return self._conn._session_parameters.get(parameter_name.upper(), None)
-
     def _get_string_datum(self, query: str) -> Optional[str]:
         rows = result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
@@ -401,7 +396,7 @@ class ServerConnection:
                     )
                     placeholders[query.query_id_place_holder] = result["sfqid"]
                     result_meta = self._cursor.description
-                if action_id < plan.session._get_last_canceled_id():
+                if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object

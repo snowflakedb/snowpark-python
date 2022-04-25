@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
+    STAGE_PREFIX,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -103,7 +104,7 @@ from snowflake.snowpark.udf import UDFRegistration
 logger = getLogger(__name__)
 
 _session_management_lock = RLock()
-_active_sessions = set()  # type: Set["Session"]
+_active_sessions: Set["Session"] = set()
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -116,12 +117,12 @@ def _get_active_session() -> Optional["Session"]:
             raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
 
 
-def _add_session(session: "Session"):
+def _add_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.add(session)
 
 
-def _remove_session(session: "Session"):
+def _remove_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.remove(session)
 
@@ -131,7 +132,7 @@ class Session:
     Establishes a connection with a Snowflake database and provides methods for creating DataFrames
     and accessing objects for working with files in stages.
 
-    When you create a Session object, you provide connection parameters to establish a
+    When you create a :class:`Session` object, you provide connection parameters to establish a
     connection with a Snowflake database (e.g. an account, a user name, etc.). You can
     specify these settings in a dict that associates connection parameters names with values.
     The Snowpark library uses `the Snowflake Connector for Python <https://docs.snowflake.com/en/user-guide/python-connector.html>`_
@@ -139,23 +140,23 @@ class Session:
     `Connecting to Snowflake using the Python Connector <https://docs.snowflake.com/en/user-guide/python-connector-example.html#connecting-to-snowflake>`_
     for the details of `Connection Parameters <https://docs.snowflake.com/en/user-guide/python-connector-api.html#connect>`_.
 
-    To create a Session object from a dict of connection parameters::
+    To create a :class:`Session` object from a ``dict`` of connection parameters::
 
-        connection_parameters = {
-            "user": "<user_name>",
-            "password": "<password>",
-            "account": "<account_name>",
-            "role": "<role_name>",
-            "warehouse": "<warehouse_name>",
-            "database": <database_name>,
-            "schema": <schema1_name>,
-        }
-        session = Session.builder.configs(connection_parameters).create()
+        >>> connection_parameters = {
+        ...     "user": "<user_name>",
+        ...     "password": "<password>",
+        ...     "account": "<account_name>",
+        ...     "role": "<role_name>",
+        ...     "warehouse": "<warehouse_name>",
+        ...     "database": "<database_name>",
+        ...     "schema": "<schema1_name>",
+        ... }
+        >>> session = Session.builder.configs(connection_parameters).create() # doctest: +SKIP
 
     :class:`Session` contains functions to construct a :class:`DataFrame` like :func:`table`,
     :func:`sql` and :func:`read`.
 
-    A ``Session`` object is not thread-safe.
+    A :class:`Session` object is not thread-safe.
     """
 
     class SessionBuilder:
@@ -173,7 +174,7 @@ class Session:
 
         def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
             """
-            Adds the specified connection parameter to the SessionBuilder configuration.
+            Adds the specified connection parameter to the :class:`SessionBuilder` configuration.
             """
             self._options[key] = value
             return self
@@ -183,7 +184,7 @@ class Session:
         ) -> "Session.SessionBuilder":
             """
             Adds the specified :class:`dict` of connection parameters to
-            the SessionBuilder configuration.
+            the :class:`SessionBuilder` configuration.
 
             Note:
                 Calling this method overwrites any existing connection parameters
@@ -209,8 +210,6 @@ class Session:
 
         def __get__(self, obj, objtype=None):
             return Session.SessionBuilder()
-
-    _STAGE_PREFIX = "@"
 
     #: Returns a builder you can use to set configuration properties
     #: and create a :class:`Session` object.
@@ -277,9 +276,6 @@ class Session:
             finally:
                 _remove_session(self)
 
-    def _get_last_canceled_id(self) -> int:
-        return self._last_canceled_id
-
     def cancel_all(self) -> None:
         """
         Cancel all action methods that are running currently.
@@ -295,11 +291,6 @@ class Session:
         This list includes any Python or zip files that were added automatically by the library.
         """
         return list(self._import_paths.keys())
-
-    def _get_local_imports(self) -> List[str]:
-        return [
-            dep for dep in self.get_imports() if not dep.startswith(self._STAGE_PREFIX)
-        ]
 
     def add_import(self, path: str, import_path: Optional[str] = None) -> None:
         """
@@ -387,7 +378,7 @@ class Session:
         trimmed_path = path.strip()
         abs_path = (
             os.path.abspath(trimmed_path)
-            if not trimmed_path.startswith(self._STAGE_PREFIX)
+            if not trimmed_path.startswith(STAGE_PREFIX)
             else trimmed_path
         )
         if abs_path not in self._import_paths:
@@ -407,7 +398,7 @@ class Session:
         trimmed_path = path.strip()
         trimmed_import_path = import_path.strip() if import_path else None
 
-        if not trimmed_path.startswith(self._STAGE_PREFIX):
+        if not trimmed_path.startswith(STAGE_PREFIX):
             if not os.path.exists(trimmed_path):
                 raise FileNotFoundError(f"{trimmed_path} is not found")
             if not os.path.isfile(trimmed_path) and not os.path.isdir(trimmed_path):
@@ -469,7 +460,7 @@ class Session:
         import_paths = udf_level_import_paths or self._import_paths
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
-            if path.startswith(self._STAGE_PREFIX):
+            if path.startswith(STAGE_PREFIX):
                 resolved_stage_files.append(path)
             else:
                 filename = (
@@ -537,12 +528,12 @@ class Session:
     def add_packages(
         self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
     ) -> None:
-        # TODO: add a link to python udf package doc
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
         Use this method to add packages for UDFs as installing packages using
         `conda <https://docs.conda.io/en/latest/>`_. You can also find examples in
-        :class:`~snowflake.snowpark.udf.UDFRegistration`.
+        :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
+        `third-party Python packages in Snowflake <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html>`_.
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -804,8 +795,14 @@ class Session:
 
         Examples::
 
-            df1 = session.table("mytable")
-            df2 = session.table(["mydb", "myschema", "mytable"])
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df1.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> session.table("my_table").collect()
+            [Row(A=1, B=2), Row(A=3, B=4)]
+            >>> current_db = session.get_current_database()
+            >>> current_schema = session.get_current_schema()
+            >>> session.table([current_db, current_schema, "my_table"]).collect()
+            [Row(A=1, B=2), Row(A=3, B=4)]
         """
 
         if not isinstance(name, str) and isinstance(name, Iterable):
@@ -825,10 +822,11 @@ class Session:
 
         Example::
 
-            word_list = session.table_function("split_to_table", lit("split words to table"), " ").collect()
+            >>> from snowflake.snowpark.functions import lit
+            >>> session.table_function("split_to_table", lit("split words to table"), lit(" ")).collect()
+            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
 
         Args:
-
             func_name: The SQL function name.
             func_arguments: The positional arguments for the SQL function.
             func_named_arguments: The named arguments for the SQL function, if it accepts named arguments.
@@ -858,12 +856,13 @@ class Session:
 
         Example::
 
-            # create a dataframe from a SQL query
-            df = session.sql("select 1")
-            # execute the query
-            df.collect()
+            >>> # create a dataframe from a SQL query
+            >>> df = session.sql("select 1/2")
+            >>> # execute the query
+            >>> df.collect()
+            [Row(1/2=Decimal('0.500000'))]
         """
-        return DataFrame(session=self, plan=self._plan_builder.query(query, None))
+        return DataFrame(self, self._plan_builder.query(query, None))
 
     @property
     def read(self) -> "DataFrameReader":
@@ -895,12 +894,12 @@ class Session:
                 is_ddl_on_temp_object=True,
             )
             self._stage_created = True
-        return f"@{qualified_stage_name}"
+        return f"{STAGE_PREFIX}{qualified_stage_name}"
 
     # TODO make the table input consistent with session.table
     def write_pandas(
         self,
-        pd: "pandas.DataFrame",
+        df: "pandas.DataFrame",
         table_name: str,
         *,
         database: Optional[str] = None,
@@ -912,50 +911,48 @@ class Session:
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
         create_temp_table: bool = False,
-    ) -> DataFrame:
+    ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
-        Snowpark :class:DataFrame object referring to the table where the
+        Snowpark :class:`DataFrame` object referring to the table where the
         pandas DataFrame was written to.
 
-        Note: Unless auto_create_table is true, you must first create a table in
-        Snowflake that the passed in pandas DataFrame can be written to. If
-        your pandas DataFrame cannot be written to the specified table, an
-        exception will be raised.
-
         Args:
-            pd: The pandas DataFrame we'd like to write back.
+            df: The pandas DataFrame we'd like to write back.
             table_name: Name of the table we want to insert into.
-            database: Database that the table is in. If not provided, the default one will be used (Default value = None).
-            schema: Schema that the table is in. If not provided, the default one will be used (Default value = None).
-            chunk_size: Number of elements to be inserted once. If not provided, all elements will be dumped once
-                (Default value = None).
+            database: Database that the table is in. If not provided, the default one will be used.
+            schema: Schema that the table is in. If not provided, the default one will be used.
+            chunk_size: Number of elements to be inserted once. If not provided, all elements will be dumped once.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
-                better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
-            on_error: Action to take when COPY INTO statements fail, default follows documentation at:
-                https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
-                (Default value = 'abort_statement').
-            parallel: Number of threads to be used when uploading chunks, default follows documentation at:
-                https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+                better compression, while snappy is faster. Use whichever is more appropriate.
+            on_error: Action to take when COPY INTO statements fail. See details at
+                `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
+            parallel: Number of threads to be used when uploading chunks. See details at
+                `parallel parameter <https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters>`_.
             quote_identifiers: By default, identifiers, specifically database, schema, table and column names
-                (from df.columns) will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
-                I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
+                (from :attr:`DataFrame.columns`) will be quoted. If set to ``False``, identifiers
+                are passed on to Snowflake without quoting, i.e. identifiers will be coerced to uppercase by Snowflake.
             auto_create_table: When true, automatically creates a table to store the passed in pandas DataFrame using the
-                passed in database, schema, and table_name. Note: there are usually multiple table configurations that
+                passed in ``database``, ``schema``, and ``table_name``. Note: there are usually multiple table configurations that
                 would allow you to upload a particular pandas DataFrame successfully. If you don't like the auto created
-                table, you can always create your own table before calling this function. For example, Auto-created
-                tables will store :class:`list`, :class:`tuple`, :class:`dict` as strings in a VARCHAR column.
+                table, you can always create your own table before calling this function. For example, auto-created
+                tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
+            create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
 
         Example::
 
-            import pandas as pd
+            >>> import pandas as pd
+            >>> pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
+            >>> snowpark_df = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=True, create_temp_table=True)
+            >>> snowpark_df.to_pandas()
+               id   name
+            0   1  Steve
+            1   2    Bob
 
-            pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
-            # "write_pandas_table" is a table that was pre-created with two columns,
-            # id and name which are an integer and varchar respectively
-            snowpark_df = session.write_pandas(pandas_df, "write_pandas_table")
-            snowpark_pandas_df = snowpark_df.to_pandas()
-            # These two pandas DataFrames have the same data
-            snowpark_pandas_df.eq(snowpark_df)
+        Note:
+            Unless ``auto_create_table`` is ``True``, you must first create a table in
+            Snowflake that the passed in pandas DataFrame can be written to. If
+            your pandas DataFrame cannot be written to the specified table, an
+            exception will be raised.
         """
         success = None  # forward declaration
         try:
@@ -973,7 +970,7 @@ class Session:
                 )
             success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
-                pd,
+                df,
                 table_name,
                 database=database,
                 schema=schema,
@@ -1026,20 +1023,30 @@ class Session:
 
         Examples::
 
-            import pandas as pd
+            >>> # create a dataframe with a schema
+            >>> from snowflake.snowpark.types import IntegerType, StringType, StructField
+            >>> schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
+            >>> session.create_dataframe([[1, "snow"], [3, "flake"]], schema).collect()
+            [Row(A=1, B='snow'), Row(A=3, B='flake')]
 
-            # infer schema
-            session.create_dataframe([1, 2, 3, 4]).to_df("a")  # one single column
-            session.create_dataframe([[1, 2, 3, 4]]).to_df("a", "b", "c", "d")
-            session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
-            session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
-            session.create_dataframe([{"a": "snow", "b": "flake"}])
-            session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"]))
+            >>> # create a dataframe by inferring a schema from the data
+            >>> from snowflake.snowpark import Row
+            >>> # infer schema
+            >>> session.create_dataframe([1, 2, 3, 4], schema=["a"]).collect()
+            [Row(A=1), Row(A=2), Row(A=3), Row(A=4)]
+            >>> session.create_dataframe([[1, 2, 3, 4]], schema=["a", "b", "c", "d"]).collect()
+            [Row(A=1, B=2, C=3, D=4)]
+            >>> session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).collect()
+            [Row(A=1, B=2), Row(A=3, B=4)]
+            >>> session.create_dataframe([Row(a=1, b=2, c=3, d=4)]).collect()
+            [Row(A=1, B=2, C=3, D=4)]
+            >>> session.createDataFrame([{"a": 1}, {"b": 2}]).collect()
+            [Row(A=1, B=None), Row(A=None, B=2)]
 
-            # given a schema
-            from snowflake.snowpark.types import IntegerType, StringType
-            schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
-            session.create_dataframe([[1, "snow"], [3, "flake"]], schema)
+            >>> # create a dataframe from a pandas Dataframe
+            >>> import pandas as pd
+            >>> session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])).collect()
+            [Row(a=1, b=2, c=3, d=4)]
         """
         if data is None:
             raise ValueError("data cannot be None.")
@@ -1244,39 +1251,33 @@ class Session:
 
         Examples::
 
-            # create a dataframe with one column containing values from 0 to 9
-            df1 = session.range(10)
-            # create a dataframe with one column containing values from 1 to 9
-            df2 = session.range(1, 10)
-            # create a dataframe with one column containing values 1, 3, 5, 7, 9
-            df3 = session.range(1, 10, 2)
+            >>> session.range(10).collect()
+            [Row(ID=0), Row(ID=1), Row(ID=2), Row(ID=3), Row(ID=4), Row(ID=5), Row(ID=6), Row(ID=7), Row(ID=8), Row(ID=9)]
+            >>> session.range(1, 10).collect()
+            [Row(ID=1), Row(ID=2), Row(ID=3), Row(ID=4), Row(ID=5), Row(ID=6), Row(ID=7), Row(ID=8), Row(ID=9)]
+            >>> session.range(1, 10, 2).collect()
+            [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
-        return DataFrame(session=self, plan=range_plan)
+        return DataFrame(self, range_plan)
 
     def get_current_database(self, unquoted: bool = False) -> Optional[str]:
         """
         Returns the name of the current database for the Python connector session attached
-        to this session.
+        to this session. See the example in :meth:`table`.
 
-        Example::
-
-            session.use_database("newDB")
-            # return "newDB"
-            session.get_current_database()
+        Args:
+            unquoted: The result will be unquoted if it is true.
         """
         return self._conn._get_current_parameter("database", unquoted=unquoted)
 
     def get_current_schema(self, unquoted: bool = False) -> Optional[str]:
         """
         Returns the name of the current schema for the Python connector session attached
-        to this session.
+        to this session. See the example in :meth:`table`.
 
-        Example::
-
-            session.use_schema("newSchema")
-            # return "newSchema"
-            session.get_current_schema()
+        Args:
+            unquoted: The result will be unquoted if it is true.
         """
         return self._conn._get_current_parameter("schema", unquoted=unquoted)
 
@@ -1292,16 +1293,27 @@ class Session:
             )
         return database + "." + schema
 
-    def get_current_warehouse(self, unquoted=False) -> Optional[str]:
-        """Returns the name of the warehouse in use for the current session."""
+    def get_current_warehouse(self, unquoted: bool = False) -> Optional[str]:
+        """
+        Returns the name of the warehouse in use for the current session.
+
+        Args:
+            unquoted: The result will be unquoted if it is true.
+        """
         return self._conn._get_current_parameter("warehouse", unquoted=unquoted)
 
-    def get_current_role(self, unquoted=False) -> Optional[str]:
-        """Returns the name of the primary role in use for the current session."""
-        return self._conn._get_current_parameter("role", unquoted)
+    def get_current_role(self, unquoted: bool = False) -> Optional[str]:
+        """
+        Returns the name of the primary role in use for the current session.
+
+        Args:
+            unquoted: The result will be unquoted if it is true.
+        """
+        return self._conn._get_current_parameter("role", unquoted=unquoted)
 
     def use_database(self, database: str) -> None:
         """Specifies the active/current database for the session.
+
         Args:
             database: The database name.
         """
@@ -1359,12 +1371,9 @@ class Session:
 
     @property
     def file(self) -> FileOperation:
-        """Returns a :class:`FileOperation` object that you can use to perform file operations on stages.
-
-        Examples::
-
-            session.file.put("file:///tmp/file1.csv", "@myStage/prefix1")
-            session.file.get("@myStage/prefix1", "file:///tmp")
+        """
+        Returns a :class:`FileOperation` object that you can use to perform file operations on stages.
+        See details of how to use this object in :class:`FileOperation`.
         """
         return self._file
 
@@ -1445,7 +1454,7 @@ class Session:
             input: The name of a column or a :class:`Column` instance that will be unseated into rows.
                 The column data must be of Snowflake data type VARIANT, OBJECT, or ARRAY.
             path: The path to the element within a VARIANT data structure which needs to be flattened.
-                The outermost element is to be flattened if path is empty or None.
+                The outermost element is to be flattened if path is empty or ``None``.
             outer: If ``False``, any input rows that cannot be expanded, either because they cannot be accessed in the ``path``
                 or because they have zero fields or entries, are completely omitted from the output.
                 Otherwise, exactly one row is generated for zero-row expansions
@@ -1456,6 +1465,24 @@ class Session:
 
         Returns:
             A new :class:`DataFrame` that has the flattened new columns and new rows from the compound data.
+
+        Example::
+
+            >>> from snowflake.snowpark.functions import lit, parse_json
+            >>> session.flatten(parse_json(lit('{"a":[1,2]}')), path="a", outer=False, recursive=False, mode="BOTH").show()
+            -------------------------------------------------------
+            |"SEQ"  |"KEY"  |"PATH"  |"INDEX"  |"VALUE"  |"THIS"  |
+            -------------------------------------------------------
+            |1      |NULL   |a[0]    |0        |1        |[       |
+            |       |       |        |         |         |  1,    |
+            |       |       |        |         |         |  2     |
+            |       |       |        |         |         |]       |
+            |1      |NULL   |a[1]    |1        |2        |[       |
+            |       |       |        |         |         |  1,    |
+            |       |       |        |         |         |  2     |
+            |       |       |        |         |         |]       |
+            -------------------------------------------------------
+            <BLANKLINE>
 
         See Also:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
