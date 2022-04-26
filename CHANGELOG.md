@@ -1,4 +1,25 @@
 # Release History
+## 0.6.0 (2022-04-26)
+### New Features:
+- Supported vectorized UDFs with the input as a Pandas DataFrame or Pandas Series and the output as a Pandas Series. 
+- Supported inferring the schema of a dataframe when it is read from a parquet, avro and orc file in the stage.
+- Added functions `current_session()`, `current_statement()`, `current_user()`, `current_version()`, `current_warehouse()`, `date_from_parts()`, `date_trunc()`, `dayname()`, `dayofmonth()`, `dayofweek()`, `dayofyear()`, `grouping()`, `grouping_id()`, `hour()`, `last_day()`, `minute()`, `next_day()`, `previous_day()`, `second()`, `month()`, `monthname()`, `quarter()`, `year()`, `current_database()`, `current_role()`, `current_schema()`, `current_schemas()`, `current_region()`, `current_avaliable_roles()`, `add_months()`, `any_value()`, `bitnot()`, `bitshiftleft()`, `bitshiftright()`, `convert_timezone()`, `uniform()`, `strtok_to_array()`, `sysdate()`, `time_from_parts()`,  `timestamp_from_parts()`, `timestamp_ltz_from_parts()`, `timestamp_ntz_from_parts()`, `timestamp_tz_from_parts()`, `weekofyear()`, `percentile_cont()` to `snowflake.snowflake.functions`.
+
+### Improvements:
+- Allowed creating a empty dataframe with a specific schema using `Session.create_dataframe()` method.
+- Changed the logging level from `INFO` to `DEBUG`.
+- Improved the error message when failing to create a UDF due to pickle errors. 
+ 
+### Bug fixes:
+- Removed pandas hard dependencies that were accidentally introduced in 0.5.0 and `Session.create_dataframe()` method.
+
+### Deprecation of APIs:
+`DataFrame.groupByGroupingSets()`, `DataFrame.naturalJoin()`, `DataFrame.joinTableFunction`, `DataFrame.withColumns()`, `Session.getImports()`, `Session.addImport()`, `Session.removeImport()`, `Session.clearImports()`, `Session.getSessionStage()`, `Session.getDefaultDatabase()`, `Session.getDefaultSchema()`, `Session.getCurrentDatabase()`, `Session.getCurrentSchema()`, `Session.getFullyQualifiedCurrentSchema()`. 
+
+### Dependency Updates:
+- Added `typing-extension` as a new dependency with the version > `4.1.0`.
+
+
 ## 0.5.0 (2022-03-22)
 
 ### New Features
