@@ -1,9 +1,14 @@
 # Release History
 ## 0.6.0 (2022-04-26)
-### New Features:
+
+### Break changes:
+#### New Features:
 - Supported vectorized UDFs with the input as a Pandas DataFrame or Pandas Series and the output as a Pandas Series, which improves the performance of UDFs in Snowpark. 
-- Supported inferring the schema of a dataframe when it is read from a parquet, avro and orc file in the stage.
+- Supported inferring the schema of a dataframe when it is created by reading a parquet, avro or orc file in the stage by default. 
 - Added functions `current_session()`, `current_statement()`, `current_user()`, `current_version()`, `current_warehouse()`, `date_from_parts()`, `date_trunc()`, `dayname()`, `dayofmonth()`, `dayofweek()`, `dayofyear()`, `grouping()`, `grouping_id()`, `hour()`, `last_day()`, `minute()`, `next_day()`, `previous_day()`, `second()`, `month()`, `monthname()`, `quarter()`, `year()`, `current_database()`, `current_role()`, `current_schema()`, `current_schemas()`, `current_region()`, `current_avaliable_roles()`, `add_months()`, `any_value()`, `bitnot()`, `bitshiftleft()`, `bitshiftright()`, `convert_timezone()`, `uniform()`, `strtok_to_array()`, `sysdate()`, `time_from_parts()`,  `timestamp_from_parts()`, `timestamp_ltz_from_parts()`, `timestamp_ntz_from_parts()`, `timestamp_tz_from_parts()`, `weekofyear()`, `percentile_cont()` to `snowflake.snowflake.functions`.
+
+#### Expired deprecations
+- `DataFrame.groupByGroupingSets()`, `DataFrame.naturalJoin()`, `DataFrame.joinTableFunction`, `DataFrame.withColumns()`, `Session.getImports()`, `Session.addImport()`, `Session.removeImport()`, `Session.clearImports()`, `Session.getSessionStage()`, `Session.getDefaultDatabase()`, `Session.getDefaultSchema()`, `Session.getCurrentDatabase()`, `Session.getCurrentSchema()`, `Session.getFullyQualifiedCurrentSchema()`. These APIs were deprecated in 0.4.0, and now are removed.  
 
 ### Improvements:
 - Allowed creating a empty dataframe with a specific schema using `Session.create_dataframe()` method.
@@ -12,9 +17,6 @@
  
 ### Bug fixes:
 - Removed pandas hard dependencies that were accidentally introduced in 0.5.0 and `Session.create_dataframe()` method.
-
-### Deprecation of APIs:
-`DataFrame.groupByGroupingSets()`, `DataFrame.naturalJoin()`, `DataFrame.joinTableFunction`, `DataFrame.withColumns()`, `Session.getImports()`, `Session.addImport()`, `Session.removeImport()`, `Session.clearImports()`, `Session.getSessionStage()`, `Session.getDefaultDatabase()`, `Session.getDefaultSchema()`, `Session.getCurrentDatabase()`, `Session.getCurrentSchema()`, `Session.getFullyQualifiedCurrentSchema()`. 
 
 ### Dependency Updates:
 - Added `typing-extension` as a new dependency with the version >= `4.1.0`.
