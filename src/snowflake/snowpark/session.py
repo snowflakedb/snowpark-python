@@ -1356,7 +1356,7 @@ class Session:
             raise ValueError("'role' must not be empty or None.")
 
     @property
-    def telemetry_enabled(self):
+    def telemetry_enabled(self) -> bool:
         """
         Returns whether telemetry is enabled. The default value is ``True`` and can
         be set to ``False`` to disable telemetry.
