@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import json
 from datetime import date, datetime, time
 from decimal import Decimal
 
@@ -1223,49 +1224,88 @@ def test_strip_null_value(session):
 
 @pytest.mark.parametrize("col_amount", ["amount", col("amount")])
 def test_array_agg(session, col_amount):
-    assert (
-        str(
+    assert sorted(
+        json.loads(
             TestData.monthly_sales(session)
             .select(array_agg(col_amount))
             .collect()[0][0]
         )
-        == "[\n  10000,\n  400,\n  4500,\n  35000,\n  5000,\n  3000,\n  200,\n  90500,\n  6000,\n  "
-        + "5000,\n  2500,\n  9500,\n  8000,\n  10000,\n  800,\n  4500\n]"
-    )
+    ) == [
+        200,
+        400,
+        800,
+        2500,
+        3000,
+        4500,
+        4500,
+        5000,
+        5000,
+        6000,
+        8000,
+        9500,
+        10000,
+        10000,
+        35000,
+        90500,
+    ]
 
-    assert (
-        str(
+    assert sorted(
+        json.loads(
             TestData.monthly_sales(session)
             .select(array_agg(col_amount, is_distinct=True))
             .collect()[0][0]
         )
-        == "[\n  10000,\n  4500,\n  35000,\n  5000,\n  3000,\n  200,\n  90500,\n  6000,\n  "
-        + "2500,\n  8000,\n  800,\n  400,\n  9500\n]"
-    )
+    ) == [200, 400, 800, 2500, 3000, 4500, 5000, 6000, 8000, 9500, 10000, 35000, 90500]
 
 
 def test_array_agg_within_group(session):
-    assert (
-        str(
-            TestData.monthly_sales(session)
-            .select(array_agg(col("amount")).within_group("amount"))
-            .collect()[0][0]
-        )
-        == "[\n  200,\n  400,\n  800,\n  2500,\n  3000,\n  4500,\n  4500,\n  5000,\n  5000,\n  "
-        + "6000,\n  8000,\n  9500,\n  10000,\n  10000,\n  35000,\n  90500\n]"
-    )
+    assert json.loads(
+        TestData.monthly_sales(session)
+        .select(array_agg(col("amount")).within_group("amount"))
+        .collect()[0][0]
+    ) == [
+        200,
+        400,
+        800,
+        2500,
+        3000,
+        4500,
+        4500,
+        5000,
+        5000,
+        6000,
+        8000,
+        9500,
+        10000,
+        10000,
+        35000,
+        90500,
+    ]
 
 
 def test_array_agg_within_group_order_by_desc(session):
-    assert (
-        str(
-            TestData.monthly_sales(session)
-            .select(array_agg(col("amount")).within_group(col("amount").desc()))
-            .collect()[0][0]
-        )
-        == "[\n  90500,\n  35000,\n  10000,\n  10000,\n  9500,\n  8000,\n  6000,\n  5000,\n"
-        + "  5000,\n  4500,\n  4500,\n  3000,\n  2500,\n  800,\n  400,\n  200\n]"
-    )
+    assert json.loads(
+        TestData.monthly_sales(session)
+        .select(array_agg(col("amount")).within_group(col("amount").desc()))
+        .collect()[0][0]
+    ) == [
+        90500,
+        35000,
+        10000,
+        10000,
+        9500,
+        8000,
+        6000,
+        5000,
+        5000,
+        4500,
+        4500,
+        3000,
+        2500,
+        800,
+        400,
+        200,
+    ]
 
 
 def test_array_agg_within_group_order_by_multiple_columns(session):
@@ -1273,9 +1313,9 @@ def test_array_agg_within_group_order_by_multiple_columns(session):
     amount_values = (
         TestData.monthly_sales(session).sort(sort_columns).select("amount").collect()
     )
-    expected = "[\n  " + ",\n  ".join([str(a[0]) for a in amount_values]) + "\n]"
+    expected = [a[0] for a in amount_values]
     assert (
-        str(
+        json.loads(
             TestData.monthly_sales(session)
             .select(array_agg(col("amount")).within_group(sort_columns))
             .collect()[0][0]
