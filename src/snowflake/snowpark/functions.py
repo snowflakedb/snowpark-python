@@ -360,7 +360,9 @@ def current_available_roles() -> Column:
     return builtin("current_available_roles")()
 
 
-def add_months(date_or_timestamp: ColumnOrName, number_of_months: Union[Column, int]):
+def add_months(
+    date_or_timestamp: ColumnOrName, number_of_months: Union[Column, int]
+) -> Column:
     """Adds or subtracts a specified number of months to a date or timestamp, preserving the end-of-month information.
 
     Example:
@@ -373,7 +375,7 @@ def add_months(date_or_timestamp: ColumnOrName, number_of_months: Union[Column, 
     return builtin("add_months")(c, number_of_months)
 
 
-def any_value(e: ColumnOrName):
+def any_value(e: ColumnOrName) -> Column:
     """Returns a non-deterministic any value for the specified column.
     This is an aggregate and window function.
 
@@ -386,7 +388,7 @@ def any_value(e: ColumnOrName):
     return call_builtin("any_value", c)
 
 
-def bitnot(e: ColumnOrName):
+def bitnot(e: ColumnOrName) -> Column:
     """Returns the bitwise negation of a numeric expression.
 
     Example:
@@ -398,7 +400,7 @@ def bitnot(e: ColumnOrName):
     return call_builtin("bitnot", c)
 
 
-def bitshiftleft(to_shift_column: ColumnOrName, n: Union[Column, int]):
+def bitshiftleft(to_shift_column: ColumnOrName, n: Union[Column, int]) -> Column:
     """Returns the bitwise negation of a numeric expression.
 
     Example:
@@ -410,7 +412,7 @@ def bitshiftleft(to_shift_column: ColumnOrName, n: Union[Column, int]):
     return call_builtin("bitshiftleft", c, n)
 
 
-def bitshiftright(to_shift_column: ColumnOrName, n: Union[Column, int]):
+def bitshiftright(to_shift_column: ColumnOrName, n: Union[Column, int]) -> Column:
     """Returns the bitwise negation of a numeric expression.
 
     Example:
@@ -426,7 +428,7 @@ def convert_timezone(
     target_timezone: ColumnOrName,
     source_time: ColumnOrName,
     source_timezone: Optional[ColumnOrName] = None,
-):
+) -> Column:
     """Converts the given source_time to the target timezone.
 
     For timezone information, refer to the `Snowflake SQL convert_timezone notes <https://docs.snowflake.com/en/sql-reference/functions/convert_timezone.html#usage-notes>`_
@@ -2390,7 +2392,7 @@ def object_insert(
         return builtin("object_insert")(o, k, v)
 
 
-def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName):
+def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> Column:
     """Returns a new OBJECT containing some of the key-value pairs from an existing object.
 
     To identify the key-value pairs to include in the new object, pass in the keys as arguments,
