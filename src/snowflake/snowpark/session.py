@@ -832,7 +832,10 @@ class Session:
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        return Table(name, self)
+        t = Table(name, self)
+        # Replace API call origin for table
+        t._plan.api_calls = ["Session.table"]
+        return t
 
     def table_function(
         self,
@@ -886,10 +889,12 @@ class Session:
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
-        return DataFrame(
+        d = DataFrame(
             self,
             TableFunctionRelation(func_expr),
         )
+        d._plan.api_calls = ["Session.table_function"]
+        return d
 
     def sql(self, query: str) -> DataFrame:
         """
@@ -908,7 +913,9 @@ class Session:
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
         """
-        return DataFrame(self, self._plan_builder.query(query, None))
+        return DataFrame(
+            self, self._plan_builder.query(query, None, api_calls=["session.sql"])
+        )
 
     @property
     def read(self) -> "DataFrameReader":
@@ -1036,7 +1043,9 @@ class Session:
                 raise pe
 
         if success:
-            return self.table(location)
+            t = self.table(location)
+            t._plan.api_calls = ["Session.write_pandas"]
+            return t
         else:
             raise SnowparkClientExceptionMessages.DF_PANDAS_GENERAL_EXCEPTION(
                 str(ci_output)
@@ -1117,7 +1126,7 @@ class Session:
             sf_database = self._conn._get_current_parameter("database", quoted=False)
             sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
-            return self.write_pandas(
+            t = self.write_pandas(
                 data,
                 table_name,
                 database=sf_database,
@@ -1126,6 +1135,8 @@ class Session:
                 auto_create_table=True,
                 create_temp_table=True,
             )
+            t._plan.api_calls = ["Session.create_dataframe[pandas]"]
+            return t
 
         # infer the schema based on the data
         names = None
@@ -1280,9 +1291,9 @@ class Session:
             else:
                 project_columns.append(column(field.name))
 
-        return DataFrame(self, SnowflakeValues(attrs, converted)).select(
-            project_columns
-        )
+        d = DataFrame(self, SnowflakeValues(attrs, converted))
+        d._plan.api_calls = ["Session.create_dataframe[values]"]
+        return d.select(project_columns)
 
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
         """

@@ -4,7 +4,7 @@
 #
 import functools
 from enum import Enum, unique
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -46,6 +46,8 @@ class TelemetryField(Enum):
     KEY_DATA = "data"
     KEY_CATEGORY = "category"
     KEY_CREATED_BY_SNOWPARK = "created_by_snowpark"
+    KEY_API_CALLS = "api_calls"
+    KEY_SFQIDS = "sfqids"
     # function categories
     FUNC_CAT_ACTION = "action"
     FUNC_CAT_USAGE = "usage"
@@ -65,6 +67,23 @@ def safe_telemetry(func):
         except Exception:
             # We don't really care if telemetry fails, just want to be safe for the user
             pass
+
+    return wrap
+
+
+# Action telemetry decorator for DataFrame class
+def df_collect_api_telemetry(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        with args[0]._session.query_history() as query_history:
+            result = func(*args, **kwargs)
+        args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
+            f"action_{func.__name__}",
+            TelemetryField.FUNC_CAT_ACTION.value,
+            api_calls=args[0]._plan.api_calls,
+            sfqids=[q.query_id for q in query_history.queries],
+        )
+        return result
 
     return wrap
 
@@ -105,6 +124,15 @@ def df_usage_telemetry(func):
             f"usage_{func.__name__}", TelemetryField.FUNC_CAT_USAGE.value
         )
         return result
+
+    return wrap
+
+
+def df_api_usage(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        args[0]._plan.api_calls.append(func.__name__)
+        return func(*args, **kwargs)
 
     return wrap
 
@@ -169,15 +197,26 @@ class TelemetryClient:
         self.send(message)
 
     @safe_telemetry
-    def send_function_usage_telemetry(self, func_name: str, function_category: str):
+    def send_function_usage_telemetry(
+        self,
+        func_name: str,
+        function_category: str,
+        api_calls: Optional[List[str]] = None,
+        sfqids: Optional[List[str]] = None,
+    ):
+        data = {
+            TelemetryField.KEY_FUNC_NAME.value: func_name,
+            TelemetryField.KEY_CATEGORY.value: function_category,
+        }
+        if api_calls is not None:
+            data[TelemetryField.KEY_API_CALLS.value] = api_calls
+        if sfqids is not None:
+            data[TelemetryField.KEY_SFQIDS.value] = sfqids
         message = {
             **self._create_basic_telemetry_data(
                 TelemetryField.TYPE_FUNCTION_USAGE.value
             ),
-            TelemetryField.KEY_DATA.value: {
-                TelemetryField.KEY_FUNC_NAME.value: func_name,
-                TelemetryField.KEY_CATEGORY.value: function_category,
-            },
+            TelemetryField.KEY_DATA.value: data,
         }
         self.send(message)
 

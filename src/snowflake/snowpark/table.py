@@ -255,6 +255,10 @@ class Table(DataFrame):
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
         self.table_name: str = table_name  #: The table name
+        # By default, the set the initial API call to say 'Table.__init__' since
+        # people could instantiate a table directly. This value is overwritten when
+        # created from Session object
+        self._plan.api_calls = ["Table.__init__"]
 
     def __copy__(self) -> "Table":
         return Table(self.table_name, self._session)

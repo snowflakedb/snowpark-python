@@ -63,7 +63,8 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import (
     df_action_telemetry,
-    df_usage_telemetry,
+    df_api_usage,
+    df_collect_api_telemetry,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
@@ -434,7 +435,7 @@ class DataFrame:
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def collect(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> List["Row"]:
@@ -502,7 +503,7 @@ class DataFrame:
     def __copy__(self) -> "DataFrame":
         return DataFrame(self._session, copy.copy(self._plan))
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def to_pandas(
         self,
         *,
@@ -547,7 +548,7 @@ class DataFrame:
 
         return result
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def to_pandas_batches(
         self,
         *,
@@ -590,6 +591,7 @@ class DataFrame:
             **kwargs,
         )
 
+    @df_api_usage
     def to_df(self, *names: Union[str, Iterable[str]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
@@ -669,6 +671,7 @@ class DataFrame:
         else:
             return Column(self._resolve(col_name))
 
+    @df_api_usage
     def select(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -715,6 +718,7 @@ class DataFrame:
 
         return self._with_plan(Project(names, self._plan))
 
+    @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
@@ -746,6 +750,7 @@ class DataFrame:
 
     selectExpr = select_expr
 
+    @df_api_usage
     def drop(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -804,6 +809,7 @@ class DataFrame:
         else:
             return self.select(list(keep_col_names))
 
+    @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -831,6 +837,7 @@ class DataFrame:
             )
         )
 
+    @df_api_usage
     def sort(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -921,6 +928,7 @@ class DataFrame:
 
         return self._with_plan(Sort(sort_exprs, True, self._plan))
 
+    @df_api_usage
     def agg(
         self,
         exprs: Union[
@@ -1014,6 +1022,7 @@ class DataFrame:
 
         return self.group_by().agg(grouping_exprs)
 
+    @df_api_usage
     def rollup(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1032,6 +1041,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
         )
 
+    @df_api_usage
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1075,6 +1085,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
+    @df_api_usage
     def group_by_grouping_sets(
         self,
         *grouping_sets: Union[
@@ -1117,6 +1128,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
+    @df_api_usage
     def cube(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1135,6 +1147,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
         )
 
+    @df_api_usage
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -1145,6 +1158,7 @@ class DataFrame:
             [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
 
+    @df_api_usage
     def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
@@ -1178,6 +1192,7 @@ class DataFrame:
             .select(output_cols)
         )
 
+    @df_api_usage
     def pivot(
         self,
         pivot_col: ColumnOrName,
@@ -1226,6 +1241,7 @@ class DataFrame:
             ),
         )
 
+    @df_api_usage
     def unpivot(
         self, value_column: str, name_column: str, column_list: List[ColumnOrName]
     ) -> "DataFrame":
@@ -1261,6 +1277,7 @@ class DataFrame:
             Unpivot(value_column, name_column, column_exprs, self._plan)
         )
 
+    @df_api_usage
     def limit(self, n: int) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame (similar to LIMIT in SQL).
@@ -1272,6 +1289,7 @@ class DataFrame:
         """
         return self._with_plan(Limit(Literal(n), self._plan))
 
+    @df_api_usage
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows. Both input
@@ -1295,6 +1313,7 @@ class DataFrame:
         """
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
+    @df_api_usage
     def union_all(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows. Both input
@@ -1320,7 +1339,7 @@ class DataFrame:
         """
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
-    @df_usage_telemetry
+    @df_api_usage
     def union_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows.
@@ -1346,7 +1365,7 @@ class DataFrame:
         """
         return self._union_by_name_internal(other, is_all=False)
 
-    @df_usage_telemetry
+    @df_api_usage
     def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows.
@@ -1405,6 +1424,7 @@ class DataFrame:
 
         return self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
 
+    @df_api_usage
     def intersect(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the
         current DataFrame and another DataFrame (``other``). Duplicate rows are
@@ -1428,6 +1448,7 @@ class DataFrame:
         """
         return self._with_plan(Intersect(self._plan, other._plan))
 
+    @df_api_usage
     def except_(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
         except for the rows that also appear in the ``other`` DataFrame. Duplicate rows are eliminated.
@@ -1451,6 +1472,7 @@ class DataFrame:
         """
         return self._with_plan(Except(self._plan, other._plan))
 
+    @df_api_usage
     def natural_join(
         self, right: "DataFrame", join_type: Optional[str] = None
     ) -> "DataFrame":
@@ -1495,6 +1517,7 @@ class DataFrame:
             )
         )
 
+    @df_api_usage
     def join(
         self,
         right: "DataFrame",
@@ -1627,6 +1650,7 @@ class DataFrame:
 
         raise TypeError("Invalid type for join. Must be Dataframe")
 
+    @df_api_usage
     def join_table_function(
         self,
         func: Union[str, List[str], TableFunctionCall],
@@ -1712,6 +1736,7 @@ class DataFrame:
         )
         return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
 
+    @df_api_usage
     def cross_join(self, right: "DataFrame") -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
         :class:`DataFrame` and another :class:`DataFrame` (``right``).
@@ -1784,6 +1809,7 @@ class DataFrame:
             )
         )
 
+    @df_api_usage
     def with_column(self, col_name: str, col: Column) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
@@ -1810,6 +1836,7 @@ class DataFrame:
         """
         return self.with_columns([col_name], [col])
 
+    @df_api_usage
     def with_columns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -2073,6 +2100,7 @@ class DataFrame:
         extra_warning_text="`DataFrame.flatten()` is deprecated. Use `DataFrame.join_table_function()` instead.",
         extra_doc_string="This method is deprecated. Use :meth:`join_table_function` instead.",
     )
+    @df_api_usage
     def flatten(
         self,
         input: ColumnOrName,
@@ -2366,6 +2394,7 @@ class DataFrame:
 
     take = first
 
+    @df_api_usage
     def sample(
         self, frac: Optional[float] = None, n: Optional[int] = None
     ) -> "DataFrame":
@@ -2406,6 +2435,7 @@ class DataFrame:
         """
         return self._na
 
+    @df_api_usage
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
@@ -2480,6 +2510,7 @@ class DataFrame:
 
         return res_df
 
+    @df_api_usage
     def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
