@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -14,10 +13,10 @@ import pandas
 import pytest
 
 from snowflake.snowpark._internal.type_utils import (
-    _get_number_precision_scale,
-    _infer_type,
-    _python_type_to_snow_type,
-    _retrieve_func_type_hints_from_source,
+    get_number_precision_scale,
+    infer_type,
+    python_type_to_snow_type,
+    retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -61,58 +60,58 @@ test_files = TestFiles(resources_path)
 
 # TODO complete for schema case
 def test_py_to_type():
-    assert type(_infer_type(None)) == NullType
-    assert type(_infer_type(1)) == LongType
-    assert type(_infer_type(3.14)) == FloatType
-    assert type(_infer_type("a")) == StringType
-    assert type(_infer_type(bytearray("a", "utf-8"))) == BinaryType
+    assert type(infer_type(None)) == NullType
+    assert type(infer_type(1)) == LongType
+    assert type(infer_type(3.14)) == FloatType
+    assert type(infer_type("a")) == StringType
+    assert type(infer_type(bytearray("a", "utf-8"))) == BinaryType
     assert (
-        type(_infer_type(Decimal(0.00000000000000000000000000000000000000233)))
+        type(infer_type(Decimal(0.00000000000000000000000000000000000000233)))
         == DecimalType
     )
-    assert type(_infer_type(date(2021, 5, 25))) == DateType
-    assert type(_infer_type(datetime(2021, 5, 25, 0, 47, 41))) == TimestampType
-    assert type(_infer_type(time(17, 57, 10))) == TimeType
-    assert type(_infer_type((1024).to_bytes(2, byteorder="big")))
+    assert type(infer_type(date(2021, 5, 25))) == DateType
+    assert type(infer_type(datetime(2021, 5, 25, 0, 47, 41))) == TimestampType
+    assert type(infer_type(time(17, 57, 10))) == TimeType
+    assert type(infer_type((1024).to_bytes(2, byteorder="big")))
 
-    res = _infer_type({1: "abc"})
+    res = infer_type({1: "abc"})
     assert type(res) == MapType
     assert type(res.key_type) == LongType
     assert type(res.value_type) == StringType
 
-    res = _infer_type({None: None})
+    res = infer_type({None: None})
     assert type(res) == MapType
     assert type(res.key_type) == NullType
     assert type(res.value_type) == NullType
 
-    res = _infer_type({None: 1})
+    res = infer_type({None: 1})
     assert type(res) == MapType
     assert type(res.key_type) == NullType
     assert type(res.value_type) == NullType
 
-    res = _infer_type({1: None})
+    res = infer_type({1: None})
     assert type(res) == MapType
     assert type(res.key_type) == NullType
     assert type(res.value_type) == NullType
 
-    res = _infer_type([1, 2, 3])
+    res = infer_type([1, 2, 3])
     assert type(res) == ArrayType
     assert type(res.element_type) == LongType
 
-    res = _infer_type([None])
+    res = infer_type([None])
     assert type(res) == ArrayType
     assert type(res.element_type) == NullType
 
     # Arrays
-    res = _infer_type(array("f"))
+    res = infer_type(array("f"))
     assert type(res) == ArrayType
     assert type(res.element_type) == FloatType
 
-    res = _infer_type(array("d"))
+    res = infer_type(array("d"))
     assert type(res) == ArrayType
     assert type(res.element_type) == DoubleType
 
-    res = _infer_type(array("l"))
+    res = infer_type(array("l"))
     assert type(res) == ArrayType
     if IS_WINDOWS:
         assert type(res.element_type) == IntegerType
@@ -120,47 +119,47 @@ def test_py_to_type():
         assert type(res.element_type) == LongType
 
     if IS_WINDOWS:
-        res = _infer_type(array("L"))
+        res = infer_type(array("L"))
         assert type(res) == ArrayType
         assert type(res.element_type) == LongType
     else:
         with pytest.raises(TypeError):
-            _infer_type(array("L"))
+            infer_type(array("L"))
 
-    res = _infer_type(array("b"))
+    res = infer_type(array("b"))
     assert type(res) == ArrayType
     assert type(res.element_type) == ByteType
 
-    res = _infer_type(array("B"))
+    res = infer_type(array("B"))
     assert type(res) == ArrayType
     assert type(res.element_type) == ShortType
 
-    res = _infer_type(array("u"))
+    res = infer_type(array("u"))
     assert type(res) == ArrayType
     assert type(res.element_type) == StringType
 
-    res = _infer_type(array("h"))
+    res = infer_type(array("h"))
     assert type(res) == ArrayType
     assert type(res.element_type) == ShortType
 
-    res = _infer_type(array("H"))
+    res = infer_type(array("H"))
     assert type(res) == ArrayType
     assert type(res.element_type) == IntegerType
 
-    res = _infer_type(array("i"))
+    res = infer_type(array("i"))
     assert type(res) == ArrayType
     assert type(res.element_type) == IntegerType
 
-    res = _infer_type(array("I"))
+    res = infer_type(array("I"))
     assert type(res) == ArrayType
     assert type(res.element_type) == LongType
 
-    res = _infer_type(array("q"))
+    res = infer_type(array("q"))
     assert type(res) == ArrayType
     assert type(res.element_type) == LongType
 
     with pytest.raises(TypeError):
-        _infer_type(array("Q"))
+        infer_type(array("Q"))
 
 
 def test_sf_datatype_names():
@@ -277,8 +276,8 @@ def test_strip_unnecessary_quotes():
 
 def test_python_type_to_snow_type():
     def check_type(python_type, snow_type, is_nullable):
-        assert _python_type_to_snow_type(python_type) == (snow_type, is_nullable)
-        assert _python_type_to_snow_type(
+        assert python_type_to_snow_type(python_type) == (snow_type, is_nullable)
+        assert python_type_to_snow_type(
             getattr(python_type, "__name__", str(python_type))
         ) == (snow_type, is_nullable)
 
@@ -389,51 +388,51 @@ def test_python_type_to_snow_type():
 
     # unsupported types
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.AnyStr)
+        python_type_to_snow_type(typing.AnyStr)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.TypeVar)
+        python_type_to_snow_type(typing.TypeVar)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.Callable)
+        python_type_to_snow_type(typing.Callable)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.IO)
+        python_type_to_snow_type(typing.IO)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.Iterable)
+        python_type_to_snow_type(typing.Iterable)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.Generic)
+        python_type_to_snow_type(typing.Generic)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.Set)
+        python_type_to_snow_type(typing.Set)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(set)
+        python_type_to_snow_type(set)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.OrderedDict)
+        python_type_to_snow_type(typing.OrderedDict)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(defaultdict)
+        python_type_to_snow_type(defaultdict)
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.Union[str, int, None])
+        python_type_to_snow_type(typing.Union[str, int, None])
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(typing.Union[None, str])
+        python_type_to_snow_type(typing.Union[None, str])
     with pytest.raises(TypeError):
-        _python_type_to_snow_type(StringType)
+        python_type_to_snow_type(StringType)
 
     # invalid type str
     with pytest.raises(NameError):
-        _python_type_to_snow_type("string")
+        python_type_to_snow_type("string")
 
 
 @pytest.mark.parametrize("decimal_word", ["number", "numeric", "decimal"])
 def test_decimal_regular_expression(decimal_word):
-    assert _get_number_precision_scale(f"{decimal_word}") is None
-    assert _get_number_precision_scale(f" {decimal_word}") is None
-    assert _get_number_precision_scale(f"{decimal_word} ") is None
-    assert _get_number_precision_scale(f"{decimal_word}") is None
-    assert _get_number_precision_scale(f"{decimal_word}(2) ") is None
-    assert _get_number_precision_scale(f"a{decimal_word}(2,1)") is None
-    assert _get_number_precision_scale(f"{decimal_word}(2,1) a") is None
+    assert get_number_precision_scale(f"{decimal_word}") is None
+    assert get_number_precision_scale(f" {decimal_word}") is None
+    assert get_number_precision_scale(f"{decimal_word} ") is None
+    assert get_number_precision_scale(f"{decimal_word}") is None
+    assert get_number_precision_scale(f"{decimal_word}(2) ") is None
+    assert get_number_precision_scale(f"a{decimal_word}(2,1)") is None
+    assert get_number_precision_scale(f"{decimal_word}(2,1) a") is None
 
-    assert _get_number_precision_scale(f"{decimal_word}(2,1)") == (2, 1)
-    assert _get_number_precision_scale(f" {decimal_word}(2,1)") == (2, 1)
-    assert _get_number_precision_scale(f"{decimal_word}(2,1) ") == (2, 1)
-    assert _get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
+    assert get_number_precision_scale(f"{decimal_word}(2,1)") == (2, 1)
+    assert get_number_precision_scale(f" {decimal_word}(2,1)") == (2, 1)
+    assert get_number_precision_scale(f"{decimal_word}(2,1) ") == (2, 1)
+    assert get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
 
 
 def test_retrieve_func_type_hints_from_source():
@@ -443,7 +442,7 @@ def test_retrieve_func_type_hints_from_source():
 def {func_name}() -> None:
     return None
 """
-    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+    assert retrieve_func_type_hints_from_source("", func_name, _source=source) == {
         "return": "NoneType"
     }
 
@@ -451,7 +450,7 @@ def {func_name}() -> None:
 def {func_name}() -> int:
     return 1
 """
-    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+    assert retrieve_func_type_hints_from_source("", func_name, _source=source) == {
         "return": "int"
     }
 
@@ -462,7 +461,7 @@ def {func_name}() -> int:
 def {func_name}_{func_name}(x: int) -> int:
     return x
 """
-    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+    assert retrieve_func_type_hints_from_source("", func_name, _source=source) == {
         "return": "int"
     }
 
@@ -470,7 +469,7 @@ def {func_name}_{func_name}(x: int) -> int:
 def {func_name}(x: bytes) -> int:
     return 1
 """
-    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+    assert retrieve_func_type_hints_from_source("", func_name, _source=source) == {
         "x": "bytes",
         "return": "int",
     }
@@ -479,7 +478,7 @@ def {func_name}(x: bytes) -> int:
 def {func_name}(x: List[str], y: None) -> Optional[int]:
     return None
 """
-    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+    assert retrieve_func_type_hints_from_source("", func_name, _source=source) == {
         "x": "List[str]",
         "y": "NoneType",
         "return": "Optional[int]",
@@ -489,26 +488,26 @@ def {func_name}(x: List[str], y: None) -> Optional[int]:
 def {func_name}(x: collections.defaultdict, y: Union[datetime.date, time]) -> Optional[typing.Tuple[decimal.Decimal, Variant, List[float]]]:
     return (1, 2)
 """
-    assert _retrieve_func_type_hints_from_source("", func_name, _source=source) == {
+    assert retrieve_func_type_hints_from_source("", func_name, _source=source) == {
         "x": "collections.defaultdict",
         "y": "Union[datetime.date, time]",
         "return": "Optional[typing.Tuple[decimal.Decimal, Variant, List[float]]]",
     }
 
-    assert _retrieve_func_type_hints_from_source(
+    assert retrieve_func_type_hints_from_source(
         test_files.test_udf_py_file, "mod5"
     ) == {"x": "int", "return": "int"}
 
     # negative case
     with pytest.raises(UnicodeDecodeError):
-        _retrieve_func_type_hints_from_source(test_files.test_file_avro, "mod5")
+        retrieve_func_type_hints_from_source(test_files.test_file_avro, "mod5")
 
     source = f"""
 def {func_name}_{func_name}(x: int) -> int:
     return x
 """
     with pytest.raises(ValueError) as ex_info:
-        _retrieve_func_type_hints_from_source("", func_name, _source=source)
+        retrieve_func_type_hints_from_source("", func_name, _source=source)
     assert "is not found in file" in str(ex_info)
 
     source = f"""
@@ -516,5 +515,5 @@ def {func_name}() -> 1:
     return 1
 """
     with pytest.raises(TypeError) as ex_info:
-        _retrieve_func_type_hints_from_source("", func_name, _source=source)
+        retrieve_func_type_hints_from_source("", func_name, _source=source)
     assert "invalid type annotation" in str(ex_info)

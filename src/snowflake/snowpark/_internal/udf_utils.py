@@ -23,9 +23,20 @@ import cloudpickle
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.type_utils import (
-    _python_type_to_snow_type,
-    _retrieve_func_type_hints_from_source,
-    convert_to_sf_type,
+    convert_sp_to_sf_type,
+    python_type_to_snow_type,
+    retrieve_func_type_hints_from_source,
+)
+from snowflake.snowpark._internal.utils import (
+    STAGE_PREFIX,
+    TempObjectType,
+    get_udf_upload_prefix,
+    is_single_quoted,
+    normalize_remote_file_or_dir,
+    random_name_for_temp_object,
+    random_number,
+    unwrap_stage_location_single_quote,
+    validate_object_name,
 )
 from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.types import (
@@ -45,8 +56,6 @@ _DEFAULT_HANDLER_NAME = "compute"
 # because zip compression ratio is quite high.
 _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 
-_STAGE_PREFIX = "@"
-
 
 class UDFColumn(NamedTuple):
     datatype: DataType
@@ -54,7 +63,7 @@ class UDFColumn(NamedTuple):
 
 
 def is_local_python_file(file_path: str) -> bool:
-    return not file_path.startswith(_STAGE_PREFIX) and file_path.endswith(".py")
+    return not file_path.startswith(STAGE_PREFIX) and file_path.endswith(".py")
 
 
 def get_types_from_type_hints(
@@ -69,7 +78,7 @@ def get_types_from_type_hints(
     else:
         if object_type == TempObjectType.TABLE_FUNCTION:
             python_types_dict = (
-                _retrieve_func_type_hints_from_source(
+                retrieve_func_type_hints_from_source(
                     func[0], "process", class_name=func[1]
                 )  # use method process of a UDTF handler class.
                 if is_local_python_file(func[0])
@@ -77,7 +86,7 @@ def get_types_from_type_hints(
             )
         else:
             python_types_dict = (
-                _retrieve_func_type_hints_from_source(func[0], func[1])
+                retrieve_func_type_hints_from_source(func[0], func[1])
                 if is_local_python_file(func[0])
                 else {}
             )
@@ -86,7 +95,7 @@ def get_types_from_type_hints(
         return_type = None  # The return type is processed in udtf.py. Return None here.
     else:
         return_type = (
-            _python_type_to_snow_type(python_types_dict["return"])[0]
+            python_type_to_snow_type(python_types_dict["return"])[0]
             if "return" in python_types_dict
             else None
         )
@@ -105,7 +114,7 @@ def get_types_from_type_hints(
                     "The first argument of stored proc function should be Session"
                 )
         elif key != "return":
-            input_types.append(_python_type_to_snow_type(python_type)[0])
+            input_types.append(python_type_to_snow_type(python_type)[0])
         index += 1
 
     return return_type, input_types
@@ -144,7 +153,7 @@ def check_register_args(
 
 def process_file_path(file_path: str) -> str:
     file_path = file_path.strip()
-    if not file_path.startswith(_STAGE_PREFIX) and not os.path.exists(file_path):
+    if not file_path.startswith(STAGE_PREFIX) and not os.path.exists(file_path):
         raise ValueError(f"file_path {file_path} does not exist")
     return file_path
 
@@ -272,8 +281,8 @@ def process_registration_inputs(
     if name:
         object_name = name if isinstance(name, str) else ".".join(name)
     else:
-        object_name = f"{session.get_fully_qualified_current_schema()}.{Utils.random_name_for_temp_object(object_type)}"
-    Utils.validate_object_name(object_name)
+        object_name = f"{session.get_fully_qualified_current_schema()}.{random_name_for_temp_object(object_type)}"
+    validate_object_name(object_name)
 
     # get return and input types
     (
@@ -295,7 +304,7 @@ def cleanup_failed_permanent_registration(
 ) -> None:
     if stage_location and upload_file_stage_location:
         try:
-            logger.info(
+            logger.debug(
                 "Removing Snowpark uploaded file: %s",
                 upload_file_stage_location,
             )
@@ -308,6 +317,25 @@ def cleanup_failed_permanent_registration(
             logger.warning("Failed to clean uploaded file: %s", clean_ex)
 
 
+def pickle_function(func: Callable) -> bytes:
+    failure_hint = (
+        "you might have to save the unpicklable object in the local environment first, "
+        "add it to the UDF with session.add_import(), and read it from the UDF."
+    )
+    try:
+        return cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+    # it happens when copying the global object inside the UDF that can't be pickled
+    except TypeError as ex:
+        error_message = str(ex)
+        if "cannot pickle" in error_message:
+            raise TypeError(f"{error_message}: {failure_hint}")
+        raise ex
+    # it shouldn't happen because the function can always be pickled
+    # but we still catch this exception here in case cloudpickle changes its implementation
+    except pickle.PicklingError as ex:
+        raise pickle.PicklingError(f"{str(ex)}: {failure_hint}")
+
+
 def generate_python_code(
     func: Callable,
     arg_names: List[str],
@@ -315,17 +343,25 @@ def generate_python_code(
     is_dataframe_input: bool,
     max_batch_size: Optional[int] = None,
 ) -> str:
+    # if func is a method object, we need to extract the target function first to check
+    # annotations. However, we still serialize the original method because the extracted
+    # function will have an extra argument `cls` or `self` from the class.
+    target_func = getattr(func, "__func__", func)
+
     # clear the annotations because when the user annotates Variant and Geography,
     # which are from snowpark modules and will not work on the server side
     # built-in functions don't have __annotations__
-    if hasattr(func, "__annotations__"):
-        annotations = func.__annotations__
-        func.__annotations__ = {}
-        pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
-        # restore the annotations so we don't change the original function
-        func.__annotations__ = annotations
+    if hasattr(target_func, "__annotations__"):
+        annotations = target_func.__annotations__
+        try:
+            target_func.__annotations__ = {}
+            # we still serialize the original function
+            pickled_func = pickle_function(func)
+        finally:
+            # restore the annotations so we don't change the original function
+            target_func.__annotations__ = annotations
     else:
-        pickled_func = cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+        pickled_func = pickle_function(func)
     args = ",".join(arg_names)
 
     deserialization_code = f"""
@@ -346,7 +382,7 @@ import pandas
         if max_batch_size:
             pandas_code = f"""
 {pandas_code}
-{_DEFAULT_HANDLER_NAME}._sf_target_batch_size = {int(max_batch_size)}
+{_DEFAULT_HANDLER_NAME}._sf_max_batch_size = {int(max_batch_size)}
 """.rstrip()
         if is_dataframe_input:
             func_code = f"""
@@ -388,7 +424,7 @@ def resolve_imports_and_packages(
     max_batch_size: Optional[int] = None,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
-        Utils.unwrap_stage_location_single_quote(stage_location)
+        unwrap_stage_location_single_quote(stage_location)
         if stage_location
         else session.get_session_stage()
     )
@@ -422,20 +458,20 @@ def resolve_imports_and_packages(
         )
     )
 
-    dest_prefix = Utils.get_udf_upload_prefix(udf_name)
+    dest_prefix = get_udf_upload_prefix(udf_name)
 
     # Upload closure to stage if it is beyond inline closure size limit
     if isinstance(func, Callable):
         # generate a random name for udf py file
         # and we compress it first then upload it
-        udf_file_name_base = f"udf_py_{Utils.random_number()}"
+        udf_file_name_base = f"udf_py_{random_number()}"
         udf_file_name = f"{udf_file_name_base}.zip"
         code = generate_python_code(
             func, arg_names, is_pandas_udf, is_dataframe_input, max_batch_size
         )
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
-            dest_prefix = Utils.get_udf_upload_prefix(udf_name)
-            upload_file_stage_location = Utils.normalize_remote_file_or_dir(
+            dest_prefix = get_udf_upload_prefix(udf_name)
+            upload_file_stage_location = normalize_remote_file_or_dir(
                 f"{upload_stage}/{dest_prefix}/{udf_file_name}"
             )
             udf_file_name_base = os.path.splitext(udf_file_name)[0]
@@ -469,11 +505,11 @@ def resolve_imports_and_packages(
         inline_code = None
         handler = f"{udf_file_name_base}.{func[1]}"
 
-        if func[0].startswith(session._STAGE_PREFIX):
+        if func[0].startswith(STAGE_PREFIX):
             upload_file_stage_location = None
             all_urls.append(func[0])
         else:
-            upload_file_stage_location = Utils.normalize_remote_file_or_dir(
+            upload_file_stage_location = normalize_remote_file_or_dir(
                 f"{upload_stage}/{dest_prefix}/{udf_file_name}"
             )
             session._conn.upload_file(
@@ -488,7 +524,7 @@ def resolve_imports_and_packages(
 
     # build imports and packages string
     all_imports = ",".join(
-        [url if Utils.is_single_quoted(url) else f"'{url}'" for url in all_urls]
+        [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
     )
     all_packages = ",".join([f"'{package}'" for package in resolved_packages])
     return handler, inline_code, all_imports, all_packages, upload_file_stage_location
@@ -510,8 +546,8 @@ def create_python_udf_or_sp(
     if isinstance(return_type, StructType):
         return_sql = f"""RETURNS TABLE ({",".join(f"{field.name} {convert_to_sf_type(field.datatype)}" for field in return_type.fields)})"""
     else:
-        return_sql = f"RETURNS {convert_to_sf_type(return_type)}"
-    input_sql_types = [convert_to_sf_type(arg.datatype) for arg in input_args]
+        return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
+    input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
     sql_func_args = ",".join(
         [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
     )

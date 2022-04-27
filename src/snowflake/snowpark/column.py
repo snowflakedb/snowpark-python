@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -62,12 +61,14 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.type_utils import (
-    _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
+    ColumnOrLiteralStr,
     ColumnOrName,
-    _type_string_to_type_object,
+    ColumnOrSqlExpr,
+    type_string_to_type_object,
 )
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.window import Window, WindowSpec
 
@@ -77,7 +78,7 @@ def _to_col_if_lit(
 ) -> "Column":
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
         return col
-    elif isinstance(col, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+    elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
         return Column(Literal(col))
     else:
         raise TypeError(
@@ -85,7 +86,7 @@ def _to_col_if_lit(
         )
 
 
-def _to_col_if_sql_expr(col: Union["Column", str], func_name: str) -> "Column":
+def _to_col_if_sql_expr(col: ColumnOrSqlExpr, func_name: str) -> "Column":
     if isinstance(col, Column):
         return col
     elif isinstance(col, str):
@@ -104,6 +105,19 @@ def _to_col_if_str(col: ColumnOrName, func_name: str) -> "Column":
     else:
         raise TypeError(
             f"'{func_name.upper()}' expected Column or str, got: {type(col)}"
+        )
+
+
+def _to_col_if_str_or_int(col: Union[ColumnOrName, int], func_name: str) -> "Column":
+    if isinstance(col, Column):
+        return col
+    elif isinstance(col, str):
+        return Column(col)
+    elif isinstance(col, int):
+        return Column(Literal(col))
+    else:
+        raise TypeError(
+            f"'{func_name.upper()}' expected Column, int or str, got: {type(col)}"
         )
 
 
@@ -331,7 +345,7 @@ class Column:
         Args:
             vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
         """
-        cols = Utils.parse_positional_args_to_list(*vals)
+        cols = parse_positional_args_to_list(*vals)
         cols = [_to_col_if_lit(col, "in_") for col in cols]
 
         column_count = (
@@ -444,7 +458,7 @@ class Column:
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
         if isinstance(to, str):
-            to = _type_string_to_type_object(to)
+            to = type_string_to_type_object(to)
         return Column(Cast(self.expression, to, try_))
 
     def cast(self, to: Union[str, DataType]) -> "Column":
@@ -487,7 +501,7 @@ class Column:
         (null values sorted after non-null values)."""
         return Column(SortOrder(self.expression, Ascending(), NullsLast()))
 
-    def like(self, pattern: Union["Column", str]) -> "Column":
+    def like(self, pattern: ColumnOrLiteralStr) -> "Column":
         """Allows case-sensitive matching of strings based on comparison with a pattern.
 
         Args:
@@ -504,7 +518,7 @@ class Column:
             )
         )
 
-    def regexp(self, pattern: Union["Column", str]) -> "Column":
+    def regexp(self, pattern: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column matches the specified regular expression.
 
         Args:
@@ -524,7 +538,7 @@ class Column:
             )
         )
 
-    def startswith(self, other: Union["Column", str]) -> "Column":
+    def startswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column starts with another string.
 
         Args:
@@ -534,7 +548,7 @@ class Column:
         other = snowflake.snowpark.functions.lit(other)
         return snowflake.snowpark.functions.startswith(self, other)
 
-    def endswith(self, other: Union["Column", str]) -> "Column":
+    def endswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column ends with another string.
 
         Args:
@@ -670,7 +684,7 @@ class Column:
                 self.expression,
                 [
                     _to_col_if_str(col, "within_group").expression
-                    for col in Utils.parse_positional_args_to_list(*cols)
+                    for col in parse_positional_args_to_list(*cols)
                 ],
             )
         )
@@ -744,10 +758,10 @@ class CaseExpr(Column):
 
     def __init__(self, expr: CaseWhen):
         super().__init__(expr)
-        self.__branches = expr.branches
+        self._branches = expr.branches
 
     def when(
-        self, condition: Union[Column, str], value: Union[ColumnOrLiteral]
+        self, condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]
     ) -> "CaseExpr":
         """
         Appends one more WHEN condition to the CASE expression.
@@ -760,7 +774,7 @@ class CaseExpr(Column):
         return CaseExpr(
             CaseWhen(
                 [
-                    *self.__branches,
+                    *self._branches,
                     (
                         _to_col_if_sql_expr(condition, "when").expression,
                         Column._to_expr(value),
@@ -774,7 +788,7 @@ class CaseExpr(Column):
 
         :meth:`else_` is an alias of :meth:`otherwise`.
         """
-        return CaseExpr(CaseWhen(self.__branches, Column._to_expr(value)))
+        return CaseExpr(CaseWhen(self._branches, Column._to_expr(value)))
 
     # This alias is to sync with snowpark scala
     else_ = otherwise

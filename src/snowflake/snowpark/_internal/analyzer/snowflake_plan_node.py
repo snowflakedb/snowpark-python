@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -40,7 +39,7 @@ class UnresolvedRelation(LeafNode):
 
 class SnowflakeValues(LeafNode):
     def __init__(self, output: List[Attribute], data: List[Row]):
-        super(SnowflakeValues, self).__init__()
+        super().__init__()
         self.output = output
         self.data = data
 

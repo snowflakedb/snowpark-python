@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """Window frames in Snowpark."""
 import sys
-from typing import List, Tuple, Union
+from typing import Iterable, List, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Expression, Literal
@@ -23,7 +22,25 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowSpecDefinition,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import parse_positional_args_to_list
+
+
+def _convert_boundary_to_expr(start: int, end: int) -> Tuple[Expression, Expression]:
+    if start == 0:
+        boundary_start = CurrentRow()
+    elif start <= Window.UNBOUNDED_PRECEDING:
+        boundary_start = UnboundedPreceding()
+    else:
+        boundary_start = Literal(start)
+
+    if end == 0:
+        boundary_end = CurrentRow()
+    elif end >= Window.UNBOUNDED_FOLLOWING:
+        boundary_end = UnboundedFollowing()
+    else:
+        boundary_end = Literal(end)
+
+    return boundary_start, boundary_end
 
 
 class Window:
@@ -33,29 +50,31 @@ class Window:
 
     Examples::
 
-        from snowflake.snowpark.functions import col, avg
-        window1 = Window.partition_by("value").order_by("key").rows_between(Window.currentRow, 2)
-        window2 = Window.order_by(col("key").desc()).range_between(Window.UNBOUNDED_PRECEDING, Window.UNBOUNDED_FOLLOWING)
-        df.select("key", "value", avg("value").over(window1), avg("value").over(window2)
+        >>> from snowflake.snowpark.functions import col, avg
+        >>> window1 = Window.partition_by("value").order_by("key").rows_between(Window.CURRENT_ROW, 2)
+        >>> window2 = Window.order_by(col("key").desc()).range_between(Window.UNBOUNDED_PRECEDING, Window.UNBOUNDED_FOLLOWING)
+        >>> df = session.create_dataframe([(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"])
+        >>> df.select(avg("value").over(window1).as_("window1"), avg("value").over(window2).as_("window2")).collect()
+        [Row(WINDOW1=3.0, WINDOW2=2.5), Row(WINDOW1=2.0, WINDOW2=2.5), Row(WINDOW1=1.0, WINDOW2=2.5), Row(WINDOW1=4.0, WINDOW2=2.5)]
     """
 
     #: Returns a value representing unbounded preceding.
     UNBOUNDED_PRECEDING: int = -sys.maxsize
-    unboundedPreceding = UNBOUNDED_PRECEDING
+    unboundedPreceding: int = UNBOUNDED_PRECEDING
 
     #: Returns a value representing unbounded following.
     UNBOUNDED_FOLLOWING: int = sys.maxsize
-    unboundedFollowing = UNBOUNDED_FOLLOWING
+    unboundedFollowing: int = UNBOUNDED_FOLLOWING
 
     #: Returns a value representing current row.
-    currentRow: int = 0
+    CURRENT_ROW: int = 0
+    currentRow: int = CURRENT_ROW
 
     @staticmethod
     def partition_by(
         *cols: Union[
             ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
+            Iterable[ColumnOrName],
         ]
     ) -> "WindowSpec":
         """
@@ -71,8 +90,7 @@ class Window:
     def order_by(
         *cols: Union[
             ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
+            Iterable[ColumnOrName],
         ]
     ) -> "WindowSpec":
         """
@@ -99,7 +117,7 @@ class Window:
 
         Note:
             You can use :attr:`Window.UNBOUNDED_PRECEDING`, :attr:`Window.UNBOUNDED_FOLLOWING`,
-            and :attr:`Window.currentRow` to specify ``start`` and ``end``, instead of using
+            and :attr:`Window.CURRENT_ROW` to specify ``start`` and ``end``, instead of using
             integral values directly.
         """
         return Window._spec().rows_between(start, end)
@@ -119,7 +137,7 @@ class Window:
 
         Note:
             You can use :attr:`Window.UNBOUNDED_PRECEDING`, :attr:`Window.UNBOUNDED_FOLLOWING`,
-            and :attr:`Window.currentRow` to specify ``start`` and ``end``, instead of using
+            and :attr:`Window.CURRENT_ROW` to specify ``start`` and ``end``, instead of using
             integral values directly.
         """
         return Window._spec().range_between(start, end)
@@ -151,8 +169,7 @@ class WindowSpec:
         self,
         *cols: Union[
             ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
+            Iterable[ColumnOrName],
         ]
     ) -> "WindowSpec":
         """
@@ -161,7 +178,7 @@ class WindowSpec:
         See Also:
             - :func:`Window.partition_by`
         """
-        exprs = Utils.parse_positional_args_to_list(*cols)
+        exprs = parse_positional_args_to_list(*cols)
         partition_spec = [
             e.expression
             if isinstance(e, snowflake.snowpark.column.Column)
@@ -175,8 +192,7 @@ class WindowSpec:
         self,
         *cols: Union[
             ColumnOrName,
-            List[ColumnOrName],
-            Tuple[ColumnOrName, ...],
+            Iterable[ColumnOrName],
         ]
     ) -> "WindowSpec":
         """
@@ -185,7 +201,7 @@ class WindowSpec:
         See Also:
             - :func:`Window.order_by`
         """
-        exprs = Utils.parse_positional_args_to_list(*cols)
+        exprs = parse_positional_args_to_list(*cols)
         order_spec = []
         for e in exprs:
             if isinstance(e, str):
@@ -209,7 +225,7 @@ class WindowSpec:
         See Also:
             - :func:`Window.rows_between`
         """
-        boundary_start, boundary_end = self._convert_boundary_to_expr(start, end)
+        boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
         return WindowSpec(
             self.partition_spec,
             self.order_spec,
@@ -223,7 +239,7 @@ class WindowSpec:
         See Also:
             - :func:`Window.range_between`
         """
-        boundary_start, boundary_end = self._convert_boundary_to_expr(start, end)
+        boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
         return WindowSpec(
             self.partition_spec,
             self.order_spec,

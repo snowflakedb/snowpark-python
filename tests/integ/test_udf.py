@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -37,9 +36,9 @@ from typing import Dict, List, Optional, Union
 
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import Utils as InternalUtils
+from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
-from snowflake.snowpark.functions import _pandas_udf as pandas_udf, call_udf, col, udf
+from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
@@ -91,7 +90,7 @@ def test_basic_udf(session):
     )
     int2str_udf = udf(int2str, return_type=StringType(), input_types=[IntegerType()])
     pow_udf = udf(
-        lambda x, y: x ** y,
+        lambda x, y: x**y,
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
     )
@@ -150,7 +149,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
         Session.builder.configs(db_parameters)._remove_config("schema").create()
     )
     try:
-        assert not new_session.getDefaultSchema()
+        assert not new_session.get_current_schema()
         tmp_stage_name_in_temp_schema = (
             f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
         )
@@ -162,7 +161,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
             name=[*temp_schema.split("."), "test_add"],
-            stage_location=InternalUtils.unwrap_stage_location_single_quote(
+            stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
         )
@@ -201,10 +200,10 @@ def test_nested_udf(session):
         def inner_func():
             return "snow"
 
-        return "{}-{}".format(inner_func(), inner_func())
+        return f"{inner_func()}-{inner_func()}"
 
     def square(x):
-        return x ** 2
+        return x**2
 
     def cube(x):
         return square(x) * x
@@ -1375,7 +1374,7 @@ def test_pandas_udf_negative(session):
         pandas_udf(
             lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()]
         )
-    assert "You cannot create a non-Pandas UDF using pandas_udf()" in str(ex_info)
+    assert "You cannot create a non-vectorized UDF using pandas_udf()" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         pandas_udf(
@@ -1437,3 +1436,76 @@ def test_register_udf_no_commit(session):
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session._run_query(f"drop function if exists {perm_func_name}(int)")
+
+
+def test_udf_class_method(session):
+    # Note that we never mention in the doc that we support registering UDF from a class method.
+    # However, some users might still be interested in doing that.
+    class UDFTest:
+        a = 1
+
+        def __init__(self, b):
+            self.b = b
+
+        @staticmethod
+        def plus1(x: int) -> int:
+            return x + 1
+
+        @classmethod
+        def plus_a(cls, x):
+            return x + cls.a
+
+        def plus_b(self, x):
+            return x + self.b
+
+        @property
+        def double_b(self):
+            return self.b * 2
+
+    # test staticmethod
+    plus1_udf = session.udf.register(UDFTest.plus1)
+    Utils.check_answer(
+        session.range(5).select(plus1_udf("id")),
+        [Row(1), Row(2), Row(3), Row(4), Row(5)],
+    )
+
+    # test classmethod (type hint does not work here because it has an extra argument cls)
+    plus_a_udf = session.udf.register(
+        UDFTest.plus_a, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    Utils.check_answer(
+        session.range(5).select(plus_a_udf("id")),
+        [Row(1), Row(2), Row(3), Row(4), Row(5)],
+    )
+
+    # test the general method
+    udf_test = UDFTest(b=-1)
+    plus_b_udf = session.udf.register(
+        udf_test.plus_b, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    Utils.check_answer(
+        session.range(5).select(plus_b_udf("id")),
+        [Row(-1), Row(0), Row(1), Row(2), Row(3)],
+    )
+
+    # test property
+    with pytest.raises(TypeError) as ex_info:
+        session.udf.register(udf_test.double_b, return_type=IntegerType())
+    assert (
+        "Invalid function: not a function or callable (__call__ is not defined)"
+        in str(ex_info)
+    )
+
+
+def test_udf_pickle_failure(session):
+    from weakref import WeakValueDictionary
+
+    d = WeakValueDictionary()
+
+    with pytest.raises(TypeError) as ex_info:
+        session.udf.register(lambda: len(d), return_type=IntegerType())
+    assert (
+        "cannot pickle 'weakref' object: you might have to save the unpicklable object in the "
+        "local environment first, add it to the UDF with session.add_import(), and read it from "
+        "the UDF." in str(ex_info)
+    )

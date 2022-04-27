@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -11,7 +10,6 @@ from typing import IO, Any, Dict, Iterator, List, Optional, Union
 
 import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
-from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
@@ -22,31 +20,27 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.schema_utils import (
+    convert_result_meta_to_attribute,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import (
+    get_application_name,
+    get_version,
+    is_in_stored_procedure,
+    normalize_local_file,
+    normalize_remote_file_or_dir,
+    result_set_to_iter,
+    result_set_to_rows,
+    unwrap_stage_location_single_quote,
+)
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.types import (
-    ArrayType,
-    BinaryType,
-    BooleanType,
-    DataType,
-    DateType,
-    DecimalType,
-    DoubleType,
-    GeographyType,
-    LongType,
-    MapType,
-    StringType,
-    TimestampType,
-    TimeType,
-    VariantType,
-)
 
 logger = getLogger(__name__)
 
@@ -57,6 +51,36 @@ snowflake.connector.paramstyle = "qmark"
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
+
+
+def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
+    qualified_stage_name = unwrap_stage_location_single_quote(stage_location)
+    dest_prefix_name = (
+        dest_prefix
+        if not dest_prefix or dest_prefix.startswith("/")
+        else f"/{dest_prefix}"
+    )
+    return f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
+
+
+def _build_put_statement(
+    local_path: str,
+    stage_location: str,
+    dest_prefix: str = "",
+    parallel: int = 4,
+    compress_data: bool = True,
+    source_compression: str = "AUTO_DETECT",
+    overwrite: bool = False,
+) -> str:
+    target_path = normalize_remote_file_or_dir(
+        _build_target_path(stage_location, dest_prefix)
+    )
+    parallel_str = f"PARALLEL = {parallel}"
+    compress_str = f"AUTO_COMPRESS = {str(compress_data).upper()}"
+    source_compression_str = f"SOURCE_COMPRESSION = {source_compression.upper()}"
+    overwrite_str = f"OVERWRITE = {str(overwrite).upper()}"
+    final_statement = f"PUT {local_path} {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
+    return final_statement
 
 
 class ServerConnection:
@@ -84,18 +108,18 @@ class ServerConnection:
             def log_and_telemetry(func):
                 @functools.wraps(func)
                 def wrap(*args, **kwargs):
-                    logger.info(msg)
+                    logger.debug(msg)
                     start_time = time.perf_counter()
                     result = func(*args, **kwargs)
                     end_time = time.perf_counter()
                     duration = end_time - start_time
-                    sfqid = result["sfqid"] if "sfqid" in result else None
+                    sfqid = result["sfqid"] if result and "sfqid" in result else None
                     # If we don't have a query id, then its pretty useless to send perf telemetry
                     if sfqid:
                         args[0]._telemetry_client.send_upload_file_perf_telemetry(
                             func.__name__, duration, sfqid
                         )
-                    logger.info(f"Finished in {duration:.4f} secs")
+                    logger.debug(f"Finished in {duration:.4f} secs")
 
                 return wrap
 
@@ -107,33 +131,31 @@ class ServerConnection:
         conn: Optional[SnowflakeConnection] = None,
     ):
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
-        self.__add_application_name()
+        self._add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener = set()  # type: set[QueryHistory]
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
-        self._telemetry_client.send_session_created_telemetry(bool(conn))
+        self._telemetry_client.send_session_created_telemetry(not bool(conn))
 
-    def __add_application_name(self):
+    def _add_application_name(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
-            self._lower_case_parameters[
-                PARAM_APPLICATION
-            ] = Utils.get_application_name()
+            self._lower_case_parameters[PARAM_APPLICATION] = get_application_name()
         if PARAM_INTERNAL_APPLICATION_NAME not in self._lower_case_parameters:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_NAME
-            ] = Utils.get_application_name()
+            ] = get_application_name()
         if PARAM_INTERNAL_APPLICATION_VERSION not in self._lower_case_parameters:
             self._lower_case_parameters[
                 PARAM_INTERNAL_APPLICATION_VERSION
-            ] = Utils.get_version()
+            ] = get_version()
 
-    def add_query_listener(self, listener: QueryHistory):
+    def add_query_listener(self, listener: QueryHistory) -> None:
         self._query_listener.add(listener)
 
-    def remove_query_listener(self, listener: QueryHistory):
+    def remove_query_listener(self, listener: QueryHistory) -> None:
         self._query_listener.remove(listener)
 
     def close(self) -> None:
@@ -178,87 +200,13 @@ class ServerConnection:
             else None
         )
 
-    @_Decorator.wrap_exception
-    def get_parameter_value(self, parameter_name: str) -> Optional[str]:
-        # TODO: logging and running show command to get the parameter value if it's not present in connector
-        return self._conn._session_parameters.get(parameter_name.upper(), None)
-
     def _get_string_datum(self, query: str) -> Optional[str]:
-        rows = ServerConnection.result_set_to_rows(self.run_query(query)["data"])
+        rows = result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
-
-    @staticmethod
-    def get_data_type(column_type_name: str, precision: int, scale: int) -> DataType:
-        """Convert the Snowflake logical type to the Snowpark type."""
-        if column_type_name == "ARRAY":
-            return ArrayType(StringType())
-        if column_type_name == "VARIANT":
-            return VariantType()
-        if column_type_name == "OBJECT":
-            return MapType(StringType(), StringType())
-        if column_type_name == "GEOGRAPHY":  # not supported by python connector
-            return GeographyType()
-        if column_type_name == "BOOLEAN":
-            return BooleanType()
-        if column_type_name == "BINARY":
-            return BinaryType()
-        if column_type_name == "TEXT":
-            return StringType()
-        if column_type_name == "TIME":
-            return TimeType()
-        if (
-            column_type_name == "TIMESTAMP"
-            or column_type_name == "TIMESTAMP_LTZ"
-            or column_type_name == "TIMESTAMP_TZ"
-            or column_type_name == "TIMESTAMP_NTZ"
-        ):
-            return TimestampType()
-        if column_type_name == "DATE":
-            return DateType()
-        if column_type_name == "DECIMAL" or (
-            column_type_name == "FIXED" and scale != 0
-        ):
-            if precision != 0 or scale != 0:
-                if precision > DecimalType._MAX_PRECISION:
-                    return DecimalType(
-                        DecimalType._MAX_PRECISION,
-                        scale + precision - DecimalType._MAX_SCALE,
-                    )
-                else:
-                    return DecimalType(precision, scale)
-            else:
-                return DecimalType(38, 18)
-        if column_type_name == "REAL":
-            return DoubleType()
-        if column_type_name == "FIXED" and scale == 0:
-            return LongType()
-        raise NotImplementedError(
-            "Unsupported type: {}, precision: {}, scale: {}".format(
-                column_type_name, precision, scale
-            )
-        )
-
-    @staticmethod
-    def convert_result_meta_to_attribute(meta: List[ResultMetadata]) -> List[Attribute]:
-        attributes = []
-        for column_name, type_value, _, _, precision, scale, nullable in meta:
-            quoted_name = quote_name_without_upper_casing(column_name)
-            attributes.append(
-                Attribute(
-                    quoted_name,
-                    ServerConnection.get_data_type(
-                        FIELD_ID_TO_NAME[type_value], precision, scale
-                    ),
-                    nullable,
-                )
-            )
-        return attributes
 
     @_Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
-        return ServerConnection.convert_result_meta_to_attribute(
-            self._cursor.describe(query)
-        )
+        return convert_result_meta_to_attribute(self._cursor.describe(query))
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
@@ -271,15 +219,15 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        if Utils.is_in_stored_procedure():
+        if is_in_stored_procedure():
             file_name = os.path.basename(path)
-            target_path = self.__build_target_path(stage_location, dest_prefix)
+            target_path = _build_target_path(stage_location, dest_prefix)
             # upload_stream directly consume stage path, so we don't need to normalize it
             self._cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
         else:
-            uri = Utils.normalize_local_file(path)
+            uri = normalize_local_file(path)
             return self.run_query(
-                self.__build_put_statement(
+                _build_put_statement(
                     uri,
                     stage_location,
                     dest_prefix,
@@ -302,18 +250,18 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        uri = Utils.normalize_local_file(f"/tmp/placeholder/{dest_filename}")
+        uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
-            if Utils.is_in_stored_procedure():
+            if is_in_stored_procedure():
                 input_stream.seek(0)
-                target_path = self.__build_target_path(stage_location, dest_prefix)
+                target_path = _build_target_path(stage_location, dest_prefix)
                 # upload_stream directly consume stage path, so we don't need to normalize it
                 self._cursor.upload_stream(
                     input_stream, f"{target_path}/{dest_filename}"
                 )
             else:
                 return self.run_query(
-                    self.__build_put_statement(
+                    _build_put_statement(
                         uri,
                         stage_location,
                         dest_prefix,
@@ -334,36 +282,7 @@ class ServerConnection:
             else:
                 raise ex
 
-    def __build_target_path(self, stage_location: str, dest_prefix: str = "") -> str:
-        qualified_stage_name = Utils.unwrap_stage_location_single_quote(stage_location)
-        dest_prefix_name = (
-            dest_prefix
-            if not dest_prefix or dest_prefix.startswith("/")
-            else f"/{dest_prefix}"
-        )
-        return f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
-
-    def __build_put_statement(
-        self,
-        local_path: str,
-        stage_location: str,
-        dest_prefix: str = "",
-        parallel: int = 4,
-        compress_data: bool = True,
-        source_compression: str = "AUTO_DETECT",
-        overwrite: bool = False,
-    ) -> str:
-        target_path = Utils.normalize_remote_file_or_dir(
-            self.__build_target_path(stage_location, dest_prefix)
-        )
-        parallel_str = f"PARALLEL = {parallel}"
-        compress_str = f"AUTO_COMPRESS = {str(compress_data).upper()}"
-        source_compression_str = f"SOURCE_COMPRESSION = {source_compression.upper()}"
-        overwrite_str = f"OVERWRITE = {str(overwrite).upper()}"
-        final_statement = f"PUT {local_path} {target_path} {parallel_str} {compress_str} {source_compression_str} {overwrite_str}"
-        return final_statement
-
-    def notify_query_listeners(self, query_record: QueryRecord):
+    def notify_query_listeners(self, query_record: QueryRecord) -> None:
         for listener in self._query_listener:
             listener._add_query(query_record)
 
@@ -386,11 +305,9 @@ class ServerConnection:
             self.notify_query_listeners(
                 QueryRecord(results_cursor.sfqid, results_cursor.query)
             )
-            logger.info(
-                "Execute query [queryID: {}] {}".format(results_cursor.sfqid, query)
-            )
+            logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
         except Exception as ex:
-            logger.error("Failed to execute query {}\n{}".format(query, ex))
+            logger.error(f"Failed to execute query {query}\n{ex}")
             raise ex
 
         # fetch_pandas_all/batches() only works for SELECT statements
@@ -425,33 +342,6 @@ class ServerConnection:
 
         return {"data": data_or_iter, "sfqid": results_cursor.sfqid}
 
-    @staticmethod
-    def result_set_to_rows(
-        result_set: List[Any], result_meta: Optional[List[ResultMetadata]] = None
-    ) -> List[Row]:
-        if result_meta:
-            col_names = [col.name for col in result_meta]
-            rows = []
-            for data in result_set:
-                row = Row(*data)
-                # row might have duplicated column names
-                row._fields = col_names
-                rows.append(row)
-        else:
-            rows = [Row(*row) for row in result_set]
-        return rows
-
-    @staticmethod
-    def result_set_to_iter(
-        result_set: SnowflakeCursor, result_meta: Optional[List[ResultMetadata]] = None
-    ) -> Iterator[Row]:
-        col_names = [col.name for col in result_meta] if result_meta else None
-        for data in result_set:
-            row = Row(*data)
-            if col_names:
-                row._fields = col_names
-            yield row
-
     def execute(
         self,
         plan: SnowflakePlan,
@@ -468,9 +358,9 @@ class ServerConnection:
             return result_set
         else:
             if to_iter:
-                return ServerConnection.result_set_to_iter(result_set, result_meta)
+                return result_set_to_iter(result_set, result_meta)
             else:
-                return ServerConnection.result_set_to_rows(result_set, result_meta)
+                return result_set_to_rows(result_set, result_meta)
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -506,7 +396,7 @@ class ServerConnection:
                     )
                     placeholders[query.query_id_place_holder] = result["sfqid"]
                     result_meta = self._cursor.description
-                if action_id < plan.session._get_last_canceled_id():
+                if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
@@ -526,8 +416,8 @@ class ServerConnection:
         self, plan: SnowflakePlan, **kwargs
     ) -> (List[Row], List[Attribute]):
         result_set, result_meta = self.get_result_set(plan, **kwargs)
-        result = ServerConnection.result_set_to_rows(result_set)
-        meta = ServerConnection.convert_result_meta_to_attribute(result_meta)
+        result = result_set_to_rows(result_set)
+        meta = convert_result_meta_to_attribute(result_meta)
         return result, meta
 
     @_Decorator.wrap_exception
@@ -539,7 +429,7 @@ class ServerConnection:
             kwargs["_statement_params"]["QUERY_TAG"]
             if "_statement_params" in kwargs
             and "QUERY_TAG" in kwargs["_statement_params"]
-            and not Utils.is_in_stored_procedure()
+            and not is_in_stored_procedure()
             else None
         )
         if query_tag:
@@ -560,7 +450,7 @@ class ServerConnection:
             self.notify_query_listeners(
                 QueryRecord(unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
             )
-        logger.info(f"Execute batch insertion query %s", query)
+        logger.debug(f"Execute batch insertion query %s", query)
 
     def _fix_pandas_df_integer(self, pd_df: "pandas.DataFrame") -> "pandas.DataFrame":
         """To fix https://snowflakecomputing.atlassian.net/browse/SNOW-562208

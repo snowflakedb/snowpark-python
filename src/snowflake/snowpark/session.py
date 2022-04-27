@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -27,7 +26,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import DataTypeMapper
+from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -42,16 +41,29 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
-    _infer_schema,
-    _infer_type,
-    _merge_type,
+    infer_schema,
+    infer_type,
+    merge_type,
 )
 from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
+    STAGE_PREFIX,
     PythonObjJSONEncoder,
     TempObjectType,
-    Utils,
-    deprecate,
+    calculate_checksum,
+    get_connector_version,
+    get_os_name,
+    get_python_version,
+    get_stage_file_prefix_length,
+    get_version,
+    is_in_stored_procedure,
+    normalize_remote_file_or_dir,
+    parse_positional_args_to_list,
+    random_name_for_temp_object,
+    unwrap_single_quote,
+    unwrap_stage_location_single_quote,
+    validate_object_name,
+    zip_file_or_directory_to_stream,
 )
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
@@ -96,7 +108,7 @@ from snowflake.snowpark.udtf import UDTFRegistration
 logger = getLogger(__name__)
 
 _session_management_lock = RLock()
-_active_sessions = set()  # type: Set["Session"]
+_active_sessions: Set["Session"] = set()
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -109,12 +121,12 @@ def _get_active_session() -> Optional["Session"]:
             raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
 
 
-def _add_session(session: "Session"):
+def _add_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.add(session)
 
 
-def _remove_session(session: "Session"):
+def _remove_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.remove(session)
 
@@ -124,7 +136,7 @@ class Session:
     Establishes a connection with a Snowflake database and provides methods for creating DataFrames
     and accessing objects for working with files in stages.
 
-    When you create a Session object, you provide connection parameters to establish a
+    When you create a :class:`Session` object, you provide connection parameters to establish a
     connection with a Snowflake database (e.g. an account, a user name, etc.). You can
     specify these settings in a dict that associates connection parameters names with values.
     The Snowpark library uses `the Snowflake Connector for Python <https://docs.snowflake.com/en/user-guide/python-connector.html>`_
@@ -132,23 +144,23 @@ class Session:
     `Connecting to Snowflake using the Python Connector <https://docs.snowflake.com/en/user-guide/python-connector-example.html#connecting-to-snowflake>`_
     for the details of `Connection Parameters <https://docs.snowflake.com/en/user-guide/python-connector-api.html#connect>`_.
 
-    To create a Session object from a dict of connection parameters::
+    To create a :class:`Session` object from a ``dict`` of connection parameters::
 
-        connection_parameters = {
-            "user": "<user_name>",
-            "password": "<password>",
-            "account": "<account_name>",
-            "role": "<role_name>",
-            "warehouse": "<warehouse_name>",
-            "database": <database_name>,
-            "schema": <schema1_name>,
-        }
-        session = Session.builder.configs(connection_parameters).create()
+        >>> connection_parameters = {
+        ...     "user": "<user_name>",
+        ...     "password": "<password>",
+        ...     "account": "<account_name>",
+        ...     "role": "<role_name>",
+        ...     "warehouse": "<warehouse_name>",
+        ...     "database": "<database_name>",
+        ...     "schema": "<schema1_name>",
+        ... }
+        >>> session = Session.builder.configs(connection_parameters).create() # doctest: +SKIP
 
     :class:`Session` contains functions to construct a :class:`DataFrame` like :func:`table`,
     :func:`sql` and :func:`read`.
 
-    A ``Session`` object is not thread-safe.
+    A :class:`Session` object is not thread-safe.
     """
 
     class SessionBuilder:
@@ -157,18 +169,18 @@ class Session:
         """
 
         def __init__(self):
-            self.__options = {}
+            self._options = {}
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
-            self.__options.pop(key, None)
+            self._options.pop(key, None)
             return self
 
         def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
             """
-            Adds the specified connection parameter to the SessionBuilder configuration.
+            Adds the specified connection parameter to the :class:`SessionBuilder` configuration.
             """
-            self.__options[key] = value
+            self._options[key] = value
             return self
 
         def configs(
@@ -176,26 +188,26 @@ class Session:
         ) -> "Session.SessionBuilder":
             """
             Adds the specified :class:`dict` of connection parameters to
-            the SessionBuilder configuration.
+            the :class:`SessionBuilder` configuration.
 
             Note:
                 Calling this method overwrites any existing connection parameters
                 that you have already set in the SessionBuilder.
             """
-            self.__options = {**self.__options, **options}
+            self._options = {**self._options, **options}
             return self
 
         def create(self) -> "Session":
             """Creates a new Session."""
-            if "connection" in self.__options:
-                return self.__create_internal(self.__options["connection"])
-            return self.__create_internal(conn=None)
+            if "connection" in self._options:
+                return self._create_internal(self._options["connection"])
+            return self._create_internal(conn=None)
 
-        def __create_internal(
+        def _create_internal(
             self, conn: Optional[SnowflakeConnection] = None
         ) -> "Session":
             new_session = Session(
-                ServerConnection({}, conn) if conn else ServerConnection(self.__options)
+                ServerConnection({}, conn) if conn else ServerConnection(self._options)
             )
             _add_session(new_session)
             return new_session
@@ -203,41 +215,38 @@ class Session:
         def __get__(self, obj, objtype=None):
             return Session.SessionBuilder()
 
-    _STAGE_PREFIX = "@"
-
     #: Returns a builder you can use to set configuration properties
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()
 
     def __init__(self, conn: ServerConnection):
-        if len(_active_sessions) >= 1 and Utils.is_in_stored_procedure():
+        if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
-        self.__query_tag = None
-        self.__import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+        self._query_tag = None
+        self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
-        self.__session_id = self._conn.get_session_id()
+        self._session_id = self._conn.get_session_id()
         self._session_info = f"""
-"version" : {Utils.get_version()},
-"python.version" : {Utils.get_python_version()},
-"python.connector.version" : {Utils.get_connector_version()},
-"python.connector.session.id" : {self.__session_id},
-"os.name" : {Utils.get_os_name()}
+"version" : {get_version()},
+"python.version" : {get_python_version()},
+"python.connector.version" : {get_connector_version()},
+"python.connector.session.id" : {self._session_id},
+"os.name" : {get_os_name()}
 """
-        self.__session_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
-        self.__stage_created = False
-        self.__udf_registration = None
-        self.__udtf_registration = None
-        self.__sp_registration = None
-        self.__plan_builder = SnowflakePlanBuilder(self)
+        self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
+        self._stage_created = False
+        self._udf_registration = UDFRegistration(self)
+        self._udtf_registration = None
+        self._sp_registration = StoredProcedureRegistration(self)
+        self._plan_builder = SnowflakePlanBuilder(self)
+        self._last_action_id = 0
+        self._last_canceled_id = 0
 
-        self.__last_action_id = 0
-        self.__last_canceled_id = 0
-
-        self.__file = None
+        self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
-        logger.info(f"Python Snowpark Session information: %s", self._session_info)
+        logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
         return self
@@ -246,33 +255,30 @@ class Session:
         self.close()
 
     def _generate_new_action_id(self) -> int:
-        self.__last_action_id += 1
-        return self.__last_action_id
+        self._last_action_id += 1
+        return self._last_action_id
 
     def close(self) -> None:
         """Close this session."""
-        if Utils.is_in_stored_procedure():
+        if is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
             if self._conn.is_closed():
                 logger.debug(
                     "No-op because session %s had been previously closed.",
-                    self.__session_id,
+                    self._session_id,
                 )
             else:
-                logger.info(f"Closing session: %s", self.__session_id)
+                logger.info(f"Closing session: %s", self._session_id)
                 self.cancel_all()
         except Exception as ex:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
             try:
                 self._conn.close()
-                logger.info(f"Closed session: %s", self.__session_id)
+                logger.info(f"Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
-
-    def _get_last_canceled_id(self) -> int:
-        return self.__last_canceled_id
 
     def cancel_all(self) -> None:
         """
@@ -280,36 +286,15 @@ class Session:
         This does not affect any action methods called in the future.
         """
         logger.info("Canceling all running queries")
-        self.__last_canceled_id = self.__last_action_id
-        self._conn.run_query(f"select system$cancel_all_queries({self.__session_id})")
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_imports.",
-        extra_doc_string="Use :meth:`get_imports`.",
-    )
-    def getImports(self) -> List[str]:
-        return self.get_imports()
+        self._last_canceled_id = self._last_action_id
+        self._conn.run_query(f"select system$cancel_all_queries({self._session_id})")
 
     def get_imports(self) -> List[str]:
         """
         Returns a list of imports added for user defined functions (UDFs).
         This list includes any Python or zip files that were added automatically by the library.
         """
-        return list(self.__import_paths.keys())
-
-    def _get_local_imports(self) -> List[str]:
-        return [
-            dep for dep in self.get_imports() if not dep.startswith(self._STAGE_PREFIX)
-        ]
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use add_import.",
-        extra_doc_string="Use :meth:`add_import`.",
-    )
-    def addImport(self, path: str, import_path: Optional[str] = None) -> None:
-        return self.add_import(path, import_path)
+        return list(self._import_paths.keys())
 
     def add_import(self, path: str, import_path: Optional[str] = None) -> None:
         """
@@ -355,8 +340,8 @@ class Session:
             1. In favor of the lazy execution, the file will not be uploaded to the stage
             immediately, and it will be uploaded when a UDF is created.
 
-            2. The Snowpark library calculates an MD5 checksum for every file/directory.
-            Each file is uploaded to a subdirectory named after the MD5 checksum for the
+            2. The Snowpark library calculates a sha256 checksum for every file/directory.
+            Each file is uploaded to a subdirectory named after the checksum for the
             file in the stage. If there is an existing file or directory, the Snowpark
             library will compare their checksums to determine whether it should be re-uploaded.
             Therefore, after uploading a local file to the stage, if the user makes
@@ -373,15 +358,7 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         path, checksum, leading_path = self._resolve_import_path(path, import_path)
-        self.__import_paths[path] = (checksum, leading_path)
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use remove_import.",
-        extra_doc_string="Use :meth:`remove_import`.",
-    )
-    def removeImport(self, path: str) -> None:
-        return self.remove_import(path)
+        self._import_paths[path] = (checksum, leading_path)
 
     def remove_import(self, path: str) -> None:
         """
@@ -405,27 +382,19 @@ class Session:
         trimmed_path = path.strip()
         abs_path = (
             os.path.abspath(trimmed_path)
-            if not trimmed_path.startswith(self._STAGE_PREFIX)
+            if not trimmed_path.startswith(STAGE_PREFIX)
             else trimmed_path
         )
-        if abs_path not in self.__import_paths:
+        if abs_path not in self._import_paths:
             raise KeyError(f"{abs_path} is not found in the existing imports")
         else:
-            self.__import_paths.pop(abs_path)
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use clear_imports.",
-        extra_doc_string="Use :meth:`clear_imports`.",
-    )
-    def clearImports(self) -> None:
-        return self.clear_imports()
+            self._import_paths.pop(abs_path)
 
     def clear_imports(self) -> None:
         """
         Clears all files in a stage or local files from the imports of a user-defined function (UDF).
         """
-        self.__import_paths.clear()
+        self._import_paths.clear()
 
     def _resolve_import_path(
         self, path: str, import_path: Optional[str] = None
@@ -433,7 +402,7 @@ class Session:
         trimmed_path = path.strip()
         trimmed_import_path = import_path.strip() if import_path else None
 
-        if not trimmed_path.startswith(self._STAGE_PREFIX):
+        if not trimmed_path.startswith(STAGE_PREFIX):
             if not os.path.exists(trimmed_path):
                 raise FileNotFoundError(f"{trimmed_path} is not found")
             if not os.path.isfile(trimmed_path) and not os.path.isdir(trimmed_path):
@@ -474,7 +443,7 @@ class Session:
             # will change and the file in the stage will be overwritten.
             return (
                 abs_path,
-                Utils.calculate_md5(abs_path, additional_info=leading_path),
+                calculate_checksum(abs_path, additional_info=leading_path),
                 leading_path,
             )
         else:
@@ -490,14 +459,12 @@ class Session:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
         stage_file_list = self._list_files_in_stage(stage_location)
-        normalized_stage_location = Utils.unwrap_stage_location_single_quote(
-            stage_location
-        )
+        normalized_stage_location = unwrap_stage_location_single_quote(stage_location)
 
-        import_paths = udf_level_import_paths or self.__import_paths
+        import_paths = udf_level_import_paths or self._import_paths
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
-            if path.startswith(self._STAGE_PREFIX):
+            if path.startswith(STAGE_PREFIX):
                 resolved_stage_files.append(path)
             else:
                 filename = (
@@ -507,13 +474,13 @@ class Session:
                 )
                 filename_with_prefix = f"{prefix}/{filename}"
                 if filename_with_prefix in stage_file_list:
-                    logger.info(
+                    logger.debug(
                         f"{filename} exists on {normalized_stage_location}, skipped"
                     )
                 else:
                     # local directory or .py file
                     if os.path.isdir(path) or path.endswith(".py"):
-                        with Utils.zip_file_or_directory_to_stream(
+                        with zip_file_or_directory_to_stream(
                             path, leading_path, add_init_py=True
                         ) as input_stream:
                             self._conn.upload_stream(
@@ -535,7 +502,7 @@ class Session:
                             overwrite=True,
                         )
                 resolved_stage_files.append(
-                    Utils.normalize_remote_file_or_dir(
+                    normalize_remote_file_or_dir(
                         f"{normalized_stage_location}/{filename_with_prefix}"
                     )
                 )
@@ -543,15 +510,15 @@ class Session:
         return resolved_stage_files
 
     def _list_files_in_stage(self, stage_location: Optional[str] = None) -> Set[str]:
-        normalized = Utils.normalize_remote_file_or_dir(
-            Utils.unwrap_single_quote(stage_location)
+        normalized = normalize_remote_file_or_dir(
+            unwrap_single_quote(stage_location)
             if stage_location
-            else self.__session_stage
+            else self._session_stage
         )
         file_list = (
             self.sql(f"ls {normalized}").select('"name"')._internal_collect_with_tag()
         )
-        prefix_length = Utils.get_stage_file_prefix_length(stage_location)
+        prefix_length = get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
     def get_packages(self) -> Dict[str, str]:
@@ -565,12 +532,12 @@ class Session:
     def add_packages(
         self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
     ) -> None:
-        # TODO: add a link to python udf package doc
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
         Use this method to add packages for UDFs as installing packages using
         `conda <https://docs.conda.io/en/latest/>`_. You can also find examples in
-        :class:`~snowflake.snowpark.udf.UDFRegistration`.
+        :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
+        `third-party Python packages in Snowflake <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html>`_.
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -620,9 +587,7 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        self._resolve_packages(
-            Utils.parse_positional_args_to_list(*packages), self._packages
-        )
+        self._resolve_packages(parse_positional_args_to_list(*packages), self._packages)
 
     def remove_package(self, package: str) -> None:
         """
@@ -814,7 +779,7 @@ class Session:
             :meth:`DataFrame.show`, :meth:`DataFrame.create_or_replace_view` and
             :meth:`DataFrame.create_or_replace_temp_view` will push down the SQL query.
         """
-        return self.__query_tag
+        return self._query_tag
 
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
@@ -822,7 +787,7 @@ class Session:
             self._conn.run_query(f"alter session set query_tag = '{tag}'")
         else:
             self._conn.run_query("alter session unset query_tag")
-        self.__query_tag = tag
+        self._query_tag = tag
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """
@@ -834,13 +799,19 @@ class Session:
 
         Examples::
 
-            df1 = session.table("mytable")
-            df2 = session.table(["mydb", "myschema", "mytable"])
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df1.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> session.table("my_table").collect()
+            [Row(A=1, B=2), Row(A=3, B=4)]
+            >>> current_db = session.get_current_database()
+            >>> current_schema = session.get_current_schema()
+            >>> session.table([current_db, current_schema, "my_table"]).collect()
+            [Row(A=1, B=2), Row(A=3, B=4)]
         """
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
-        Utils.validate_object_name(name)
+        validate_object_name(name)
         return Table(name, self)
 
     def table_function(
@@ -855,10 +826,11 @@ class Session:
 
         Example::
 
-            word_list = session.table_function("split_to_table", lit("split words to table"), " ").collect()
+            >>> from snowflake.snowpark.functions import lit
+            >>> session.table_function("split_to_table", lit("split words to table"), lit(" ")).collect()
+            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
 
         Args:
-
             func_name: The SQL function name.
             func_arguments: The positional arguments for the SQL function.
             func_named_arguments: The named arguments for the SQL function, if it accepts named arguments.
@@ -888,12 +860,13 @@ class Session:
 
         Example::
 
-            # create a dataframe from a SQL query
-            df = session.sql("select 1")
-            # execute the query
-            df.collect()
+            >>> # create a dataframe from a SQL query
+            >>> df = session.sql("select 1/2")
+            >>> # execute the query
+            >>> df.collect()
+            [Row(1/2=Decimal('0.500000'))]
         """
-        return DataFrame(session=self, plan=self.__plan_builder.query(query, None))
+        return DataFrame(self, self._plan_builder.query(query, None))
 
     @property
     def read(self) -> "DataFrameReader":
@@ -909,14 +882,6 @@ class Session:
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
 
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_session_stage.",
-        extra_doc_string="Use :meth:`get_session_stage`.",
-    )
-    def getSessionStage(self) -> str:
-        return self.get_session_stage()
-
     def get_session_stage(self) -> str:
         """
         Returns the name of the temporary stage created by the Snowpark library
@@ -925,20 +890,20 @@ class Session:
         in this session via :func:`add_import`.
         """
         qualified_stage_name = (
-            f"{self.get_fully_qualified_current_schema()}.{self.__session_stage}"
+            f"{self.get_fully_qualified_current_schema()}.{self._session_stage}"
         )
-        if not self.__stage_created:
+        if not self._stage_created:
             self._run_query(
                 f"create temporary stage if not exists {qualified_stage_name}",
                 is_ddl_on_temp_object=True,
             )
-            self.__stage_created = True
-        return f"@{qualified_stage_name}"
+            self._stage_created = True
+        return f"{STAGE_PREFIX}{qualified_stage_name}"
 
     # TODO make the table input consistent with session.table
     def write_pandas(
         self,
-        pd: "pandas.DataFrame",
+        df: "pandas.DataFrame",
         table_name: str,
         *,
         database: Optional[str] = None,
@@ -950,50 +915,48 @@ class Session:
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
         create_temp_table: bool = False,
-    ) -> DataFrame:
+    ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
-        Snowpark :class:DataFrame object referring to the table where the
+        Snowpark :class:`DataFrame` object referring to the table where the
         pandas DataFrame was written to.
 
-        Note: Unless auto_create_table is true, you must first create a table in
-        Snowflake that the passed in pandas DataFrame can be written to. If
-        your pandas DataFrame cannot be written to the specified table, an
-        exception will be raised.
-
         Args:
-            pd: The pandas DataFrame we'd like to write back.
+            df: The pandas DataFrame we'd like to write back.
             table_name: Name of the table we want to insert into.
-            database: Database that the table is in. If not provided, the default one will be used (Default value = None).
-            schema: Schema that the table is in. If not provided, the default one will be used (Default value = None).
-            chunk_size: Number of elements to be inserted once. If not provided, all elements will be dumped once
-                (Default value = None).
+            database: Database that the table is in. If not provided, the default one will be used.
+            schema: Schema that the table is in. If not provided, the default one will be used.
+            chunk_size: Number of elements to be inserted once. If not provided, all elements will be dumped once.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
-                better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
-            on_error: Action to take when COPY INTO statements fail, default follows documentation at:
-                https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
-                (Default value = 'abort_statement').
-            parallel: Number of threads to be used when uploading chunks, default follows documentation at:
-                https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+                better compression, while snappy is faster. Use whichever is more appropriate.
+            on_error: Action to take when COPY INTO statements fail. See details at
+                `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
+            parallel: Number of threads to be used when uploading chunks. See details at
+                `parallel parameter <https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters>`_.
             quote_identifiers: By default, identifiers, specifically database, schema, table and column names
-                (from df.columns) will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
-                I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
+                (from :attr:`DataFrame.columns`) will be quoted. If set to ``False``, identifiers
+                are passed on to Snowflake without quoting, i.e. identifiers will be coerced to uppercase by Snowflake.
             auto_create_table: When true, automatically creates a table to store the passed in pandas DataFrame using the
-                passed in database, schema, and table_name. Note: there are usually multiple table configurations that
+                passed in ``database``, ``schema``, and ``table_name``. Note: there are usually multiple table configurations that
                 would allow you to upload a particular pandas DataFrame successfully. If you don't like the auto created
-                table, you can always create your own table before calling this function. For example, Auto-created
-                tables will store :class:`list`, :class:`tuple`, :class:`dict` as strings in a VARCHAR column.
+                table, you can always create your own table before calling this function. For example, auto-created
+                tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
+            create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
 
         Example::
 
-            import pandas as pd
+            >>> import pandas as pd
+            >>> pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
+            >>> snowpark_df = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=True, create_temp_table=True)
+            >>> snowpark_df.to_pandas()
+               id   name
+            0   1  Steve
+            1   2    Bob
 
-            pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
-            # "write_pandas_table" is a table that was pre-created with two columns,
-            # id and name which are an integer and varchar respectively
-            snowpark_df = session.write_pandas(pandas_df, "write_pandas_table")
-            snowpark_pandas_df = snowpark_df.to_pandas()
-            # These two pandas DataFrames have the same data
-            snowpark_pandas_df.eq(snowpark_df)
+        Note:
+            Unless ``auto_create_table`` is ``True``, you must first create a table in
+            Snowflake that the passed in pandas DataFrame can be written to. If
+            your pandas DataFrame cannot be written to the specified table, an
+            exception will be raised.
         """
         success = None  # forward declaration
         try:
@@ -1011,7 +974,7 @@ class Session:
                 )
             success, nchunks, nrows, ci_output = write_pandas(
                 self._conn._conn,
-                pd,
+                df,
                 table_name,
                 database=database,
                 schema=schema,
@@ -1064,20 +1027,30 @@ class Session:
 
         Examples::
 
-            import pandas as pd
+            >>> # create a dataframe with a schema
+            >>> from snowflake.snowpark.types import IntegerType, StringType, StructField
+            >>> schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
+            >>> session.create_dataframe([[1, "snow"], [3, "flake"]], schema).collect()
+            [Row(A=1, B='snow'), Row(A=3, B='flake')]
 
-            # infer schema
-            session.create_dataframe([1, 2, 3, 4]).to_df("a")  # one single column
-            session.create_dataframe([[1, 2, 3, 4]]).to_df("a", "b", "c", "d")
-            session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
-            session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
-            session.create_dataframe([{"a": "snow", "b": "flake"}])
-            session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"]))
+            >>> # create a dataframe by inferring a schema from the data
+            >>> from snowflake.snowpark import Row
+            >>> # infer schema
+            >>> session.create_dataframe([1, 2, 3, 4], schema=["a"]).collect()
+            [Row(A=1), Row(A=2), Row(A=3), Row(A=4)]
+            >>> session.create_dataframe([[1, 2, 3, 4]], schema=["a", "b", "c", "d"]).collect()
+            [Row(A=1, B=2, C=3, D=4)]
+            >>> session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).collect()
+            [Row(A=1, B=2), Row(A=3, B=4)]
+            >>> session.create_dataframe([Row(a=1, b=2, c=3, d=4)]).collect()
+            [Row(A=1, B=2, C=3, D=4)]
+            >>> session.createDataFrame([{"a": 1}, {"b": 2}]).collect()
+            [Row(A=1, B=None), Row(A=None, B=2)]
 
-            # given a schema
-            from snowflake.snowpark.types import IntegerType, StringType
-            schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
-            session.create_dataframe([[1, "snow"], [3, "flake"]], schema)
+            >>> # create a dataframe from a pandas Dataframe
+            >>> import pandas as pd
+            >>> session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])).collect()
+            [Row(a=1, b=2, c=3, d=4)]
         """
         if data is None:
             raise ValueError("data cannot be None.")
@@ -1098,7 +1071,7 @@ class Session:
         # table and return as a DataFrame
         if installed_pandas and isinstance(data, pandas.DataFrame):
             table_name = escape_quotes(
-                Utils.random_name_for_temp_object(TempObjectType.TABLE)
+                random_name_for_temp_object(TempObjectType.TABLE)
             )
             sf_database = self.get_current_database(unquoted=True)
             sf_schema = self.get_current_schema(unquoted=True)
@@ -1113,19 +1086,18 @@ class Session:
                 create_temp_table=True,
             )
 
-        if not data:
-            raise ValueError("data cannot be empty.")
-
         # infer the schema based on the data
         names = None
         if isinstance(schema, StructType):
             new_schema = schema
         else:
+            if not data:
+                raise ValueError("Cannot infer schema from empty data")
             if isinstance(schema, list):
                 names = schema
             new_schema = reduce(
-                _merge_type,
-                (_infer_schema(row, names) for row in data),
+                merge_type,
+                (infer_schema(row, names) for row in data),
             )
         if len(new_schema.fields) == 0:
             raise ValueError(
@@ -1283,77 +1255,33 @@ class Session:
 
         Examples::
 
-            # create a dataframe with one column containing values from 0 to 9
-            df1 = session.range(10)
-            # create a dataframe with one column containing values from 1 to 9
-            df2 = session.range(1, 10)
-            # create a dataframe with one column containing values 1, 3, 5, 7, 9
-            df3 = session.range(1, 10, 2)
+            >>> session.range(10).collect()
+            [Row(ID=0), Row(ID=1), Row(ID=2), Row(ID=3), Row(ID=4), Row(ID=5), Row(ID=6), Row(ID=7), Row(ID=8), Row(ID=9)]
+            >>> session.range(1, 10).collect()
+            [Row(ID=1), Row(ID=2), Row(ID=3), Row(ID=4), Row(ID=5), Row(ID=6), Row(ID=7), Row(ID=8), Row(ID=9)]
+            >>> session.range(1, 10, 2).collect()
+            [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
-        return DataFrame(session=self, plan=range_plan)
-
-    @deprecate(deprecate_version="0.4.0")
-    def getDefaultDatabase(self) -> Optional[str]:
-        """
-        Returns the name of the default database configured for this session in :attr:`builder`.
-        """
-        return self._conn.get_default_database()
-
-    @deprecate(deprecate_version="0.4.0")
-    def getDefaultSchema(self) -> Optional[str]:
-        """
-        Returns the name of the default schema configured for this session in :attr:`builder`.
-        """
-        return self._conn.get_default_schema()
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_current_database.",
-        extra_doc_string="Use :meth:`get_current_database`.",
-    )
-    def getCurrentDatabase(self, unquoted: bool = False) -> Optional[str]:
-        return self.get_current_schema(unquoted)
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_current_schema.",
-        extra_doc_string="Use :meth:`get_current_schema`.",
-    )
-    def getCurrentSchema(self, unquoted: bool = False) -> Optional[str]:
-        return self.get_current_schema(unquoted)
-
-    @deprecate(
-        deprecate_version="0.4.0",
-        extra_warning_text="Use get_fully_qualified_current_schema.",
-        extra_doc_string="Use :meth:`get_fully_qualified_current_schema`.",
-    )
-    def getFullyQualifiedCurrentSchema(self) -> str:
-        return self.get_fully_qualified_current_schema()
+        return DataFrame(self, range_plan)
 
     def get_current_database(self, unquoted: bool = False) -> Optional[str]:
         """
         Returns the name of the current database for the Python connector session attached
-        to this session.
+        to this session. See the example in :meth:`table`.
 
-        Example::
-
-            session.use_database("newDB")
-            # return "newDB"
-            session.get_current_database()
+        Args:
+            unquoted: The result will be unquoted if it is true.
         """
         return self._conn._get_current_parameter("database", unquoted=unquoted)
 
     def get_current_schema(self, unquoted: bool = False) -> Optional[str]:
         """
         Returns the name of the current schema for the Python connector session attached
-        to this session.
+        to this session. See the example in :meth:`table`.
 
-        Example::
-
-            session.use_schema("newSchema")
-            # return "newSchema"
-            session.get_current_schema()
+        Args:
+            unquoted: The result will be unquoted if it is true.
         """
         return self._conn._get_current_parameter("schema", unquoted=unquoted)
 
@@ -1369,16 +1297,27 @@ class Session:
             )
         return database + "." + schema
 
-    def get_current_warehouse(self, unquoted=False) -> Optional[str]:
-        """Returns the name of the warehouse in use for the current session."""
+    def get_current_warehouse(self, unquoted: bool = False) -> Optional[str]:
+        """
+        Returns the name of the warehouse in use for the current session.
+
+        Args:
+            unquoted: The result will be unquoted if it is true.
+        """
         return self._conn._get_current_parameter("warehouse", unquoted=unquoted)
 
-    def get_current_role(self, unquoted=False) -> Optional[str]:
-        """Returns the name of the primary role in use for the current session."""
-        return self._conn._get_current_parameter("role", unquoted)
+    def get_current_role(self, unquoted: bool = False) -> Optional[str]:
+        """
+        Returns the name of the primary role in use for the current session.
+
+        Args:
+            unquoted: The result will be unquoted if it is true.
+        """
+        return self._conn._get_current_parameter("role", unquoted=unquoted)
 
     def use_database(self, database: str) -> None:
         """Specifies the active/current database for the session.
+
         Args:
             database: The database name.
         """
@@ -1421,7 +1360,22 @@ class Session:
             raise ValueError("'role' must not be empty or None.")
 
     @property
-    def telemetry_enabled(self):
+    def telemetry_enabled(self) -> bool:
+        """
+        Returns whether telemetry is enabled. The default value is ``True`` and can
+        be set to ``False`` to disable telemetry.
+
+        Example::
+
+            >>> session.telemetry_enabled
+            True
+            >>> session.telemetry_enabled = False
+            >>> session.telemetry_enabled
+            False
+            >>> session.telemetry_enabled = True
+            >>> session.telemetry_enabled
+            True
+        """
         return self._conn._conn.telemetry_enabled
 
     @telemetry_enabled.setter
@@ -1436,16 +1390,11 @@ class Session:
 
     @property
     def file(self) -> FileOperation:
-        """Returns a :class:`FileOperation` object that you can use to perform file operations on stages.
-
-        Examples::
-
-            session.file.put("file:///tmp/file1.csv", "@myStage/prefix1")
-            session.file.get("@myStage/prefix1", "file:///tmp")
         """
-        if not self.__file:
-            self.__file = FileOperation(self)
-        return self.__file
+        Returns a :class:`FileOperation` object that you can use to perform file operations on stages.
+        See details of how to use this object in :class:`FileOperation`.
+        """
+        return self._file
 
     @property
     def udf(self) -> UDFRegistration:
@@ -1453,9 +1402,7 @@ class Session:
         Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
-        if not self.__udf_registration:
-            self.__udf_registration = UDFRegistration(self)
-        return self.__udf_registration
+        return self._udf_registration
 
     @property
     def udtf(self) -> UDTFRegistration:
@@ -1463,9 +1410,9 @@ class Session:
         Returns a :class:`udf.UDTFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
-        if not self.__udtf_registration:
-            self.__udtf_registration = UDTFRegistration(self)
-        return self.__udtf_registration
+        if not self._udtf_registration:
+            self._udtf_registration = UDTFRegistration(self)
+        return self._udtf_registration
 
     @property
     def sproc(self) -> StoredProcedureRegistration:
@@ -1473,11 +1420,9 @@ class Session:
         Returns a :class:`stored_procedure.StoredProcedureRegistration` object that you can use to register stored procedures.
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
-        if not self.__sp_registration:
-            self.__sp_registration = StoredProcedureRegistration(self)
-        return self.__sp_registration
+        return self._sp_registration
 
-    def call(self, sproc_name: str, *args: Any):
+    def call(self, sproc_name: str, *args: Any) -> Any:
         """Calls a stored procedure by name.
 
         Args:
@@ -1502,11 +1447,11 @@ class Session:
             >>> session.table("test_to").count()
             10
         """
-        Utils.validate_object_name(sproc_name)
+        validate_object_name(sproc_name)
 
         sql_args = []
         for arg in args:
-            sql_args.append(DataTypeMapper.to_sql(arg, _infer_type(arg)))
+            sql_args.append(to_sql(arg, infer_type(arg)))
         return self.sql(f"CALL {sproc_name}({', '.join(sql_args)})").collect()[0][0]
 
     def flatten(
@@ -1538,7 +1483,7 @@ class Session:
             input: The name of a column or a :class:`Column` instance that will be unseated into rows.
                 The column data must be of Snowflake data type VARIANT, OBJECT, or ARRAY.
             path: The path to the element within a VARIANT data structure which needs to be flattened.
-                The outermost element is to be flattened if path is empty or None.
+                The outermost element is to be flattened if path is empty or ``None``.
             outer: If ``False``, any input rows that cannot be expanded, either because they cannot be accessed in the ``path``
                 or because they have zero fields or entries, are completely omitted from the output.
                 Otherwise, exactly one row is generated for zero-row expansions
@@ -1549,6 +1494,24 @@ class Session:
 
         Returns:
             A new :class:`DataFrame` that has the flattened new columns and new rows from the compound data.
+
+        Example::
+
+            >>> from snowflake.snowpark.functions import lit, parse_json
+            >>> session.flatten(parse_json(lit('{"a":[1,2]}')), path="a", outer=False, recursive=False, mode="BOTH").show()
+            -------------------------------------------------------
+            |"SEQ"  |"KEY"  |"PATH"  |"INDEX"  |"VALUE"  |"THIS"  |
+            -------------------------------------------------------
+            |1      |NULL   |a[0]    |0        |1        |[       |
+            |       |       |        |         |         |  1,    |
+            |       |       |        |         |         |  2     |
+            |       |       |        |         |         |]       |
+            |1      |NULL   |a[1]    |1        |2        |[       |
+            |       |       |        |         |         |  1,    |
+            |       |       |        |         |         |  2     |
+            |       |       |        |         |         |]       |
+            -------------------------------------------------------
+            <BLANKLINE>
 
         See Also:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.

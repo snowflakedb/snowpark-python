@@ -5,8 +5,21 @@
 from typing import Dict
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    create_file_format_statement,
+    drop_file_format_if_exists_statement,
+    infer_schema_statement,
+    quote_name_without_upper_casing,
+)
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
+from snowflake.snowpark._internal.utils import (
+    COPY_OPTIONS,
+    INFER_SCHEMA_FORMAT_TYPES,
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.types import StructType, VariantType
 
@@ -79,8 +92,8 @@ class DataFrameReader:
             results = csv_df.collect()
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
-        self.session = session
+    def __init__(self, session: "snowflake.snowpark.session.Session"):
+        self._session = session
         self._user_schema = None
         self._cur_options = {}
         self._file_path = None
@@ -101,7 +114,7 @@ class DataFrameReader:
         Args:
             name: Name of the table to use.
         """
-        return self.session.table(name)
+        return self._session.table(name)
 
     def schema(self, schema: StructType) -> "DataFrameReader":
         """Returns a :class:`DataFrameReader` instance with the specified schema
@@ -144,12 +157,12 @@ class DataFrameReader:
         self._file_path = path
         self._file_type = "csv"
         df = DataFrame(
-            self.session,
-            self.session._Session__plan_builder.read_file(
+            self._session,
+            self._session._plan_builder.read_file(
                 path,
                 self._file_type,
                 self._cur_options,
-                self.session.get_fully_qualified_current_schema(),
+                self._session.get_fully_qualified_current_schema(),
                 self._user_schema._to_attributes(),
             ),
         )
@@ -177,7 +190,7 @@ class DataFrameReader:
             path: The path to the JSON file (including the stage name).
 
         """
-        return self.__read_semi_structured_file(path, "JSON")
+        return self._read_semi_structured_file(path, "JSON")
 
     def avro(self, path: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the
@@ -193,7 +206,7 @@ class DataFrameReader:
             path: The path to the Avro file (including the stage name).
 
         """
-        return self.__read_semi_structured_file(path, "AVRO")
+        return self._read_semi_structured_file(path, "AVRO")
 
     def parquet(self, path: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the specified
@@ -218,7 +231,7 @@ class DataFrameReader:
             path: The path to the Parquet file (including the stage name).
 
         """
-        return self.__read_semi_structured_file(path, "PARQUET")
+        return self._read_semi_structured_file(path, "PARQUET")
 
     def orc(self, path: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the specified
@@ -240,7 +253,7 @@ class DataFrameReader:
             path: The path to the ORC file (including the stage name).
 
         """
-        return self.__read_semi_structured_file(path, "ORC")
+        return self._read_semi_structured_file(path, "ORC")
 
     def xml(self, path: str) -> DataFrame:
         """Returns a :class:`DataFrame` that is set up to load data from the specified
@@ -262,7 +275,7 @@ class DataFrameReader:
         Args:
             path: The path to the XML file (including the stage name).
         """
-        return self.__read_semi_structured_file(path, "XML")
+        return self._read_semi_structured_file(path, "XML")
 
     def option(self, key: str, value) -> "DataFrameReader":
         """Sets the specified option in the DataFrameReader.
@@ -318,6 +331,17 @@ class DataFrameReader:
                 # Load the data into the DataFrame and return an Array of Rows containing the results.
                 results = csv_df.collect()
 
+        By default, we will automatically determine the schema for parquet, avro and orc
+        files and allow you to select from the individual columns. If you would like to
+        disable this, you can set the `INFER_SCHEMA <https://docs.snowflake.com/en/sql-reference/functions/infer_schema.html>`_
+        option to False. If you disable this schema detection, then everything is loaded into a VARIANT column called, $1.
+
+        Example 5:
+            Disabling schema detection::
+
+            >>> # Create a DataFrameReader that doesn't infer the schema for avro, parquet, or orc
+            >>> default_schema_reader = session.read.option("INFER_SCHEMA", False)
+
         Args:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
@@ -356,19 +380,92 @@ class DataFrameReader:
             self.option(k, v)
         return self
 
-    def __read_semi_structured_file(self, path: str, format: str) -> "DataFrame":
+    def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
         self._file_type = format
+
+        format_type_options = {}
+        for k, v in self._cur_options.items():
+            if k not in ("PATTERN", "INFER_SCHEMA") and k not in COPY_OPTIONS:
+                format_type_options[k] = v
+
+        infer_schema = (
+            self._cur_options.get("INFER_SCHEMA", True)
+            if format in INFER_SCHEMA_FORMAT_TYPES
+            else False
+        )
+
+        schema = [Attribute('"$1"', VariantType())]
+        transformations = None
+        schema_to_cast = None
+        if infer_schema:
+            temp_file_format_name = (
+                self._session.get_fully_qualified_current_schema()
+                + "."
+                + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+            )
+            create_file_format_query = create_file_format_statement(
+                temp_file_format_name,
+                format,
+                format_type_options,
+                temp=True,
+                if_not_exist=True,
+            )
+            drop_file_format_if_exists_query = drop_file_format_if_exists_statement(
+                temp_file_format_name
+            )
+            infer_schema_query = infer_schema_statement(path, temp_file_format_name)
+            try:
+                self._session._conn.run_query(
+                    create_file_format_query, is_ddl_on_temp_object=True
+                )
+                results = self._session._conn.run_query(infer_schema_query)["data"]
+                new_schema = []
+                schema_to_cast = []
+                transformations = []
+                for r in results:
+                    # Columns for r [column_name, type, nullable, expression, filenames]
+                    name = quote_name_without_upper_casing(r[0])
+                    # Parse the type returned by infer_schema command to
+                    # pass to determine datatype for schema
+                    data_type_parts = r[1].split("(")
+                    parts_length = len(data_type_parts)
+                    if parts_length == 1:
+                        data_type = r[1]
+                        precision = 0
+                        scale = 0
+                    else:
+                        data_type = data_type_parts[0]
+                        precision = int(data_type_parts[1].split(",")[0])
+                        scale = int(data_type_parts[1].split(",")[1][:-1])
+                    new_schema.append(
+                        Attribute(
+                            name,
+                            convert_sf_to_sp_type(data_type, precision, scale),
+                            r[2],
+                        )
+                    )
+                    schema_to_cast.append((r[3], r[0]))
+                    transformations.append(r[3])
+                schema = new_schema
+            finally:
+                # Clean up the file format we created
+                self._session._conn.run_query(
+                    drop_file_format_if_exists_query, is_ddl_on_temp_object=True
+                )
+
         df = DataFrame(
-            self.session,
-            self.session._Session__plan_builder.read_file(
+            self._session,
+            self._session._plan_builder.read_file(
                 path,
                 format,
                 self._cur_options,
-                self.session.get_fully_qualified_current_schema(),
-                [Attribute('"$1"', VariantType())],
+                self._session.get_fully_qualified_current_schema(),
+                schema,
+                schema_to_cast=schema_to_cast,
+                transformations=transformations,
             ),
         )
         df._reader = self

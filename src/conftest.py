@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import os
 import sys
 import uuid
@@ -10,6 +10,8 @@ import uuid
 import pytest
 
 from snowflake.snowpark import Session
+
+logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
@@ -28,13 +30,13 @@ def add_snowpark_session(doctest_namespace):
         globals()["CONNECTION_PARAMETERS"]
     ).create() as session:
         if RUNNING_ON_GH:
-            session.sql("CREATE SCHEMA IF NOT EXISTS {}".format(TEST_SCHEMA)).collect()
+            session.sql(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}").collect()
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
             session.sql(
-                "GRANT ALL PRIVILEGES ON SCHEMA {} TO ROLE PUBLIC".format(TEST_SCHEMA)
+                f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
             ).collect()
             session.use_schema(TEST_SCHEMA)
         doctest_namespace["session"] = session
         yield
         if RUNNING_ON_GH:
-            session.sql("DROP SCHEMA IF EXISTS {}".format(TEST_SCHEMA)).collect()
+            session.sql(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}").collect()

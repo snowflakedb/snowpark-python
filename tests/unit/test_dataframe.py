@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 from unittest.mock import MagicMock
 
 from snowflake.snowpark import DataFrame, DataFrameNaFunctions, DataFrameStatFunctions
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark.dataframe import _get_unaliased
 
 
 def test_get_unaliased():
     # Basic single-aliased column
     aliased = "l_gdyf_A"
     unaliased = "A"
-    values = DataFrame.get_unaliased(aliased)
+    values = _get_unaliased(aliased)
     assert len(values) == 1
     assert values[0] == unaliased
 
@@ -21,7 +20,7 @@ def test_get_unaliased():
     aliased = "l_gdyf_l_yuif_A"
     unaliased = "l_yuif_A"
     unaliased2 = "A"
-    values = DataFrame.get_unaliased(aliased)
+    values = _get_unaliased(aliased)
     assert len(values) == 2
     assert values[0] == unaliased
     assert values[1] == unaliased2
@@ -29,7 +28,7 @@ def test_get_unaliased():
     # Column that isn't aliased
     aliased = "l_hfdjishafud_A"
     unaliased = "l_hfdjishafud_A"
-    values = DataFrame.get_unaliased(aliased)
+    values = _get_unaliased(aliased)
     assert len(values) == 0
 
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -158,7 +157,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
     -----------------------------
     <BLANKLINE>
 
-  - ``Union[Column, str]`` accepts a ``Column`` object, or a SQL expression. For instance, the first parameter in :func:``when``.
+  - ``ColumnOrSqlExpr`` accepts a ``Column`` object, or a SQL expression. For instance, the first parameter in :func:``when``.
 
     >>> df.select(when("a > 2", "Greater than 2").else_("Less than 2").alias("compare_with_2")).show()
     --------------------
@@ -172,7 +171,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
 import functools
 from random import randint
 from types import ModuleType
-from typing import Callable, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Iterable, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -186,15 +185,21 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.analyzer.window_expression import Lag, Lead
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
+    ColumnOrLiteralStr,
     ColumnOrName,
+    ColumnOrSqlExpr,
     LiteralType,
 )
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import (
+    parse_positional_args_to_list,
+    validate_object_name,
+)
 from snowflake.snowpark.column import (
     CaseExpr,
     Column,
     _to_col_if_sql_expr,
     _to_col_if_str,
+    _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import DataType, StructType
@@ -234,7 +239,7 @@ def current_session() -> Column:
     Returns a unique system identifier for the Snowflake session corresponding to the present connection.
     This will generally be a system-generated alphanumeric string. It is NOT derived from the user name or user account.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_session()).collect()
         >>> assert result is not None
@@ -246,7 +251,7 @@ def current_statement() -> Column:
     """
     Returns the SQL text of the statement that is currently executing.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_statement()).collect()
         >>> assert result is not None
@@ -258,7 +263,7 @@ def current_user() -> Column:
     """
     Returns the name of the user currently logged into the system.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_user()).collect()
         >>> assert result is not None
@@ -270,7 +275,7 @@ def current_version() -> Column:
     """
     Returns the current Snowflake version.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_version()).collect()
         >>> assert result is not None
@@ -282,12 +287,192 @@ def current_warehouse() -> Column:
     """
     Returns the name of the warehouse in use for the current session.
 
-    Example::
+    Example:
         >>> # Return result is tied to session, so we only test if the result exists
         >>> result = session.create_dataframe([1]).select(current_warehouse()).collect()
         >>> assert result is not None
     """
     return builtin("current_warehouse")()
+
+
+def current_database() -> Column:
+    """Returns the name of the database in use for the current session.
+
+    Example:
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_database()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_database")()
+
+
+def current_role() -> Column:
+    """Returns the name of the role in use for the current session.
+
+    Example:
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_role()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_role")()
+
+
+def current_schema() -> Column:
+    """Returns the name of the schema in use for the current session.
+
+    Example:
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_schema()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_schema")()
+
+
+def current_schemas() -> Column:
+    """Returns active search path schemas.
+
+    Example:
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_schemas()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_schemas")()
+
+
+def current_region() -> Column:
+    """Returns the name of the region for the account where the current user is logged in.
+
+    Example:
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_region()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_region")()
+
+
+def current_available_roles() -> Column:
+    """Returns a JSON string that lists all roles granted to the current user.
+
+    Example:
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(current_available_roles()).collect()
+        >>> assert result is not None
+    """
+    return builtin("current_available_roles")()
+
+
+def add_months(
+    date_or_timestamp: ColumnOrName, number_of_months: Union[Column, int]
+) -> Column:
+    """Adds or subtracts a specified number of months to a date or timestamp, preserving the end-of-month information.
+
+    Example:
+        >>> import datetime
+        >>> df = session.create_dataframe([datetime.date(2022, 4, 6)], schema=["d"])
+        >>> df.select(add_months("d", 4)).collect()[0][0]
+        datetime.date(2022, 8, 6)
+    """
+    c = _to_col_if_str(date_or_timestamp, "add_months")
+    return builtin("add_months")(c, number_of_months)
+
+
+def any_value(e: ColumnOrName) -> Column:
+    """Returns a non-deterministic any value for the specified column.
+    This is an aggregate and window function.
+
+    Example:
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        >>> result = df.select(any_value("a")).collect()
+        >>> assert len(result) == 1  # non-deterministic value in result.
+    """
+    c = _to_col_if_str(e, "any_value")
+    return call_builtin("any_value", c)
+
+
+def bitnot(e: ColumnOrName) -> Column:
+    """Returns the bitwise negation of a numeric expression.
+
+    Example:
+        >>> df = session.create_dataframe([1], schema=["a"])
+        >>> df.select(bitnot("a")).collect()[0][0]
+        -2
+    """
+    c = _to_col_if_str(e, "bitnot")
+    return call_builtin("bitnot", c)
+
+
+def bitshiftleft(to_shift_column: ColumnOrName, n: Union[Column, int]) -> Column:
+    """Returns the bitwise negation of a numeric expression.
+
+    Example:
+        >>> df = session.create_dataframe([2], schema=["a"])
+        >>> df.select(bitshiftleft("a", 1)).collect()[0][0]
+        4
+    """
+    c = _to_col_if_str(to_shift_column, "bitshiftleft")
+    return call_builtin("bitshiftleft", c, n)
+
+
+def bitshiftright(to_shift_column: ColumnOrName, n: Union[Column, int]) -> Column:
+    """Returns the bitwise negation of a numeric expression.
+
+    Example:
+        >>> df = session.create_dataframe([2], schema=["a"])
+        >>> df.select(bitshiftright("a", 1)).collect()[0][0]
+        1
+    """
+    c = _to_col_if_str(to_shift_column, "bitshiftright")
+    return call_builtin("bitshiftright", c, n)
+
+
+def convert_timezone(
+    target_timezone: ColumnOrName,
+    source_time: ColumnOrName,
+    source_timezone: Optional[ColumnOrName] = None,
+) -> Column:
+    """Converts the given source_time to the target timezone.
+
+    For timezone information, refer to the `Snowflake SQL convert_timezone notes <https://docs.snowflake.com/en/sql-reference/functions/convert_timezone.html#usage-notes>`_
+
+        Args:
+            target_timezone: The time zone to which the input timestamp should be converted.=
+            source_time: The timestamp to convert. When it's a TIMESTAMP_LTZ, use ``None`` for ``source_timezone``.
+            source_timezone: The time zone for the ``source_time``. Required for timestamps with no time zone (i.e. TIMESTAMP_NTZ). Use ``None`` if the timestamps have a time zone (i.e. TIMESTAMP_LTZ). Default is ``None``.
+
+        Note:
+            The sequence of the 3 params is different from the SQL function, which two overloads:
+
+              - ``CONVERT_TIMEZONE( <source_tz> , <target_tz> , <source_timestamp_ntz> )``
+              - ``CONVERT_TIMEZONE( <target_tz> , <source_timestamp> )``
+
+            The first parameter ``source_tz`` is optional. But in Python an optional argument shouldn't be placed at the first.
+            So ``source_timezone`` is after ``source_time``.
+
+        Example:
+            >>> import datetime
+            >>> from dateutil import tz
+            >>> datetime_with_tz = datetime.datetime(2022, 4, 6, 9, 0, 0, tzinfo=tz.tzoffset("myzone", -3600*7))
+            >>> datetime_with_no_tz = datetime.datetime(2022, 4, 6, 9, 0, 0)
+            >>> df = session.create_dataframe([[datetime_with_tz, datetime_with_no_tz]], schema=["a", "b"])
+            >>> result = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai"))).collect()
+            >>> result[0][0]
+            datetime.datetime(2022, 4, 6, 16, 0, tzinfo=<UTC>)
+            >>> result[0][1]
+            datetime.datetime(2022, 4, 6, 1, 0)
+    """
+    source_tz = (
+        _to_col_if_str(source_timezone, "convert_timezone")
+        if source_timezone is not None
+        else None
+    )
+    target_tz = _to_col_if_str(target_timezone, "convert_timezone")
+    source_time_to_convert = _to_col_if_str(source_time, "convert_timezone")
+
+    if source_timezone is None:
+        return call_builtin("convert_timezone", target_tz, source_time_to_convert)
+    return call_builtin(
+        "convert_timezone", source_tz, target_tz, source_time_to_convert
+    )
 
 
 def approx_count_distinct(e: ColumnOrName) -> Column:
@@ -548,8 +733,37 @@ def not_(e: ColumnOrName) -> Column:
 
 def random(seed: Optional[int] = None) -> Column:
     """Each call returns a pseudo-random 64-bit integer."""
-    s = seed if seed is not None else randint(-(2 ** 63), 2 ** 63 - 1)
+    s = seed if seed is not None else randint(-(2**63), 2**63 - 1)
     return builtin("random")(Literal(s))
+
+
+def uniform(
+    min_: Union[ColumnOrName, int, float],
+    max_: Union[ColumnOrName, int, float],
+    gen: Union[ColumnOrName, int, float],
+) -> Column:
+    """
+    Returns a uniformly random number.
+
+    Example::
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[1]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(uniform(1, 100, col("a")).alias("UNIFORM")).collect()
+        [Row(UNIFORM=62)]
+    """
+    min_col = (
+        lit(min_) if isinstance(min_, (int, float)) else _to_col_if_str(min_, "uniform")
+    )
+    max_col = (
+        lit(max_) if isinstance(max_, (int, float)) else _to_col_if_str(max_, "uniform")
+    )
+    gen_col = (
+        lit(gen) if isinstance(gen, (int, float)) else _to_col_if_str(gen, "uniform")
+    )
+    return builtin("uniform")(min_col, max_col, gen_col)
 
 
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
@@ -805,6 +1019,29 @@ def upper(e: ColumnOrName) -> Column:
     return builtin("upper")(c)
 
 
+def strtok_to_array(
+    text: ColumnOrName, delimiter: Optional[ColumnOrName] = None
+) -> Column:
+    """
+    Tokenizes the given string using the given set of delimiters and returns the tokens as an array.
+
+    If either parameter is a NULL, a NULL is returned. An empty array is returned if tokenization produces no tokens.
+
+    Example::
+        >>> df = session.create_dataframe(
+        ...     [["a.b.c", "."], ["1,2.3", ","]],
+        ...     schema=["text", "delimiter"],
+        ... )
+        >>> df.select(strtok_to_array("text", "delimiter").alias("TIME_FROM_PARTS")).collect()
+        [Row(TIME_FROM_PARTS='[\\n  "a",\\n  "b",\\n  "c"\\n]'), Row(TIME_FROM_PARTS='[\\n  "1",\\n  "2.3"\\n]')]
+    """
+    t = _to_col_if_str(text, "strtok_to_array")
+    d = _to_col_if_str(delimiter, "strtok_to_array") if delimiter else None
+    return (
+        builtin("strtok_to_array")(t, d) if delimiter else builtin("strtok_to_array")(t)
+    )
+
+
 def log(
     base: Union[ColumnOrName, int, float], x: Union[ColumnOrName, int, float]
 ) -> Column:
@@ -870,7 +1107,7 @@ substr = substring
 
 def regexp_count(
     subject: ColumnOrName,
-    pattern: Union[Column, str],
+    pattern: ColumnOrLiteralStr,
     position: Union[Column, int] = lit(1),
     *parameters: ColumnOrLiteral,
 ) -> Column:
@@ -886,8 +1123,8 @@ def regexp_count(
 
 def regexp_replace(
     subject: ColumnOrName,
-    pattern: Union[Column, str],
-    replacement: Union[Column, str] = lit(""),
+    pattern: ColumnOrLiteralStr,
+    replacement: ColumnOrLiteralStr = lit(""),
     position: Union[Column, int] = lit(1),
     occurrences: Union[Column, int] = lit(0),
     *parameters: ColumnOrLiteral,
@@ -908,8 +1145,8 @@ def regexp_replace(
 
 def replace(
     subject: ColumnOrName,
-    pattern: Union[Column, str],
-    replacement: Union[Column, str] = lit(""),
+    pattern: ColumnOrLiteralStr,
+    replacement: ColumnOrLiteralStr = lit(""),
 ) -> Column:
     """
     Removes all occurrences of a specified subject and optionally replaces them with replacement.
@@ -1034,7 +1271,7 @@ def char(col: ColumnOrName) -> Column:
     return builtin("char")(c)
 
 
-def to_char(c: ColumnOrName, format: Optional[Union[Column, str]] = None) -> Column:
+def to_char(c: ColumnOrName, format: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts a Unicode code point (including 7-bit ASCII) into the character that
     matches the input Unicode."""
     c = _to_col_if_str(c, "to_char")
@@ -1269,6 +1506,19 @@ def year(e: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(e, "year")
     return builtin("year")(c)
+
+
+def sysdate() -> Column:
+    """
+    Returns the current timestamp for the system, but in the UTC time zone.
+
+    Example::
+
+        >>> df = session.create_dataframe([1], schema=["a"])
+        >>> df.select(sysdate()).collect() is not None
+        True
+    """
+    return builtin("sysdate")()
 
 
 def months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
@@ -1594,6 +1844,291 @@ def is_timestamp_tz(col: ColumnOrName) -> Column:
     return builtin("is_timestamp_tz")(c)
 
 
+def _columns_from_timestamp_parts(
+    func_name: str, *args: Union[ColumnOrName, int]
+) -> Tuple[Column, ...]:
+    if len(args) == 3:
+        year_ = _to_col_if_str_or_int(args[0], func_name)
+        month = _to_col_if_str_or_int(args[1], func_name)
+        day = _to_col_if_str_or_int(args[2], func_name)
+        return year_, month, day
+    elif len(args) == 6:
+        year_ = _to_col_if_str_or_int(args[0], func_name)
+        month = _to_col_if_str_or_int(args[1], func_name)
+        day = _to_col_if_str_or_int(args[2], func_name)
+        hour = _to_col_if_str_or_int(args[3], func_name)
+        minute = _to_col_if_str_or_int(args[4], func_name)
+        second = _to_col_if_str_or_int(args[5], func_name)
+        return year_, month, day, hour, minute, second
+    else:
+        # Should never happen since we only use this internally
+        raise ValueError(f"Incorrect number of args passed to {func_name}")
+
+
+def _timestamp_from_parts_internal(
+    func_name: str, *args: Union[ColumnOrName, int], **kwargs: Union[ColumnOrName, int]
+) -> Tuple[Column, ...]:
+    num_args = len(args)
+    if num_args == 2:
+        # expression mode
+        date_expr = _to_col_if_str(args[0], func_name)
+        time_expr = _to_col_if_str(args[1], func_name)
+        return date_expr, time_expr
+    elif 6 <= num_args <= 8:
+        # parts mode
+        y, m, d, h, min_, s = _columns_from_timestamp_parts(func_name, *args[:6])
+        ns_arg = args[6] if num_args == 7 else kwargs.get("nanoseconds")
+        # Timezone is only accepted in timestamp_from_parts function
+        tz_arg = args[7] if num_args == 8 else kwargs.get("timezone")
+        if tz_arg is not None and func_name != "timestamp_from_parts":
+            raise ValueError(f"{func_name} does not accept timezone as an argument")
+        ns = None if ns_arg is None else _to_col_if_str_or_int(ns_arg, func_name)
+        tz = None if tz_arg is None else _to_col_if_sql_expr(tz_arg, func_name)
+        if ns is not None and tz is not None:
+            return y, m, d, h, min_, s, ns, tz
+        elif ns is not None:
+            return y, m, d, h, min_, s, ns
+        elif tz is not None:
+            # We need to fill in nanoseconds as 0 to make the sql function work
+            return y, m, d, h, min_, s, lit(0), tz
+        else:
+            return y, m, d, h, min_, s
+    else:
+        raise ValueError(
+            f"{func_name} expected 2 or 6 required arguments, got {num_args}"
+        )
+
+
+def time_from_parts(
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanoseconds: Optional[Union[ColumnOrName, int]] = None,
+) -> Column:
+    """
+    Creates a time from individual numeric components.
+
+    TIME_FROM_PARTS is typically used to handle values in "normal" ranges (e.g. hours 0-23, minutes 0-59),
+    but it also handles values from outside these ranges. This allows, for example, choosing the N-th minute
+    in a day, which can be used to simplify some computations.
+
+    Example::
+
+        >>> df = session.create_dataframe(
+        ...     [[11, 11, 0, 987654321], [10, 10, 0, 987654321]],
+        ...     schema=["hour", "minute", "second", "nanoseconds"],
+        ... )
+        >>> df.select(time_from_parts(
+        ...     "hour", "minute", "second", nanoseconds="nanoseconds"
+        ... ).alias("TIME_FROM_PARTS")).collect()
+        [Row(TIME_FROM_PARTS=datetime.time(11, 11, 0, 987654)), Row(TIME_FROM_PARTS=datetime.time(10, 10, 0, 987654))]
+    """
+    h, m, s = _columns_from_timestamp_parts("time_from_parts", hour, minute, second)
+    if nanoseconds:
+        return builtin("time_from_parts")(
+            h, m, s, _to_col_if_str_or_int(nanoseconds, "time_from_parts")
+        )
+    else:
+        return builtin("time_from_parts")(h, m, s)
+
+
+@overload
+def timestamp_from_parts(date_expr: ColumnOrName, time_expr: ColumnOrName) -> Column:
+    ...
+
+
+@overload
+def timestamp_from_parts(
+    year: Union[ColumnOrName, int],
+    month: Union[ColumnOrName, int],
+    day: Union[ColumnOrName, int],
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanosecond: Optional[Union[ColumnOrName, int]] = None,
+    timezone: Optional[ColumnOrLiteralStr] = None,
+) -> Column:
+    ...
+
+
+def timestamp_from_parts(*args, **kwargs) -> Column:
+    """
+    Creates a timestamp from individual numeric components. If no time zone is in effect,
+    the function can be used to create a timestamp from a date expression and a time expression.
+
+    Example 1::
+
+        >>> df = session.create_dataframe(
+        ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
+        ...     schema=["year", "month", "day", "hour", "minute", "second"],
+        ... )
+        >>> df.select(timestamp_from_parts(
+        ...     "year", "month", "day", "hour", "minute", "second"
+        ... ).alias("TIMESTAMP_FROM_PARTS")).collect()
+        [Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
+
+    Example 2::
+
+        >>> df = session.create_dataframe(
+        ...     [['2022-04-01', '11:11:00'], ['2022-03-31', '11:11:00']],
+        ...     schema=["date", "time"]
+        ... )
+        >>> df.select(
+        ...     timestamp_from_parts(to_date("date"), to_time("time")
+        ... ).alias("TIMESTAMP_FROM_PARTS")).collect()
+        [Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
+    """
+    return builtin("timestamp_from_parts")(
+        *_timestamp_from_parts_internal("timestamp_from_parts", *args, **kwargs)
+    )
+
+
+def timestamp_ltz_from_parts(
+    year: Union[ColumnOrName, int],
+    month: Union[ColumnOrName, int],
+    day: Union[ColumnOrName, int],
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanoseconds: Optional[Union[ColumnOrName, int]] = None,
+) -> Column:
+    """
+    Creates a timestamp from individual numeric components.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
+        ...     schema=["year", "month", "day", "hour", "minute", "second"],
+        ... )
+        >>> df.select(timestamp_ltz_from_parts(
+        ...     "year", "month", "day", "hour", "minute", "second"
+        ... ).alias("TIMESTAMP_LTZ_FROM_PARTS")).collect()
+        [Row(TIMESTAMP_LTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>)), Row(TIMESTAMP_LTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11, tzinfo=<DstTzInfo 'America/Los_Angeles' PDT-1 day, 17:00:00 DST>))]
+    """
+    func_name = "timestamp_ltz_from_parts"
+    y, m, d, h, min_, s = _columns_from_timestamp_parts(
+        func_name, year, month, day, hour, minute, second
+    )
+    ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
+    return (
+        builtin(func_name)(y, m, d, h, min_, s)
+        if ns is None
+        else builtin(func_name)(y, m, d, h, min_, s, ns)
+    )
+
+
+@overload
+def timestamp_ntz_from_parts(
+    date_expr: ColumnOrName, time_expr: ColumnOrName
+) -> Column:
+    ...
+
+
+@overload
+def timestamp_ntz_from_parts(
+    year: Union[ColumnOrName, int],
+    month: Union[ColumnOrName, int],
+    day: Union[ColumnOrName, int],
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanosecond: Optional[Union[ColumnOrName, int]] = None,
+) -> Column:
+    ...
+
+
+def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
+    """
+    Creates a timestamp from individual numeric components. The function can be used to
+    create a timestamp from a date expression and a time expression.
+
+    Example 1::
+
+        >>> df = session.create_dataframe(
+        ...     [[2022, 4, 1, 11, 11, 0], [2022, 3, 31, 11, 11, 0]],
+        ...     schema=["year", "month", "day", "hour", "minute", "second"],
+        ... )
+        >>> df.select(timestamp_ntz_from_parts(
+        ...     "year", "month", "day", "hour", "minute", "second"
+        ... ).alias("TIMESTAMP_NTZ_FROM_PARTS")).collect()
+        [Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
+
+    Example 2::
+
+        >>> df = session.create_dataframe(
+        ...     [['2022-04-01', '11:11:00'], ['2022-03-31', '11:11:00']],
+        ...     schema=["date", "time"]
+        ... )
+        >>> df.select(
+        ...     timestamp_ntz_from_parts(to_date("date"), to_time("time")
+        ... ).alias("TIMESTAMP_NTZ_FROM_PARTS")).collect()
+        [Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11)), Row(TIMESTAMP_NTZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11))]
+    """
+    return builtin("timestamp_ntz_from_parts")(
+        *_timestamp_from_parts_internal("timestamp_ntz_from_parts", *args, **kwargs)
+    )
+
+
+def timestamp_tz_from_parts(
+    year: Union[ColumnOrName, int],
+    month: Union[ColumnOrName, int],
+    day: Union[ColumnOrName, int],
+    hour: Union[ColumnOrName, int],
+    minute: Union[ColumnOrName, int],
+    second: Union[ColumnOrName, int],
+    nanoseconds: Optional[Union[ColumnOrName, int]] = None,
+    timezone: Optional[ColumnOrLiteralStr] = None,
+) -> Column:
+    """
+    Creates a timestamp from individual numeric components and a string timezone.
+
+    Example::
+
+        >>> df = session.create_dataframe(
+        ...     [[2022, 4, 1, 11, 11, 0, 'America/Los_Angeles'], [2022, 3, 31, 11, 11, 0, 'America/Los_Angeles']],
+        ...     schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
+        ... )
+        >>> df.select(timestamp_tz_from_parts(
+        ...     "year", "month", "day", "hour", "minute", "second", timezone="timezone"
+        ... ).alias("TIMESTAMP_TZ_FROM_PARTS")).collect()
+        [Row(TIMESTAMP_TZ_FROM_PARTS=datetime.datetime(2022, 4, 1, 11, 11, tzinfo=pytz.FixedOffset(-420))), Row(TIMESTAMP_TZ_FROM_PARTS=datetime.datetime(2022, 3, 31, 11, 11, tzinfo=pytz.FixedOffset(-420)))]
+    """
+    func_name = "timestamp_tz_from_parts"
+    y, m, d, h, min_, s = _columns_from_timestamp_parts(
+        func_name, year, month, day, hour, minute, second
+    )
+    ns = None if nanoseconds is None else _to_col_if_str_or_int(nanoseconds, func_name)
+    tz = None if timezone is None else _to_col_if_sql_expr(timezone, func_name)
+    if nanoseconds is not None and timezone is not None:
+        return builtin(func_name)(y, m, d, h, min_, s, ns, tz)
+    elif nanoseconds is not None:
+        return builtin(func_name)(y, m, d, h, min_, s, ns)
+    elif timezone is not None:
+        return builtin(func_name)(y, m, d, h, min_, s, lit(0), tz)
+    else:
+        return builtin(func_name)(y, m, d, h, min_, s)
+
+
+def weekofyear(e: ColumnOrName) -> Column:
+    """
+    Extracts the corresponding week (number) of the year from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe(
+        ...     [[datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f")]],
+        ...     schema=["a"],
+        ... )
+        >>> df.select(weekofyear("a")).collect()
+        [Row(WEEKOFYEAR("A")=18)]
+    """
+    c = _to_col_if_str(e, "weekofyear")
+    return builtin("weekofyear")(c)
+
+
 def typeof(col: ColumnOrName) -> Column:
     """Reports the type of a value stored in a VARIANT column. The type is returned as a string."""
     c = _to_col_if_str(col, "typeof")
@@ -1858,7 +2393,7 @@ def object_insert(
         return builtin("object_insert")(o, k, v)
 
 
-def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName):
+def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> Column:
     """Returns a new OBJECT containing some of the key-value pairs from an existing object.
 
     To identify the key-value pairs to include in the new object, pass in the keys as arguments,
@@ -1919,7 +2454,7 @@ def try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
     return c.try_cast(to)
 
 
-def __as_decimal_or_number(
+def _as_decimal_or_number(
     cast_type: str,
     variant: ColumnOrName,
     precision: Optional[int] = None,
@@ -1943,7 +2478,7 @@ def as_decimal(
     scale: Optional[int] = None,
 ) -> Column:
     """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
-    return __as_decimal_or_number("as_decimal", variant, precision, scale)
+    return _as_decimal_or_number("as_decimal", variant, precision, scale)
 
 
 def as_number(
@@ -1952,7 +2487,7 @@ def as_number(
     scale: Optional[int] = None,
 ) -> Column:
     """Casts a VARIANT value to a fixed-point decimal (does not match floating-point values)."""
-    return __as_decimal_or_number("as_number", variant, precision, scale)
+    return _as_decimal_or_number("as_number", variant, precision, scale)
 
 
 def as_double(variant: ColumnOrName) -> Column:
@@ -2089,7 +2624,7 @@ def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("get")(c1, c2)
 
 
-def when(condition: Union[Column, str], value: Union[ColumnOrLiteral]) -> CaseExpr:
+def when(condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
     When a condition evaluates to TRUE, the evaluation stops and the associated
@@ -2115,7 +2650,7 @@ def when(condition: Union[Column, str], value: Union[ColumnOrLiteral]) -> CaseEx
 
 
 def iff(
-    condition: Union[Column, str],
+    condition: ColumnOrSqlExpr,
     expr1: Union[ColumnOrLiteral],
     expr2: Union[ColumnOrLiteral],
 ) -> Column:
@@ -2184,7 +2719,7 @@ def in_(
         cols: A list of the columns to compare for the IN operation.
         vals: A list containing the values to compare for the IN operation.
     """
-    vals = Utils.parse_positional_args_to_list(*vals)
+    vals = parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
     return Column(MultipleExpression([c.expression for c in columns])).in_(vals)
 
@@ -2271,6 +2806,35 @@ def ntile(e: ColumnOrName) -> Column:
     return builtin("ntile")(c)
 
 
+def percentile_cont(percentile: float) -> Column:
+    """
+    Return a percentile value based on a continuous distribution of the
+    input column. If no input row lies exactly at the desired percentile,
+    the result is calculated using linear interpolation of the two nearest
+    input values. NULL values are ignored in the calculation.
+
+    Args:
+        percentile: the percentile of the value that you want to find.
+            The percentile must be a constant between 0.0 and 1.0. For example,
+            if you want to find the value at the 90th percentile, specify 0.9.
+
+    Example:
+
+        >>> df = session.create_dataframe([
+        ...     (0, 0), (0, 10), (0, 20), (0, 30), (0, 40),
+        ...     (1, 10), (1, 20), (2, 10), (2, 20), (2, 25),
+        ...     (2, 30), (3, 60), (4, None)
+        ... ], schema=["k", "v"])
+        >>> df.group_by("k").agg(percentile_cont(0.25).within_group("v").as_("percentile")).sort("k").collect()
+        [Row(K=0, PERCENTILE=Decimal('10.000')), \
+Row(K=1, PERCENTILE=Decimal('12.500')), \
+Row(K=2, PERCENTILE=Decimal('17.500')), \
+Row(K=3, PERCENTILE=Decimal('60.000')), \
+Row(K=4, PERCENTILE=None)]
+    """
+    return builtin("percentile_cont")(percentile)
+
+
 def greatest(*columns: ColumnOrName) -> Column:
     """Returns the largest value from a list of expressions. If any of the argument values is NULL, the result is NULL. GREATEST supports all data types, including VARIANT."""
     c = [_to_col_if_str(ex, "greatest") for ex in columns]
@@ -2334,9 +2898,9 @@ def udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
-    **kwargs,
+    max_batch_size: Optional[int] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -2388,6 +2952,12 @@ def udf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDF files.
+        max_batch_size: The maximum number of rows per input Pandas DataFrame or Pandas Series
+            inside a vectorized UDF. Because a vectorized UDF will be executed within a time limit,
+            which is `60` seconds, this optional argument can be used to reduce the running time of
+            every batch by setting a smaller batch size. Note that setting a larger value does not
+            guarantee that Snowflake will encode batches with the specified number of rows. It will
+            be ignored when registering a non-vectorized UDF.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -2402,6 +2972,12 @@ def udf(
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
               to annotate a geography when defining a UDF.
 
+            - You can use use :attr:`~snowflake.snowpark.types.PandasSeries` to annotate
+              a Pandas Series, and use :attr:`~snowflake.snowpark.types.PandasDataFrame`
+              to annotate a Pandas DataFrame when defining a vectorized UDF.
+              Note that they are generic types so you can specify the element type in a
+              Pandas Series and DataFrame.
+
             - :class:`typing.Union` is not a valid type annotation for UDFs,
               but :class:`typing.Optional` can be used to indicate the optional type.
 
@@ -2415,6 +2991,11 @@ def udf(
         3. By default, UDF registration fails if a function with the same name is already
         registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
+
+        4. When registering a vectorized UDF, ``pandas`` library will be added as a package
+        automatically, with the latest version on the Snowflake server. If you don't want to
+        use this version, you can overwrite it by adding `pandas` with specific version
+        requirement using ``package`` argument or :meth:`~snowflake.snowpark.Session.add_packages`.
 
     See Also:
         :class:`~snowflake.snowpark.udf.UDFRegistration`
@@ -2432,7 +3013,7 @@ def udf(
             packages=packages,
             replace=replace,
             parallel=parallel,
-            **kwargs,
+            max_batch_size=max_batch_size,
         )
     else:
         return session.udf.register(
@@ -2446,7 +3027,7 @@ def udf(
             packages=packages,
             replace=replace,
             parallel=parallel,
-            **kwargs,
+            max_batch_size=max_batch_size,
         )
 
 
@@ -2573,7 +3154,7 @@ def udtf(
         )
 
 
-def _pandas_udf(
+def pandas_udf(
     func: Optional[Callable] = None,
     *,
     return_type: Optional[DataType] = None,
@@ -2584,49 +3165,15 @@ def _pandas_udf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
-    Registers a Python function as a Pandas UDF (vectorized UDF) and returns the UDF.
-
-    Examples::
-
-        from snowflake.snowpark.functions import pandas_udf
-        from snowflake.snowpark.types import IntegerType, PandasDataFrameType, PandasSeriesType, PandasDataFrame, PandasSeries,
-
-        df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
-        add_udf = pandas_udf(lambda x, y: x + y, return_type=PandasSeriesType(IntegerType()),
-                             input_types=[PandasSeriesType(IntegerType()), PandasSeriesType(IntegerType())])
-        df.select(add_udf("a", "b")).collect()
-
-        @pandas_udf(max_batch_size=20)
-        def apply_mod5_udf(x: PandasSeries[int]) -> PandasSeries[int]:
-            return x.apply(lambda x: x % 5)
-
-        df.select(apply_mod5_udf("a")).collect()
-
-        import pandas as pd
-
-        def add_df_one(df: pd.DataFrame) -> pd.Series:
-            return df[0] + df[1] + 1
-
-        add_df_one_udf = pandas_udf(lambda x, y: x + y, return_type=IntegerType(),
-                                    input_types=[IntegerType()), IntegerType()])
-
-        df.select(add_df_one_udf("a", "b")).collect()
-
-    Note:
-        1. This function can only be used to register Pandas UDFs. :func:`udf` and
-        :meth:`UDFRegistration.register() <snowflake.snowpark.udf.UDFRegistration.register>`
-        can be used to register both non-Pandas UDFs and Pandas UDFs, by providing
-        appropriate return and input types.
-
-        2. When registering a Pandas UDF, ``pandas`` will be added as a package automatically,
-        with the latest version on the Snowflake server. If you don't want to use this version,
-        you can overwrite it by adding `pandas` with specific version requirement using
-        ``package`` argument or :meth:`~snowflake.snowpark.Session.add_packages`.
+    Registers a Python function as a vectorized UDF and returns the UDF.
+    The arguments, return value and usage of this function are exactly the same as
+    :func:`udf`, but this function can only be used for registering vectorized UDFs.
+    See examples in :class:`~snowflake.snowpark.udf.UDFRegistration`.
 
     See Also:
         - :func:`udf`
@@ -2691,7 +3238,7 @@ def call_udf(
         <BLANKLINE>
     """
 
-    Utils.validate_object_name(udf_name)
+    validate_object_name(udf_name)
     return _call_function(udf_name, False, *args)
 
 
@@ -2756,9 +3303,7 @@ def builtin(function_name: str) -> Callable:
 def _call_function(
     name: str, is_distinct: bool = False, *args: ColumnOrLiteral
 ) -> Column:
-    expressions = [
-        Column._to_expr(arg) for arg in Utils.parse_positional_args_to_list(*args)
-    ]
+    expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
     return Column(FunctionExpression(name, expressions, is_distinct=is_distinct))
 
 

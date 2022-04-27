@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -138,7 +137,7 @@ def test_describe_schema_matches_execute_schema_for_show_queries(session):
         "integrations",
     ]
     for obj in objs:
-        query = "show {}".format(obj)
+        query = f"show {obj}"
         # describe query
         show_query_schema_describe = session._get_result_attributes(query)
         assert len(show_query_schema_describe) > 0

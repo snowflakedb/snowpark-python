@@ -3,7 +3,7 @@
 #
 
 from functools import reduce
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
@@ -32,8 +32,8 @@ class DataFrameStatFunctions:
 
     def approx_quantile(
         self,
-        col: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-        percentile: Union[List[float], Tuple[float, ...]],
+        col: Union[ColumnOrName, Iterable[ColumnOrName]],
+        percentile: Iterable[float],
     ) -> Union[List[float], List[List[float]]]:
         """For a specified numeric column and a list of desired quantiles, returns an approximate value for the column at each of the desired quantiles.
         This function uses the t-Digest algorithm.

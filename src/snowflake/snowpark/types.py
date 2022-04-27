@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -7,11 +6,12 @@
 import re
 from typing import Generic, Iterable, List, Optional, TypeVar, Union
 
+import snowflake.snowpark._internal.analyzer.expression as expression
 from snowflake.connector.options import installed_pandas, pandas
 
 
 class DataType:
-    """The base class of Snowpark data types"""
+    """The base class of Snowpark data types."""
 
     @property
     def type_name(self) -> str:
@@ -139,11 +139,11 @@ class DecimalType(_FractionalType):
         self.precision = precision
         self.scale = scale
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Decimal({self.precision}, {self.scale})"
 
     @property
-    def type_name(self):
+    def type_name(self) -> str:
         """Returns Decimal Info. Decimal(precision, scale)."""
         return self.__repr__()
 
@@ -154,11 +154,11 @@ class ArrayType(DataType):
     def __init__(self, element_type: DataType = StringType()):
         self.element_type = element_type
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"ArrayType[{str(self.element_type)}]"
 
     @property
-    def type_name(self):
+    def type_name(self) -> str:
         """Returns Array Info. ArrayType(DataType)."""
         return self.__repr__()
 
@@ -172,18 +172,18 @@ class MapType(DataType):
         self.key_type = key_type
         self.value_type = value_type
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"MapType[{str(self.key_type)}, {str(self.value_type)}]"
 
     @property
-    def type_name(self):
+    def type_name(self) -> str:
         return self.__repr__()
 
 
 class ColumnIdentifier:
     """Represents a column identifier."""
 
-    def __init__(self, normalized_name):
+    def __init__(self, normalized_name: str):
         self.normalized_name = normalized_name
 
     @property
@@ -260,7 +260,7 @@ class StructField:
         self.nullable = nullable
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Returns the column name."""
         return self.column_identifier.name
 
@@ -268,7 +268,7 @@ class StructField:
     def name(self, n: str) -> None:
         self.column_identifier = ColumnIdentifier(n)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"StructField({self.name}, {self.datatype.type_name}, Nullable={self.nullable})"
 
     def __eq__(self, other):
@@ -282,18 +282,18 @@ class StructType(DataType):
         self.fields = fields
 
     @classmethod
-    def _from_attributes(cls, attributes: list):
+    def _from_attributes(cls, attributes: list) -> "StructType":
         return cls([StructField(a.name, a.datatype, a.nullable) for a in attributes])
 
-    def _to_attributes(self):
-        from snowflake.snowpark._internal.analyzer.expression import Attribute
-
+    def _to_attributes(self) -> List["expression.Attribute"]:
         return [
-            Attribute(f.column_identifier.quoted_name, f.datatype, f.nullable)
+            expression.Attribute(
+                f.column_identifier.quoted_name, f.datatype, f.nullable
+            )
             for f in self.fields
         ]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"StructType[{', '.join(str(f) for f in self.fields)}]"
 
     @property
@@ -302,7 +302,7 @@ class StructType(DataType):
         return self.__class__.__name__[:-4]
 
     @property
-    def names(self):
+    def names(self) -> List[str]:
         """Returns the list of names of the :class:`StructField`"""
         return [f.name for f in self.fields]
 

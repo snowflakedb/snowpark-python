@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -20,7 +19,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.telemetry import df_action_telemetry
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.dataframe import DataFrame, _disambiguate
 from snowflake.snowpark.row import Row
 
 
@@ -58,8 +57,8 @@ class WhenMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self.condition_expr = condition.expression if condition is not None else None
-        self.clause = None
+        self._condition_expr = condition.expression if condition is not None else None
+        self._clause = None
 
     def update(
         self, assignments: Dict[str, Union[ColumnOrLiteral]]
@@ -75,28 +74,35 @@ class WhenMatchedClause:
                 The value of ``assignments`` can either be a literal value or
                 a :class:`Column` object.
 
-        Examples::
+        Example::
 
-            # Adds a matched clause where a row in source is matched
-            # if its id is equal to the id of any row in target.
-            # For all such rows, update its value to the value of the
-            # corresponding row in source.
-            from snowflake.snowpark.functions import when_matched
-            target.merge(source, target["id"] == source["id"], [when_matched().update({"value": source("value")})])
+            >>> # Adds a matched clause where a row in source is matched
+            >>> # if its key is equal to the key of any row in target.
+            >>> # For all such rows, update its value to the value of the
+            >>> # corresponding row in source.
+            >>> from snowflake.snowpark.functions import when_matched
+            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target = session.table("my_table")
+            >>> source = session.create_dataframe([(10, "new")], schema=["key", "value"])
+            >>> target.merge(source, target["key"] == source["key"], [when_matched().update({"value": source["value"]})])
+            MergeResult(rows_inserted=0, rows_updated=2, rows_deleted=0)
+            >>> target.collect() # the value in the table is updated
+            [Row(KEY=10, VALUE='new'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
 
         Note:
             An exception will be raised if this method or :meth:`WhenMatchedClause.delete`
             is called more than once on the same :class:`WhenMatchedClause` object.
         """
-        if self.clause:
+        if self._clause:
             raise SnowparkClientExceptionMessages.MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
                 "update"
-                if isinstance(self.clause, UpdateMergeExpression)
+                if isinstance(self._clause, UpdateMergeExpression)
                 else "delete",
                 "WhenMatchedClause",
             )
-        self.clause = UpdateMergeExpression(
-            self.condition_expr,
+        self._clause = UpdateMergeExpression(
+            self._condition_expr,
             {Column(k).expression: Column._to_expr(v) for k, v in assignments.items()},
         )
         return self
@@ -109,25 +115,31 @@ class WhenMatchedClause:
 
         Example::
 
-            # Adds a matched clause where a row in source is matched
-            # if its id is equal to the id of any row in target.
-            # For all such rows, update its value to the value of the
-            # corresponding row in source.
-            from snowflake.snowpark.functions import when_matched
-            target.merge(source, target["id"] == source["id"], [when_matched().delete()])
+            >>> # Adds a matched clause where a row in source is matched
+            >>> # if its key is equal to the key of any row in target.
+            >>> # For all such rows, delete them.
+            >>> from snowflake.snowpark.functions import when_matched
+            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target = session.table("my_table")
+            >>> source = session.create_dataframe([(10, "new")], schema=["key", "value"])
+            >>> target.merge(source, target["key"] == source["key"], [when_matched().delete()])
+            MergeResult(rows_inserted=0, rows_updated=0, rows_deleted=2)
+            >>> target.collect() # the rows are deleted
+            [Row(KEY=11, VALUE='old')]
 
         Note:
             An exception will be raised if this method or :meth:`WhenMatchedClause.update`
             is called more than once on the same :class:`WhenMatchedClause` object.
         """
-        if self.clause:
+        if self._clause:
             raise SnowparkClientExceptionMessages.MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
                 "update"
-                if isinstance(self.clause, UpdateMergeExpression)
+                if isinstance(self._clause, UpdateMergeExpression)
                 else "delete",
                 "WhenMatchedClause",
             )
-        self.clause = DeleteMergeExpression(self.condition_expr)
+        self._clause = DeleteMergeExpression(self._condition_expr)
         return self
 
 
@@ -144,8 +156,8 @@ class WhenNotMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self.condition_expr = condition.expression if condition is not None else None
-        self.clause = None
+        self._condition_expr = condition.expression if condition is not None else None
+        self._clause = None
 
     def insert(
         self, assignments: Union[Iterable[ColumnOrLiteral], Dict[str, ColumnOrLiteral]]
@@ -163,22 +175,33 @@ class WhenNotMatchedClause:
 
         Examples::
 
-            # Adds a not-matched clause where a row in source is not matched
-            # if its id does not equal the id of any row in target.
-            # For all such rows, insert a row into target whose id and value
-            # are assigned to the id and value of the not matched row.
-            from snowflake.snowpark.functions import when_not_matched
-            target.merge(source, target["id"] == source["id"], [when_not_matched().insert([source("id"), source("value")])])
+            >>> # Adds a not-matched clause where a row in source is not matched
+            >>> # if its key does not equal the key of any row in target.
+            >>> # For all such rows, insert a row into target whose ley and value
+            >>> # are assigned to the key and value of the not matched row.
+            >>> from snowflake.snowpark.functions import when_not_matched
+            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target = session.table("my_table")
+            >>> source = session.create_dataframe([(12, "new")], schema=["key", "value"])
+            >>> target.merge(source, target["key"] == source["key"], [when_not_matched().insert([source["key"], source["value"]])])
+            MergeResult(rows_inserted=1, rows_updated=0, rows_deleted=0)
+            >>> target.collect() # the rows are inserted
+            [Row(KEY=12, VALUE='new'), Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old')]
 
-            # For all such rows, insert a row into target whose id is
-            # assigned to the id of the not matched row.
-            target.merge(source, target["id"] == source["id"], [when_not_matched().insert({"id": source("id")})])
+            >>> # For all such rows, insert a row into target whose key is
+            >>> # assigned to the key of the not matched row.
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target.merge(source, target["key"] == source["key"], [when_not_matched().insert({"key": source["key"]})])
+            MergeResult(rows_inserted=1, rows_updated=0, rows_deleted=0)
+            >>> target.collect() # the rows are inserted
+            [Row(KEY=12, VALUE=None), Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='too_old'), Row(KEY=11, VALUE='old')]
 
         Note:
             An exception will be raised if this method is called more than once
             on the same :class:`WhenNotMatchedClause` object.
         """
-        if self.clause:
+        if self._clause:
             raise SnowparkClientExceptionMessages.MERGE_TABLE_ACTION_ALREADY_SPECIFIED(
                 "insert", "WhenNotMatchedClause"
             )
@@ -188,7 +211,7 @@ class WhenNotMatchedClause:
         else:
             keys = []
             values = [Column._to_expr(v) for v in assignments]
-        self.clause = InsertMergeExpression(self.condition_expr, keys, values)
+        self._clause = InsertMergeExpression(self._condition_expr, keys, values)
         return self
 
 
@@ -222,29 +245,21 @@ class Table(DataFrame):
     :class:`DataFrame` operations can be applied to it.
 
     You can create a :class:`Table` object by calling :meth:`Session.table`
-    with the name of the table in Snowflake.
-
-    Example::
-
-        # create a Table object with a table name in Snowflake
-        df_prices = session.table("itemsdb.publicschema.prices")
+    with the name of the table in Snowflake. See examples in :meth:`Session.table`.
     """
 
     def __init__(
-        self, table_name: str, session: Optional["snowflake.snowpark.Session"] = None
+        self,
+        table_name: str,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
     ):
         super().__init__(
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
-        self.table_name = table_name
-
-    def clone(self) -> "Table":
-        """Returns a clone of this :class:`Table`."""
-        return Table(self.table_name, self.session)
+        self.table_name: str = table_name  #: The table name
 
     def __copy__(self) -> "Table":
-        """Returns a clone of this :class:`Table`."""
-        return Table(self.table_name, self.session)
+        return Table(self.table_name, self._session)
 
     def sample(
         self,
@@ -277,7 +292,7 @@ class Table(DataFrame):
 
         """
         if sampling_method is None and seed is None:
-            return super(Table, self).sample(frac=frac, n=n)
+            return super().sample(frac=frac, n=n)
         DataFrame._validate_sample_input(frac, n)
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
@@ -295,7 +310,7 @@ class Table(DataFrame):
         frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} rows"
         seed_text = f" seed ({seed})" if seed is not None else ""
         sql_text = f"select * from {self.table_name} sample {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
-        return self.session.sql(sql_text)
+        return self._session.sql(sql_text)
 
     @df_action_telemetry
     def update(
@@ -321,16 +336,32 @@ class Table(DataFrame):
 
         Examples::
 
-            t = session.table("mytable")
-            # update all rows in column "b" to 0 and all rows in column "a"
-            # to the summation of column "a" and column "b"
-            t.update({"b": 0, "a": t.a + t.b})
-            # update all rows in column "b" to 0 where column "a" has value 1
-            t.update({"b": 0}, t["a"] == 1)
-            # update all rows in column "b" to 0 where column "a" in this
-            # table is equal to column "a" in another dataframe
-            df = sessions.create_dataframe([1, 2, 3, 4], schema=["a"])
-            t.update({"b": 0}, t["a"] == df["a"], df)
+            >>> target_df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> t = session.table("my_table")
+
+            >>> # update all rows in column "b" to 0 and all rows in column "a"
+            >>> # to the summation of column "a" and column "b"
+            >>> t.update({"b": 0, "a": t.a + t.b})
+            UpdateResult(rows_updated=6, multi_joined_rows_updated=0)
+            >>> t.collect()
+            [Row(A=2, B=0), Row(A=3, B=0), Row(A=3, B=0), Row(A=4, B=0), Row(A=4, B=0), Row(A=5, B=0)]
+
+            >>> # update all rows in column "b" to 0 where column "a" has value 1
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> t.update({"b": 0}, t["a"] == 1)
+            UpdateResult(rows_updated=2, multi_joined_rows_updated=0)
+            >>> t.collect()
+            [Row(A=1, B=0), Row(A=1, B=0), Row(A=2, B=1), Row(A=2, B=2), Row(A=3, B=1), Row(A=3, B=2)]
+
+            >>> # update all rows in column "b" to 0 where column "a" in this
+            >>> # table is equal to column "a" in another dataframe
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> source_df = session.create_dataframe([1, 2, 3, 4], schema=["a"])
+            >>> t.update({"b": 0}, t["a"] == source_df.a, source_df)
+            UpdateResult(rows_updated=6, multi_joined_rows_updated=0)
+            >>> t.collect()
+            [Row(A=1, B=0), Row(A=1, B=0), Row(A=2, B=0), Row(A=2, B=0), Row(A=3, B=0), Row(A=3, B=0)]
         """
         if source:
             assert (
@@ -345,9 +376,7 @@ class Table(DataFrame):
                     for k, v in assignments.items()
                 },
                 condition.expression if condition is not None else None,
-                DataFrame._disambiguate(self, source, create_join_type("left"), [])[
-                    1
-                ]._plan
+                _disambiguate(self, source, create_join_type("left"), [])[1]._plan
                 if source
                 else None,
             )
@@ -372,15 +401,31 @@ class Table(DataFrame):
 
         Examples::
 
-            t = session.table("mytable")
-            # delete all rows in a table
-            t.delete()
-            # delete all rows where column "a" has value 1
-            t.delete(t["a"] == 1)
-            # delete all rows in this table where column "a" in this
-            # table is equal to column "a" in another dataframe
-            df = sessions.create_dataframe([1, 2, 3, 4], schema=["a"])
-            t.delete(t["a"] == df["a"], df)
+            >>> target_df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> t = session.table("my_table")
+
+            >>> # delete all rows in a table
+            >>> t.delete()
+            DeleteResult(rows_deleted=6)
+            >>> t.collect()
+            []
+
+            >>> # delete all rows where column "a" has value 1
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> t.delete(t["a"] == 1)
+            DeleteResult(rows_deleted=2)
+            >>> t.collect()
+            [Row(A=2, B=1), Row(A=2, B=2), Row(A=3, B=1), Row(A=3, B=2)]
+
+            >>> # delete all rows in this table where column "a" in this
+            >>> # table is equal to column "a" in another dataframe
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> source_df = session.create_dataframe([2, 3, 4, 5], schema=["a"])
+            >>> t.delete(t["a"] == source_df.a, source_df)
+            DeleteResult(rows_deleted=4)
+            >>> t.collect()
+            [Row(A=1, B=1), Row(A=1, B=2)]
         """
         if source:
             assert (
@@ -391,9 +436,7 @@ class Table(DataFrame):
             TableDelete(
                 self.table_name,
                 condition.expression if condition is not None else None,
-                DataFrame._disambiguate(self, source, create_join_type("left"), [])[
-                    1
-                ]._plan
+                _disambiguate(self, source, create_join_type("left"), [])[1]._plan
                 if source
                 else None,
             )
@@ -428,16 +471,22 @@ class Table(DataFrame):
 
         Example::
 
-            from snowflake.snowpark.functions import when_matched, when_not_matched
-            target.merge(source, target["id"] == source["id"],
-                        [when_matched().update({"value": source["value"]})
-                         when_not_matched().insert({"id": source["id"]})])
+            >>> from snowflake.snowpark.functions import when_matched, when_not_matched
+            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target = session.table("my_table")
+            >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+            >>> target.merge(source, target["key"] == source["key"],
+            ...              [when_matched().update({"value": source["value"]}), when_not_matched().insert({"key": source["key"]})])
+            MergeResult(rows_inserted=2, rows_updated=2, rows_deleted=0)
+            >>> target.collect()
+            [Row(KEY=13, VALUE=None), Row(KEY=12, VALUE=None), Row(KEY=10, VALUE='new'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
         """
         inserted, updated, deleted = False, False, False
         merge_exprs = []
         for c in clauses:
             if isinstance(c, WhenMatchedClause):
-                if isinstance(c.clause, UpdateMergeExpression):
+                if isinstance(c._clause, UpdateMergeExpression):
                     updated = True
                 else:
                     deleted = True
@@ -447,14 +496,12 @@ class Table(DataFrame):
                 raise TypeError(
                     "clauses only accepts WhenMatchedClause or WhenNotMatchedClause instances"
                 )
-            merge_exprs.append(c.clause)
+            merge_exprs.append(c._clause)
 
         new_df = self._with_plan(
             TableMerge(
                 self.table_name,
-                DataFrame._disambiguate(self, source, create_join_type("left"), [])[
-                    1
-                ]._plan,
+                _disambiguate(self, source, create_join_type("left"), [])[1]._plan,
                 join_expr.expression,
                 merge_exprs,
             )

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -368,20 +367,15 @@ def test_null_count(session):
         count(col("a") + col("b"))
     ).collect() == [Row(1, 0), Row(2, 1)]
 
-    assert (
-        TestData.test_data3(session)
-        .agg(
-            [
-                count(col("a")),
-                count(col("b")),
-                count(lit(1)),
-                count_distinct(col("a")),
-                count_distinct(col("b")),
-            ]
-        )
-        .collect()
-        == [Row(2, 1, 2, 2, 1)]
-    )
+    assert TestData.test_data3(session).agg(
+        [
+            count(col("a")),
+            count(col("b")),
+            count(lit(1)),
+            count_distinct(col("a")),
+            count_distinct(col("b")),
+        ]
+    ).collect() == [Row(2, 1, 2, 2, 1)]
 
     assert TestData.test_data3(session).agg(
         [count(col("b")), count_distinct(col("b")), sum_distinct(col("b"))]

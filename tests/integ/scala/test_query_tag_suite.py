@@ -24,6 +24,7 @@ def test_set_query_tag(session):
         Utils.unset_query_tag(session)
 
 
+@pytest.mark.xfail(reason="SNOW-575699 flaky test", strict=False)
 def test_query_tags_in_session(session):
     query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
