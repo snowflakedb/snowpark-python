@@ -13,7 +13,7 @@ from pandas.util.testing import assert_frame_equal
 import snowflake.connector
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, to_timestamp
 from snowflake.snowpark.types import DecimalType, IntegerType
 from tests.utils import Utils
 
@@ -74,6 +74,17 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
     assert (
         str(pandas_df.dtypes[6]) == "float64"
     )  #  A 20-digit number is over int64 max. Convert to float64 in Pandas.
+
+    # Make sure timestamp is not accidentally converted to int
+    timestamp_snowpark_df = session.create_dataframe([12345], schema=["a"]).select(
+        to_timestamp(col("a"))
+    )
+    timestamp_pandas_df = (
+        timestamp_snowpark_df.to_pandas()
+        if to_pandas_api == "to_pandas"
+        else next(timestamp_snowpark_df.to_pandas_batches())
+    )
+    assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
 
 
 def test_to_pandas_non_select(session):
