@@ -10,6 +10,7 @@ from typing import IO, Any, Dict, Iterator, List, Optional, Union
 
 import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
+from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
@@ -460,7 +461,8 @@ class ServerConnection:
             self._cursor.description, pd_df.dtypes, pd_df.columns
         ):
             if (
-                column_metadata.precision is not None
+                FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
+                and column_metadata.precision is not None
                 and column_metadata.scale == 0
                 and not str(pandas_dtype).startswith("int")
             ):
