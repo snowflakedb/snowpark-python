@@ -1291,9 +1291,10 @@ class Session:
             else:
                 project_columns.append(column(field.name))
 
-        d = DataFrame(self, SnowflakeValues(attrs, converted))
-        d._plan.api_calls = ["Session.create_dataframe[values]"]
-        return d.select(project_columns)
+        df = DataFrame(self, SnowflakeValues(attrs, converted)).select(project_columns)
+        # Get rid of the select statement api call here
+        df._plan.api_calls = ["Session.create_dataframe[values]"]
+        return df
 
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
         """

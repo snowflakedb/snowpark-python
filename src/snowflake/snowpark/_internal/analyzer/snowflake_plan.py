@@ -168,7 +168,9 @@ class SnowflakePlan(LogicalPlan):
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
-        self.api_calls = api_calls if api_calls else []
+        # We need to copy this list since we don't want to change it for the
+        # previous SnowflakePlan objects
+        self.api_calls = api_calls.copy() if api_calls else []
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]

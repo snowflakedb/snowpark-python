@@ -57,6 +57,19 @@ class TelemetryField(Enum):
     PERF_CAT_UPLOAD_FILE = "upload_file"
 
 
+API_CALLS_TO_REMOVE = {
+    "to_df": 1,
+    "select_expr": 1,
+    "drop": 1,
+    "agg": 2,
+    "distinct": 2,
+    "with_column": 1,
+    "with_columns": 1,
+    "with_column_renamed": 1,
+}
+APIS_WITH_MULTIPLE_CALLS = list(API_CALLS_TO_REMOVE.keys())
+
+
 # A decorator to use in the Telemetry client to make sure operations
 # don't cause exceptions to be raised
 def safe_telemetry(func):
@@ -131,8 +144,35 @@ def df_usage_telemetry(func):
 def df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        args[0]._plan.api_calls.append(func.__name__)
-        return func(*args, **kwargs)
+        r = func(*args, **kwargs)
+        # Some DataFrame APIs call other DataFrame APIs, so we need to remove the extra call
+        if func.__name__ in APIS_WITH_MULTIPLE_CALLS and len(r._plan.api_calls) > 0:
+            r._plan.api_calls = r._plan.api_calls[: -API_CALLS_TO_REMOVE[func.__name__]]
+        r._plan.api_calls.append(f"DataFrame.{func.__name__}")
+        return r
+
+    return wrap
+
+
+def df_to_rgdf_api_usage(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        r = func(*args, **kwargs)
+        r._df_api_call = f"DataFrame.{func.__name__}"
+        return r
+
+    return wrap
+
+
+# For relational-grouped dataframe
+def rgdf_api_usage(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        r = func(*args, **kwargs)
+        if args[0]._df_api_call:
+            r._plan.api_calls.append(args[0]._df_api_call)
+        r._plan.api_calls.append(f"RelationalGroupedDataFrame.{func.__name__}")
+        return r
 
     return wrap
 

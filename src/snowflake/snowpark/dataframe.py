@@ -65,6 +65,7 @@ from snowflake.snowpark._internal.telemetry import (
     df_action_telemetry,
     df_api_usage,
     df_collect_api_telemetry,
+    df_to_rgdf_api_usage,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
@@ -1022,7 +1023,7 @@ class DataFrame:
 
         return self.group_by().agg(grouping_exprs)
 
-    @df_api_usage
+    @df_to_rgdf_api_usage
     def rollup(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1041,7 +1042,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
         )
 
-    @df_api_usage
+    @df_to_rgdf_api_usage
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1085,7 +1086,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
-    @df_api_usage
+    @df_to_rgdf_api_usage
     def group_by_grouping_sets(
         self,
         *grouping_sets: Union[
@@ -1128,7 +1129,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
-    @df_api_usage
+    @df_to_rgdf_api_usage
     def cube(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1177,7 +1178,9 @@ class DataFrame:
         :meth:`dropDuplicates` is an alias of :meth:`drop_duplicates`.
         """
         if not subset:
-            return self.distinct()
+            df = self.distinct()
+            df._plan.api_calls = self._plan.api_calls.copy()
+            return df
         subset = parse_positional_args_to_list(*subset)
 
         filter_cols = [self.col(x) for x in subset]
@@ -1186,13 +1189,16 @@ class DataFrame:
             snowflake.snowpark.Window.partition_by(*filter_cols).order_by(*filter_cols)
         )
         rownum_name = generate_random_alphanumeric()
-        return (
+        df = (
             self.select(*output_cols, rownum.as_(rownum_name))
             .where(col(rownum_name) == 1)
             .select(output_cols)
         )
+        # Get rid of the extra API calls
+        df._plan.api_calls = self._plan.api_calls.copy()
+        return df
 
-    @df_api_usage
+    @df_to_rgdf_api_usage
     def pivot(
         self,
         pivot_col: ColumnOrName,
@@ -2481,9 +2487,12 @@ class DataFrame:
 
         # if no columns should be selected, just return stat names
         if len(numerical_string_col_type_dict) == 0:
-            return self._session.create_dataframe(
+            df = self._session.create_dataframe(
                 list(stat_func_dict.keys()), schema=["summary"]
             )
+            # We need to set the API calls for this to same API calls for describe
+            df._plan.api_calls = self._plan.api_calls.copy()
+            return df
 
         # otherwise, calculate stats
         res_df = None
@@ -2508,6 +2517,7 @@ class DataFrame:
             )
             res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
 
+        res_df._plan.api_calls = self._plan.api_calls.copy()
         return res_df
 
     @df_api_usage

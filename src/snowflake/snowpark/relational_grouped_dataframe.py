@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Pivot
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import rgdf_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.column import Column
@@ -124,6 +125,7 @@ class RelationalGroupedDataFrame:
         self._df = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type
+        self._df_api_call = None
 
     def _to_df(self, agg_exprs: List[Expression]) -> DataFrame:
         aliased_agg = []
@@ -181,6 +183,7 @@ class RelationalGroupedDataFrame:
                 ),
             )
 
+    @rgdf_api_usage
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> DataFrame:
         """Returns a :class:`DataFrame` with computed aggregates. The first element of
         the ``exprs`` pair is the column to aggregate and the second element is the
@@ -213,28 +216,34 @@ class RelationalGroupedDataFrame:
 
         return self._to_df(agg_exprs)
 
+    @rgdf_api_usage
     def avg(self, *cols: ColumnOrName) -> DataFrame:
         """Return the average for the specified numeric columns."""
         return self._non_empty_argument_function("avg", *cols)
 
     mean = avg
 
+    @rgdf_api_usage
     def sum(self, *cols: ColumnOrName) -> DataFrame:
         """Return the sum for the specified numeric columns."""
         return self._non_empty_argument_function("sum", *cols)
 
+    @rgdf_api_usage
     def median(self, *cols: ColumnOrName) -> DataFrame:
         """Return the median for the specified numeric columns."""
         return self._non_empty_argument_function("median", *cols)
 
+    @rgdf_api_usage
     def min(self, *cols: ColumnOrName) -> DataFrame:
         """Return the min for the specified numeric columns."""
         return self._non_empty_argument_function("min", *cols)
 
+    @rgdf_api_usage
     def max(self, *cols: ColumnOrName) -> DataFrame:
         """Return the max for the specified numeric columns."""
         return self._non_empty_argument_function("max", *cols)
 
+    @rgdf_api_usage
     def count(self) -> DataFrame:
         """Return the number of rows for each group."""
         return self._to_df(
