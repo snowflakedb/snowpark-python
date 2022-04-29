@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
@@ -24,9 +23,9 @@ import snowflake.snowpark
 from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
-    _python_type_str_to_object,
-    _retrieve_func_type_hints_from_source,
-    convert_to_sf_type,
+    convert_sp_to_sf_type,
+    python_type_str_to_object,
+    retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -122,7 +121,7 @@ class UDTFRegistration:
             udf_obj: A :class:`UserDefinedFunction` returned by
                 :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or :meth:`register_from_file`.
         """
-        func_args = [convert_to_sf_type(t) for t in udf_obj._input_types]
+        func_args = [convert_sp_to_sf_type(t) for t in udf_obj._input_types]
         return self._session.sql(
             f"describe function {udf_obj.name}({','.join(func_args)})"
         )
@@ -339,12 +338,11 @@ class UDTFRegistration:
             if isinstance(handler, Callable):
                 type_hints = get_type_hints(getattr(handler, "process"))
             else:
-                type_hints = _retrieve_func_type_hints_from_source(
+                type_hints = retrieve_func_type_hints_from_source(
                     handler[0], func_name="process", class_name=handler[1]
                 )
             return_type_hint = type_hints.get("return")
             if return_type_hint:
-                return_type_hint = _python_type_str_to_object(type_hints.get("return"))
                 if get_origin(return_type_hint) in (
                     list,
                     tuple,
@@ -358,7 +356,7 @@ class UDTFRegistration:
                             [
                                 StructField(
                                     name,
-                                    type_utils._python_type_to_snow_type(
+                                    type_utils.python_type_to_snow_type(
                                         column_type_hints[0]
                                     )[0],
                                 )
@@ -371,7 +369,7 @@ class UDTFRegistration:
                                 [
                                     StructField(
                                         name,
-                                        type_utils._python_type_to_snow_type(
+                                        type_utils.python_type_to_snow_type(
                                             column_type
                                         )[0],
                                     )

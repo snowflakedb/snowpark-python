@@ -12,7 +12,10 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionPartitionSpecDefinition,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark._internal.utils import Utils
+from snowflake.snowpark._internal.utils import (
+    parse_positional_args_to_list,
+    validate_object_name,
+)
 from snowflake.snowpark.column import Column, _to_col_if_str
 
 
@@ -47,7 +50,7 @@ class TableFunction:
             Tuple[ColumnOrName, ...],
         ],
     ):
-        exprs = Utils.parse_positional_args_to_list(*cols)
+        exprs = parse_positional_args_to_list(*cols)
         partition_spec = [
             e.expression if isinstance(e, Column) else Column(e).expression
             for e in exprs
@@ -68,7 +71,7 @@ class TableFunction:
             Tuple[ColumnOrName, ...],
         ],
     ):
-        exprs = Utils.parse_positional_args_to_list(*cols)
+        exprs = parse_positional_args_to_list(*cols)
         order_spec = []
         for e in exprs:
             if isinstance(e, str):
@@ -102,7 +105,7 @@ def _create_table_function_expression(
         fqdn = func
     elif isinstance(func, list):
         for n in func:
-            Utils.validate_object_name(n)
+            validate_object_name(n)
         fqdn = ".".join(func)
     elif isinstance(func, TableFunction):
         if args or named_args:

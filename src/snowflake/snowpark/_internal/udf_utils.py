@@ -38,7 +38,6 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, Utils
 from snowflake.snowpark.types import (
     DataType,
     PandasDataFrameType,
@@ -74,7 +73,10 @@ def get_types_from_type_hints(
         # For Python 3.10+, the result values of get_type_hints()
         # will become strings, which we have to change the implementation
         # here at that time. https://www.python.org/dev/peps/pep-0563/
-        python_types_dict = get_type_hints(func)
+        if hasattr(func, "process"):
+            python_types_dict = get_type_hints(getattr(func, "process"))
+        else:
+            python_types_dict = get_type_hints(func)
     else:
         if object_type == TempObjectType.TABLE_FUNCTION:
             python_types_dict = (
@@ -544,7 +546,7 @@ def create_python_udf_or_sp(
     inline_python_code: Optional[str] = None,
 ) -> None:
     if isinstance(return_type, StructType):
-        return_sql = f"""RETURNS TABLE ({",".join(f"{field.name} {convert_to_sf_type(field.datatype)}" for field in return_type.fields)})"""
+        return_sql = f"""RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})"""
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
