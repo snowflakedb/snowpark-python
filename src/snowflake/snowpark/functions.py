@@ -3034,7 +3034,7 @@ def udf(
 def udtf(
     handler: Optional[Callable] = None,
     *,
-    return_schema: Union[StructType, List[str]],
+    output_schema: Union[StructType, List[str]],
     input_types: Optional[List[DataType]] = None,
     name: Optional[Union[str, Iterable[str]]] = None,
     is_permanent: bool = False,
@@ -3055,7 +3055,7 @@ def udtf(
 
     Args:
         handler: A Python class used for creating the UDF.
-        return_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the UDF. Optional if
             type hints are provided.
@@ -3129,7 +3129,7 @@ def udtf(
     if handler is None:
         return functools.partial(
             session.udtf.register,
-            return_schema=return_schema,
+            output_schema=output_schema,
             input_types=input_types,
             name=name,
             is_permanent=is_permanent,
@@ -3142,7 +3142,7 @@ def udtf(
     else:
         return session.udtf.register(
             handler,
-            return_schema=return_schema,
+            output_schema=output_schema,
             input_types=input_types,
             name=name,
             is_permanent=is_permanent,
@@ -3240,6 +3240,14 @@ def call_udf(
 
     validate_object_name(udf_name)
     return _call_function(udf_name, False, *args)
+
+
+# def call_table_function(function_name: str, *args:ColumnOrLiteral, **kwargs: ColumnOrLiteral) -> TableFunctionCall:
+#     ...
+#
+#
+# def table_function(function_name: str) -> Callable:
+#     return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
 
 
 def call_builtin(function_name: str, *args: ColumnOrLiteral) -> Column:

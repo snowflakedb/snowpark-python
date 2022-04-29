@@ -129,7 +129,7 @@ class UDTFRegistration:
     def register(
         self,
         handler: Callable,
-        return_schema: [Union[StructType], Iterable[str]],
+        output_schema: [Union[StructType], Iterable[str]],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
@@ -148,7 +148,7 @@ class UDTFRegistration:
 
         Args:
             handler: A Python class used for creating the UDTF.
-            return_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
                 type hints are provided.
@@ -204,7 +204,7 @@ class UDTFRegistration:
         # register udtf
         return self.__do_register_udtf(
             handler,
-            return_schema,
+            output_schema,
             input_types,
             name,
             stage_location,
@@ -218,7 +218,7 @@ class UDTFRegistration:
         self,
         file_path: str,
         handler_name: str,
-        return_schema: [Union[StructType], Iterable[str]],
+        output_schema: [Union[StructType], Iterable[str]],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
@@ -244,7 +244,7 @@ class UDTFRegistration:
                 (e.g., .zip file) containing Python modules.
             handler_name: The Python class name in the file that will be created
                 as a UDTF.
-            return_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+            output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
                 type hints are provided.
@@ -287,7 +287,7 @@ class UDTFRegistration:
         Note::
             The type hints can still be extracted from the source Python file if they
             are provided, but currently are not working for a zip file. Therefore,
-            you have to provide ``return_schema`` and ``input_types`` when ``path``
+            you have to provide ``output_schema`` and ``input_types`` when ``path``
             points to a zip file.
 
         See Also:
@@ -302,7 +302,7 @@ class UDTFRegistration:
         # register udtf
         return self.__do_register_udtf(
             (file_path, handler_name),
-            return_schema,
+            output_schema,
             input_types,
             name,
             stage_location,
@@ -315,7 +315,7 @@ class UDTFRegistration:
     def __do_register_udtf(
         self,
         handler: Union[Callable, Tuple[str, str]],
-        return_schema: [Union[StructType], Iterable[str]],
+        output_schema: [Union[StructType], Iterable[str]],
         input_types: Optional[List[DataType]],
         name: Optional[str],
         stage_location: Optional[str] = None,
@@ -324,15 +324,15 @@ class UDTFRegistration:
         replace: bool = False,
         parallel: int = 4,
     ) -> UserDefinedTableFunction:
-        if not isinstance(return_schema, (Iterable, StructType)):
+        if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
-                "'return_schema' must be a list of column names or StructType instance to create a UDTF."
+                "'output_schema' must be a list of column names or StructType instance to create a UDTF."
             )
 
         if isinstance(
-            return_schema, Iterable
+            output_schema, Iterable
         ):  # with column names instead of StructType. Read type hints to infer column types.
-            return_schema = tuple(return_schema)
+            output_schema = tuple(output_schema)
             # A typical type hint for method process is like Iterable[Tuple[int, str, datetime]], or Iterable[Tuple[str, ...]]
             # The inner Tuple is a single row of the table function result.
             if isinstance(handler, Callable):
@@ -352,7 +352,7 @@ class UDTFRegistration:
                     row_type_hint = get_args(return_type_hint)[0]  # The inner Tuple
                     column_type_hints = get_args(row_type_hint)
                     if len(column_type_hints) > 1 and column_type_hints[1] == Ellipsis:
-                        return_schema = StructType(
+                        output_schema = StructType(
                             [
                                 StructField(
                                     name,
@@ -360,12 +360,12 @@ class UDTFRegistration:
                                         column_type_hints[0]
                                     )[0],
                                 )
-                                for name in return_schema
+                                for name in output_schema
                             ]
                         )
                     else:
-                        if len(column_type_hints) == len(return_schema):
-                            return_schema = StructType(
+                        if len(column_type_hints) == len(output_schema):
+                            output_schema = StructType(
                                 [
                                     StructField(
                                         name,
@@ -374,13 +374,13 @@ class UDTFRegistration:
                                         )[0],
                                     )
                                     for name, column_type in zip(
-                                        return_schema, column_type_hints
+                                        output_schema, column_type_hints
                                     )
                                 ]
                             )
                         else:
                             raise ValueError(
-                                "'return_schema' names and type hints don't match in size."
+                                "'output_schema' names and type hints don't match in size."
                             )
                 else:
                     raise ValueError(
@@ -388,7 +388,7 @@ class UDTFRegistration:
                     )
             else:
                 raise ValueError(
-                    "Result type hints must be set if 'result_schema' only has schema names."
+                    "Result type hints must be set if 'output_schema' only has schema names."
                 )
 
         # get the udtf name, input types
@@ -396,7 +396,7 @@ class UDTFRegistration:
             self._session,
             TempObjectType.TABLE_FUNCTION,
             handler,
-            return_schema,
+            output_schema,
             input_types,
             name,
         )
@@ -428,7 +428,7 @@ class UDTFRegistration:
         try:
             create_python_udf_or_sp(
                 session=self._session,
-                return_type=return_schema,
+                return_type=output_schema,
                 input_args=input_args,
                 handler=handler_name,
                 object_type=TempObjectType.FUNCTION,
@@ -449,4 +449,4 @@ class UDTFRegistration:
             )
             raise
 
-        return UserDefinedTableFunction(handler, return_schema, input_types, udtf_name)
+        return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name)
