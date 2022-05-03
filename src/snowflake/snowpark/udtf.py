@@ -112,21 +112,6 @@ class UDTFRegistration:
     def __init__(self, session: "snowflake.snowpark.Session"):
         self._session = session
 
-    def describe(
-        self, udtf_obj: UserDefinedTableFunction
-    ) -> "snowflake.snowpark.DataFrame":
-        """
-        Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a UDTF.
-
-        Args:
-            udtf_obj: A :class:`UserDefinedFunction` returned by
-                :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or :meth:`register_from_file`.
-        """
-        func_args = [convert_sp_to_sf_type(t) for t in udtf_obj._input_types]
-        return self._session.sql(
-            f"describe function {udtf_obj.name}({','.join(func_args)})"
-        )
-
     def register(
         self,
         handler: Type,
