@@ -94,7 +94,9 @@ def get_types_from_type_hints(
             )
 
     if object_type == TempObjectType.TABLE_FUNCTION:
-        return_type = None  # The return type is processed in udtf.py. Return None here.
+        return_type = None
+        # The return type is processed in udtf.py. Return None here.
+        # TODO: This will be refactored with https://snowflakecomputing.atlassian.net/browse/SNOW-585155
     else:
         return_type = (
             python_type_to_snow_type(python_types_dict["return"])[0]

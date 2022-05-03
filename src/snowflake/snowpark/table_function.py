@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+
+"""Contains table function related classes"""
 from typing import Iterable, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -17,6 +19,15 @@ from snowflake.snowpark.column import Column, _to_col_if_str
 
 
 class TableFunctionCall:
+    """Represents a table function call.
+    A table function call has the function names, positional arguments, named arguments and the partitioning information.
+
+    Usually you don't need to explicitly create an instance of this class even though you can.
+    Instead, use :func:`~snowflake.snowpark.function.call_table_function`, which will create an instance of this class.
+    Or use :func:`~snowflake.snowpark.function.table_function` to create a ``Callable`` object and call it to create an
+    instance of this class.
+    """
+
     def __init__(
         self,
         func_name: Union[str, Iterable[str]],
@@ -38,6 +49,24 @@ class TableFunctionCall:
         partition_by: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
         order_by: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
     ) -> "TableFunctionCall":
+        """Specify the partitioning plan for this table function call when you lateral join this table function.
+
+        When a query lateral join a table function, the query feeds data to the table function row by row.
+        Before rows are passed to table functions, the rows can be grouped into partitions. Partitioning has two main benefits:
+
+          - Partitioning allows Snowflake to divide up the workload to improve parallelization and thus performance.
+          - Partitioning allows Snowflake to process all rows with a common characteristic as a group. You can return results that are based on all rows in the group, not just on individual rows.
+
+        Refer to `table functions and partitions <https://docs.snowflake.com/en/developer-guide/udf/java/udf-java-tabular-functions.html#table-functions-and-partitions>`__ for more information.
+        It's for Java UDTF, but the same mechanism applies to Python.
+
+        Args:
+            partition_by: Specify the partitioning column(s). It tells the table function to partition by these columns.
+            order_by: Specify the order by column(s). It tells the table function to process input rows with this order within a partition.
+
+        Note that if this function is called but both ``partition_by`` and ``order_by`` are ``None``, the table function call will put all input rows into a single partition.
+        If this function isn't called at all, the Snowflake database will use implicit partitioning.
+        """
         new_table_function = TableFunctionCall(
             self.name, *self.arguments, **self.named_arguments
         )

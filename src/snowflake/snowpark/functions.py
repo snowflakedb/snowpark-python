@@ -3049,22 +3049,23 @@ def udtf(
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.
-    This function uses that session to register the UDF. If you have multiple sessions, you need to
+    This function uses that session to register the UDTF. If you have multiple sessions, you need to
     explicitly specify the ``session`` parameter of this function. If you have a function and would
     like to register it to multiple databases, use ``session.udtf.register`` instead. See examples
-    in :class:`~snowflake.snowpark.udtf.UDFRegistration`.
+    in :class:`~snowflake.snowpark.udtf.UDTFRegistration`.
 
     Args:
-        handler: A Python class used for creating the UDF.
+        handler: A Python class used for creating the UDTF.
         output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+         If a list of column names are provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
-            representing the input data types of the UDF. Optional if
+            representing the input data types of the UDTF. Optional if
             type hints are provided.
         name: A string or list of strings that specify the name or fully-qualified
             object identifier (database name, schema name, and function name) for
-            the UDTF in Snowflake, which allows you to call this UDF in a SQL
+            the UDTF in Snowflake, which allows you to call this UDTF in a SQL
             command or via :func:`call_udtf()`. If it is not provided, a name will
-            be automatically generated for the UDF. A name must be specified when
+            be automatically generated for the UDTF. A name must be specified when
             ``is_permanent`` is ``True``.
         is_permanent: Whether to create a permanent UDTF. The default is ``False``.
             If it is ``True``, a valid ``stage_location`` must be provided.
@@ -3090,7 +3091,7 @@ def udtf(
             an existing UDTF with the same name is overwritten.
         session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
-        parallel: The number of threads to use for uploading UDF files with the
+        parallel: The number of threads to use for uploading UDTF files with the
             `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
@@ -3102,8 +3103,8 @@ def udtf(
     Note:
         1. When type hints are provided and are complete for a function,
         ``return_type`` and ``input_types`` are optional and will be ignored.
-        See details of supported data types for UDFs in
-        :class:`~snowflake.snowpark.udf.UDFTRegistration`.
+        See details of supported data types for UDTFs in
+        :class:`~snowflake.snowpark.udtf.UDTFTRegistration`.
 
             - You can use use :attr:`~snowflake.snowpark.types.Variant` to
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
@@ -3120,11 +3121,11 @@ def udtf(
         For a permanent UDTF, these files will be uploaded to the stage that you provide.
 
         3. By default, UDTF registration fails if a function with the same name is already
-        registered. Invoking :func:`udf` with ``replace`` set to ``True`` will overwrite the
+        registered. Invoking :func:`udtf` with ``replace`` set to ``True`` will overwrite the
         previously registered function.
 
     See Also:
-        :class:`~snowflake.snowpark.udf.UDTFRegistration`
+        :class:`~snowflake.snowpark.udtf.UDTFRegistration`
     """
     session = session or snowflake.snowpark.session._get_active_session()
     if handler is None:
@@ -3246,12 +3247,37 @@ def call_udf(
 def call_table_function(
     function_name: str, *args: ColumnOrLiteral, **kwargs: ColumnOrLiteral
 ) -> "snowflake.snowpark.table_function.TableFunctionCall":
+    """Invokes a Snowflake table function, including system-defined table functions and user-defined table functions.
+
+    It returns a :meth:`~snowflake.snowpark.table_function.TableFunctionCall` so you can specify the partition clause.
+
+    Args:
+        function_name: The name of the table function.
+        args: The positional arguments of the table function.
+        **kwargs: The named arguments of the table function. Some table functions have named arguments instead of positional ones. For instance, ``flatten``.
+
+    Example:
+            >>> from snowflake.snowpark.functions import lit
+            >>> session.table_function(call_table_function("split_to_table", lit("split words to table"), lit(" ")).over()).collect()
+            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+    """
     return snowflake.snowpark.table_function.TableFunctionCall(
         function_name, *args, **kwargs
     )
 
 
 def table_function(function_name: str) -> Callable:
+    """Create a function object to invoke a Snowflake table function.
+
+    Args:
+        function_name: The name of the table function.
+
+    Example:
+            >>> from snowflake.snowpark.functions import lit
+            >>> split_to_table = table_function("split_to_table")
+            >>> session.table_function(split_to_table(lit("split words to table"), lit(" ")).over()).collect()
+            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+    """
     return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
 
 

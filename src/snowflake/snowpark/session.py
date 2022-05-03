@@ -824,11 +824,33 @@ class Session:
 
         References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
-        Example::
+        Example 1
+            Query a table function by function name:
 
             >>> from snowflake.snowpark.functions import lit
             >>> session.table_function("split_to_table", lit("split words to table"), lit(" ")).collect()
             [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+
+        Example 2
+            Define a table function variable and query it:
+
+            >>> from snowflake.snowpark.functions import table_function, lit
+            >>> split_to_table = table_function("split_to_table")
+            >>> session.table_function(split_to_table(lit("split words to table"), lit(" "))).collect()
+            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+
+        Example 3
+            If you want to call a UDTF right after it's registered, the returned ``UserDefinedTableFunction`` is callable.
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> class GeneratorUDTF:
+            ...     def process(self, n):
+            ...         for i in range(n):
+            ...             yield (i, )
+            >>> generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
+            >>> session.table_function(generator_udtf(lit(3))).collect()
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
         Args:
             func_name: The SQL function name.

@@ -101,6 +101,115 @@ class UDTFRegistration:
           Python class will be serialized. During the deserialization, Python will look up the
           corresponding modules and objects by names.
 
+    Example 1
+        Create a temporary UDTF and call it:
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> class GeneratorUDTF:
+            ...     def process(self, n):
+            ...         for i in range(n):
+            ...             yield (i, )
+            >>> generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
+            >>> session.table_function(generator_udtf(lit(3))).collect()  # Query it by calling it
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+            >>> session.table_function(generator_udtf.name, lit(3))).collect()  # Query it by using the name
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+
+    Example 2
+        Create a UDTF with type hints and ``@udtf`` decorator and query it:
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> @udtf(output_schema=["number"])
+            ... class generator_udtf:
+            ...     def process(self, n: int) -> Iterable[Tuple[int]]:
+            ...         for i in range(n):
+            ...             yield (i, )
+            >>> session.table_function(generator_udtf(lit(3))).collect()  # Query it by calling it
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+            >>> session.table_function(generator_udtf.name, lit(3)).collect()  # Query it by using the name
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+
+    Example 3
+        Create a permanent UDTF with a name and call it in SQL:
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> _ = session.sql("create or replace temp stage mystage").collect()
+            >>> class GeneratorUDTF:
+            ...     def process(self, n):
+            ...         for i in range(n):
+            ...             yield (i, )
+            >>> generator_udtf = udtf(
+            ...     GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()],
+            ...     is_permanent=True, name="generator_udtf", replace=True, stage_location="@mystage"
+            ... )
+            >>> session.sql("select * from table(generator_udtf(3))").collect()
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+
+    Example 4
+        Create a UDTF with UDF-level imports and apply it to a dataframe:
+
+            >>> from resources.test_udf_dir.test_udf_file import mod5
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> @udtf(output_schema=["number"], imports=[("tests/resources/test_udf_dir/test_udf_file.py", "resources.test_udf_dir.test_udf_file")])
+            ... class generator_udtf:
+            ...     def process(self, n: int) -> Iterable[Tuple[int]]:
+            ...         for i in range(n):
+            ...             yield (mod5(i), )
+            >>> session.table_function(generator_udtf(lit(6))).collect()
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2), Row(NUMBER=3), Row(NUMBER=4), Row(NUMBER=0)]
+
+    Example 5
+        Create a UDTF with UDF-level packages and apply it to a dataframe::
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> import numpy as np
+            >>> @udtf(output_schema=["number"], packages=["numpy"])
+            ... class generator_udtf:
+            ...     def process(self, n: int) -> Iterable[Tuple[int]]:
+            ...         for i in np.arange(n):
+            ...             yield (i, )
+            >>> session.table_function(generator_udtf(lit(3))).collect()
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+
+    Example 6
+        Creating a UDTF from a local Python file:
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> generator_udtf = session.udtf.register_from_file(
+            ...     file_path="tests/resources/test_udtf_dir/test_udtf_file.py",
+            ...     handler_name="GeneratorUDTF",
+            ...     output_schema=StructType([StructField("number", IntegerType())]),
+            ...     input_types=[IntegerType()]
+            ... )
+            >>> session.table_function(generator_udtf(lit(3))).collect()
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+
+    Example 7
+        Creating a UDTF from a Python file on an internal stage:
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> _ = session.sql("create or replace temp stage mystage").collect()
+            >>> _ = session.file.put("tests/resources/test_udtf_dir/test_udtf_file.py", "@mystage", auto_compress=False)
+            >>> generator_udtf = session.udtf.register_from_file(
+            ...     file_path="@mystage/test_udtf_file.py",
+            ...     handler_name="GeneratorUDTF",
+            ...     output_schema=StructType([StructField("number", IntegerType())]),
+            ...     input_types=[IntegerType()]
+            ... )
+            >>> session.table_function(generator_udtf(lit(3))).collect()
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+
+    To query a registered UDTF is the same as to query other table functions.
+    Refer to :meth:`~snowflake.snowpark.Session.table_function` and :meth:`~snowflake.snowpark.DataFrame.join_table_function`.
+    If you want to call a UDTF right after it's created, refer to the above examples.
+
     See Also:
         - :func:`~snowflake.snowpark.functions.udtf`
         - :meth:`register`
@@ -115,7 +224,7 @@ class UDTFRegistration:
     def register(
         self,
         handler: Type,
-        output_schema: [Union[StructType], Iterable[str]],
+        output_schema: Union[StructType, Iterable[str]],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
@@ -205,7 +314,7 @@ class UDTFRegistration:
         self,
         file_path: str,
         handler_name: str,
-        output_schema: [Union[StructType], Iterable[str]],
+        output_schema: Union[StructType, Iterable[str]],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
         is_permanent: bool = False,
@@ -310,6 +419,11 @@ class UDTFRegistration:
         replace: bool = False,
         parallel: int = 4,
     ) -> UserDefinedTableFunction:
+        # TODO: UDTF output schema has multiple columns, which is different from UDF and SP. The common input/output datatype handling logic in udf_utils.py handle
+        #  single-column types. It's a non-trivial change to update udf_utils.py. Plus, when UDAF comes, it may need more changes. So the update to udf_utils.py is deferred.
+        #  When UDAF comes, we'll update it altogether.
+        #  The output_schema of UDTF is processed right here in this method.
+        #  https://snowflakecomputing.atlassian.net/browse/SNOW-585155
         if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
                 f"'output_schema' must be a list of column names or StructType instance to create a UDTF. Got {type(output_schema)}."

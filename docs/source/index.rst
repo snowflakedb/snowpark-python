@@ -18,9 +18,11 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
 
    snowflake.snowpark
    snowflake.snowpark.functions
+   snowflake.snowpark.table_function
    snowflake.snowpark.stored_procedure
    snowflake.snowpark.types
    snowflake.snowpark.udf
+   snowflake.snowpark.udtf
    snowflake.snowpark.exceptions
 
 :ref:`genindex`

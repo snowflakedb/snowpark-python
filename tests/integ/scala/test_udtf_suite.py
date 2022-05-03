@@ -19,14 +19,13 @@ from snowflake.snowpark.types import (
     StructType,
     Variant,
 )
-from tests.utils import TestData, Utils
+from tests.utils import Utils
 
 wordcount_table_name = Utils.random_table_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_data(session, resources_path):
-    session.sql("alter session set ENABLE_PYTHON_UDTF = TRUE;").collect()
+def setup_data(session):
     session.create_dataframe(
         [("w1 w2", "g1"), ("w1 w1 w1", "g2")], schema=["c1", "c2"]
     ).write.save_as_table(wordcount_table_name)

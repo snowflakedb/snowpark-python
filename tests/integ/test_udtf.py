@@ -20,11 +20,6 @@ from snowflake.snowpark.types import (
 from tests.utils import TestFiles, Utils
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
-    session.sql("alter session set ENABLE_PYTHON_UDTF = TRUE;").collect()
-
-
 def test_register_udtf_from_file_no_typehints(session, resources_path):
     test_files = TestFiles(resources_path)
     schema = StructType(
