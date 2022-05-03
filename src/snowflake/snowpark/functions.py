@@ -174,6 +174,7 @@ from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
+import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
     FunctionExpression,
@@ -3242,12 +3243,16 @@ def call_udf(
     return _call_function(udf_name, False, *args)
 
 
-# def call_table_function(function_name: str, *args:ColumnOrLiteral, **kwargs: ColumnOrLiteral) -> TableFunctionCall:
-#     ...
-#
-#
-# def table_function(function_name: str) -> Callable:
-#     return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
+def call_table_function(
+    function_name: str, *args: ColumnOrLiteral, **kwargs: ColumnOrLiteral
+) -> "snowflake.snowpark.table_function.TableFunctionCall":
+    return snowflake.snowpark.table_function.TableFunctionCall(
+        function_name, *args, **kwargs
+    )
+
+
+def table_function(function_name: str) -> Callable:
+    return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
 
 
 def call_builtin(function_name: str, *args: ColumnOrLiteral) -> Column:

@@ -24,7 +24,6 @@ from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sp_to_sf_type,
-    python_type_str_to_object,
     retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark._internal.udf_utils import (
@@ -36,8 +35,8 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.table_function import TableFunction
+from snowflake.snowpark._internal.utils import TempObjectType, validate_object_name
+from snowflake.snowpark.table_function import TableFunctionCall
 from snowflake.snowpark.types import DataType, StructField, StructType
 
 
@@ -74,9 +73,10 @@ class UserDefinedTableFunction:
 
     def __call__(
         self,
-        *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
-    ) -> TableFunction:
-        return TableFunction(self.name, *cols)
+        *arguments: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        **named_arguments,
+    ) -> TableFunctionCall:
+        return TableFunctionCall(self.name, *arguments, **named_arguments)
 
 
 class UDTFRegistration:
@@ -326,13 +326,15 @@ class UDTFRegistration:
     ) -> UserDefinedTableFunction:
         if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
-                "'output_schema' must be a list of column names or StructType instance to create a UDTF."
+                f"'output_schema' must be a list of column names or StructType instance to create a UDTF. Got {type(output_schema)}."
             )
-
+        if isinstance(output_schema, StructType):
+            _validate_output_schema_names(output_schema.names)
         if isinstance(
             output_schema, Iterable
         ):  # with column names instead of StructType. Read type hints to infer column types.
             output_schema = tuple(output_schema)
+            _validate_output_schema_names(output_schema)
             # A typical type hint for method process is like Iterable[Tuple[int, str, datetime]], or Iterable[Tuple[str, ...]]
             # The inner Tuple is a single row of the table function result.
             if isinstance(handler, Callable):
@@ -342,53 +344,51 @@ class UDTFRegistration:
                     handler[0], func_name="process", class_name=handler[1]
                 )
             return_type_hint = type_hints.get("return")
-            if return_type_hint:
-                if get_origin(return_type_hint) in (
-                    list,
-                    tuple,
-                    collections.abc.Iterable,
-                    collections.abc.Iterator,
-                ):
-                    row_type_hint = get_args(return_type_hint)[0]  # The inner Tuple
-                    column_type_hints = get_args(row_type_hint)
-                    if len(column_type_hints) > 1 and column_type_hints[1] == Ellipsis:
-                        output_schema = StructType(
-                            [
-                                StructField(
-                                    name,
-                                    type_utils.python_type_to_snow_type(
-                                        column_type_hints[0]
-                                    )[0],
-                                )
-                                for name in output_schema
-                            ]
-                        )
-                    else:
-                        if len(column_type_hints) == len(output_schema):
-                            output_schema = StructType(
-                                [
-                                    StructField(
-                                        name,
-                                        type_utils.python_type_to_snow_type(
-                                            column_type
-                                        )[0],
-                                    )
-                                    for name, column_type in zip(
-                                        output_schema, column_type_hints
-                                    )
-                                ]
-                            )
-                        else:
-                            raise ValueError(
-                                "'output_schema' names and type hints don't match in size."
-                            )
-                else:
-                    raise ValueError(
-                        "The type hint for a UDTF handler must but a collection type."
-                    )
-            else:
+            if not return_type_hint:
                 raise ValueError(
-                    "Result type hints must be set if 'output_schema' only has schema names."
+                    "Result type hints are not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
+                    "a combination of return type hints for method 'process' and column names for 'output_schema'."
+                )
+            if get_origin(return_type_hint) not in (
+                list,
+                tuple,
+                collections.abc.Iterable,
+                collections.abc.Iterator,
+            ):
+                raise ValueError(
+                    f"The type hint for a UDTF handler must but a collection type. {return_type_hint} is passed."
+                )
+            row_type_hint = get_args(return_type_hint)[0]  # The inner Tuple
+            if get_origin(row_type_hint) != tuple:
+                raise ValueError(
+                    f"The return type hints of method '{handler.__name__}.process' must be a collection of Tuple or tuple, for instance, Iterable[Tuple[str, int]], if you specify return type hints."
+                )
+            column_type_hints = get_args(row_type_hint)
+            if len(column_type_hints) > 1 and column_type_hints[1] == Ellipsis:
+                output_schema = StructType(
+                    [
+                        StructField(
+                            name,
+                            type_utils.python_type_to_snow_type(column_type_hints[0])[
+                                0
+                            ],
+                        )
+                        for name in output_schema
+                    ]
+                )
+            else:
+                if len(column_type_hints) != len(output_schema):
+                    raise ValueError(
+                        f"'output_schema' has {len(output_schema)} names while type hints Tuple has only {len(column_type_hints)}."
+                    )
+                output_schema = StructType(
+                    [
+                        StructField(
+                            name,
+                            type_utils.python_type_to_snow_type(column_type)[0],
+                        )
+                        for name, column_type in zip(output_schema, column_type_hints)
+                    ]
                 )
 
         # get the udtf name, input types
@@ -450,3 +450,8 @@ class UDTFRegistration:
             raise
 
         return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name)
+
+
+def _validate_output_schema_names(names: Iterable[str]):
+    for name in names:
+        validate_object_name(name)

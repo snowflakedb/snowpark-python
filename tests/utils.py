@@ -71,6 +71,18 @@ class Utils:
         return Utils.random_name_for_temp_object(TempObjectType.STAGE)
 
     @staticmethod
+    def random_function_name():
+        return Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @staticmethod
+    def random_view_name():
+        return Utils.random_name_for_temp_object(TempObjectType.VIEW)
+
+    @staticmethod
+    def random_table_name() -> str:
+        return Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    @staticmethod
     def create_table(
         session: "Session", name: str, schema: str, is_temporary: bool = False
     ):
@@ -95,6 +107,10 @@ class Utils:
     @staticmethod
     def drop_view(session: "Session", name: str):
         session._run_query(f"drop view if exists {quote_name(name)}")
+
+    @staticmethod
+    def drop_function(session: "Session", name: str):
+        session._run_query(f"drop function if exists {name}")
 
     @staticmethod
     def unset_query_tag(session: "Session"):

@@ -100,7 +100,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
-    TableFunction,
+    TableFunctionCall,
     _create_table_function_expression,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
@@ -1512,7 +1512,7 @@ class DataFrame:
 
     def join_table_function(
         self,
-        func: Union[str, List[str], TableFunction],
+        func: Union[str, List[str], TableFunctionCall],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> "DataFrame":

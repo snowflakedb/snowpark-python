@@ -86,7 +86,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
-    TableFunction,
+    TableFunctionCall,
     _create_table_function_expression,
 )
 from snowflake.snowpark.types import (
@@ -816,7 +816,7 @@ class Session:
 
     def table_function(
         self,
-        func_name: Union[str, List[str], TableFunction],
+        func_name: Union[str, List[str], TableFunctionCall],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> DataFrame:

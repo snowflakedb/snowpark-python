@@ -348,7 +348,10 @@ def generate_python_code(
     # if func is a method object, we need to extract the target function first to check
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
-    target_func = getattr(func, "__func__", func)
+    if hasattr(func, "process"):  # func is a UDTF class
+        target_func = getattr(func, "process")
+    else:
+        target_func = getattr(func, "__func__", func)
 
     # clear the annotations because when the user annotates Variant and Geography,
     # which are from snowpark modules and will not work on the server side
