@@ -20,7 +20,8 @@
     .. autosummary::
 
         {% for item in ['snowflake.snowpark.functions', 'snowflake.snowpark.stored_procedure',
-            'snowflake.snowpark.types', 'snowflake.snowpark.udf', 'snowflake.snowpark.exceptions']
+            'snowflake.snowpark.types', 'snowflake.snowpark.udf', 'snowflake.snowpark.exceptions',
+            'snowflake.snowpark.table_functions', 'snowflake.snowpark.udtf']
         %}
             {{ item }}
         {% endfor %}

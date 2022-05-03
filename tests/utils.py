@@ -780,6 +780,14 @@ class TestFiles:
         return os.path.join(self.test_udf_directory, "test_udf_file.py")
 
     @property
+    def test_udtf_directory(self):
+        return os.path.join(self.resources_path, "test_udtf_dir")
+
+    @property
+    def test_udtf_py_file(self):
+        return os.path.join(self.test_udtf_directory, "test_udtf_file.py")
+
+    @property
     def test_sp_directory(self):
         return os.path.join(self.resources_path, "test_sp_dir")
 

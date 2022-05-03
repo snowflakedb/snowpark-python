@@ -24,6 +24,7 @@ from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sp_to_sf_type,
+    python_type_str_to_object,
     retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark._internal.udf_utils import (
@@ -47,8 +48,8 @@ class UserDefinedTableFunction:
     :meth:`UDTFRegistration.register_from_file`. The constructor of this class is not supposed
     to be called directly.
 
-    Call an instance of :class:`UserDefinedTableFunction` to generate
-    :class:`~snowflake.snowpark.Column` expressions. The input type can be
+    Call an instance of :class:`UserDefinedTableFunction` to generate a
+    :class:`~snowflake.snowpark.table_function.TableFunctionCall` instance. The input type can be
     a column name as a :class:`str`, or a :class:`~snowflake.snowpark.Column` object.
 
     See Also:
@@ -59,21 +60,21 @@ class UserDefinedTableFunction:
     def __init__(
         self,
         handler: Union[Callable, Tuple[str, str]],
-        return_type: StructType,
+        output_schema: StructType,
         input_types: List[DataType],
         name: str,
     ):
-        #: The Python function or a tuple containing the Python file path and the function name.
+        #: The Python class or a tuple containing the Python file path and the function name.
         self.handler = handler
         #: The UDTF name.
         self.name: str = name
 
-        self._return_type = return_type
+        self._output_schema = output_schema
         self._input_types = input_types
 
     def __call__(
         self,
-        *arguments: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName, ...]],
+        *arguments: Union[ColumnOrName, Iterable[ColumnOrName]],
         **named_arguments,
     ) -> TableFunctionCall:
         return TableFunctionCall(self.name, *arguments, **named_arguments)
@@ -81,20 +82,20 @@ class UserDefinedTableFunction:
 
 class UDTFRegistration:
     """
-    Provides methods to register classes as UDFs in the Snowflake database.
-    For more information about Snowflake Python UDFs, see `Python UDFs <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python.html>`__.
+    Provides methods to register classes as UDTFs in the Snowflake database.
+    For more information about Snowflake Python UDTFs, see `Python UDTFs <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python.html>`__.
 
-    :attr:`session.udtf <snowflake.snowpark.Session.udf>` returns an object of this class.
-    You can use this object to register UDFs that you plan to use in the current session or
-    permanently. The methods that register a UDF return a :class:`UserDefinedTableFunction` object,
-    which you can also use in :class:`~snowflake.snowpark.Column` expressions.
+    :attr:`session.udtf <snowflake.snowpark.Session.udtf>` returns an object of this class.
+    You can use this object to register UDTFs that you plan to use in the current session or
+    permanently. The methods that register a UDTF returns a :class:`UserDefinedTableFunction` object,
+    which you can also use to call the UDTF.
 
-    There are two ways to register a UDF with Snowpark:
+    There are two ways to register a UDTF with Snowpark:
 
         - Use :func:`~snowflake.snowpark.functions.udtf` or :meth:`register`. By pointing to a
           `runtime Python class`, Snowpark uses `cloudpickle <https://github.com/cloudpipe/cloudpickle>`_
           to serialize this class to bytecode, and deserialize the bytecode to a Python
-          class on the Snowflake server during UDF creation. During the serialization, the
+          class on the Snowflake server during UDTF creation. During the serialization, the
           global variables used in the Python function will be serialized into the bytecode,
           but only the name of the module object or any objects from a module that are used in the
           Python class will be serialized. During the deserialization, Python will look up the
@@ -112,23 +113,23 @@ class UDTFRegistration:
         self._session = session
 
     def describe(
-        self, udf_obj: UserDefinedTableFunction
+        self, udtf_obj: UserDefinedTableFunction
     ) -> "snowflake.snowpark.DataFrame":
         """
-        Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a UDF.
+        Returns a :class:`~snowflake.snowpark.DataFrame` that describes the properties of a UDTF.
 
         Args:
-            udf_obj: A :class:`UserDefinedFunction` returned by
+            udtf_obj: A :class:`UserDefinedFunction` returned by
                 :func:`~snowflake.snowpark.functions.udtf`, :meth:`register` or :meth:`register_from_file`.
         """
-        func_args = [convert_sp_to_sf_type(t) for t in udf_obj._input_types]
+        func_args = [convert_sp_to_sf_type(t) for t in udtf_obj._input_types]
         return self._session.sql(
-            f"describe function {udf_obj.name}({','.join(func_args)})"
+            f"describe function {udtf_obj.name}({','.join(func_args)})"
         )
 
     def register(
         self,
-        handler: Callable,
+        handler: Type,
         output_schema: [Union[StructType], Iterable[str]],
         input_types: Optional[List[DataType]] = None,
         name: Optional[Union[str, Iterable[str]]] = None,
@@ -149,6 +150,7 @@ class UDTFRegistration:
         Args:
             handler: A Python class used for creating the UDTF.
             output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+             If a list of column names are provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
                 type hints are provided.
@@ -202,7 +204,7 @@ class UDTFRegistration:
         )
 
         # register udtf
-        return self.__do_register_udtf(
+        return self._do_register_udtf(
             handler,
             output_schema,
             input_types,
@@ -242,8 +244,7 @@ class UDTFRegistration:
                 :meth:`session.add_import() <snowflake.snowpark.Session.add_import>`,
                 here the file can only be a Python file or a compressed file
                 (e.g., .zip file) containing Python modules.
-            handler_name: The Python class name in the file that will be created
-                as a UDTF.
+            handler_name: The Python class name in the file that the UDTF will use as the handler.
             output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
@@ -300,7 +301,7 @@ class UDTFRegistration:
         )
 
         # register udtf
-        return self.__do_register_udtf(
+        return self._do_register_udtf(
             (file_path, handler_name),
             output_schema,
             input_types,
@@ -312,7 +313,7 @@ class UDTFRegistration:
             parallel,
         )
 
-    def __do_register_udtf(
+    def _do_register_udtf(
         self,
         handler: Union[Callable, Tuple[str, str]],
         output_schema: [Union[StructType], Iterable[str]],
@@ -339,11 +340,12 @@ class UDTFRegistration:
             # The inner Tuple is a single row of the table function result.
             if isinstance(handler, Callable):
                 type_hints = get_type_hints(getattr(handler, "process"))
+                return_type_hint = type_hints.get("return")
             else:
                 type_hints = retrieve_func_type_hints_from_source(
                     handler[0], func_name="process", class_name=handler[1]
                 )
-            return_type_hint = type_hints.get("return")
+                return_type_hint = python_type_str_to_object(type_hints.get("return"))
             if not return_type_hint:
                 raise ValueError(
                     "Result type hints are not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
