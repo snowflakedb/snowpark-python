@@ -11,14 +11,13 @@ import datetime
 import decimal
 import re
 import sys
-import typing  # type: ignore
 from array import array
+from typing import Generator  # type: ignore
+from typing import Iterable  # type: ignore
+from typing import Iterator  # type: ignore
 from typing import (  # eval() used in this file needs Generator, Iterable and Iterator.
     Any,
     Dict,
-    Generator,
-    Iterable,
-    Iterator,
     List,
     NewType,
     Optional,
@@ -459,7 +458,10 @@ def python_type_to_snow_type(tp: Union[str, Type]) -> Tuple[DataType, bool]:
 
 
 def retrieve_func_type_hints_from_source(
-    file_path: str, func_name: str, class_name: str, _source: Optional[str] = None
+    file_path: str,
+    func_name: str,
+    class_name: Optional[str] = None,
+    _source: Optional[str] = None,
 ) -> Dict[str, str]:
     """
     Retrieve type hints of a function from a source file, or a source string (test only).

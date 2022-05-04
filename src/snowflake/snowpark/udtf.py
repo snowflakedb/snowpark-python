@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.type_utils import (
     retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark._internal.udf_utils import (
+    TABLE_FUNCTION_PROCESS,
     UDFColumn,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -438,11 +439,11 @@ class UDTFRegistration:
             # A typical type hint for method process is like Iterable[Tuple[int, str, datetime]], or Iterable[Tuple[str, ...]]
             # The inner Tuple is a single row of the table function result.
             if isinstance(handler, Callable):
-                type_hints = get_type_hints(getattr(handler, "process"))
+                type_hints = get_type_hints(getattr(handler, TABLE_FUNCTION_PROCESS))
                 return_type_hint = type_hints.get("return")
             else:
                 type_hints = retrieve_func_type_hints_from_source(
-                    handler[0], func_name="process", class_name=handler[1]
+                    handler[0], func_name=TABLE_FUNCTION_PROCESS, class_name=handler[1]
                 )
                 return_type_hint = python_type_str_to_object(type_hints.get("return"))
             if not return_type_hint:

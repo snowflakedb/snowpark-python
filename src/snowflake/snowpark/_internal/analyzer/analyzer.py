@@ -326,12 +326,10 @@ class Analyzer:
                 expr.recursive,
                 expr.mode,
             )
-
         elif isinstance(expr, PosArgumentsTableFunction):
             sql = function_expression(
                 expr.func_name, [self.analyze(x) for x in expr.args], False
             )
-
         elif isinstance(expr, NamedArgumentsTableFunction):
             sql = named_arguments_function(
                 expr.func_name,

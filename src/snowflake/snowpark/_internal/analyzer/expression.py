@@ -21,7 +21,7 @@ from snowflake.snowpark._internal.type_utils import (
     VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
     infer_type,
 )
-from snowflake.snowpark.types import DataType, StructType
+from snowflake.snowpark.types import DataType
 
 
 class Expression:

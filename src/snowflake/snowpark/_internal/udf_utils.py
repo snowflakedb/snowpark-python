@@ -55,6 +55,9 @@ _DEFAULT_HANDLER_NAME = "compute"
 # because zip compression ratio is quite high.
 _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 
+# Every table function handler class must define the process method.
+TABLE_FUNCTION_PROCESS = "process"
+
 
 class UDFColumn(NamedTuple):
     datatype: DataType
@@ -73,15 +76,15 @@ def get_types_from_type_hints(
         # For Python 3.10+, the result values of get_type_hints()
         # will become strings, which we have to change the implementation
         # here at that time. https://www.python.org/dev/peps/pep-0563/
-        if hasattr(func, "process"):
-            python_types_dict = get_type_hints(getattr(func, "process"))
+        if hasattr(func, TABLE_FUNCTION_PROCESS):
+            python_types_dict = get_type_hints(getattr(func, TABLE_FUNCTION_PROCESS))
         else:
             python_types_dict = get_type_hints(func)
     else:
         if object_type == TempObjectType.TABLE_FUNCTION:
             python_types_dict = (
                 retrieve_func_type_hints_from_source(
-                    func[0], "process", class_name=func[1]
+                    func[0], TABLE_FUNCTION_PROCESS, class_name=func[1]
                 )  # use method process of a UDTF handler class.
                 if is_local_python_file(func[0])
                 else {}
@@ -350,8 +353,8 @@ def generate_python_code(
     # if func is a method object, we need to extract the target function first to check
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
-    if hasattr(func, "process"):  # func is a UDTF class
-        target_func = getattr(func, "process")
+    if hasattr(func, TABLE_FUNCTION_PROCESS):  # func is a UDTF class
+        target_func = getattr(func, TABLE_FUNCTION_PROCESS)
     else:
         target_func = getattr(func, "__func__", func)
 
@@ -374,11 +377,10 @@ def generate_python_code(
     deserialization_code = f"""
 import pickle
 
-func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
+{_DEFAULT_HANDLER_NAME} = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
 """.rstrip()
-    if hasattr(func, "process"):
+    if hasattr(func, TABLE_FUNCTION_PROCESS):
         func_code = f"""
-compute = func
     """
     elif is_pandas_udf:
         pandas_code = f"""
