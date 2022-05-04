@@ -840,7 +840,7 @@ class Session:
             [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
 
         Example 3
-            If you want to call a UDTF right after it's registered, the returned ``UserDefinedTableFunction`` is callable.
+            If you want to call a UDTF right after it's registered, the returned ``UserDefinedTableFunction`` is callable:
 
             >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
             >>> from snowflake.snowpark.functions import udtf, lit
