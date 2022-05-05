@@ -65,4 +65,4 @@ and "Mark Directory as" -> "Source Root".
 
 #### Setup Python Interpreter
 This should be setup automatically, but make sure that the Python interpreter in Pycharm is pointing
-to the Python binary in your virtualenv (`[cloned repo directory]/virtualenv/bin/python`).
+to the Python binary in your virtualenv (`[cloned repo directory]/venv/bin/python`).
