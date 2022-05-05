@@ -493,8 +493,6 @@ class UDFRegistration:
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
-            session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
-                You need to specify this parameter if you have created multiple sessions before calling this method.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
@@ -603,8 +601,6 @@ class UDFRegistration:
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
-            session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
-                You need to specify this parameter if you have created multiple sessions before calling this method.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
