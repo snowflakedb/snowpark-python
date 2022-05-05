@@ -87,7 +87,8 @@ class DataFrameWriter:
 
             create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
 
-        Examples:
+        Examples::
+
             >>> df = session.create_dataframe([[1,2],[3,4]], schema=["a", "b"])
             >>> df.write.mode("overwrite").save_as_table("my_table", create_temp_table=True)
             >>> session.table("my_table").collect()
@@ -138,7 +139,7 @@ class DataFrameWriter:
         Returns:
             A list of :class:`Row` objects containing unloading results.
 
-        Example:
+        Example::
 
             >>> # save this dataframe to a parquet file on the session stage
             >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
