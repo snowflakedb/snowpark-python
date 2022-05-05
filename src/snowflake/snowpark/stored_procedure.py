@@ -25,34 +25,16 @@ from snowflake.snowpark.types import DataType
 class StoredProcedure:
     """
     Encapsulates a user defined lambda or function that is returned by
-    :func:`~snowflake.snowpark.functions.sproc` or by :func:`StoredProcedureRegistration.register`.
-    The constructor of this class is not supposed to be called directly.
+    :func:`~snowflake.snowpark.functions.sproc`, :meth:`StoredProcedureRegistration.register`
+    or :meth:`StoredProcedureRegistration.register_from_file`. The constructor
+    of this class is not supposed to be called directly.
 
     Call an instance of :class:`StoredProcedure` to invoke a stored procedure.
     The input should be Python literal values.
 
-
-    Examples::
-
-        >>> import snowflake.snowpark
-        >>> from snowflake.snowpark.functions import sproc
-        >>>
-        >>> session.add_packages('snowflake-snowpark-python')
-        >>>
-        >>> @sproc(name="my_copy_sp", replace=True)
-        ... def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
-        ...     session.table(from_table).limit(count).write.save_as_table(to_table, create_temp_table=True)
-        ...     return "SUCCESS"
-        >>>
-        >>> def double(session: snowflake.snowpark.Session, x: float) -> float:
-        ...     return session.sql(f"select 2 * {x}").collect()[0][0]
-        >>>
-        >>> # Create an instance of StoredProcedure using the sproc() function
-        >>> double_sp = sproc(double, replace=True)
-        >>>
-        >>> # call stored proc
-        >>> double_sp(2.2)
-        4.4
+    See Also:
+        - :class:`StoredProcedureRegistration`
+        - :func:`~snowflake.snowpark.functions.sproc`
     """
 
     def __init__(
@@ -89,39 +71,35 @@ class StoredProcedureRegistration:
     For more information about Snowflake Python stored procedures, see `Python stored procedures <https://docs.snowflake.com/en/LIMITEDACCESS/stored-procedures-python.html>`__.
 
     :attr:`session.sproc <snowflake.snowpark.Session.sproc>` returns an object of this class.
-    You can use this object to register stored procedures that you plan to use in the current session or permanently.
-    The methods that register a stored procedure return a :class:`StoredProcedure` object.
+    You can use this object to register stored procedures that you plan to use in the current session or
+    permanently. The methods that register a stored procedure return a :class:`StoredProcedure` object.
 
     Note that the first parameter of your function should be a snowpark Session. Also, you need to add
     `snowflake-snowpark-python` package (version >= 0.4.0) to your session before trying to create a
     stored procedure.
 
-    Examples::
+    There are two ways to register a stored procedure with Snowpark:
 
-        >>> import snowflake.snowpark
-        >>> from snowflake.snowpark.functions import sproc
-        >>>
-        >>> session.add_packages('snowflake-snowpark-python')
-        >>>
-        >>> def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
-        ...     session.table(from_table).limit(count).write.save_as_table(to_table)
-        ...     return "SUCCESS"
-        >>>
-        >>> my_copy_sp = session.sproc.register(my_copy, name="my_copy_sp", replace=True)
-        >>> _ = session.sql("create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table(generator(rowCount => 100))").collect()
-        >>>
-        >>> # call using sql
-        >>> _ = session.sql("drop table if exists test_to").collect()
-        >>> session.sql("call my_copy_sp('test_from', 'test_to', 10)").collect()
-        [Row(MY_COPY_SP='SUCCESS')]
-        >>> session.table("test_to").count()
-        10
-        >>> # call using session#call API
-        >>> _ = session.sql("drop table if exists test_to").collect()
-        >>> session.call("my_copy_sp", "test_from", "test_to", 10)
-        'SUCCESS'
-        >>> session.table("test_to").count()
-        10
+        - Use :func:`~snowflake.snowpark.functions.sproc` or :meth:`register`. By pointing to a
+          `runtime Python function`, Snowpark uses `cloudpickle <https://github.com/cloudpipe/cloudpickle>`_
+          to serialize this function to bytecode, and deserialize the bytecode to a Python
+          function on the Snowflake server during stored procedure creation. During the serialization, the
+          global variables used in the Python function will be serialized into the bytecode,
+          but only the name of the module object or any objects from a module that are used in the
+          Python function will be serialized. During the deserialization, Python will look up the
+          corresponding modules and objects by names.
+
+          Details could be found in :class:`snowflake.snowpark.udf.UDFRegistration`.
+
+        - Use :meth:`register_from_file`. By pointing to a `Python file` or a `zip file containing
+          Python source code` and the target function name, Snowpark uploads this file to a stage
+          (which can also be customized), and load the corresponding function from this file to
+          the Python runtime on the Snowflake server during stored procedure creation. Then this
+          function will be invoked when calling this stored procedure. This approach can address
+          the deficiency of the previous approach that uses cloudpickle, because the source code
+          in this file other than the target function will be loaded during stored procedure creation.
+          Therefore, this approach is useful and efficient when all your Python code is already in
+          source files.
 
     Snowflake supports the following data types for the parameters for a stored procedure:
 
@@ -160,8 +138,145 @@ class StoredProcedureRegistration:
         3. Currently calling stored procedure that requires VARIANT and GEOGRAPHY input types is not supported
         in snowpark API.
 
+    Example 1
+        Use stored procedure to copy data from one table to another::
+
+            >>> import snowflake.snowpark
+            >>> from snowflake.snowpark.functions import sproc
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>>
+            >>> def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+            ...     session.table(from_table).limit(count).write.save_as_table(to_table)
+            ...     return "SUCCESS"
+            >>>
+            >>> my_copy_sp = session.sproc.register(my_copy, name="my_copy_sp", replace=True)
+            >>> _ = session.sql("create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table(generator(rowCount => 100))").collect()
+            >>>
+            >>> # call using sql
+            >>> _ = session.sql("drop table if exists test_to").collect()
+            >>> session.sql("call my_copy_sp('test_from', 'test_to', 10)").collect()
+            [Row(MY_COPY_SP='SUCCESS')]
+            >>> session.table("test_to").count()
+            10
+            >>> # call using session#call API
+            >>> _ = session.sql("drop table if exists test_to").collect()
+            >>> session.call("my_copy_sp", "test_from", "test_to", 10)
+            'SUCCESS'
+            >>> session.table("test_to").count()
+            10
+
+    Example 2
+        Create a temporary stored procedure from a lambda and call it::
+
+            >>> from snowflake.snowpark.functions import sproc
+            >>> from snowflake.snowpark.types import IntegerType
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>> add_one_sp = sproc(
+            ...     lambda session_, x: session_.sql(f"select {x} + 1").collect()[0][0],
+            ...     return_type=IntegerType(),
+            ...     input_types=[IntegerType()]
+            ... )
+            >>> add_one_sp(1)
+            2
+
+    Example 3
+        Create a stored procedure with type hints and ``@sproc`` decorator and call it::
+
+            >>> import snowflake.snowpark
+            >>> from snowflake.snowpark.functions import sproc
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>> @sproc
+            ... def add_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> int:
+            ...    return session_.sql(f"select {x} + {y}").collect()[0][0]
+            >>> add_sp(1, 2)
+            3
+
+    Example 4
+        Create a permanent stored procedure with a name and call it in SQL::
+
+            >>> from snowflake.snowpark.types import IntegerType
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>> _ = session.sql("create or replace temp stage mystage").collect()
+            >>> _ = session.sproc.register(
+            ...     lambda session_, x, y: session_.sql(f"SELECT {x} * {y}").collect()[0][0],
+            ...     return_type=IntegerType(),
+            ...     input_types=[IntegerType(), IntegerType()],
+            ...     is_permanent=True,
+            ...     name="mul",
+            ...     replace=True,
+            ...     stage_location="@mystage",
+            ... )
+            >>> session.sql("call mul(5, 6)").collect()
+            [Row(MUL=30)]
+
+    Example 5
+        Create a stored procedure with stored-procedure-level imports and call it::
+
+            >>> import snowflake.snowpark
+            >>> from resources.test_sp_dir.test_sp_file import mod5
+            >>> from snowflake.snowpark.functions import sproc
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>> @sproc(imports=[("tests/resources/test_sp_dir/test_sp_file.py", "resources.test_sp_dir.test_sp_file")])
+            ... def mod5_and_plus1_sp(session_: snowflake.snowpark.Session, x: int) -> int:
+            ...     return mod5(session_, x) + 1
+            >>> mod5_and_plus1_sp(2)
+            3
+
+    Example 6
+        Create a stored procedure with stored-procedure-level packages and call it::
+
+            >>> import snowflake.snowpark
+            >>> from snowflake.snowpark.functions import sproc
+            >>> import numpy as np
+            >>> import math
+            >>>
+            >>> @sproc(packages=["snowflake-snowpark-python", "numpy"])
+            ... def sin_sp(_: snowflake.snowpark.Session, x: float) -> float:
+            ...     return np.sin(x)
+            >>> sin_sp(0.5 * math.pi)
+            1.0
+
+    Example 7
+        Creating a stored procedure from a local Python file::
+
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>> # mod5() in that file has type hints
+            >>> mod5_sp = session.sproc.register_from_file(
+            ...     file_path="tests/resources/test_sp_dir/test_sp_file.py",
+            ...     func_name="mod5",
+            ... )
+            >>> mod5_sp(2)
+            2
+
+    Example 8
+        Creating a stored procedure from a Python file on an internal stage::
+
+            >>> from snowflake.snowpark.types import IntegerType
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>> _ = session.sql("create or replace temp stage mystage").collect()
+            >>> _ = session.file.put("tests/resources/test_sp_dir/test_sp_file.py", "@mystage", auto_compress=False)
+            >>> mod5_sp = session.sproc.register_from_file(
+            ...     file_path="@mystage/test_sp_file.py",
+            ...     func_name="mod5",
+            ...     return_type=IntegerType(),
+            ...     input_types=[IntegerType()],
+            ... )
+            >>> mod5_sp(2)
+            2
+
     See Also:
-        :func:`~snowflake.snowpark.functions.sproc`
+        - :class:`snowflake.snowpark.udf.UDFRegistration`
+        - :func:`~snowflake.snowpark.functions.sproc`
+        - :meth:`register`
+        - :meth:`register_from_file`
+        - :meth:`~snowflake.snowpark.Session.add_import`
+        - :meth:`~snowflake.snowpark.Session.add_packages`
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session"):
@@ -175,7 +290,7 @@ class StoredProcedureRegistration:
 
         Args:
             sproc_obj: A :class:`StoredProcedure` returned by
-                :func:`~snowflake.snowpark.stored_procedure.sproc` or :meth:`register`.
+                :func:`~snowflake.snowpark.functions.sproc` or :meth:`register`.
         """
         func_args = [convert_sp_to_sf_type(t) for t in sproc_obj._input_types]
         return self._session.sql(
@@ -198,11 +313,55 @@ class StoredProcedureRegistration:
         """
         Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
         The usage, input arguments, and return value of this method are the same as
-        they are for :func:`~snowflake.snowpark.stored_procedure.sproc`, but :meth:`register`
-        cannot be used as a decorator.
+        they are for :func:`~snowflake.snowpark.functions.sproc`, but :meth:`register`
+        cannot be used as a decorator. See examples in
+        :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`.
+
+        Args:
+            func: A Python function used for creating the stored procedure. Note that the first parameter
+                of your function should be a snowpark Session.
+            return_type: A :class:`~snowflake.snowpark.types.DataType` representing the return data
+                type of the stored procedure. Optional if type hints are provided.
+            input_types: A list of :class:`~snowflake.snowpark.types.DataType`
+                representing the input data types of the stored procedure. Optional if
+                type hints are provided.
+            name: A string or list of strings that specify the name or fully-qualified
+                object identifier (database name, schema name, and function name) for
+                the stored procedure in Snowflake, which allows you to call this stored procedure in a SQL
+                command or via :meth:`~snowflake.snowpark.Session.call`.
+                If it is not provided, a name will be automatically generated for the stored procedure.
+                A name must be specified when ``is_permanent`` is ``True``.
+            is_permanent: Whether to create a permanent stored procedure. The default is ``False``.
+                If it is ``True``, a valid ``stage_location`` must be provided.
+            stage_location: The stage location where the Python file for the stored procedure
+                and its dependencies should be uploaded. The stage location must be specified
+                when ``is_permanent`` is ``True``, and it will be ignored when
+                ``is_permanent`` is ``False``. It can be any stage other than temporary
+                stages and external stages.
+            imports: A list of imports that only apply to this stored procedure. You can use a string to
+                represent a file path (similar to the ``path`` argument in
+                :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
+                strings to represent a file path and an import path (similar to the ``import_path``
+                argument in :meth:`~snowflake.snowpark.Session.add_import`). These stored procedure-level imports
+                will override the session-level imports added by
+                :meth:`~snowflake.snowpark.Session.add_import`.
+            packages: A list of packages that only apply to this stored procedure.
+                These stored procedure-level packages will override the session-level packages added by
+                :meth:`~snowflake.snowpark.Session.add_packages` and
+                :meth:`~snowflake.snowpark.Session.add_requirements`.
+            replace: Whether to replace a stored procedure that already was registered. The default is ``False``.
+                If it is ``False``, attempting to register a stored procedure with a name that already exists
+                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                an existing stored procedure with the same name is overwritten.
+            parallel: The number of threads to use for uploading stored procedure files with the
+                `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
+                command. The default value is 4 and supported values are from 1 to 99.
+                Increasing the number of threads can improve performance when uploading
+                large stored procedure files.
 
         See Also:
-            :func:`~snowflake.snowpark.functions.sproc`
+            - :func:`~snowflake.snowpark.functions.sproc`
+            - :meth:`register_from_file`
         """
         if not callable(func):
             raise TypeError(
@@ -244,7 +403,8 @@ class StoredProcedureRegistration:
         """
         Registers a Python function as a Snowflake Python stored procedure from a Python or zip file,
         and returns the stored procedure. Apart from ``file_path`` and ``func_name``, the input arguments
-        of this method are the same as :meth:`register`.
+        of this method are the same as :meth:`register`. See examples in
+        :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`.
 
         Args:
             file_path: The path of a local file or a remote file in the stage. See
@@ -256,27 +416,44 @@ class StoredProcedureRegistration:
                 (e.g., .zip file) containing Python modules.
             func_name: The Python function name in the file that will be created
                 as a stored procedure.
-
-        Example::
-
-            >>> import snowflake.snowpark
-            >>> from snowflake.snowpark.functions import sproc
-            >>> from snowflake.snowpark.types import IntegerType
-            >>>
-            >>> session.add_packages('snowflake-snowpark-python')
-            >>>
-            >>> # Contests in test_sp_file.py:
-            >>> # def mod5(session, x):
-            >>> #   return session.sql(f"SELECT {x} % 5").collect()[0][0]
-            >>> mod5_sp = session.sproc.register_from_file(
-            ...     "tests/resources/test_sp_dir/test_sp_file.py",
-            ...     "mod5",
-            ...     name="my_mod5_sp",
-            ...     return_type=IntegerType(),
-            ...     input_types=[IntegerType()],
-            ...     )
-            >>> mod5_sp(7)
-            2
+            return_type: A :class:`~snowflake.snowpark.types.DataType` representing the return data
+                type of the stored procedure. Optional if type hints are provided.
+            input_types: A list of :class:`~snowflake.snowpark.types.DataType`
+                representing the input data types of the stored procedure. Optional if
+                type hints are provided.
+            name: A string or list of strings that specify the name or fully-qualified
+                object identifier (database name, schema name, and function name) for
+                the stored procedure in Snowflake, which allows you to call this stored procedure in a SQL
+                command or via :meth:`~snowflake.snowpark.Session.call`.
+                If it is not provided, a name will be automatically generated for the stored procedure.
+                A name must be specified when ``is_permanent`` is ``True``.
+            is_permanent: Whether to create a permanent stored procedure. The default is ``False``.
+                If it is ``True``, a valid ``stage_location`` must be provided.
+            stage_location: The stage location where the Python file for the stored procedure
+                and its dependencies should be uploaded. The stage location must be specified
+                when ``is_permanent`` is ``True``, and it will be ignored when
+                ``is_permanent`` is ``False``. It can be any stage other than temporary
+                stages and external stages.
+            imports: A list of imports that only apply to this stored procedure. You can use a string to
+                represent a file path (similar to the ``path`` argument in
+                :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
+                strings to represent a file path and an import path (similar to the ``import_path``
+                argument in :meth:`~snowflake.snowpark.Session.add_import`). These stored procedure-level imports
+                will override the session-level imports added by
+                :meth:`~snowflake.snowpark.Session.add_import`.
+            packages: A list of packages that only apply to this stored procedure.
+                These stored procedure-level packages will override the session-level packages added by
+                :meth:`~snowflake.snowpark.Session.add_packages` and
+                :meth:`~snowflake.snowpark.Session.add_requirements`.
+            replace: Whether to replace a stored procedure that already was registered. The default is ``False``.
+                If it is ``False``, attempting to register a stored procedure with a name that already exists
+                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                an existing stored procedure with the same name is overwritten.
+            parallel: The number of threads to use for uploading stored procedure files with the
+                `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
+                command. The default value is 4 and supported values are from 1 to 99.
+                Increasing the number of threads can improve performance when uploading
+                large stored procedure files.
 
         Note::
             The type hints can still be extracted from the source Python file if they
