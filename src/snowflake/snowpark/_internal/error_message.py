@@ -268,7 +268,7 @@ class SnowparkClientExceptionMessages:
     def SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
         pe: ProgrammingError,
     ) -> SnowparkSQLException:
-        return SnowparkSQLException(pe.msg, "1304")
+        return SnowparkSQLException(pe.msg, "1304", pe.sfqid)
 
     # Server Error Messages 04XX
 

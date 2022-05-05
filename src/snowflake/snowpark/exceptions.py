@@ -3,25 +3,41 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """This package contains all Snowpark client-side exceptions."""
+import logging
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class SnowparkClientException(Exception):
     """Base Snowpark exception class"""
 
-    def __init__(self, message: str, error_code: Optional[str] = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[str] = None,
+        sfqid: Optional[str] = None,
+    ):
         self.message: str = message
         self.error_code: str = error_code
+        self.sfqid = sfqid
         self.telemetry_message: str = message
+
+        log_sfqid = logger.getEffectiveLevel() in (logging.INFO, logging.DEBUG)
+        if self.error_code and self.sfqid and log_sfqid:
+            self.pretty_msg = f"({self.error_code}): {self.sfqid}: {self.message}"
+        elif self.sfqid and log_sfqid:
+            self.pretty_msg = f"{self.sfqid}: {self.message}"
+        elif self.error_code:
+            self.pretty_msg = f"({self.error_code}): {self.message}"
+        else:
+            self.pretty_msg = self.message
 
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        if self.error_code:
-            return f"({self.error_code}): {self.message}"
-        else:
-            return self.message
+        return self.pretty_msg
 
     # TODO: SNOW-363951 handle telemetry
 
