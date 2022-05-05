@@ -600,6 +600,22 @@ def test_udf_level_import(session, resources_path):
             df.select(plus4_then_mod5_udf("a")).collect(),
         assert "No module named" in str(ex_info)
 
+        session.add_import(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")
+        # with an empty list of udf-level imports
+        # it will still fail even if we have session-level imports
+        plus4_then_mod5_udf = udf(
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            imports=[],
+        )
+        with pytest.raises(ProgrammingError) as ex_info:
+            df.select(plus4_then_mod5_udf("a")).collect(),
+        assert "No module named" in str(ex_info)
+
+        # clean
+        session.clear_imports()
+
 
 def test_type_hints(session):
     @udf
@@ -1140,6 +1156,19 @@ def test_add_packages(session):
         is_pandas_available, name=udf_name, replace=True, packages=["numpy"]
     )
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
+
+    # with an empty list of udf-level packages
+    # it will still fail even if we have session-level packages
+    def is_numpy_available() -> bool:
+        try:
+            import numpy
+        except ModuleNotFoundError:
+            return False
+        return True
+
+    session.udf.register(is_numpy_available, name=udf_name, replace=True, packages=[])
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
+
     session.clear_packages()
 
     # add module objects

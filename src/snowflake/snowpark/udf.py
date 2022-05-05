@@ -480,11 +480,15 @@ class UDFRegistration:
                 strings to represent a file path and an import path (similar to the ``import_path``
                 argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDF-level imports
                 will override the session-level imports added by
-                :meth:`~snowflake.snowpark.Session.add_import`.
+                :meth:`~snowflake.snowpark.Session.add_import`. Note that an empty list means
+                no import for this UDF, and ``None`` or not specifying this parameter means using
+                session-level imports.
             packages: A list of packages that only apply to this UDF. These UDF-level packages
                 will override the session-level packages added by
                 :meth:`~snowflake.snowpark.Session.add_packages` and
-                :meth:`~snowflake.snowpark.Session.add_requirements`.
+                :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
+                no package for this UDF, and ``None`` or not specifying this parameter means using
+                session-level packages.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
@@ -586,11 +590,15 @@ class UDFRegistration:
                 strings to represent a file path and an import path (similar to the ``import_path``
                 argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDF-level imports
                 will override the session-level imports added by
-                :meth:`~snowflake.snowpark.Session.add_import`.
+                :meth:`~snowflake.snowpark.Session.add_import`. Note that an empty list means
+                no import for this UDF, and ``None`` or not specifying this parameter means using
+                session-level imports.
             packages: A list of packages that only apply to this UDF. These UDF-level packages
                 will override the session-level packages added by
                 :meth:`~snowflake.snowpark.Session.add_packages` and
-                :meth:`~snowflake.snowpark.Session.add_requirements`.
+                :meth:`~snowflake.snowpark.Session.add_requirements`. Note that an empty list means
+                no package for this UDF, and ``None`` or not specifying this parameter means using
+                session-level packages.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
                 results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
