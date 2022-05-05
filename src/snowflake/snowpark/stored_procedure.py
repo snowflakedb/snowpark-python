@@ -270,13 +270,6 @@ class StoredProcedureRegistration:
             >>> mod5_sp(2)
             2
 
-        In this example, the file will only be read once during stored procedure creation, and will not
-        be read again during stored procedure execution. This is acheived with a third-party library
-        `cachetools <https://pypi.org/project/cachetools/>`_. You can also use ``LRUCache``
-        and ``TTLCache`` in this package to avoid the cache growing too large. Note that Python
-        built-in `cache decorators <https://docs.python.org/3/library/functools.html#functools.cache>`_
-        are not working when registering stored procedures using Snowpark, due to the limitation of cloudpickle.
-
     See Also:
         - :class:`snowflake.snowpark.udf.UDFRegistration`
         - :func:`~snowflake.snowpark.functions.sproc`
