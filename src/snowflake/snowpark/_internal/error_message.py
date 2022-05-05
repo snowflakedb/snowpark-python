@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from snowflake.connector import ProgrammingError
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateViewException,
@@ -262,6 +263,12 @@ class SnowparkClientExceptionMessages:
             f"result of the join.",
             "1303",
         )
+
+    @staticmethod
+    def SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+        pe: ProgrammingError,
+    ) -> SnowparkSQLException:
+        return SnowparkSQLException(pe.msg, "1304")
 
     # Server Error Messages 04XX
 

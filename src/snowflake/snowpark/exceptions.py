@@ -10,9 +10,18 @@ class SnowparkClientException(Exception):
     """Base Snowpark exception class"""
 
     def __init__(self, message: str, error_code: Optional[str] = None):
-        self.message = message
-        self.error_code = error_code
-        self.telemetry_message = message
+        self.message: str = message
+        self.error_code: str = error_code
+        self.telemetry_message: str = message
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        if self.error_code:
+            return f"({self.error_code}): {self.message}"
+        else:
+            return self.message
 
     # TODO: SNOW-363951 handle telemetry
 

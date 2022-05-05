@@ -8,6 +8,8 @@ from types import ModuleType
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
+from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -554,6 +556,13 @@ class StoredProcedureRegistration:
         # (e.g., a dependency might not be found on the stage),
         # then for a permanent stored procedure, we should delete the uploaded
         # python file and raise the exception
+        except ProgrammingError as pe:
+            cleanup_failed_permanent_registration(
+                self._session, upload_file_stage_location, stage_location
+            )
+            raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                pe
+            ) from pe
         except BaseException:
             cleanup_failed_permanent_registration(
                 self._session, upload_file_stage_location, stage_location

@@ -7,10 +7,12 @@ from math import sqrt
 
 import pytest
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import GroupingSets, Row
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkDataframeException
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeException,
+    SnowparkSQLException,
+)
 from snowflake.snowpark.functions import (
     avg,
     col,
@@ -634,7 +636,7 @@ def test_spark14664_decimal_sum_over_window_should_work(session):
 
 
 def test_aggregate_function_in_groupby(session):
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data4(session).group_by(sum(col('"KEY"'))).count().collect()
     assert "is not a valid group by expression" in str(ex_info)
 
@@ -759,7 +761,7 @@ def test_count_if(session):
     ).collect()
     assert res == []
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         session.sql(f"SELECT COUNT_IF(x) FROM {temp_view_name}").collect()
 
 

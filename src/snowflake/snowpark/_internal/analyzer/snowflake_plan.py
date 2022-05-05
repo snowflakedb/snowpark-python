@@ -92,7 +92,9 @@ class SnowflakePlan(LogicalPlan):
                             )
                         )
                         if not match:
-                            raise e
+                            raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                                e
+                            ) from e
                         col = match.group(1)
                         children = [
                             arg for arg in args if isinstance(arg, SnowflakePlan)
@@ -131,9 +133,13 @@ class SnowflakePlan(LogicalPlan):
                                 col, col
                             ) from e
                         else:
-                            raise e
+                            raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                                e
+                            ) from e
                     else:
-                        raise e
+                        raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                            e
+                        ) from e
 
             return wrap
 

@@ -12,11 +12,10 @@ from itertools import product
 
 import pytest
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkColumnException
+from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
 from snowflake.snowpark.functions import col, concat, lit, when
 from snowflake.snowpark.types import (
     ArrayType,
@@ -1051,7 +1050,7 @@ def test_create_dataframe_large_without_batch_insert(session):
     original_value = analyzer.ARRAY_BIND_THRESHOLD
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 40000
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             session.create_dataframe([1] * 20000).collect()
         assert "SQL compilation error" in str(ex_info)
         assert "maximum number of expressions in a list exceeded" in str(ex_info)
@@ -1141,7 +1140,7 @@ def test_dataframe_duplicated_column_names(session):
 
     # however, create a table/view doesn't work because
     # Snowflake doesn't allow duplicated column names
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.create_or_replace_view(
             Utils.random_name_for_temp_object(TempObjectType.VIEW)
         )
@@ -1444,7 +1443,7 @@ def test_describe(session):
         ],
     )
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).describe("c")
     assert "invalid identifier" in str(ex_info)
 

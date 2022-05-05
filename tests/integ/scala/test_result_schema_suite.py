@@ -5,7 +5,7 @@ import os.path
 
 import pytest
 
-from snowflake.connector.errors import ProgrammingError
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col
 from tests.utils import TYPE_MAP, TempObjectType, TestFiles, Utils
 
@@ -92,13 +92,13 @@ def test_show_terse(session):
 
 
 def test_invalid_show_commands(session):
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session.sql("show").schema
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session.sql("show table").schema
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session.sql("show tables abc").schema
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         session.sql("show external abc").schema
 
 

@@ -11,8 +11,6 @@ from typing import Iterator
 
 import pytest
 
-import snowflake.connector
-from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
@@ -20,6 +18,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
     SnowparkInvalidObjectNameException,
     SnowparkPlanException,
+    SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
     as_integer,
@@ -386,7 +385,7 @@ def test_joins_on_result_scan(session):
 
 
 def test_df_stat_corr(session):
-    with pytest.raises(ProgrammingError) as exec_info:
+    with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.string1(session).stat.corr("a", "b")
     assert "Numeric value 'a' is not recognized" in str(exec_info)
 
@@ -397,7 +396,7 @@ def test_df_stat_corr(session):
 
 
 def test_df_stat_cov(session):
-    with pytest.raises(ProgrammingError) as exec_info:
+    with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.string1(session).stat.cov("a", "b")
     assert "Numeric value 'a' is not recognized" in str(exec_info)
 
@@ -413,13 +412,13 @@ def test_df_stat_approxQuantile(session):
         "a", [0, 0.1, 0.4, 0.6, 1]
     ) == [-0.5, 0.5, 3.5, 5.5, 9.5]
 
-    with pytest.raises(ProgrammingError) as exec_info:
+    with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.approx_numbers(session).stat.approx_quantile("a", [-1])
     assert "Invalid value [-1.0] for function 'APPROX_PERCENTILE_ESTIMATE'" in str(
         exec_info
     )
 
-    with pytest.raises(ProgrammingError) as exec_info:
+    with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.string1(session).stat.approx_quantile("a", [0.5])
     assert "Numeric value 'test1' is not recognized" in str(exec_info)
 
@@ -741,7 +740,7 @@ def test_sample_negative(session):
     df = session.range(row_count)
     with pytest.raises(ValueError):
         df.sample(n=-1)
-    with pytest.raises(snowflake.connector.errors.ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         df.sample(n=1000001).count()
     with pytest.raises(ValueError):
         df.sample(frac=-0.01)
@@ -957,19 +956,19 @@ def test_select_negative_select(session):
     assert "The input of select() cannot be empty" in str(ex_info)
 
     # select columns which don't exist
-    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select("not_exists_column").collect()
     assert "SQL compilation error" in str(ex_info)
 
-    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(["not_exists_column"]).collect()
     assert "SQL compilation error" in str(ex_info)
 
-    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(col("not_exists_column")).collect()
     assert "SQL compilation error" in str(ex_info)
 
-    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select([col("not_exists_column")]).collect()
     assert "SQL compilation error" in str(ex_info)
 
@@ -1067,7 +1066,7 @@ def test_rollup(session):
     ).to_df(["country", "state", "value"])
 
     # At least one column needs to be provided ( negative test )
-    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.rollup(list()).agg(sum_(col("value"))).show()
 
     assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
@@ -1187,7 +1186,7 @@ def test_cube(session):
     ).to_df(["country", "state", "value"])
 
     # At least one column needs to be provided ( negative test )
-    with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.cube(list()).agg(sum_(col("value"))).show()
 
     assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
@@ -1563,7 +1562,7 @@ def test_create_or_replace_temporary_view(session, db_parameters):
         session2 = Session.builder.configs(db_parameters).create()
         with session2:
             assert session is not session2
-            with pytest.raises(snowflake.connector.errors.ProgrammingError) as ex_info:
+            with pytest.raises(SnowparkSQLException) as ex_info:
                 session2.table(view_name).collect()
             assert "does not exist or not authorized" in str(ex_info)
     finally:
