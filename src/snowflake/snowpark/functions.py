@@ -3202,7 +3202,8 @@ def sproc(
     It can be used as either a function call or a decorator. In most cases you work with a single session.
     This function uses that session to register the stored procedure. If you have multiple sessions, you need to
     explicitly specify the ``session`` parameter of this function. If you have a function and would
-    like to register it to multiple databases, use ``session.sproc.register`` instead.
+    like to register it to multiple databases, use ``session.sproc.register`` instead. See examples
+    in :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`.
 
     Note that the first parameter of your function should be a snowpark Session. Also, you need to add
     `snowflake-snowpark-python` package (version >= 0.4.0) to your session before trying to create a
@@ -3210,7 +3211,7 @@ def sproc(
 
     Args:
         func: A Python function used for creating the stored procedure.
-        return_type: A :class:`types.DataType` representing the return data
+        return_type: A :class:`~snowflake.snowpark.types.DataType` representing the return data
             type of the stored procedure. Optional if type hints are provided.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the stored procedure. Optional if
