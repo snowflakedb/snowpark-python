@@ -424,13 +424,15 @@ def resolve_imports_and_packages(
                 )
             udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
         all_urls = session._resolve_imports(upload_stage, udf_level_imports)
-    else:
+    elif imports is None:
         all_urls = session._resolve_imports(upload_stage)
+    else:
+        all_urls = []
 
     # resolve packages
     resolved_packages = (
         session._resolve_packages(packages, include_pandas=is_pandas_udf)
-        if packages
+        if packages is not None
         else session._resolve_packages(
             [], session._packages, validate_package=False, include_pandas=is_pandas_udf
         )
