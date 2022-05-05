@@ -3206,7 +3206,8 @@ def sproc(
     It can be used as either a function call or a decorator. In most cases you work with a single session.
     This function uses that session to register the stored procedure. If you have multiple sessions, you need to
     explicitly specify the ``session`` parameter of this function. If you have a function and would
-    like to register it to multiple databases, use ``session.sproc.register`` instead.
+    like to register it to multiple databases, use ``session.sproc.register`` instead. See examples
+    in :class:`~snowflake.snowpark.stored_procedure.StoredProcedureRegistration`.
 
     Note that the first parameter of your function should be a snowpark Session. Also, you need to add
     `snowflake-snowpark-python` package (version >= 0.4.0) to your session before trying to create a
@@ -3214,7 +3215,7 @@ def sproc(
 
     Args:
         func: A Python function used for creating the stored procedure.
-        return_type: A :class:`types.DataType` representing the return data
+        return_type: A :class:`~snowflake.snowpark.types.DataType` representing the return data
             type of the stored procedure. Optional if type hints are provided.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the stored procedure. Optional if
@@ -3257,44 +3258,6 @@ def sproc(
 
     Returns:
         A stored procedure function that can be called with python value.
-
-    Examples::
-
-        >>> from snowflake.snowpark.functions import sproc
-        >>> from snowflake.snowpark.types import IntegerType
-        >>>
-        >>> session.add_packages('snowflake-snowpark-python')
-        >>>
-        >>> # register a temporary stored procedure
-        >>> add_one = sproc(
-        ...     lambda session_, x: session_.sql(f"SELECT {x} + 1").collect()[0][0],
-        ...     return_type=IntegerType(),
-        ...     input_types=[IntegerType()],
-        ...     replace=True,
-        ... )
-        >>>
-        >>> _ = session.sql("create or replace stage mystage").collect()
-        >>> # register a permanent stored procedure by setting is_permanent to True
-        >>> @sproc(name="minus_one_sp", is_permanent=True, stage_location="@mystage/", replace=True)
-        ... def minus_one(session_: snowflake.snowpark.Session, x: int) -> int:
-        ...     return session_.sql(f"SELECT {x} - 1").collect()[0][0]
-        >>>
-        >>> # use stored-proc-level imports
-        >>> from resources.test_sp_dir.test_sp_file import mod5
-        >>> @sproc(
-        ...     name="my_mod5_sp",
-        ...     is_permanent=True,
-        ...     stage_location="@mystage",
-        ...     imports=["tests/resources/"],
-        ...     replace=True)
-        ... def my_mod5(session_: snowflake.snowpark.Session, x: float) -> float:
-        ...     return session_.sql(f"SELECT {mod5(x)}").collect()[0][0]
-        >>>
-        >>> # Call stored procedure
-        >>> session.call("minus_one_sp", 5)
-        4
-        >>> add_one(5)
-        6
 
     Note:
         1. When type hints are provided and are complete for a function,
