@@ -58,7 +58,8 @@ def test_basic_udtf_word_count_without_end_partition(session):
 
         # Call the UDTF with funcName and named parameters, result should be the same
         # TODO: We'll address separately that the argument name shouldn't be arg1.
-        #  It should be the function arg name. So it should be `s1` in this case.
+        #  https://snowflakecomputing.atlassian.net/browse/SNOW-585622
+        #  It should be the function arg name. So it should be `s1` in this case after change.
         df3 = session.table_function(wordcount_udtf(arg1=lit("w1 w2 w2 w3 w3 w3")))
         Utils.check_answer(df3, [Row("w1", 1), Row("w2", 2), Row("w3", 3)], sort=True)
         assert df3.columns == ["WORD", "COUNT"]
@@ -200,7 +201,9 @@ def test_negative_test_with_invalid_output_column_name(session):
     )
 
 
-@pytest.mark.skip("Python UDF/UDTF doesn't support Optional in type hints yet.")
+@pytest.mark.skip(
+    "Python UDTF doesn't support Optional in type hints for out_schema yet. And Optional has no impact."
+)
 def test_input_type_optional(session):
     # TODO: Scala supports type Option. But Python UDF doesn't support type annotation like Optional[int].
     #  So this test isn't need in Python. But we should review whether `Optinal` needs to be supported in Python.
@@ -248,7 +251,7 @@ def test_input_type_basic_types(session):
                 lit(1),
                 lit(2.2),
                 lit(True),
-                lit(decimal.Decimal(3.33)),
+                lit(decimal.Decimal("3.33")),
                 lit("python"),
                 lit(b"bytes"),
                 lit(bytearray("bytearray", "utf-8")),
@@ -262,7 +265,7 @@ def test_input_type_basic_types(session):
                     "1",
                     "2.2",
                     "True",
-                    "3.330000000000000071",
+                    "3.330000000000000000",
                     "python",
                     "bytes",
                     "bytearray",

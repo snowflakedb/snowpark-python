@@ -15,7 +15,7 @@ from array import array
 from typing import Generator  # type: ignore
 from typing import Iterable  # type: ignore
 from typing import Iterator  # type: ignore
-from typing import (  # eval() used in this file needs Generator, Iterable and Iterator.
+from typing import (
     Any,
     Dict,
     List,

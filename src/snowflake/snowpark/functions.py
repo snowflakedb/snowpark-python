@@ -3043,7 +3043,7 @@ def udtf(
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
     replace: bool = False,
-    session: Optional["snowflake.snowpark.Session"] = None,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
@@ -3254,7 +3254,7 @@ def call_table_function(
     Args:
         function_name: The name of the table function.
         args: The positional arguments of the table function.
-        **kwargs: The named arguments of the table function. Some table functions have named arguments instead of positional ones. For instance, ``flatten``.
+        **kwargs: The named arguments of the table function. Some table functions (e.g., ``flatten``) have named arguments instead of positional ones.
 
     Example:
             >>> from snowflake.snowpark.functions import lit

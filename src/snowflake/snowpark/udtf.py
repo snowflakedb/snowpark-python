@@ -28,7 +28,7 @@ from snowflake.snowpark._internal.type_utils import (
     retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark._internal.udf_utils import (
-    TABLE_FUNCTION_PROCESS,
+    TABLE_FUNCTION_PROCESS_METHOD,
     UDFColumn,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -91,16 +91,9 @@ class UDTFRegistration:
     permanently. The methods that register a UDTF returns a :class:`UserDefinedTableFunction` object,
     which you can also use to call the UDTF.
 
-    There are two ways to register a UDTF with Snowpark:
-
-        - Use :func:`~snowflake.snowpark.functions.udtf` or :meth:`register`. By pointing to a
-          `runtime Python class`, Snowpark uses `cloudpickle <https://github.com/cloudpipe/cloudpickle>`_
-          to serialize this class to bytecode, and deserialize the bytecode to a Python
-          class on the Snowflake server during UDTF creation. During the serialization, the
-          global variables used in the Python function will be serialized into the bytecode,
-          but only the name of the module object or any objects from a module that are used in the
-          Python class will be serialized. During the deserialization, Python will look up the
-          corresponding modules and objects by names.
+    Registering a UDTF is like registering a scalar UDF, you can use :meth:`register` or :func:`snowflake.snowpark.functions.udf`
+    to explicitly register it. You can slso decorator `@udtf`. They all use ``cloudpickle`` to transfer the code from cleitn to the server.
+    Another way is to use :meth:`register_from_file`. Refer to module :class:`snowflake.snowpark.udf.UDFRegistration` for when to use them respectively.
 
     Example 1
         Create a temporary UDTF and call it:
@@ -114,7 +107,7 @@ class UDTFRegistration:
             >>> generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
             >>> session.table_function(generator_udtf(lit(3))).collect()  # Query it by calling it
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
-            >>> session.table_function(generator_udtf.name, lit(3))).collect()  # Query it by using the name
+            >>> session.table_function(generator_udtf.name, lit(3)).collect()  # Query it by using the name
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
     Example 2
@@ -150,7 +143,33 @@ class UDTFRegistration:
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
     Example 4
-        Create a UDTF with UDF-level imports and apply it to a dataframe:
+        Create a UDTF with type hints:
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> @udtf(output_schema=["n1", "n2"])
+            ... class generator_udtf:
+            ...     def process(self, n: int) -> Iterable[Tuple[int, int]]:
+            ...         for i in range(n):
+            ...             yield (i, i+1)
+            >>> session.table_function(generator_udtf(lit(3))).collect()
+            [Row(N1=0, N2=1), Row(N1=1, N2=2), Row(N1=2, N2=3)]
+
+    Example 5
+        Create a UDTF with type hints by using ``...`` for multiple columns of the same type:
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> @udtf(output_schema=["n1", "n2"])
+            ... class generator_udtf:
+            ...     def process(self, n: int) -> Iterable[Tuple[int, ...]]:
+            ...         for i in range(n):
+            ...             yield (i, i+1)
+            >>> session.table_function(generator_udtf(lit(3))).collect()
+            [Row(N1=0, N2=1), Row(N1=1, N2=2), Row(N1=2, N2=3)]
+
+    Example 6
+        Create a UDTF with UDF-level imports and type hints:
 
             >>> from resources.test_udf_dir.test_udf_file import mod5
             >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
@@ -163,8 +182,8 @@ class UDTFRegistration:
             >>> session.table_function(generator_udtf(lit(6))).collect()
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2), Row(NUMBER=3), Row(NUMBER=4), Row(NUMBER=0)]
 
-    Example 5
-        Create a UDTF with UDF-level packages and apply it to a dataframe::
+    Example 7
+        Create a UDTF with UDF-level packages and type hints:
 
             >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
             >>> from snowflake.snowpark.functions import udtf, lit
@@ -177,7 +196,7 @@ class UDTFRegistration:
             >>> session.table_function(generator_udtf(lit(3))).collect()
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
-    Example 6
+    Example 8
         Creating a UDTF from a local Python file:
 
             >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
@@ -191,7 +210,7 @@ class UDTFRegistration:
             >>> session.table_function(generator_udtf(lit(3))).collect()
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
-    Example 7
+    Example 9
         Creating a UDTF from a Python file on an internal stage:
 
             >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
@@ -439,11 +458,15 @@ class UDTFRegistration:
             # A typical type hint for method process is like Iterable[Tuple[int, str, datetime]], or Iterable[Tuple[str, ...]]
             # The inner Tuple is a single row of the table function result.
             if isinstance(handler, Callable):
-                type_hints = get_type_hints(getattr(handler, TABLE_FUNCTION_PROCESS))
+                type_hints = get_type_hints(
+                    getattr(handler, TABLE_FUNCTION_PROCESS_METHOD)
+                )
                 return_type_hint = type_hints.get("return")
             else:
                 type_hints = retrieve_func_type_hints_from_source(
-                    handler[0], func_name=TABLE_FUNCTION_PROCESS, class_name=handler[1]
+                    handler[0],
+                    func_name=TABLE_FUNCTION_PROCESS_METHOD,
+                    class_name=handler[1],
                 )
                 return_type_hint = python_type_str_to_object(type_hints.get("return"))
             if not return_type_hint:
@@ -458,12 +481,12 @@ class UDTFRegistration:
                 collections.abc.Iterator,
             ):
                 raise ValueError(
-                    f"The type hint for a UDTF handler must but a collection type. {return_type_hint} is passed."
+                    f"The type hint for a UDTF handler must but a collection type. {return_type_hint} is used."
                 )
             row_type_hint = get_args(return_type_hint)[0]  # The inner Tuple
             if get_origin(row_type_hint) != tuple:
                 raise ValueError(
-                    f"The return type hints of method '{handler.__name__}.process' must be a collection of Tuple or tuple, for instance, Iterable[Tuple[str, int]], if you specify return type hints."
+                    f"The return type hints of method '{handler.__name__}.process' must be a collection of tuples, for instance, Iterable[Tuple[str, int]], if you specify return type hints."
                 )
             column_type_hints = get_args(row_type_hint)
             if len(column_type_hints) > 1 and column_type_hints[1] == Ellipsis:
@@ -550,6 +573,6 @@ class UDTFRegistration:
         return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name)
 
 
-def _validate_output_schema_names(names: Iterable[str]):
+def _validate_output_schema_names(names: Iterable[str]) -> None:
     for name in names:
         validate_object_name(name)

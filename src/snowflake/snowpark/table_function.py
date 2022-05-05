@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-"""Contains table function related classes"""
+"""Contains table function related classes."""
 from typing import Iterable, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -22,7 +22,7 @@ class TableFunctionCall:
     """Represents a table function call.
     A table function call has the function names, positional arguments, named arguments and the partitioning information.
 
-    Usually you don't need to explicitly create an instance of this class even though you can.
+    The constructor of this class is not supposed to be called directly.
     Instead, use :func:`~snowflake.snowpark.function.call_table_function`, which will create an instance of this class.
     Or use :func:`~snowflake.snowpark.function.table_function` to create a ``Callable`` object and call it to create an
     instance of this class.
@@ -98,15 +98,19 @@ class TableFunctionCall:
             order_spec = []
             if len(order_by_tuple) > 0:
                 for e in order_by_tuple:
-                    if isinstance(e, str):
-                        order_spec.append(SortOrder(Column(e).expression, Ascending()))
-                    elif isinstance(e, Column):
-                        if isinstance(e.expression, SortOrder):
-                            order_spec.append(e.expression)
-                        elif isinstance(e.expression, Expression):
-                            order_spec.append(SortOrder(e.expression, Ascending()))
+                    order_spec.append(_create_order_by_expression(e))
             new_table_function._order_by = order_spec
         return new_table_function
+
+
+def _create_order_by_expression(e: Union[str, Column]) -> SortOrder:
+    if isinstance(e, str):
+        order_spec.append(SortOrder(Column(e).expression, Ascending()))
+    elif isinstance(e, Column):
+        if isinstance(e.expression, SortOrder):
+            order_spec.append(e.expression)
+        elif isinstance(e.expression, Expression):
+            order_spec.append(SortOrder(e.expression, Ascending()))
 
 
 def _create_table_function_expression(

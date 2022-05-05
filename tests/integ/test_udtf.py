@@ -20,7 +20,7 @@ from snowflake.snowpark.types import (
 from tests.utils import TestFiles, Utils
 
 
-def test_register_udtf_from_file_no_typehints(session, resources_path):
+def test_register_udtf_from_file_no_type_hints(session, resources_path):
     test_files = TestFiles(resources_path)
     schema = StructType(
         [
