@@ -190,7 +190,7 @@ def test_copy_csv_create_table_if_not_exists(session, tmp_stage_name1):
         Utils.drop_table(session, test_table_name)
 
 
-def test_saveAsTable_not_affect_copy_into(session, tmp_stage_name1):
+def test_save_as_table_not_affect_copy_into(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 Int, c2 String, c3 Double")
@@ -203,7 +203,7 @@ def test_saveAsTable_not_affect_copy_into(session, tmp_stage_name1):
         )
 
         # Write data with save_as_table(), loaded file are NOT skipped.
-        df.write.save_as_table(table_name)
+        df.write.save_as_table(table_name, mode="append")
         Utils.check_answer(
             session.table(table_name).collect(),
             [
@@ -216,7 +216,7 @@ def test_saveAsTable_not_affect_copy_into(session, tmp_stage_name1):
         )
 
         # Write data with save_as_table() again, loaded file are NOT skipped.
-        df.write.save_as_table(table_name)
+        df.write.save_as_table(table_name, mode="append")
         Utils.check_answer(
             session.table(table_name),
             [
