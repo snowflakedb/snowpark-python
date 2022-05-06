@@ -732,7 +732,7 @@ class Session:
                             "on the server but not on your local environment.",
                             package_name,
                         )
-                    except BaseException as ex:
+                    except Exception as ex:
                         logging.warning(
                             "Failed to get the local distribution of package %s: %s",
                             package_name,
