@@ -31,6 +31,7 @@ def add_snowpark_session(doctest_namespace):
     ).create() as session:
         if RUNNING_ON_GH:
             session.sql(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}").collect()
+            session.sql("CREATE or REPLACE temp STAGE mystage").collect()
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
             session.sql(
                 f"GRANT ALL PRIVILEGES ON SCHEMA {TEST_SCHEMA} TO ROLE PUBLIC"
