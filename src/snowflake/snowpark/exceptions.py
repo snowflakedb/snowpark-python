@@ -18,7 +18,7 @@ class SnowparkClientException(Exception):
         error_code: Optional[str] = None,
     ):
         self.message: str = message
-        self.error_code: str = error_code
+        self.error_code: Optional[str] = error_code
         self.telemetry_message: str = message
 
         self._pretty_msg = (
@@ -81,8 +81,8 @@ class SnowparkSQLException(SnowparkClientException):
         sfqid: Optional[str] = None,
     ):
         self.message: str = message
-        self.error_code: str = error_code
-        self.sfqid: str = sfqid
+        self.error_code: Optional[str] = error_code
+        self.sfqid: Optional[str] = sfqid
         self.telemetry_message: str = message
 
         log_sfqid = logger.getEffectiveLevel() in (logging.INFO, logging.DEBUG)

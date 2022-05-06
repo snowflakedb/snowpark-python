@@ -715,16 +715,14 @@ class UDFRegistration:
         # then for a permanent stored procedure, we should delete the uploaded
         # python file and raise the exception
         except ProgrammingError as pe:
-            cleanup_failed_permanent_registration(
-                self._session, upload_file_stage_location, stage_location
-            )
             raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                 pe
             ) from pe
         except BaseException:
+            raise
+        finally:
             cleanup_failed_permanent_registration(
                 self._session, upload_file_stage_location, stage_location
             )
-            raise
 
         return UserDefinedFunction(func, return_type, input_types, udf_name)
