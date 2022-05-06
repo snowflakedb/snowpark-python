@@ -611,7 +611,7 @@ def test_udf_level_import(session, resources_path):
             input_types=[IntegerType()],
             imports=[],
         )
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect(),
         assert "No module named" in str(ex_info)
 
