@@ -64,7 +64,8 @@ class DataFrameReader:
             >>> # Create a DataFrame that is configured to load data from the CSV file.
             >>> df = session.read.option("skip_header", 1).schema(user_schema).csv("@mystage/testCSV.csv")
             >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
-            >>> results = df.collect()
+            >>> df.collect()
+            [Row(A=2, B='two', C=2.2)]
 
 
     Example 2:
@@ -75,7 +76,18 @@ class DataFrameReader:
             >>> # Create a DataFrame that is configured to load data from the gzipped JSON file.
             >>> json_df = session.read.option("compression", "gzip").json("@mystage/testJson.json.gz")
             >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
-            >>> results = json_df.collect()
+            >>> json_df.show()
+            -----------------------
+            |"$1"                 |
+            -----------------------
+            |{                    |
+            |  "color": "Red",    |
+            |  "fruit": "Apple",  |
+            |  "size": "Large"    |
+            |}                    |
+            -----------------------
+            <BLANKLINE>
+
 
       In addition, if you want to load only a subset of files from the stage, you can use the
       `pattern <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#loading-using-pattern-matching>`_
@@ -85,13 +97,15 @@ class DataFrameReader:
         Loading only the CSV files from a stage location:
 
             >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+            >>> from snowflake.snowpark.functions import col
             >>> _ = session.file.put("tests/resources/*.csv", "@mystage", auto_compress=False)
             >>> # Define the schema for the data in the CSV files.
             >>> user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType()), StructField("c", FloatType())])
             >>> # Create a DataFrame that is configured to load data from the CSV files in the stage.
-            >>> csv_df = session.read.option("pattern", ".*[.]csv").schema(user_schema).csv("@mystage/testCSV.csv")
+            >>> csv_df = session.read.option("pattern", ".*V[.]csv").schema(user_schema).csv("@mystage").sort(col("a"))
             >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
-            >>> results = csv_df.collect()
+            >>> csv_df.collect()
+            [Row(A=1, B='one', C=1.2), Row(A=2, B='two', C=2.2), Row(A=3, B='three', C=3.3), Row(A=4, B='four', C=4.4)]
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session"):
@@ -150,7 +164,8 @@ class DataFrameReader:
             >>> user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType()), StructField("c", FloatType())])
             >>> df = session.read.schema(user_schema).csv("@mystage/testCSV.csv").filter(col("a") < 2)
             >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
-            >>> results = df.collect()
+            >>> df.collect()
+            [Row(A=1, B='one', C=1.2)]
 
         Args:
             path: The path to the CSV file (including the stage name).
@@ -191,7 +206,22 @@ class DataFrameReader:
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             >>> df = session.read.json("@mystage/testJson.json").where(col("$1")["fruit"] == lit("Apple"))
             >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
-            >>> results = df.collect()
+            >>> df.show()
+            -----------------------
+            |"$1"                 |
+            -----------------------
+            |{                    |
+            |  "color": "Red",    |
+            |  "fruit": "Apple",  |
+            |  "size": "Large"    |
+            |}                    |
+            |{                    |
+            |  "color": "Red",    |
+            |  "fruit": "Apple",  |
+            |  "size": "Large"    |
+            |}                    |
+            -----------------------
+            <BLANKLINE>
 
         Args:
             path: The path to the JSON file (including the stage name).
@@ -293,7 +323,20 @@ class DataFrameReader:
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             >>> df = session.read.xml("@mystage/test.xml")
             >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
-            >>> result = df.collect()
+            >>> df.show()
+            ---------------------
+            |"$1"               |
+            ---------------------
+            |<test>             |
+            |  <num>1</num>     |
+            |  <str>str1</str>  |
+            |</test>            |
+            |<test>             |
+            |  <num>2</num>     |
+            |  <str>str2</str>  |
+            |</test>            |
+            ---------------------
+            <BLANKLINE>
 
         Args:
             path: The path to the XML file (including the stage name).
@@ -318,7 +361,7 @@ class DataFrameReader:
             >>> json_df = session.read.option("compression", "none").json("@mystage/testJson.json")
             >>> # Create a DataFrame that is configured to load data from the CSV file.
             >>> user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
-            >>> csv_df = session.read.option("field_delimiter", ":").option("skip_header", 1).schema(user_schema).csv("@mystage/testCSV.csv")
+            >>> csv_df = session.read.option("field_delimiter", ",").option("skip_header", 1).schema(user_schema).csv("@mystage/testCSV.csv")
 
         In addition, if you want to load only a subset of files from the stage, you can
         use the `pattern <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#loading-using-pattern-matching>`_
