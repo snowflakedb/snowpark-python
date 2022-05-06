@@ -16,28 +16,20 @@ class SnowparkClientException(Exception):
         self,
         message: str,
         error_code: Optional[str] = None,
-        sfqid: Optional[str] = None,
     ):
         self.message: str = message
         self.error_code: str = error_code
-        self.sfqid = sfqid
         self.telemetry_message: str = message
 
-        log_sfqid = logger.getEffectiveLevel() in (logging.INFO, logging.DEBUG)
-        if self.error_code and self.sfqid and log_sfqid:
-            self.pretty_msg = f"({self.error_code}): {self.sfqid}: {self.message}"
-        elif self.sfqid and log_sfqid:
-            self.pretty_msg = f"{self.sfqid}: {self.message}"
-        elif self.error_code:
-            self.pretty_msg = f"({self.error_code}): {self.message}"
-        else:
-            self.pretty_msg = self.message
+        self._pretty_msg = (
+            f"({self.error_code}): {self.message}" if self.error_code else self.message
+        )
 
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        return self.pretty_msg
+        return self._pretty_msg
 
     # TODO: SNOW-363951 handle telemetry
 
@@ -79,10 +71,24 @@ class SnowparkSQLException(SnowparkClientException):
 
     Includes all error codes in range 13XX (where XX is 0-9).
 
-    This exception is specifically raised for error codes: 1300.
+    This exception is specifically raised for error codes: 1300, 1304.
     """
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[str] = None,
+        sfqid: Optional[str] = None,
+    ):
+        self.message: str = message
+        self.error_code: str = error_code
+        self.sfqid: str = sfqid
+        self.telemetry_message: str = message
+
+        log_sfqid = logger.getEffectiveLevel() in (logging.INFO, logging.DEBUG)
+        pretty_error_code = f"({self.error_code}): " if self.error_code else ""
+        pretty_sfqid = f"{self.sfqid}: " if self.sfqid and log_sfqid else ""
+        self._pretty_msg = f"{pretty_error_code}{pretty_sfqid}{self.message}"
 
 
 class SnowparkServerException(SnowparkClientException):

@@ -206,7 +206,6 @@ class ServerConnection:
         return rows[0][0] if len(rows) > 0 else None
 
     @SnowflakePlan.Decorator.wrap_exception
-    @_Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(self._cursor.describe(query))
 
