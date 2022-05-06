@@ -237,7 +237,7 @@ class Session:
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
         self._udf_registration = UDFRegistration(self)
-        self._udtf_registration = None
+        self._udtf_registration = UDTFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
@@ -1432,8 +1432,6 @@ class Session:
         Returns a :class:`udf.UDTFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
-        if not self._udtf_registration:
-            self._udtf_registration = UDTFRegistration(self)
         return self._udtf_registration
 
     @property

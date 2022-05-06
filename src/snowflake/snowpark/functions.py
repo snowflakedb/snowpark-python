@@ -3057,7 +3057,7 @@ def udtf(
     Args:
         handler: A Python class used for creating the UDTF.
         output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
-         If a list of column names are provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
+         If a list of column names is provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
         input_types: A list of :class:`~snowflake.snowpark.types.DataType`
             representing the input data types of the UDTF. Optional if
             type hints are provided.
@@ -3118,7 +3118,7 @@ def udtf(
         2. A temporary UDTF (when ``is_permanent`` is ``False``) is scoped to this ``session``
         and all UDTF related files will be uploaded to a temporary session stage
         (:func:`session.get_session_stage() <snowflake.snowpark.Session.get_session_stage>`).
-        For a permanent UDTF, these files will be uploaded to the stage that you provide.
+        For a permanent UDTF, these files will be uploaded to the stage that you specify.
 
         3. By default, UDTF registration fails if a function with the same name is already
         registered. Invoking :func:`udtf` with ``replace`` set to ``True`` will overwrite the

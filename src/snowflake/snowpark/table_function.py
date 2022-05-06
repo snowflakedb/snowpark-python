@@ -3,7 +3,7 @@
 #
 
 """Contains table function related classes."""
-from typing import Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
@@ -36,9 +36,13 @@ class TableFunctionCall:
     ):
         if func_arguments and func_named_arguments:
             raise ValueError("A table function shouldn't have both args and named args")
-        self.name = func_name
-        self.arguments = func_arguments
-        self.named_arguments = func_named_arguments
+        self.name: str = func_name  #: The table function name
+        self.arguments: Iterable[
+            ColumnOrName
+        ] = func_arguments  #: The positional arguments used to call this table function.
+        self.named_arguments: Dict[
+            str, ColumnOrName
+        ] = func_named_arguments  #: The named arguments used to call this table function.
         self._over = False
         self._partition_by = None
         self._order_by = None
@@ -51,18 +55,17 @@ class TableFunctionCall:
     ) -> "TableFunctionCall":
         """Specify the partitioning plan for this table function call when you lateral join this table function.
 
-        When a query lateral join a table function, the query feeds data to the table function row by row.
+        When a query does a lateral join on a table function, the query feeds data to the table function row by row.
         Before rows are passed to table functions, the rows can be grouped into partitions. Partitioning has two main benefits:
 
           - Partitioning allows Snowflake to divide up the workload to improve parallelization and thus performance.
           - Partitioning allows Snowflake to process all rows with a common characteristic as a group. You can return results that are based on all rows in the group, not just on individual rows.
 
-        Refer to `table functions and partitions <https://docs.snowflake.com/en/developer-guide/udf/java/udf-java-tabular-functions.html#table-functions-and-partitions>`__ for more information.
-        It's for Java UDTF, but the same mechanism applies to Python.
+        Refer to `table functions and partitions <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-tabular-functions.html#processing-partitions>`__ for more information.
 
         Args:
             partition_by: Specify the partitioning column(s). It tells the table function to partition by these columns.
-            order_by: Specify the order by column(s). It tells the table function to process input rows with this order within a partition.
+            order_by: Specify the ``order by`` column(s). It tells the table function to process input rows with this order within a partition.
 
         Note that if this function is called but both ``partition_by`` and ``order_by`` are ``None``, the table function call will put all input rows into a single partition.
         If this function isn't called at all, the Snowflake database will use implicit partitioning.
@@ -105,12 +108,16 @@ class TableFunctionCall:
 
 def _create_order_by_expression(e: Union[str, Column]) -> SortOrder:
     if isinstance(e, str):
-        order_spec.append(SortOrder(Column(e).expression, Ascending()))
+        return SortOrder(Column(e).expression, Ascending())
     elif isinstance(e, Column):
         if isinstance(e.expression, SortOrder):
-            order_spec.append(e.expression)
-        elif isinstance(e.expression, Expression):
-            order_spec.append(SortOrder(e.expression, Ascending()))
+            return e.expression
+        else:  # isinstance(e.expression, Expression):
+            return SortOrder(e.expression, Ascending())
+    else:
+        raise TypeError(
+            "Order By columns must be of column names in str, or a Column object."
+        )
 
 
 def _create_table_function_expression(

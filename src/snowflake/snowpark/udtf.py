@@ -66,7 +66,7 @@ class UserDefinedTableFunction:
         name: str,
     ):
         #: The Python class or a tuple containing the Python file path and the function name.
-        self.handler = handler
+        self.handler: Union[Callable, Tuple[str, str]] = handler
         #: The UDTF name.
         self.name: str = name
 
@@ -264,7 +264,7 @@ class UDTFRegistration:
         Args:
             handler: A Python class used for creating the UDTF.
             output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
-             If a list of column names are provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
+             If a list of column names is provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
                 type hints are provided.

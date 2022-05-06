@@ -178,7 +178,11 @@ def order_by_spec(col_exprs: List[str]) -> str:
 def table_function_partition_spec(
     over: bool, partition_exprs: List[str], order_exprs: List[str]
 ) -> str:
-    return f"""{OVER + LEFT_PARENTHESIS if over else EMPTY_STRING}{partition_spec(partition_exprs)}{SPACE}{order_by_spec(order_exprs)}{RIGHT_PARENTHESIS if over else EMPTY_STRING}"""
+    return (
+        f"{OVER}{LEFT_PARENTHESIS}{partition_spec(partition_exprs)}{SPACE}{order_by_spec(order_exprs)}{RIGHT_PARENTHESIS}"
+        if over
+        else EMPTY_STRING
+    )
 
 
 def binary_comparison(left: str, right: str, symbol: str) -> str:

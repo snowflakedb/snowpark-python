@@ -337,7 +337,7 @@ class Analyzer:
             )
         else:
             raise TypeError(
-                "A table function expression should be any of PosArgumentsTableFunction, NamedArgumentsTableFunction, and FlattenFunction."
+                "A table function expression should be any of PosArgumentsTableFunction, NamedArgumentsTableFunction, or FlattenFunction."
             )
         partition_spec_sql = (
             self.analyze(expr.partition_spec) if expr.partition_spec else ""
