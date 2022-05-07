@@ -174,6 +174,7 @@ from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
+import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
     FunctionExpression,
@@ -202,8 +203,9 @@ from snowflake.snowpark.column import (
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, StructType
 from snowflake.snowpark.udf import UserDefinedFunction
+from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 
 def col(col_name: str) -> Column:
@@ -3034,6 +3036,130 @@ def udf(
         )
 
 
+def udtf(
+    handler: Optional[Callable] = None,
+    *,
+    output_schema: Union[StructType, List[str]],
+    input_types: Optional[List[DataType]] = None,
+    name: Optional[Union[str, Iterable[str]]] = None,
+    is_permanent: bool = False,
+    stage_location: Optional[str] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    replace: bool = False,
+    session: Optional["snowflake.snowpark.session.Session"] = None,
+    parallel: int = 4,
+) -> Union[UserDefinedTableFunction, functools.partial]:
+    """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
+
+    It can be used as either a function call or a decorator. In most cases you work with a single session.
+    This function uses that session to register the UDTF. If you have multiple sessions, you need to
+    explicitly specify the ``session`` parameter of this function. If you have a function and would
+    like to register it to multiple databases, use ``session.udtf.register`` instead. See examples
+    in :class:`~snowflake.snowpark.udtf.UDTFRegistration`.
+
+    Args:
+        handler: A Python class used for creating the UDTF.
+        output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
+         If a list of column names is provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
+        input_types: A list of :class:`~snowflake.snowpark.types.DataType`
+            representing the input data types of the UDTF. Optional if
+            type hints are provided.
+        name: A string or list of strings that specify the name or fully-qualified
+            object identifier (database name, schema name, and function name) for
+            the UDTF in Snowflake, which allows you to call this UDTF in a SQL
+            command or via :func:`call_udtf()`. If it is not provided, a name will
+            be automatically generated for the UDTF. A name must be specified when
+            ``is_permanent`` is ``True``.
+        is_permanent: Whether to create a permanent UDTF. The default is ``False``.
+            If it is ``True``, a valid ``stage_location`` must be provided.
+        stage_location: The stage location where the Python file for the UDTF
+            and its dependencies should be uploaded. The stage location must be specified
+            when ``is_permanent`` is ``True``, and it will be ignored when
+            ``is_permanent`` is ``False``. It can be any stage other than temporary
+            stages and external stages.
+        imports: A list of imports that only apply to this UDTF. You can use a string to
+            represent a file path (similar to the ``path`` argument in
+            :meth:`~snowflake.snowpark.Session.add_import`) in this list, or a tuple of two
+            strings to represent a file path and an import path (similar to the ``import_path``
+            argument in :meth:`~snowflake.snowpark.Session.add_import`). These UDTF-level imports
+            will override the session-level imports added by
+            :meth:`~snowflake.snowpark.Session.add_import`.
+        packages: A list of packages that only apply to this UDTF. These UDTF-level packages
+            will override the session-level packages added by
+            :meth:`~snowflake.snowpark.Session.add_packages` and
+            :meth:`~snowflake.snowpark.Session.add_requirements`.
+        replace: Whether to replace a UDTF that already was registered. The default is ``False``.
+            If it is ``False``, attempting to register a UDTF with a name that already exists
+            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            an existing UDTF with the same name is overwritten.
+        session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
+            You need to specify this parameter if you have created multiple sessions before calling this method.
+        parallel: The number of threads to use for uploading UDTF files with the
+            `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
+            command. The default value is 4 and supported values are from 1 to 99.
+            Increasing the number of threads can improve performance when uploading
+            large UDTF files.
+
+    Returns:
+        A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
+
+    Note:
+        1. When type hints are provided and are complete for a function,
+        ``return_type`` and ``input_types`` are optional and will be ignored.
+        See details of supported data types for UDTFs in
+        :class:`~snowflake.snowpark.udtf.UDTFTRegistration`.
+
+            - You can use use :attr:`~snowflake.snowpark.types.Variant` to
+              annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
+              to annotate a geography when defining a UDTF.
+
+            - :class:`typing.Union` is not a valid type annotation for UDTFs,
+              but :class:`typing.Optional` can be used to indicate the optional type.
+
+            - Type hints are not supported on functions decorated with decorators.
+
+        2. A temporary UDTF (when ``is_permanent`` is ``False``) is scoped to this ``session``
+        and all UDTF related files will be uploaded to a temporary session stage
+        (:func:`session.get_session_stage() <snowflake.snowpark.Session.get_session_stage>`).
+        For a permanent UDTF, these files will be uploaded to the stage that you specify.
+
+        3. By default, UDTF registration fails if a function with the same name is already
+        registered. Invoking :func:`udtf` with ``replace`` set to ``True`` will overwrite the
+        previously registered function.
+
+    See Also:
+        :class:`~snowflake.snowpark.udtf.UDTFRegistration`
+    """
+    session = session or snowflake.snowpark.session._get_active_session()
+    if handler is None:
+        return functools.partial(
+            session.udtf.register,
+            output_schema=output_schema,
+            input_types=input_types,
+            name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            imports=imports,
+            packages=packages,
+            replace=replace,
+            parallel=parallel,
+        )
+    else:
+        return session.udtf.register(
+            handler,
+            output_schema=output_schema,
+            input_types=input_types,
+            name=name,
+            is_permanent=is_permanent,
+            stage_location=stage_location,
+            imports=imports,
+            packages=packages,
+            replace=replace,
+            parallel=parallel,
+        )
+
+
 def pandas_udf(
     func: Optional[Callable] = None,
     *,
@@ -3120,6 +3246,43 @@ def call_udf(
 
     validate_object_name(udf_name)
     return _call_function(udf_name, False, *args)
+
+
+def call_table_function(
+    function_name: str, *args: ColumnOrLiteral, **kwargs: ColumnOrLiteral
+) -> "snowflake.snowpark.table_function.TableFunctionCall":
+    """Invokes a Snowflake table function, including system-defined table functions and user-defined table functions.
+
+    It returns a :meth:`~snowflake.snowpark.table_function.TableFunctionCall` so you can specify the partition clause.
+
+    Args:
+        function_name: The name of the table function.
+        args: The positional arguments of the table function.
+        **kwargs: The named arguments of the table function. Some table functions (e.g., ``flatten``) have named arguments instead of positional ones.
+
+    Example:
+            >>> from snowflake.snowpark.functions import lit
+            >>> session.table_function(call_table_function("split_to_table", lit("split words to table"), lit(" ")).over()).collect()
+            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+    """
+    return snowflake.snowpark.table_function.TableFunctionCall(
+        function_name, *args, **kwargs
+    )
+
+
+def table_function(function_name: str) -> Callable:
+    """Create a function object to invoke a Snowflake table function.
+
+    Args:
+        function_name: The name of the table function.
+
+    Example:
+            >>> from snowflake.snowpark.functions import lit
+            >>> split_to_table = table_function("split_to_table")
+            >>> session.table_function(split_to_table(lit("split words to table"), lit(" ")).over()).collect()
+            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+    """
+    return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
 
 
 def call_builtin(function_name: str, *args: ColumnOrLiteral) -> Column:

@@ -120,6 +120,7 @@ class TempObjectType(Enum):
     QUERY_TAG = "QUERY_TAG"
     COLUMN = "COLUMN"
     PROCEDURE = "PROCEDURE"
+    TABLE_FUNCTION = "TABLE_FUNCTION"
 
 
 def validate_object_name(name: str):

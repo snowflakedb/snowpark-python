@@ -48,7 +48,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     Lateral,
     TableFunctionExpression,
     TableFunctionJoin,
-    create_table_function_expression,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateViewCommand,
@@ -100,6 +99,10 @@ from snowflake.snowpark.functions import (
     to_char,
 )
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.table_function import (
+    TableFunctionCall,
+    _create_table_function_expression,
+)
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 logger = getLogger(__name__)
@@ -1509,7 +1512,7 @@ class DataFrame:
 
     def join_table_function(
         self,
-        func_name: Union[str, Iterable[str]],
+        func: Union[str, List[str], TableFunctionCall],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> "DataFrame":
@@ -1517,7 +1520,8 @@ class DataFrame:
 
         References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
-        Example::
+        Example 1
+            Lateral join a table function by using the name and parameters directly:
 
             >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
             >>> df.join_table_function("split_to_table", df["addresses"], lit(" ")).show()
@@ -1528,6 +1532,49 @@ class DataFrame:
             |James   |address1 address2 address3  |1      |2        |address2  |
             |James   |address1 address2 address3  |1      |3        |address3  |
             --------------------------------------------------------------------
+            <BLANKLINE>
+
+        Example 2
+            Lateral join a table function by calling:
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
+            >>> df.join_table_function(split_to_table(df["addresses"], lit(" "))).show()
+            --------------------------------------------------------------------
+            |"NAME"  |"ADDRESSES"                 |"SEQ"  |"INDEX"  |"VALUE"   |
+            --------------------------------------------------------------------
+            |James   |address1 address2 address3  |1      |1        |address1  |
+            |James   |address1 address2 address3  |1      |2        |address2  |
+            |James   |address1 address2 address3  |1      |3        |address3  |
+            --------------------------------------------------------------------
+            <BLANKLINE>
+
+        Example 3
+            Lateral join a table function with the partition and order by clause:
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df = session.create_dataframe([
+            ...     ["John", "James", "address1 address2 address3"],
+            ...     ["Mike", "James", "address4 address5 address6"],
+            ...     ["Cathy", "Stone", "address4 address5 address6"],
+            ... ],
+            ... schema=["first_name", "last_name", "addresses"])
+            >>> df.join_table_function(split_to_table(df["addresses"], lit(" ")).over(partition_by="last_name", order_by="first_name")).show()
+            ----------------------------------------------------------------------------------------
+            |"FIRST_NAME"  |"LAST_NAME"  |"ADDRESSES"                 |"SEQ"  |"INDEX"  |"VALUE"   |
+            ----------------------------------------------------------------------------------------
+            |John          |James        |address1 address2 address3  |1      |1        |address1  |
+            |John          |James        |address1 address2 address3  |1      |2        |address2  |
+            |John          |James        |address1 address2 address3  |1      |3        |address3  |
+            |Mike          |James        |address4 address5 address6  |2      |1        |address4  |
+            |Mike          |James        |address4 address5 address6  |2      |2        |address5  |
+            |Mike          |James        |address4 address5 address6  |2      |3        |address6  |
+            |Cathy         |Stone        |address4 address5 address6  |3      |1        |address4  |
+            |Cathy         |Stone        |address4 address5 address6  |3      |2        |address5  |
+            |Cathy         |Stone        |address4 address5 address6  |3      |3        |address6  |
+            ----------------------------------------------------------------------------------------
             <BLANKLINE>
 
         Args:
@@ -1543,8 +1590,8 @@ class DataFrame:
             - :meth:`Session.table_function`, which creates a new :class:`DataFrame` by using the SQL table function.
 
         """
-        func_expr = create_table_function_expression(
-            func_name, *func_arguments, **func_named_arguments
+        func_expr = _create_table_function_expression(
+            func, *func_arguments, **func_named_arguments
         )
         return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
 

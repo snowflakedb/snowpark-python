@@ -167,6 +167,24 @@ def named_arguments_function(name: str, args: Dict[str, str]) -> str:
     )
 
 
+def partition_spec(col_exprs: List[str]) -> str:
+    return f"PARTITION BY {COMMA.join(col_exprs)}" if col_exprs else EMPTY_STRING
+
+
+def order_by_spec(col_exprs: List[str]) -> str:
+    return f" ORDER BY {COMMA.join(col_exprs)}" if col_exprs else EMPTY_STRING
+
+
+def table_function_partition_spec(
+    over: bool, partition_exprs: List[str], order_exprs: List[str]
+) -> str:
+    return (
+        f"{OVER}{LEFT_PARENTHESIS}{partition_spec(partition_exprs)}{SPACE}{order_by_spec(order_exprs)}{RIGHT_PARENTHESIS}"
+        if over
+        else EMPTY_STRING
+    )
+
+
 def binary_comparison(left: str, right: str, symbol: str) -> str:
     return left + SPACE + symbol + SPACE + right
 
@@ -729,13 +747,9 @@ def window_expression(window_function: str, window_spec: str) -> str:
 
 
 def window_spec_expression(
-    partition_spec: List[str], order_spec: List[str], frame_spec: str
+    partition_exprs: List[str], order_exprs: List[str], frame_spec: str
 ) -> str:
-    return (
-        (PARTITION_BY + COMMA.join(partition_spec) if partition_spec else EMPTY_STRING)
-        + (ORDER_BY + COMMA.join(order_spec) if order_spec else EMPTY_STRING)
-        + frame_spec
-    )
+    return f"{partition_spec(partition_exprs)}{SPACE}{order_by_spec(order_exprs)}{SPACE}{frame_spec}"
 
 
 def specified_window_frame_expression(frame_type: str, lower: str, upper: str) -> str:
