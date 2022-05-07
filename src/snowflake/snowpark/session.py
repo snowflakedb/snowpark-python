@@ -36,7 +36,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
     TableFunctionRelation,
-    create_table_function_expression,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import ServerConnection
@@ -86,6 +85,10 @@ from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.table import Table
+from snowflake.snowpark.table_function import (
+    TableFunctionCall,
+    _create_table_function_expression,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
@@ -100,6 +103,7 @@ from snowflake.snowpark.types import (
     _AtomicType,
 )
 from snowflake.snowpark.udf import UDFRegistration
+from snowflake.snowpark.udtf import UDTFRegistration
 
 logger = getLogger(__name__)
 
@@ -233,9 +237,9 @@ class Session:
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
         self._udf_registration = UDFRegistration(self)
+        self._udtf_registration = UDTFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
         self._plan_builder = SnowflakePlanBuilder(self)
-
         self._last_action_id = 0
         self._last_canceled_id = 0
 
@@ -818,7 +822,7 @@ class Session:
 
     def table_function(
         self,
-        func_name: Union[str, List[str]],
+        func_name: Union[str, List[str], TableFunctionCall],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
     ) -> DataFrame:
@@ -826,11 +830,33 @@ class Session:
 
         References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
-        Example::
+        Example 1
+            Query a table function by function name:
 
             >>> from snowflake.snowpark.functions import lit
             >>> session.table_function("split_to_table", lit("split words to table"), lit(" ")).collect()
             [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+
+        Example 2
+            Define a table function variable and query it:
+
+            >>> from snowflake.snowpark.functions import table_function, lit
+            >>> split_to_table = table_function("split_to_table")
+            >>> session.table_function(split_to_table(lit("split words to table"), lit(" "))).collect()
+            [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
+
+        Example 3
+            If you want to call a UDTF right after it's registered, the returned ``UserDefinedTableFunction`` is callable:
+
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> from snowflake.snowpark.functions import udtf, lit
+            >>> class GeneratorUDTF:
+            ...     def process(self, n):
+            ...         for i in range(n):
+            ...             yield (i, )
+            >>> generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
+            >>> session.table_function(generator_udtf(lit(3))).collect()
+            [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
         Args:
             func_name: The SQL function name.
@@ -843,7 +869,7 @@ class Session:
         See Also:
             - :meth:`DataFrame.join_table_function`, which lateral joins an existing :class:`DataFrame` and a SQL function.
         """
-        func_expr = create_table_function_expression(
+        func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
         return DataFrame(
@@ -1405,6 +1431,14 @@ class Session:
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
         return self._udf_registration
+
+    @property
+    def udtf(self) -> UDTFRegistration:
+        """
+        Returns a :class:`udf.UDTFRegistration` object that you can use to register UDFs.
+        See details of how to use this object in :class:`udf.UDFRegistration`.
+        """
+        return self._udtf_registration
 
     @property
     def sproc(self) -> StoredProcedureRegistration:

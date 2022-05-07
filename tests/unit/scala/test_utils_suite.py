@@ -204,6 +204,20 @@ def test_zip_file_or_directory_to_stream():
             ],
         )
 
+    with zip_file_or_directory_to_stream(
+        test_files.test_udtf_directory,
+        leading_path=os.path.dirname(os.path.dirname(test_files.test_udtf_directory)),
+        add_init_py=True,
+    ) as stream:
+        check_zip_files_and_close_stream(
+            stream,
+            [
+                "resources/test_udtf_dir/",
+                "resources/test_udtf_dir/test_udtf_file.py",
+                "resources/__init__.py",
+            ],
+        )
+
     with zip_file_or_directory_to_stream(resources_path) as stream:
         check_zip_files_and_close_stream(
             stream,
@@ -226,6 +240,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
+                "resources/test_udtf_dir/",
+                "resources/test_udtf_dir/test_udtf_file.py",
             ],
         )
 
