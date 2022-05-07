@@ -96,7 +96,7 @@ def test_create_table_function_expression_named_wrong_params():
     with pytest.raises(ValueError) as ve:
         _create_table_function_expression("func_name", lit("v1"), argb=lit("v2"))
     assert (
-        "A table function shouldn't have both args and named args" == ve.value.args[0]
+        "A table function shouldn't have both args and named args." == ve.value.args[0]
     )
 
 
