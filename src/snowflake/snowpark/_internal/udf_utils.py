@@ -38,7 +38,12 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
-from snowflake.snowpark.types import DataType, PandasDataFrameType, PandasSeriesType
+from snowflake.snowpark.types import (
+    DataType,
+    PandasDataFrameType,
+    PandasSeriesType,
+    StructType,
+)
 
 logger = getLogger(__name__)
 
@@ -49,6 +54,9 @@ _DEFAULT_HANDLER_NAME = "compute"
 # Current number is the same as scala. We might have the potential to make it larger but that requires further benchmark
 # because zip compression ratio is quite high.
 _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
+
+# Every table function handler class must define the process method.
+TABLE_FUNCTION_PROCESS_METHOD = "process"
 
 
 class UDFColumn(NamedTuple):
@@ -68,19 +76,35 @@ def get_types_from_type_hints(
         # For Python 3.10+, the result values of get_type_hints()
         # will become strings, which we have to change the implementation
         # here at that time. https://www.python.org/dev/peps/pep-0563/
-        python_types_dict = get_type_hints(func)
-    else:
-        python_types_dict = (
-            retrieve_func_type_hints_from_source(func[0], func[1])
-            if is_local_python_file(func[0])
-            else {}
+        python_types_dict = get_type_hints(
+            getattr(func, TABLE_FUNCTION_PROCESS_METHOD, func)
         )
+    else:
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            python_types_dict = (
+                retrieve_func_type_hints_from_source(
+                    func[0], TABLE_FUNCTION_PROCESS_METHOD, class_name=func[1]
+                )  # use method process of a UDTF handler class.
+                if is_local_python_file(func[0])
+                else {}
+            )
+        else:
+            python_types_dict = (
+                retrieve_func_type_hints_from_source(func[0], func[1])
+                if is_local_python_file(func[0])
+                else {}
+            )
 
-    return_type = (
-        python_type_to_snow_type(python_types_dict["return"])[0]
-        if "return" in python_types_dict
-        else None
-    )
+    if object_type == TempObjectType.TABLE_FUNCTION:
+        return_type = None
+        # The return type is processed in udtf.py. Return None here.
+        # TODO: This will be refactored with https://snowflakecomputing.atlassian.net/browse/SNOW-585155
+    else:
+        return_type = (
+            python_type_to_snow_type(python_types_dict["return"])[0]
+            if "return" in python_types_dict
+            else None
+        )
     input_types = []
 
     # types are in order
@@ -328,7 +352,10 @@ def generate_python_code(
     # if func is a method object, we need to extract the target function first to check
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
-    target_func = getattr(func, "__func__", func)
+    if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):  # func is a UDTF class
+        target_func = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+    else:
+        target_func = getattr(func, "__func__", func)
 
     # clear the annotations because when the user annotates Variant and Geography,
     # which are from snowpark modules and will not work on the server side
@@ -351,7 +378,12 @@ import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
 """.rstrip()
-    if is_pandas_udf:
+
+    if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+        func_code = f"""
+{_DEFAULT_HANDLER_NAME} = func
+    """
+    elif is_pandas_udf:
         pandas_code = f"""
 import pandas
 
@@ -523,7 +555,10 @@ def create_python_udf_or_sp(
     replace: bool,
     inline_python_code: Optional[str] = None,
 ) -> None:
-    return_sql_type = convert_sp_to_sf_type(return_type)
+    if isinstance(return_type, StructType):
+        return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
+    else:
+        return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
     sql_func_args = ",".join(
         [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
@@ -543,7 +578,7 @@ $$
     create_query = f"""
 CREATE {"OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} {object_type.value} {object_name}({sql_func_args})
-RETURNS {return_sql_type}
+{return_sql}
 LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
 {imports_in_sql}

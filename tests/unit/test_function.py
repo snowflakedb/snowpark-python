@@ -10,8 +10,7 @@ import pytest
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.analyzer.table_function import (
     NamedArgumentsTableFunction,
-    TableFunction,
-    create_table_function_expression,
+    PosArgumentsTableFunction,
 )
 from snowflake.snowpark.functions import (
     approx_percentile,
@@ -28,6 +27,7 @@ from snowflake.snowpark.functions import (
     typeof,
     xmlget,
 )
+from snowflake.snowpark.table_function import _create_table_function_expression
 
 
 @pytest.mark.parametrize(
@@ -69,10 +69,10 @@ def test_funcs_negative(func):
 
 
 def test_create_table_function_expression_args():
-    function_expression = create_table_function_expression(
+    function_expression = _create_table_function_expression(
         "func_name", lit("v1"), lit("v2")
     )
-    assert isinstance(function_expression, TableFunction)
+    assert isinstance(function_expression, PosArgumentsTableFunction)
     assert function_expression.func_name == "func_name"
     assert [arg.value for arg in function_expression.args] == [
         "v1",
@@ -81,7 +81,7 @@ def test_create_table_function_expression_args():
 
 
 def test_create_table_function_expression_named_args():
-    function_expression = create_table_function_expression(
+    function_expression = _create_table_function_expression(
         "func_name", arg_a=lit("v1"), arg_b=lit("v2")
     )
     assert isinstance(function_expression, NamedArgumentsTableFunction)
@@ -94,17 +94,18 @@ def test_create_table_function_expression_named_args():
 
 def test_create_table_function_expression_named_wrong_params():
     with pytest.raises(ValueError) as ve:
-        create_table_function_expression("func_name", lit("v1"), argb=lit("v2"))
+        _create_table_function_expression("func_name", lit("v1"), argb=lit("v2"))
     assert (
-        "A table function shouldn't have both args and named args" == ve.value.args[0]
+        "A table function shouldn't have both args and named args." == ve.value.args[0]
     )
 
 
 def test_create_table_function_expression_named_wrong_table_name():
     with pytest.raises(TypeError) as ve:
-        create_table_function_expression(1)
+        _create_table_function_expression(1)
     assert (
-        "The table function name should be a str or a list of strs." == ve.value.args[0]
+        "'func' should be a function name in str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
+        == ve.value.args[0]
     )
 
 

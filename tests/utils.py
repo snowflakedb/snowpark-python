@@ -71,6 +71,18 @@ class Utils:
         return Utils.random_name_for_temp_object(TempObjectType.STAGE)
 
     @staticmethod
+    def random_function_name():
+        return Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @staticmethod
+    def random_view_name():
+        return Utils.random_name_for_temp_object(TempObjectType.VIEW)
+
+    @staticmethod
+    def random_table_name() -> str:
+        return Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    @staticmethod
     def create_table(
         session: "Session", name: str, schema: str, is_temporary: bool = False
     ):
@@ -95,6 +107,10 @@ class Utils:
     @staticmethod
     def drop_view(session: "Session", name: str):
         session._run_query(f"drop view if exists {quote_name(name)}")
+
+    @staticmethod
+    def drop_function(session: "Session", name: str):
+        session._run_query(f"drop function if exists {name}")
 
     @staticmethod
     def unset_query_tag(session: "Session"):
@@ -762,6 +778,14 @@ class TestFiles:
     @property
     def test_udf_py_file(self):
         return os.path.join(self.test_udf_directory, "test_udf_file.py")
+
+    @property
+    def test_udtf_directory(self):
+        return os.path.join(self.resources_path, "test_udtf_dir")
+
+    @property
+    def test_udtf_py_file(self):
+        return os.path.join(self.test_udtf_directory, "test_udtf_file.py")
 
     @property
     def test_sp_directory(self):
