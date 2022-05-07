@@ -39,14 +39,7 @@ class GetResult(NamedTuple):
 
 class FileOperation:
     """Provides methods for working on files in a stage.
-    To access an object of this class, use :meth:`Session.file`.
-
-    Examples::
-
-        # Upload a file to a stage.
-        session.file.put("file:///tmp/file1.csv", "@myStage/prefix1")
-        # Download a file from a stage.
-        session.file.get("@myStage/prefix1/file1.csv", "file:///tmp")
+    To access an object of this class, use :attr:`Session.file`.
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session"):
@@ -68,7 +61,12 @@ class FileOperation:
 
         Example::
 
-            put_result = session.file.put("/tmp/file*.csv", "@myStage/prefix2", auto_compress=False)
+            >>> # Create a temp stage.
+            >>> _ = session.sql("create or replace temp stage mystage").collect()
+            >>> # Upload a file to a stage.
+            >>> put_result = session.file.put("tests/resources/t*.csv", "@mystage/prefix1")
+            >>> put_result[0].status
+            'UPLOADED'
 
         Args:
             local_file_name: The path to the local files to upload. To match multiple files in the path,
@@ -125,20 +123,21 @@ class FileOperation:
 
         References: `Snowflake GET command <https://docs.snowflake.com/en/sql-reference/sql/get.html>`_.
 
-        Examples::
+        Examples:
 
-            # Upload files to a stage.
-            session.file.put("/tmp/file_1.csv", "@myStage/prefix")
-            session.file.put("/tmp/file_2.csv", "@myStage/prefix")
-
-            # Download one file from a stage.
-            get_result1 = session.file.get("@myStage/prefix/file_1.csv", "/tmp/target")
-
-            # Download all the files from @myStage/prefix.
-            get_result2 = session.file.get("@myStage/prefix", "/tmp/target2")
-
-            # Download files with names that match a regular expression pattern.
-            get_result3 = session.file.get("@myStage/prefix", "/tmp/target3", pattern=".*file_.*.csv.gz")
+            >>> # Create a temp stage.
+            >>> _ = session.sql("create or replace temp stage mystage").collect()
+            >>> # Upload a file to a stage.
+            >>> _ = session.file.put("tests/resources/t*.csv", "@mystage/prefix1")
+            >>> # Download one file from a stage.
+            >>> get_result1 = session.file.get("@myStage/prefix1/test2CSV.csv", "tests/downloaded/target1")
+            >>> assert len(get_result1) == 1
+            >>> # Download all the files from @myStage/prefix.
+            >>> get_result2 = session.file.get("@myStage/prefix1", "tests/downloaded/target2")
+            >>> assert len(get_result2) > 1
+            >>> # Download files with names that match a regular expression pattern.
+            >>> get_result3 = session.file.get("@myStage/prefix1", "tests/downloaded/target3", pattern=".*test.*.csv.gz")
+            >>> assert len(get_result3) > 1
 
         Args:
             stage_location: A directory or filename on a stage, from which you want to download the files.
