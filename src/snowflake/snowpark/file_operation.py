@@ -39,7 +39,7 @@ class GetResult(NamedTuple):
 
 class FileOperation:
     """Provides methods for working on files in a stage.
-    To access an object of this class, use :prop:`Session.file`.
+    To access an object of this class, use :attr:`Session.file`.
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session"):
