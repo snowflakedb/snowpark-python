@@ -6,9 +6,9 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Window
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     avg,
     col,
@@ -108,31 +108,31 @@ def test_window_function_with_aggregates(session):
 
 
 def test_window_function_inside_where_and_having_clauses(session):
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).select("a").where(
             rank().over(Window.order_by("b")) == 1
         ).collect()
     assert "invalid identifier" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).where(
             (col("b") == 2) & rank().over(Window.order_by("b")) == 1
         ).collect()
     assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).group_by("a").agg(avg("b").as_("avgb")).where(
             (col("a") > col("avgb")) & rank().over(Window.order_by("a")) == 1
         ).collect()
     assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).group_by("a").agg(
             [max_("b").as_("avgb"), sum_("b").as_("sumb")]
         ).where(rank().over(Window.order_by("a")) == 1).collect()
     assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).group_by("a").agg(
             [max_("b").as_("avgb"), sum_("b").as_("sumb")]
         ).where((col("sumb") == 5) & rank().over(Window.order_by("a")) == 1).collect()
@@ -246,7 +246,7 @@ def test_window_function_should_fail_if_order_by_clause_is_not_specified(session
         "key", "value"
     )
     # Here we missed .order_by("key")!
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(row_number().over(Window.partition_by("value"))).collect()
     assert "requires ORDER BY in window specification" in str(ex_info)
 
@@ -372,7 +372,7 @@ def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
 
 def test_aggregation_function_on_invalid_column(session):
     df = session.create_dataframe([(1, "1")]).to_df("key", "value")
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select("key", count("invalid").over()).collect()
     assert "invalid identifier" in str(ex_info)
 

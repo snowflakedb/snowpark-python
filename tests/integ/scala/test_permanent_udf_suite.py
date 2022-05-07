@@ -10,10 +10,11 @@ import string
 
 import pytest
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
+from snowflake.snowpark.exceptions import (
+    SnowparkInvalidObjectNameException,
+    SnowparkSQLException,
+)
 from snowflake.snowpark.functions import call_udf, col
 from tests.utils import TempObjectType, TestFiles, Utils
 
@@ -56,7 +57,7 @@ def test_mix_temporary_and_permanent_udf(session, new_session):
         Utils.check_answer(
             df2.select(call_udf(perm_func_name, col("a"))), [Row(2), Row(3)]
         )
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             Utils.check_answer(
                 df2.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
             )
@@ -135,7 +136,7 @@ def test_support_fully_qualified_udf_name(session, new_session):
         Utils.check_answer(
             df2.select(call_udf(perm_func_name, col("a"))), [Row(2), Row(3)]
         )
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             Utils.check_answer(
                 df2.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
             )
@@ -177,7 +178,7 @@ def test_clean_up_files_if_udf_registration_fails(session):
         assert len(session.sql(f"ls @{stage_name}/{perm_func_name}").collect()) == 1
 
         # register the same name UDF, CREATE UDF will fail
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             session.udf.register(
                 large_udf,
                 name=perm_func_name,

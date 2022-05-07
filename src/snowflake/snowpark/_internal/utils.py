@@ -36,15 +36,15 @@ STAGE_PREFIX = "@"
 QUERY_TAG_TRACEBACK_LIMIT = 3
 
 # https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html
-SNOWFLAKE_UNQUOTED_ID_PATTERN = r"([a-zA-Z_][\w\$]*)"
-SNOWFLAKE_QUOTED_ID_PATTERN = '("([^"]|"")+")'
+SNOWFLAKE_UNQUOTED_ID_PATTERN = r"([a-zA-Z_][\w\$]{0,255})"
+SNOWFLAKE_QUOTED_ID_PATTERN = '("([^"]|""){1,255}")'
 SNOWFLAKE_ID_PATTERN = (
     f"({SNOWFLAKE_UNQUOTED_ID_PATTERN}|{SNOWFLAKE_QUOTED_ID_PATTERN})"
 )
 
 # Valid name can be:
-#   identifier,
-#   identifier.identifier,
+#   identifier
+#   identifier.identifier
 #   identifier.identifier.identifier
 #   identifier..identifier
 SNOWFLAKE_OBJECT_RE_PATTERN = re.compile(

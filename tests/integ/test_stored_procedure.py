@@ -10,10 +10,12 @@ from unittest.mock import patch
 
 import pytest
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
-from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
+from snowflake.snowpark.exceptions import (
+    SnowparkInvalidObjectNameException,
+    SnowparkSQLException,
+)
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.types import DoubleType, IntegerType, PandasSeries, StringType
 from tests.utils import TempObjectType, TestFiles, Utils
@@ -369,7 +371,7 @@ def test_sp_level_import(session, resources_path):
             return_type=IntegerType(),
             input_types=[IntegerType()],
         )
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             plus4_then_mod5_sp(3)
         assert "No module named" in str(ex_info)
 
@@ -513,11 +515,11 @@ def test_sp_negative(session):
         ex_info
     )
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         session.sql("call f(1)").collect()
     assert "Unknown function" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         session.call("f", 1)
     assert "Unknown function" in str(ex_info)
 
@@ -534,11 +536,11 @@ def test_sp_negative(session):
     int_sp = sproc(
         lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
     )
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp("x")
     assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp(None)
     assert "Python Interpreter Error" in str(ex_info)
 
@@ -633,7 +635,7 @@ def test_add_import_negative(session, resources_path):
         plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             plus4_then_mod5_sp(1)
         assert "No module named 'test.resources'" in str(ex_info)
     session.clear_imports()
@@ -673,7 +675,7 @@ def test_sp_replace(session):
     assert add_sp(1, 2) == 4
 
     # Try to register sp without replacing and expect failure.
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         add_sp = session.sproc.register(
             lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
             name="test_sp_replace_add",
