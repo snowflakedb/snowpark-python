@@ -104,7 +104,8 @@ def test_create_table_function_expression_named_wrong_table_name():
     with pytest.raises(TypeError) as ve:
         _create_table_function_expression(1)
     assert (
-        "The table function name should be a str or a list of strs." == ve.value.args[0]
+        "'func' should be a function name in str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
+        == ve.value.args[0]
     )
 
 

@@ -264,7 +264,7 @@ class UDTFRegistration:
         Args:
             handler: A Python class used for creating the UDTF.
             output_schema: A list of column names, or a :class:`~snowflake.snowpark.types.StructType` instance that represents the table function's columns.
-             If a list of column names is provided, the ``process`` method of the handler class must have return type hints to indicate the output schema data types.
+             If a list of column names is provided, the ``process`` method of the handler class must have a return type hint to indicate the output schema data types.
             input_types: A list of :class:`~snowflake.snowpark.types.DataType`
                 representing the input data types of the UDTF. Optional if
                 type hints are provided.
@@ -471,8 +471,8 @@ class UDTFRegistration:
                 return_type_hint = python_type_str_to_object(type_hints.get("return"))
             if not return_type_hint:
                 raise ValueError(
-                    "Result type hints are not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
-                    "a combination of return type hints for method 'process' and column names for 'output_schema'."
+                    "The return type hint is not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
+                    "a combination of a return type hint for method 'process' and column names for 'output_schema'."
                 )
             if get_origin(return_type_hint) not in (
                 list,
@@ -481,12 +481,12 @@ class UDTFRegistration:
                 collections.abc.Iterator,
             ):
                 raise ValueError(
-                    f"The type hint for a UDTF handler must but a collection type. {return_type_hint} is used."
+                    f"The return type hint for a UDTF handler must but a collection type. {return_type_hint} is used."
                 )
             row_type_hint = get_args(return_type_hint)[0]  # The inner Tuple
             if get_origin(row_type_hint) != tuple:
                 raise ValueError(
-                    f"The return type hints of method '{handler.__name__}.process' must be a collection of tuples, for instance, Iterable[Tuple[str, int]], if you specify return type hints."
+                    f"The return type hint of method '{handler.__name__}.process' must be a collection of tuples, for instance, Iterable[Tuple[str, int]], if you specify return type hint."
                 )
             column_type_hints = get_args(row_type_hint)
             if len(column_type_hints) > 1 and column_type_hints[1] == Ellipsis:

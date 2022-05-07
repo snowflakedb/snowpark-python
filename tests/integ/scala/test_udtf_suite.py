@@ -162,8 +162,10 @@ def test_negative_test_with_invalid_output_column_name(session):
             MyInvalidNameUDTF, output_schema=["c1"], input_types=[StringType()]
         )
     assert (
-        """Result type hints are not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or usea combination of return type hints for method 'process' and column names for 'output_schema'"""
-        in str(ve.value)
+        "The return type hint is not set but 'output_schema' has only column names. "
+        "You can either use a StructType instance for 'output_schema', or usea "
+        "combination of a return type hint for method 'process' and column names for "
+        "'output_schema'." in str(ve.value)
     )
 
     class MyInvalidUDTF2:
@@ -185,7 +187,7 @@ def test_negative_test_with_invalid_output_column_name(session):
     with pytest.raises(ValueError) as ve:
         session.udtf.register(MyWrongReturnTypeUDTF, output_schema=["c1"])
     assert (
-        "The type hint for a UDTF handler must but a collection type. <class 'int'> is passed."
+        "The return type hint for a UDTF handler must but a collection type. <class 'int'> is used."
         in str(ve.value)
     )
 
@@ -196,7 +198,7 @@ def test_negative_test_with_invalid_output_column_name(session):
     with pytest.raises(ValueError) as ve:
         session.udtf.register(MyWrongReturnTypeNoTupleUDTF, output_schema=["c1"])
     assert (
-        "The return type hints of method 'MyWrongReturnTypeNoTupleUDTF.process' must be a collection of Tuple or tuple"
+        "The return type hint of method 'MyWrongReturnTypeNoTupleUDTF.process' must be a collection of tuple"
         in str(ve.value)
     )
 

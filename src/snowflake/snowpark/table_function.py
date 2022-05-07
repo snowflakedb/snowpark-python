@@ -149,7 +149,7 @@ def _create_table_function_expression(
         order_by = func._order_by
     else:
         raise TypeError(
-            "The table function name should be a str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
+            "'func' should be a function name in str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
         )
     if args:
         table_function_expression = PosArgumentsTableFunction(

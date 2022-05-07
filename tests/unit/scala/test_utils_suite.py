@@ -226,6 +226,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_udf_dir/",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
+                "resources/test_udtf_dir/",
+                "resources/test_udtf_dir/test_udtf_file.py",
             ],
         )
 
