@@ -9,10 +9,9 @@ import string
 
 import pytest
 
-from snowflake.connector import ProgrammingError
-
 # TODO(SNOW-568420): Remove this after UDF server supports rmdir
 from snowflake.snowpark._internal.utils import is_in_stored_procedure
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.utils import TestFiles, Utils
 
 
@@ -177,13 +176,13 @@ def test_put_negative(session, temp_stage, temp_source_directory, path1):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
-    with pytest.raises(ProgrammingError) as file_not_exist_info:
+    with pytest.raises(SnowparkSQLException) as file_not_exist_info:
         session.file.put(
             f"file://{temp_source_directory}/not_exists_file.txt", stage_with_prefix
         )
     assert "File doesn't exist" in str(file_not_exist_info)
 
-    with pytest.raises(ProgrammingError) as stage_not_exist_info:
+    with pytest.raises(SnowparkSQLException) as stage_not_exist_info:
         session.file.put(f"file://{path1}", "@NOT_EXIST_STAGE_NAME_TEST")
     assert "does not exist or not authorized." in str(stage_not_exist_info)
 
@@ -268,7 +267,7 @@ def test_get_negative_test(session, temp_stage, temp_target_directory, path1):
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
 
     # Stage name doesn't exist, raise exception.
-    with pytest.raises(ProgrammingError) as exec_info:
+    with pytest.raises(SnowparkSQLException) as exec_info:
         session.file.get("@NOT_EXIST_STAGE_NAME_TEST", str(temp_target_directory))
     assert "does not exist or not authorized." in str(exec_info)
 

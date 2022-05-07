@@ -6,9 +6,9 @@ import datetime
 
 import pytest
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import (
     ArrayType,
     GeographyType,
@@ -124,7 +124,7 @@ def test_save_as_snowflake_table(session, table_name_1):
         assert df6.collect() == [Row(1), Row(2), Row(3)]
 
         # errorifexists mode
-        with pytest.raises(ProgrammingError):
+        with pytest.raises(SnowparkSQLException):
             df.write.mode("errorifexists").save_as_table(table_name_2)
     finally:
         Utils.drop_table(session, table_name_2)

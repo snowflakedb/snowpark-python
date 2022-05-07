@@ -7,12 +7,12 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
+    SnowparkSQLException,
 )
 from snowflake.snowpark.functions import col, sql_expr
 from snowflake.snowpark.types import (
@@ -163,7 +163,7 @@ def test_read_csv(session, mode):
         ]
     )
     df2 = reader.schema(incorrect_schema).csv(test_file_on_stage)
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
     assert "Numeric value 'one' is not recognized" in str(ex_info)
 
@@ -181,7 +181,7 @@ def test_read_csv_incorrect_schema(session, mode):
         ]
     )
     df = reader.option("purge", False).schema(incorrect_schema).csv(test_file_on_stage)
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.collect()
     assert "Number of columns in file (3) does not match" in str(ex_info)
 
@@ -253,7 +253,7 @@ def test_read_csv_with_format_type_options(session, mode):
 
     # test when user does not input a right option:
     df2 = get_reader(session, mode).schema(user_schema).csv(test_file_csv_colon)
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
     assert "SQL compilation error" in str(ex_info)
 
@@ -385,7 +385,7 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
 
     # without the setting it should fail schema validation
     df2 = get_reader(session, mode).schema(schema1).csv(test_file)
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
     assert f"Numeric value '\"1\"' is not recognized" in str(ex_info)
 
