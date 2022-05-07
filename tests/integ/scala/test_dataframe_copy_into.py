@@ -4,12 +4,12 @@
 
 import pytest
 
-from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
     SnowparkDataframeReaderException,
+    SnowparkSQLException,
 )
 from snowflake.snowpark.functions import builtin, col, get, lit, sql_expr, xmlget
 from snowflake.snowpark.types import (
@@ -301,7 +301,7 @@ def test_copy_csv_negative(session, tmp_stage_name1, tmp_table_name):
     )
 
     # case 2: copy into an existing table table with unmatched transformations
-    with pytest.raises(ProgrammingError) as exec_info:
+    with pytest.raises(SnowparkSQLException) as exec_info:
         df.copy_into_table(tmp_table_name, transformations=[col("$s1").as_("c1_alias")])
     assert "Insert value list does not match column list expecting 3 but got 1" in str(
         exec_info
@@ -427,7 +427,7 @@ def test_copy_json_negative_test_with_column_names(session, tmp_stage_name1):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 String, c2 Variant, c3 String")
     try:
-        with pytest.raises(ProgrammingError) as exec_info:
+        with pytest.raises(SnowparkSQLException) as exec_info:
             df.copy_into_table(table_name, target_columns=["c1", "c2"])
         assert (
             "JSON file format can produce one and only one column of type variant or object or array. Use CSV file format if you want to load more than one column."
@@ -457,7 +457,7 @@ def test_copy_csv_negative_test_with_column_names(session, tmp_stage_name1):
         )
 
         # case 2: column names contains unknown columns
-        with pytest.raises(ProgrammingError) as exec_info:
+        with pytest.raises(SnowparkSQLException) as exec_info:
             df.copy_into_table(
                 table_name,
                 target_columns=["c1", "c2", "c3", "c4"],
@@ -687,7 +687,7 @@ def test_copy_non_csv_negative_test(session, tmp_stage_name1, file_format, file_
 
     Utils.create_table(session, table_name, "c1 String")
     try:
-        with pytest.raises(ProgrammingError) as exec_info:
+        with pytest.raises(SnowparkSQLException) as exec_info:
             df.copy_into_table(
                 table_name, transformations=[col("$1").as_("c1"), col("$2").as_("c2")]
             )

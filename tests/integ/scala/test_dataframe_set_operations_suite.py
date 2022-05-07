@@ -8,9 +8,8 @@ from typing import List
 
 import pytest
 
-from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Column, Row
-from snowflake.snowpark.exceptions import SnowparkClientException
+from snowflake.snowpark.exceptions import SnowparkClientException, SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, min, sum
 from snowflake.snowpark.types import IntegerType
 from tests.utils import TestData, Utils
@@ -188,7 +187,7 @@ def test_union_by_name(session):
     # Check failure cases
     df1 = session.create_dataframe([(1, 2)]).to_df("a", "c")
     df2 = session.create_dataframe([(3, 4, 5)]).to_df("a", "b", "c")
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         df1.union_by_name(df2).collect()
 
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
@@ -208,7 +207,7 @@ def test_unionall_by_name(session):
     # Check failure cases
     df1 = session.create_dataframe([(1, 2)]).to_df("a", "c")
     df2 = session.create_dataframe([(3, 4, 5)]).to_df("a", "b", "c")
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(SnowparkSQLException):
         df1.union_all_by_name(df2).collect()
 
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")

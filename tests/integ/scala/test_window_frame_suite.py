@@ -7,8 +7,8 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Window
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     avg,
     col,
@@ -214,19 +214,19 @@ def test_range_between_should_accept_at_most_one_order_by_expression_when_unboun
         [Row(1, 1)],
     )
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(
             min_("key").over(window.range_between(Window.unboundedPreceding, 1))
         ).collect()
     assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(
             min_("key").over(window.range_between(-1, Window.unboundedFollowing))
         ).collect()
     assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(min_("key").over(window.range_between(-1, 1))).collect()
     assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 
@@ -246,19 +246,19 @@ def test_range_between_should_accept_numeric_values_only_when_bounded(session):
         [Row("non_numeric", "non_numeric")],
     )
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(
             min_("value").over(window.range_between(Window.unboundedPreceding, 1))
         ).collect()
     assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(
             min_("value").over(window.range_between(-1, Window.unboundedFollowing))
         ).collect()
     assert "Cumulative window frame unsupported for function MIN" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(min_("value").over(window.range_between(-1, 1))).collect()
     assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 

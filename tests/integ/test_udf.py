@@ -34,10 +34,12 @@ except ImportError:
 
 from typing import Dict, List, Optional, Union
 
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
-from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
+from snowflake.snowpark.exceptions import (
+    SnowparkInvalidObjectNameException,
+    SnowparkSQLException,
+)
 from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
 from snowflake.snowpark.types import (
     ArrayType,
@@ -596,7 +598,7 @@ def test_udf_level_import(session, resources_path):
             return_type=IntegerType(),
             input_types=[IntegerType()],
         )
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect(),
         assert "No module named" in str(ex_info)
 
@@ -609,7 +611,7 @@ def test_udf_level_import(session, resources_path):
             input_types=[IntegerType()],
             imports=[],
         )
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect(),
         assert "No module named" in str(ex_info)
 
@@ -784,11 +786,11 @@ def test_udf_negative(session):
         udf1("a", "")
     assert "Incorrect number of arguments passed to the UDF" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         session.sql("select f(1)").collect()
     assert "Unknown function" in str(ex_info)
 
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(call_udf("f", "x")).collect()
     assert "Unknown function" in str(ex_info)
 
@@ -803,11 +805,11 @@ def test_udf_negative(session):
 
     # incorrect data type
     udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(udf2("x")).collect()
     assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
     df2 = session.create_dataframe([1, None]).to_df("x")
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df2.select(udf2("x")).collect()
     assert "Python Interpreter Error" in str(ex_info)
 
@@ -896,7 +898,7 @@ def test_add_import_negative(session, resources_path):
         plus4_then_mod5_udf = udf(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
-        with pytest.raises(ProgrammingError) as ex_info:
+        with pytest.raises(SnowparkSQLException) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect()
         assert "No module named 'test.resources'" in str(ex_info)
     session.clear_imports()
@@ -1058,7 +1060,7 @@ def test_udf_replace(session):
     )
 
     # Try to register UDF without replacing and expect failure.
-    with pytest.raises(ProgrammingError) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         add_udf = session.udf.register(
             lambda x, y: x + y,
             name="test_udf_replace_add",

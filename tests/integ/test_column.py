@@ -7,18 +7,9 @@ import json
 
 import pytest
 
-from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Row
-from snowflake.snowpark.exceptions import SnowparkColumnException
-from snowflake.snowpark.functions import (
-    call_builtin,
-    col,
-    lit,
-    parse_json,
-    to_array,
-    when,
-)
-from snowflake.snowpark.types import ArrayType, MapType
+from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
+from snowflake.snowpark.functions import col, lit, parse_json, when
 from tests.utils import TestData, Utils
 
 
@@ -63,7 +54,7 @@ def test_try_cast(session):
 
 def test_try_cast_work_cast_not_work(session):
     df = session.create_dataframe([["aaa"]], schema=["a"])
-    with pytest.raises(ProgrammingError) as execinfo:
+    with pytest.raises(SnowparkSQLException) as execinfo:
         df.select(df["a"].cast("date")).collect()
     assert "Date 'aaa' is not recognized" in str(execinfo)
     Utils.check_answer(
