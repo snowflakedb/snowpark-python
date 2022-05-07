@@ -732,6 +732,12 @@ class Session:
                             "on the server but not on your local environment.",
                             package_name,
                         )
+                    except Exception as ex:
+                        logging.warning(
+                            "Failed to get the local distribution of package %s: %s",
+                            package_name,
+                            ex,
+                        )
 
             if package_name in result_dict:
                 if result_dict[package_name] != package:
