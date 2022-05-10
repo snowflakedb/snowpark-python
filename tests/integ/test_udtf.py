@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import decimal
+from collections import Counter
+from typing import Iterable, Tuple
 
 import pytest
 
@@ -109,3 +111,24 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
             )
         ],
     )
+
+
+def test_create_secure_udtf(session):
+    class MyWordCount:
+        def process(self, s1: str) -> Iterable[Tuple[str, int]]:
+            counter = Counter(s1.split())
+            return counter.items()
+
+    secure_udtf = session.udtf.register(
+        MyWordCount,
+        name="secure_udtf",
+        output_schema=["word", "count"],
+        secure=True,
+        is_permanent=True,
+        stage_location="@mystage/test",
+    )
+    desc_rows = session.sql(
+        f"select is_secure from information_schema.functions where function_name = 'secure_udtf'"
+    ).collect()
+    ...
+    # TODO: Python UDF server doesn't support Secure UDF/UDTF yet.

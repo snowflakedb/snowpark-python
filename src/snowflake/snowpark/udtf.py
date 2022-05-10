@@ -253,6 +253,7 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        secure: bool = False,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
@@ -302,6 +303,7 @@ class UDTFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDTF files.
+            secure: Set to ``True`` if you want to create a `secure UDTF <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -328,6 +330,7 @@ class UDTFRegistration:
             packages,
             replace,
             parallel,
+            secure,
         )
 
     def register_from_file(
@@ -343,6 +346,7 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        secure: bool = False,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
@@ -398,6 +402,7 @@ class UDTFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDTF files.
+            secure: Set to ``True`` if you want to create a `secure UDTF <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -425,6 +430,7 @@ class UDTFRegistration:
             packages,
             replace,
             parallel,
+            secure,
         )
 
     def _do_register_udtf(
@@ -438,6 +444,7 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        secure: bool = False,
     ) -> UserDefinedTableFunction:
         # TODO: UDTF output schema has multiple columns, which is different from UDF and SP. The common input/output datatype handling logic in udf_utils.py handle
         #  single-column types. It's a non-trivial change to update udf_utils.py. Plus, when UDAF comes, it may need more changes. So the update to udf_utils.py is deferred.
@@ -563,6 +570,7 @@ class UDTFRegistration:
                 is_temporary=stage_location is None,
                 replace=replace,
                 inline_python_code=code,
+                secure=secure,
             )
         except BaseException:
             cleanup_failed_permanent_registration(

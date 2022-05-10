@@ -131,6 +131,8 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
         return "udf"
     if object_type == TempObjectType.PROCEDURE:
         return "stored proc"
+    if object_type == TempObjectType.TABLE_FUNCTION:
+        return "udtf"
     raise ValueError(f"Expect FUNCTION of PROCEDURE, but get {object_type}")
 
 
@@ -554,6 +556,7 @@ def create_python_udf_or_sp(
     is_temporary: bool,
     replace: bool,
     inline_python_code: Optional[str] = None,
+    secure: bool = False,
 ) -> None:
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
@@ -576,7 +579,7 @@ $$
     )
 
     create_query = f"""
-CREATE {"OR REPLACE " if replace else ""}
+CREATE {"OR REPLACE " if replace else ""}{" SECURE " if secure else ""}
 {"TEMPORARY" if is_temporary else ""} {object_type.value} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON

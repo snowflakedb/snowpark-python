@@ -446,6 +446,7 @@ class UDFRegistration:
         replace: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
+        secure: bool = False,
         **kwargs,
     ) -> UserDefinedFunction:
         """
@@ -506,6 +507,7 @@ class UDFRegistration:
                 every batch by setting a smaller batch size. Note that setting a larger value does not
                 guarantee that Snowflake will encode batches with the specified number of rows. It will
                 be ignored when registering a non-vectorized UDF.
+            secure: Set to ``True`` if you want to create a `secure UDF <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
@@ -534,6 +536,7 @@ class UDFRegistration:
             parallel,
             max_batch_size,
             kwargs.get("_from_pandas_udf_function", False),
+            secure,
         )
 
     def register_from_file(
@@ -549,6 +552,7 @@ class UDFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        secure: bool = False,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -608,6 +612,7 @@ class UDFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
+            secure: Set to ``True`` if you want to create a `secure UDF <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -635,6 +640,7 @@ class UDFRegistration:
             packages,
             replace,
             parallel,
+            secure,
         )
 
     def _do_register_udf(
@@ -650,6 +656,7 @@ class UDFRegistration:
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         from_pandas_udf_function: bool = False,
+        secure: bool = False,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -710,6 +717,7 @@ class UDFRegistration:
                 is_temporary=stage_location is None,
                 replace=replace,
                 inline_python_code=code,
+                secure=secure,
             )
         # an exception might happen during registering a stored procedure
         # (e.g., a dependency might not be found on the stage),

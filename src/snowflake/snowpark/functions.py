@@ -2902,6 +2902,7 @@ def udf(
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
+    secure: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -2963,6 +2964,7 @@ def udf(
             every batch by setting a smaller batch size. Note that setting a larger value does not
             guarantee that Snowflake will encode batches with the specified number of rows. It will
             be ignored when registering a non-vectorized UDF.
+        secure: Set to ``True`` if you want to create to `secure UDTF <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3019,6 +3021,7 @@ def udf(
             replace=replace,
             parallel=parallel,
             max_batch_size=max_batch_size,
+            secure=secure,
         )
     else:
         return session.udf.register(
@@ -3033,6 +3036,7 @@ def udf(
             replace=replace,
             parallel=parallel,
             max_batch_size=max_batch_size,
+            secure=secure,
         )
 
 
@@ -3049,6 +3053,7 @@ def udtf(
     replace: bool = False,
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
+    secure: bool = False,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -3100,6 +3105,7 @@ def udtf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDTF files.
+        secure: Set to ``True`` if you want to create a `secure UDTF <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3144,6 +3150,7 @@ def udtf(
             packages=packages,
             replace=replace,
             parallel=parallel,
+            secure=secure,
         )
     else:
         return session.udtf.register(
@@ -3157,6 +3164,7 @@ def udtf(
             packages=packages,
             replace=replace,
             parallel=parallel,
+            secure=secure,
         )
 
 
