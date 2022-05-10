@@ -230,14 +230,14 @@ def test_use_negative_tests(session):
     assert exec_info.value.args[0] == "'role' must not be empty or None."
 
 
-def test_get_current_database(session):
-    def check(db_name: str, expected_name: str) -> None:
+def test_get_current_schema(session):
+    def check(schema_name: str, expected_name: str) -> None:
         try:
-            session._run_query(f"create or replace database {db_name}")
-            session.use_database(db_name)
-            assert session.get_current_database() == expected_name
+            session._run_query(f"create or replace schema {schema_name}")
+            session.use_schema(schema_name)
+            assert session.get_current_schema() == expected_name
         finally:
-            session._run_query(f"drop database if exists {db_name}")
+            session._run_query(f"drop schema if exists {schema_name}")
 
     check("a", '"A"')
     check("A", '"A"')
