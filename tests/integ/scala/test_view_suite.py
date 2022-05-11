@@ -51,7 +51,7 @@ def test_view_name_with_special_character(session):
 
 def test_only_works_on_select(session):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
-    with pytest.raises(SnowparkCreateViewException) as ex_info:
+    with pytest.raises(SnowparkCreateViewException):
         session.sql("show tables").create_or_replace_view(view_name)
 
 

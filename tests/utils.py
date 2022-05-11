@@ -18,7 +18,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name,
     quote_name_without_upper_casing,
 )
-from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import (

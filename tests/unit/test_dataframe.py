@@ -2,8 +2,6 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from unittest.mock import MagicMock
-
 from snowflake.snowpark import DataFrame, DataFrameNaFunctions, DataFrameStatFunctions
 from snowflake.snowpark.dataframe import _get_unaliased
 

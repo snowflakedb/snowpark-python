@@ -2,17 +2,14 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-import functools
 import os
 import uuid
-from contextlib import contextmanager
-from typing import Callable, Dict
+from typing import Dict
 
 import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
-from snowflake.snowpark.session import _get_active_session
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
 
