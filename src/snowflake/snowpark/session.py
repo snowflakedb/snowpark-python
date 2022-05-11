@@ -157,8 +157,8 @@ class Session:
         ... }
         >>> session = Session.builder.configs(connection_parameters).create() # doctest: +SKIP
 
-    :class:`Session` contains functions to construct a :class:`DataFrame` like :func:`table`,
-    :func:`sql` and :func:`read`.
+    :class:`Session` contains functions to construct a :class:`DataFrame` like :meth:`table`,
+    :meth:`sql` and :attr:`read`.
 
     A :class:`Session` object is not thread-safe.
     """
@@ -1101,8 +1101,8 @@ class Session:
             table_name = escape_quotes(
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
-            sf_database = self.get_current_database(unquoted=True)
-            sf_schema = self.get_current_schema(unquoted=True)
+            sf_database = self._conn._get_current_parameter("database", quoted=False)
+            sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
             return self.write_pandas(
                 data,
@@ -1293,25 +1293,19 @@ class Session:
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
         return DataFrame(self, range_plan)
 
-    def get_current_database(self, unquoted: bool = False) -> Optional[str]:
+    def get_current_database(self) -> Optional[str]:
         """
         Returns the name of the current database for the Python connector session attached
         to this session. See the example in :meth:`table`.
-
-        Args:
-            unquoted: The result will be unquoted if it is true.
         """
-        return self._conn._get_current_parameter("database", unquoted=unquoted)
+        return self._conn._get_current_parameter("database")
 
-    def get_current_schema(self, unquoted: bool = False) -> Optional[str]:
+    def get_current_schema(self) -> Optional[str]:
         """
         Returns the name of the current schema for the Python connector session attached
         to this session. See the example in :meth:`table`.
-
-        Args:
-            unquoted: The result will be unquoted if it is true.
         """
-        return self._conn._get_current_parameter("schema", unquoted=unquoted)
+        return self._conn._get_current_parameter("schema")
 
     def get_fully_qualified_current_schema(self) -> str:
         """Returns the fully qualified name of the current schema for the session."""
@@ -1319,29 +1313,22 @@ class Session:
         schema = self.get_current_schema()
         if database is None or schema is None:
             missing_item = "DATABASE" if not database else "SCHEMA"
-            # TODO: SNOW-372569 Use ErrorMessage
             raise SnowparkClientExceptionMessages.SERVER_CANNOT_FIND_CURRENT_DB_OR_SCHEMA(
                 missing_item, missing_item, missing_item
             )
         return database + "." + schema
 
-    def get_current_warehouse(self, unquoted: bool = False) -> Optional[str]:
+    def get_current_warehouse(self) -> Optional[str]:
         """
         Returns the name of the warehouse in use for the current session.
-
-        Args:
-            unquoted: The result will be unquoted if it is true.
         """
-        return self._conn._get_current_parameter("warehouse", unquoted=unquoted)
+        return self._conn._get_current_parameter("warehouse")
 
-    def get_current_role(self, unquoted: bool = False) -> Optional[str]:
+    def get_current_role(self) -> Optional[str]:
         """
         Returns the name of the primary role in use for the current session.
-
-        Args:
-            unquoted: The result will be unquoted if it is true.
         """
-        return self._conn._get_current_parameter("role", unquoted=unquoted)
+        return self._conn._get_current_parameter("role")
 
     def use_database(self, database: str) -> None:
         """Specifies the active/current database for the session.

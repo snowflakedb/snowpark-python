@@ -185,18 +185,12 @@ class ServerConnection:
         )
 
     @_Decorator.wrap_exception
-    def _get_current_parameter(
-        self, param: str, unquoted: bool = False
-    ) -> Optional[str]:
+    def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         name = getattr(self._conn, param) or self._get_string_datum(
             f"SELECT CURRENT_{param.upper()}()"
         )
         return (
-            (
-                quote_name_without_upper_casing(name)
-                if not unquoted
-                else escape_quotes(name)
-            )
+            (quote_name_without_upper_casing(name) if quoted else escape_quotes(name))
             if name
             else None
         )
