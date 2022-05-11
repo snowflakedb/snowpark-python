@@ -17,7 +17,6 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 import cloudpickle
 import pkg_resources
 
-import snowflake.snowpark  # type: ignore
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
@@ -269,14 +268,14 @@ class Session:
                     self._session_id,
                 )
             else:
-                logger.info(f"Closing session: %s", self._session_id)
+                logger.info("Closing session: %s", self._session_id)
                 self.cancel_all()
         except Exception as ex:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
             try:
                 self._conn.close()
-                logger.info(f"Closed session: %s", self._session_id)
+                logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
 

@@ -387,7 +387,7 @@ class Analyzer:
         try:
             num = int(offset)
             return window_frame_boundary_expression(str(abs(num)), num >= 0)
-        except:
+        except Exception:
             return offset
 
     def to_sql_avoid_offset(self, expr: Expression) -> str:
@@ -418,13 +418,13 @@ class Analyzer:
         use_maps = {}
         # get counts of expr_to_alias keys
         counts = Counter()
-        for k, v in resolved_children.items():
+        for v in resolved_children.values():
             if v.expr_to_alias:
                 counts.update(list(v.expr_to_alias.keys()))
 
         # Keep only non-shared expr_to_alias keys
         # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
-        for k, v in resolved_children.items():
+        for v in resolved_children.values():
             if v.expr_to_alias:
                 use_maps.update(
                     {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}

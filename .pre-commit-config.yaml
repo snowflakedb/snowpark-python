@@ -63,14 +63,14 @@ repos:
         args:
             - --license-filepath
             - license_header.txt
-# TODO: SNOW-370289 Reformat the codebase to pass flake8 precommit hook
-#-   repo: https://gitlab.com/pycqa/flake8
-#    rev: 3.9.2
-#    hooks:
-#      - id: flake8
-#        additional_dependencies:
-#          - flake8-bugbear == 20.11.1
-#        args: ["--ignore", "B011,C901,D100,D101,D102,D103,D104,D105,D107,D401,E203,E402,E501,F821,W503",
-#               "--exclude", "parameters.py, *venv*",
-#               "--max-line-length", "88",
-#               "--show-source"]
+-   repo: https://gitlab.com/pycqa/flake8
+    rev: 3.9.2
+    hooks:
+      - id: flake8
+        additional_dependencies:
+          - flake8-bugbear == 20.11.1
+        args: ["--ignore", "E203, E501, W503"]
+        exclude: >
+            (?x)^(
+                tests/.*
+            )$

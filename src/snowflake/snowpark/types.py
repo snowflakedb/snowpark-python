@@ -151,8 +151,8 @@ class DecimalType(_FractionalType):
 class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
 
-    def __init__(self, element_type: DataType = StringType()):
-        self.element_type = element_type
+    def __init__(self, element_type: Optional[DataType] = None):
+        self.element_type = element_type if element_type else StringType()
 
     def __repr__(self) -> str:
         return f"ArrayType[{str(self.element_type)}]"
@@ -167,10 +167,10 @@ class MapType(DataType):
     """Map data type. This maps to the OBJECT data type in Snowflake."""
 
     def __init__(
-        self, key_type: DataType = StringType(), value_type: DataType = StringType()
+        self, key_type: Optional[DataType] = None, value_type: Optional[DataType] = None
     ):
-        self.key_type = key_type
-        self.value_type = value_type
+        self.key_type = key_type if key_type else StringType()
+        self.value_type = value_type if value_type else StringType()
 
     def __repr__(self) -> str:
         return f"MapType[{str(self.key_type)}, {str(self.value_type)}]"
