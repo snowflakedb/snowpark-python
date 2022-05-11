@@ -446,7 +446,7 @@ def test_read_avro_with_no_schema(session, mode):
     res = df1.where(sql_expr('"num"') > 1).collect()
     assert res == [Row(str="str2", num=2)]
 
-    # assert user cannot input a schema to read json
+    # assert user cannot input a schema to read avro
     with pytest.raises(ValueError):
         get_reader(session, mode).schema(user_schema).avro(avro_path)
 
