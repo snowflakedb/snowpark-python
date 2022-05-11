@@ -65,7 +65,7 @@ class DataFrameReader:
             >>> user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType()), StructField("c", FloatType())])
             >>> # Create a DataFrame that is configured to load data from the CSV file.
             >>> df = session.read.options({"field_delimiter": ",", "skip_header": 1}).schema(user_schema).csv("@mystage/testCSV.csv")
-            >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> df.collect()
             [Row(A=2, B='two', C=2.2)]
 
@@ -75,7 +75,7 @@ class DataFrameReader:
             >>> _ = session.file.put("tests/resources/testJson.json", "@mystage", auto_compress=True)
             >>> # Create a DataFrame that is configured to load data from the gzipped JSON file.
             >>> json_df = session.read.option("compression", "gzip").json("@mystage/testJson.json.gz")
-            >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> json_df.show()
             -----------------------
             |"$1"                 |
@@ -103,21 +103,21 @@ class DataFrameReader:
             >>> user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType()), StructField("c", FloatType())])
             >>> # Create a DataFrame that is configured to load data from the CSV files in the stage.
             >>> csv_df = session.read.option("pattern", ".*V[.]csv").schema(user_schema).csv("@mystage").sort(col("a"))
-            >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> csv_df.collect()
             [Row(A=1, B='one', C=1.2), Row(A=2, B='two', C=2.2), Row(A=3, B='three', C=3.3), Row(A=4, B='four', C=4.4)]
 
     To load Parquet, ORC and AVRO files, no schema is accepted becasue the schema will be automatically inferred.
-    Infering schema can be disabled by setting option "infer_schema" to ``False``. Then you can use ``$1`` to access
+    Inferring the schema can be disabled by setting option "infer_schema" to ``False``. Then you can use ``$1`` to access
     the column data as an OBJECT.
 
     Example 4:
-        Loading a Parquet file and infer the schema.
+        Loading a Parquet file with inferring the schema.
             >>> from snowflake.snowpark.functions import col
             >>> _ = session.file.put("tests/resources/test.parquet", "@mystage", auto_compress=False)
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             >>> df = session.read.parquet("@mystage/test.parquet").where(col('"num"') == 2)
-            >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> df.collect()
             [Row(str='str2', num=2)]
 
@@ -127,7 +127,7 @@ class DataFrameReader:
             >>> _ = session.file.put("tests/resources/test.avro", "@mystage", auto_compress=False)
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             >>> df = session.read.avro("@mystage/test.avro").where(col('"num"') == 2)
-            >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> df.collect()
             [Row(str='str2', num=2)]
 
@@ -137,17 +137,17 @@ class DataFrameReader:
             >>> _ = session.file.put("tests/resources/test.avro", "@mystage", auto_compress=False)
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             >>> df = session.read.avro("@mystage/test.avro").where(col('"num"') == 2)
-            >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> df.collect()
             [Row(str='str2', num=2)]
 
     Example 7:
-        Loading a Parquet file and doesn't infer the schema:
+        Loading a Parquet file without inferring the schema:
             >>> from snowflake.snowpark.functions import col
             >>> _ = session.file.put("tests/resources/test.parquet", "@mystage", auto_compress=False)
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             >>> df = session.read.option("infer_schema", False).parquet("@mystage/test.parquet").where(col('$1')["num"] == 2)
-            >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> df.show()
             -------------------
             |"$1"             |
@@ -159,7 +159,7 @@ class DataFrameReader:
             -------------------
             <BLANKLINE>
 
-    Loading JSON and XML files doesn't support schema either. You need to use ``$1`` too to access the column data as an OBJECT.
+    Loading JSON and XML files doesn't support schema either. You also need to use ``$1`` to access the column data as an OBJECT.
 
     Example 8:
         Loading a JSON file:
@@ -167,7 +167,7 @@ class DataFrameReader:
             >>> _ = session.file.put("tests/resources/testJson.json", "@mystage", auto_compress=False)
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             >>> df = session.read.json("@mystage/testJson.json").where(col("$1")["fruit"] == lit("Apple"))
-            >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> df.show()
             -----------------------
             |"$1"                 |
@@ -191,7 +191,7 @@ class DataFrameReader:
             >>> _ = session.file.put("tests/resources/test.xml", "@mystage", auto_compress=False)
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             >>> df = session.read.xml("@mystage/test.xml")
-            >>> # Load the data into the DataFrame and return an Array of Rows containing the results.
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> df.show()
             ---------------------
             |"$1"               |
@@ -217,7 +217,7 @@ class DataFrameReader:
         self._file_type = None
 
     def table(self, name: Union[str, Iterable[str]]) -> DataFrame:
-        """Returns a DataFrame that points the specified table.
+        """Returns a DataFrame that points to the specified table.
 
         Args:
             name: Name of the table to use.
@@ -338,7 +338,7 @@ class DataFrameReader:
     def options(self, configs: Dict) -> "DataFrameReader":
         """Sets multiple specified options in the DataFrameReader.
 
-        This method is the same as :meth:`option` except that you can set multiple options in one call.
+        This method is the same as the :meth:`option` except that you can set multiple options in one call.
 
         Args:
             configs: Dictionary of the names of options (e.g. ``compression``,
