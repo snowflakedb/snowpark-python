@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict
+from typing import Dict, Iterable, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -41,9 +41,9 @@ class DataFrameReader:
     process, it may have an effect on performance.)
 
     3. Specify the schema of the data that you plan to load by constructing a
-    :class:`types.StructType` object and passing it to the :func:`schema` method. This method
-    returns a :class:`DataFrameReader` that is configured to read data that uses the
-    specified schema.
+    :class:`types.StructType` object and passing it to the :func:`schema` method if the file format is CSV. Other file
+    formats such as JSON, XML, Parquet, ORC, and AVRO don't accept a schema.
+    This method returns a :class:`DataFrameReader` that is configured to read data that uses the specified schema.
 
     4. Specify the format of the data by calling the method named after the format
     (e.g. :func:`csv`, :func:`json`, etc.). These methods return a :class:`DataFrame`
@@ -53,43 +53,160 @@ class DataFrameReader:
     :func:`DataFrame.collect`) to load the data from the file.
 
     The following examples demonstrate how to use a DataFrameReader.
+            >>> # Create a temp stage to run the example code.
+            >>> _ = session.sql("CREATE or REPLACE temp STAGE mystage").collect()
 
     Example 1:
-        Loading the first two columns of a CSV file and skipping the first header line::
+        Loading the first two columns of a CSV file and skipping the first header line:
 
-            from snowflake.snowpark.types import *
-            file_path = "@mystage1"
-            # Define the schema for the data in the CSV file.
-            user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
-            # Create a DataFrame that is configured to load data from the CSV file.
-            df = session.read.option("skip_header", 1).schema(user_schema).csv(file_path)
-            # Load the data into the DataFrame and return an Array of Rows containing the results.
-            results = df.collect()
-
+            >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType, FloatType
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False)
+            >>> # Define the schema for the data in the CSV file.
+            >>> user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType()), StructField("c", FloatType())])
+            >>> # Create a DataFrame that is configured to load data from the CSV file.
+            >>> df = session.read.options({"field_delimiter": ",", "skip_header": 1}).schema(user_schema).csv("@mystage/testCSV.csv")
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.collect()
+            [Row(A=2, B='two', C=2.2)]
 
     Example 2:
-        Loading a gzip compressed json file::
+        Loading a gzip compressed json file:
 
-            file_path = "@mystage2/data.json.gz"
-            # Create a DataFrame that is configured to load data from the gzipped JSON file.
-            json_df = session.read.option("compression", "gzip").json(file_path)
-            # Load the data into the DataFrame and return an Array of Rows containing the results.
-            results = json_df.collect()
+            >>> _ = session.file.put("tests/resources/testJson.json", "@mystage", auto_compress=True)
+            >>> # Create a DataFrame that is configured to load data from the gzipped JSON file.
+            >>> json_df = session.read.option("compression", "gzip").json("@mystage/testJson.json.gz")
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> json_df.show()
+            -----------------------
+            |"$1"                 |
+            -----------------------
+            |{                    |
+            |  "color": "Red",    |
+            |  "fruit": "Apple",  |
+            |  "size": "Large"    |
+            |}                    |
+            -----------------------
+            <BLANKLINE>
 
-      In addition, if you want to load only a subset of files from the stage, you can use the
-      `pattern <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#loading-using-pattern-matching>`_
-      option to specify a regular expression that matches the files that you want to load.
+
+    In addition, if you want to load only a subset of files from the stage, you can use the
+    `pattern <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#loading-using-pattern-matching>`_
+    option to specify a regular expression that matches the files that you want to load.
 
     Example 3:
-        Loading only the CSV files from a stage location::
+        Loading only the CSV files from a stage location:
 
-            from snowflake.snowpark.types import *
-            # Define the schema for the data in the CSV files.
-            user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
-            # Create a DataFrame that is configured to load data from the CSV files in the stage.
-            csv_df = session.read.option("pattern", ".*[.]csv").schema(user_schema).csv("@stage_location")
-            # Load the data into the DataFrame and return an Array of Rows containing the results.
-            results = csv_df.collect()
+            >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+            >>> from snowflake.snowpark.functions import col
+            >>> _ = session.file.put("tests/resources/*.csv", "@mystage", auto_compress=False)
+            >>> # Define the schema for the data in the CSV files.
+            >>> user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType()), StructField("c", FloatType())])
+            >>> # Create a DataFrame that is configured to load data from the CSV files in the stage.
+            >>> csv_df = session.read.option("pattern", ".*V[.]csv").schema(user_schema).csv("@mystage").sort(col("a"))
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> csv_df.collect()
+            [Row(A=1, B='one', C=1.2), Row(A=2, B='two', C=2.2), Row(A=3, B='three', C=3.3), Row(A=4, B='four', C=4.4)]
+
+    To load Parquet, ORC and AVRO files, no schema is accepted becasue the schema will be automatically inferred.
+    Inferring the schema can be disabled by setting option "infer_schema" to ``False``. Then you can use ``$1`` to access
+    the column data as an OBJECT.
+
+    Example 4:
+        Loading a Parquet file with inferring the schema.
+            >>> from snowflake.snowpark.functions import col
+            >>> _ = session.file.put("tests/resources/test.parquet", "@mystage", auto_compress=False)
+            >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
+            >>> df = session.read.parquet("@mystage/test.parquet").where(col('"num"') == 2)
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.collect()
+            [Row(str='str2', num=2)]
+
+    Example 5:
+        Loading an ORC file and infer the schema:
+            >>> from snowflake.snowpark.functions import col
+            >>> _ = session.file.put("tests/resources/test.avro", "@mystage", auto_compress=False)
+            >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
+            >>> df = session.read.avro("@mystage/test.avro").where(col('"num"') == 2)
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.collect()
+            [Row(str='str2', num=2)]
+
+    Example 6:
+        Loading an AVRO file and infer the schema:
+            >>> from snowflake.snowpark.functions import col
+            >>> _ = session.file.put("tests/resources/test.avro", "@mystage", auto_compress=False)
+            >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
+            >>> df = session.read.avro("@mystage/test.avro").where(col('"num"') == 2)
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.collect()
+            [Row(str='str2', num=2)]
+
+    Example 7:
+        Loading a Parquet file without inferring the schema:
+            >>> from snowflake.snowpark.functions import col
+            >>> _ = session.file.put("tests/resources/test.parquet", "@mystage", auto_compress=False)
+            >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
+            >>> df = session.read.option("infer_schema", False).parquet("@mystage/test.parquet").where(col('$1')["num"] == 2)
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.show()
+            -------------------
+            |"$1"             |
+            -------------------
+            |{                |
+            |  "num": 2,      |
+            |  "str": "str2"  |
+            |}                |
+            -------------------
+            <BLANKLINE>
+
+    Loading JSON and XML files doesn't support schema either. You also need to use ``$1`` to access the column data as an OBJECT.
+
+    Example 8:
+        Loading a JSON file:
+            >>> from snowflake.snowpark.functions import col, lit
+            >>> _ = session.file.put("tests/resources/testJson.json", "@mystage", auto_compress=False)
+            >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
+            >>> df = session.read.json("@mystage/testJson.json").where(col("$1")["fruit"] == lit("Apple"))
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.show()
+            -----------------------
+            |"$1"                 |
+            -----------------------
+            |{                    |
+            |  "color": "Red",    |
+            |  "fruit": "Apple",  |
+            |  "size": "Large"    |
+            |}                    |
+            |{                    |
+            |  "color": "Red",    |
+            |  "fruit": "Apple",  |
+            |  "size": "Large"    |
+            |}                    |
+            -----------------------
+            <BLANKLINE>
+
+    Example 9:
+        Loading an XML file:
+            >>> from snowflake.snowpark.functions import col, xmlget, parse_xml, lit, get, sql_expr
+            >>> _ = session.file.put("tests/resources/test.xml", "@mystage", auto_compress=False)
+            >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
+            >>> df = session.read.xml("@mystage/test.xml")
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.show()
+            ---------------------
+            |"$1"               |
+            ---------------------
+            |<test>             |
+            |  <num>1</num>     |
+            |  <str>str1</str>  |
+            |</test>            |
+            |<test>             |
+            |  <num>2</num>     |
+            |  <str>str2</str>  |
+            |</test>            |
+            ---------------------
+            <BLANKLINE>
+
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session"):
@@ -99,17 +216,8 @@ class DataFrameReader:
         self._file_path = None
         self._file_type = None
 
-    def table(self, name: str) -> DataFrame:
-        """Returns a :class:`DataFrame` that is set up to load data from the specified
-        table.
-
-        For the ``name`` argument, you can specify an unqualified name (if the table
-        is in the current database and schema) or a fully qualified name
-        (``db.schema.name``).
-
-        Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :func:`DataFrame.collect`,
-        :func:`DataFrame.count`, etc.).
+    def table(self, name: Union[str, Iterable[str]]) -> DataFrame:
+        """Returns a DataFrame that points to the specified table.
 
         Args:
             name: Name of the table to use.
@@ -117,39 +225,25 @@ class DataFrameReader:
         return self._session.table(name)
 
     def schema(self, schema: StructType) -> "DataFrameReader":
-        """Returns a :class:`DataFrameReader` instance with the specified schema
-        configuration for the data to be read.
-
-        To define the schema for the data that you want to read, use a
-        :class:`types.StructType` object.
+        """Define the schema for CSV files that you want to read.
 
         Args:
-            schema: Schema configuration for the data to be read.
+            schema: Schema configuration for the CSV file to be read.
+
+        Returns:
+            a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
         self._user_schema = schema
         return self
 
     def csv(self, path: str) -> DataFrame:
-        """Returns a :class:`DataFrame` that is set up to load data from the specified CSV
-        file.
-
-        This method only supports reading data from files in Snowflake stages.
-
-        Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
-        etc.).
-
-        Example::
-
-            file_path = "@mystage1/myfile.csv"
-            # Create a DataFrame that uses a DataFrameReader to load data from a file
-            # in a stage.
-            df = session.read.schema(user_schema).csv(fileInAStage).filter(col("a") < 2)
-            # Load the data into the DataFrame and return an Array of Rows containing the results.
-            results = df.collect()
+        """Specify the path of the CSV file(s) to load.
 
         Args:
-            path: The path to the CSV file (including the stage name).
+            path: The stage location of a CSV file, or a stage location that has CSV files.
+
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
         if not self._user_schema:
             raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
@@ -170,110 +264,57 @@ class DataFrameReader:
         return df
 
     def json(self, path: str) -> DataFrame:
-        r"""Returns a :class:`DataFrame` that is set up to load data from the
-        specified JSON file.
-
-        This method only supports reading data from files in Snowflake stages.
-
-        Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
-        etc.).
-
-        Example::
-
-          # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-          df = session.read.json(path).where(col("$1:num") > 1)
-          # Load the data into the DataFrame and return an Array of Rows containing the results.
-          results = df.collect()
+        """Specify the path of the JSON file(s) to load.
 
         Args:
-            path: The path to the JSON file (including the stage name).
+            path: The stage location of a JSON file, or a stage location that has JSON files.
 
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
         """
         return self._read_semi_structured_file(path, "JSON")
 
     def avro(self, path: str) -> DataFrame:
-        """Returns a :class:`DataFrame` that is set up to load data from the
-        specified Avro file.
-
-        This method only supports reading data from files in Snowflake stages.
-
-        Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
-        etc.).
+        """Specify the path of the AVRO file(s) to load.
 
         Args:
-            path: The path to the Avro file (including the stage name).
+            path: The stage location of an AVRO file, or a stage location that has AVRO files.
 
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
         """
         return self._read_semi_structured_file(path, "AVRO")
 
     def parquet(self, path: str) -> DataFrame:
-        """Returns a :class:`DataFrame` that is set up to load data from the specified
-        Parquet file.
-
-        This method only supports reading data from files in Snowflake stages.
-
-        Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
-        etc.).
-
-        Example::
-
-            # Create a DataFrame that uses a DataFrameReader to load data from a file in
-            # a stage.
-            df = session.read.parquet(path).where(col("$1:num") > 1)
-            # Load the data into the DataFrame and return an Array of Rows containing
-            # the results.
-            results = df.collect()
+        """Specify the path of the PARQUET file(s) to load.
 
         Args:
-            path: The path to the Parquet file (including the stage name).
+            path: The stage location of a PARQUET file, or a stage location that has PARQUET files.
 
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified PARQUET file(s) in a Snowflake stage.
         """
         return self._read_semi_structured_file(path, "PARQUET")
 
     def orc(self, path: str) -> DataFrame:
-        """Returns a :class:`DataFrame` that is set up to load data from the specified
-        ORC file.
-
-        This method only supports reading data from files in Snowflake stages.
-
-        Note that the data is not loaded in the DataFrame until you call a method that performs
-        an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`, etc.).
-
-        Example::
-
-            # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-            df = session.read.orc(path).where(col("$1:num") > 1)
-            # Load the data into the DataFrame and return an Array of Rows containing the results.
-            results = df.collect()
+        """Specify the path of the ORC file(s) to load.
 
         Args:
-            path: The path to the ORC file (including the stage name).
+            path: The stage location of a ORC file, or a stage location that has ORC files.
 
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
         """
         return self._read_semi_structured_file(path, "ORC")
 
     def xml(self, path: str) -> DataFrame:
-        """Returns a :class:`DataFrame` that is set up to load data from the specified
-        XML file.
-
-        This method only supports reading data from files in Snowflake stages.
-
-        Note that the data is not loaded in the DataFrame until you call a method that
-        performs an action (e.g. :func:`DataFrame.collect`, :func:`DataFrame.count`,
-        etc.).
-
-        Example::
-
-            # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-            df = session.read.xml(path).where(col("xmlget(\\$1, 'num', 0):\"$\"") > 1)
-            # Load the data into the DataFrame and return an Array of Rows containing the results.
-            results = df.collect()
+        """Specify the path of the XML file(s) to load.
 
         Args:
-            path: The path to the XML file (including the stage name).
+            path: The stage location of an XML file, or a stage location that has XML files.
+
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
         """
         return self._read_semi_structured_file(path, "XML")
 
@@ -287,61 +328,6 @@ class DataFrameReader:
         (Note that although specifying copy options can make error handling more robust during the
         reading process, it may have an effect on performance.)
 
-        Example 1:
-            Loading a LZO compressed Parquet file::
-
-                # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-                df = session.read.option("compression", "lzo").parquet(file_path)
-                # Load the data into the DataFrame and return an Array of Rows containing the results.
-                results = df.collect()
-
-        Example 2:
-            Loading an uncompressed JSON file::
-
-                # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-                df = session.read.option("compression", "none").json(file_path)
-                # Load the data into the DataFrame and return an Array of Rows containing the results.
-                results = df.collect()
-
-        Example 3:
-            Loading the first two columns of a colon-delimited CSV file in which the
-            first line is the header::
-
-              from snowflake.snowpark.types import *
-              # Define the schema for the data in the CSV files.
-              user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType())])
-              # Create a DataFrame that is configured to load data from the CSV file.
-              csv_df = session.read.option("field_delimiter", ":").option("skip_header", 1).schema(user_schema).csv(file_path)
-              # Load the data into the DataFrame and return an Array of Rows containing the results.
-              results = csv_df.collect()
-
-        In addition, if you want to load only a subset of files from the stage, you can
-        use the `pattern <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#loading-using-pattern-matching>`_
-        option to specify a regular expression that matches the files that you want to
-        load.
-
-        Example 4:
-            Loading only the CSV files from a stage location::
-
-                from snowflake.snowpark.types import *
-                # Define the schema for the data in the CSV files.
-                user_schema = StructType([StructField("a", IntegerType()),StructField("b", StringType())])
-                # Create a DataFrame that is configured to load data from the CSV files in the stage.
-                csv_df = session.read.option("pattern", ".*[.]csv").schema(user_schema).csv("@stage_location")
-                # Load the data into the DataFrame and return an Array of Rows containing the results.
-                results = csv_df.collect()
-
-        By default, we will automatically determine the schema for parquet, avro and orc
-        files and allow you to select from the individual columns. If you would like to
-        disable this, you can set the `INFER_SCHEMA <https://docs.snowflake.com/en/sql-reference/functions/infer_schema.html>`_
-        option to False. If you disable this schema detection, then everything is loaded into a VARIANT column called, $1.
-
-        Example 5:
-            Disabling schema detection::
-
-            >>> # Create a DataFrameReader that doesn't infer the schema for avro, parquet, or orc
-            >>> default_schema_reader = session.read.option("INFER_SCHEMA", False)
-
         Args:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
@@ -352,25 +338,7 @@ class DataFrameReader:
     def options(self, configs: Dict) -> "DataFrameReader":
         """Sets multiple specified options in the DataFrameReader.
 
-        Use this method to configure any
-        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
-        and
-        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
-        (Note that although specifying copy options can make error handling more robust during the
-        reading process, it may have an effect on performance.)
-
-        In addition, if you want to load only a subset of files from the stage, you can use the
-        `pattern <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#loading-using-pattern-matching>`_
-        option to specify a regular expression that matches the files that you want to load.
-
-        Example:
-            Loading a LZO compressed Parquet file and removing any white space from the
-            fields::
-
-                # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-                df = session.read.option({"compression": "lzo", "trim_space": true}).parquet(file_path)
-                # Load the data into the DataFrame and return an Array of Rows containing the results.
-                results = df.collect()
+        This method is the same as the :meth:`option` except that you can set multiple options in one call.
 
         Args:
             configs: Dictionary of the names of options (e.g. ``compression``,
