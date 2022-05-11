@@ -181,7 +181,7 @@ def test_use_database(db_parameters):
     with Session.builder.configs(parameters).create() as session:
         db_name = db_parameters["database"]
         session.use_database(db_name)
-        assert session.get_current_database(unquoted=True) == db_name.upper()
+        assert session.get_current_database() == f'"{db_name.upper()}"'
 
 
 def test_use_schema(db_parameters):
@@ -191,7 +191,7 @@ def test_use_schema(db_parameters):
     with Session.builder.configs(parameters).create() as session:
         schema_name = db_parameters["schema"]
         session.use_schema(schema_name)
-        assert session.get_current_schema(unquoted=True) == schema_name.upper()
+        assert session.get_current_schema() == f'"{schema_name.upper()}"'
 
 
 def test_use_warehouse(db_parameters):
@@ -202,14 +202,14 @@ def test_use_warehouse(db_parameters):
     with Session.builder.configs(db_parameters).create() as session:
         warehouse_name = db_parameters["warehouse"]
         session.use_warehouse(warehouse_name)
-        assert session.get_current_warehouse(unquoted=True) == warehouse_name.upper()
+        assert session.get_current_warehouse() == f'"{warehouse_name.upper()}"'
 
 
 def test_use_role(db_parameters):
     role_name = "PUBLIC"
     with Session.builder.configs(db_parameters).create() as session:
         session.use_role(role_name)
-        assert session.get_current_role(unquoted=True) == role_name
+        assert session.get_current_role() == f'"{role_name}"'
 
 
 def test_use_negative_tests(session):
@@ -228,3 +228,18 @@ def test_use_negative_tests(session):
     with pytest.raises(ValueError) as exec_info:
         session.use_role(None)
     assert exec_info.value.args[0] == "'role' must not be empty or None."
+
+
+def test_get_current_schema(session):
+    def check(schema_name: str, expected_name: str) -> None:
+        try:
+            session._run_query(f"create or replace schema {schema_name}")
+            session.use_schema(schema_name)
+            assert session.get_current_schema() == expected_name
+        finally:
+            session._run_query(f"drop schema if exists {schema_name}")
+
+    check("a", '"A"')
+    check("A", '"A"')
+    check('"a b"', '"a b"')
+    check('"a""b"', '"a""b"')
