@@ -761,7 +761,7 @@ def test_count_if(session):
     ).collect()
     assert res == []
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException):
         session.sql(f"SELECT COUNT_IF(x) FROM {temp_view_name}").collect()
 
 

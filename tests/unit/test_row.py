@@ -16,17 +16,17 @@ def test_row_with_only_values():
     assert row[0:2] == Row(1, 2)
 
     with pytest.raises(IndexError):
-        value = row[3]
+        _ = row[3]
     with pytest.raises(TypeError):
         row[3] = 3
     with pytest.raises(TypeError):
         row["a"] = "a"
     with pytest.raises(AttributeError):
-        temp = row.a
+        _ = row.a
     with pytest.raises(AttributeError):
         row.a = "a"
     with pytest.raises(KeyError):
-        temp = row["a"]
+        _ = row["a"]
 
 
 def test_row_with_field_values():
@@ -38,16 +38,16 @@ def test_row_with_field_values():
     with pytest.raises(TypeError):
         row["a"] = 2
     with pytest.raises(AttributeError):
-        temp = row.d
+        _ = row.d
     with pytest.raises(AttributeError):
         row.a = 2
     with pytest.raises(KeyError):
-        value = row["d"]
+        _ = row["d"]
 
 
 def test_row_with_wrong_values():
     with pytest.raises(ValueError):
-        row = Row("name", salary=10000)
+        Row("name", salary=10000)
 
 
 def test_row_setting_fields():
@@ -75,9 +75,9 @@ def test_row_setting_too_many_fields():
     assert row["a"] == 1
     assert row.a == 1
     with pytest.raises(KeyError):
-        something = row["d"]
+        _ = row["d"]
     with pytest.raises(AttributeError):
-        something = row.e
+        _ = row.e
 
 
 def test_contains():
@@ -131,7 +131,7 @@ def test_iter(row):
 
 def test_asDict():
     row1 = Row(1, 2, 3)
-    with pytest.raises(TypeError) as te:
+    with pytest.raises(TypeError):
         row1.asDict()
     row2 = Row(a=1, b=2, c=[Row(d=3), Row(d=4)])
     assert row2.asDict() == {"a": 1, "b": 2, "c": [Row(d=3), Row(d=4)]}
@@ -180,20 +180,20 @@ def test_dunder_call():
 def test_negative_dunder_call():
     Employee = Row("name", "salary")
     with pytest.raises(ValueError):
-        emp = Employee(name="John Berry", salary=10000)
+        Employee(name="John Berry", salary=10000)
 
     with pytest.raises(ValueError):
-        emp = Employee("John Berry")
+        Employee("John Berry")
 
     with pytest.raises(ValueError):
-        emp = Employee("John Berry", 10000, "something else")
+        Employee("John Berry", 10000, "something else")
 
     Employee2 = Row(name="John Berry", salary=10000)
     with pytest.raises(ValueError):
-        emp2 = Employee2("James Zee", 10000)
+        Employee2("James Zee", 10000)
 
     with pytest.raises(ValueError):
-        empe = Employee(dept="sales")
+        Employee(dept="sales")
 
 
 @pytest.mark.parametrize("row", [Row(1, 2, 3), Row(a=1, b=2, c=3)])

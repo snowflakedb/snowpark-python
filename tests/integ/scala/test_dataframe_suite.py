@@ -1459,7 +1459,7 @@ def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
         f"drop table {table_name}",
         f"create temp view {view_name} (string) as select current_version()",
         f"drop view {view_name}",
-        f"show tables",
+        "show tables",
         f"drop stage {stage_name}",
     ]
 
@@ -2091,7 +2091,7 @@ def test_rename_negative_test(session):
     with pytest.raises(SnowparkColumnException) as col_exec_info:
         df2.rename("A", "B")
     assert (
-        f'Unable to rename the column "A" as "B" because this DataFrame has 3 columns named "A".'
+        'Unable to rename the column "A" as "B" because this DataFrame has 3 columns named "A".'
         in str(col_exec_info)
     )
 
@@ -2191,7 +2191,7 @@ def test_drop_duplicates(session):
     Utils.check_answer(result3.where(col("c") == lit(3)), [Row(1, 2, 3, 4)])
     row3 = result3.where(col("c") == lit(1)).collect()[0]
     # result is non-deterministic.
-    assert row2 in [Row(1, 1, 1, 1), Row(1, 1, 1, 2)]
+    assert row3 in [Row(1, 1, 1, 1), Row(1, 1, 1, 2)]
 
     Utils.check_answer(
         df.dropDuplicates(["a", "b", "c", "d"]),

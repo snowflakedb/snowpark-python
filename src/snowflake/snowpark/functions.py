@@ -632,7 +632,7 @@ def var_samp(e: ColumnOrName) -> Column:
     """Returns the sample variance of non-NULL records in a group. If all records
     inside a group are NULL, a NULL is returned. Alias of :func:`variance`"""
     c = _to_col_if_str(e, "var_samp")
-    return variance(e)
+    return variance(c)
 
 
 def var_pop(e: ColumnOrName) -> Column:
@@ -1053,11 +1053,15 @@ def log(
 
 
 def pow(
-    l: Union[ColumnOrName, int, float], r: Union[ColumnOrName, int, float]
+    left: Union[ColumnOrName, int, float], right: Union[ColumnOrName, int, float]
 ) -> Column:
-    """Returns a number (l) raised to the specified power (r)."""
-    number = lit(l) if isinstance(l, (int, float)) else _to_col_if_str(l, "pow")
-    power = lit(r) if isinstance(r, (int, float)) else _to_col_if_str(r, "pow")
+    """Returns a number (left) raised to the specified power (right)."""
+    number = (
+        lit(left) if isinstance(left, (int, float)) else _to_col_if_str(left, "pow")
+    )
+    power = (
+        lit(right) if isinstance(right, (int, float)) else _to_col_if_str(right, "pow")
+    )
     return builtin("pow")(number, power)
 
 
@@ -1099,8 +1103,8 @@ def substring(
     """
     s = _to_col_if_str(str, "substring")
     p = pos if isinstance(pos, Column) else lit(pos)
-    l = len if isinstance(len, Column) else lit(len)
-    return builtin("substring")(s, p, l)
+    length = len if isinstance(len, Column) else lit(len)
+    return builtin("substring")(s, p, length)
 
 
 substr = substring
@@ -1109,7 +1113,7 @@ substr = substring
 def regexp_count(
     subject: ColumnOrName,
     pattern: ColumnOrLiteralStr,
-    position: Union[Column, int] = lit(1),
+    position: Union[Column, int] = 1,
     *parameters: ColumnOrLiteral,
 ) -> Column:
     """Returns the number of times that a pattern occurs in the subject."""
@@ -1125,9 +1129,9 @@ def regexp_count(
 def regexp_replace(
     subject: ColumnOrName,
     pattern: ColumnOrLiteralStr,
-    replacement: ColumnOrLiteralStr = lit(""),
-    position: Union[Column, int] = lit(1),
-    occurrences: Union[Column, int] = lit(0),
+    replacement: ColumnOrLiteralStr = "",
+    position: Union[Column, int] = 1,
+    occurrences: Union[Column, int] = 0,
     *parameters: ColumnOrLiteral,
 ) -> Column:
     """Returns the subject with the specified pattern (or all occurrences of the pattern) either removed or replaced by a replacement string.
@@ -1147,7 +1151,7 @@ def regexp_replace(
 def replace(
     subject: ColumnOrName,
     pattern: ColumnOrLiteralStr,
-    replacement: ColumnOrLiteralStr = lit(""),
+    replacement: ColumnOrLiteralStr = "",
 ) -> Column:
     """
     Removes all occurrences of a specified subject and optionally replaces them with replacement.
