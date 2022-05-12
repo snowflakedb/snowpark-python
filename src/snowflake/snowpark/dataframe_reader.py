@@ -422,6 +422,7 @@ class DataFrameReader:
                     schema_to_cast.append((identifier, r[0]))
                     transformations.append(identifier)
                 schema = new_schema
+                self._user_schema = StructType._from_attributes(schema)
             finally:
                 # Clean up the file format we created
                 self._session._conn.run_query(
