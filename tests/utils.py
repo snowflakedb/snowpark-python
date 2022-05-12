@@ -759,6 +759,12 @@ class TestFiles:
         return os.path.join(self.resources_path, "test_all_data_types.parquet")
 
     @property
+    def test_file_with_special_characters_parquet(self):
+        return os.path.join(
+            self.resources_path, "test_file_with_special_characters.parquet"
+        )
+
+    @property
     def test_file_orc(self):
         return os.path.join(self.resources_path, "test.orc")
 
