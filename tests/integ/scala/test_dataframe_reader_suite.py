@@ -601,7 +601,17 @@ def test_read_parquet_with_special_characters_in_column_names(session, mode):
     assert len(res) == 500
 
     schema = df1.schema
-    assert schema == [
+    assert schema.names == [
+        '"Length of Membership"',
+        '"Ema!l"',
+        '"Avg. $ession Length"',
+        '"Av@t@r"',
+        '"T!me on App"',
+        '"Address"',
+        '"T!me on Website"',
+        '"Ye@rly Amount $pent"',
+    ]
+    assert schema.fields == [
         StructField('"Length of Membership"', DoubleType(), nullable=True),
         StructField('"Ema!l"', StringType(), nullable=True),
         StructField('"Avg. $ession Length"', DoubleType(), nullable=True),
