@@ -37,6 +37,7 @@ test_file_json = "testJson.json"
 test_file_avro = "test.avro"
 test_file_parquet = "test.parquet"
 test_file_all_data_types_parquet = "test_all_data_types.parquet"
+test_file_with_special_characters_parquet = "test_file_with_special_characters.parquet"
 test_file_orc = "test.orc"
 test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
@@ -114,6 +115,12 @@ def setup(session, resources_path):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_all_data_types_parquet,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_with_special_characters_parquet,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -583,6 +590,36 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
         StructField('"D"', DateType(), nullable=True),
         StructField('"N"', DecimalType(38, 6), nullable=True),
         StructField('"S"', StringType(), nullable=True),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_parquet_with_special_characters_in_column_names(session, mode):
+    path = f"@{tmp_stage_name1}/{test_file_with_special_characters_parquet}"
+    df1 = get_reader(session, mode).parquet(path)
+    res = df1.collect()
+    assert len(res) == 500
+
+    schema = df1.schema
+    assert schema.names == [
+        '"Length of Membership"',
+        '"Ema!l"',
+        '"Avg. $ession Length"',
+        '"Av@t@r"',
+        '"T!me on App"',
+        '"Address"',
+        '"T!me on Website"',
+        '"Ye@rly Amount $pent"',
+    ]
+    assert schema.fields == [
+        StructField('"Length of Membership"', DoubleType(), nullable=True),
+        StructField('"Ema!l"', StringType(), nullable=True),
+        StructField('"Avg. $ession Length"', DoubleType(), nullable=True),
+        StructField('"Av@t@r"', StringType(), nullable=True),
+        StructField('"T!me on App"', DoubleType(), nullable=True),
+        StructField('"Address"', StringType(), nullable=True),
+        StructField('"T!me on Website"', DoubleType(), nullable=True),
+        StructField('"Ye@rly Amount $pent"', DoubleType(), nullable=True),
     ]
 
 
