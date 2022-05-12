@@ -415,8 +415,9 @@ class DataFrameReader:
                             r[2],
                         )
                     )
-                    schema_to_cast.append((r[3], r[0]))
-                    transformations.append(r[3])
+                    identifier = f"$1:{name}::{r[1]}"
+                    schema_to_cast.append((identifier, r[0]))
+                    transformations.append(identifier)
                 schema = new_schema
             finally:
                 # Clean up the file format we created
