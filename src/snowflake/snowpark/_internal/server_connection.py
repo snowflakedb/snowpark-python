@@ -12,7 +12,7 @@ import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.errors import NotSupportedError, ProgrammingError
+from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -445,7 +445,7 @@ class ServerConnection:
             self.notify_query_listeners(
                 QueryRecord(unset_query_tag_cursor.sfqid, unset_query_tag_cursor.query)
             )
-        logger.debug(f"Execute batch insertion query %s", query)
+        logger.debug("Execute batch insertion query %s", query)
 
     def _fix_pandas_df_integer(self, pd_df: "pandas.DataFrame") -> "pandas.DataFrame":
         """To fix https://snowflakecomputing.atlassian.net/browse/SNOW-562208

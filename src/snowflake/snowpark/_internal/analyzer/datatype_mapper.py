@@ -89,15 +89,15 @@ def to_sql(value: Any, datatype: DataType) -> str:
     if isinstance(value, str) and isinstance(datatype, StringType):
         return str_to_sql(value)
     if isinstance(datatype, ByteType):
-        return str(value) + f" :: tinyint"
+        return f"{value} :: tinyint"
     if isinstance(datatype, ShortType):
-        return str(value) + f" :: smallint"
+        return f"{value} :: smallint"
     if isinstance(datatype, IntegerType):
-        return str(value) + f" :: int"
+        return f"{value} :: int"
     if isinstance(datatype, LongType):
-        return str(value) + f" :: bigint"
+        return f"{value} :: bigint"
     if isinstance(datatype, BooleanType):
-        return str(value) + f" :: boolean"
+        return f"{value} :: boolean"
 
     if isinstance(value, float) and isinstance(datatype, FloatType):
         if math.isnan(value):

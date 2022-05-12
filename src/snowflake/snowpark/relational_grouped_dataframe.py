@@ -5,7 +5,6 @@
 import re
 from typing import Callable, List, Tuple, Union
 
-import snowflake.snowpark  # type: ignore
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,

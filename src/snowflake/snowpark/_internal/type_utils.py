@@ -11,14 +11,14 @@ import datetime
 import decimal
 import re
 import sys
-import typing  # type: ignore
+import typing  # noqa: F401
 from array import array
-from typing import Generator  # type: ignore
-from typing import Iterable  # type: ignore
-from typing import Iterator  # type: ignore
-from typing import (
+from typing import (  # noqa: F401
     Any,
     Dict,
+    Generator,
+    Iterable,
+    Iterator,
     List,
     NewType,
     Optional,
@@ -316,20 +316,16 @@ def infer_schema(
 
 
 def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType:
-    if name is None:
-        new_msg = lambda msg: msg
-        new_name = lambda n: "field %s" % n
-    else:
-        new_msg = lambda msg: f"{name}: {msg}"
-        new_name = lambda n: f"field {n} in {name}"
-
     # null type
     if isinstance(a, NullType):
         return b
     elif isinstance(b, NullType):
         return a
     elif type(a) is not type(b):
-        raise TypeError(new_msg(f"Cannot merge type {type(a)} and {type(b)}"))
+        err_msg = f"Cannot merge type {type(a)} and {type(b)}"
+        if name:
+            err_msg = f"{name}: {err_msg}"
+        raise TypeError(err_msg)
 
     # same type
     if isinstance(a, StructType):
@@ -338,7 +334,9 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
             StructField(
                 f.name,
                 merge_type(
-                    f.datatype, nfs.get(f.name, NullType()), name=new_name(f.name)
+                    f.datatype,
+                    nfs.get(f.name, NullType()),
+                    name=f"field {f.name} in {name}" if name else f"field {f.name}",
                 ),
             )
             for f in a.fields

@@ -25,7 +25,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
     file_operation_statement,
     filter_statement,
-    infer_schema_statement,
     insert_into_statement,
     join_statement,
     join_table_function_statement,
@@ -34,7 +33,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     merge_statement,
     pivot_statement,
     project_statement,
-    quote_name_without_upper_casing,
     result_scan_statement,
     sample_statement,
     schema_cast_named,
@@ -58,7 +56,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     COPY_OPTIONS,
     INFER_SCHEMA_FORMAT_TYPES,
@@ -443,8 +440,9 @@ class SnowflakePlanBuilder:
     def union(
         self, children: List[SnowflakePlan], source_plan: Optional[LogicalPlan]
     ) -> SnowflakePlan:
-        func = lambda x, y: self.set_operator(x, y, "UNION ALL ", source_plan)
-        return reduce(func, children)
+        return reduce(
+            lambda x, y: self.set_operator(x, y, "UNION ALL ", source_plan), children
+        )
 
     def join(
         self,

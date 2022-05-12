@@ -97,7 +97,7 @@ def test_basic_udtf_word_count_with_end_partition(session):
         def end_partition(self):
             yield ("W_Total", self._total_per_partition)
 
-    wordcount_udtf = session.udtf.register(
+    session.udtf.register(
         MyWordCount, ["word", "count"], name=func_name, is_permanent=False
     )
 

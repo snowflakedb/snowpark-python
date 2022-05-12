@@ -360,7 +360,7 @@ def calculate_checksum(
 def str_to_enum(value: str, enum_class: Type[Enum], except_str: str) -> Enum:
     try:
         return enum_class(value)
-    except:
+    except ValueError:
         raise ValueError(
             f"{except_str} must be one of {', '.join([e.value for e in enum_class])}"
         )

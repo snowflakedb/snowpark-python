@@ -7,7 +7,6 @@ import collections.abc
 from types import ModuleType
 from typing import (
     Callable,
-    Dict,
     Iterable,
     List,
     Optional,
@@ -23,7 +22,6 @@ import snowflake.snowpark
 from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
-    convert_sp_to_sf_type,
     python_type_str_to_object,
     retrieve_func_type_hints_from_source,
 )

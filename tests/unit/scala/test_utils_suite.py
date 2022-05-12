@@ -90,9 +90,9 @@ def test_normalize_stage_location():
     assert unwrap_stage_location_single_quote(name2 + "  ") == f"@{name2}"
     assert unwrap_stage_location_single_quote("@" + name2 + "  ") == f"@{name2}"
     name3 = "s t a g 'e"
-    assert unwrap_stage_location_single_quote(name3) == f"@s t a g 'e"
+    assert unwrap_stage_location_single_quote(name3) == "@s t a g 'e"
     name4 = "' s t a g 'e'"
-    assert unwrap_stage_location_single_quote(name4) == f"@ s t a g 'e"
+    assert unwrap_stage_location_single_quote(name4) == "@ s t a g 'e"
 
 
 @pytest.mark.parametrize("is_local", [True, False])

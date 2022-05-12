@@ -5,7 +5,7 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from pandas import DataFrame as PandasDF, to_datetime
+from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
 from snowflake.snowpark._internal.utils import TempObjectType
@@ -66,7 +66,7 @@ def test_write_pandas(session, tmp_table_basic):
     # Auto create a new table
     session._run_query('drop table if exists "tmp_table_basic"')
     df = session.write_pandas(pd, "tmp_table_basic", auto_create_table=True)
-    table_info = session.sql(f"show tables like 'tmp_table_basic'").collect()
+    table_info = session.sql("show tables like 'tmp_table_basic'").collect()
     assert table_info[0]["kind"] == "TABLE"
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)

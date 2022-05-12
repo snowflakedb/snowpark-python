@@ -3,8 +3,6 @@
 #
 import decimal
 
-import pytest
-
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
