@@ -73,7 +73,7 @@ def test_to_pandas_cast_integer(session, to_pandas_api):
     )  # No cast so it's a string. dtype is "object".
     assert (
         str(pandas_df.dtypes[6]) == "float64"
-    )  #  A 20-digit number is over int64 max. Convert to float64 in Pandas.
+    )  # A 20-digit number is over int64 max. Convert to float64 in Pandas.
 
     # Make sure timestamp is not accidentally converted to int
     timestamp_snowpark_df = session.create_dataframe([12345], schema=["a"]).select(

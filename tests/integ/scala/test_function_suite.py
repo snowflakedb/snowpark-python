@@ -2801,7 +2801,7 @@ def test_trunc(session, col_expr, col_scale):
 
 
 @pytest.mark.parametrize("col_A, col_scale", [("A", 0), (col("A"), lit(0))])
-def test_trunc(session, col_A, col_scale):
+def test_round(session, col_A, col_scale):
     Utils.check_answer(
         TestData.double1(session).select(round(col_A, col_scale)),
         [Row(1.0), Row(2.0), Row(3.0)],

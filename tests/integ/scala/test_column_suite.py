@@ -76,18 +76,22 @@ def test_alias(session):
 
 def test_equal_and_not_equal(session):
     test_data1 = TestData.test_data1(session)
-    assert test_data1.where(test_data1["BOOL"] == True).collect() == [Row(1, True, "a")]
+    assert test_data1.where(test_data1["BOOL"] == True).collect() == [  # noqa: E712
+        Row(1, True, "a")
+    ]
     assert test_data1.where(test_data1["BOOL"] == lit(True)).collect() == [
         Row(1, True, "a")
     ]
 
-    assert test_data1.where(test_data1["BOOL"] == False).collect() == [
+    assert test_data1.where(test_data1["BOOL"] == False).collect() == [  # noqa: E712
         Row(2, False, "b")
     ]
-    assert test_data1.where(test_data1["BOOL"] != True).collect() == [
+    assert test_data1.where(test_data1["BOOL"] != True).collect() == [  # noqa: E712
         Row(2, False, "b")
     ]
-    assert test_data1.where(test_data1["BOOL"] != lit(True)).collect() == [
+    assert test_data1.where(
+        test_data1["BOOL"] != lit(True)
+    ).collect() == [  # noqa: E712
         Row(2, False, "b")
     ]
 

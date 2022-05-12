@@ -300,14 +300,16 @@ def test_join_ambiguous_columns_without_specified_sources(session):
 
     for join_type in ["inner", "leftouter", "rightouter", "full_outer"]:
         with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-            df.join(df2, col("intcol") == col("intcol")).collect()
+            df.join(df2, col("intcol") == col("intcol"), join_type).collect()
         assert (
             "The reference to the column 'INTCOL' is ambiguous."
             in ex_info.value.message
         )
 
         with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-            df.join(df2, df["intcol"] == df2["intcol"]).select("intcol").collect()
+            df.join(df2, df["intcol"] == df2["intcol"], join_type).select(
+                "intcol"
+            ).collect()
         assert (
             "The reference to the column 'INTCOL' is ambiguous."
             in ex_info.value.message
@@ -885,7 +887,7 @@ def test_name_alias_on_multiple_join(session):
             )
         )
 
-        res = df.collect()
+        df.collect()
     finally:
         Utils.drop_table(session, table_trips)
         Utils.drop_table(session, table_stations)
@@ -926,7 +928,7 @@ def test_name_alias_on_multiple_join_unnormalized_name(session):
             )
         )
 
-        res = df.collect()
+        df.collect()
     finally:
         Utils.drop_table(session, table_trips)
         Utils.drop_table(session, table_stations)

@@ -96,10 +96,10 @@ def test_run_sql_query(session):
     res.sort(key=lambda x: (x[0], x[1]))
     assert res == [Row(1, 1), Row(1, 2), Row(2, 1), Row(2, 2)]
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException):
         session.sql("select * from (1)").collect()
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException):
         session.sql("select sum(a) over () from values 1.0, 2.0 T(a)").collect()
 
 
@@ -111,7 +111,7 @@ def test_create_table(session):
         assert len(table.schema.fields) > 0
 
         # assert the table is not created before collect
-        with pytest.raises(SnowparkSQLException) as ex_info:
+        with pytest.raises(SnowparkSQLException):
             session.sql(f"select * from {table_name}").collect()
 
         table.collect()
@@ -121,16 +121,16 @@ def test_create_table(session):
         assert len(drop_table.schema.fields) > 0
         drop_table.collect()
         # assert that the table is already dropped
-        with pytest.raises(SnowparkSQLException) as ex_info:
+        with pytest.raises(SnowparkSQLException):
             session.sql(f"select * from {table}").collect()
 
         # test when create/drop table fails
         # throws exception during prepare
         session.sql(f"create or replace table {other_name}")
-        with pytest.raises(SnowparkSQLException) as ex_info:
+        with pytest.raises(SnowparkSQLException):
             session.sql(f"create or replace table {other_name}").collect()
         session.sql(f"drop table {other_name}")
-        with pytest.raises(SnowparkSQLException) as ex_info:
+        with pytest.raises(SnowparkSQLException):
             session.sql(f"drop table {other_name}").collect()
 
     finally:

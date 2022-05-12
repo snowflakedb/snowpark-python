@@ -21,8 +21,8 @@ from snowflake.snowpark.types import DoubleType, IntegerType, PandasSeries, Stri
 from tests.utils import TempObjectType, TestFiles, Utils
 
 try:
-    import numpy
-    import pandas
+    import numpy  # noqa: F401
+    import pandas  # noqa: F401
 
     is_pandas_and_numpy_available = True
 except ImportError:
@@ -555,7 +555,7 @@ def test_sp_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @sproc
-        def add(_: Session, x: int, y: int):
+        def _(_: Session, x: int, y: int):
             return x + y
 
     assert "The return type must be specified" in str(ex_info)
@@ -563,7 +563,7 @@ def test_sp_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @sproc
-        def add(_: Session, x, y: int) -> int:
+        def _(_: Session, x, y: int) -> int:
             return x + y
 
     assert (
@@ -575,7 +575,7 @@ def test_sp_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @sproc
-        def add(_: Session, x: int, y: Union[int, float]) -> Union[int, float]:
+        def _(_: Session, x: int, y: Union[int, float]) -> Union[int, float]:
             return x + y
 
     assert "invalid type typing.Union[int, float]" in str(ex_info)
@@ -583,7 +583,7 @@ def test_sp_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @sproc
-        def add(_: int, x: int, y: int) -> int:
+        def _(_: int, x: int, y: int) -> int:
             return x + y
 
     assert "The first argument of stored proc function should be Session" in str(
@@ -593,7 +593,7 @@ def test_sp_negative(session):
     with pytest.raises(ValueError) as ex_info:
 
         @sproc(is_permanent=True)
-        def add(_: Session, x: int, y: int) -> int:
+        def _(_: Session, x: int, y: int) -> int:
             return x + y
 
     assert "name must be specified for permanent stored proc" in str(ex_info)
@@ -601,7 +601,7 @@ def test_sp_negative(session):
     with pytest.raises(ValueError) as ex_info:
 
         @sproc(is_permanent=True, name="sp")
-        def add(_: Session, x: int, y: int) -> int:
+        def _(_: Session, x: int, y: int) -> int:
             return x + y
 
     assert "stage_location must be specified for permanent stored proc" in str(ex_info)
@@ -609,7 +609,7 @@ def test_sp_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @sproc
-        def add(
+        def _(
             _: Session, x: PandasSeries[int], y: PandasSeries[int]
         ) -> PandasSeries[int]:
             return x + y

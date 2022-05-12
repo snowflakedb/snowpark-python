@@ -824,7 +824,7 @@ def test_udf_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @udf
-        def add_udf(x: int, y: int):
+        def _(x: int, y: int):
             return x + y
 
     assert "The return type must be specified" in str(ex_info)
@@ -832,7 +832,7 @@ def test_udf_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @udf
-        def add_udf(x, y: int) -> int:
+        def _(x, y: int) -> int:
             return x + y
 
     assert (
@@ -843,7 +843,7 @@ def test_udf_negative(session):
     with pytest.raises(TypeError) as ex_info:
 
         @udf
-        def add_udf(x: int, y: Union[int, float]) -> Union[int, float]:
+        def _(x: int, y: Union[int, float]) -> Union[int, float]:
             return x + y
 
     assert "invalid type typing.Union[int, float]" in str(ex_info)
@@ -851,7 +851,7 @@ def test_udf_negative(session):
     with pytest.raises(ValueError) as ex_info:
 
         @udf(is_permanent=True)
-        def add_udf(x: int, y: int) -> int:
+        def _(x: int, y: int) -> int:
             return x + y
 
     assert "name must be specified for permanent udf" in str(ex_info)
@@ -859,7 +859,7 @@ def test_udf_negative(session):
     with pytest.raises(ValueError) as ex_info:
 
         @udf(is_permanent=True, name="udf")
-        def add_udf(x: int, y: int) -> int:
+        def _(x: int, y: int) -> int:
             return x + y
 
     assert "stage_location must be specified for permanent udf" in str(ex_info)
@@ -1149,7 +1149,7 @@ def test_add_packages(session):
     # so pandas will not be available on the server side
     def is_pandas_available() -> bool:
         try:
-            import pandas
+            import pandas  # noqa: F401
         except ModuleNotFoundError:
             return False
         return True
@@ -1163,7 +1163,7 @@ def test_add_packages(session):
     # it will still fail even if we have session-level packages
     def is_numpy_available() -> bool:
         try:
-            import numpy
+            import numpy  # noqa: F401
         except ModuleNotFoundError:
             return False
         return True

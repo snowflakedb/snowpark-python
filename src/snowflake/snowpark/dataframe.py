@@ -558,7 +558,7 @@ class DataFrame:
         col_names = parse_positional_args_to_list(*names)
         if not all(isinstance(n, str) for n in col_names):
             raise TypeError(
-                f"Invalid input type in to_df(), expected str or a list of strs."
+                "Invalid input type in to_df(), expected str or a list of strs."
             )
 
         if len(self._output) != len(col_names):
@@ -2115,7 +2115,7 @@ class DataFrame:
             formatted_name = ".".join(name)
         else:
             raise TypeError(
-                f"The input of create_or_replace_view() can only a str or list of strs."
+                "The input of create_or_replace_view() can only a str or list of strs."
             )
 
         return self._do_create_or_replace_view(
@@ -2150,7 +2150,7 @@ class DataFrame:
             formatted_name = ".".join(name)
         else:
             raise TypeError(
-                f"The input of create_or_replace_temp_view() can only a str or list of strs."
+                "The input of create_or_replace_temp_view() can only a str or list of strs."
             )
 
         return self._do_create_or_replace_view(
