@@ -69,4 +69,3 @@ repos:
       - id: flake8
         additional_dependencies:
           - flake8-bugbear == 20.11.1
-        args: ["--ignore", "E203, E501, W503"]
