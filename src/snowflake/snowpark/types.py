@@ -135,7 +135,7 @@ class DecimalType(_FractionalType):
     _MAX_PRECISION = 38
     _MAX_SCALE = 38
 
-    def __init__(self, precision: int = 38, scale: int = 0):
+    def __init__(self, precision: int = 38, scale: int = 0) -> None:
         self.precision = precision
         self.scale = scale
 
@@ -151,7 +151,7 @@ class DecimalType(_FractionalType):
 class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
 
-    def __init__(self, element_type: Optional[DataType] = None):
+    def __init__(self, element_type: Optional[DataType] = None) -> None:
         self.element_type = element_type if element_type else StringType()
 
     def __repr__(self) -> str:
@@ -168,7 +168,7 @@ class MapType(DataType):
 
     def __init__(
         self, key_type: Optional[DataType] = None, value_type: Optional[DataType] = None
-    ):
+    ) -> None:
         self.key_type = key_type if key_type else StringType()
         self.value_type = value_type if value_type else StringType()
 
@@ -183,7 +183,7 @@ class MapType(DataType):
 class ColumnIdentifier:
     """Represents a column identifier."""
 
-    def __init__(self, normalized_name: str):
+    def __init__(self, normalized_name: str) -> None:
         self.normalized_name = normalized_name
 
     @property
@@ -250,7 +250,7 @@ class StructField:
         column_identifier: Union[ColumnIdentifier, str],
         datatype: DataType,
         nullable: bool = True,
-    ):
+    ) -> None:
         self.column_identifier = (
             ColumnIdentifier(column_identifier)
             if isinstance(column_identifier, str)
@@ -278,7 +278,7 @@ class StructField:
 class StructType(DataType):
     """Represents a table schema. Contains :class:`StructField` for each column."""
 
-    def __init__(self, fields: List["StructField"]):
+    def __init__(self, fields: List["StructField"]) -> None:
         self.fields = fields
 
     @classmethod
@@ -326,7 +326,7 @@ class _PandasType(DataType):
 class PandasSeriesType(_PandasType):
     """Pandas Series data type."""
 
-    def __init__(self, element_type: Optional[DataType]):
+    def __init__(self, element_type: Optional[DataType]) -> None:
         self.element_type = element_type
 
 
@@ -336,7 +336,7 @@ class PandasDataFrameType(_PandasType):
     It cannot be used as the return type of a Pandas UDF.
     """
 
-    def __init__(self, col_types: Iterable[DataType]):
+    def __init__(self, col_types: Iterable[DataType]) -> None:
         self.col_types = col_types
 
 
