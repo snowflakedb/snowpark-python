@@ -412,7 +412,7 @@ class DataFrame:
         self._plan = session._analyzer.resolve(plan)
         self.is_cached = is_cached  #: Whether it is a cached dataframe
 
-        self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
+        self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
         self._writer = DataFrameWriter(self)
 
         self._stat = DataFrameStatFunctions(self)

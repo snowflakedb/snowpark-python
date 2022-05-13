@@ -211,10 +211,10 @@ class Row(tuple):
 
     def _convert_dict(
         self, obj: Union["Row", Dict, Iterable[Union["Row", Dict]]]
-    ) -> Union[Dict, Iterable[Dict]]:
+    ) -> Union[Dict, Iterable[dict]]:
         if isinstance(obj, Row):
             return obj.as_dict(True)
-        elif isinstance(obj, Dict):
+        elif isinstance(obj, dict):
             child_dict = {}
             for k, v in obj.items():
                 child_dict[k] = self._convert_dict(v)

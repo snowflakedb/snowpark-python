@@ -6,7 +6,7 @@ import functools
 import os
 import time
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Union
+from typing import IO, Any, Dict, Iterator, List, Optional, Set, Union
 
 import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
@@ -136,7 +136,7 @@ class ServerConnection:
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
-        self._query_listener = set()  # type: set[QueryHistory]
+        self._query_listener: Set[QueryHistory] = set()
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
@@ -364,12 +364,13 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         **kwargs,
-    ) -> (
-        Union[
-            List[Any], "pandas.DataFrame", SnowflakeCursor, Iterator["pandas.DataFrame"]
-        ],
+    ) -> Union[
+        List[Any],
+        "pandas.DataFrame",
+        SnowflakeCursor,
+        Iterator["pandas.DataFrame"],
         List[ResultMetadata],
-    ):
+    ]:
         action_id = plan.session._generate_new_action_id()
 
         result, result_meta = None, None
@@ -409,7 +410,7 @@ class ServerConnection:
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
-    ) -> (List[Row], List[Attribute]):
+    ) -> Union[List[Row], List[Attribute]]:
         result_set, result_meta = self.get_result_set(plan, **kwargs)
         result = result_set_to_rows(result_set)
         meta = convert_result_meta_to_attribute(result_meta)

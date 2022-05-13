@@ -18,7 +18,7 @@ class QueryHistory:
 
     def __init__(self, session: "snowflake.snowpark.session.Session"):
         self.session = session
-        self._queries = []  # type: List[QueryRecord]
+        self._queries: List[QueryRecord] = []
 
     def __enter__(self):
         return self

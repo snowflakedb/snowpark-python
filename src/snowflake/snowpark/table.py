@@ -60,9 +60,7 @@ class WhenMatchedClause:
         self._condition_expr = condition.expression if condition is not None else None
         self._clause = None
 
-    def update(
-        self, assignments: Dict[str, Union[ColumnOrLiteral]]
-    ) -> "WhenMatchedClause":
+    def update(self, assignments: Dict[str, ColumnOrLiteral]) -> "WhenMatchedClause":
         """
         Defines an update action for the matched clause and
         returns an updated :class:`WhenMatchedClause` with the new
@@ -160,7 +158,7 @@ class WhenNotMatchedClause:
         self._clause = None
 
     def insert(
-        self, assignments: Union[Iterable[ColumnOrLiteral], Dict[str, ColumnOrLiteral]]
+        self, assignments: Iterable[ColumnOrLiteral, Dict[str, ColumnOrLiteral]]
     ) -> "WhenNotMatchedClause":
         """
         Defines an insert action for the not-matched clause and
