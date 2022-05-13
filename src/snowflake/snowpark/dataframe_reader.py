@@ -5,7 +5,6 @@
 from typing import Dict, Iterable, Union
 
 import snowflake.snowpark
-from snowflake.snowpark import Table
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_file_format_statement,
     drop_file_format_if_exists_statement,
@@ -22,6 +21,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
 
 
