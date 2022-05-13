@@ -74,6 +74,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     column_to_bool,
     create_statement_query_tag,
+    deprecate,
     generate_random_alphanumeric,
     parse_positional_args_to_list,
     random_name_for_temp_object,
@@ -105,7 +106,7 @@ from snowflake.snowpark.table_function import (
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
-logger = getLogger(__name__)
+_logger = getLogger(__name__)
 
 _ONE_MILLION = 1000000
 _NUM_PREFIX_DIGITS = 4
@@ -410,7 +411,7 @@ class DataFrame:
     ):
         self._session = session
         self._plan = session._analyzer.resolve(plan)
-        self.is_cached = is_cached  #: Whether it is a cached dataframe
+        self.is_cached: bool = is_cached  #: Whether it is a cached dataframe
 
         self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
         self._writer = DataFrameWriter(self)
@@ -736,14 +737,14 @@ class DataFrame:
         for c in exprs:
             if isinstance(c, str):
                 names.append(c)
-            elif isinstance(c, Column) and isinstance(c.expression, Attribute):
+            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
                 names.append(
                     self._plan.expr_to_alias.get(
-                        c.expression.expr_id, c.expression.name
+                        c._expression.expr_id, c._expression.name
                     )
                 )
-            elif isinstance(c, Column) and isinstance(c.expression, NamedExpression):
-                names.append(c.expression.name)
+            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
+                names.append(c._expression.name)
             else:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
 
@@ -777,7 +778,7 @@ class DataFrame:
         """
         return self._with_plan(
             Filter(
-                _to_col_if_sql_expr(expr, "filter/where").expression,
+                _to_col_if_sql_expr(expr, "filter/where")._expression,
                 self._plan,
             )
         )
@@ -985,7 +986,7 @@ class DataFrame:
 
     def group_by(
         self,
-        *cols: Iterable[ColumnOrName],
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -1167,7 +1168,7 @@ class DataFrame:
         """
         pc = self._convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
-            v.expression if isinstance(v, Column) else Literal(v) for v in values
+            v._expression if isinstance(v, Column) else Literal(v) for v in values
         ]
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
@@ -1657,7 +1658,7 @@ class DataFrame:
         self, right: "DataFrame", join_type: JoinType, join_exprs: Optional[Column]
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(self, right, join_type, [])
-        expression = join_exprs.expression if join_exprs is not None else None
+        expression = join_exprs._expression if join_exprs is not None else None
         return self._with_plan(
             Join(
                 lhs._plan,
@@ -1883,7 +1884,7 @@ class DataFrame:
         )
         transformation_exps = (
             [
-                column.expression if isinstance(column, Column) else column
+                column._expression if isinstance(column, Column) else column
                 for column in transformations
             ]
             if transformations
@@ -1928,6 +1929,11 @@ class DataFrame:
             )
         )
 
+    @deprecate(
+        deprecate_version="0.7.0",
+        extra_warning_text="`DataFrame.flatten()` is deprecated. Use `DataFrame.join_table_function()` instead.",
+        extra_doc_string="This method is deprecated. Use :meth:`join_table_function` instead.",
+    )
     def flatten(
         self,
         input: ColumnOrName,
@@ -1997,7 +2003,7 @@ class DataFrame:
         if isinstance(input, str):
             input = self.col(input)
         return self._lateral(
-            FlattenFunction(input.expression, path, outer, recursive, mode)
+            FlattenFunction(input._expression, path, outer, recursive, mode)
         )
 
     def _lateral(self, table_function: TableFunctionExpression) -> "DataFrame":
@@ -2337,11 +2343,11 @@ class DataFrame:
         if isinstance(existing, str):
             old_name = quote_name(existing)
         elif isinstance(existing, Column):
-            if isinstance(existing.expression, Attribute):
-                att = existing.expression
+            if isinstance(existing._expression, Attribute):
+                att = existing._expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
-            elif isinstance(existing.expression, NamedExpression):
-                old_name = existing.expression.name
+            elif isinstance(existing._expression, NamedExpression):
+                old_name = existing._expression.name
             else:
                 raise ValueError(
                     f"Unable to rename column {existing} because it doesn't exist."
@@ -2557,7 +2563,7 @@ Query List:
             if isinstance(col, str):
                 return self._resolve(col)
             elif isinstance(col, Column):
-                return col.expression
+                return col._expression
             else:
                 raise TypeError(
                     "{} only accepts str and Column objects, or a list containing str and"

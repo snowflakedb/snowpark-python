@@ -163,9 +163,9 @@ class DataFrameWriter:
         """
         stage_location = normalize_remote_file_or_dir(location)
         if isinstance(partition_by, str):
-            partition_by = sql_expr(partition_by).expression
+            partition_by = sql_expr(partition_by)._expression
         elif isinstance(partition_by, Column):
-            partition_by = partition_by.expression
+            partition_by = partition_by._expression
         elif partition_by is not None:
             raise TypeError(
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"

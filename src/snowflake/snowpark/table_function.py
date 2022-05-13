@@ -82,7 +82,7 @@ class TableFunctionCall:
             partition_by_tuple = None
         partition_spec = (
             [
-                e.expression if isinstance(e, Column) else Column(e).expression
+                e._expression if isinstance(e, Column) else Column(e)._expression
                 for e in partition_by_tuple
             ]
             if partition_by_tuple
@@ -107,12 +107,12 @@ class TableFunctionCall:
 
 def _create_order_by_expression(e: Union[str, Column]) -> SortOrder:
     if isinstance(e, str):
-        return SortOrder(Column(e).expression, Ascending())
+        return SortOrder(Column(e)._expression, Ascending())
     elif isinstance(e, Column):
-        if isinstance(e.expression, SortOrder):
-            return e.expression
-        else:  # isinstance(e.expression, Expression):
-            return SortOrder(e.expression, Ascending())
+        if isinstance(e._expression, SortOrder):
+            return e._expression
+        else:  # isinstance(e._expression, Expression):
+            return SortOrder(e._expression, Ascending())
     else:
         raise TypeError(
             "Order By columns must be of column names in str, or a Column object."
@@ -153,13 +153,13 @@ def _create_table_function_expression(
     if args:
         table_function_expression = PosArgumentsTableFunction(
             fqdn,
-            [_to_col_if_str(arg, "table function").expression for arg in args],
+            [_to_col_if_str(arg, "table function")._expression for arg in args],
         )
     else:
         table_function_expression = NamedArgumentsTableFunction(
             fqdn,
             {
-                arg_name: _to_col_if_str(arg, "table function").expression
+                arg_name: _to_col_if_str(arg, "table function")._expression
                 for arg_name, arg in named_args.items()
             },
         )

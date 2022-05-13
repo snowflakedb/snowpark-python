@@ -126,7 +126,7 @@ def test_leq_and_geq(session):
 
 def test_null_safe_operators(session):
     df = session.sql("select * from values(null, 1),(2, 2),(null, null) as T(a,b)")
-    assert df.select(df["A"].equal_null(df["B"])).collect() == [
+    assert df.select(df["A"].equal_null_safe(df["B"])).collect() == [
         Row(False),
         Row(True),
         Row(True),

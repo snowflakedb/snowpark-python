@@ -22,5 +22,5 @@ def test_aliases():
     assert Column.bitwiseXOR == Column.bitxor
     assert Column.isNotNull == Column.is_not_null
     assert Column.isNull == Column.is_null
-    assert Column.eqNullSafe == Column.equal_null
+    assert Column.eqNullSafe == Column.equal_null_safe
     assert Column.getName == Column.get_name
