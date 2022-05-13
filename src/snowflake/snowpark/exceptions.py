@@ -25,9 +25,6 @@ class SnowparkClientException(Exception):
             f"({self.error_code}): {self.message}" if self.error_code else self.message
         )
 
-    def __repr__(self):
-        return self.__str__()
-
     def __str__(self):
         return self._pretty_msg
 

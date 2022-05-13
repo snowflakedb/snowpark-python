@@ -606,7 +606,7 @@ class Column:
             else None
         )
 
-    def __repr__(self):
+    def __str__(self):
         return f"Column[{self.expression}]"
 
     def as_(self, alias: str) -> "Column":

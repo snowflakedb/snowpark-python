@@ -16,10 +16,6 @@ class DataType:
     @property
     def type_name(self) -> str:
         """Returns a data type name."""
-        return self.__repr__()
-
-    def __repr__(self) -> str:
-        # Strip the suffix 'type'
         return self.__class__.__name__[:-4]
 
     def __hash__(self):
@@ -139,13 +135,13 @@ class DecimalType(_FractionalType):
         self.precision = precision
         self.scale = scale
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"Decimal({self.precision}, {self.scale})"
 
     @property
     def type_name(self) -> str:
         """Returns Decimal Info. Decimal(precision, scale)."""
-        return self.__repr__()
+        return self.__str__()
 
 
 class ArrayType(DataType):
@@ -154,13 +150,13 @@ class ArrayType(DataType):
     def __init__(self, element_type: Optional[DataType] = None) -> None:
         self.element_type = element_type if element_type else StringType()
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"ArrayType[{str(self.element_type)}]"
 
     @property
     def type_name(self) -> str:
         """Returns Array Info. ArrayType(DataType)."""
-        return self.__repr__()
+        return self.__str__()
 
 
 class MapType(DataType):
@@ -172,12 +168,12 @@ class MapType(DataType):
         self.key_type = key_type if key_type else StringType()
         self.value_type = value_type if value_type else StringType()
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"MapType[{str(self.key_type)}, {str(self.value_type)}]"
 
     @property
     def type_name(self) -> str:
-        return self.__repr__()
+        return self.__str__()
 
 
 class ColumnIdentifier:
@@ -268,7 +264,7 @@ class StructField:
     def name(self, n: str) -> None:
         self.column_identifier = ColumnIdentifier(n)
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"StructField({self.name}, {self.datatype.type_name}, Nullable={self.nullable})"
 
     def __eq__(self, other):
@@ -293,7 +289,7 @@ class StructType(DataType):
             for f in self.fields
         ]
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"StructType[{', '.join(str(f) for f in self.fields)}]"
 
     @property

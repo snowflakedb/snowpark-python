@@ -21,7 +21,7 @@ class UnaryExpression(Expression):
     def children(self) -> List[Expression]:
         return self.children
 
-    def __repr__(self):
+    def __str__(self):
         return (
             f"{self.sql_operator} {self.child}"
             if self.operator_first
@@ -72,7 +72,7 @@ class Alias(UnaryExpression, NamedExpression):
         super().__init__(child)
         self.name = name
 
-    def __repr__(self):
+    def __str__(self):
         return f"{self.child} {self.sql_operator} {self.name}"
 
 
