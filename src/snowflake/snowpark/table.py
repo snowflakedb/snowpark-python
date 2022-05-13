@@ -158,7 +158,7 @@ class WhenNotMatchedClause:
         self._clause = None
 
     def insert(
-        self, assignments: Iterable[ColumnOrLiteral, Dict[str, ColumnOrLiteral]]
+        self, assignments: Union[Iterable[ColumnOrLiteral], Dict[str, ColumnOrLiteral]]
     ) -> "WhenNotMatchedClause":
         """
         Defines an insert action for the not-matched clause and
