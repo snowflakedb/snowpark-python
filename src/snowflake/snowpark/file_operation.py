@@ -96,11 +96,16 @@ class FileOperation:
             "overwrite": overwrite,
         }
         if is_in_stored_procedure():
-            cursor = self._session._conn._cursor
-            cursor._upload(local_file_name, stage_location, options)
-            result_meta = cursor.description
-            result_data = cursor.fetchall()
-            put_result = result_set_to_rows(result_data, result_meta)
+            try:
+                cursor = self._session._conn._cursor
+                cursor._upload(local_file_name, stage_location, options)
+                result_meta = cursor.description
+                result_data = cursor.fetchall()
+                put_result = result_set_to_rows(result_data, result_meta)
+            except ProgrammingError as pe:
+                raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    pe
+                ) from pe
         else:
             plan = self._session._plan_builder.file_operation_plan(
                 "put",

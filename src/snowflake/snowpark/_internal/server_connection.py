@@ -215,9 +215,9 @@ class ServerConnection:
         overwrite: bool = False,
     ) -> Optional[Dict[str, Any]]:
         if is_in_stored_procedure():
+            file_name = os.path.basename(path)
+            target_path = _build_target_path(stage_location, dest_prefix)
             try:
-                file_name = os.path.basename(path)
-                target_path = _build_target_path(stage_location, dest_prefix)
                 # upload_stream directly consume stage path, so we don't need to normalize it
                 self._cursor.upload_stream(
                     open(path, "rb"), f"{target_path}/{file_name}"
@@ -255,9 +255,9 @@ class ServerConnection:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
             if is_in_stored_procedure():
+                input_stream.seek(0)
+                target_path = _build_target_path(stage_location, dest_prefix)
                 try:
-                    input_stream.seek(0)
-                    target_path = _build_target_path(stage_location, dest_prefix)
                     # upload_stream directly consume stage path, so we don't need to normalize it
                     self._cursor.upload_stream(
                         input_stream, f"{target_path}/{dest_filename}"
