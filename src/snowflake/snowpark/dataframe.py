@@ -1460,9 +1460,21 @@ class DataFrame:
         in the left and right DataFrames.
 
         Examples::
+            >>> from snowflake.snowpark.functions import col
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
             >>> df1.join(df2, df1.a == df2.a).select(df1.a.alias("a"), df1.b, df2.c).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            |3    |4    |8    |
+            -------------------
+            <BLANKLINE>
+            >>> # rename the ambiguous columns
+            >>> df3 = df1.to_df("df1_a", "b")
+            >>> df4 = df2.to_df("df2_a", "c")
+            >>> df3.join(df4, col("df1_a") == col("df2_a")).select(col("df1_a").alias("a"), "b", "c").show()
             -------------------
             |"A"  |"B"  |"C"  |
             -------------------
@@ -1476,6 +1488,34 @@ class DataFrame:
             using_columns: A list of names of the columns, or the column objects, to
                 use for the join.
             join_type: The type of join ("inner", "full", "left", "right").
+
+        Note:
+            When performing chained operations, this method might not work due to ambiguous
+            column names. For example,
+
+            >>> df1.filter(df1.a == 1).join(df2, df1.a == df2.a).select(df1.a.alias("a"), df1.b, df2.c) # doctest: +SKIP
+
+            will not work because ``df1.filter(df1.a == 1)`` has produced a new dataframe and you
+            cannot refer to ``df1.a`` anymore. Instead, you can do either
+
+            >>> df1.join(df2, (df1.a == 1) & (df1.a == df2.a)).select(df1.a.alias("a"), df1.b, df2.c).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            -------------------
+            <BLANKLINE>
+
+            or
+
+            >>> df3 = df1.filter(df1.a == 1)
+            >>> df3.join(df2, df3.a == df2.a).select(df3.a.alias("a"), df3.b, df2.c).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            -------------------
+            <BLANKLINE>
         """
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:

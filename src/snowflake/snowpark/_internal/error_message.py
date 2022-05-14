@@ -259,8 +259,10 @@ class SnowparkClientExceptionMessages:
             f"The reference to the column '{c1}' is ambiguous. The column is "
             f"present in both DataFrames used in the join. To identify the "
             f"DataFrame that you want to use in the reference, use the syntax "
-            f'<df>("{c2}") in join conditions and in select() calls on the '
-            f"result of the join.",
+            f'<df>["{c2}"] in join conditions and in select() calls on the '
+            f"result of the join. Or you can rename the column in either DataFrame "
+            f"for disambiguation. See the API doc of DataFrame.join() method for "
+            f"more details.",
             "1303",
         )
 
