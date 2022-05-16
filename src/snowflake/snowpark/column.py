@@ -68,7 +68,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     type_string_to_type_object,
 )
-from snowflake.snowpark._internal.utils import deprecate, parse_positional_args_to_list
+from snowflake.snowpark._internal.utils import parse_positional_args_to_list
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.window import Window, WindowSpec
 
@@ -421,16 +421,7 @@ class Column:
         """Unary minus."""
         return Column(UnaryMinus(self._expression))
 
-    @deprecate(
-        deprecate_version="0.7.0",
-        extra_warning_text="`Column.equal_null()` is deprecated. Use `Column.equal_null_safe()` instead.",
-        extra_doc_string="This method is deprecated. Use :meth:`equal_null_safe` instead.",
-    )
     def equal_null(self, other: "Column") -> "Column":
-        """Equal to. You can use this for comparisons against a null value."""
-        return Column(EqualNullSafe(self._expression, Column._to_expr(other)))
-
-    def equal_null_safe(self, other: "Column") -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
         return Column(EqualNullSafe(self._expression, Column._to_expr(other)))
 
@@ -734,7 +725,7 @@ class Column:
     bitwiseXOR = bitxor
     isNotNull = is_not_null
     isNull = is_null
-    eqNullSafe = equal_null_safe
+    eqNullSafe = equal_null
     getName = get_name
 
     # TODO: To add these alias after the snake_case APIs are added.
