@@ -217,8 +217,15 @@ class ServerConnection:
         if is_in_stored_procedure():
             file_name = os.path.basename(path)
             target_path = _build_target_path(stage_location, dest_prefix)
-            # upload_stream directly consume stage path, so we don't need to normalize it
-            self._cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
+            try:
+                # upload_stream directly consume stage path, so we don't need to normalize it
+                self._cursor.upload_stream(
+                    open(path, "rb"), f"{target_path}/{file_name}"
+                )
+            except ProgrammingError as pe:
+                raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    pe
+                ) from pe
         else:
             uri = normalize_local_file(path)
             return self.run_query(
@@ -250,10 +257,15 @@ class ServerConnection:
             if is_in_stored_procedure():
                 input_stream.seek(0)
                 target_path = _build_target_path(stage_location, dest_prefix)
-                # upload_stream directly consume stage path, so we don't need to normalize it
-                self._cursor.upload_stream(
-                    input_stream, f"{target_path}/{dest_filename}"
-                )
+                try:
+                    # upload_stream directly consume stage path, so we don't need to normalize it
+                    self._cursor.upload_stream(
+                        input_stream, f"{target_path}/{dest_filename}"
+                    )
+                except ProgrammingError as pe:
+                    raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        pe
+                    ) from pe
             else:
                 return self.run_query(
                     _build_put_statement(
