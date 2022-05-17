@@ -157,7 +157,7 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "VARIANT"
     if isinstance(datatype, GeographyType):
         return "GEOGRAPHY"
-    raise TypeError(f"Unsupported data type: {datatype.type_name}")
+    raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 
 # #####################################################################################

@@ -13,19 +13,17 @@ from snowflake.connector.options import installed_pandas, pandas
 class DataType:
     """The base class of Snowpark data types."""
 
-    @property
-    def type_name(self) -> str:
-        """Returns a data type name."""
-        return self.__class__.__name__[:-4]
-
     def __hash__(self):
-        return hash(str(self))
+        return hash(repr(self))
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}()"
 
 
 # Data types
@@ -135,13 +133,8 @@ class DecimalType(_FractionalType):
         self.precision = precision
         self.scale = scale
 
-    def __str__(self) -> str:
-        return f"Decimal({self.precision}, {self.scale})"
-
-    @property
-    def type_name(self) -> str:
-        """Returns Decimal Info. Decimal(precision, scale)."""
-        return self.__str__()
+    def __repr__(self) -> str:
+        return f"DecimalType({self.precision}, {self.scale})"
 
 
 class ArrayType(DataType):
@@ -150,13 +143,8 @@ class ArrayType(DataType):
     def __init__(self, element_type: Optional[DataType] = None) -> None:
         self.element_type = element_type if element_type else StringType()
 
-    def __str__(self) -> str:
-        return f"ArrayType[{str(self.element_type)}]"
-
-    @property
-    def type_name(self) -> str:
-        """Returns Array Info. ArrayType(DataType)."""
-        return self.__str__()
+    def __repr__(self) -> str:
+        return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
 
 
 class MapType(DataType):
@@ -168,12 +156,8 @@ class MapType(DataType):
         self.key_type = key_type if key_type else StringType()
         self.value_type = value_type if value_type else StringType()
 
-    def __str__(self) -> str:
-        return f"MapType[{str(self.key_type)}, {str(self.value_type)}]"
-
-    @property
-    def type_name(self) -> str:
-        return self.__str__()
+    def __repr__(self) -> str:
+        return f"MapType({repr(self.key_type) if self.key_type else ''}, {repr(self.value_type) if self.value_type else ''})"
 
 
 class ColumnIdentifier:
@@ -264,8 +248,10 @@ class StructField:
     def name(self, n: str) -> None:
         self.column_identifier = ColumnIdentifier(n)
 
-    def __str__(self) -> str:
-        return f"StructField({self.name}, {self.datatype.type_name}, Nullable={self.nullable})"
+    def __repr__(self) -> str:
+        return (
+            f"StructField({self.name}, {repr(self.datatype)}, nullable={self.nullable})"
+        )
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
@@ -290,12 +276,7 @@ class StructType(DataType):
         ]
 
     def __str__(self) -> str:
-        return f"StructType[{', '.join(str(f) for f in self.fields)}]"
-
-    @property
-    def type_name(self) -> str:
-        """Returns a data type name."""
-        return self.__class__.__name__[:-4]
+        return f"StructType([{', '.join(str(f) for f in self.fields)}])"
 
     @property
     def names(self) -> List[str]:
