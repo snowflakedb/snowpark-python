@@ -12,7 +12,7 @@ import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.errors import NotSupportedError
+from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -314,7 +314,13 @@ class ServerConnection:
             )
             logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
         except Exception as ex:
-            logger.error(f"Failed to execute query {query}\n{ex}")
+            try:
+                logger.error(
+                    f"Failed to execute query [queryID: {ex.sfqid}] {query}\n{ex}"
+                )
+            except AttributeError:
+                # Exceptions (e.g. Python built-in error) that do not have the `sfqid` attribute
+                logger.error(f"Failed to execute query {query}\n{ex}")
             raise ex
 
         # fetch_pandas_all/batches() only works for SELECT statements
