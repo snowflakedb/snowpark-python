@@ -121,7 +121,7 @@ def test_structtype():
     assert len(tpe.fields) == 2
     assert (
         str(tpe)
-        == "StructType([StructField(col1, IntegerType(), nullable=True), StructField(col2, StringType(), nullable=False)])"
+        == "StructType([StructField('col1', IntegerType(), nullable=True), StructField('col2', StringType(), nullable=False)])"
     )
 
     assert tpe.fields[1] == StructField("col2", StringType(), nullable=False)

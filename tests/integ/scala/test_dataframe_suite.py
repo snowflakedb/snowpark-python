@@ -1407,18 +1407,18 @@ def test_createDataFrame_with_given_schema(session):
     result = session.create_dataframe(data, schema)
     schema_str = str(result.schema)
     assert (
-        schema_str == "StructType[StructField(STRING, String, Nullable=True), "
-        "StructField(BYTE, Long, Nullable=True), "
-        "StructField(SHORT, Long, Nullable=True), "
-        "StructField(INT, Long, Nullable=True), "
-        "StructField(LONG, Long, Nullable=True), "
-        "StructField(FLOAT, Double, Nullable=True), "
-        "StructField(DOUBLE, Double, Nullable=True), "
-        "StructField(NUMBER, Decimal(10, 3), Nullable=True), "
-        "StructField(BOOLEAN, Boolean, Nullable=True), "
-        "StructField(BINARY, Binary, Nullable=True), "
-        "StructField(TIMESTAMP, Timestamp, Nullable=True), "
-        "StructField(DATE, Date, Nullable=True)]"
+        schema_str == "StructType(StructField('STRING', StringType(), nullable=True), "
+        "StructField('BYTE', LongType(), nullable=True), "
+        "StructField('SHORT', LongType(), nullable=True), "
+        "StructField('INT', LongType(), nullable=True), "
+        "StructField('LONG', LongType(), nullable=True), "
+        "StructField('FLOAT', DoubleType(), nullable=True), "
+        "StructField('DOUBLE', DoubleType(), nullable=True), "
+        "StructField('NUMBER', Decimal(10, 3), nullable=True), "
+        "StructField('BOOLEAN', BooleanType(), nullable=True), "
+        "StructField('BINARY', BinaryType(), nullable=True), "
+        "StructField('TIMESTAMP', TimestampType(), nullable=True), "
+        "StructField('DATE', DateType(), nullable=True))"
     )
     Utils.check_answer(result, data, sort=False)
 
@@ -1433,7 +1433,7 @@ def test_createDataFrame_with_given_schema_time(session):
     data = [Row(datetime.strptime("20:57:06", "%H:%M:%S").time()), Row(None)]
     df = session.create_dataframe(data, schema)
     schema_str = str(df.schema)
-    assert schema_str == "StructType[StructField(TIME, Time, Nullable=True)]"
+    assert schema_str == "StructType(StructField(TIME, TimeType(), nullable=True))"
     assert df.collect() == data
 
 
@@ -1493,10 +1493,10 @@ def test_createDataFrame_with_given_schema_array_map_variant(session):
     df = session.create_dataframe(data, schema)
     assert (
         str(df.schema)
-        == "StructType[StructField(ARRAY, ArrayType[String], Nullable=True), "
-        "StructField(MAP, MapType[String, String], Nullable=True), "
-        "StructField(VARIANT, Variant, Nullable=True), "
-        "StructField(GEOGRAPHY, Geography, Nullable=True)]"
+        == "StructType[StructField('ARRAY', ArrayType(StringType()), nullable=True), "
+        "StructField('MAP', MapType(StringType(), StringType()), nullable=True), "
+        "StructField('VARIANT', VariantType(), nullable=True), "
+        "StructField('GEOGRAPHY', GeographyType(), nullable=True)]"
     )
     df.show()
     geography_string = """{
@@ -1592,9 +1592,9 @@ def test_createDataFrame_with_schema_inference(session):
 def test_create_nullable_dataframe_with_schema_inference(session):
     df = session.create_dataframe([(1, 1, None), (2, 3, True)]).to_df("a", "b", "c")
     assert (
-        str(df.schema) == "StructType[StructField(A, Long, Nullable=False), "
-        "StructField(B, Long, Nullable=False), "
-        "StructField(C, Boolean, Nullable=True)]"
+        str(df.schema) == "StructType(StructField('A', LongType(), nullable=False), "
+        "StructField('B', LongType(), nullable=False), "
+        "StructField('C', BooleanType(), nullable=True))"
     )
     Utils.check_answer(df, [Row(1, 1, None), Row(2, 3, True)])
 
@@ -1608,8 +1608,8 @@ def test_schema_inference_binary_type(session):
         ]
     )
     assert (
-        str(df.schema) == "StructType[StructField(_1, Binary, Nullable=True), "
-        "StructField(_2, Binary, Nullable=False)]"
+        str(df.schema) == "StructType(StructField('_1', BinaryType(), nullable=True), "
+        "StructField('_2', BinaryType(), nullable=False))"
     )
 
 

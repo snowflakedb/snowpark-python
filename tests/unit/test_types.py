@@ -190,7 +190,7 @@ def test_struct_field_name():
     assert StructField(column_identifier, IntegerType(), False).name == "identifier"
     assert (
         str(StructField(column_identifier, IntegerType(), False))
-        == "StructField(identifier, IntegerType(), nullable=False)"
+        == "StructField('identifier', IntegerType(), nullable=False)"
     )
 
 

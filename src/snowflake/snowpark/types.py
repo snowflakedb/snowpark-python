@@ -249,9 +249,7 @@ class StructField:
         self.column_identifier = ColumnIdentifier(n)
 
     def __repr__(self) -> str:
-        return (
-            f"StructField({self.name}, {repr(self.datatype)}, nullable={self.nullable})"
-        )
+        return f"StructField({self.name!r}, {repr(self.datatype)}, nullable={self.nullable})"
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
