@@ -12,7 +12,7 @@ import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.errors import NotSupportedError
+from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -134,6 +134,8 @@ class ServerConnection:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
+        if "password" in self._lower_case_parameters:
+            self._lower_case_parameters["password"] = None
         self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener = set()  # type: set[QueryHistory]
