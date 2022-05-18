@@ -314,7 +314,7 @@ class ServerConnection:
             )
             logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
         except Exception as ex:
-            query_id_log = f" [query id: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
+            query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
             logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
             raise ex
 
