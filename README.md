@@ -58,7 +58,7 @@ VS code doesn't have "Source Root" so you can skip this step if you use VS Code.
 ## Samples
 The [User Guide][user guide] and [API docs][api docs] have sample code.
 
-[comment]: # (Developer advocacy is open-sourcing a repo that has excellent sample code. The link will be added here.)
+[add other sample code repo links]: # (Developer advocacy is open-sourcing a repo that has excellent sample code. The link will be added here.)
 
 [user guide]: https://docs.snowflake.com/en/LIMITEDACCESS/snowpark-python.html
 [api docs]: https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/index.html
