@@ -57,7 +57,6 @@ _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 
 # Every table function handler class must define the process method.
 TABLE_FUNCTION_PROCESS_METHOD = "process"
-TABLE_FUNCTION_END_PARTITION_METHOD = "end_partition"
 
 
 class UDFColumn(NamedTuple):
@@ -391,16 +390,18 @@ def {_DEFAULT_HANDLER_NAME}({args}):
 from threading import RLock
 
 lock = RLock()
-handler_ever_called = False
 
-def lock_function_once(f):
+class InvokedFlag:
+    def __init__(self):
+        self.invoked = False
+
+def lock_function_once(f, flag):
     def wrapper(*args, **kwargs):
-        global handler_ever_called
-        if not handler_ever_called:
+        if not flag.invoked:
             with lock:
-                if not handler_ever_called:
+                if not flag.invoked:
                     result = f(*args, **kwargs)
-                    handler_ever_called = True
+                    flag.invoked = True
                     return result
                 return f(*args, **kwargs)
         return f(*args, **kwargs)
@@ -409,14 +410,21 @@ def lock_function_once(f):
 """
         if object_type == TempObjectType.TABLE_FUNCTION:
             func_code = f"""{func_code}
+init_invoked = InvokedFlag()
+process_invoked = InvokedFlag()
+end_partition_invoked = InvokedFlag()
+
 class {_DEFAULT_HANDLER_NAME}(func):
-    def {TABLE_FUNCTION_PROCESS_METHOD}(self, {args}):
-        return lock_function_once(super().process)({args})
+    def __init__(self):
+        lock_function_once(super().__init__, init_invoked)()
+
+    def process(self, {args}):
+        return lock_function_once(super().process, process_invoked)({args})
 """
-            if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
+            if hasattr(func, "end_partition"):
                 func_code = f"""{func_code}
-    def {TABLE_FUNCTION_END_PARTITION_METHOD}(self):
-        return lock_function_once(super().{TABLE_FUNCTION_END_PARTITION_METHOD})()
+    def end_partition(self):
+        return lock_function_once(super().end_partition, end_partition_invoked)()
 """
         elif is_pandas_udf:
             pandas_code = f"""
@@ -431,13 +439,17 @@ import pandas
 """.rstrip()
             if is_dataframe_input:
                 func_code = f"""{func_code}
+invoked = InvokedFlag()
+
 def {_DEFAULT_HANDLER_NAME}(df):
-    return lock_function_once(func)(df)
+    return lock_function_once(func, invoked)(df)
 """.rstrip()
             else:
                 func_code = f"""{func_code}
+invoked = InvokedFlag()
+
 def {_DEFAULT_HANDLER_NAME}(df):
-    return lock_function_once(func)(*[df[idx] for idx in range(df.shape[1])])
+    return lock_function_once(func, invoked)(*[df[idx] for idx in range(df.shape[1])])
 """.rstrip()
             func_code = f"""
 {func_code}
@@ -445,8 +457,10 @@ def {_DEFAULT_HANDLER_NAME}(df):
 """.rstrip()
         else:
             func_code = f"""{func_code}
+invoked = InvokedFlag()
+
 def {_DEFAULT_HANDLER_NAME}({args}):
-    return lock_function_once(func)({args})
+    return lock_function_once(func, invoked)({args})
 """.rstrip()
 
     return f"""
