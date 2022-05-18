@@ -11,7 +11,7 @@ Using this library, you can build applications that process data in Snowflake wi
 If you don't have a Snowflake account yet, you can [sign up for a 30-day free trial account][sign up trial].
 
 ### Create a Python virtual environment
-Python 3.8 is required. You can either use [conda][conda] or [virtualenv][virtualenv]
+Python 3.8 is required. You can use [miniconda][miniconda], [anaconda][anaconda]), or [virtualenv][virtualenv]
 to create a Python 3.8 virtual environment.
 
 3.9, 3.10 and newer versions will be supported in the future.
@@ -52,7 +52,7 @@ and "Mark Directory as" -> "Source Root".
 VS code doesn't have "Source Root" so you can skip this step if you use VS Code.
 
 #### Setup Python Interpreter
-[Configure Pycharm][config pycharm interpreter] to use the previously created Python virtual environment.
+[Configure Pycharm interpreter][config pycharm interpreter] to use the previously created Python virtual environment.
 
 
 ## Samples
@@ -65,6 +65,7 @@ The [User Guide][user guide] and [API docs][api docs] have sample code.
 [snowpark]: https://www.snowflake.com/snowpark
 [sign up trial]: https://signup.snowflake.com
 [source code]: https://github.com/snowflakedb/snowpark-python
-[conda]: https://docs.conda.io/
+[miniconda]: https://docs.conda.io/en/latest/miniconda.html
+[anaconda]: https://www.anaconda.com/
 [virtualenv]: https://docs.python.org/3/tutorial/venv.html
 [config pycharm interpreter]: https://www.jetbrains.com/help/pycharm/configuring-python-interpreter.html
