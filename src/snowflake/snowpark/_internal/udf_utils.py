@@ -57,6 +57,7 @@ _MAX_INLINE_CLOSURE_SIZE_BYTES = 8192
 
 # Every table function handler class must define the process method.
 TABLE_FUNCTION_PROCESS_METHOD = "process"
+TABLE_FUNCTION_END_PARTITION_METHOD = "end_partition"
 
 
 class UDFColumn(NamedTuple):
@@ -409,16 +410,13 @@ def lock_function_once(f):
         if object_type == TempObjectType.TABLE_FUNCTION:
             func_code = f"""{func_code}
 class {_DEFAULT_HANDLER_NAME}(func):
-    def __init__(self):
-        super().__init__()
-
-    def process(self, {args}):
+    def {TABLE_FUNCTION_PROCESS_METHOD}(self, {args}):
         return lock_function_once(super().process)({args})
 """
-            if hasattr(func, "end_partition"):
+            if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
                 func_code = f"""{func_code}
-    def end_partition(self):
-        return lock_function_once(super().end_partition)()
+    def {TABLE_FUNCTION_END_PARTITION_METHOD}(self):
+        return lock_function_once(super().{TABLE_FUNCTION_END_PARTITION_METHOD})()
 """
         elif is_pandas_udf:
             pandas_code = f"""
