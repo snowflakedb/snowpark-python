@@ -314,13 +314,8 @@ class ServerConnection:
             )
             logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
         except Exception as ex:
-            try:
-                logger.error(
-                    f"Failed to execute query [queryID: {ex.sfqid}] {query}\n{ex}"
-                )
-            except AttributeError:
-                # Exceptions (e.g. Python built-in error) that do not have the `sfqid` attribute
-                logger.error(f"Failed to execute query {query}\n{ex}")
+            query_id_log = f" [query id: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
+            logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
             raise ex
 
         # fetch_pandas_all/batches() only works for SELECT statements
