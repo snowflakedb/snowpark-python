@@ -1,68 +1,70 @@
-# Python Snowpark
+# Snowflake Snowpark Python API
 
-## To develop Python Snowpark
+The Snowpark library provides an intuitive API for querying and processing data in a data pipeline.
+Using this library, you can build applications that process data in Snowflake without having to move data to the system where your application code runs.
 
-### Setup Python Environment
+[Source code][source code] | [User guide][user guide] | [API docs][api docs] | [Product documentation][snowpark] | [Samples](#samples)
 
-#### Install Python
+## To contribute to the Snowpark Python API
 
-Python Snowpark requires Python 3.8 (or higher). Python 3.8 is available in the default CentOS 7
-repository and can be installed from source using the following commands:
-```bash
-# Install necessary install packages
-sudo yum install gcc openssl-devel bzip2-devel libffi-devel sqlite-devel
-cd /opt
-# Following operations may require sudo
-# Go here (https://www.python.org/downloads/) to find the latest Python 3.8 version
-wget https://www.python.org/ftp/python/3.8.11/Python-3.8.11.tgz
-tar xvf Python-3.8.11.tgz
-cd Python-3.8.11/
-./configure --enable-optimizations
-# Run altinstall to make sure you don't thrash your own system Python install
-sudo make altinstall
-# Check Python version
-python3.8 --version
-```
-The `devel` package installs the Python headers necessary to compile C-extensions of Snowflake
-Python Connector.
+### Have your Snowflake account ready
+If you don't have a Snowflake account yet, you can [sign up for a 30-day free trial account][sign up trial].
 
-#### Clone the repository
+### Create a Python virtual environment
+Python 3.8 is required. You can either use [conda][conda] or [virtualenv][virtualenv]
+to create a Python 3.8 virtual environment.
+
+3.9, 3.10 and newer versions will be supported in the future.
+
+### Clone the repository
 
 ```bash
 git clone git@github.com:snowflakedb/snowpark-python.git
 cd snowpark-python
 ```
 
-#### Setup a virtualenv
+### Install the library in edit mode and install its dependencies
+Activate the Python virtual environment that you created.
+Go to the cloned repository root folder.
+Then install the Snowpark API in edit/development mode.
 
-A virtualenv should be installed, which can separate your development with the system-wide Python,
-and benefits us an easy package management. Assume you are using Python 3.6, then just run:
+For Linux and Mac:
 ```bash
-python3.8 -m pip install -U setuptools pip virtualenv
-python3.8 -m virtualenv venv
-source venv/bin/activate
-```
-Note that you should activate your virtualenv after rebooting your machine and before
-developing Python Snowpark every time.
-
-
-### Install the Python Snowpark and its dependencies
-```bash
-python -m pip install ".[development, pandas]"
+python -m pip install -e ".[development, pandas]"
 ```
 
+For Windows:
+```bash
+python -m pip install -e '.[development, pandas]'
+```
+The `-e` tells `pip` to install the library in edit, or development mode.
 
-### Setup Pycharm
-
+### Setup your IDE
+You can use Pycharm, VS Code, or any other IDEs.
+The following steps assume you use Pycharm. VS Code and other IDEs are similar.
 #### Download and install Pycharm
 Download the newest community version of [Pycharm](https://www.jetbrains.com/pycharm/download/)
-and follow [installation instructions](https://www.jetbrains.com/help/pycharm/installation-guide.html#snap-install-tar)
-for CentOS 7.
+and follow the [installation instructions](https://www.jetbrains.com/help/pycharm/installation-guide.html).
 
 #### Setup project
 Open project and browse to the cloned git directory. Then right-click the directory `src` in Pycharm
 and "Mark Directory as" -> "Source Root".
+VS code doesn't have "Source Root" so you can skip this step if you use VS Code.
 
 #### Setup Python Interpreter
-This should be setup automatically, but make sure that the Python interpreter in Pycharm is pointing
-to the Python binary in your virtualenv (`[cloned repo directory]/venv/bin/python`).
+[Configure Pycharm][config pycharm interpreter] to use the previously created Python virtual environment.
+
+
+## Samples
+The [User Guide][user guide] and [API docs][api docs] have sample code.
+
+[comment]: # (Developer advocacy is open-sourcing a repo that has excellent sample code. The link will be added here.)
+
+[user guide]: https://docs.snowflake.com/en/LIMITEDACCESS/snowpark-python.html
+[api docs]: https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/index.html
+[snowpark]: https://www.snowflake.com/snowpark
+[sign up trial]: https://signup.snowflake.com
+[source code]: https://github.com/snowflakedb/snowpark-python
+[conda]: https://docs.conda.io/
+[virtualenv]: https://docs.python.org/3/tutorial/venv.html
+[config pycharm interpreter]: https://www.jetbrains.com/help/pycharm/configuring-python-interpreter.html
