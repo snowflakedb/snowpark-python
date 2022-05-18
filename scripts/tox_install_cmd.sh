@@ -15,3 +15,8 @@ done
 echo "${pip_options[*]}"
 
 python -m pip install -U ${pip_options[@]}
+
+if [[ -z "${snowflake_path}" ]]; then
+  python -m pip uninstall snowflake-connector-python
+  python -m pip install ${snowflake_path}
+fi
