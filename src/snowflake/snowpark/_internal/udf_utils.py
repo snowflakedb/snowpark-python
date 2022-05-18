@@ -398,8 +398,9 @@ def lock_function_once(f):
         if not handler_ever_called:
             with lock:
                 if not handler_ever_called:
+                    result = f(*args, **kwargs)
                     handler_ever_called = True
-                    return f(*args, **kwargs)
+                    return result
                 return f(*args, **kwargs)
         return f(*args, **kwargs)
     return wrapper
