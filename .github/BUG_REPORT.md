@@ -31,7 +31,6 @@ Please answer these questions before submitting your issue. Thanks!
 
    ```
    import logging
-   import os
 
    for logger_name in ('snowflake.snowpark', 'snowflake.connector'):
        logger = logging.getLogger(logger_name)
