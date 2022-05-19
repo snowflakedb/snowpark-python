@@ -208,6 +208,8 @@ class Session:
             new_session = Session(
                 ServerConnection({}, conn) if conn else ServerConnection(self._options)
             )
+            if "password" in self._options:
+                self._options["password"] = None
             _add_session(new_session)
             return new_session
 
