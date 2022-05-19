@@ -297,9 +297,9 @@ def test_sql_report_join_ambiguous():
         f"present in both DataFrames used in the join. To identify the "
         f"DataFrame that you want to use in the reference, use the syntax "
         f'<df>["{c2}"] in join conditions and in select() calls on the '
-        f"result of the join. Or you can rename the column in either DataFrame "
-        f"for disambiguation. See the API doc of DataFrame.join() method for "
-        f"more details."
+        f"result of the join. Alternatively, you can rename the column in "
+        f"either DataFrame for disambiguation. See the API documentation of "
+        f"the DataFrame.join() method for more details."
     )
 
 

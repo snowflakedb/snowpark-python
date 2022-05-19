@@ -1471,6 +1471,15 @@ class DataFrame:
             |3    |4    |8    |
             -------------------
             <BLANKLINE>
+            >>> # refer a single column "a"
+            >>> df1.join(df2, "a").select(df1.a.alias("a"), df1.b, df2.c).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            |3    |4    |8    |
+            -------------------
+            <BLANKLINE>
             >>> # rename the ambiguous columns
             >>> df3 = df1.to_df("df1_a", "b")
             >>> df4 = df2.to_df("df2_a", "c")
@@ -1490,8 +1499,8 @@ class DataFrame:
             join_type: The type of join ("inner", "full", "left", "right").
 
         Note:
-            When performing chained operations, this method might not work due to ambiguous
-            column names. For example,
+            When performing chained operations, this method will not work if there are
+            ambiguous column names. For example,
 
             >>> df1.filter(df1.a == 1).join(df2, df1.a == df2.a).select(df1.a.alias("a"), df1.b, df2.c) # doctest: +SKIP
 
