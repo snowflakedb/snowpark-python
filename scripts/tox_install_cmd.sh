@@ -19,6 +19,7 @@ if [[ -z "${snowflake_path}" ]]; then
   echo "Using Python Connector from PyPI"
 else
   echo "Uninstalling Python Connector from PyPI and installing locally built connector"
-  python -m pip uninstall snowflake-connector-python
+  echo "Python Connector path: ${snowflake_path}"
+  python -m pip uninstall -y snowflake-connector-python
   python -m pip install ${snowflake_path}
 fi
