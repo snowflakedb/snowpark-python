@@ -102,10 +102,9 @@ celerybeat.pid
 .env
 .venv
 env/
-venv/
+venv*/
 ENV/
 env.bak/
-venv.bak/
 
 # Spyder project settings
 .spyderproject
@@ -125,9 +124,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# .idea
-.idea/
-
 # whiteSource scan
 wss*.config
 wss-unified-agent.jar
@@ -140,3 +136,8 @@ whitesource/
 docs/_build/
 # Ignore generated autosummary files created by Sphinx docs when you run make html in the docs directory.
 docs/source/_autosummary/
+
+# Editor specific
+.idea/
+.vscode/
+*.code-workspace
