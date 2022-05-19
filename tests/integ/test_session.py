@@ -143,25 +143,48 @@ def test_list_files_in_stage(session, resources_path):
         Utils.drop_stage(session, single_quoted_name)
 
 
-def test_create_session_from_connection(db_parameters):
-    connection = snowflake.connector.connect(**db_parameters)
-    new_session = Session.builder.configs({"connection": connection}).create()
+def test_create_session_from_parameters(db_parameters):
+    session_builder = Session.builder.configs(db_parameters)
+    new_session = session_builder.create()
     try:
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
+        assert session_builder._options["password"] is None
+        assert new_session._conn._lower_case_parameters["password"] is None
+        assert new_session._conn._conn._password is None
+    finally:
+        new_session.close()
+
+
+def test_create_session_from_connection(db_parameters):
+    connection = snowflake.connector.connect(**db_parameters)
+    session_builder = Session.builder.configs({"connection": connection})
+    new_session = session_builder.create()
+    try:
+        df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
+        Utils.check_answer(df, [Row(1, 2)])
+        assert "password" not in session_builder._options
+        assert "password" not in new_session._conn._lower_case_parameters
+        assert new_session._conn._conn._password is None
     finally:
         new_session.close()
 
 
 def test_create_session_from_connection_with_noise_parameters(db_parameters):
     connection = snowflake.connector.connect(**db_parameters)
-    new_session = Session.builder.configs(
+    session_builder = Session.builder.configs(
         {**db_parameters, "connection": connection}
-    ).create()
+    )
+    new_session = session_builder.create()
     try:
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
         assert new_session._conn._conn == connection
+        # Even if we don't use the password field to connect, we should still
+        # erase it if it exists
+        assert session_builder._options["password"] is None
+        assert "password" not in new_session._conn._lower_case_parameters
+        assert new_session._conn._conn._password is None
     finally:
         new_session.close()
 
