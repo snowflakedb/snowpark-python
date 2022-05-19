@@ -13,13 +13,12 @@ done
 
 echo "${pip_options[*]}"
 
-python -m pip install -U ${pip_options[@]}
-
 if [[ -z "${snowflake_path}" ]]; then
   echo "Using Python Connector from PyPI"
+  python -m pip install -U ${pip_options[@]}
 else
-  echo "Uninstalling Python Connector from PyPI and installing locally built connector"
+  echo "Installing locally built Python Connector"
   echo "Python Connector path: ${snowflake_path}"
-  python -m pip uninstall -y snowflake-connector-python
   python -m pip install ${snowflake_path}
+  python -m pip install -U ${pip_options[@]}
 fi
