@@ -90,10 +90,14 @@ def df_collect_api_telemetry(func):
     def wrap(*args, **kwargs):
         with args[0]._session.query_history() as query_history:
             result = func(*args, **kwargs)
+        api_calls = [
+            *args[0]._plan.api_calls,
+            {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
+        ]
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
-            api_calls=args[0]._plan.api_calls,
+            api_calls=api_calls,
             sfqids=[q.query_id for q in query_history.queries],
         )
         return result
@@ -108,6 +112,28 @@ def df_action_telemetry(func):
         result = func(*args, **kwargs)
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}", TelemetryField.FUNC_CAT_ACTION.value
+        )
+        return result
+
+    return wrap
+
+
+def dfw_collect_api_telemetry(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        with args[0]._dataframe._session.query_history() as query_history:
+            result = func(*args, **kwargs)
+        api_calls = [
+            *args[0]._dataframe._plan.api_calls,
+            {TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}"},
+        ]
+        args[
+            0
+        ]._dataframe._session._conn._telemetry_client.send_function_usage_telemetry(
+            f"action_{func.__name__}",
+            TelemetryField.FUNC_CAT_ACTION.value,
+            api_calls=api_calls,
+            sfqids=[q.query_id for q in query_history.queries],
         )
         return result
 
@@ -146,9 +172,24 @@ def df_api_usage(func):
     def wrap(*args, **kwargs):
         r = func(*args, **kwargs)
         # Some DataFrame APIs call other DataFrame APIs, so we need to remove the extra call
-        if func.__name__ in APIS_WITH_MULTIPLE_CALLS and len(r._plan.api_calls) > 0:
+        if (
+            func.__name__ in APIS_WITH_MULTIPLE_CALLS
+            and len(r._plan.api_calls) >= API_CALLS_TO_REMOVE[func.__name__]
+        ):
+            subcalls = r._plan.api_calls[-API_CALLS_TO_REMOVE[func.__name__] :]
+            # remove inner calls
             r._plan.api_calls = r._plan.api_calls[: -API_CALLS_TO_REMOVE[func.__name__]]
-        r._plan.api_calls.append(f"DataFrame.{func.__name__}")
+            # Add in new API call and subcalls
+            r._plan.api_calls.append(
+                {
+                    TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
+                    "subcalls": subcalls,
+                }
+            )
+        else:
+            r._plan.api_calls.append(
+                {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
+            )
         return r
 
     return wrap
@@ -158,7 +199,7 @@ def df_to_rgdf_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         r = func(*args, **kwargs)
-        r._df_api_call = f"DataFrame.{func.__name__}"
+        r._df_api_call = {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
         return r
 
     return wrap
@@ -171,7 +212,9 @@ def rgdf_api_usage(func):
         r = func(*args, **kwargs)
         if args[0]._df_api_call:
             r._plan.api_calls.append(args[0]._df_api_call)
-        r._plan.api_calls.append(f"RelationalGroupedDataFrame.{func.__name__}")
+        r._plan.api_calls.append(
+            {TelemetryField.NAME.value: f"RelationalGroupedDataFrame.{func.__name__}"}
+        )
         return r
 
     return wrap

@@ -64,13 +64,17 @@ class DataFrameStatFunctions:
         if not percentile or not col:
             return []
         if isinstance(col, (Column, str)):
-            res = (
-                self._df.select(approx_percentile_accumulate(col).as_(temp_col_name))
-                .select(
-                    [approx_percentile_estimate(temp_col_name, p) for p in percentile]
-                )
-                ._internal_collect_with_tag(statement_params=statement_params)
-            )
+            df = self._df.select(
+                approx_percentile_accumulate(col).as_(temp_col_name)
+            ).select([approx_percentile_estimate(temp_col_name, p) for p in percentile])
+            df._plan.api_calls = [
+                *df._plan.api_calls[:-2],
+                {
+                    "name": "DataFrameStatFunctions.approx_quantile",
+                    "subcalls": df._plan.api_calls[-2:],
+                },
+            ]
+            res = df._internal_collect_with_tag(statement_params=statement_params)
             return list(res[0])
         elif isinstance(col, (list, tuple)):
             accumate_cols = [
@@ -83,11 +87,15 @@ class DataFrameStatFunctions:
                 for p in percentile
             ]
             percentile_len = len(output_cols) // len(accumate_cols)
-            res = (
-                self._df.select(accumate_cols)
-                .select(output_cols)
-                ._internal_collect_with_tag(statement_params=statement_params)
-            )
+            df = self._df.select(accumate_cols).select(output_cols)
+            df._plan.api_calls = [
+                *df._plan.api_calls[:-2],
+                {
+                    "name": "DataFrameStatFunctions.approx_quantile",
+                    "subcalls": df._plan.api_calls[-2:],
+                },
+            ]
+            res = df._internal_collect_with_tag(statement_params=statement_params)
             return [
                 [x for x in res[0][j * percentile_len : (j + 1) * percentile_len]]
                 for j in range(len(accumate_cols))
@@ -122,9 +130,15 @@ class DataFrameStatFunctions:
             If there is not enough data to generate the correlation, the method returns ``None``.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        res = self._df.select(corr_func(col1, col2))._internal_collect_with_tag(
-            statement_params=statement_params
-        )
+        df = self._df.select(corr_func(col1, col2))
+        df._plan.api_calls = [
+            *df._plan.api_calls[:-1],
+            {
+                "name": "DataFrameStatFunctions.corr",
+                "subcalls": df._plan.api_calls[-1:],
+            },
+        ]
+        res = df._internal_collect_with_tag(statement_params=statement_params)
         return res[0][0] if res[0] is not None else None
 
     def cov(
@@ -151,9 +165,12 @@ class DataFrameStatFunctions:
             The sample covariance of the two numeric columns.
             If there is not enough data to generate the covariance, the method returns None.
         """
-        res = self._df.select(covar_samp(col1, col2))._internal_collect_with_tag(
-            statement_params=statement_params
-        )
+        df = self._df.select(covar_samp(col1, col2))
+        df._plan.api_calls = [
+            *df._plan.api_calls[:-1],
+            {"name": "DataFrameStatFunctions.cov", "subcalls": df._plan.api_calls[-1:]},
+        ]
+        res = df._internal_collect_with_tag(statement_params=statement_params)
         return res[0][0] if res[0] is not None else None
 
     def crosstab(
@@ -207,7 +224,15 @@ class DataFrameStatFunctions:
             .distinct()
             ._internal_collect_with_tag(statement_params=statement_params)
         ]
-        return self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
+        df = self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
+        df._plan.api_calls = [
+            *df._plan.api_calls[:-3],
+            {
+                "name": "DataFrameStatFunctions.crosstab",
+                "subcalls": df._plan.api_calls[-3:],
+            },
+        ]
+        return df
 
     def sample_by(
         self, col: ColumnOrName, fractions: Dict[LiteralType, float]
@@ -226,12 +251,27 @@ class DataFrameStatFunctions:
                 If a stratum is not specified in the ``dict``, the method uses 0 as the fraction.
         """
         if not fractions:
-            return self._df.limit(0)
+            res_df = self._df.limit(0)
+            res_df._plan.api_calls = [
+                *res_df._plan.api_calls[:-1],
+                {
+                    "name": "DataFrameStatFunctions.sample_by",
+                    "subcalls": res_df._plan.api_calls[-1:],
+                },
+            ]
+            return res_df
         col = _to_col_if_str(col, "sample_by")
         res_df = reduce(
             lambda x, y: x.union_all(y),
             [self._df.filter(col == k).sample(v) for k, v in fractions.items()],
         )
+        res_df._plan.api_calls = [
+            *self._df._plan.api_calls,
+            {
+                "name": "DataFrameStatFunctions.sample_by",
+                "subcalls": res_df._plan.api_calls.copy(),
+            },
+        ]
         return res_df
 
     approxQuantile = approx_quantile

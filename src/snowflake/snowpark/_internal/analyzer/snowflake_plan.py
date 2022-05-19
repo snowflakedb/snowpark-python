@@ -158,7 +158,7 @@ class SnowflakePlan(LogicalPlan):
         session: Optional["snowflake.snowpark.session.Session"] = None,
         source_plan: Optional[LogicalPlan] = None,
         is_ddl_on_temp_object: bool = False,
-        api_calls: Optional[List[str]] = None,
+        api_calls: Optional[List[Dict]] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
@@ -346,7 +346,7 @@ class SnowflakePlanBuilder:
         self,
         sql: str,
         source_plan: Optional[LogicalPlan],
-        api_calls: Optional[List[str]] = None,
+        api_calls: Optional[List[Dict]] = None,
     ) -> SnowflakePlan:
         return SnowflakePlan(
             queries=[Query(sql)],

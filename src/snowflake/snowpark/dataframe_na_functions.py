@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import copy
 from logging import getLogger
 from typing import Dict, Iterable, Optional, Union
 
@@ -154,11 +155,21 @@ class DataFrameNaFunctions:
         # if thresh is less than 1, or no column is specified
         # to be dropped, return the dataframe directly
         if thresh < 1 or len(subset) == 0:
+            new_df = copy.copy(self._df)
+            new_df._plan.api_calls.append({"name": "DataFrameNaFunctions.drop"})
             return self._df
         # if thresh is greater than the number of columns,
         # drop a row only if all its values are null
         elif thresh > len(subset):
-            return self._df.limit(0)
+            new_df = self._df.limit(0)
+            new_df._plan.api_calls = [
+                *new_df._plan.api_calls[:-1],
+                {
+                    "name": "DataFrameNaFunctions.drop",
+                    "subcalls": new_df._plan.api_calls[-1:],
+                },
+            ]
+            return new_df
         else:
             df_col_type_dict = {
                 quote_name(field.name): field.datatype
@@ -184,7 +195,15 @@ class DataFrameNaFunctions:
                     col_counter += is_na
                 else:
                     col_counter = is_na
-            return self._df.where(col_counter >= thresh)
+            new_df = self._df.where(col_counter >= thresh)
+            new_df._plan.api_calls = [
+                *new_df._plan.api_calls[:-1],
+                {
+                    "name": "DataFrameNaFunctions.drop",
+                    "subcalls": new_df._plan.api_calls[-1:],
+                },
+            ]
+            return new_df
 
     def fill(
         self,
@@ -279,7 +298,9 @@ class DataFrameNaFunctions:
         else:
             value_dict = {col_name: value for col_name in subset}
         if not value_dict:
-            return self._df
+            new_df = copy.copy(self._df)
+            new_df._plan.api_calls.append({"name": "DataFrameNaFunctions.fill"})
+            return new_df
         if not all(
             [
                 isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
@@ -331,7 +352,15 @@ class DataFrameNaFunctions:
                 # it's not in the value dict, just append the original column
                 res_columns.append(col)
 
-        return self._df.select(res_columns)
+        new_df = self._df.select(res_columns)
+        new_df._plan.api_calls = [
+            *new_df._plan.api_calls[:-1],
+            {
+                "name": "DataFrameNaFunctions.fill",
+                "subcalls": new_df._plan.api_calls[-1:],
+            },
+        ]
+        return new_df
 
     def replace(
         self,
@@ -436,7 +465,9 @@ class DataFrameNaFunctions:
         elif not isinstance(subset, (list, tuple)):
             raise TypeError("subset should be a list or tuple of column names")
         elif len(subset) == 0:
-            return self._df
+            new_df = copy.copy(self._df)
+            new_df._plan.api_calls.append({"name": "DataFrameNaFunctions.replace"})
+            return new_df
 
         if isinstance(to_replace, dict):
             replacement = to_replace
@@ -454,7 +485,9 @@ class DataFrameNaFunctions:
         else:
             replacement = {to_replace: value}
         if not replacement:
-            return self._df
+            new_df = copy.copy(self._df)
+            new_df._plan.api_calls.append({"name": "DataFrameNaFunctions.replace"})
+            return new_df
         if not all(
             [
                 isinstance(k, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
@@ -510,4 +543,12 @@ class DataFrameNaFunctions:
             else:
                 res_columns.append(col)
 
-        return self._df.select(res_columns)
+        new_df = self._df.select(res_columns)
+        new_df._plan.api_calls = [
+            *new_df._plan.api_calls[:-1],
+            {
+                "name": "DataFrameNaFunctions.replace",
+                "subcalls": new_df._plan.api_calls[-1:],
+            },
+        ]
+        return new_df

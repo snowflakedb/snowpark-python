@@ -269,7 +269,7 @@ class DataFrameReader:
             ),
         )
         df._reader = self
-        df._plan.api_calls = ["DataFrameReader.csv"]
+        df._plan.api_calls = [{"name": "DataFrameReader.csv"}]
         return df
 
     def json(self, path: str) -> DataFrame:
@@ -452,5 +452,5 @@ class DataFrameReader:
             ),
         )
         df._reader = self
-        df._plan.api_calls = [f"DataFrameReader.{format.lower()}"]
+        df._plan.api_calls = [{"name": f"DataFrameReader.{format.lower()}"}]
         return df

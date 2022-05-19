@@ -446,14 +446,18 @@ class DataFrame:
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        return self._internal_collect_with_tag(statement_params=statement_params)
+        return self._internal_collect_with_tag_inner(statement_params=statement_params)
 
+    @df_collect_api_telemetry
     def _internal_collect_with_tag(
-        self, *, statement_params: Optional[Dict[str, str]] = None
+            self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> List["Row"]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
+        return self._internal_collect_with_tag_inner(statement_params=statement_params)
+
+    def _internal_collect_with_tag_inner(self, *, statement_params: Optional[Dict[str, str]] = None) -> List["Row"]:
         return self._session._conn.execute(
             self._plan,
             _statement_params=create_or_update_statement_params_with_query_tag(
@@ -461,6 +465,7 @@ class DataFrame:
             ),
         )
 
+    @df_collect_api_telemetry
     def _execute_and_get_query_id(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> str:
@@ -472,7 +477,7 @@ class DataFrame:
             ),
         )
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def to_local_iterator(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> Iterator[Row]:
@@ -2441,7 +2446,6 @@ class DataFrame:
         """
         return self._na
 
-    @df_api_usage
     def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
@@ -2491,7 +2495,11 @@ class DataFrame:
                 list(stat_func_dict.keys()), schema=["summary"]
             )
             # We need to set the API calls for this to same API calls for describe
-            df._plan.api_calls = self._plan.api_calls.copy()
+            # Also add the new API calls for creating this DataFrame to the describe subcalls
+            df._plan.api_calls = [
+                *self._plan.api_calls,
+                {"name": "DataFrame.describe", "subcalls": [*df._plan.api_calls]},
+            ]
             return df
 
         # otherwise, calculate stats
@@ -2517,7 +2525,10 @@ class DataFrame:
             )
             res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
 
-        res_df._plan.api_calls = self._plan.api_calls.copy()
+        res_df._plan.api_calls = [
+            *self._plan.api_calls,
+            {"name": "DataFrame.describe", "subcalls": res_df._plan.api_calls.copy()},
+        ]
         return res_df
 
     @df_api_usage
