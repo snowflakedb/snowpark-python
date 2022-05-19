@@ -1164,7 +1164,6 @@ class DataFrame:
             [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg([])
 
-    @df_api_usage
     def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
@@ -1184,7 +1183,13 @@ class DataFrame:
         """
         if not subset:
             df = self.distinct()
-            df._plan.api_calls = self._plan.api_calls.copy()
+            df._plan.api_calls = [
+                *df._plan.api_calls[:-1],
+                {
+                    "name": "DataFrame.drop_duplicates",
+                    "subcalls": [*df._plan.api_calls[-1:]],
+                },
+            ]
             return df
         subset = parse_positional_args_to_list(*subset)
 
@@ -1199,8 +1204,14 @@ class DataFrame:
             .where(col(rownum_name) == 1)
             .select(output_cols)
         )
-        # Get rid of the extra API calls
-        df._plan.api_calls = self._plan.api_calls.copy()
+        # Reformat the extra API calls
+        df._plan.api_calls = [
+            *df._plan.api_calls[:-3],
+            {
+                "name": "DataFrame.drop_duplicates",
+                "subcalls": [*df._plan.api_calls[-3:]],
+            },
+        ]
         return df
 
     @df_to_rgdf_api_usage
