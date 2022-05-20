@@ -22,7 +22,7 @@ from snowflake.snowpark.types import (
     LongType,
 )
 
-logger = getLogger(__name__)
+_logger = getLogger(__name__)
 
 
 def _is_value_type_matching_for_na_function(
@@ -321,7 +321,7 @@ class DataFrameNaFunctions:
                         # iff(col is null, value, col)
                         res_columns.append(iff(col.is_null(), value, col).as_(col_name))
                 else:
-                    logger.warning(
+                    _logger.warning(
                         "Input value type doesn't match the target column data type, "
                         f"this replacement was skipped. Column Name: {col_name}, "
                         f"Type: {datatype}, Input Value: {value}, Type: {type(value)}"
@@ -495,7 +495,7 @@ class DataFrameNaFunctions:
                             else when(cond, replace_value)
                         )
                     else:
-                        logger.warning(
+                        _logger.warning(
                             "Input key or value type doesn't match the target column data type, "
                             f"this replacement was skipped. Column Name: {col_name}, "
                             f"Type: {datatype}, Input Key: {key}, Type: {type(key)}, "

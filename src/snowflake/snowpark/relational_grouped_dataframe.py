@@ -50,13 +50,13 @@ def _alias(expr: Expression) -> NamedExpression:
 def _expr_to_func(expr: str, input_expr: Expression) -> Expression:
     lowered = expr.lower()
     if lowered in ["avg", "average", "mean"]:
-        return functions.avg(Column(input_expr)).expression
+        return functions.avg(Column(input_expr))._expression
     elif lowered in ["stddev", "std"]:
-        return functions.stddev(Column(input_expr)).expression
+        return functions.stddev(Column(input_expr))._expression
     elif lowered in ["count", "size"]:
-        return functions.count(Column(input_expr)).expression
+        return functions.count(Column(input_expr))._expression
     else:
-        return functions.builtin(lowered)(input_expr).expression
+        return functions.builtin(lowered)(input_expr)._expression
 
 
 def _str_to_expr(expr: str) -> Callable:
@@ -109,7 +109,7 @@ class GroupingSets:
             prepared_sets if isinstance(prepared_sets[0], list) else [prepared_sets]
         )
         self._to_expression = GroupingSetsExpression(
-            [[c.expression for c in s] for s in prepared_sets]
+            [[c._expression for c in s] for s in prepared_sets]
         )
 
 
@@ -201,13 +201,13 @@ class RelationalGroupedDataFrame:
         agg_exprs = []
         for e in exprs:
             if isinstance(e, Column):
-                agg_exprs.append(e.expression)
+                agg_exprs.append(e._expression)
             elif (
                 isinstance(e, tuple)
                 and isinstance(e[0], Column)
                 and isinstance(e[1], str)
             ):
-                agg_exprs.append(_str_to_expr(e[1])(e[0].expression))
+                agg_exprs.append(_str_to_expr(e[1])(e[0]._expression))
             else:
                 raise TypeError("Invalid input types for agg()")
 
@@ -240,7 +240,7 @@ class RelationalGroupedDataFrame:
         return self._to_df(
             [
                 Alias(
-                    functions.builtin("count")(Literal(1)).expression,
+                    functions.builtin("count")(Literal(1))._expression,
                     "count",
                 )
             ]
@@ -256,8 +256,8 @@ class RelationalGroupedDataFrame:
     def _builtin_internal(self, agg_name: str, *cols: ColumnOrName) -> DataFrame:
         agg_exprs = []
         for c in cols:
-            c_expr = Column(c).expression if isinstance(c, str) else c.expression
-            expr = functions.builtin(agg_name)(c_expr).expression
+            c_expr = Column(c)._expression if isinstance(c, str) else c._expression
+            expr = functions.builtin(agg_name)(c_expr)._expression
             agg_exprs.append(expr)
         return self._to_df(agg_exprs)
 

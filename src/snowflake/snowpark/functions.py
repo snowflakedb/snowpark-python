@@ -503,8 +503,8 @@ def count(e: ColumnOrName) -> Column:
     c = _to_col_if_str(e, "count")
     return (
         builtin("count")(Literal(1))
-        if isinstance(c.expression, Star)
-        else builtin("count")(c.expression)
+        if isinstance(c._expression, Star)
+        else builtin("count")(c._expression)
     )
 
 
@@ -514,7 +514,7 @@ def count_distinct(*cols: ColumnOrName) -> Column:
     """
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
-        FunctionExpression("count", [c.expression for c in cs], is_distinct=True)
+        FunctionExpression("count", [c._expression for c in cs], is_distinct=True)
     )
 
 
@@ -2646,7 +2646,7 @@ def when(condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]) -> CaseExpr:
         CaseWhen(
             [
                 (
-                    _to_col_if_sql_expr(condition, "when").expression,
+                    _to_col_if_sql_expr(condition, "when")._expression,
                     Column._to_expr(value),
                 )
             ]
@@ -2726,7 +2726,7 @@ def in_(
     """
     vals = parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
-    return Column(MultipleExpression([c.expression for c in columns])).in_(vals)
+    return Column(MultipleExpression([c._expression for c in columns])).in_(vals)
 
 
 def cume_dist() -> Column:
@@ -2782,7 +2782,7 @@ def lag(
     """
     c = _to_col_if_str(e, "lag")
     return Column(
-        Lag(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lag(c._expression, offset, Column._to_expr(default_value), ignore_nulls)
     )
 
 
@@ -2798,7 +2798,7 @@ def lead(
     """
     c = _to_col_if_str(e, "lead")
     return Column(
-        Lead(c.expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls)
     )
 
 
@@ -2869,7 +2869,7 @@ def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> 
         df.select(listagg(df["col2"], ",", False)
     """
     c = _to_col_if_str(e, "listagg")
-    return Column(ListAgg(c.expression, delimiter, is_distinct))
+    return Column(ListAgg(c._expression, delimiter, is_distinct))
 
 
 def when_matched(
