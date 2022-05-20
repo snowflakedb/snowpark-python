@@ -23,10 +23,10 @@ requirements:
     - pip
   run:
     - python 3.8
-    - cloudpickle >=1.6.0
+    - cloudpickle >=1.6.0,<2.1.0
     - snowflake-connector-python
     - setuptools >34.0.0
-    - typing-extensions >=4.1.0
+    - typing-extensions >=4.1.0,<4.2.0
   run_constrained:
     - pandas >1,<1.4
 
