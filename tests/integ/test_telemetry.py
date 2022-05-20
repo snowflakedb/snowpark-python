@@ -498,3 +498,183 @@ def test_execute_queries_api_calls(session):
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
     ]
+
+
+def test_relational_dataframe_api_calls(session):
+    df = TestData.test_data2(session)
+    assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
+
+    agg = df.group_by("a").agg([(col("*"), "count")])
+    assert agg._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.group_by"},
+        {"name": "RelationalGroupedDataFrame.agg"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
+
+    df1 = session.create_dataframe(
+        [("a", 1, 0, "b"), ("b", 2, 4, "c"), ("a", 2, 3, "d")]
+    ).to_df(["key", "value1", "value2", "rest"])
+    assert df1._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+    res = df1.group_by("key").min(col("value2"))
+    assert res._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {"name": "DataFrame.group_by"},
+        {"name": "RelationalGroupedDataFrame.min"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df1._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+    res = df1.group_by("key").max("value1", "value2")
+    assert res._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {"name": "DataFrame.group_by"},
+        {"name": "RelationalGroupedDataFrame.max"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df1._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+    res = df1.group_by("key").sum("value1")
+    assert res._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {"name": "DataFrame.group_by"},
+        {"name": "RelationalGroupedDataFrame.sum"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df1._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+    res = df1.group_by("key").avg("value1")
+    assert res._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {"name": "DataFrame.group_by"},
+        {"name": "RelationalGroupedDataFrame.avg"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df1._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+    res = df1.group_by("key").median("value1")
+    assert res._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {"name": "DataFrame.group_by"},
+        {"name": "RelationalGroupedDataFrame.median"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df1._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+    res = df1.group_by("key").count()
+    assert res._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+        {"name": "DataFrame.group_by"},
+        {"name": "RelationalGroupedDataFrame.count"},
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df1._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+    ]
+
+
+def test_dataframe_stat_functions_api_calls(session):
+    df = TestData.monthly_sales(session)
+    assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
+
+    sample_by = df.stat.sample_by(col("empid"), {1: 0.0, 2: 1.0})
+    assert sample_by._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {
+            "name": "DataFrameStatFunctions.sample_by",
+            "subcalls": [
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.filter"},
+                {"name": "DataFrame.sample"},
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.filter"},
+                {"name": "DataFrame.sample"},
+                {"name": "DataFrame.union_all"},
+            ],
+        },
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
+
+    crosstab = df.stat.crosstab("empid", "month")
+    assert crosstab._plan.api_calls == [
+        {"name": "Session.create_dataframe[values]"},
+        {
+            "name": "DataFrameStatFunctions.crosstab",
+            "subcalls": [
+                {"name": "DataFrame.select"},
+                {"name": "DataFrame.pivot"},
+                {"name": "RelationalGroupedDataFrame.agg"},
+            ],
+        },
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
+
+
+def test_dataframe_na_functions_api_calls(session):
+    df1 = TestData.double3(session)
+    assert df1._plan.api_calls == [{"name": "Session.sql"}]
+
+    drop = df1.na.drop(thresh=1, subset=["a"])
+    assert drop._plan.api_calls == [
+        {"name": "Session.sql"},
+        {
+            "name": "DataFrameNaFunctions.drop",
+            "subcalls": [{"name": "DataFrame.filter"}],
+        },
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df1._plan.api_calls == [{"name": "Session.sql"}]
+
+    df2 = TestData.null_data3(session)
+    assert df2._plan.api_calls == [{"name": "Session.sql"}]
+
+    fill = df2.na.fill({"flo": 12.3, "int": 11, "boo": False, "str": "f"})
+    assert fill._plan.api_calls == [
+        {"name": "Session.sql"},
+        {
+            "name": "DataFrameNaFunctions.fill",
+            "subcalls": [{"name": "DataFrame.select"}],
+        },
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df2._plan.api_calls == [{"name": "Session.sql"}]
+
+    replace = df2.na.replace({2: 300, 1: 200}, subset=["flo"])
+    assert replace._plan.api_calls == [
+        {"name": "Session.sql"},
+        {
+            "name": "DataFrameNaFunctions.replace",
+            "subcalls": [{"name": "DataFrame.select"}],
+        },
+    ]
+    # check to make sure that the original DF is unchanged
+    assert df2._plan.api_calls == [{"name": "Session.sql"}]
