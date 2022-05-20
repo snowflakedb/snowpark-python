@@ -68,9 +68,9 @@ class UserDefinedFunction:
         exprs = []
         for c in parse_positional_args_to_list(*cols):
             if isinstance(c, Column):
-                exprs.append(c.expression)
+                exprs.append(c._expression)
             elif isinstance(c, str):
-                exprs.append(Column(c).expression)
+                exprs.append(Column(c)._expression)
             else:
                 raise TypeError(
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"

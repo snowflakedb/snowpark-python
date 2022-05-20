@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
 
 
@@ -216,8 +217,10 @@ class DataFrameReader:
         self._file_path = None
         self._file_type = None
 
-    def table(self, name: Union[str, Iterable[str]]) -> DataFrame:
+    def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a DataFrame that points to the specified table.
+
+        This method is an alias of :meth:`~snowflake.snowpark.session.Session.table`.
 
         Args:
             name: Name of the table to use.
