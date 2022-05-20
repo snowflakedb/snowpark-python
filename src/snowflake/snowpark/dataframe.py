@@ -1460,7 +1460,7 @@ class DataFrame:
         The method assumes that the columns in ``using_columns`` have the same meaning
         in the left and right DataFrames.
 
-        Examples::
+        Example 1:
             >>> from snowflake.snowpark.functions import col
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
@@ -1491,6 +1491,25 @@ class DataFrame:
             |1    |2    |7    |
             |3    |4    |8    |
             -------------------
+            <BLANKLINE>
+
+            >>> # join multiple columns
+            >>> mdf1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+            >>> mdf2 = session.create_dataframe([[1, 2], [3, 4], [7, 6]], schema=["a", "b"])
+            >>> mdf1.join(mdf2, ["a", "b"]).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |3    |4    |
+            -------------
+            <BLANKLINE>
+            >>> mdf1.join(mdf2, (mdf1["a"] < mdf2["a"]) & (mdf1["b"] == mdf2["b"])).select(mdf1["a"].as_("new_a"), mdf1["b"].as_("new_b")).show()
+            ---------------------
+            |"NEW_A"  |"NEW_B"  |
+            ---------------------
+            |5        |6        |
+            ---------------------
             <BLANKLINE>
 
         Args:
