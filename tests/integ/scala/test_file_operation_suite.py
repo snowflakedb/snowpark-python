@@ -9,7 +9,6 @@ import string
 
 import pytest
 
-# TODO(SNOW-568420): Remove this after UDF server supports rmdir
 from snowflake.snowpark._internal.utils import is_in_stored_procedure
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.utils import TestFiles, Utils

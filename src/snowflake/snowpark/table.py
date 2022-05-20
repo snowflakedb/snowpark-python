@@ -303,7 +303,6 @@ class Table(DataFrame):
             )
 
         # The analyzer will generate a sql with subquery. So we build the sql directly without using the analyzer.
-        # TODO: Refactoring the analyzer to not generate a sql with subquery is not an easy task. We may revisit it.
         sampling_method_text = sampling_method or ""
         frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} rows"
         seed_text = f" seed ({seed})" if seed is not None else ""
@@ -313,7 +312,6 @@ class Table(DataFrame):
     @df_action_telemetry
     def update(
         self,
-        # TODO SNOW-526251: also accept Column as a key when Column is hashable
         assignments: Dict[str, ColumnOrLiteral],
         condition: Optional[Column] = None,
         source: Optional[DataFrame] = None,
