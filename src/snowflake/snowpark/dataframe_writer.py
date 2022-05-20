@@ -10,7 +10,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
 )
-from snowflake.snowpark._internal.telemetry import dfw_collect_api_telemetry
+from snowflake.snowpark._internal.telemetry import (
+    TelemetryField,
+    dfw_collect_api_telemetry,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,

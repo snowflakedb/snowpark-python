@@ -62,6 +62,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import (
+    TelemetryField,
     df_action_telemetry,
     df_api_usage,
     df_collect_api_telemetry,
@@ -1186,8 +1187,8 @@ class DataFrame:
             df._plan.api_calls = [
                 *df._plan.api_calls[:-1],
                 {
-                    "name": "DataFrame.drop_duplicates",
-                    "subcalls": [*df._plan.api_calls[-1:]],
+                    TelemetryField.NAME.value: "DataFrame.drop_duplicates",
+                    TelemetryField.KEY_SUBCALLS.value: [*df._plan.api_calls[-1:]],
                 },
             ]
             return df
@@ -1208,8 +1209,8 @@ class DataFrame:
         df._plan.api_calls = [
             *df._plan.api_calls[:-3],
             {
-                "name": "DataFrame.drop_duplicates",
-                "subcalls": [*df._plan.api_calls[-3:]],
+                TelemetryField.NAME.value: "DataFrame.drop_duplicates",
+                TelemetryField.KEY_SUBCALLS.value: [*df._plan.api_calls[-3:]],
             },
         ]
         return df
@@ -2509,7 +2510,10 @@ class DataFrame:
             # Also add the new API calls for creating this DataFrame to the describe subcalls
             df._plan.api_calls = [
                 *self._plan.api_calls,
-                {"name": "DataFrame.describe", "subcalls": [*df._plan.api_calls]},
+                {
+                    TelemetryField.NAME.value: "DataFrame.describe",
+                    TelemetryField.KEY_SUBCALLS.value: [*df._plan.api_calls],
+                },
             ]
             return df
 
@@ -2538,7 +2542,10 @@ class DataFrame:
 
         res_df._plan.api_calls = [
             *self._plan.api_calls,
-            {"name": "DataFrame.describe", "subcalls": res_df._plan.api_calls.copy()},
+            {
+                TelemetryField.NAME.value: "DataFrame.describe",
+                TelemetryField.KEY_SUBCALLS.value: res_df._plan.api_calls.copy(),
+            },
         ]
         return res_df
 

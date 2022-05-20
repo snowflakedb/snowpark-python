@@ -9,6 +9,7 @@ from typing import Dict, Iterable, Optional, Union
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     LiteralType,
@@ -156,7 +157,9 @@ class DataFrameNaFunctions:
         # to be dropped, return the dataframe directly
         if thresh < 1 or len(subset) == 0:
             new_df = copy.copy(self._df)
-            new_df._plan.api_calls.append({"name": "DataFrameNaFunctions.drop"})
+            new_df._plan.api_calls.append(
+                {TelemetryField.NAME.value: "DataFrameNaFunctions.drop"}
+            )
             return self._df
         # if thresh is greater than the number of columns,
         # drop a row only if all its values are null
@@ -165,8 +168,8 @@ class DataFrameNaFunctions:
             new_df._plan.api_calls = [
                 *new_df._plan.api_calls[:-1],
                 {
-                    "name": "DataFrameNaFunctions.drop",
-                    "subcalls": new_df._plan.api_calls[-1:],
+                    TelemetryField.NAME.value: "DataFrameNaFunctions.drop",
+                    TelemetryField.KEY_SUBCALLS.value: new_df._plan.api_calls[-1:],
                 },
             ]
             return new_df
@@ -199,8 +202,8 @@ class DataFrameNaFunctions:
             new_df._plan.api_calls = [
                 *new_df._plan.api_calls[:-1],
                 {
-                    "name": "DataFrameNaFunctions.drop",
-                    "subcalls": new_df._plan.api_calls[-1:],
+                    TelemetryField.NAME.value: "DataFrameNaFunctions.drop",
+                    TelemetryField.KEY_SUBCALLS.value: new_df._plan.api_calls[-1:],
                 },
             ]
             return new_df
@@ -299,7 +302,9 @@ class DataFrameNaFunctions:
             value_dict = {col_name: value for col_name in subset}
         if not value_dict:
             new_df = copy.copy(self._df)
-            new_df._plan.api_calls.append({"name": "DataFrameNaFunctions.fill"})
+            new_df._plan.api_calls.append(
+                {TelemetryField.NAME.value: "DataFrameNaFunctions.fill"}
+            )
             return new_df
         if not all(
             [
@@ -356,8 +361,8 @@ class DataFrameNaFunctions:
         new_df._plan.api_calls = [
             *new_df._plan.api_calls[:-1],
             {
-                "name": "DataFrameNaFunctions.fill",
-                "subcalls": new_df._plan.api_calls[-1:],
+                TelemetryField.NAME.value: "DataFrameNaFunctions.fill",
+                TelemetryField.KEY_SUBCALLS.value: new_df._plan.api_calls[-1:],
             },
         ]
         return new_df
@@ -466,7 +471,9 @@ class DataFrameNaFunctions:
             raise TypeError("subset should be a list or tuple of column names")
         elif len(subset) == 0:
             new_df = copy.copy(self._df)
-            new_df._plan.api_calls.append({"name": "DataFrameNaFunctions.replace"})
+            new_df._plan.api_calls.append(
+                {TelemetryField.NAME.value: "DataFrameNaFunctions.replace"}
+            )
             return new_df
 
         if isinstance(to_replace, dict):
@@ -486,7 +493,9 @@ class DataFrameNaFunctions:
             replacement = {to_replace: value}
         if not replacement:
             new_df = copy.copy(self._df)
-            new_df._plan.api_calls.append({"name": "DataFrameNaFunctions.replace"})
+            new_df._plan.api_calls.append(
+                {TelemetryField.NAME.value: "DataFrameNaFunctions.replace"}
+            )
             return new_df
         if not all(
             [
@@ -547,8 +556,8 @@ class DataFrameNaFunctions:
         new_df._plan.api_calls = [
             *new_df._plan.api_calls[:-1],
             {
-                "name": "DataFrameNaFunctions.replace",
-                "subcalls": new_df._plan.api_calls[-1:],
+                TelemetryField.NAME.value: "DataFrameNaFunctions.replace",
+                TelemetryField.KEY_SUBCALLS.value: new_df._plan.api_calls[-1:],
             },
         ]
         return new_df

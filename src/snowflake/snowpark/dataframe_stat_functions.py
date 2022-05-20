@@ -6,6 +6,7 @@ from functools import reduce
 from typing import Dict, Iterable, List, Optional, Union
 
 import snowflake.snowpark
+from snowflake.connector.telemetry import TelemetryField
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
@@ -70,8 +71,8 @@ class DataFrameStatFunctions:
             df._plan.api_calls = [
                 *df._plan.api_calls[:-2],
                 {
-                    "name": "DataFrameStatFunctions.approx_quantile",
-                    "subcalls": df._plan.api_calls[-2:],
+                    TelemetryField.NAME.value: "DataFrameStatFunctions.approx_quantile",
+                    TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-2:],
                 },
             ]
             res = df._internal_collect_with_tag(statement_params=statement_params)
@@ -91,8 +92,8 @@ class DataFrameStatFunctions:
             df._plan.api_calls = [
                 *df._plan.api_calls[:-2],
                 {
-                    "name": "DataFrameStatFunctions.approx_quantile",
-                    "subcalls": df._plan.api_calls[-2:],
+                    TelemetryField.NAME.value: "DataFrameStatFunctions.approx_quantile",
+                    TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-2:],
                 },
             ]
             res = df._internal_collect_with_tag(statement_params=statement_params)
@@ -134,8 +135,8 @@ class DataFrameStatFunctions:
         df._plan.api_calls = [
             *df._plan.api_calls[:-1],
             {
-                "name": "DataFrameStatFunctions.corr",
-                "subcalls": df._plan.api_calls[-1:],
+                TelemetryField.NAME.value: "DataFrameStatFunctions.corr",
+                TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-1:],
             },
         ]
         res = df._internal_collect_with_tag(statement_params=statement_params)
@@ -168,7 +169,10 @@ class DataFrameStatFunctions:
         df = self._df.select(covar_samp(col1, col2))
         df._plan.api_calls = [
             *df._plan.api_calls[:-1],
-            {"name": "DataFrameStatFunctions.cov", "subcalls": df._plan.api_calls[-1:]},
+            {
+                TelemetryField.NAME.value: "DataFrameStatFunctions.cov",
+                TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-1:],
+            },
         ]
         res = df._internal_collect_with_tag(statement_params=statement_params)
         return res[0][0] if res[0] is not None else None
@@ -228,8 +232,8 @@ class DataFrameStatFunctions:
         df._plan.api_calls = [
             *df._plan.api_calls[:-3],
             {
-                "name": "DataFrameStatFunctions.crosstab",
-                "subcalls": df._plan.api_calls[-3:],
+                TelemetryField.NAME.value: "DataFrameStatFunctions.crosstab",
+                TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-3:],
             },
         ]
         return df
@@ -241,7 +245,7 @@ class DataFrameStatFunctions:
 
         Example::
 
-            >>> df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
+            >>> df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=[TelemetryField.NAME.value, "age"])
             >>> fractions = {"Bob": 0.5, "Nico": 1.0}
             >>> sample_df = df.stat.sample_by("name", fractions)  # non-deterministic result
 
@@ -255,8 +259,8 @@ class DataFrameStatFunctions:
             res_df._plan.api_calls = [
                 *res_df._plan.api_calls[:-1],
                 {
-                    "name": "DataFrameStatFunctions.sample_by",
-                    "subcalls": res_df._plan.api_calls[-1:],
+                    TelemetryField.NAME.value: "DataFrameStatFunctions.sample_by",
+                    TelemetryField.KEY_SUBCALLS.value: res_df._plan.api_calls[-1:],
                 },
             ]
             return res_df
@@ -268,8 +272,8 @@ class DataFrameStatFunctions:
         res_df._plan.api_calls = [
             *self._df._plan.api_calls,
             {
-                "name": "DataFrameStatFunctions.sample_by",
-                "subcalls": res_df._plan.api_calls.copy(),
+                TelemetryField.NAME.value: "DataFrameStatFunctions.sample_by",
+                TelemetryField.KEY_SUBCALLS.value: res_df._plan.api_calls.copy(),
             },
         ]
         return res_df
