@@ -6,14 +6,10 @@
 To connect to Snowflake, create a connection parameters file under `tests/parameters.py`, and add the
 following code snippet with your parameters:
 ```python
-#!/usr/bin/env python3
 CONNECTION_PARAMETERS = {
-    'host': '<host>',
-    'port': '<port>',
     'account': '<account>',
     'user': '<user>',
     'password': '<password>',
-    'protocol': '<protocol>',
     'role': '<role>',
     'database': '<database>',
     'schema': '<schema>',
