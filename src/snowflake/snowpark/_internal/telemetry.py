@@ -48,6 +48,7 @@ class TelemetryField(Enum):
     KEY_CREATED_BY_SNOWPARK = "created_by_snowpark"
     KEY_API_CALLS = "api_calls"
     KEY_SFQIDS = "sfqids"
+    KEY_SUBCALLS = "subcalls"
     # function categories
     FUNC_CAT_ACTION = "action"
     FUNC_CAT_USAGE = "usage"
@@ -183,7 +184,7 @@ def df_api_usage(func):
             r._plan.api_calls.append(
                 {
                     TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
-                    "subcalls": subcalls,
+                    TelemetryField.KEY_SUBCALLS.value: subcalls,
                 }
             )
         else:
