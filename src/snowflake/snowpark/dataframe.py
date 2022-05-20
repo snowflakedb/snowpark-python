@@ -408,12 +408,12 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-    ):
+    ) -> None:
         self._session = session
         self._plan = session._analyzer.resolve(plan)
         self.is_cached: bool = is_cached  #: Whether it is a cached dataframe
 
-        self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
+        self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
         self._writer = DataFrameWriter(self)
 
         self._stat = DataFrameStatFunctions(self)

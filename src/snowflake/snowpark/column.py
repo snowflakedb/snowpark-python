@@ -209,7 +209,7 @@ class Column:
     This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
-    def __init__(self, expr: Union[str, Expression]):
+    def __init__(self, expr: Union[str, Expression]) -> None:
         if isinstance(expr, str):
             if expr == "*":
                 self._expression = Star([])
