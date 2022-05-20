@@ -1460,7 +1460,7 @@ class DataFrame:
         The method assumes that the columns in ``using_columns`` have the same meaning
         in the left and right DataFrames.
 
-        Example 1:
+        Examples:
             >>> from snowflake.snowpark.functions import col
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
