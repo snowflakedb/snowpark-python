@@ -345,6 +345,7 @@ def pickle_function(func: Callable) -> bytes:
 def generate_python_code(
     func: Callable,
     arg_names: List[str],
+    object_type: TempObjectType,
     is_pandas_udf: bool,
     is_dataframe_input: bool,
     max_batch_size: Optional[int] = None,
@@ -352,7 +353,7 @@ def generate_python_code(
     # if func is a method object, we need to extract the target function first to check
     # annotations. However, we still serialize the original method because the extracted
     # function will have an extra argument `cls` or `self` from the class.
-    if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):  # func is a UDTF class
+    if object_type == TempObjectType.TABLE_FUNCTION:
         target_func = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
     else:
         target_func = getattr(func, "__func__", func)
@@ -378,41 +379,90 @@ import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
 """.rstrip()
-
-    if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+    if object_type == TempObjectType.PROCEDURE:
         func_code = f"""
-{_DEFAULT_HANDLER_NAME} = func
-    """
-    elif is_pandas_udf:
-        pandas_code = f"""
+def {_DEFAULT_HANDLER_NAME}({args}):
+    return func({args})
+"""
+    else:
+        func_code = """
+
+from threading import RLock
+
+lock = RLock()
+
+class InvokedFlag:
+    def __init__(self):
+        self.invoked = False
+
+def lock_function_once(f, flag):
+    def wrapper(*args, **kwargs):
+        if not flag.invoked:
+            with lock:
+                if not flag.invoked:
+                    result = f(*args, **kwargs)
+                    flag.invoked = True
+                    return result
+                return f(*args, **kwargs)
+        return f(*args, **kwargs)
+    return wrapper
+
+"""
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            func_code = f"""{func_code}
+init_invoked = InvokedFlag()
+process_invoked = InvokedFlag()
+end_partition_invoked = InvokedFlag()
+
+class {_DEFAULT_HANDLER_NAME}(func):
+    def __init__(self):
+        lock_function_once(super().__init__, init_invoked)()
+
+    def process(self, {args}):
+        return lock_function_once(super().process, process_invoked)({args})
+"""
+            if hasattr(func, "end_partition"):
+                func_code = f"""{func_code}
+    def end_partition(self):
+        return lock_function_once(super().end_partition, end_partition_invoked)()
+"""
+        elif is_pandas_udf:
+            pandas_code = f"""
 import pandas
 
 {_DEFAULT_HANDLER_NAME}._sf_vectorized_input = pandas.DataFrame
 """.rstrip()
-        if max_batch_size:
-            pandas_code = f"""
+            if max_batch_size:
+                pandas_code = f"""
 {pandas_code}
 {_DEFAULT_HANDLER_NAME}._sf_max_batch_size = {int(max_batch_size)}
 """.rstrip()
-        if is_dataframe_input:
-            func_code = f"""
+            if is_dataframe_input:
+                func_code = f"""{func_code}
+invoked = InvokedFlag()
+
 def {_DEFAULT_HANDLER_NAME}(df):
-    return func(df)
+    return lock_function_once(func, invoked)(df)
 """.rstrip()
-        else:
-            func_code = f"""
+            else:
+                func_code = f"""{func_code}
+invoked = InvokedFlag()
+
 def {_DEFAULT_HANDLER_NAME}(df):
-    return func(*[df[idx] for idx in range(df.shape[1])])
+    return lock_function_once(func, invoked)(*[df[idx] for idx in range(df.shape[1])])
 """.rstrip()
-        func_code = f"""
+            func_code = f"""
 {func_code}
 {pandas_code}
 """.rstrip()
-    else:
-        func_code = f"""
+        else:
+            func_code = f"""{func_code}
+invoked = InvokedFlag()
+
 def {_DEFAULT_HANDLER_NAME}({args}):
-    return func({args})
+    return lock_function_once(func, invoked)({args})
 """.rstrip()
+
     return f"""
 {deserialization_code}
 {func_code}
@@ -479,7 +529,12 @@ def resolve_imports_and_packages(
         udf_file_name_base = f"udf_py_{random_number()}"
         udf_file_name = f"{udf_file_name_base}.zip"
         code = generate_python_code(
-            func, arg_names, is_pandas_udf, is_dataframe_input, max_batch_size
+            func,
+            arg_names,
+            object_type,
+            is_pandas_udf,
+            is_dataframe_input,
+            max_batch_size,
         )
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = get_udf_upload_prefix(udf_name)
