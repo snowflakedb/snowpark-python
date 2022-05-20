@@ -51,7 +51,7 @@ class UserDefinedFunction:
         input_types: List[DataType],
         name: str,
         is_return_nullable: bool = False,
-    ):
+    ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
         #: The UDF name.
@@ -68,9 +68,9 @@ class UserDefinedFunction:
         exprs = []
         for c in parse_positional_args_to_list(*cols):
             if isinstance(c, Column):
-                exprs.append(c.expression)
+                exprs.append(c._expression)
             elif isinstance(c, str):
-                exprs.append(Column(c).expression)
+                exprs.append(Column(c)._expression)
             else:
                 raise TypeError(
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
@@ -415,7 +415,7 @@ class UDFRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
 
     def describe(

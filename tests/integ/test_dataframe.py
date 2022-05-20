@@ -721,11 +721,11 @@ def test_df_col(session):
     df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
     c = df.col("id")
     assert isinstance(c, Column)
-    assert isinstance(c.expression, Attribute)
+    assert isinstance(c._expression, Attribute)
 
     c = df.col("*")
     assert isinstance(c, Column)
-    assert isinstance(c.expression, Star)
+    assert isinstance(c._expression, Star)
 
 
 def test_create_dataframe_with_basic_data_types(session):

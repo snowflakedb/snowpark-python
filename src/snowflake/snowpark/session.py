@@ -50,6 +50,7 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
+    deprecate,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -104,7 +105,7 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
-logger = getLogger(__name__)
+_logger = getLogger(__name__)
 
 _session_management_lock = RLock()
 _active_sessions: Set["Session"] = set()
@@ -167,7 +168,7 @@ class Session:
         Provides methods to set connection parameters and create a :class:`Session`.
         """
 
-        def __init__(self):
+        def __init__(self) -> None:
             self._options = {}
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
@@ -208,6 +209,8 @@ class Session:
             new_session = Session(
                 ServerConnection({}, conn) if conn else ServerConnection(self._options)
             )
+            if "password" in self._options:
+                self._options["password"] = None
             _add_session(new_session)
             return new_session
 
@@ -218,7 +221,7 @@ class Session:
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()
 
-    def __init__(self, conn: ServerConnection):
+    def __init__(self, conn: ServerConnection) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
@@ -245,7 +248,7 @@ class Session:
         self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
-        logger.info("Snowpark Session information: %s", self._session_info)
+        _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
         return self
@@ -263,19 +266,19 @@ class Session:
             raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
         try:
             if self._conn.is_closed():
-                logger.debug(
+                _logger.debug(
                     "No-op because session %s had been previously closed.",
                     self._session_id,
                 )
             else:
-                logger.info("Closing session: %s", self._session_id)
+                _logger.info("Closing session: %s", self._session_id)
                 self.cancel_all()
         except Exception as ex:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_CLOSE_SESSION(str(ex))
         finally:
             try:
                 self._conn.close()
-                logger.info("Closed session: %s", self._session_id)
+                _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
 
@@ -284,7 +287,7 @@ class Session:
         Cancel all action methods that are running currently.
         This does not affect any action methods called in the future.
         """
-        logger.info("Canceling all running queries")
+        _logger.info("Canceling all running queries")
         self._last_canceled_id = self._last_action_id
         self._conn.run_query(f"select system$cancel_all_queries({self._session_id})")
 
@@ -473,7 +476,7 @@ class Session:
                 )
                 filename_with_prefix = f"{prefix}/{filename}"
                 if filename_with_prefix in stage_file_list:
-                    logger.debug(
+                    _logger.debug(
                         f"{filename} exists on {normalized_stage_location}, skipped"
                     )
                 else:
@@ -1466,6 +1469,11 @@ class Session:
             sql_args.append(to_sql(arg, infer_type(arg)))
         return self.sql(f"CALL {sproc_name}({', '.join(sql_args)})").collect()[0][0]
 
+    @deprecate(
+        deprecate_version="0.7.0",
+        extra_warning_text="`Session.flatten()` is deprecated. Use `Session.table_function()` instead.",
+        extra_doc_string="This method is deprecated. Use :meth:`table_function` instead.",
+    )
     def flatten(
         self,
         input: ColumnOrName,
@@ -1538,7 +1546,7 @@ class Session:
         return DataFrame(
             self,
             TableFunctionRelation(
-                FlattenFunction(input.expression, path, outer, recursive, mode)
+                FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
         )
 
@@ -1564,7 +1572,7 @@ class Session:
             return self._run_query(f"explain using text {query}")[0][0]
         # return None for queries which can't be explained
         except ProgrammingError:
-            logger.warning("query '%s' cannot be explained")
+            _logger.warning("query '%s' cannot be explained")
             return None
 
     createDataFrame = create_dataframe

@@ -5,6 +5,8 @@ import os
 from typing import List, NamedTuple, Optional
 
 import snowflake.snowpark
+from snowflake.connector import ProgrammingError
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     get_local_file_path,
     is_in_stored_procedure,
@@ -42,7 +44,7 @@ class FileOperation:
     To access an object of this class, use :attr:`Session.file`.
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
 
     def put(
@@ -94,11 +96,16 @@ class FileOperation:
             "overwrite": overwrite,
         }
         if is_in_stored_procedure():
-            cursor = self._session._conn._cursor
-            cursor._upload(local_file_name, stage_location, options)
-            result_meta = cursor.description
-            result_data = cursor.fetchall()
-            put_result = result_set_to_rows(result_data, result_meta)
+            try:
+                cursor = self._session._conn._cursor
+                cursor._upload(local_file_name, stage_location, options)
+                result_meta = cursor.description
+                result_data = cursor.fetchall()
+                put_result = result_set_to_rows(result_data, result_meta)
+            except ProgrammingError as pe:
+                raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    pe
+                ) from pe
         else:
             plan = self._session._plan_builder.file_operation_plan(
                 "put",
@@ -164,11 +171,16 @@ class FileOperation:
 
         try:
             if is_in_stored_procedure():
-                cursor = self._session._conn._cursor
-                cursor._download(stage_location, target_directory, options)
-                result_meta = cursor.description
-                result_data = cursor.fetchall()
-                get_result = result_set_to_rows(result_data, result_meta)
+                try:
+                    cursor = self._session._conn._cursor
+                    cursor._download(stage_location, target_directory, options)
+                    result_meta = cursor.description
+                    result_data = cursor.fetchall()
+                    get_result = result_set_to_rows(result_data, result_meta)
+                except ProgrammingError as pe:
+                    raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        pe
+                    ) from pe
             else:
                 plan = self._session._plan_builder.file_operation_plan(
                     "get",
