@@ -209,7 +209,7 @@ class DataFrameReader:
 
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
         self._user_schema = None
         self._cur_options = {}

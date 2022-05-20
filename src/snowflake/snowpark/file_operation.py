@@ -42,7 +42,7 @@ class FileOperation:
     To access an object of this class, use :attr:`Session.file`.
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
 
     def put(

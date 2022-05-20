@@ -35,7 +35,7 @@ class DataFrameWriter:
        specified destination.
     """
 
-    def __init__(self, dataframe: "snowflake.snowpark.dataframe.DataFrame"):
+    def __init__(self, dataframe: "snowflake.snowpark.dataframe.DataFrame") -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
 

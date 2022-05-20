@@ -211,7 +211,7 @@ class Row(tuple):
 
     def _convert_dict(
         self, obj: Union["Row", Dict, Iterable[Union["Row", Dict]]]
-    ) -> Union[Dict, Iterable[dict]]:
+    ) -> Union[Dict, Iterable[Dict]]:
         if isinstance(obj, Row):
             return obj.as_dict(True)
         elif isinstance(obj, dict):

@@ -160,7 +160,7 @@ class WindowSpec:
         partition_spec: List[Expression],
         order_spec: List[SortOrder],
         frame: WindowFrame,
-    ):
+    ) -> None:
         self.partition_spec = partition_spec
         self.order_spec = order_spec
         self.frame = frame

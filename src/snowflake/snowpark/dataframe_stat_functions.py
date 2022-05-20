@@ -27,7 +27,7 @@ class DataFrameStatFunctions:
     To access an object of this class, use :attr:`DataFrame.stat`.
     """
 
-    def __init__(self, df: "snowflake.snowpark.DataFrame"):
+    def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
         self._df = df
 
     def approx_quantile(

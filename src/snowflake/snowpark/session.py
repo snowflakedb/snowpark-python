@@ -167,7 +167,7 @@ class Session:
         Provides methods to set connection parameters and create a :class:`Session`.
         """
 
-        def __init__(self):
+        def __init__(self) -> None:
             self._options = {}
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
@@ -218,7 +218,7 @@ class Session:
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()
 
-    def __init__(self, conn: ServerConnection):
+    def __init__(self, conn: ServerConnection) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn

@@ -407,7 +407,7 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-    ):
+    ) -> None:
         self._session = session
         self._plan = session._analyzer.resolve(plan)
         self.is_cached = is_cached  #: Whether it is a cached dataframe
