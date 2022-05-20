@@ -60,9 +60,7 @@ class WhenMatchedClause:
         self._condition_expr = condition._expression if condition is not None else None
         self._clause = None
 
-    def update(
-        self, assignments: Dict[str, Union[ColumnOrLiteral]]
-    ) -> "WhenMatchedClause":
+    def update(self, assignments: Dict[str, ColumnOrLiteral]) -> "WhenMatchedClause":
         """
         Defines an update action for the matched clause and
         returns an updated :class:`WhenMatchedClause` with the new

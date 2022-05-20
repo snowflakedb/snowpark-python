@@ -3,7 +3,7 @@
 #
 
 from functools import reduce
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
@@ -27,7 +27,7 @@ class DataFrameStatFunctions:
     To access an object of this class, use :attr:`DataFrame.stat`.
     """
 
-    def __init__(self, df: "snowflake.snowpark.DataFrame"):
+    def __init__(self, df: "snowflake.snowpark.DataFrame") -> None:
         self._df = df
 
     def approx_quantile(
@@ -69,7 +69,7 @@ class DataFrameStatFunctions:
                 ._internal_collect_with_tag()
             )
             return list(res[0])
-        elif isinstance(col, (List, Tuple)):
+        elif isinstance(col, (list, tuple)):
             accumate_cols = [
                 approx_percentile_accumulate(col_i).as_(f"{temp_col_name}_{i}")
                 for i, col_i in enumerate(col)
