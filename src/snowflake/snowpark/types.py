@@ -273,8 +273,8 @@ class StructType(DataType):
             for f in self.fields
         ]
 
-    def __str__(self) -> str:
-        return f"StructType([{', '.join(str(f) for f in self.fields)}])"
+    def __repr__(self) -> str:
+        return f"StructType([{', '.join(repr(f) for f in self.fields)}])"
 
     @property
     def names(self) -> List[str]:
