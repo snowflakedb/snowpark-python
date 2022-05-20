@@ -81,7 +81,7 @@ class _RollupType(_GroupType):
 
 
 class _PivotType(_GroupType):
-    def __init__(self, pivot_col: Expression, values: List[Expression]):
+    def __init__(self, pivot_col: Expression, values: List[Expression]) -> None:
         self.pivot_col = pivot_col
         self.values = values
 
@@ -103,7 +103,7 @@ class GroupingSets:
     =============================================================  ==================================
     """
 
-    def __init__(self, *sets: Union[Column, List[Column]]):
+    def __init__(self, *sets: Union[Column, List[Column]]) -> None:
         prepared_sets = parse_positional_args_to_list(*sets)
         prepared_sets = (
             prepared_sets if isinstance(prepared_sets[0], list) else [prepared_sets]
@@ -120,7 +120,7 @@ class RelationalGroupedDataFrame:
 
     def __init__(
         self, df: DataFrame, grouping_exprs: List[Expression], group_type: _GroupType
-    ):
+    ) -> None:
         self._df = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type

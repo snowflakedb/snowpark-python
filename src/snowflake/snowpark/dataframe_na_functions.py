@@ -45,7 +45,7 @@ def _is_value_type_matching_for_na_function(
 class DataFrameNaFunctions:
     """Provides functions for handling missing values in a :class:`DataFrame`."""
 
-    def __init__(self, df: "snowflake.snowpark.dataframe.DataFrame"):
+    def __init__(self, df: "snowflake.snowpark.dataframe.DataFrame") -> None:
         self._df = df
 
     def drop(
