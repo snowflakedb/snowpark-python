@@ -6,9 +6,9 @@ from functools import reduce
 from typing import Dict, Iterable, List, Optional, Union
 
 import snowflake.snowpark
-from snowflake.connector.telemetry import TelemetryField
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark.functions import (
     _to_col_if_str,
