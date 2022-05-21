@@ -214,7 +214,7 @@ class Row(tuple):
     ) -> Union[Dict, Iterable[Dict]]:
         if isinstance(obj, Row):
             return obj.as_dict(True)
-        elif isinstance(obj, Dict):
+        elif isinstance(obj, dict):
             child_dict = {}
             for k, v in obj.items():
                 child_dict[k] = self._convert_dict(v)

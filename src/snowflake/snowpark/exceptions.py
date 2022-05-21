@@ -6,7 +6,7 @@
 import logging
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 class SnowparkClientException(Exception):
@@ -16,7 +16,7 @@ class SnowparkClientException(Exception):
         self,
         message: str,
         error_code: Optional[str] = None,
-    ):
+    ) -> None:
         self.message: str = message
         self.error_code: Optional[str] = error_code
         self.telemetry_message: str = message
@@ -79,13 +79,13 @@ class SnowparkSQLException(SnowparkClientException):
         message: str,
         error_code: Optional[str] = None,
         sfqid: Optional[str] = None,
-    ):
+    ) -> None:
         self.message: str = message
         self.error_code: Optional[str] = error_code
         self.sfqid: Optional[str] = sfqid
         self.telemetry_message: str = message
 
-        log_sfqid = logger.getEffectiveLevel() in (logging.INFO, logging.DEBUG)
+        log_sfqid = _logger.getEffectiveLevel() in (logging.INFO, logging.DEBUG)
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
         pretty_sfqid = f"{self.sfqid}: " if self.sfqid and log_sfqid else ""
         self._pretty_msg = f"{pretty_error_code}{pretty_sfqid}{self.message}"

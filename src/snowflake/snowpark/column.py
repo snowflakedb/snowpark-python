@@ -209,22 +209,22 @@ class Column:
     This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
-    def __init__(self, expr: Union[str, Expression]):
+    def __init__(self, expr: Union[str, Expression]) -> None:
         if isinstance(expr, str):
             if expr == "*":
-                self.expression = Star([])
+                self._expression = Star([])
             else:
-                self.expression = UnresolvedAttribute(quote_name(expr))
+                self._expression = UnresolvedAttribute(quote_name(expr))
         elif isinstance(expr, Expression):
-            self.expression = expr
+            self._expression = expr
         else:
             raise TypeError("Column constructor only accepts str or expression.")
 
     def __getitem__(self, field: Union[str, int]) -> "Column":
         if isinstance(field, str):
-            return Column(SubfieldString(self.expression, field))
+            return Column(SubfieldString(self._expression, field))
         elif isinstance(field, int):
-            return Column(SubfieldInt(self.expression, field))
+            return Column(SubfieldInt(self._expression, field))
         else:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
@@ -232,70 +232,70 @@ class Column:
     def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Equal to."""
         right = Column._to_expr(other)
-        return Column(EqualTo(self.expression, right))
+        return Column(EqualTo(self._expression, right))
 
     def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Not equal to."""
         right = Column._to_expr(other)
-        return Column(NotEqualTo(self.expression, right))
+        return Column(NotEqualTo(self._expression, right))
 
     def __gt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than."""
-        return Column(GreaterThan(self.expression, Column._to_expr(other)))
+        return Column(GreaterThan(self._expression, Column._to_expr(other)))
 
     def __lt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than."""
-        return Column(LessThan(self.expression, Column._to_expr(other)))
+        return Column(LessThan(self._expression, Column._to_expr(other)))
 
     def __ge__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than or equal to."""
-        return Column(GreaterThanOrEqual(self.expression, Column._to_expr(other)))
+        return Column(GreaterThanOrEqual(self._expression, Column._to_expr(other)))
 
     def __le__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than or equal to."""
-        return Column(LessThanOrEqual(self.expression, Column._to_expr(other)))
+        return Column(LessThanOrEqual(self._expression, Column._to_expr(other)))
 
     def __add__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Plus."""
-        return Column(Add(self.expression, Column._to_expr(other)))
+        return Column(Add(self._expression, Column._to_expr(other)))
 
     def __radd__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Add(Column._to_expr(other), self.expression))
+        return Column(Add(Column._to_expr(other), self._expression))
 
     def __sub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Minus."""
-        return Column(Subtract(self.expression, Column._to_expr(other)))
+        return Column(Subtract(self._expression, Column._to_expr(other)))
 
     def __rsub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Subtract(Column._to_expr(other), self.expression))
+        return Column(Subtract(Column._to_expr(other), self._expression))
 
     def __mul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Multiply."""
-        return Column(Multiply(self.expression, Column._to_expr(other)))
+        return Column(Multiply(self._expression, Column._to_expr(other)))
 
     def __rmul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Multiply(Column._to_expr(other), self.expression))
+        return Column(Multiply(Column._to_expr(other), self._expression))
 
     def __truediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Divide."""
-        return Column(Divide(self.expression, Column._to_expr(other)))
+        return Column(Divide(self._expression, Column._to_expr(other)))
 
     def __rtruediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Divide(Column._to_expr(other), self.expression))
+        return Column(Divide(Column._to_expr(other), self._expression))
 
     def __mod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Reminder."""
-        return Column(Remainder(self.expression, Column._to_expr(other)))
+        return Column(Remainder(self._expression, Column._to_expr(other)))
 
     def __rmod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Remainder(Column._to_expr(other), self.expression))
+        return Column(Remainder(Column._to_expr(other), self._expression))
 
     def __pow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Power."""
-        return Column(Pow(self.expression, Column._to_expr(other)))
+        return Column(Pow(self._expression, Column._to_expr(other)))
 
     def __rpow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Pow(Column._to_expr(other), self.expression))
+        return Column(Pow(Column._to_expr(other), self._expression))
 
     def __bool__(self) -> bool:
         raise TypeError(
@@ -349,8 +349,8 @@ class Column:
         cols = [_to_col_if_lit(col, "in_") for col in cols]
 
         column_count = (
-            len(self.expression.expressions)
-            if isinstance(self.expression, MultipleExpression)
+            len(self._expression.expressions)
+            if isinstance(self._expression, MultipleExpression)
             else 1
         )
 
@@ -393,7 +393,7 @@ class Column:
             for ve in value_expressions:
                 validate_value(ve)
 
-        return Column(InExpression(self.expression, value_expressions))
+        return Column(InExpression(self._expression, value_expressions))
 
     def between(
         self,
@@ -407,59 +407,59 @@ class Column:
 
     def bitand(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise and."""
-        return Column(BitwiseAnd(Column._to_expr(other), self.expression))
+        return Column(BitwiseAnd(Column._to_expr(other), self._expression))
 
     def bitor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise or."""
-        return Column(BitwiseOr(Column._to_expr(other), self.expression))
+        return Column(BitwiseOr(Column._to_expr(other), self._expression))
 
     def bitxor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise xor."""
-        return Column(BitwiseXor(Column._to_expr(other), self.expression))
+        return Column(BitwiseXor(Column._to_expr(other), self._expression))
 
     def __neg__(self) -> "Column":
         """Unary minus."""
-        return Column(UnaryMinus(self.expression))
+        return Column(UnaryMinus(self._expression))
 
     def equal_null(self, other: "Column") -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
-        return Column(EqualNullSafe(self.expression, Column._to_expr(other)))
+        return Column(EqualNullSafe(self._expression, Column._to_expr(other)))
 
     def equal_nan(self) -> "Column":
         """Is NaN."""
-        return Column(IsNaN(self.expression))
+        return Column(IsNaN(self._expression))
 
     def is_null(self) -> "Column":
         """Is null."""
-        return Column(IsNull(self.expression))
+        return Column(IsNull(self._expression))
 
     def is_not_null(self) -> "Column":
         """Is not null."""
-        return Column(IsNotNull(self.expression))
+        return Column(IsNotNull(self._expression))
 
     # `and, or, not` cannot be overloaded in Python, so use bitwise operators as boolean operators
     def __and__(self, other: "Column") -> "Column":
         """And."""
-        return Column(And(self.expression, Column._to_expr(other)))
+        return Column(And(self._expression, Column._to_expr(other)))
 
     def __rand__(self, other: "Column") -> "Column":
-        return Column(And(Column._to_expr(other), self.expression))
+        return Column(And(Column._to_expr(other), self._expression))
 
     def __or__(self, other: "Column") -> "Column":
         """Or."""
-        return Column(Or(self.expression, Column._to_expr(other)))
+        return Column(Or(self._expression, Column._to_expr(other)))
 
     def __ror__(self, other: "Column") -> "Column":
-        return Column(And(Column._to_expr(other), self.expression))
+        return Column(And(Column._to_expr(other), self._expression))
 
     def __invert__(self) -> "Column":
         """Unary not."""
-        return Column(Not(self.expression))
+        return Column(Not(self._expression))
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
         if isinstance(to, str):
             to = type_string_to_type_object(to)
-        return Column(Cast(self.expression, to, try_))
+        return Column(Cast(self._expression, to, try_))
 
     def cast(self, to: Union[str, DataType]) -> "Column":
         """Casts the value of the Column to the specified data type.
@@ -467,7 +467,7 @@ class Column:
         """
         return self._cast(to, False)
 
-    def try_cast(self, to: DataType) -> "Column":
+    def try_cast(self, to: Union[str, DataType]) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
@@ -475,31 +475,31 @@ class Column:
 
     def desc(self) -> "Column":
         """Returns a Column expression with values sorted in descending order."""
-        return Column(SortOrder(self.expression, Descending()))
+        return Column(SortOrder(self._expression, Descending()))
 
     def desc_nulls_first(self) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted before non-null values)."""
-        return Column(SortOrder(self.expression, Descending(), NullsFirst()))
+        return Column(SortOrder(self._expression, Descending(), NullsFirst()))
 
     def desc_nulls_last(self) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted after non-null values)."""
-        return Column(SortOrder(self.expression, Descending(), NullsLast()))
+        return Column(SortOrder(self._expression, Descending(), NullsLast()))
 
     def asc(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order."""
-        return Column(SortOrder(self.expression, Ascending()))
+        return Column(SortOrder(self._expression, Ascending()))
 
     def asc_nulls_first(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted before non-null values)."""
-        return Column(SortOrder(self.expression, Ascending(), NullsFirst()))
+        return Column(SortOrder(self._expression, Ascending(), NullsFirst()))
 
     def asc_nulls_last(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted after non-null values)."""
-        return Column(SortOrder(self.expression, Ascending(), NullsLast()))
+        return Column(SortOrder(self._expression, Ascending(), NullsLast()))
 
     def like(self, pattern: ColumnOrLiteralStr) -> "Column":
         """Allows case-sensitive matching of strings based on comparison with a pattern.
@@ -513,7 +513,7 @@ class Column:
         """
         return Column(
             Like(
-                self.expression,
+                self._expression,
                 Column._to_expr(pattern),
             )
         )
@@ -533,7 +533,7 @@ class Column:
         """
         return Column(
             RegExp(
-                self.expression,
+                self._expression,
                 Column._to_expr(pattern),
             )
         )
@@ -596,18 +596,18 @@ class Column:
         For details, see the Snowflake documentation on
         `collation specifications <https://docs.snowflake.com/en/sql-reference/collation.html#label-collation-specification>`_.
         """
-        return Column(Collate(self.expression, collation_spec))
+        return Column(Collate(self._expression, collation_spec))
 
     def get_name(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
         return (
-            self.expression.name
-            if isinstance(self.expression, NamedExpression)
+            self._expression.name
+            if isinstance(self._expression, NamedExpression)
             else None
         )
 
     def __repr__(self):
-        return f"Column[{self.expression}]"
+        return f"Column[{self._expression}]"
 
     def as_(self, alias: str) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
@@ -619,7 +619,7 @@ class Column:
 
     def name(self, alias: str) -> "Column":
         """Returns a new renamed Column."""
-        return Column(Alias(self.expression, quote_name(alias)))
+        return Column(Alias(self._expression, quote_name(alias)))
 
     def over(self, window: Optional[WindowSpec] = None) -> "Column":
         """
@@ -627,7 +627,7 @@ class Column:
         """
         if not window:
             window = Window._spec()
-        return window._with_aggregate(self.expression)
+        return window._with_aggregate(self._expression)
 
     def within_group(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]]
@@ -681,19 +681,19 @@ class Column:
         """
         return Column(
             WithinGroup(
-                self.expression,
+                self._expression,
                 [
-                    _to_col_if_str(col, "within_group").expression
+                    _to_col_if_str(col, "within_group")._expression
                     for col in parse_positional_args_to_list(*cols)
                 ],
             )
         )
 
     def _named(self) -> NamedExpression:
-        if isinstance(self.expression, NamedExpression):
-            return self.expression
+        if isinstance(self._expression, NamedExpression):
+            return self._expression
         else:
-            return UnresolvedAlias(self.expression)
+            return UnresolvedAlias(self._expression)
 
     @classmethod
     def _to_expr(cls, expr: Union[ColumnOrLiteral, Expression]) -> Expression:
@@ -705,7 +705,7 @@ class Column:
         create a Literal expression.
         """
         if isinstance(expr, cls):
-            return expr.expression
+            return expr._expression
         elif isinstance(expr, Expression):
             return expr
         else:
@@ -776,7 +776,7 @@ class CaseExpr(Column):
                 [
                     *self._branches,
                     (
-                        _to_col_if_sql_expr(condition, "when").expression,
+                        _to_col_if_sql_expr(condition, "when")._expression,
                         Column._to_expr(value),
                     ),
                 ]

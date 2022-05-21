@@ -296,8 +296,10 @@ def test_sql_report_join_ambiguous():
         ex.message == f"The reference to the column '{c1}' is ambiguous. The column is "
         f"present in both DataFrames used in the join. To identify the "
         f"DataFrame that you want to use in the reference, use the syntax "
-        f'<df>("{c2}") in join conditions and in select() calls on the '
-        f"result of the join."
+        f'<df>["{c2}"] in join conditions and in select() calls on the '
+        f"result of the join. Alternatively, you can rename the column in "
+        f"either DataFrame for disambiguation. See the API documentation of "
+        f"the DataFrame.join() method for more details."
     )
 
 

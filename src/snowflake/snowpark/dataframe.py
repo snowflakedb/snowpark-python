@@ -74,6 +74,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     column_to_bool,
     create_statement_query_tag,
+    deprecate,
     generate_random_alphanumeric,
     parse_positional_args_to_list,
     random_name_for_temp_object,
@@ -105,7 +106,7 @@ from snowflake.snowpark.table_function import (
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
-logger = getLogger(__name__)
+_logger = getLogger(__name__)
 
 _ONE_MILLION = 1000000
 _NUM_PREFIX_DIGITS = 4
@@ -407,12 +408,12 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-    ):
+    ) -> None:
         self._session = session
         self._plan = session._analyzer.resolve(plan)
-        self.is_cached = is_cached  #: Whether it is a cached dataframe
+        self.is_cached: bool = is_cached  #: Whether it is a cached dataframe
 
-        self._reader = None  # type: Optional[snowflake.snowpark.DataFrameReader]
+        self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
         self._writer = DataFrameWriter(self)
 
         self._stat = DataFrameStatFunctions(self)
@@ -736,14 +737,14 @@ class DataFrame:
         for c in exprs:
             if isinstance(c, str):
                 names.append(c)
-            elif isinstance(c, Column) and isinstance(c.expression, Attribute):
+            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
                 names.append(
                     self._plan.expr_to_alias.get(
-                        c.expression.expr_id, c.expression.name
+                        c._expression.expr_id, c._expression.name
                     )
                 )
-            elif isinstance(c, Column) and isinstance(c.expression, NamedExpression):
-                names.append(c.expression.name)
+            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
+                names.append(c._expression.name)
             else:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
 
@@ -777,7 +778,7 @@ class DataFrame:
         """
         return self._with_plan(
             Filter(
-                _to_col_if_sql_expr(expr, "filter/where").expression,
+                _to_col_if_sql_expr(expr, "filter/where")._expression,
                 self._plan,
             )
         )
@@ -985,7 +986,7 @@ class DataFrame:
 
     def group_by(
         self,
-        *cols: Iterable[ColumnOrName],
+        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -1167,7 +1168,7 @@ class DataFrame:
         """
         pc = self._convert_cols_to_exprs("pivot()", pivot_col)
         value_exprs = [
-            v.expression if isinstance(v, Column) else Literal(v) for v in values
+            v._expression if isinstance(v, Column) else Literal(v) for v in values
         ]
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
@@ -1460,9 +1461,30 @@ class DataFrame:
         in the left and right DataFrames.
 
         Examples::
+            >>> from snowflake.snowpark.functions import col
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
             >>> df1.join(df2, df1.a == df2.a).select(df1.a.alias("a"), df1.b, df2.c).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            |3    |4    |8    |
+            -------------------
+            <BLANKLINE>
+            >>> # refer a single column "a"
+            >>> df1.join(df2, "a").select(df1.a.alias("a"), df1.b, df2.c).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            |3    |4    |8    |
+            -------------------
+            <BLANKLINE>
+            >>> # rename the ambiguous columns
+            >>> df3 = df1.to_df("df1_a", "b")
+            >>> df4 = df2.to_df("df2_a", "c")
+            >>> df3.join(df4, col("df1_a") == col("df2_a")).select(col("df1_a").alias("a"), "b", "c").show()
             -------------------
             |"A"  |"B"  |"C"  |
             -------------------
@@ -1476,6 +1498,34 @@ class DataFrame:
             using_columns: A list of names of the columns, or the column objects, to
                 use for the join.
             join_type: The type of join ("inner", "full", "left", "right").
+
+        Note:
+            When performing chained operations, this method will not work if there are
+            ambiguous column names. For example,
+
+            >>> df1.filter(df1.a == 1).join(df2, df1.a == df2.a).select(df1.a.alias("a"), df1.b, df2.c) # doctest: +SKIP
+
+            will not work because ``df1.filter(df1.a == 1)`` has produced a new dataframe and you
+            cannot refer to ``df1.a`` anymore. Instead, you can do either
+
+            >>> df1.join(df2, (df1.a == 1) & (df1.a == df2.a)).select(df1.a.alias("a"), df1.b, df2.c).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            -------------------
+            <BLANKLINE>
+
+            or
+
+            >>> df3 = df1.filter(df1.a == 1)
+            >>> df3.join(df2, df3.a == df2.a).select(df3.a.alias("a"), df3.b, df2.c).show()
+            -------------------
+            |"A"  |"B"  |"C"  |
+            -------------------
+            |1    |2    |7    |
+            -------------------
+            <BLANKLINE>
         """
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
@@ -1657,7 +1707,7 @@ class DataFrame:
         self, right: "DataFrame", join_type: JoinType, join_exprs: Optional[Column]
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(self, right, join_type, [])
-        expression = join_exprs.expression if join_exprs is not None else None
+        expression = join_exprs._expression if join_exprs is not None else None
         return self._with_plan(
             Join(
                 lhs._plan,
@@ -1883,7 +1933,7 @@ class DataFrame:
         )
         transformation_exps = (
             [
-                column.expression if isinstance(column, Column) else column
+                column._expression if isinstance(column, Column) else column
                 for column in transformations
             ]
             if transformations
@@ -1928,6 +1978,11 @@ class DataFrame:
             )
         )
 
+    @deprecate(
+        deprecate_version="0.7.0",
+        extra_warning_text="`DataFrame.flatten()` is deprecated. Use `DataFrame.join_table_function()` instead.",
+        extra_doc_string="This method is deprecated. Use :meth:`join_table_function` instead.",
+    )
     def flatten(
         self,
         input: ColumnOrName,
@@ -1997,7 +2052,7 @@ class DataFrame:
         if isinstance(input, str):
             input = self.col(input)
         return self._lateral(
-            FlattenFunction(input.expression, path, outer, recursive, mode)
+            FlattenFunction(input._expression, path, outer, recursive, mode)
         )
 
     def _lateral(self, table_function: TableFunctionExpression) -> "DataFrame":
@@ -2337,11 +2392,11 @@ class DataFrame:
         if isinstance(existing, str):
             old_name = quote_name(existing)
         elif isinstance(existing, Column):
-            if isinstance(existing.expression, Attribute):
-                att = existing.expression
+            if isinstance(existing._expression, Attribute):
+                att = existing._expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
-            elif isinstance(existing.expression, NamedExpression):
-                old_name = existing.expression.name
+            elif isinstance(existing._expression, NamedExpression):
+                old_name = existing._expression.name
             else:
                 raise ValueError(
                     f"Unable to rename column {existing} because it doesn't exist."
@@ -2557,7 +2612,7 @@ Query List:
             if isinstance(col, str):
                 return self._resolve(col)
             elif isinstance(col, Column):
-                return col.expression
+                return col._expression
             else:
                 raise TypeError(
                     "{} only accepts str and Column objects, or a list containing str and"

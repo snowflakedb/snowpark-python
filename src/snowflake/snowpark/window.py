@@ -160,7 +160,7 @@ class WindowSpec:
         partition_spec: List[Expression],
         order_spec: List[SortOrder],
         frame: WindowFrame,
-    ):
+    ) -> None:
         self.partition_spec = partition_spec
         self.order_spec = order_spec
         self.frame = frame
@@ -180,9 +180,9 @@ class WindowSpec:
         """
         exprs = parse_positional_args_to_list(*cols)
         partition_spec = [
-            e.expression
+            e._expression
             if isinstance(e, snowflake.snowpark.column.Column)
-            else snowflake.snowpark.column.Column(e).expression
+            else snowflake.snowpark.column.Column(e)._expression
             for e in exprs
         ]
 
@@ -207,14 +207,14 @@ class WindowSpec:
             if isinstance(e, str):
                 order_spec.append(
                     SortOrder(
-                        snowflake.snowpark.column.Column(e).expression, Ascending()
+                        snowflake.snowpark.column.Column(e)._expression, Ascending()
                     )
                 )
             elif isinstance(e, snowflake.snowpark.column.Column):
-                if isinstance(e.expression, SortOrder):
-                    order_spec.append(e.expression)
-                elif isinstance(e.expression, Expression):
-                    order_spec.append(SortOrder(e.expression, Ascending()))
+                if isinstance(e._expression, SortOrder):
+                    order_spec.append(e._expression)
+                elif isinstance(e._expression, Expression):
+                    order_spec.append(SortOrder(e._expression, Ascending()))
 
         return WindowSpec(self.partition_spec, order_spec, self.frame)
 

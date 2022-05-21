@@ -57,12 +57,10 @@ class WhenMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self._condition_expr = condition.expression if condition is not None else None
+        self._condition_expr = condition._expression if condition is not None else None
         self._clause = None
 
-    def update(
-        self, assignments: Dict[str, Union[ColumnOrLiteral]]
-    ) -> "WhenMatchedClause":
+    def update(self, assignments: Dict[str, ColumnOrLiteral]) -> "WhenMatchedClause":
         """
         Defines an update action for the matched clause and
         returns an updated :class:`WhenMatchedClause` with the new
@@ -103,7 +101,7 @@ class WhenMatchedClause:
             )
         self._clause = UpdateMergeExpression(
             self._condition_expr,
-            {Column(k).expression: Column._to_expr(v) for k, v in assignments.items()},
+            {Column(k)._expression: Column._to_expr(v) for k, v in assignments.items()},
         )
         return self
 
@@ -156,7 +154,7 @@ class WhenNotMatchedClause:
     """
 
     def __init__(self, condition: Optional[Column] = None):
-        self._condition_expr = condition.expression if condition is not None else None
+        self._condition_expr = condition._expression if condition is not None else None
         self._clause = None
 
     def insert(
@@ -206,7 +204,7 @@ class WhenNotMatchedClause:
                 "insert", "WhenNotMatchedClause"
             )
         if isinstance(assignments, dict):
-            keys = [Column(k).expression for k in assignments.keys()]
+            keys = [Column(k)._expression for k in assignments.keys()]
             values = [Column._to_expr(v) for v in assignments.values()]
         else:
             keys = []
@@ -372,10 +370,10 @@ class Table(DataFrame):
             TableUpdate(
                 self.table_name,
                 {
-                    Column(k).expression: Column._to_expr(v)
+                    Column(k)._expression: Column._to_expr(v)
                     for k, v in assignments.items()
                 },
-                condition.expression if condition is not None else None,
+                condition._expression if condition is not None else None,
                 _disambiguate(self, source, create_join_type("left"), [])[1]._plan
                 if source
                 else None,
@@ -435,7 +433,7 @@ class Table(DataFrame):
         new_df = self._with_plan(
             TableDelete(
                 self.table_name,
-                condition.expression if condition is not None else None,
+                condition._expression if condition is not None else None,
                 _disambiguate(self, source, create_join_type("left"), [])[1]._plan
                 if source
                 else None,
@@ -502,7 +500,7 @@ class Table(DataFrame):
             TableMerge(
                 self.table_name,
                 _disambiguate(self, source, create_join_type("left"), [])[1]._plan,
-                join_expr.expression,
+                join_expr._expression,
                 merge_exprs,
             )
         )
