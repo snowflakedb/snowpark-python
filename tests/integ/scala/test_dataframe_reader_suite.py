@@ -172,7 +172,7 @@ def test_read_csv(session, mode):
     df2 = reader.schema(incorrect_schema).csv(test_file_on_stage)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
-    assert "Numeric value 'one' is not recognized" in str(ex_info)
+    assert "Numeric value 'one' is not recognized" in ex_info.value.message
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -394,7 +394,7 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     df2 = get_reader(session, mode).schema(schema1).csv(test_file)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.collect()
-    assert "Numeric value '\"1\"' is not recognized" in str(ex_info)
+    assert "Numeric value '\"1\"' is not recognized" in ex_info.value.message
 
     schema2 = StructType(
         [
@@ -804,7 +804,7 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
     assert len(copy_fields) > 0
     assert len(copy_fields) == len(select_fields)
     for c, f in zip(copy_fields, select_fields):
-        assert c.datatype.type_name == f.datatype.type_name
+        assert c.datatype == f.datatype
         assert c.name == f.name
         assert c.nullable == f.nullable
         assert (

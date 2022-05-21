@@ -27,15 +27,15 @@ def test_literal_basic_types(session):
     field_str = str(df.schema.fields)
 
     assert (
-        field_str == "[StructField(ID, Long, Nullable=False), "
-        "StructField(NULL, String, Nullable=True), "
-        "StructField(STR, String, Nullable=False), "
-        "StructField(CHAR, String, Nullable=False), "
-        "StructField(BOOL, Boolean, Nullable=True), "
-        "StructField(BYTES, Binary, Nullable=False), "
-        "StructField(INT, Long, Nullable=False), "
-        "StructField(FLOAT, Double, Nullable=False), "
-        "StructField(DECIMAL, Decimal(38, 18), Nullable=False)]"
+        field_str == "[StructField('ID', LongType(), nullable=False), "
+        "StructField('NULL', StringType(), nullable=True), "
+        "StructField('STR', StringType(), nullable=False), "
+        "StructField('CHAR', StringType(), nullable=False), "
+        "StructField('BOOL', BooleanType(), nullable=True), "
+        "StructField('BYTES', BinaryType(), nullable=False), "
+        "StructField('INT', LongType(), nullable=False), "
+        "StructField('FLOAT', DoubleType(), nullable=False), "
+        "StructField('DECIMAL', DecimalType(38, 18), nullable=False)]"
     )
 
     show_str = df._show_string(10)
@@ -68,11 +68,11 @@ def test_literal_timestamp_and_instant(session):
     )
     field_str = str(df.schema.fields)
     assert (
-        field_str == "[StructField(ID, Long, Nullable=False), "
-        "StructField(NAIVE_DATETIME, Timestamp, Nullable=False), "
-        "StructField(AWARE_DATETIME, Timestamp, Nullable=False), "
-        "StructField(NAIVE_TIME, Time, Nullable=False), "
-        "StructField(AWARE_TIME, Time, Nullable=False)]"
+        field_str == "[StructField('ID', LongType(), nullable=False), "
+        "StructField('NAIVE_DATETIME', TimestampType(), nullable=False), "
+        "StructField('AWARE_DATETIME', TimestampType(), nullable=False), "
+        "StructField('NAIVE_TIME', TimeType(), nullable=False), "
+        "StructField('AWARE_TIME', TimeType(), nullable=False)]"
     )
 
     show_str = df._show_string(10)
@@ -96,8 +96,8 @@ def test_date(session):
 
     field_str = str(df.schema.fields)
     assert (
-        field_str == "[StructField(ID, Long, Nullable=False), "
-        "StructField(DATE, Date, Nullable=False)]"
+        field_str == "[StructField('ID', LongType(), nullable=False), "
+        "StructField('DATE', DateType(), nullable=False)]"
     )
 
     show_str = df._show_string(10)
@@ -122,9 +122,9 @@ def test_special_literals(session):
     )
 
     assert (
-        str(df.schema) == "StructType[StructField(ID, Long, Nullable=False), "
-        "StructField(NULL, String, Nullable=True), "
-        "StructField(LITERAL, Long, Nullable=False)]"
+        str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
+        "StructField('NULL', StringType(), nullable=True), "
+        "StructField('LITERAL', LongType(), nullable=False)])"
     )
 
     assert (
