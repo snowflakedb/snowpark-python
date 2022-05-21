@@ -373,7 +373,7 @@ def test_sp_level_import(session, resources_path):
         )
         with pytest.raises(SnowparkSQLException) as ex_info:
             plus4_then_mod5_sp(3)
-        assert "No module named" in str(ex_info)
+        assert "No module named" in ex_info.value.message
 
 
 def test_type_hints(session):
@@ -637,7 +637,7 @@ def test_add_import_negative(session, resources_path):
         )
         with pytest.raises(SnowparkSQLException) as ex_info:
             plus4_then_mod5_sp(1)
-        assert "No module named 'test.resources'" in str(ex_info)
+        assert "No module named 'test.resources'" in ex_info.value.message
     session.clear_imports()
 
     with pytest.raises(TypeError) as ex_info:

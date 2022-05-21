@@ -193,7 +193,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
         return "to_variant(0)"
     if isinstance(data_type, GeographyType):
         return "to_geography('POINT(-122.35 37.55)')"
-    raise Exception(f"Unsupported data type: {data_type.type_name}")
+    raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
 def to_sql_without_cast(value: Any, data_type: DataType) -> str:
