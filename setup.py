@@ -35,7 +35,7 @@ setup(
     install_requires=[
         "setuptools>=40.6.0",
         "wheel",
-        "cloudpickle>=1.6.0",
+        "cloudpickle>=1.6.0,<=2.0.0",
         f"snowflake-connector-python>={CONNECTOR_DEPENDENCY_VERSION}",
         "typing-extensions>=4.1.0",
     ],
