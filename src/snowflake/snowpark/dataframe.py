@@ -1493,6 +1493,25 @@ class DataFrame:
             -------------------
             <BLANKLINE>
 
+            >>> # join multiple columns
+            >>> mdf1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+            >>> mdf2 = session.create_dataframe([[1, 2], [3, 4], [7, 6]], schema=["a", "b"])
+            >>> mdf1.join(mdf2, ["a", "b"]).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |3    |4    |
+            -------------
+            <BLANKLINE>
+            >>> mdf1.join(mdf2, (mdf1["a"] < mdf2["a"]) & (mdf1["b"] == mdf2["b"])).select(mdf1["a"].as_("new_a"), mdf1["b"].as_("new_b")).show()
+            ---------------------
+            |"NEW_A"  |"NEW_B"  |
+            ---------------------
+            |5        |6        |
+            ---------------------
+            <BLANKLINE>
+
         Args:
             right: The other :class:`Dataframe` to join.
             using_columns: A list of names of the columns, or the column objects, to
