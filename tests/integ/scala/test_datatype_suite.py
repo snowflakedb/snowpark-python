@@ -78,23 +78,23 @@ def test_verify_datatypes_reference(session):
     )
 
     assert (
-        str(df.schema.fields) == "[StructField(VAR, Variant, Nullable=True), "
-        # "StructField(GEO, String, Nullable=True), "
-        "StructField(DATE, Date, Nullable=True), "
-        "StructField(TIME, Time, Nullable=True), "
-        "StructField(TIMESTAMP, Timestamp, Nullable=True), "
-        "StructField(STRING, String, Nullable=False), "
-        "StructField(BOOLEAN, Boolean, Nullable=True), "
-        "StructField(BINARY, Binary, Nullable=True), "
-        "StructField(BYTE, Long, Nullable=False), "
-        "StructField(SHORT, Long, Nullable=False), "
-        "StructField(INT, Long, Nullable=False), "
-        "StructField(LONG, Long, Nullable=False), "
-        "StructField(FLOAT, Double, Nullable=False), "
-        "StructField(DOUBLE, Double, Nullable=False), "
-        "StructField(DECIMAL, Decimal(10, 2), Nullable=False), "
-        "StructField(ARRAY, ArrayType[String], Nullable=True), "
-        "StructField(MAP, MapType[String, String], Nullable=True)]"
+        str(df.schema.fields) == "[StructField('VAR', VariantType(), nullable=True), "
+        # "StructField(GEO, String, nullable=True), "
+        "StructField('DATE', DateType(), nullable=True), "
+        "StructField('TIME', TimeType(), nullable=True), "
+        "StructField('TIMESTAMP', TimestampType(), nullable=True), "
+        "StructField('STRING', StringType(), nullable=False), "
+        "StructField('BOOLEAN', BooleanType(), nullable=True), "
+        "StructField('BINARY', BinaryType(), nullable=True), "
+        "StructField('BYTE', LongType(), nullable=False), "
+        "StructField('SHORT', LongType(), nullable=False), "
+        "StructField('INT', LongType(), nullable=False), "
+        "StructField('LONG', LongType(), nullable=False), "
+        "StructField('FLOAT', DoubleType(), nullable=False), "
+        "StructField('DOUBLE', DoubleType(), nullable=False), "
+        "StructField('DECIMAL', DecimalType(10, 2), nullable=False), "
+        "StructField('ARRAY', ArrayType(StringType()), nullable=True), "
+        "StructField('MAP', MapType(StringType(), StringType()), nullable=True)]"
     )
 
 
@@ -110,6 +110,7 @@ def test_verify_datatypes_reference2(session):
 
     assert df.collect() == [Row(Decimal("0.05"), Decimal("0.07"))]
     assert (
-        str(df.schema.fields) == "[StructField(A, Decimal(5, 2), Nullable=False), "
-        "StructField(B, Decimal(7, 2), Nullable=False)]"
+        str(df.schema.fields)
+        == "[StructField('A', DecimalType(5, 2), nullable=False), "
+        "StructField('B', DecimalType(7, 2), nullable=False)]"
     )

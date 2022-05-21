@@ -14,7 +14,7 @@ class BinaryExpression(Expression):
         self.children = [self.left, self.right]
         self.nullable = self.left.nullable or self.right.nullable
 
-    def __repr__(self):
+    def __str__(self):
         return f"{self.left} {self.sql_operator} {self.right}"
 
 

@@ -56,7 +56,7 @@ class Expression:
         )
         return f"{self.pretty_name}({children_sql})"
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return self.pretty_name
 
 

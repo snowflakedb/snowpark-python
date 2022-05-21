@@ -590,8 +590,11 @@ class Column:
             else None
         )
 
-    def __repr__(self):
+    def __str__(self):
         return f"Column[{self._expression}]"
+
+    def __repr__(self):
+        return f"Column({self._expression})"
 
     def as_(self, alias: str) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
