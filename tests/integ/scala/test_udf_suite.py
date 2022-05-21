@@ -652,8 +652,6 @@ def test_variant_number_output(session):
         variant_float_output_udf("num1")
     ).collect() == [Row("1.1")]
 
-    # TODO: SNOW-447601: enable this test after the server has
-    #  a full type mapping for variant data
     # @udf(
     #     return_type=VariantType(),
     #     input_types=[VariantType()],

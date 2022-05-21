@@ -483,7 +483,6 @@ def test_join_inner(session):
 
 def test_join_left_anti(session):
     """Test for left-anti join of dataframes."""
-    # TODO remove sorted(res) and add df.sort() when available, as an extra step.
 
     df1 = session.range(3, 8)
     df2 = session.range(5, 10)
@@ -508,7 +507,6 @@ def test_join_left_anti(session):
 
 def test_join_left_outer(session):
     """Test for left-outer join of dataframes."""
-    # TODO remove sorted(res) and add df.sort() when available, as an extra step.
 
     df1 = session.range(3, 8)
     df2 = session.range(5, 10)
@@ -545,7 +543,6 @@ def test_join_left_outer(session):
 
 def test_join_right_outer(session):
     """Test for right-outer join of dataframes."""
-    # TODO remove sorted(res) and add df.sort() when available, as an extra step.
 
     df1 = session.range(3, 8)
     df2 = session.range(5, 10)

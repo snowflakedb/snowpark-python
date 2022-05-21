@@ -1585,9 +1585,6 @@ def test_createDataFrame_with_schema_inference(session):
     )
     Utils.check_answer(df2, [Row(True, "a"), Row(False, "b")], False)
 
-    # TODO needs Variant class and Geography
-    # case class
-
 
 def test_create_nullable_dataframe_with_schema_inference(session):
     df = session.create_dataframe([(1, 1, None), (2, 3, True)]).to_df("a", "b", "c")
@@ -1668,7 +1665,6 @@ def test_quoted_column_names(session):
         assert df1.collect() == [Row(1, 2, 3, 4, 5, 6)]
 
         # test select() + cacheResult() + select()
-        # TODO uncomment cacheResult when available
         df2 = session.table(table_name).select(
             normalName,
             lowerCaseName,
@@ -1702,7 +1698,6 @@ def test_quoted_column_names(session):
         assert df3.collect() == [Row(1)]
 
         # Test select() + cacheResult() + drop()
-        # TODO uncomment cacheResult when available
         df4 = session.table(table_name).select(
             normalName,
             lowerCaseName,

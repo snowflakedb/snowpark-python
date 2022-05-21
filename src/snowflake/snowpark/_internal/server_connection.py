@@ -99,7 +99,6 @@ class ServerConnection:
                         ex.cause
                     )
                 except Exception as ex:
-                    # TODO: SNOW-363951 handle telemetry
                     raise ex
 
             return wrap
@@ -464,9 +463,6 @@ class ServerConnection:
         logger.debug("Execute batch insertion query %s", query)
 
     def _fix_pandas_df_integer(self, pd_df: "pandas.DataFrame") -> "pandas.DataFrame":
-        """To fix https://snowflakecomputing.atlassian.net/browse/SNOW-562208
-        TODO: remove this after Python connector does the conversion: https://snowflakecomputing.atlassian.net/browse/SNOW-562586
-        """
         for column_metadata, pandas_dtype, pandas_col_name in zip(
             self._cursor.description, pd_df.dtypes, pd_df.columns
         ):

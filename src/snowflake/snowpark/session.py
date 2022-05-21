@@ -930,7 +930,6 @@ class Session:
             self._stage_created = True
         return f"{STAGE_PREFIX}{qualified_stage_name}"
 
-    # TODO make the table input consistent with session.table
     def write_pandas(
         self,
         df: "pandas.DataFrame",
