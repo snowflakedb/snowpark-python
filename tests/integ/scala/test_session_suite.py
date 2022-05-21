@@ -205,8 +205,6 @@ def test_dataframe_close_session(
     finally:
         new_session.close()
 
-    # TODO: currently we need to call collect() to trigger error (scala doesn't)
-    #  because Python doesn't have to query parameter value for lazy analysis
     with pytest.raises(SnowparkSessionException) as ex_info:
         new_session.sql("select current_timestamp()").collect()
     assert ex_info.value.error_code == "1404"

@@ -437,11 +437,6 @@ class UDTFRegistration:
         replace: bool = False,
         parallel: int = 4,
     ) -> UserDefinedTableFunction:
-        # TODO: UDTF output schema has multiple columns, which is different from UDF and SP. The common input/output datatype handling logic in udf_utils.py handle
-        #  single-column types. It's a non-trivial change to update udf_utils.py. Plus, when UDAF comes, it may need more changes. So the update to udf_utils.py is deferred.
-        #  When UDAF comes, we'll update it altogether.
-        #  The output_schema of UDTF is processed right here in this method.
-        #  https://snowflakecomputing.atlassian.net/browse/SNOW-585155
         if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
                 f"'output_schema' must be a list of column names or StructType instance to create a UDTF. Got {type(output_schema)}."

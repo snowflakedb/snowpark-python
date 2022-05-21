@@ -12,7 +12,6 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
 
-# TODO enable this when SNOW-507647 is fixed and ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE is out
 # @pytest.fixture(scope="module", autouse=True)
 # def setup(session):
 #     session._run_query(
@@ -78,7 +77,6 @@ def test_write_pandas(session, tmp_table_basic):
     results = df.distinct().to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
-    # TODO enable this when SNOW-507647 is fixed and ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE is out
     # # Do a more complex case where we create the table
     # pd = PandasDF(
     #     [
@@ -130,7 +128,6 @@ def test_create_dataframe_from_pandas(session):
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
-    # TODO enable this when SNOW-507647 is fixed and ENABLE_PARQUET_TIMESTAMP_NEW_LOGICAL_TYPE is out
     # pd = PandasDF(
     #     [
     #         (1, 4.5, "t1", True, datetime.now()),
@@ -159,7 +156,6 @@ def test_write_pandas_temp_table_and_irregular_column_names(session):
             (3, 10.5, "t3"),
         ],
         columns=["id".upper(), "foot size".upper(), "shoe model".upper()],
-        # TODO: connector's write_pandas doesn't support double quote in column name. It should support column name "foot\"size".
     )
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -191,12 +187,6 @@ def test_write_pandas_with_timestamps(session):
         data = session.sql(f'select * from "{table_name}"').collect()
         assert data[0]["tm_tz"] is not None
         assert data[0]["tm_ntz"] is not None
-        # TODO: Schema detection on the server-side has bugs dealing with timestamp_ntz and timestamp_tz.
-        #  After the bugs are fixed, change the assertion to `data[0]["tm_tz"] == datetime_with_tz`
-        #  and `data[0]["tm_ntz"] == datetime_with_ntz`,
-        #  JIRA https://snowflakecomputing.atlassian.net/browse/SNOW-524865
-        #  JIRA https://snowflakecomputing.atlassian.net/browse/SNOW-359205
-        #  JIRA https://snowflakecomputing.atlassian.net/browse/SNOW-507644
     finally:
         Utils.drop_table(session, table_name)
 

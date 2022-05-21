@@ -57,9 +57,6 @@ def test_basic_udtf_word_count_without_end_partition(session):
         assert df2.columns == ["WORD", "COUNT"]
 
         # Call the UDTF with funcName and named parameters, result should be the same
-        # TODO: We'll address separately that the argument name shouldn't be arg1.
-        #  https://snowflakecomputing.atlassian.net/browse/SNOW-585622
-        #  It should be the function arg name. So it should be `s1` in this case after change.
         df3 = session.table_function(wordcount_udtf(arg1=lit("w1 w2 w2 w3 w3 w3")))
         Utils.check_answer(df3, [Row("w1", 1), Row("w2", 2), Row("w3", 3)], sort=True)
         assert df3.columns == ["WORD", "COUNT"]
@@ -206,12 +203,6 @@ def test_negative_test_with_invalid_output_column_name(session):
 @pytest.mark.skip(
     "Python UDTF doesn't support Optional in type hints for out_schema yet. And Optional has no impact."
 )
-def test_input_type_optional(session):
-    # TODO: Scala supports type Option. But Python UDF doesn't support type annotation like Optional[int].
-    #  So this test isn't need in Python. But we should review whether `Optinal` needs to be supported in Python.
-    pass
-
-
 def test_input_type_basic_types(session):
     output_schema = [
         "i1_str",
@@ -396,7 +387,6 @@ def test_return_large_amount_of_return_columns_for_udtf(session):
 
 def test_output_type_basic_types(session):
     output_schema = ["int", "float", "bool", "decimal", "str", "bytes", "bytearray"]
-    # TODO: The decimal 2.2 should be decimal.Decimal(2.2) after UDF server bug SNOW-584624 is fixed.
     return_result = (
         1,
         1.1,
