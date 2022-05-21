@@ -2397,7 +2397,6 @@ def test_to_variant(session):
         [Row("1"), Row("2"), Row("3")],
         sort=False,
     )
-    # TODO this should be Variant(1)
     assert integer1.select(to_variant(col("a"))).collect()[0][0] == "1"
 
     # same as above, but pass str instead of Column

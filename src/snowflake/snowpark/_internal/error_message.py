@@ -31,8 +31,6 @@ class SnowparkClientExceptionMessages:
 
     IMPORTANT: keep this file in numerical order of the error-code."""
 
-    # TODO Add the rest of the exception messages
-
     # Internal Error messages 001X
 
     @staticmethod

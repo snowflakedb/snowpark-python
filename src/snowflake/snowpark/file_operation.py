@@ -188,7 +188,6 @@ class FileOperation:
                     normalize_remote_file_or_dir(stage_location),
                     options,
                 )
-                # TODO(SNOW-574617): Remove this after connector fixes this
                 # This is not needed for stored proc because sp connector already fixed it
                 # JDBC auto-creates directory but python-connector doesn't. So create the folder here.
                 os.makedirs(get_local_file_path(target_directory), exist_ok=True)
@@ -197,7 +196,5 @@ class FileOperation:
                 )._internal_collect_with_tag()
             return [GetResult(**file_result.asDict()) for file_result in get_result]
         # connector raises IndexError when no file is downloaded from python connector.
-        # TODO: https://snowflakecomputing.atlassian.net/browse/SNOW-499333. Discuss with python connector whether
-        #  we need to raise a different error.
         except IndexError:
             return []

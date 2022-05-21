@@ -31,8 +31,6 @@ class SnowparkClientException(Exception):
     def __str__(self):
         return self._pretty_msg
 
-    # TODO: SNOW-363951 handle telemetry
-
 
 class _SnowparkInternalException(SnowparkClientException):
     """Exception for internal errors. For internal use only.

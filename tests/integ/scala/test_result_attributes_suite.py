@@ -127,7 +127,6 @@ def test_describe_schema_matches_execute_schema_for_show_queries(session):
         "procedures",
         "parameters",
         "functions",
-        # "shares", TODO: SNOW-442047: show shares doesn't work; re-enable after the fix
         "roles",
         "grants",
         "warehouses",

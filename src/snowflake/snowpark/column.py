@@ -573,22 +573,6 @@ class Column:
         """
         return snowflake.snowpark.functions.substring(self, start_pos, length)
 
-    # TODO: Add these functions for code migration
-    # def contains(self):
-    #     ...
-    #
-    # def get_field(self):
-    #     ...
-    #
-    # def get_item(self):
-    #     ...
-    #
-    # def with_field(self):
-    #     ...
-    #
-    # def drop_fields(self):
-    #     ...
-
     def collate(self, collation_spec: str) -> "Column":
         """Returns a copy of the original :class:`Column` with the specified ``collation_spec``
         property, rather than the original collation specification property.
@@ -727,12 +711,6 @@ class Column:
     isNull = is_null
     eqNullSafe = equal_null
     getName = get_name
-
-    # TODO: To add these alias after the snake_case APIs are added.
-    # getField = get_field
-    # getItem = get_item
-    # withField = with_field
-    # dropFields = drop_fields
 
 
 class CaseExpr(Column):
