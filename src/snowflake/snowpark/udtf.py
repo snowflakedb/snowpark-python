@@ -195,7 +195,7 @@ class UDTFRegistration:
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
     Example 8
-        Createing a UDTF that has ``__init__`` and ``end_partition``.
+        Createing a UDTF with the constructor and ``end_partition`` method.
 
             >>> from collections import Counter
             >>> from typing import Iterable, Tuple
