@@ -611,7 +611,6 @@ class DataFrame:
         "a""b"                               '"a""b"'
         ==================================   ==========================
         """
-        # Does not exist in scala snowpark.
         return self.schema.names
 
     def col(self, col_name: str) -> Column:
