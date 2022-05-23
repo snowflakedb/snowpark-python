@@ -10,7 +10,7 @@ from setuptools import setup
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-VERSION = (1, 1, 1, None)  # Default, needed so code will compile
+VERSION = (0, 0, 0)
 CONNECTOR_DEPENDENCY_VERSION = "2.7.4"
 with open(os.path.join(SNOWPARK_SRC_DIR, "version.py"), encoding="utf-8") as f:
     exec(f.read())
@@ -21,15 +21,15 @@ setup(
     version=version,
     description="Snowflake Snowpark for Python",
     author="Snowflake, Inc",
-    author_email="support@snowflake.com",
+    author_email="triage-snowpark-python-api-dl@snowflake.com",
     license="Apache License, Version 2.0",
     keywords="Snowflake db database cloud analytics warehouse",
     url="https://www.snowflake.com/",
     project_urls={
-        "Documentation": "https://docs.snowflake.com/",
-        # TODO: update it when we have documentation
-        # "Code": "https://github.com/snowflakedb/snowflake-connector-python",
-        # "Issue tracker": "https://github.com/snowflakedb/snowflake-connector-python/issues",
+        "Documentation": "https://docs.snowflake.com/en/developer-guide/snowpark/reference/python",
+        "Source": "https://github.com/snowflakedb/snowpark-python",
+        "Issues": "https://github.com/snowflakedb/snowpark-python/issues",
+        "Changelog": "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md",
     },
     python_requires="==3.8.*",
     install_requires=[
@@ -50,7 +50,7 @@ setup(
         "": "src",
     },
     package_data={
-        "snowflake.snowpark": ["*.pem", "*.json", "*.rst", "LICENSE.txt"],
+        "snowflake.snowpark": ["LICENSE.txt"],
     },
     extras_require={
         "pandas": [
@@ -68,7 +68,7 @@ setup(
         ],
     },
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Environment :: Console",
         "Environment :: Other Environment",
         "Intended Audience :: Developers",
@@ -78,6 +78,7 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Programming Language :: SQL",
+        "Programming Language :: Python :: 3 :: Only",
         "Programming Language :: Python :: 3.8",
         "Topic :: Database",
         "Topic :: Software Development",
