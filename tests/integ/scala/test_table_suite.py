@@ -137,7 +137,7 @@ def test_save_as_snowflake_table(session, table_name_1):
 def test_save_as_snowflake_table_string_argument(table_name_4):
     """
     Scala's `DataFrameWriter.mode()` accepts both enum values of SaveMode and str.
-    It's conventional that python uses str and pyspark does use str only. So the above test method
+    It's conventional that python uses str.
     `test_save_as_snowflake_table` already tests the string argument. This test will be the same as
     `test_save_as_snowflake_table` if ported from Scala so it's omitted.
     """

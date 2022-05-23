@@ -1129,8 +1129,7 @@ def test_attribute_reference_to_sql(session):
 
 def test_dataframe_duplicated_column_names(session):
     df = session.sql("select 1 as a, 2 as a")
-    # collect() works and return a row with duplicated keys,
-    # which aligns with Pyspark
+    # collect() works and return a row with duplicated keys
     res = df.collect()
     assert len(res[0]) == 2
     assert res[0].A == 1

@@ -46,7 +46,7 @@ def str_to_sql(value: str) -> str:
 
 
 def to_sql(value: Any, datatype: DataType) -> str:
-    """Convert a value with SparkSQL DataType to a snowflake compatible sql"""
+    """Convert a value with DataType to a snowflake compatible sql"""
 
     # Handle null values
     if isinstance(

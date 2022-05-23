@@ -279,7 +279,7 @@ def test_intersect_nullability(session):
     assert all(not i.nullable for i in df4.schema.fields)
 
 
-def test_spark_17123_performing_set_ops_on_non_native_types(session):
+def test_performing_set_ops_on_non_native_types(session):
     dates = session.create_dataframe(
         [
             [date(1, 1, 1), Decimal(1), datetime(1, 1, 1, microsecond=2000)],
