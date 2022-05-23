@@ -218,7 +218,7 @@ class DataFrameReader:
         self._file_type = None
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
-        """Returns a DataFrame that points to the specified table.
+        """Returns a Table that points to the specified table.
 
         This method is an alias of :meth:`~snowflake.snowpark.session.Session.table`.
 
