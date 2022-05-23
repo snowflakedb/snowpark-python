@@ -516,7 +516,6 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Range):
-            # The column name id lower-case is hard-coded by Spark as the output
             # schema of Range. Since this corresponds to the Snowflake column "id"
             # (quoted lower-case) it's a little hard for users. So we switch it to
             # the column name "ID" == id == Id

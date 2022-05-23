@@ -2,9 +2,6 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-# Code in this file may constitute partial or total reimplementation, or modification of
-# existing code originally distributed by the Apache Software Foundation as part of the
-# Apache Spark project, under the Apache License, Version 2.0.
 from typing import Any, Dict, Iterable, Union
 
 
