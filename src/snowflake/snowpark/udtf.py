@@ -195,6 +195,55 @@ class UDTFRegistration:
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
     Example 8
+        Createing a UDTF with the constructor and ``end_partition`` method.
+
+            >>> from collections import Counter
+            >>> from typing import Iterable, Tuple
+            >>> from snowflake.snowpark.functions import lit
+            >>> class MyWordCount:
+            ...     def __init__(self):
+            ...         self._total_per_partition = 0
+            ...
+            ...     def process(self, s1: str) -> Iterable[Tuple[str, int]]:
+            ...         words = s1.split()
+            ...         self._total_per_partition = len(words)
+            ...         counter = Counter(words)
+            ...         yield from counter.items()
+            ...
+            ...     def end_partition(self):
+            ...         yield ("partition_total", self._total_per_partition)
+
+            >>> udtf_name = "word_count_udtf"
+            >>> word_count_udtf = session.udtf.register(
+            ...     MyWordCount, ["word", "count"], name=udtf_name, is_permanent=False, replace=True
+            ... )
+            >>> # Call it by its name
+            >>> df1 = session.table_function(udtf_name, lit("w1 w2 w2 w3 w3 w3"))
+            >>> df1.show()
+            -----------------------------
+            |"WORD"           |"COUNT"  |
+            -----------------------------
+            |w1               |1        |
+            |w2               |2        |
+            |w3               |3        |
+            |partition_total  |6        |
+            -----------------------------
+            <BLANKLINE>
+
+            >>> # Call it by the returned callable instance
+            >>> df2 = session.table_function(word_count_udtf(lit("w1 w2 w2 w3 w3 w3")))
+            >>> df2.show()
+            -----------------------------
+            |"WORD"           |"COUNT"  |
+            -----------------------------
+            |w1               |1        |
+            |w2               |2        |
+            |w3               |3        |
+            |partition_total  |6        |
+            -----------------------------
+            <BLANKLINE>
+
+    Example 9
         Creating a UDTF from a local Python file:
 
             >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
@@ -208,7 +257,7 @@ class UDTFRegistration:
             >>> session.table_function(generator_udtf(lit(3))).collect()
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
-    Example 9
+    Example 10
         Creating a UDTF from a Python file on an internal stage:
 
             >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
@@ -234,6 +283,8 @@ class UDTFRegistration:
         - :meth:`register_from_file`
         - :meth:`~snowflake.snowpark.Session.add_import`
         - :meth:`~snowflake.snowpark.Session.add_packages`
+        - :meth:`~snowflake.snowpark.Session.table_function`
+        - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
     """
 
     def __init__(self, session: "snowflake.snowpark.Session"):
