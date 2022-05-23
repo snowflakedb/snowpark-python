@@ -799,7 +799,7 @@ class Session:
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """
-        Returns a DataFrame that points the specified table.
+        Returns a Table that points the specified table.
 
         Args:
             name: A string or list of strings that specify the table name or
@@ -1169,7 +1169,7 @@ class Session:
             names = [f.name for f in new_schema.fields]
         rows = [convert_row_to_list(row, names) for row in data]
 
-        # get spark attributes and data types
+        # get attributes and data types
         attrs, data_types = [], []
         for field in new_schema.fields:
             sf_type = (

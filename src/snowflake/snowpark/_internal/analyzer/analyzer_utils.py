@@ -378,7 +378,7 @@ def sample_statement(
 def aggregate_statement(
     grouping_exprs: List[str], aggregate_exprs: List[str], child: str
 ) -> str:
-    # add limit 1 because Spark may aggregate on non-aggregate function in a scalar aggregation
+    # add limit 1 because aggregate may be on non-aggregate function in a scalar aggregation
     # for example, df.agg(lit(1))
     return project_statement(aggregate_exprs, child) + (
         limit_expression(1)

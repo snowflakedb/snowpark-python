@@ -2345,7 +2345,6 @@ class DataFrame:
             if isinstance(field.datatype, (StringType, _NumericType))
         }
 
-        # These are five stats that pyspark's describe() outputs
         stat_func_dict = {
             "count": count,
             "mean": mean,

@@ -531,8 +531,8 @@ def test_stddev(session):
 
 def test_sn_moments(session):
     test_data2 = TestData.test_data2(session)
-    spark_variance = test_data2.agg(variance(col("a")))
-    Utils.check_answer(spark_variance, [Row(Decimal("0.8"))])
+    var = test_data2.agg(variance(col("a")))
+    Utils.check_answer(var, [Row(Decimal("0.8"))])
 
     Utils.check_answer(
         test_data2.group_by(col("a")).agg(variance(col("b"))),
@@ -543,22 +543,22 @@ def test_sn_moments(session):
         "select variance(a) from values(1,1),(1,2),(2,1),(2,2),(3,1),(3,2) as T(a,b);"
     ).collect()
 
-    Utils.check_answer(spark_variance, variance_result[0])
+    Utils.check_answer(var, variance_result[0])
 
-    spark_variance_pop = test_data2.agg(var_pop(col("a")))
-    Utils.check_answer(spark_variance_pop, [Row(Decimal("0.666667"))])
+    variance_pop = test_data2.agg(var_pop(col("a")))
+    Utils.check_answer(variance_pop, [Row(Decimal("0.666667"))])
 
-    spark_variance_samp = test_data2.agg(var_samp(col("a")))
-    Utils.check_answer(spark_variance_samp, [Row(Decimal("0.8"))])
+    variance_samp = test_data2.agg(var_samp(col("a")))
+    Utils.check_answer(variance_samp, [Row(Decimal("0.8"))])
 
-    spark_kurtosis = test_data2.agg(kurtosis(col("a")))
-    Utils.check_answer(spark_kurtosis, [Row(Decimal("-1.8750"))])
+    kurtosis_ = test_data2.agg(kurtosis(col("a")))
+    Utils.check_answer(kurtosis_, [Row(Decimal("-1.8750"))])
 
     # add SQL test
     agg_kurtosis_result = session.sql(
         "select kurtosis(a) from values(1,1),(1,2),(2,1),(2,2),(3,1),(3,2) as T(a,b);"
     ).collect()
-    Utils.check_answer(spark_kurtosis, agg_kurtosis_result[0])
+    Utils.check_answer(kurtosis_, agg_kurtosis_result[0])
 
 
 def test_sn_zero_moments(session):
@@ -626,7 +626,7 @@ def test_sn_null_moments(session):
     )
 
 
-def test_spark14664_decimal_sum_over_window_should_work(session):
+def test_decimal_sum_over_window_should_work(session):
     assert session.sql(
         "select sum(a) over () from values (1.0), (2.0), (3.0) T(a)"
     ).collect() == [Row(6.0), Row(6.0), Row(6.0)]
@@ -641,7 +641,7 @@ def test_aggregate_function_in_groupby(session):
     assert "is not a valid group by expression" in str(ex_info)
 
 
-def test_spark21580_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
+def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
     assert TestData.test_data2(session).group_by(lit(3), lit(4)).agg(
         [lit(6), lit(7), sum(col("b"))]
     ).collect() == [Row(3, 4, 6, 7, 9)]

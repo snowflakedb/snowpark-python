@@ -160,12 +160,7 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 
-# #####################################################################################
-# Converting python types to types
-# Taken as is or modified from:
-# https://spark.apache.org/docs/3.1.1/api/python/_modules/pyspark/sql/types.html
-
-# Mapping Python types to Spark SQL DataType
+# Mapping Python types to DataType
 NoneType = type(None)
 PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     NoneType: NullType,
@@ -188,7 +183,7 @@ VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     _NumericType,
 )
 
-# Mapping Python array types to Spark SQL DataType
+# Mapping Python array types to DataType
 ARRAY_SIGNED_INT_TYPECODE_CTYPE_MAPPINGS = {
     "b": ctypes.c_byte,
     "h": ctypes.c_short,
