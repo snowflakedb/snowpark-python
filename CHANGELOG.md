@@ -7,17 +7,19 @@
   - Alternatively, use `Session.udtf.register()` to register a UDTF.
   - Use `Session.udtf.register_from_file()` to register a UDTF from a Python file.
 
-### Improvements:
+### Breaking Changes:
 - Updated APIs to query a table function, including both Snowflake built-in table functions and UDTFs.
   - Use function `snowflake.snowpark.functions.table_function()` to create a callable representing a table function and use it to call the table function in a query.
   - Alternatively, use function `snowflake.snowpark.functions.call_table_function()` to call a table function.
-  - Added support for `over` clause that specify `partition by` and `order by` when lateral joining a table function.
+  - Added support for `over` clause that specifies `partition by` and `order by` when lateral joining a table function.
   - Updated `Session.table_function()` and `DataFrame.join_table_function()` to accept `TableFunctionCall` instances.
   - Deprecated `Session.flatten()` and `DataFrame.flatten()`.
-- Ensured that UDFs and UDTFs will be thread-safe by adding a lock to the function when it is called for the first time per thread.
 - Allowed using an empty list on UDF-level imports/packages (the argument `imports`/`packages` of `functions.udf()` and `functions.sproc()`) to indicate no import/package is used for this UDF or stored procedure.
-- Added a Snowpark-specific exception class for SQL errors, to replace the previous `ProgrammingError` from the Python connector.
 - Improved `__repr__` implementation of data types in `types.py` and removed the unused `type_name` property.
+- Added a Snowpark-specific exception class for SQL errors, to replace the previous `ProgrammingError` from the Python connector.
+
+### Improvements:
+- Added a lock to UDFs and UDTFs when it is called for the first time per thread.
 - Improved the error message for pickling errors happening during UDF creation.
 - Included the query ID when logging the failed query.
 
