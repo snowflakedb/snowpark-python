@@ -91,6 +91,7 @@ class CopyIntoTableNode(LeafNode):
         validation_mode: Optional[str] = None,
         user_schema: Optional[StructType] = None,
         cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
+        create_table_from_infer_schema: bool = False,
     ):
         super().__init__()
         self.table_name = table_name
@@ -105,6 +106,7 @@ class CopyIntoTableNode(LeafNode):
         self.validation_mode = validation_mode
         self.user_schema = user_schema
         self.cur_options = cur_options
+        self.create_table_from_infer_schema = create_table_from_infer_schema
 
 
 class CopyIntoLocationNode(LogicalPlan):

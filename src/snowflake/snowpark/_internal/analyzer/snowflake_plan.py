@@ -744,6 +744,7 @@ class SnowflakePlanBuilder:
         column_names: Optional[List[str]] = None,
         transformations: Optional[List[str]] = None,
         user_schema: Optional[StructType] = None,
+        create_table_from_infer_schema: bool = False,
     ) -> SnowflakePlan:
         # tracking usage of pattern, will refactor this function in future
         if pattern:
@@ -763,7 +764,13 @@ class SnowflakePlanBuilder:
         )
         if self.session._table_exists(table_name):
             queries = [Query(copy_command)]
-        elif user_schema and not transformations:
+        elif user_schema and (
+            (file_format.upper() == "CSV" and not transformations)
+            or (
+                create_table_from_infer_schema
+                and file_format.upper() in INFER_SCHEMA_FORMAT_TYPES
+            )
+        ):
             attributes = user_schema._to_attributes()
             queries = [
                 Query(
