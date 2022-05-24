@@ -45,11 +45,11 @@ def create_df_for_file_format(session, file_format, file_location):
     if "json" == file_format:
         df = session.read.json(file_location)
     elif "parquet" == file_format:
-        df = session.read.option("INFER_SCHEMA", False).parquet(file_location)
+        df = session.read.parquet(file_location)
     elif "avro" == file_format:
-        df = session.read.option("INFER_SCHEMA", False).avro(file_location)
+        df = session.read.avro(file_location)
     elif "orc" == file_format:
-        df = session.read.option("INFER_SCHEMA", False).orc(file_location)
+        df = session.read.orc(file_location)
     else:  # "xml" == file_format:
         df = session.read.xml(file_location)
     return df
@@ -658,6 +658,43 @@ def test_copy_non_csv_transformation(
 
 
 @pytest.mark.parametrize(
+    "file_format, file_name, assert_data",
+    [
+        (
+            "parquet",
+            test_file_parquet,
+            [Row("str1", 1), Row("str2", 2)],
+        ),
+        (
+            "avro",
+            test_file_avro,
+            [Row("str1", 1), Row("str2", 2)],
+        ),
+        (
+            "orc",
+            test_file_orc,
+            [Row("str1", 1), Row("str2", 2)],
+        ),
+    ],
+)
+def test_copy_non_csv_auto_transformation(
+    session,
+    tmp_stage_name1,
+    file_format,
+    file_name,
+    assert_data,
+):
+    test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        df = create_df_for_file_format(session, file_format, test_file_on_stage)
+        df.copy_into_table(table_name)
+        Utils.check_answer(session.table(table_name), assert_data, sort=False)
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
     "file_format, file_name",
     [
         ("json", test_file_json),
@@ -671,12 +708,14 @@ def test_copy_non_csv_negative_test(session, tmp_stage_name1, file_format, file_
     test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = create_df_for_file_format(session, file_format, test_file_on_stage)
-    with pytest.raises(SnowparkDataframeReaderException) as exec_info:
-        df.copy_into_table(table_name)
-    assert (
-        f"Cannot create the target table {table_name} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()"
-        in str(exec_info)
-    )
+    # For parquet, avro, and orc, this now works
+    if file_format in ("json", "xml"):
+        with pytest.raises(SnowparkDataframeReaderException) as exec_info:
+            df.copy_into_table(table_name)
+        assert (
+            f"Cannot create the target table {table_name} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()"
+            in str(exec_info)
+        )
 
     with pytest.raises(SnowparkDataframeReaderException) as exec_info:
         df.copy_into_table(table_name, transformations=[col("$1").as_("A")])

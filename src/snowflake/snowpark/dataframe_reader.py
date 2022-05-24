@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
 
@@ -369,9 +370,13 @@ class DataFrameReader:
         )
 
         schema = [Attribute('"$1"', VariantType())]
-        transformations = None
+        read_file_transformations = None
         schema_to_cast = None
         if infer_schema:
+            # Set INFER_SCHEMA if it doesn't already exist so we can see
+            # that the schema was inferred upstream of here
+            if "INFER_SCHEMA" not in self._cur_options:
+                self._cur_options["INFER_SCHEMA"] = True
             temp_file_format_name = (
                 self._session.get_fully_qualified_current_schema()
                 + "."
@@ -420,9 +425,15 @@ class DataFrameReader:
                     )
                     identifier = f"$1:{name}::{r[1]}"
                     schema_to_cast.append((identifier, r[0]))
-                    transformations.append(identifier)
+                    transformations.append(sql_expr(identifier))
                 schema = new_schema
                 self._user_schema = StructType._from_attributes(schema)
+                # If the user sets transformations, we should not override this
+                self._cur_options["INFER_SCHEMA_TRANSFORMATIONS"] = transformations
+                self._cur_options[
+                    "INFER_SCHEMA_TARGET_COLUMNS"
+                ] = self._user_schema.names
+                read_file_transformations = [t._expression.sql for t in transformations]
             finally:
                 # Clean up the file format we created
                 self._session._conn.run_query(
@@ -438,7 +449,7 @@ class DataFrameReader:
                 self._session.get_fully_qualified_current_schema(),
                 schema,
                 schema_to_cast=schema_to_cast,
-                transformations=transformations,
+                transformations=read_file_transformations,
             ),
         )
         df._reader = self

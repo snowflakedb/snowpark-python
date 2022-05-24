@@ -1926,24 +1926,37 @@ class DataFrame:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
-        pattern = pattern or self._reader._cur_options.get("pattern")
+        pattern = pattern or self._reader._cur_options.get("PATTERN")
         format_type_options = format_type_options or self._reader._cur_options.get(
-            "format_type_options"
+            "FORMAT_TYPE_OPTIONS"
         )
         target_columns = target_columns or self._reader._cur_options.get(
-            "target_columns"
+            "TARGET_COLUMNS"
         )
         transformations = transformations or self._reader._cur_options.get(
-            "transformations"
+            "TRANSFORMATIONS"
         )
+        # We only want to set this if the user does not have any target columns or transformations set
+        # Otherwise we operate in the mode where we don't know the schema
+        if self._reader._cur_options.get("INFER_SCHEMA") and not (
+            transformations or target_columns
+        ):
+            transformations = self._reader._cur_options.get(
+                "INFER_SCHEMA_TRANSFORMATIONS"
+            )
+            target_columns = self._reader._cur_options.get(
+                "INFER_SCHEMA_TARGET_COLUMNS"
+            )
+            self._reader._cur_options["CREATE_TABLE_FROM_INFER_SCHEMA"] = True
+
         transformations = (
             [_to_col_if_str(column, "copy_into_table") for column in transformations]
             if transformations
             else None
         )
-        copy_options = copy_options or self._reader._cur_options.get("copy_options")
+        copy_options = copy_options or self._reader._cur_options.get("COPY_OPTIONS")
         validation_mode = validation_mode or self._reader._cur_options.get(
-            "validation_mode"
+            "VALIDATION_MODE"
         )
         normalized_column_names = (
             [quote_name(col_name) for col_name in target_columns]

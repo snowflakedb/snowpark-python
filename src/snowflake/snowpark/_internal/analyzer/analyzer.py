@@ -629,6 +629,9 @@ class Analyzer:
                     if logical_plan.transformations
                     else None,
                     user_schema=logical_plan.user_schema,
+                    create_table_from_infer_schema=logical_plan.cur_options.get(
+                        "CREATE_TABLE_FROM_INFER_SCHEMA", False
+                    ),
                 )
             elif logical_plan.file_format and logical_plan.file_format.upper() == "CSV":
                 if not logical_plan.user_schema:
@@ -642,12 +645,17 @@ class Analyzer:
                         logical_plan.user_schema._to_attributes(),
                     )
             else:
+                schema = (
+                    logical_plan.user_schema._to_attributes()
+                    if logical_plan.user_schema
+                    else [Attribute('"$1"', VariantType())]
+                )
                 return self.plan_builder.read_file(
                     logical_plan.files,
                     logical_plan.file_format,
                     logical_plan.cur_options,
                     self.session.get_fully_qualified_current_schema(),
-                    [Attribute('"$1"', VariantType())],
+                    schema,
                 )
 
         if isinstance(logical_plan, CopyIntoLocationNode):
