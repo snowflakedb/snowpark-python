@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
@@ -45,7 +45,9 @@ user_fields = [
 user_schema = StructType(user_fields)
 
 
-def create_df_for_file_format(session, file_format, file_location, infer_schema=False):
+def create_df_for_file_format(
+    session: Session, file_format: str, file_location: str, infer_schema: bool = False
+):
     df_reader = session.read
     if not infer_schema and file_format not in ("json", "xml"):
         df_reader.option("INFER_SCHEMA", False)

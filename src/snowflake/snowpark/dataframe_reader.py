@@ -377,8 +377,6 @@ class DataFrameReader:
         read_file_transformations = None
         schema_to_cast = None
         if self._infer_schema:
-            # Set INFER_SCHEMA if it doesn't already exist so we can see
-            # that the schema was inferred upstream of here
             temp_file_format_name = (
                 self._session.get_fully_qualified_current_schema()
                 + "."
