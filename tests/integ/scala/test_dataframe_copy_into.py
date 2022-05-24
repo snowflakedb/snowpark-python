@@ -1,10 +1,12 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
+from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
@@ -29,6 +31,8 @@ test_file_csv_quotes = "testCSVquotes.csv"
 test_file_json = "testJson.json"
 test_file_avro = "test.avro"
 test_file_parquet = "test.parquet"
+test_file_all_data_types_parquet = "test_all_data_types.parquet"
+test_file_with_special_characters_parquet = "test_file_with_special_characters.parquet"
 test_file_orc = "test.orc"
 test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
@@ -41,17 +45,22 @@ user_fields = [
 user_schema = StructType(user_fields)
 
 
-def create_df_for_file_format(session, file_format, file_location):
+def create_df_for_file_format(
+    session: Session, file_format: str, file_location: str, infer_schema: bool = False
+):
+    df_reader = session.read
+    if not infer_schema and file_format not in ("json", "xml"):
+        df_reader.option("INFER_SCHEMA", False)
     if "json" == file_format:
-        df = session.read.json(file_location)
+        df = df_reader.json(file_location)
     elif "parquet" == file_format:
-        df = session.read.option("INFER_SCHEMA", False).parquet(file_location)
+        df = df_reader.parquet(file_location)
     elif "avro" == file_format:
-        df = session.read.option("INFER_SCHEMA", False).avro(file_location)
+        df = df_reader.avro(file_location)
     elif "orc" == file_format:
-        df = session.read.option("INFER_SCHEMA", False).orc(file_location)
+        df = df_reader.orc(file_location)
     else:  # "xml" == file_format:
-        df = session.read.xml(file_location)
+        df = df_reader.xml(file_location)
     return df
 
 
@@ -125,6 +134,18 @@ def upload_files(session, tmp_stage_name1, tmp_stage_name2, resources_path):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_parquet,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_all_data_types_parquet,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_with_special_characters_parquet,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -494,12 +515,13 @@ def test_copy_with_wrong_dataframe(session):
 
 
 @pytest.mark.parametrize(
-    "file_format, file_name, assert_data",
+    "file_format, file_name, assert_data, infer_schema",
     [
         (
             "json",
             test_file_json,
             [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')],
+            False,
         ),
         (
             "parquet",
@@ -508,6 +530,16 @@ def test_copy_with_wrong_dataframe(session):
                 Row('{\n  "num": 1,\n  "str": "str1"\n}'),
                 Row('{\n  "num": 2,\n  "str": "str2"\n}'),
             ],
+            True,
+        ),
+        (
+            "parquet",
+            test_file_parquet,
+            [
+                Row('{\n  "num": 1,\n  "str": "str1"\n}'),
+                Row('{\n  "num": 2,\n  "str": "str2"\n}'),
+            ],
+            False,
         ),
         (
             "avro",
@@ -516,6 +548,16 @@ def test_copy_with_wrong_dataframe(session):
                 Row('{\n  "num": 1,\n  "str": "str1"\n}'),
                 Row('{\n  "num": 2,\n  "str": "str2"\n}'),
             ],
+            True,
+        ),
+        (
+            "avro",
+            test_file_avro,
+            [
+                Row('{\n  "num": 1,\n  "str": "str1"\n}'),
+                Row('{\n  "num": 2,\n  "str": "str2"\n}'),
+            ],
+            False,
         ),
         (
             "orc",
@@ -524,6 +566,16 @@ def test_copy_with_wrong_dataframe(session):
                 Row('{\n  "num": 1,\n  "str": "str1"\n}'),
                 Row('{\n  "num": 2,\n  "str": "str2"\n}'),
             ],
+            True,
+        ),
+        (
+            "orc",
+            test_file_orc,
+            [
+                Row('{\n  "num": 1,\n  "str": "str1"\n}'),
+                Row('{\n  "num": 2,\n  "str": "str2"\n}'),
+            ],
+            False,
         ),
         (
             "xml",
@@ -532,17 +584,20 @@ def test_copy_with_wrong_dataframe(session):
                 Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
                 Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
             ],
+            False,
         ),
     ],
 )
 def test_copy_non_csv_basic(
-    session, tmp_stage_name1, file_format, file_name, assert_data
+    session, tmp_stage_name1, file_format, file_name, assert_data, infer_schema
 ):
     test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "c1 Variant")
     try:
-        df = create_df_for_file_format(session, file_format, test_file_on_stage)
+        df = create_df_for_file_format(
+            session, file_format, test_file_on_stage, infer_schema
+        )
         #  copy file in table
         df.copy_into_table(table_name, transformations=[col("$1").as_("A")])
         Utils.check_answer(session.table(table_name), assert_data, sort=False)
@@ -558,7 +613,7 @@ def test_copy_non_csv_basic(
 
 
 @pytest.mark.parametrize(
-    "file_format, file_name, schema, transformations, assert_data",
+    "file_format, file_name, schema, transformations, assert_data, infer_schema",
     [
         (
             "json",
@@ -570,6 +625,7 @@ def test_copy_non_csv_basic(
                 sql_expr("$1:size").as_("size"),
             ],
             [Row("Red", '"Apple"', "Large")],
+            False,
         ),
         (
             "parquet",
@@ -581,6 +637,19 @@ def test_copy_non_csv_basic(
                 builtin("length")(sql_expr("$1:str")).as_("str_length"),
             ],
             [Row(1, '"str1"', 4), Row(2, '"str2"', 4)],
+            True,
+        ),
+        (
+            "parquet",
+            test_file_parquet,
+            "NUM Bigint, STR variant, str_length bigint",
+            [
+                sql_expr("$1:num").cast(IntegerType()).as_("num"),
+                sql_expr("$1:str").as_("str"),
+                builtin("length")(sql_expr("$1:str")).as_("str_length"),
+            ],
+            [Row(1, '"str1"', 4), Row(2, '"str2"', 4)],
+            False,
         ),
         (
             "avro",
@@ -592,6 +661,19 @@ def test_copy_non_csv_basic(
                 builtin("length")(sql_expr("$1:str")).as_("str_length"),
             ],
             [Row(1, '"str1"', 4), Row(2, '"str2"', 4)],
+            True,
+        ),
+        (
+            "avro",
+            test_file_avro,
+            "NUM Bigint, STR variant, str_length bigint",
+            [
+                sql_expr("$1:num").cast(IntegerType()).as_("num"),
+                sql_expr("$1:str").as_("str"),
+                builtin("length")(sql_expr("$1:str")).as_("str_length"),
+            ],
+            [Row(1, '"str1"', 4), Row(2, '"str2"', 4)],
+            False,
         ),
         (
             "orc",
@@ -603,6 +685,19 @@ def test_copy_non_csv_basic(
                 builtin("length")(sql_expr("$1:str")).as_("str_length"),
             ],
             [Row(1, '"str1"', 4), Row(2, '"str2"', 4)],
+            True,
+        ),
+        (
+            "orc",
+            test_file_orc,
+            "NUM Bigint, STR variant, str_length bigint",
+            [
+                sql_expr("$1:num").cast(IntegerType()).as_("num"),
+                sql_expr("$1:str").as_("str"),
+                builtin("length")(sql_expr("$1:str")).as_("str_length"),
+            ],
+            [Row(1, '"str1"', 4), Row(2, '"str2"', 4)],
+            False,
         ),
         (
             "xml",
@@ -618,6 +713,7 @@ def test_copy_non_csv_basic(
                 ).as_("str_length"),
             ],
             [Row(1, '"str1"', 4), Row(2, '"str2"', 4)],
+            False,
         ),
     ],
 )
@@ -629,12 +725,15 @@ def test_copy_non_csv_transformation(
     schema,
     transformations,
     assert_data,
+    infer_schema,
 ):
     test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, schema)
     try:
-        df = create_df_for_file_format(session, file_format, test_file_on_stage)
+        df = create_df_for_file_format(
+            session, file_format, test_file_on_stage, infer_schema
+        )
         df.copy_into_table(table_name, transformations=transformations)
         Utils.check_answer(session.table(table_name), assert_data, sort=False)
 
@@ -658,25 +757,145 @@ def test_copy_non_csv_transformation(
 
 
 @pytest.mark.parametrize(
-    "file_format, file_name",
+    "file_format, file_name, assert_data",
     [
-        ("json", test_file_json),
-        ("parquet", test_file_parquet),
-        ("avro", test_file_avro),
-        ("orc", test_file_orc),
-        ("xml", test_file_xml),
+        (
+            "parquet",
+            test_file_parquet,
+            [Row("str1", 1), Row("str2", 2)],
+        ),
+        (
+            "parquet",
+            test_file_all_data_types_parquet,
+            [
+                Row(
+                    TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
+                    TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
+                    F=1.2,
+                    V='{"key":"value"}',
+                    C="a",
+                    I=1,
+                    T=datetime.time(11, 11, 11),
+                    D=datetime.date(2022, 4, 1),
+                    N=Decimal("10.123456"),
+                    S="string",
+                )
+            ],
+        ),
+        (
+            "parquet",
+            test_file_with_special_characters_parquet,
+            [
+                Row(
+                    4.082620632952961,
+                    "mstephenson@fernandez.com",
+                    34.49726772511229,
+                    "Violet",
+                    12.655651149166752,
+                    "835 Frank Tunnel\nWrightmouth, MI 82180-9605",
+                    39.57766801952616,
+                    587.9510539684005,
+                ),
+                Row(
+                    2.66403418213262,
+                    "hduke@hotmail.com",
+                    31.92627202636016,
+                    "DarkGreen",
+                    11.109460728682564,
+                    "4547 Archer Common\nDiazchester, CA 06566-8576",
+                    37.268958868297744,
+                    392.2049334443264,
+                ),
+                Row(
+                    4.104543202376424,
+                    "pallen@yahoo.com",
+                    33.000914755642675,
+                    "Bisque",
+                    11.330278057777512,
+                    "24645 Valerie Unions Suite 582\nCobbborough, DC 99414-7564",
+                    37.11059744212085,
+                    487.54750486747207,
+                ),
+                Row(
+                    3.120178782748092,
+                    "riverarebecca@gmail.com",
+                    34.30555662975554,
+                    "SaddleBrown",
+                    13.717513665142508,
+                    "1414 David Throughway\nPort Jason, OH 22070-1220",
+                    36.72128267790313,
+                    581.8523440352178,
+                ),
+                Row(
+                    4.446308318351435,
+                    "mstephens@davidson-herman.com",
+                    33.33067252364639,
+                    "MediumAquaMarine",
+                    12.795188551078114,
+                    "14023 Rodriguez Passage\nPort Jacobville, PR 37242-1057",
+                    37.53665330059473,
+                    599.4060920457634,
+                ),
+            ],
+        ),
+        (
+            "avro",
+            test_file_avro,
+            [Row("str1", 1), Row("str2", 2)],
+        ),
+        (
+            "orc",
+            test_file_orc,
+            [Row("str1", 1), Row("str2", 2)],
+        ),
     ],
 )
-def test_copy_non_csv_negative_test(session, tmp_stage_name1, file_format, file_name):
+def test_copy_non_csv_auto_transformation(
+    session,
+    tmp_stage_name1,
+    file_format,
+    file_name,
+    assert_data,
+):
     test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    df = create_df_for_file_format(session, file_format, test_file_on_stage)
-    with pytest.raises(SnowparkDataframeReaderException) as exec_info:
+    try:
+        df = create_df_for_file_format(session, file_format, test_file_on_stage, True)
         df.copy_into_table(table_name)
-    assert (
-        f"Cannot create the target table {table_name} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()"
-        in str(exec_info)
+        Utils.check_answer(session.table(table_name).limit(5), assert_data, sort=False)
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "file_format, file_name, infer_schema",
+    [
+        ("json", test_file_json, False),
+        ("parquet", test_file_parquet, True),
+        ("parquet", test_file_parquet, False),
+        ("avro", test_file_avro, True),
+        ("avro", test_file_avro, False),
+        ("orc", test_file_orc, True),
+        ("orc", test_file_orc, False),
+        ("xml", test_file_xml, False),
+    ],
+)
+def test_copy_non_csv_negative_test(
+    session, tmp_stage_name1, file_format, file_name, infer_schema
+):
+    test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = create_df_for_file_format(
+        session, file_format, test_file_on_stage, infer_schema
     )
+    # For parquet, avro, and orc, this now works
+    if file_format in ("json", "xml") or not infer_schema:
+        with pytest.raises(SnowparkDataframeReaderException) as exec_info:
+            df.copy_into_table(table_name)
+        assert (
+            f"Cannot create the target table {table_name} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()"
+            in str(exec_info)
+        )
 
     with pytest.raises(SnowparkDataframeReaderException) as exec_info:
         df.copy_into_table(table_name, transformations=[col("$1").as_("A")])
