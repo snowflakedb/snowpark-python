@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
 
@@ -216,6 +217,10 @@ class DataFrameReader:
         self._cur_options = {}
         self._file_path = None
         self._file_type = None
+        # Infer schema information
+        self._infer_schema = False
+        self._infer_schema_transformations = None
+        self._infer_schema_target_columns = None
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
@@ -362,16 +367,16 @@ class DataFrameReader:
             if k not in ("PATTERN", "INFER_SCHEMA") and k not in COPY_OPTIONS:
                 format_type_options[k] = v
 
-        infer_schema = (
+        self._infer_schema = (
             self._cur_options.get("INFER_SCHEMA", True)
             if format in INFER_SCHEMA_FORMAT_TYPES
             else False
         )
 
         schema = [Attribute('"$1"', VariantType())]
-        transformations = None
+        read_file_transformations = None
         schema_to_cast = None
-        if infer_schema:
+        if self._infer_schema:
             temp_file_format_name = (
                 self._session.get_fully_qualified_current_schema()
                 + "."
@@ -420,8 +425,13 @@ class DataFrameReader:
                     )
                     identifier = f"$1:{name}::{r[1]}"
                     schema_to_cast.append((identifier, r[0]))
-                    transformations.append(identifier)
+                    transformations.append(sql_expr(identifier))
                 schema = new_schema
+                self._user_schema = StructType._from_attributes(schema)
+                # If the user sets transformations, we should not override this
+                self._infer_schema_transformations = transformations
+                self._infer_schema_target_columns = self._user_schema.names
+                read_file_transformations = [t._expression.sql for t in transformations]
             finally:
                 # Clean up the file format we created
                 self._session._conn.run_query(
@@ -437,7 +447,7 @@ class DataFrameReader:
                 self._session.get_fully_qualified_current_schema(),
                 schema,
                 schema_to_cast=schema_to_cast,
-                transformations=transformations,
+                transformations=read_file_transformations,
             ),
         )
         df._reader = self
