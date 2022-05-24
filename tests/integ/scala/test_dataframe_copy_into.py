@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
+from decimal import Decimal
 
 import pytest
 
@@ -29,6 +31,8 @@ test_file_csv_quotes = "testCSVquotes.csv"
 test_file_json = "testJson.json"
 test_file_avro = "test.avro"
 test_file_parquet = "test.parquet"
+test_file_all_data_types_parquet = "test_all_data_types.parquet"
+test_file_with_special_characters_parquet = "test_file_with_special_characters.parquet"
 test_file_orc = "test.orc"
 test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
@@ -125,6 +129,18 @@ def upload_files(session, tmp_stage_name1, tmp_stage_name2, resources_path):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_parquet,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_all_data_types_parquet,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_with_special_characters_parquet,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -666,6 +682,80 @@ def test_copy_non_csv_transformation(
             [Row("str1", 1), Row("str2", 2)],
         ),
         (
+            "parquet",
+            test_file_all_data_types_parquet,
+            [
+                Row(
+                    TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
+                    TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
+                    F=1.2,
+                    V='{"key":"value"}',
+                    C="a",
+                    I=1,
+                    T=datetime.time(11, 11, 11),
+                    D=datetime.date(2022, 4, 1),
+                    N=Decimal("10.123456"),
+                    S="string",
+                )
+            ],
+        ),
+        (
+            "parquet",
+            test_file_with_special_characters_parquet,
+            [
+                Row(
+                    4.082620632952961,
+                    "mstephenson@fernandez.com",
+                    34.49726772511229,
+                    "Violet",
+                    12.655651149166752,
+                    "835 Frank Tunnel\nWrightmouth, MI 82180-9605",
+                    39.57766801952616,
+                    587.9510539684005,
+                ),
+                Row(
+                    2.66403418213262,
+                    "hduke@hotmail.com",
+                    31.92627202636016,
+                    "DarkGreen",
+                    11.109460728682564,
+                    "4547 Archer Common\nDiazchester, CA 06566-8576",
+                    37.268958868297744,
+                    392.2049334443264,
+                ),
+                Row(
+                    4.104543202376424,
+                    "pallen@yahoo.com",
+                    33.000914755642675,
+                    "Bisque",
+                    11.330278057777512,
+                    "24645 Valerie Unions Suite 582\nCobbborough, DC 99414-7564",
+                    37.11059744212085,
+                    487.54750486747207,
+                ),
+                Row(
+                    3.120178782748092,
+                    "riverarebecca@gmail.com",
+                    34.30555662975554,
+                    "SaddleBrown",
+                    13.717513665142508,
+                    "1414 David Throughway\nPort Jason, OH 22070-1220",
+                    36.72128267790313,
+                    581.8523440352178,
+                ),
+                Row(
+                    4.446308318351435,
+                    "mstephens@davidson-herman.com",
+                    33.33067252364639,
+                    "MediumAquaMarine",
+                    12.795188551078114,
+                    "14023 Rodriguez Passage\nPort Jacobville, PR 37242-1057",
+                    37.53665330059473,
+                    599.4060920457634,
+                ),
+            ],
+        ),
+        (
             "avro",
             test_file_avro,
             [Row("str1", 1), Row("str2", 2)],
@@ -689,7 +779,7 @@ def test_copy_non_csv_auto_transformation(
     try:
         df = create_df_for_file_format(session, file_format, test_file_on_stage)
         df.copy_into_table(table_name)
-        Utils.check_answer(session.table(table_name), assert_data, sort=False)
+        Utils.check_answer(session.table(table_name).limit(5), assert_data, sort=False)
     finally:
         Utils.drop_table(session, table_name)
 
