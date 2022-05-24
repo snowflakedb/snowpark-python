@@ -629,9 +629,7 @@ class Analyzer:
                     if logical_plan.transformations
                     else None,
                     user_schema=logical_plan.user_schema,
-                    create_table_from_infer_schema=logical_plan.cur_options.get(
-                        "CREATE_TABLE_FROM_INFER_SCHEMA", False
-                    ),
+                    create_table_from_infer_schema=logical_plan.create_table_from_infer_schema,
                 )
             elif logical_plan.file_format and logical_plan.file_format.upper() == "CSV":
                 if not logical_plan.user_schema:

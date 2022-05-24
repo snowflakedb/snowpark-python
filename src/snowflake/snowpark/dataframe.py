@@ -1938,16 +1938,11 @@ class DataFrame:
         )
         # We only want to set this if the user does not have any target columns or transformations set
         # Otherwise we operate in the mode where we don't know the schema
-        if self._reader._cur_options.get("INFER_SCHEMA") and not (
-            transformations or target_columns
-        ):
-            transformations = self._reader._cur_options.get(
-                "INFER_SCHEMA_TRANSFORMATIONS"
-            )
-            target_columns = self._reader._cur_options.get(
-                "INFER_SCHEMA_TARGET_COLUMNS"
-            )
-            self._reader._cur_options["CREATE_TABLE_FROM_INFER_SCHEMA"] = True
+        create_table_from_infer_schema = False
+        if self._reader._infer_schema and not (transformations or target_columns):
+            transformations = self._reader._infer_schema_transformations
+            target_columns = self._reader._infer_schema_target_columns
+            create_table_from_infer_schema = True
 
         transformations = (
             [_to_col_if_str(column, "copy_into_table") for column in transformations]
@@ -1986,6 +1981,7 @@ class DataFrame:
                 validation_mode=validation_mode,
                 user_schema=self._reader._user_schema,
                 cur_options=self._reader._cur_options,
+                create_table_from_infer_schema=create_table_from_infer_schema,
             ),
         )._internal_collect_with_tag()
 
