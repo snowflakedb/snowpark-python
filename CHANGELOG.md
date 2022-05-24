@@ -3,22 +3,31 @@
 
 ### New Features:
 - Added support for user-defined table functions (UDTFs).
--
-
-### Breaking Changes:
-- Expired deprecations:
-  - Removed the following APIs that were deprecated in 0.4.0: `DataFrame.groupByGroupingSets()`, `DataFrame.naturalJoin()`, `DataFrame.joinTableFunction`, `DataFrame.withColumns()`, `Session.getImports()`, `Session.addImport()`, `Session.removeImport()`, `Session.clearImports()`, `Session.getSessionStage()`, `Session.getDefaultDatabase()`, `Session.getDefaultSchema()`, `Session.getCurrentDatabase()`, `Session.getCurrentSchema()`, `Session.getFullyQualifiedCurrentSchema()`.
+  - Use function `snowflake.snowpark.functions.udtf()` to register a UDTF, or use it as a decorator to register the UDTF.
+  - Alternatively, use `Session.udtf.register()` to register a UDTF.
+  - Use `Session.udtf.register_from_file()` to register a UDTF from a Python file.
 
 ### Improvements:
-- Added support for creating an empty `DataFrame` with a specific schema using the `Session.create_dataframe()` method.
-- Changed the logging level from `INFO` to `DEBUG` for several logs (e.g., the executed query) when evaluating a dataframe.
-- Improved the error message when failing to create a UDF due to pickle errors.
+- Updated APIs to query a table function, including both Snowflake built-in table functions and UDTFs.
+  - Use function `snowflake.snowpark.functions.table_function()` to create a callable representing a table function and use it to call the table function in a query.
+  - Alternatively, use function `snowflake.snowpark.functions.call_table_function()` to call a table function.
+  - Added support for `over` clause that specify `partition by` and `order by` when lateral joining a table function.
+  - Updated `Session.table_function()` and `DataFrame.join_table_function()` to accept `TableFunctionCall` instances.
+  - Deprecated `Session.flatten()` and `DataFrame.flatten()`.
+- Ensured that UDFs and UDTFs will be thread-safe by adding a lock to the function when it is called for the first time per thread.
+- Allowed using an empty list on UDF-level imports/packages (the argument `imports`/`packages` of `functions.udf()` and `functions.sproc()`) to indicate no import/package is used for this UDF or stored procedure.
+- Added a Snowpark-specific exception class for SQL errors, to replace the previous `ProgrammingError` from the Python connector.
+- Improved `__repr__` implementation of data types in `types.py` and removed the unused `type_name` property.
+- Improved the error message for pickling errors happening during UDF creation.
+- Included the query ID when logging the failed query.
 
 ### Bug Fixes:
-- Removed pandas hard dependencies in the `Session.create_dataframe()` method.
+- Fixed a bug that non-integral data (e.g., timestamps) was occasionally converted to integer when calling `DataFrame.to_pandas()`.
+- Fixed a bug that `DataFrameReader.parquet()` failed to read a parquet file when its column contains spaces.
+- Fixed a bug that `DataFrame.copy_into_table()` failed when the dataframe is created by reading a file with inferred schemas.
 
 ### Dependency Updates:
-- Added `typing-extension` as a new dependency with the version >= `4.1.0`.
+- Restricted the version of `cloudpickle` <= `2.0.0`.
 
 
 ## 0.6.0 (2022-04-27)
