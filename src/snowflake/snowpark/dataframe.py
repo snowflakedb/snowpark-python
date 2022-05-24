@@ -1939,7 +1939,7 @@ class DataFrame:
         # We only want to set this if the user does not have any target columns or transformations set
         # Otherwise we operate in the mode where we don't know the schema
         create_table_from_infer_schema = False
-        if self._reader._inferred_schema and not (transformations or target_columns):
+        if self._reader._infer_schema and not (transformations or target_columns):
             transformations = self._reader._infer_schema_transformations
             target_columns = self._reader._infer_schema_target_columns
             create_table_from_infer_schema = True

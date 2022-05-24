@@ -218,7 +218,7 @@ class DataFrameReader:
         self._file_path = None
         self._file_type = None
         # Infer schema information
-        self._inferred_schema = False
+        self._infer_schema = False
         self._infer_schema_transformations = None
         self._infer_schema_target_columns = None
 
