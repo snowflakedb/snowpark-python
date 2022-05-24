@@ -16,6 +16,8 @@ CONNECTOR_DEPENDENCY_VERSION = "2.7.4"
 VERSION = ()
 with open(os.path.join(SNOWPARK_SRC_DIR, "version.py"), encoding="utf-8") as f:
     exec(f.read())
+if not VERSION:
+    raise ValueError("version can't be read")
 version = ".".join([str(v) for v in VERSION if v is not None])
 
 setup(
