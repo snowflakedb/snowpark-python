@@ -1,4 +1,39 @@
 # Release History
+## 0.7.0 (2022-05-25)
+
+### New Features:
+- Added support for user-defined table functions (UDTFs).
+  - Use function `snowflake.snowpark.functions.udtf()` to register a UDTF, or use it as a decorator to register the UDTF.
+  - Alternatively, use `Session.udtf.register()` to register a UDTF.
+  - Use `Session.udtf.register_from_file()` to register a UDTF from a Python file.
+- Updated APIs to query a table function, including both Snowflake built-in table functions and UDTFs.
+  - Use function `snowflake.snowpark.functions.table_function()` to create a callable representing a table function and use it to call the table function in a query.
+  - Alternatively, use function `snowflake.snowpark.functions.call_table_function()` to call a table function.
+  - Added support for `over` clause that specifies `partition by` and `order by` when lateral joining a table function.
+  - Updated `Session.table_function()` and `DataFrame.join_table_function()` to accept `TableFunctionCall` instances.
+
+### Breaking Changes:
+- Allowed to use an empty list on UDF-level imports/packages (the argument `imports`/`packages` of `functions.udf()` and `functions.sproc()`) to indicate no import/package is used for this UDF or stored procedure. Previously an empty list means using session-level imports/packages.
+- Improved `__repr__` implementation of data types in `types.py` and removed the unused `type_name` property.
+- Added a Snowpark-specific exception class for SQL errors, to replace the previous `ProgrammingError` from the Python connector.
+
+### Improvements:
+- Added a lock to UDFs and UDTFs when it is called for the first time per thread.
+- Improved the error message for pickling errors happening during UDF creation.
+- Included the query ID when logging the failed query.
+
+### Bug Fixes:
+- Fixed a bug that non-integral data (e.g., timestamps) was occasionally converted to integer when calling `DataFrame.to_pandas()`.
+- Fixed a bug that `DataFrameReader.parquet()` failed to read a parquet file when its column contains spaces.
+- Fixed a bug that `DataFrame.copy_into_table()` failed when the dataframe is created by reading a file with inferred schemas.
+
+### Deprecations
+`Session.flatten()` and `DataFrame.flatten()`.
+
+### Dependency Updates:
+- Restricted the version of `cloudpickle` <= `2.0.0`.
+
+
 ## 0.6.0 (2022-04-27)
 
 ### New Features:
