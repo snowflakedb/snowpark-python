@@ -130,6 +130,8 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
         return "udf"
     if object_type == TempObjectType.PROCEDURE:
         return "stored proc"
+    if object_type == TempObjectType.TABLE_FUNCTION:
+        return "table function"
     raise ValueError(f"Expect FUNCTION of PROCEDURE, but get {object_type}")
 
 
@@ -318,7 +320,7 @@ def cleanup_failed_permanent_registration(
                 "Finished removing Snowpark uploaded file: %s",
                 upload_file_stage_location,
             )
-        except BaseException as clean_ex:
+        except Exception as clean_ex:
             logger.warning("Failed to clean uploaded file: %s", clean_ex)
 
 

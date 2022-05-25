@@ -712,9 +712,9 @@ class UDFRegistration:
                 replace=replace,
                 inline_python_code=code,
             )
-        # an exception might happen during registering a stored procedure
+        # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
-        # then for a permanent stored procedure, we should delete the uploaded
+        # then for a permanent udf, we should delete the uploaded
         # python file and raise the exception
         except ProgrammingError as pe:
             raised = True
