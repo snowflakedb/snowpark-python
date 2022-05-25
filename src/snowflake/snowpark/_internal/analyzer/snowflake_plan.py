@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
+import sys
 import uuid
 from functools import cached_property, reduce
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -80,8 +81,12 @@ class SnowflakePlan(LogicalPlan):
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
+                    tb = sys.exc_info()[2]
                     if "unexpected 'as'" in e.msg.lower():
-                        raise SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS() from e
+                        ne = (
+                            SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS()
+                        )
+                        raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
                         match = (
                             SnowflakePlan.Decorator.__wrap_exception_regex_match.match(
@@ -89,9 +94,10 @@ class SnowflakePlan(LogicalPlan):
                             )
                         )
                         if not match:
-                            raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                            ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                                 e
-                            ) from e
+                            )
+                            raise ne.with_traceback(tb) from None
                         col = match.group(1)
                         children = [
                             arg for arg in args if isinstance(arg, SnowflakePlan)
@@ -110,9 +116,10 @@ class SnowflakePlan(LogicalPlan):
                             orig_col_name = (
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
                             )
-                            raise SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
+                            ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
                                 orig_col_name
-                            ) from e
+                            )
+                            raise ne.with_traceback(tb) from None
                         elif (
                             len(
                                 [
@@ -126,17 +133,20 @@ class SnowflakePlan(LogicalPlan):
                             )
                             > 1
                         ):
-                            raise SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
+                            ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
                                 col, col
-                            ) from e
+                            )
+                            raise ne.with_traceback(tb) from None
                         else:
-                            raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                            ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                                 e
-                            ) from e
+                            )
+                            raise ne.with_traceback(tb) from None
                     else:
-                        raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                             e
-                        ) from e
+                        )
+                        raise ne.with_traceback(tb) from None
 
             return wrap
 

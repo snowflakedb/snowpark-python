@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """User-defined functions (UDFs) in Snowpark."""
+import sys
 from types import ModuleType
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
@@ -711,15 +712,17 @@ class UDFRegistration:
                 replace=replace,
                 inline_python_code=code,
             )
-        # an exception might happen during registering a stored procedure
+        # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
-        # then for a permanent stored procedure, we should delete the uploaded
+        # then for a permanent udf, we should delete the uploaded
         # python file and raise the exception
         except ProgrammingError as pe:
             raised = True
-            raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+            tb = sys.exc_info()[2]
+            ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                 pe
-            ) from pe
+            )
+            raise ne.with_traceback(tb) from None
         except BaseException:
             raised = True
             raise

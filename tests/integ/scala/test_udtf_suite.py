@@ -10,7 +10,10 @@ from typing import Dict, Iterable, List, Tuple
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark.exceptions import SnowparkInvalidObjectNameException
+from snowflake.snowpark.exceptions import (
+    SnowparkInvalidObjectNameException,
+    SnowparkSQLException,
+)
 from snowflake.snowpark.functions import col, lit, udtf
 from snowflake.snowpark.types import (
     IntegerType,
@@ -471,3 +474,22 @@ def test_output_variant_array_object(session):
         )
     finally:
         Utils.drop_function(session, f"{ReturnBasicTypes.name}()")
+
+
+def test_negative_non_exist_package(session):
+    func_name = Utils.random_function_name()
+
+    class MyWordCount:
+        def process(self, s1: str) -> Iterable[Tuple[str, int]]:
+            counter = Counter(s1.split())
+            return counter.items()
+
+    with pytest.raises(SnowparkSQLException) as exec_info:
+        session.udtf.register(
+            MyWordCount,
+            ["word", "count"],
+            name=func_name,
+            replace=True,
+            imports=["@non_exist_stage/a"],
+        )
+    assert "does not exist or not authorized" in exec_info.value.message

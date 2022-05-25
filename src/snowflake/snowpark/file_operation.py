@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import os
+import sys
 from typing import List, NamedTuple, Optional
 
 import snowflake.snowpark
@@ -103,9 +104,11 @@ class FileOperation:
                 result_data = cursor.fetchall()
                 put_result = result_set_to_rows(result_data, result_meta)
             except ProgrammingError as pe:
-                raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                tb = sys.exc_info()[2]
+                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                     pe
-                ) from pe
+                )
+                raise ne.with_traceback(tb) from None
         else:
             plan = self._session._plan_builder.file_operation_plan(
                 "put",
@@ -178,9 +181,11 @@ class FileOperation:
                     result_data = cursor.fetchall()
                     get_result = result_set_to_rows(result_data, result_meta)
                 except ProgrammingError as pe:
-                    raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    tb = sys.exc_info()[2]
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                         pe
-                    ) from pe
+                    )
+                    raise ne.with_traceback(tb) from None
             else:
                 plan = self._session._plan_builder.file_operation_plan(
                     "get",
