@@ -10,7 +10,7 @@ from setuptools import setup
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-CONNECTOR_DEPENDENCY_VERSION = "2.7.4"
+CONNECTOR_DEPENDENCY_VERSION = "2.7.2"
 
 # read the version
 VERSION = ()
@@ -40,7 +40,7 @@ setup(
         "setuptools>=40.6.0",
         "wheel",
         "cloudpickle>=1.6.0,<=2.0.0",
-        f"snowflake-connector-python>={CONNECTOR_DEPENDENCY_VERSION}",
+        f"snowflake-connector-python=={CONNECTOR_DEPENDENCY_VERSION}",
         "typing-extensions>=4.1.0",
     ],
     namespace_packages=["snowflake"],
@@ -58,10 +58,10 @@ setup(
     },
     extras_require={
         "pandas": [
-            f"snowflake-connector-python[pandas]>={CONNECTOR_DEPENDENCY_VERSION}",
+            f"snowflake-connector-python[pandas]=={CONNECTOR_DEPENDENCY_VERSION}",
         ],
         "secure-local-storage": [
-            f"snowflake-connector-python[secure-local-storage]>={CONNECTOR_DEPENDENCY_VERSION}",
+            f"snowflake-connector-python[secure-local-storage]=={CONNECTOR_DEPENDENCY_VERSION}",
         ],
         "development": [
             "pytest",
