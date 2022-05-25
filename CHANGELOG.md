@@ -13,7 +13,7 @@
   - Updated `Session.table_function()` and `DataFrame.join_table_function()` to accept `TableFunctionCall` instances.
 
 ### Breaking Changes:
-- Allow to use an empty list on UDF-level imports/packages (the argument `imports`/`packages` of `functions.udf()` and `functions.sproc()`) to indicate no import/package is used for this UDF or stored procedure. Previously an empty list means using session-level imports/packages.
+- Allowed to use an empty list on UDF-level imports/packages (the argument `imports`/`packages` of `functions.udf()` and `functions.sproc()`) to indicate no import/package is used for this UDF or stored procedure. Previously an empty list means using session-level imports/packages.
 - Improved `__repr__` implementation of data types in `types.py` and removed the unused `type_name` property.
 - Added a Snowpark-specific exception class for SQL errors, to replace the previous `ProgrammingError` from the Python connector.
 
