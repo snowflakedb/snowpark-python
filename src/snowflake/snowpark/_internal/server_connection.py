@@ -4,6 +4,7 @@
 #
 import functools
 import os
+import sys
 import time
 from logging import getLogger
 from typing import IO, Any, Dict, Iterator, List, Optional, Set, Union
@@ -224,9 +225,11 @@ class ServerConnection:
                     open(path, "rb"), f"{target_path}/{file_name}"
                 )
             except ProgrammingError as pe:
-                raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                tb = sys.exc_info()[2]
+                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                     pe
-                ) from pe
+                )
+                raise ne.with_traceback(tb) from None
         else:
             uri = normalize_local_file(path)
             return self.run_query(
@@ -264,9 +267,11 @@ class ServerConnection:
                         input_stream, f"{target_path}/{dest_filename}"
                     )
                 except ProgrammingError as pe:
-                    raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    tb = sys.exc_info()[2]
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                         pe
-                    ) from pe
+                    )
+                    raise ne.with_traceback(tb) from None
             else:
                 return self.run_query(
                     _build_put_statement(
