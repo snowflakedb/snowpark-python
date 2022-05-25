@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """Stored procedures in Snowpark."""
+import sys
 from types import ModuleType
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 
@@ -558,9 +559,11 @@ class StoredProcedureRegistration:
         # python file and raise the exception
         except ProgrammingError as pe:
             raised = True
-            raise SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+            tb = sys.exc_info()[2]
+            ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                 pe
-            ) from pe
+            )
+            raise ne.with_traceback(tb) from None
         except BaseException:
             raised = True
             raise

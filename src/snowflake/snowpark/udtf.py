@@ -4,6 +4,7 @@
 #
 """User-defined table functions (UDTFs) in Snowpark."""
 import collections.abc
+import sys
 from types import ModuleType
 from typing import (
     Callable,
@@ -19,7 +20,9 @@ from typing import (
 )
 
 import snowflake.snowpark
+from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal import type_utils
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     python_type_str_to_object,
@@ -594,6 +597,7 @@ class UDTFRegistration:
             False,
         )
 
+        raised = False
         try:
             create_python_udf_or_sp(
                 session=self._session,
@@ -608,11 +612,25 @@ class UDTFRegistration:
                 replace=replace,
                 inline_python_code=code,
             )
-        except BaseException:
-            cleanup_failed_permanent_registration(
-                self._session, upload_file_stage_location, stage_location
+        # an exception might happen during registering a udtf
+        # (e.g., a dependency might not be found on the stage),
+        # then for a permanent udtf, we should delete the uploaded
+        # python file and raise the exception
+        except ProgrammingError as pe:
+            raised = True
+            tb = sys.exc_info()[2]
+            ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                pe
             )
+            raise ne.with_traceback(tb) from None
+        except BaseException:
+            raised = True
             raise
+        finally:
+            if raised:
+                cleanup_failed_permanent_registration(
+                    self._session, upload_file_stage_location, stage_location
+                )
 
         return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name)
 
