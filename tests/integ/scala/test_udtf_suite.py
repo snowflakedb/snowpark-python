@@ -492,7 +492,4 @@ def test_negative_non_exist_package(session):
             replace=True,
             imports=["@non_exist_stage/a"],
         )
-    assert (
-        exec_info.value.message
-        == "002003 (02000): SQL compilation error:\nStage 'TESTDB_YIXIE.PUBLIC.NON_EXIST_STAGE' does not exist or not authorized."
-    )
+    assert "does not exist or not authorized" in exec_info.value.message
