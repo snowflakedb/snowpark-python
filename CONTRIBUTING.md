@@ -16,7 +16,7 @@ Please [open a new issue](https://github.com/snowflakedb/snowpark-python/issues/
 ## I'd like to contribute the bug fix or feature myself
 
 We encourage everyone to first open an issue to discuss any feature work or bug fixes with one of the maintainers.
-This should help guide contributors through potential pitfalls.
+The following should help guide contributors through potential pitfalls.
 
 ### Setup a development environment
 
@@ -28,20 +28,13 @@ cd snowpark-python
 ```
 
 #### Install the library in edit mode and install its dependencies
-- Activate the Python virtual environment that you created.
+- Create and activate a new Python virtual environment with any Python version that we support.
 - Go to the cloned repository root folder.
 - Install the Snowpark API in edit/development mode.
-
-  - For Linux and Mac:
     ```bash
     python -m pip install -e ".[development, pandas]"
     ```
-
-  - For Windows:
-    ```bash
-    python -m pip install -e '.[development, pandas]'
-    ```
-  The `-e` tells `pip` to install the library in edit, or development mode.
+  The `-e` tells `pip` to install the library in [edit, or development mode](https://pip.pypa.io/en/stable/cli/pip_install/#editable-installs).
 
 #### Setup your IDE
 You can use Pycharm, VS Code, or any other IDEs.
