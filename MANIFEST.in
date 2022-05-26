@@ -1,0 +1,11 @@
+include *.md
+include *.rst
+include LICENSE.txt
+include NOTICE
+recursive-include src/snowflake/snowpark py.typed *.py *.pyx
+
+exclude .pre-commit-config.yaml
+exclude license_header.txt
+exclude tox.ini
+
+prune tests
