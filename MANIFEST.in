@@ -1,10 +1,11 @@
-include *.md
-include *.rst
+include README.md
+include CHANGELOG.md
 include LICENSE.txt
 include NOTICE
-recursive-include src/snowflake/snowpark py.typed *.py *.pyx
+recursive-include src/snowflake/snowpark py.typed *.py
 
 exclude .pre-commit-config.yaml
+exclude CONTRIBUTING.md
 exclude license_header.txt
 exclude tox.ini
 
