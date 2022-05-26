@@ -20,7 +20,7 @@ To have the best experience when using it with UDFs, [creating a local conda env
 ```bash
 pip install snowflake-snowpark-python
 ```
-Optionally, you may want to install pandas as well to the same environment if you use pandas related features:
+Optionally, you need to install pandas in the same environment if you want to use pandas-related features:
 ```bash
 pip install snowflake-snowpark-python[pandas]
 ```
@@ -43,13 +43,13 @@ session = Session.builder.configs(connection_parameters).create()
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 df = df.filter(df.a > 1)
 df.show()
-pandas_df = df.to_pandas()  # this requires pandas installed in the python environment
+pandas_df = df.to_pandas()  # this requires pandas installed in the Python environment
 result = df.collect()
 ```
 
 ## Samples
 The [Developer Guide][developer guide] and [API references][api references] have basic sample code.
-[Snowflake-Labs][snowflake lab sample code] has sophisticated demos.
+[Snowflake-Labs][snowflake lab sample code] has more curated demos.
 
 ## Logging
 Configure logging level for `snowflake.snowpark` for Snowpark Python API logs.
