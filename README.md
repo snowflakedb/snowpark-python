@@ -63,6 +63,9 @@ for logger_name in ('snowflake.snowpark', 'snowflake.connector'):
 ## Samples
 The [Developer Guide][developer guide] and [API references][api references] have sample code.
 
+## Contributing
+Please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
+
 [add other sample code repo links]: # (Developer advocacy is open-sourcing a repo that has excellent sample code. The link will be added here.)
 
 [developer guide]: https://docs.snowflake.com/en/LIMITEDACCESS/snowpark-python.html
