@@ -20,10 +20,17 @@ if not VERSION:
     raise ValueError("version can't be read")
 version = ".".join([str(v) for v in VERSION if v is not None])
 
+with open("README.md") as f:
+    readme = f.read()
+with open("CHANGELOG.md") as f:
+    changelog = f.read()
+
 setup(
     name="snowflake-snowpark-python",
     version=version,
     description="Snowflake Snowpark for Python",
+    long_description=readme + "\n\n" + changelog,
+    long_description_content_type="text/markdown",
     author="Snowflake, Inc",
     author_email="triage-snowpark-python-api-dl@snowflake.com",
     license="Apache License, Version 2.0",
