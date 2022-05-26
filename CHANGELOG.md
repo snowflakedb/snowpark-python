@@ -4,7 +4,7 @@
 ### New Features:
 - Added support for user-defined table functions (UDTFs).
   - Use function `snowflake.snowpark.functions.udtf()` to register a UDTF, or use it as a decorator to register the UDTF.
-  - Alternatively, use `Session.udtf.register()` to register a UDTF.
+    - You can also use `Session.udtf.register()` to register a UDTF.
   - Use `Session.udtf.register_from_file()` to register a UDTF from a Python file.
 - Updated APIs to query a table function, including both Snowflake built-in table functions and UDTFs.
   - Use function `snowflake.snowpark.functions.table_function()` to create a callable representing a table function and use it to call the table function in a query.
@@ -13,19 +13,19 @@
   - Updated `Session.table_function()` and `DataFrame.join_table_function()` to accept `TableFunctionCall` instances.
 
 ### Breaking Changes:
-- Allowed to use an empty list on UDF-level imports/packages (the argument `imports`/`packages` of `functions.udf()` and `functions.sproc()`) to indicate no import/package is used for this UDF or stored procedure. Previously an empty list means using session-level imports/packages.
-- Improved `__repr__` implementation of data types in `types.py` and removed the unused `type_name` property.
-- Added a Snowpark-specific exception class for SQL errors, to replace the previous `ProgrammingError` from the Python connector.
+- Wnen creating a function with `functions.udf()` and `functions.sproc()`, you can now specify an empty list for the `imports` or `packages` argument to indicate that no import or package is used for this UDF or stored procedure. Previously, specifying an empty list meant that the function would use session-level imports or packages.
+- Improved the `__repr__` implementation of data types in `types.py`. The unused `type_name` property has been removed.
+- Added a Snowpark-specific exception class for SQL errors. This replaces the previous `ProgrammingError` from the Python connector.
 
 ### Improvements:
-- Added a lock to UDFs and UDTFs when it is called for the first time per thread.
-- Improved the error message for pickling errors happening during UDF creation.
+- Added a lock to a UDF or UDTF when it is called for the first time per thread.
+- Improved the error message for pickling errors that occurred during UDF creation.
 - Included the query ID when logging the failed query.
 
 ### Bug Fixes:
-- Fixed a bug that non-integral data (e.g., timestamps) was occasionally converted to integer when calling `DataFrame.to_pandas()`.
-- Fixed a bug that `DataFrameReader.parquet()` failed to read a parquet file when its column contains spaces.
-- Fixed a bug that `DataFrame.copy_into_table()` failed when the dataframe is created by reading a file with inferred schemas.
+- Fixed a bug in which non-integral data (such as timestamps) was occasionally converted to integer when calling `DataFrame.to_pandas()`.
+- Fixed a bug in which `DataFrameReader.parquet()` failed to read a parquet file when its column contained spaces.
+- Fixed a bug in which `DataFrame.copy_into_table()` failed when the dataframe is created by reading a file with inferred schemas.
 
 ### Deprecations
 `Session.flatten()` and `DataFrame.flatten()`.
