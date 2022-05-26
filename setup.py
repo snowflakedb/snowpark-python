@@ -20,9 +20,9 @@ if not VERSION:
     raise ValueError("version can't be read")
 version = ".".join([str(v) for v in VERSION if v is not None])
 
-with open("README.md") as f:
+with open(os.path.join(THIS_DIR, "README.md"), encoding="utf-8") as f:
     readme = f.read()
-with open("CHANGELOG.md") as f:
+with open(os.path.join(THIS_DIR, "CHANGELOG.md"), encoding="utf-8") as f:
     changelog = f.read()
 
 setup(
