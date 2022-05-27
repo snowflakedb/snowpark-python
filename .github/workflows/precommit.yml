@@ -57,6 +57,8 @@ jobs:
       - name: Install conda
         uses: conda-incubator/setup-miniconda@v2
         with:
+          auto-activate-base: true
+          activate-environment: ""
           auto-update-conda: true
           python-version: 3.8
       - name: Install snowpark
@@ -96,6 +98,8 @@ jobs:
       - name: Install conda
         uses: conda-incubator/setup-miniconda@v2
         with:
+          auto-activate-base: true
+          activate-environment: ""
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
       - name: Install snowpark
