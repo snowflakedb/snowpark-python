@@ -91,14 +91,9 @@ jobs:
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
-      - name: Create conda env
-        shell: bash
-        run: |
-          conda create --name my_env python=${{ matrix.python-version }}
-          $CONDA/bin/activate my_env
-          conda info         
       - name: Install snowpark
-        run: conda install snowflake-snowpark-python --channel c3i_test2 -n my_env
+        shell: bash -l {0}
+        run: conda install snowflake-snowpark-python --channel c3i_test2 -n test
       - name: Install tox
         run: python -m pip install tox
       - if: ${{ contains('macos', matrix.os.download_name) }}
