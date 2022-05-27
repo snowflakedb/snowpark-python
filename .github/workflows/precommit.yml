@@ -93,7 +93,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Create conda env
         shell: bash
-        run: conda create --name my_env python=${{ matrix.python-version }}
+        run: |
+          conda create --name my_env python=${{ matrix.python-version }}
+          conda activate my_env
       - name: Install snowpark
         run: conda install snowflake-snowpark-python --channel c3i_test2
       - name: Install tox
