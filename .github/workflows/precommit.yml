@@ -54,15 +54,6 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.8
-      - name: Install conda
-        uses: conda-incubator/setup-miniconda@v2
-        with:
-          auto-activate-base: true
-          activate-environment: ""
-          auto-update-conda: true
-          python-version: 3.8
-      - name: Install snowpark
-        run: conda install snowflake-snowpark-python --channel c3i_test2
           
   test:
     name: Test ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
@@ -98,10 +89,11 @@ jobs:
       - name: Install conda
         uses: conda-incubator/setup-miniconda@v2
         with:
-          auto-activate-base: true
-          activate-environment: ""
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+      - name: Create conda env
+        shell: bash
+        run: conda create --name my_env python=${{ matrix.python-version }}
       - name: Install snowpark
         run: conda install snowflake-snowpark-python --channel c3i_test2
       - name: Install tox
