@@ -58,7 +58,7 @@ jobs:
         uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.8
       - name: Install snowpark
         run: conda install snowflake-snowpark-python --channel c3i_test2
           
