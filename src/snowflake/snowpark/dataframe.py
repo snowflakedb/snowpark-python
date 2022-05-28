@@ -97,6 +97,7 @@ from snowflake.snowpark.functions import (
     row_number,
     sql_expr,
     stddev,
+    stddev_pop,
     to_char,
 )
 from snowflake.snowpark.row import Row
@@ -2318,7 +2319,9 @@ class DataFrame:
         """
         return self._na
 
-    def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
+    def describe(
+        self, *cols: Union[str, List[str]], stats: Optional[List[str]] = None
+    ) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
         ``count``, ``mean``, ``stddev``, ``min``, and ``max``. If no columns
@@ -2353,13 +2356,20 @@ class DataFrame:
             if isinstance(field.datatype, (StringType, _NumericType))
         }
 
-        stat_func_dict = {
+        # These are five stats that pyspark's describe() outputs
+        all_stat_func_dict = {
             "count": count,
             "mean": mean,
             "stddev": stddev,
+            "stddev_pop": stddev_pop,
             "min": min_,
             "max": max_,
         }
+        stat_func_dict = (
+            {k: v for k, v in all_stat_func_dict.items() if k in stats}
+            if stats
+            else all_stat_func_dict
+        )
 
         # if no columns should be selected, just return stat names
         if len(numerical_string_col_type_dict) == 0:
