@@ -14,6 +14,10 @@ from threading import RLock
 from types import ModuleType
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
+import random
+import string
+from datetime import datetime
+
 import cloudpickle
 import pkg_resources
 
@@ -821,6 +825,85 @@ class Session:
             name = ".".join(name)
         validate_object_name(name)
         return Table(name, self)
+
+
+    def dataset(self, name: str) -> Table:
+        # print ("pradeep testing")
+        tab = self.table(name)
+        letters = string.ascii_lowercase
+        version = ''.join(random.choice(letters) for i in range(10))
+        now = datetime.now()
+        dt_string = now.strftime("%Y-%m-%d %H:%M:%S")
+        sql_string = "insert into dataset_context values ('" + version + "', '" + dt_string + "', 150);"
+        self.sql(sql_string).collect()
+        tab.dataset_version = version
+        cols = tab.columns
+        for x in range(len(cols)):
+            sql_string = "select min(" + cols[x] + "), max(" + cols[x] + ") from " + name + ";"
+            # print(sql_string)
+            v = self.sql(sql_string).collect()
+
+            sql_string = "insert into columns_metadata select '" + version + "', '" + cols[x] + "', 'double', 'place_holder', false, NULL, object_construct('min', " + str(v[0][0]) + ",'max', " + str(v[0][1]) + ");"
+            # print (sql_string)
+            self.sql(sql_string).collect()
+        return tab
+
+
+    class MinMaxModel:
+        def __init__(self, input_columns : List[str], output_columns : List[str], outer_instance : Any):
+            self.input_columns = input_columns
+            self.output_columns = output_columns
+            self.outer_instance = outer_instance;
+
+        def transform(self, tab: Table) -> DataFrame:
+            min_arr = []
+            max_arr = []
+            for c in self.input_columns:
+                sql_string = "select * from columns_metadata where dataset_version = '" + tab.dataset_version + "' and column_name = '" + c + "';"
+                v = self.outer_instance.sql(sql_string).collect()
+                json_dict = json.loads(v[0][6])
+                min_arr.append(json_dict["min"])
+                max_arr.append(json_dict["max"])
+
+            sql_string = "select *"
+            for x in range(len(self.output_columns)):
+                sql_string = sql_string + ", (" + self.input_columns[x] + " - " + str(min_arr[x]) + ")/(" + str(max_arr[x]) + " - " + str(min_arr[x]) + ") as " + self.output_columns[x]
+            sql_string = sql_string + " from " + tab.table_name + ";"
+            # print (sql_string)
+            return self.outer_instance.sql(sql_string)
+
+
+
+    class MinMaxEst:
+        def __init__(self, input_columns : List[str], output_columns : List[str], outer_instance : Any):
+            self.input_columns = input_columns
+            self.output_columns = output_columns
+            self.outer_instance = outer_instance;
+
+        def fit(self, tab: Table) -> Any:
+            letters = string.ascii_lowercase
+            fit_run_id = ''.join(random.choice(letters) for i in range(10))
+            now = datetime.now()
+            dt_string = now.strftime("%Y-%m-%d %H:%M:%S")
+            input_cols = "";
+            for c in range(len(self.input_columns)-1):
+                input_cols = input_cols + "'" + self.input_columns[c] + "'" + ", "
+            input_cols = input_cols + "'" + self.input_columns[-1] + "'"
+
+            output_cols = "";
+            for c in range(len(self.output_columns)-1):
+                output_cols = output_cols + "'" + self.output_columns[c] + "'" + ", "
+            output_cols = output_cols + "'" + self.output_columns[-1] + "'"
+
+            sql_string = "insert into fit_run select '" + fit_run_id + "', '" + tab.dataset_version + "', 'MinMax', null, array_construct(" + input_cols + "), array_construct(" + output_cols + "), '" + dt_string + "', null;"
+            # print (sql_string)
+            self.outer_instance.sql(sql_string).collect()
+            return self.outer_instance.MinMaxModel(self.input_columns, self.output_columns, self.outer_instance)
+
+
+    def MinMaxScaler(self, input_columns : List[str], output_columns : List[str]) -> MinMaxEst:
+        return self.MinMaxEst(input_columns, output_columns, self)
+
 
     def table_function(
         self,
