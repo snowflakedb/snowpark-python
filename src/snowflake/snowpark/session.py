@@ -14,8 +14,13 @@ from threading import RLock
 from types import ModuleType
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
+import random
+import string
+from datetime import datetime
+
 import cloudpickle
 import pkg_resources
+import uuid
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
@@ -822,6 +827,179 @@ class Session:
             name = ".".join(name)
         validate_object_name(name)
         return Table(name, self)
+
+
+    def dataset(self, df: DataFrame) -> DataFrame:
+        version = str(uuid.uuid4())
+        now = datetime.now()
+        dt_string = now.strftime("%Y-%m-%d %H:%M:%S")
+        sql_string = "insert into dataset_context values ('" + version + "', '" + dt_string + "', 150);"
+        self.sql(sql_string).collect()
+        df.dataset_version = version
+        cols = df.columns
+        temp_table = "temp_table_" + str(uuid.uuid4()).replace('-', '_')
+        string_table = "with " + temp_table + " as ( " + df.queries['queries'][0] + " )"
+        for x in range(len(cols)):
+            sql_string = string_table + " select min(" + cols[x] + "), max(" + cols[x] + "), avg(" + cols[x] + ") from " + temp_table + ";"
+            # print(sql_string)
+            v = self.sql(sql_string).collect()
+
+            sql_string = "insert into columns_metadata select '" + version + "', '" + cols[x] + "', 'double', 'place_holder', false, NULL, object_construct('min', " + str(v[0][0]) + ",'max', " + str(v[0][1]) + ",'avg', " + str(v[0][2]) + ");"
+            # print(sql_string)
+            self.sql(sql_string).collect()
+        return df
+
+
+    class MinMaxModel:
+        def __init__(self, input_columns : List[str], output_columns : List[str], outer_instance : Any):
+            self.input_columns = input_columns
+            self.output_columns = output_columns
+            self.outer_instance = outer_instance
+            self.type = 'Transformer'
+
+        def transform(self, df: DataFrame) -> DataFrame:
+            min_arr = []
+            max_arr = []
+            for c in self.input_columns:
+                sql_string = "select * from columns_metadata where dataset_version = '" + df.dataset_version + "' and column_name = '" + c + "';"
+                # print (sql_string)
+                v = self.outer_instance.sql(sql_string).collect()
+                json_dict = json.loads(v[0][6]) # 6 points to numeric_statistics column
+                # print (json_dict)
+                # print (type(json_dict))
+                min_arr.append(json_dict["min"])
+                max_arr.append(json_dict["max"])
+
+            temp_table = "temp_table_" + str(uuid.uuid4()).replace('-', '_')
+            string_table = "with " + temp_table + " as ( " + df.queries['queries'][0] + " )"
+            sql_string = string_table + " select *"
+            for x in range(len(self.output_columns)):
+                sql_string = sql_string + ", (" + self.input_columns[x] + " - " + str(min_arr[x]) + ")/(" + str(max_arr[x]) + " - " + str(min_arr[x]) + ") as " + self.output_columns[x]
+            sql_string = sql_string + " from " + temp_table
+            # print (sql_string)
+            ds = self.outer_instance.sql(sql_string)
+            ds.dataset_version = df.dataset_version
+            return ds
+
+    class MinMaxEst:
+        def __init__(self, input_columns : List[str], output_columns : List[str], outer_instance : Any):
+            self.input_columns = input_columns
+            self.output_columns = output_columns
+            self.outer_instance = outer_instance
+            self.type = 'Estimator'
+
+        def fit(self, df: DataFrame) -> Any:
+            fit_run_id = str(uuid.uuid4())
+            now = datetime.now()
+            dt_string = now.strftime("%Y-%m-%d %H:%M:%S")
+            input_cols = ""
+            for c in range(len(self.input_columns)-1):
+                input_cols = input_cols + "'" + self.input_columns[c] + "'" + ", "
+            input_cols = input_cols + "'" + self.input_columns[-1] + "'"
+
+            output_cols = ""
+            for c in range(len(self.output_columns)-1):
+                output_cols = output_cols + "'" + self.output_columns[c] + "'" + ", "
+            output_cols = output_cols + "'" + self.output_columns[-1] + "'"
+
+            sql_string = "insert into fit_run select '" + fit_run_id + "', '" + df.dataset_version + "', 'MinMax', null, array_construct(" + input_cols + "), array_construct(" + output_cols + "), '" + dt_string + "', null;"
+            # print (sql_string)
+            self.outer_instance.sql(sql_string).collect()
+            return self.outer_instance.MinMaxModel(self.input_columns, self.output_columns, self.outer_instance)
+
+
+    def MinMaxEstimator(self, input_columns : List[str], output_columns : List[str]) -> MinMaxEst:
+        return self.MinMaxEst(input_columns, output_columns, self)
+
+    class ImputerModel:
+        def __init__(self, input_columns : List[str], output_columns : List[str], outer_instance : Any):
+            self.input_columns = input_columns
+            self.output_columns = output_columns
+            self.outer_instance = outer_instance
+            self.type = 'Transformer'
+
+        def transform(self, df: DataFrame) -> DataFrame:
+            avg_arr = []
+            for c in self.input_columns:
+                sql_string = "select * from columns_metadata where dataset_version = '" + df.dataset_version + "' and column_name = '" + c + "';"
+                # print (sql_string)
+                v = self.outer_instance.sql(sql_string).collect()
+                json_dict = json.loads(v[0][6])
+                # print (json_dict)
+                # print (type(json_dict))
+                avg_arr.append(json_dict["avg"])
+
+            temp_table = "temp_table_" + str(uuid.uuid4()).replace('-', '_')
+            string_table = "with " + temp_table + " as ( " + df.queries['queries'][0] + " )"
+            sql_string = string_table + " select *"
+            for x in range(len(self.output_columns)):
+                sql_string = sql_string + ", coalesce(" + self.input_columns[x] + ", " + str(avg_arr[x]) + ") as " + self.output_columns[x]
+            sql_string = sql_string + " from " + temp_table
+            # print (sql_string)
+            ds = self.outer_instance.sql(sql_string)
+            ds.dataset_version = df.dataset_version
+            return ds
+
+    class ImputerClass:
+        def __init__(self, input_columns : List[str], output_columns : List[str], outer_instance : Any):
+            self.input_columns = input_columns
+            self.output_columns = output_columns
+            self.outer_instance = outer_instance
+            self.type = 'Estimator'
+
+        def fit(self, df: DataFrame) -> Any:
+            fit_run_id = str(uuid.uuid4())
+            now = datetime.now()
+            dt_string = now.strftime("%Y-%m-%d %H:%M:%S")
+            input_cols = ""
+            for c in range(len(self.input_columns)-1):
+                input_cols = input_cols + "'" + self.input_columns[c] + "'" + ", "
+            input_cols = input_cols + "'" + self.input_columns[-1] + "'"
+
+            output_cols = ""
+            for c in range(len(self.output_columns)-1):
+                output_cols = output_cols + "'" + self.output_columns[c] + "'" + ", "
+            output_cols = output_cols + "'" + self.output_columns[-1] + "'"
+
+            sql_string = "insert into fit_run select '" + fit_run_id + "', '" + df.dataset_version + "', 'Imputer', null, array_construct(" + input_cols + "), array_construct(" + output_cols + "), '" + dt_string + "', null;"
+            # print (sql_string)
+            self.outer_instance.sql(sql_string).collect()
+            for x in range(len(self.input_columns)):
+                sql_string = "select * from columns_metadata where dataset_version = '" + df.dataset_version + "' and column_name = '" + self.input_columns[x] + "';"
+                # print (sql_string)
+                v = self.outer_instance.sql(sql_string).collect()
+                json_dict = json.loads(v[0][6])  # 6 points to numeric_statistics column
+                sql_string = "insert into columns_metadata select '" + df.dataset_version + "', '" + self.output_columns[x] + "', 'double', 'place_holder', false, NULL, object_construct('min', " + str(json_dict['min']) + ",'max', " + str(json_dict['max']) + ",'avg', " + str(json_dict['avg']) + ");"
+                # print (sql_string)
+                self.outer_instance.sql(sql_string).collect()
+            return self.outer_instance.ImputerModel(self.input_columns, self.output_columns, self.outer_instance)
+
+
+    def Imputer(self, input_columns : List[str], output_columns : List[str]) -> ImputerClass:
+        return self.ImputerClass(input_columns, output_columns, self)
+
+    class Pipeline:
+        def __init__(self, stages : List[Any]):
+            self.stages = stages
+
+        def fit(self, df : DataFrame) -> Any:
+            new_stages = []
+            for stage in self.stages:
+                if stage.type == 'Estimator':
+                    model = stage.fit(df)
+                    new_stages.append(model)
+                    df = model.transform(df)
+                elif stage.type == 'Transformer':
+                    new_stages.append(stage)
+                    df = stage.transform(df)
+            self.stages = new_stages
+            return self
+
+        def transform(self, df: DataFrame) -> DataFrame:
+            for stage in self.stages:
+                df = stage.transform(df)
+            return df
+
 
     def table_function(
         self,
