@@ -56,6 +56,6 @@ The [README under tests folder](tests/README.md) tells you how to set up to run 
 
 ## Why do my PR tests fail?
 If this happens to you do not panic! Any PRs originating from a fork will fail some automated tests. This is because
-forks do not have access to our repository's secrets. A maintainer will manually review your changes for malicious
-code then kick off the rest of our testing suite. Feel free to tag one of us if you feel like we are taking too long
-to get to your PR.
+forks do not have access to our repository's secrets. A maintainer will manually review your changes then kick off
+the rest of our testing suite. Feel free to tag [@snowflakedb/snowpark-python-api](https://github.com/orgs/snowflakedb/teams/snowpark-python-api)
+if you feel like we are taking too long to get to your PR.
