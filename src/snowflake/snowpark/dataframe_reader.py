@@ -208,20 +208,21 @@ class DataFrameReader:
             |</test>            |
             ---------------------
             <BLANKLINE>
+
     Example 10:
         Loading a JSON file from local:
-        >>> df = session.read.json("/users/user1/local.json")
+        >>> df = session.read.json("tests/resources/testJson.json")
         >>> # Load the data from a local file or directory.
         >>> df.show()
-        ------------------------
-        |"$1"                  |
-        ------------------------
-        |{                     |
-        |  "color": "yellow",  |
-        |  "fruit": "banana",  |
-        |  "taste": "sweet"    |
-        |}                     |
-        ------------------------
+        -----------------------
+        |"$1"                 |
+        -----------------------
+        |{                    |
+        |  "color": "Red",    |
+        |  "fruit": "Apple",  |
+        |  "size": "Large"    |
+        |}                    |
+        -----------------------
 
     Loading other file type from local are the same. Instead of uploading manually, you can put your local path in the
     function.
@@ -270,18 +271,7 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
-        _ = self._session.sql("CREATE or REPLACE temp STAGE mystage").collect()
-        if os.path.exists(path) and os.path.isfile(path):
-            _ = self._session.file.put(path, "@mystage", auto_compress=True)
-            path = "@mystage" + "/" + path.split("//")[-1]
-        if os.path.exists(path) and os.path.isdir(path):
-            filelist = os.listdir(path)
-            for file in filelist:
-                if file.split(".")[-1].lower() == "csv":
-                    _ = self._session.file.put(
-                        os.path.join(path, file), "@mystage", auto_compress=True
-                    )
-            path = "@mystage/"
+        path = self._upload_local_file_2_stage(path)
         if not self._user_schema:
             raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
 
@@ -392,18 +382,7 @@ class DataFrameReader:
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         # upload file if it is local
-        _ = self._session.sql("CREATE or REPLACE temp STAGE mystage").collect()
-        if os.path.exists(path) and os.path.isfile(path):
-            _ = self._session.file.put(path, "@mystage", auto_compress=True)
-            path = "@mystage" + "/" + path.split("//")[-1]
-        if os.path.exists(path) and os.path.isdir(path):
-            filelist = os.listdir(path)
-            for file in filelist:
-                if file.split(".")[-1].lower() == format.lower():
-                    _ = self._session.file.put(
-                        os.path.join(path, file), "@mystage", auto_compress=True
-                    )
-            path = "@mystage/"
+        path = self._upload_local_file_2_stage(path, format)
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
@@ -499,3 +478,19 @@ class DataFrameReader:
         )
         df._reader = self
         return df
+
+    def _upload_local_file_2_stage(self, path: str, format: str = "csv") -> str:
+        temp_stage = self._session.get_session_stage()
+        if os.path.exists(path) and os.path.isfile(path):
+            _ = self._session.file.put(path, temp_stage, auto_compress=False)
+            _, filename = os.path.split(path)
+            path = os.path.join(temp_stage, filename)
+        if os.path.exists(path) and os.path.isdir(path):
+            filelist = os.listdir(path)
+            for file in filelist:
+                if os.path.splitext(file)[-1][1:].lower() == format.lower():
+                    _ = self._session.file.put(
+                        os.path.join(path, file), temp_stage, auto_compress=False
+                    )
+            path = temp_stage
+        return path
