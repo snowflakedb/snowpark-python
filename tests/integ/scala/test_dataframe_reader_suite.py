@@ -332,6 +332,30 @@ def test_to_read_files_from_stage(session, resources_path, mode):
         session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
 
 
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_to_read_file_from_local(session, resources_path, mode):
+
+    test_files = TestFiles(resources_path)
+
+    reader = get_reader(session, mode)
+
+    try:
+        df = (
+            reader.schema(user_schema)
+            .option("compression", "auto")
+            .csv(f"{test_files.test_file_csv}")
+        )
+        res = df.collect()
+        res.sort(key=lambda x: x[0])
+        assert res == [
+            Row(1, "one", 1.2),
+            Row(2, "two", 2.2),
+        ]
+    finally:
+        pass
+    #     session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
+
+
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_for_all_csv_compression_keywords(session, temp_schema, mode):
@@ -439,6 +463,36 @@ def test_read_json_with_no_schema(session, mode):
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
+def test_to_read_json_from_local(session, resources_path, mode):
+
+    test_files = TestFiles(resources_path)
+    reader = get_reader(session, mode)
+
+    df = reader.json(f"{test_files.test_file_json}")
+    res = df.collect()
+    assert res == [
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
+    ]
+    res = df.where(sql_expr("$1:color") == "Red").collect()
+    assert res == [
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
+    ]
+    # assert user cannot input a schema to read json
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).json(test_files.test_file_json)
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode)
+        .option("FILE_EXTENSION", "json")
+        .json(test_files.test_file_json)
+    )
+    assert df2.collect() == [
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_avro_with_no_schema(session, mode):
     avro_path = f"@{tmp_stage_name1}/{test_file_avro}"
 
@@ -459,6 +513,39 @@ def test_read_avro_with_no_schema(session, mode):
 
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").avro(avro_path)
+    res = df2.collect()
+    assert res == [
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_to_read_avro_from_local(session, resources_path, mode):
+
+    test_files = TestFiles(resources_path)
+    reader = get_reader(session, mode)
+
+    df = reader.avro(f"{test_files.test_file_avro}")
+    res = df.collect()
+    assert res == [
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
+    ]
+    # query_test
+    res = df.where(sql_expr('"num"') > 1).collect()
+    assert res == [Row(str="str2", num=2)]
+
+    # assert user cannot input a schema to read avro
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).avro(test_files.test_file_avro)
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode)
+        .option("COMPRESSION", "NONE")
+        .avro(test_files.test_file_avro)
+    )
     res = df2.collect()
     assert res == [
         Row(str="str1", num=1),
@@ -514,6 +601,41 @@ def test_read_parquet_with_no_schema(session, mode):
 
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").parquet(path)
+    res = df2.collect()
+    assert res == [
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_to_read_parquet_from_local(session, resources_path, mode):
+
+    test_files = TestFiles(resources_path)
+    reader = get_reader(session, mode)
+
+    df = reader.parquet(f"{test_files.test_file_parquet}")
+    res = df.collect()
+    assert res == [
+        Row(str="str1", num=1),
+        Row(str="str2", num=2),
+    ]
+    # query_test
+    res = df.where(sql_expr('"num"') > 1).collect()
+    assert res == [Row(str="str2", num=2)]
+
+    # assert user cannot input a schema to read avro
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).parquet(
+            test_files.test_file_parquet
+        )
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode)
+        .option("COMPRESSION", "NONE")
+        .parquet(test_files.test_file_parquet)
+    )
     res = df2.collect()
     assert res == [
         Row(str="str1", num=1),
@@ -672,6 +794,39 @@ def test_read_xml_with_no_schema(session, mode):
 
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").xml(path)
+    res = df2.collect()
+    assert res == [
+        Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+        Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+    ]
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_to_read_xml_from_local(session, resources_path, mode):
+
+    test_files = TestFiles(resources_path)
+    reader = get_reader(session, mode)
+
+    df = reader.xml(f"{test_files.test_file_xml}")
+    res = df.collect()
+    assert res == [
+        Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+        Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+    ]
+    # query_test
+    res = df.where(sql_expr("xmlget($1, 'num', 0):\"$\"") > 1).collect()
+    assert res == [Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>")]
+
+    # assert user cannot input a schema to read avro
+    with pytest.raises(ValueError):
+        get_reader(session, mode).schema(user_schema).xml(test_files.test_file_xml)
+
+    # user can input customized formatTypeOptions
+    df2 = (
+        get_reader(session, mode)
+        .option("COMPRESSION", "NONE")
+        .xml(test_files.test_file_xml)
+    )
     res = df2.collect()
     assert res == [
         Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
