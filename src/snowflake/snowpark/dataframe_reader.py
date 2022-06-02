@@ -211,21 +211,23 @@ class DataFrameReader:
 
     Example 10:
         Loading a JSON file from local:
-        >>> df = session.read.json("tests/resources/testJson.json")
-        >>> # Load the data from a local file or directory.
-        >>> df.show()
-        -----------------------
-        |"$1"                 |
-        -----------------------
-        |{                    |
-        |  "color": "Red",    |
-        |  "fruit": "Apple",  |
-        |  "size": "Large"    |
-        |}                    |
-        -----------------------
+            >>> df = session.read.json("tests/resources/testJson.json")
+            >>> # Load the data from a local file or directory.
+            >>> df.show()
+            -----------------------
+            |"$1"                 |
+            -----------------------
+            |{                    |
+            |  "color": "Red",    |
+            |  "fruit": "Apple",  |
+            |  "size": "Large"    |
+            |}                    |
+            -----------------------
+            <BLANKLINE>
 
-    Loading other file type from local are the same. Instead of uploading manually, you can put your local path in the
-    function.
+    Loading other file type from local are the same. Instead of uploading manually, you can put your local path in the function.
+
+
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
@@ -294,8 +296,7 @@ class DataFrameReader:
         """Specify the path of the JSON file(s) to load.
 
         Args:
-            path: The stage location of a JSON file, or a stage location that has JSON files.
-            Location of a local JSON file, or a location that has JSON files are also acceptable.
+            path: The stage location of a JSON file, or location of a JSON files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
@@ -306,8 +307,7 @@ class DataFrameReader:
         """Specify the path of the AVRO file(s) to load.
 
         Args:
-            path: The stage location of an AVRO file, or a stage location that has AVRO files.
-            Location of a local AVRO file, or a location that has AVRO files are also acceptable.
+            path: The stage location of an AVRO file, or location of a local AVRO files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
@@ -318,8 +318,7 @@ class DataFrameReader:
         """Specify the path of the PARQUET file(s) to load.
 
         Args:
-            path: The stage location of a PARQUET file, or a stage location that has PARQUET files.
-            Location of a local PARQUET file, or a location that has PARQUET files are also acceptable.
+            path: The stage location of a PARQUET file, or location of a local PARQUET files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified PARQUET file(s) in a Snowflake stage.
@@ -330,8 +329,7 @@ class DataFrameReader:
         """Specify the path of the ORC file(s) to load.
 
         Args:
-            path: The stage location of a ORC file, or a stage location that has ORC files.
-            Location of a local ORC file, or a location that has ORC files are also acceptable.
+            path: The stage location of a ORC file, or location of a local ORC files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
@@ -342,8 +340,7 @@ class DataFrameReader:
         """Specify the path of the XML file(s) to load.
 
         Args:
-            path: The stage location of an XML file, or a stage location that has XML files.
-            Location of a local XML file, or a location that has XML files are also acceptable.
+            path: The stage location of an XML file, or location of a local XML files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
