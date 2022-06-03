@@ -333,7 +333,7 @@ def test_to_read_files_from_stage(session, resources_path, mode):
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_to_read_file_from_local(session, resources_path, mode):
+def test_to_read_csv_from_local(session, resources_path, mode):
 
     test_files = TestFiles(resources_path)
 
@@ -343,7 +343,7 @@ def test_to_read_file_from_local(session, resources_path, mode):
         df = (
             reader.schema(user_schema)
             .option("compression", "auto")
-            .csv(f"{test_files.test_file_csv}")
+            .csv(test_files.test_file_csv)
         )
         res = df.collect()
         res.sort(key=lambda x: x[0])
@@ -353,7 +353,28 @@ def test_to_read_file_from_local(session, resources_path, mode):
         ]
     finally:
         pass
-    #     session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
+
+
+# @pytest.mark.parametrize("mode", ["select", "copy"])
+# def test_to_read_csv_from_local_directory(session, resources_path, mode):
+#     test_files = TestFiles(resources_path)
+#
+#     reader = get_reader(session, mode)
+#
+#     try:
+#         df = (
+#             reader.schema(user_schema)
+#                 .option("compression", "auto")
+#                 .csv(test_files)
+#         )
+#         res = df.collect()
+#         res.sort(key=lambda x: x[0])
+#         Utils.check_answer(res, [
+#             Row(1, "one", 1.2),
+#             Row(2, "two", 2.2),
+#         ])
+#     finally:
+#         pass
 
 
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
@@ -468,15 +489,15 @@ def test_to_read_json_from_local(session, resources_path, mode):
     test_files = TestFiles(resources_path)
     reader = get_reader(session, mode)
 
-    df = reader.json(f"{test_files.test_file_json}")
+    df = reader.json(test_files.test_file_json)
     res = df.collect()
-    assert res == [
-        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
-    ]
+    Utils.check_answer(
+        res, [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')]
+    )
     res = df.where(sql_expr("$1:color") == "Red").collect()
-    assert res == [
-        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
-    ]
+    Utils.check_answer(
+        res, [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')]
+    )
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
         get_reader(session, mode).schema(user_schema).json(test_files.test_file_json)
@@ -487,9 +508,10 @@ def test_to_read_json_from_local(session, resources_path, mode):
         .option("FILE_EXTENSION", "json")
         .json(test_files.test_file_json)
     )
-    assert df2.collect() == [
-        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
-    ]
+    Utils.check_answer(
+        df2.collect(),
+        [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')],
+    )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -526,15 +548,18 @@ def test_to_read_avro_from_local(session, resources_path, mode):
     test_files = TestFiles(resources_path)
     reader = get_reader(session, mode)
 
-    df = reader.avro(f"{test_files.test_file_avro}")
+    df = reader.avro(test_files.test_file_avro)
     res = df.collect()
-    assert res == [
-        Row(str="str1", num=1),
-        Row(str="str2", num=2),
-    ]
+    Utils.check_answer(
+        res,
+        [
+            Row(str="str1", num=1),
+            Row(str="str2", num=2),
+        ],
+    )
     # query_test
     res = df.where(sql_expr('"num"') > 1).collect()
-    assert res == [Row(str="str2", num=2)]
+    Utils.check_answer(res, [Row(str="str2", num=2)])
 
     # assert user cannot input a schema to read avro
     with pytest.raises(ValueError):
@@ -547,10 +572,13 @@ def test_to_read_avro_from_local(session, resources_path, mode):
         .avro(test_files.test_file_avro)
     )
     res = df2.collect()
-    assert res == [
-        Row(str="str1", num=1),
-        Row(str="str2", num=2),
-    ]
+    Utils.check_answer(
+        res,
+        [
+            Row(str="str1", num=1),
+            Row(str="str2", num=2),
+        ],
+    )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -614,15 +642,18 @@ def test_to_read_parquet_from_local(session, resources_path, mode):
     test_files = TestFiles(resources_path)
     reader = get_reader(session, mode)
 
-    df = reader.parquet(f"{test_files.test_file_parquet}")
+    df = reader.parquet(test_files.test_file_parquet)
     res = df.collect()
-    assert res == [
-        Row(str="str1", num=1),
-        Row(str="str2", num=2),
-    ]
+    Utils.check_answer(
+        res,
+        [
+            Row(str="str1", num=1),
+            Row(str="str2", num=2),
+        ],
+    )
     # query_test
     res = df.where(sql_expr('"num"') > 1).collect()
-    assert res == [Row(str="str2", num=2)]
+    Utils.check_answer(res, [Row(str="str2", num=2)])
 
     # assert user cannot input a schema to read avro
     with pytest.raises(ValueError):
@@ -637,10 +668,13 @@ def test_to_read_parquet_from_local(session, resources_path, mode):
         .parquet(test_files.test_file_parquet)
     )
     res = df2.collect()
-    assert res == [
-        Row(str="str1", num=1),
-        Row(str="str2", num=2),
-    ]
+    Utils.check_answer(
+        res,
+        [
+            Row(str="str1", num=1),
+            Row(str="str2", num=2),
+        ],
+    )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -807,15 +841,18 @@ def test_to_read_xml_from_local(session, resources_path, mode):
     test_files = TestFiles(resources_path)
     reader = get_reader(session, mode)
 
-    df = reader.xml(f"{test_files.test_file_xml}")
+    df = reader.xml(test_files.test_file_xml)
     res = df.collect()
-    assert res == [
-        Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
-        Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
-    ]
+    Utils.check_answer(
+        res,
+        [
+            Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+            Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+        ],
+    )
     # query_test
     res = df.where(sql_expr("xmlget($1, 'num', 0):\"$\"") > 1).collect()
-    assert res == [Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>")]
+    Utils.check_answer(res, [Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>")])
 
     # assert user cannot input a schema to read avro
     with pytest.raises(ValueError):
@@ -828,10 +865,13 @@ def test_to_read_xml_from_local(session, resources_path, mode):
         .xml(test_files.test_file_xml)
     )
     res = df2.collect()
-    assert res == [
-        Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
-        Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
-    ]
+    Utils.check_answer(
+        res,
+        [
+            Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+            Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+        ],
+    )
 
 
 def test_copy(session):
