@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import os
 import random
 from decimal import Decimal
 
@@ -345,36 +346,68 @@ def test_to_read_csv_from_local(session, resources_path, mode):
             .option("compression", "auto")
             .csv(test_files.test_file_csv)
         )
-        res = df.collect()
-        res.sort(key=lambda x: x[0])
-        assert res == [
-            Row(1, "one", 1.2),
-            Row(2, "two", 2.2),
-        ]
+
+        Utils.check_answer(
+            df,
+            [
+                Row(1, "one", 1.2),
+                Row(2, "two", 2.2),
+            ],
+        )
     finally:
         pass
 
 
-# @pytest.mark.parametrize("mode", ["select", "copy"])
-# def test_to_read_csv_from_local_directory(session, resources_path, mode):
-#     test_files = TestFiles(resources_path)
-#
-#     reader = get_reader(session, mode)
-#
-#     try:
-#         df = (
-#             reader.schema(user_schema)
-#                 .option("compression", "auto")
-#                 .csv(test_files)
-#         )
-#         res = df.collect()
-#         res.sort(key=lambda x: x[0])
-#         Utils.check_answer(res, [
-#             Row(1, "one", 1.2),
-#             Row(2, "two", 2.2),
-#         ])
-#     finally:
-#         pass
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_to_read_csv_from_local_directory(session, resources_path, mode, tmpdir):
+    # test_files = TestFiles(resources_path)
+    f1 = tmpdir.join("testCSV1.csv")
+    f1.write("1,one,1.1")
+    f2 = tmpdir.join("testCSV2.csv")
+    f2.write("2,two,2.2")
+    f3 = tmpdir.join("testCSV3.csv")
+    f3.write("3,three,3.3")
+    schema = StructType(
+        [
+            StructField("a", StringType()),
+            StructField("b", StringType()),
+            StructField("c", StringType()),
+        ]
+    )
+    reader = get_reader(session, mode)
+
+    try:
+        df = reader.schema(schema).option("compression", "auto").csv(tmpdir.strpath)
+        res = df.collect()
+        # because result of read from a dir is random, we check the length of the result here
+        assert len(res) == 3
+
+    finally:
+        pass
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_local_file_uploaded_to_stage(session, resources_path, mode):
+    test_files = TestFiles(resources_path)
+    reader = get_reader(session, mode)
+
+    try:
+        df = (
+            reader.schema(user_schema)
+            .option("compression", "auto")
+            .csv(test_files.test_file_csv)
+        )
+        df2 = (
+            reader.schema(user_schema)
+            .option("compression", "auto")
+            .csv(os.path.join(session.get_session_stage(), test_file_csv))
+        )
+
+        # check if read from stage and read from local are the same
+        Utils.check_answer(df, df2)
+
+    finally:
+        pass
 
 
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
@@ -509,7 +542,7 @@ def test_to_read_json_from_local(session, resources_path, mode):
         .json(test_files.test_file_json)
     )
     Utils.check_answer(
-        df2.collect(),
+        df2,
         [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')],
     )
 
@@ -549,9 +582,8 @@ def test_to_read_avro_from_local(session, resources_path, mode):
     reader = get_reader(session, mode)
 
     df = reader.avro(test_files.test_file_avro)
-    res = df.collect()
     Utils.check_answer(
-        res,
+        df,
         [
             Row(str="str1", num=1),
             Row(str="str2", num=2),
@@ -571,9 +603,8 @@ def test_to_read_avro_from_local(session, resources_path, mode):
         .option("COMPRESSION", "NONE")
         .avro(test_files.test_file_avro)
     )
-    res = df2.collect()
     Utils.check_answer(
-        res,
+        df2,
         [
             Row(str="str1", num=1),
             Row(str="str2", num=2),
@@ -643,9 +674,8 @@ def test_to_read_parquet_from_local(session, resources_path, mode):
     reader = get_reader(session, mode)
 
     df = reader.parquet(test_files.test_file_parquet)
-    res = df.collect()
     Utils.check_answer(
-        res,
+        df,
         [
             Row(str="str1", num=1),
             Row(str="str2", num=2),
@@ -667,9 +697,8 @@ def test_to_read_parquet_from_local(session, resources_path, mode):
         .option("COMPRESSION", "NONE")
         .parquet(test_files.test_file_parquet)
     )
-    res = df2.collect()
     Utils.check_answer(
-        res,
+        df2,
         [
             Row(str="str1", num=1),
             Row(str="str2", num=2),
@@ -842,9 +871,8 @@ def test_to_read_xml_from_local(session, resources_path, mode):
     reader = get_reader(session, mode)
 
     df = reader.xml(test_files.test_file_xml)
-    res = df.collect()
     Utils.check_answer(
-        res,
+        df,
         [
             Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
             Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
@@ -864,9 +892,8 @@ def test_to_read_xml_from_local(session, resources_path, mode):
         .option("COMPRESSION", "NONE")
         .xml(test_files.test_file_xml)
     )
-    res = df2.collect()
     Utils.check_answer(
-        res,
+        df2,
         [
             Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
             Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
