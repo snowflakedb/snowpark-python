@@ -342,7 +342,7 @@ def test_to_read_csv_from_local(session, resources_path, mode):
     df = (
         reader.schema(user_schema)
         .option("compression", "auto")
-        .csv(test_files.test_file_csv)
+        .csv(Utils.escape_path(test_files.test_file_csv))
     )
 
     Utils.check_answer(
@@ -352,6 +352,7 @@ def test_to_read_csv_from_local(session, resources_path, mode):
             Row(2, "two", 2.2),
         ],
     )
+    session.sql(f"remove {session.get_session_stage()}").collect()
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -371,10 +372,45 @@ def test_to_read_csv_from_local_directory(session, mode, tmpdir):
     )
     reader = get_reader(session, mode)
 
-    df = reader.schema(schema).option("compression", "auto").csv(tmpdir.strpath)
+    df = (
+        reader.schema(schema)
+        .option("compression", "auto")
+        .csv(Utils.escape_path(tmpdir.strpath))
+    )
     res = df.collect()
     # because the result of reading from a dir is nondeterministic, we check the length of the result here
     assert len(res) == 3
+    session.sql(f"remove {session.get_session_stage()}").collect()
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_to_read_csv_from_local_overwrite(session, mode, tmpdir):
+    f1 = tmpdir.join("testCSV1.csv")
+    f1.write("1,one,1.1")
+    schema = StructType(
+        [
+            StructField("a", StringType()),
+            StructField("b", StringType()),
+            StructField("c", StringType()),
+        ]
+    )
+    reader = get_reader(session, mode)
+
+    df = (
+        reader.schema(schema)
+        .option("compression", "auto")
+        .csv(Utils.escape_path(tmpdir.strpath))
+    ).collect()
+
+    f1.write("3,three,3.3")
+    df = (
+        reader.schema(schema)
+        .option("compression", "auto")
+        .csv(Utils.escape_path(tmpdir.strpath))
+    )
+    Utils.check_answer(df, [Row("3", "three", "3.3")])
+
+    session.sql(f"remove {session.get_session_stage()}").collect()
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -385,7 +421,7 @@ def test_read_local_file_uploaded_to_stage(session, resources_path, mode):
     df = (
         reader.schema(user_schema)
         .option("compression", "auto")
-        .csv(test_files.test_file_csv)
+        .csv(Utils.escape_path(test_files.test_file_csv))
     )
     df2 = (
         reader.schema(user_schema)
@@ -395,6 +431,7 @@ def test_read_local_file_uploaded_to_stage(session, resources_path, mode):
 
     # check if read from stage and read from local are the same
     Utils.check_answer(df, df2)
+    session.sql(f"remove {session.get_session_stage()}").collect()
 
 
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
@@ -509,7 +546,7 @@ def test_to_read_json_from_local(session, resources_path, mode):
     test_files = TestFiles(resources_path)
     reader = get_reader(session, mode)
 
-    df = reader.json(test_files.test_file_json)
+    df = reader.json(Utils.escape_path(test_files.test_file_json))
     res = df.collect()
     Utils.check_answer(
         res, [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')]
@@ -520,18 +557,21 @@ def test_to_read_json_from_local(session, resources_path, mode):
     )
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).json(test_files.test_file_json)
+        get_reader(session, mode).schema(user_schema).json(
+            Utils.escape_path(test_files.test_file_json)
+        )
 
     # user can input customized formatTypeOptions
     df2 = (
         get_reader(session, mode)
         .option("FILE_EXTENSION", "json")
-        .json(test_files.test_file_json)
+        .json(Utils.escape_path(test_files.test_file_json))
     )
     Utils.check_answer(
         df2,
         [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')],
     )
+    session.sql(f"remove {session.get_session_stage()}").collect()
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -568,7 +608,7 @@ def test_to_read_avro_from_local(session, resources_path, mode):
     test_files = TestFiles(resources_path)
     reader = get_reader(session, mode)
 
-    df = reader.avro(test_files.test_file_avro)
+    df = reader.avro(Utils.escape_path(test_files.test_file_avro))
     Utils.check_answer(
         df,
         [
@@ -582,13 +622,15 @@ def test_to_read_avro_from_local(session, resources_path, mode):
 
     # assert user cannot input a schema to read avro
     with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).avro(test_files.test_file_avro)
+        get_reader(session, mode).schema(user_schema).avro(
+            Utils.escape_path(test_files.test_file_avro)
+        )
 
     # user can input customized formatTypeOptions
     df2 = (
         get_reader(session, mode)
         .option("COMPRESSION", "NONE")
-        .avro(test_files.test_file_avro)
+        .avro(Utils.escape_path(test_files.test_file_avro))
     )
     Utils.check_answer(
         df2,
@@ -597,6 +639,7 @@ def test_to_read_avro_from_local(session, resources_path, mode):
             Row(str="str2", num=2),
         ],
     )
+    session.sql(f"remove {session.get_session_stage()}").collect()
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -660,7 +703,7 @@ def test_to_read_parquet_from_local(session, resources_path, mode):
     test_files = TestFiles(resources_path)
     reader = get_reader(session, mode)
 
-    df = reader.parquet(test_files.test_file_parquet)
+    df = reader.parquet(Utils.escape_path(test_files.test_file_parquet))
     Utils.check_answer(
         df,
         [
@@ -675,14 +718,14 @@ def test_to_read_parquet_from_local(session, resources_path, mode):
     # assert user cannot input a schema to read avro
     with pytest.raises(ValueError):
         get_reader(session, mode).schema(user_schema).parquet(
-            test_files.test_file_parquet
+            Utils.escape_path(test_files.test_file_parquet)
         )
 
     # user can input customized formatTypeOptions
     df2 = (
         get_reader(session, mode)
         .option("COMPRESSION", "NONE")
-        .parquet(test_files.test_file_parquet)
+        .parquet(Utils.escape_path(test_files.test_file_parquet))
     )
     Utils.check_answer(
         df2,
@@ -691,6 +734,7 @@ def test_to_read_parquet_from_local(session, resources_path, mode):
             Row(str="str2", num=2),
         ],
     )
+    session.sql(f"remove {session.get_session_stage()}").collect()
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -857,7 +901,7 @@ def test_to_read_xml_from_local(session, resources_path, mode):
     test_files = TestFiles(resources_path)
     reader = get_reader(session, mode)
 
-    df = reader.xml(test_files.test_file_xml)
+    df = reader.xml(Utils.escape_path(test_files.test_file_xml))
     Utils.check_answer(
         df,
         [
@@ -871,13 +915,15 @@ def test_to_read_xml_from_local(session, resources_path, mode):
 
     # assert user cannot input a schema to read avro
     with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).xml(test_files.test_file_xml)
+        get_reader(session, mode).schema(user_schema).xml(
+            Utils.escape_path(test_files.test_file_xml)
+        )
 
     # user can input customized formatTypeOptions
     df2 = (
         get_reader(session, mode)
         .option("COMPRESSION", "NONE")
-        .xml(test_files.test_file_xml)
+        .xml(Utils.escape_path(test_files.test_file_xml))
     )
     Utils.check_answer(
         df2,
@@ -886,6 +932,7 @@ def test_to_read_xml_from_local(session, resources_path, mode):
             Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
         ],
     )
+    session.sql(f"remove {session.get_session_stage()}").collect()
 
 
 def test_copy(session):
