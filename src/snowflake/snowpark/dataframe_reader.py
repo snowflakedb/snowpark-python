@@ -209,7 +209,6 @@ class DataFrameReader:
             ---------------------
             <BLANKLINE>
 
-    Loading other file type from local are the same. Instead of uploading manually, you can put your local path in the function.
 
     Example 10:
         Loading a local JSON file (other file formats are similar):
@@ -226,9 +225,6 @@ class DataFrameReader:
             |}                    |
             -----------------------
             <BLANKLINE>
-
-
-
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
@@ -268,13 +264,12 @@ class DataFrameReader:
         """Specify the path of the CSV file(s) to load.
 
         Args:
-            path: A path pointing to a local CSV file, a local directory that has CSV files, a CSV file on a stage, or
-            a stage location that has CSV files.
+            path: A path pointing to a local CSV file, a local directory that has CSV files, a CSV file on a stage, or a stage location that has CSV files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
-        path = self._upload_local_file_to_stage(path)
+        path = self._upload_local_file_to_stage(path, "csv")
         if not self._user_schema:
             raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
 
@@ -297,7 +292,7 @@ class DataFrameReader:
         """Specify the path of the JSON file(s) to load.
 
         Args:
-            path: The stage location of a JSON file, or location of a JSON file.
+            path: A path pointing to a local JSON file, or a JSON file on a stage.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
@@ -308,7 +303,7 @@ class DataFrameReader:
         """Specify the path of the AVRO file(s) to load.
 
         Args:
-            path: The stage location of an AVRO file, or location of a local AVRO file.
+            path: A path pointing to a local AVRO file, or a AVRO file on a stage.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
@@ -319,7 +314,7 @@ class DataFrameReader:
         """Specify the path of the PARQUET file(s) to load.
 
         Args:
-            path: The stage location of a PARQUET file, or location of a local PARQUET file.
+            path: A path pointing to a local PARQUET file, or a PARQUET file on a stage.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified PARQUET file(s) in a Snowflake stage.
@@ -330,7 +325,7 @@ class DataFrameReader:
         """Specify the path of the ORC file(s) to load.
 
         Args:
-            path: The stage location of a ORC file, or location of a local ORC file.
+            path: A path pointing to a local ORC file, or a ORC file on a stage.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
@@ -341,7 +336,7 @@ class DataFrameReader:
         """Specify the path of the XML file(s) to load.
 
         Args:
-            path: The stage location of an XML file, or location of a local XML file.
+            path: A path pointing to a local XML file, or a XML file on a stage.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
@@ -477,15 +472,18 @@ class DataFrameReader:
         df._reader = self
         return df
 
-    def _upload_local_file_to_stage(self, path: str, format: str = "csv") -> str:
+    def _upload_local_file_to_stage(self, path: str, format: str) -> str:
         temp_stage = self._session.get_session_stage()
         if os.path.exists(path) and os.path.isfile(path):
             _ = self._session.file.put(path, temp_stage, auto_compress=False)
             _, filename = os.path.split(path)
             path = os.path.join(temp_stage, filename)
         if os.path.exists(path) and os.path.isdir(path):
-            filelist = sorted(os.listdir(path))
-            print(filelist)
+            if format != "csv":
+                raise ValueError(
+                    f"Only support a local directory for reading CSV files, but got {format}"
+                )
+            filelist = os.listdir(path)
             for file in filelist:
                 if os.path.splitext(file)[-1][1:].lower() == format.lower():
                     _ = self._session.file.put(
