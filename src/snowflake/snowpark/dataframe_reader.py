@@ -473,11 +473,16 @@ class DataFrameReader:
         return df
 
     def _upload_local_file_to_stage(self, path: str, format: str) -> str:
+        ostype = os.name
         temp_stage = self._session.get_session_stage()
         if os.path.exists(path) and os.path.isfile(path):
             _ = self._session.file.put(path, temp_stage, auto_compress=False)
             _, filename = os.path.split(path)
             path = os.path.join(temp_stage, filename)
+            if ostype == "nt":
+                path = path.replace("/", "\\")
+            else:
+                path = path.replace("\\", "/")
         if os.path.exists(path) and os.path.isdir(path):
             if format != "csv":
                 raise ValueError(
@@ -486,8 +491,13 @@ class DataFrameReader:
             filelist = os.listdir(path)
             for file in filelist:
                 if os.path.splitext(file)[-1][1:].lower() == format.lower():
+                    filepath = os.path.join(path, file)
+                    if ostype == "nt":
+                        filepath = filepath.replace("/", "\\")
+                    else:
+                        filepath = filepath.replace("\\", "/")
                     _ = self._session.file.put(
-                        os.path.join(path, file), temp_stage, auto_compress=False
+                        filepath, temp_stage, auto_compress=False
                     )
             path = temp_stage
         return path
