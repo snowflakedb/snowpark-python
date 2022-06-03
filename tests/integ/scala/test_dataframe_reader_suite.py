@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
-import os
 import random
 from decimal import Decimal
 
@@ -426,7 +425,7 @@ def test_read_local_file_uploaded_to_stage(session, resources_path, mode):
     df2 = (
         reader.schema(user_schema)
         .option("compression", "auto")
-        .csv(os.path.join(session.get_session_stage(), test_file_csv))
+        .csv(f"{session.get_session_stage()}, {test_file_csv}")
     )
 
     # check if read from stage and read from local are the same
