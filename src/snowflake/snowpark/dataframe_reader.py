@@ -479,7 +479,7 @@ class DataFrameReader:
                 path, temp_stage, auto_compress=False, overwrite=True
             )
             _, filename = os.path.split(path)
-            path = os.path.join(temp_stage, filename)
+            path = f"{temp_stage}/{filename}"
         if os.path.exists(path) and os.path.isdir(path):
             if format != "csv":
                 raise ValueError(
