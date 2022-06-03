@@ -337,30 +337,25 @@ def test_to_read_files_from_stage(session, resources_path, mode):
 def test_to_read_csv_from_local(session, resources_path, mode):
 
     test_files = TestFiles(resources_path)
-
     reader = get_reader(session, mode)
 
-    try:
-        df = (
-            reader.schema(user_schema)
-            .option("compression", "auto")
-            .csv(test_files.test_file_csv)
-        )
+    df = (
+        reader.schema(user_schema)
+        .option("compression", "auto")
+        .csv(test_files.test_file_csv)
+    )
 
-        Utils.check_answer(
-            df,
-            [
-                Row(1, "one", 1.2),
-                Row(2, "two", 2.2),
-            ],
-        )
-    finally:
-        pass
+    Utils.check_answer(
+        df,
+        [
+            Row(1, "one", 1.2),
+            Row(2, "two", 2.2),
+        ],
+    )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_to_read_csv_from_local_directory(session, resources_path, mode, tmpdir):
-    # test_files = TestFiles(resources_path)
+def test_to_read_csv_from_local_directory(session, mode, tmpdir):
     f1 = tmpdir.join("testCSV1.csv")
     f1.write("1,one,1.1")
     f2 = tmpdir.join("testCSV2.csv")
@@ -376,14 +371,10 @@ def test_to_read_csv_from_local_directory(session, resources_path, mode, tmpdir)
     )
     reader = get_reader(session, mode)
 
-    try:
-        df = reader.schema(schema).option("compression", "auto").csv(tmpdir.strpath)
-        res = df.collect()
-        # because result of read from a dir is random, we check the length of the result here
-        assert len(res) == 3
-
-    finally:
-        pass
+    df = reader.schema(schema).option("compression", "auto").csv(tmpdir.strpath)
+    res = df.collect()
+    # because the result of reading from a dir is nondeterministic, we check the length of the result here
+    assert len(res) == 3
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -391,23 +382,19 @@ def test_read_local_file_uploaded_to_stage(session, resources_path, mode):
     test_files = TestFiles(resources_path)
     reader = get_reader(session, mode)
 
-    try:
-        df = (
-            reader.schema(user_schema)
-            .option("compression", "auto")
-            .csv(test_files.test_file_csv)
-        )
-        df2 = (
-            reader.schema(user_schema)
-            .option("compression", "auto")
-            .csv(os.path.join(session.get_session_stage(), test_file_csv))
-        )
+    df = (
+        reader.schema(user_schema)
+        .option("compression", "auto")
+        .csv(test_files.test_file_csv)
+    )
+    df2 = (
+        reader.schema(user_schema)
+        .option("compression", "auto")
+        .csv(os.path.join(session.get_session_stage(), test_file_csv))
+    )
 
-        # check if read from stage and read from local are the same
-        Utils.check_answer(df, df2)
-
-    finally:
-        pass
+    # check if read from stage and read from local are the same
+    Utils.check_answer(df, df2)
 
 
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
