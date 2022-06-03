@@ -264,7 +264,7 @@ class DataFrameReader:
         """Specify the path of the CSV file(s) to load.
 
         Args:
-            path: A path pointing to a local CSV file, a local directory that has CSV files, a CSV file on a stage, or a stage location that has CSV files.
+            path: A path pointing to a local CSV file, a local directory that has CSV files, a CSV file on a stage or a stage location that has CSV files
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
@@ -474,23 +474,27 @@ class DataFrameReader:
 
     def _upload_local_file_to_stage(self, path: str, format: str) -> str:
         temp_stage = self._session.get_session_stage()
-        if os.path.exists(path) and os.path.isfile(path):
-            _ = self._session.file.put(
-                path, temp_stage, auto_compress=False, overwrite=True
-            )
-            _, filename = os.path.split(path)
-            path = f"{temp_stage}/{filename}"
-        if os.path.exists(path) and os.path.isdir(path):
-            if format != "csv":
-                raise ValueError(
-                    f"Only support a local directory for reading CSV files, but got {format}"
+        stage_path = path
+        if os.path.exists(path):
+            raise ValueError(f"Path of local {format} file dose not exist")
+        else:
+            if os.path.isfile(path):
+                self._session.file.put(
+                    path, temp_stage, auto_compress=False, overwrite=True
                 )
-            filelist = os.listdir(path)
-            for file in filelist:
-                if os.path.splitext(file)[-1][1:].lower() == format.lower():
-                    filepath = os.path.join(path, file)
-                    _ = self._session.file.put(
-                        filepath, temp_stage, auto_compress=False, overwrite=True
+                _, filename = os.path.split(path)
+                stage_path = f"{temp_stage}/{filename}"
+            if os.path.isdir(path):
+                if format != "csv":
+                    raise ValueError(
+                        f"Only support a local directory for reading CSV files, but got {format}"
                     )
-            path = temp_stage
-        return path
+                filelist = os.listdir(path)
+                for file in filelist:
+                    if os.path.splitext(file)[-1][1:].lower() == format.lower():
+                        filepath = os.path.join(path, file)
+                        self._session.file.put(
+                            filepath, temp_stage, auto_compress=False, overwrite=True
+                        )
+                stage_path = temp_stage
+        return stage_path
