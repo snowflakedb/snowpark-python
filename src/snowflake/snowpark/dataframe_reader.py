@@ -475,26 +475,24 @@ class DataFrameReader:
     def _upload_local_file_to_stage(self, path: str, format: str) -> str:
         temp_stage = self._session.get_session_stage()
         stage_path = path
-        if os.path.exists(path):
-            raise ValueError(f"Path of local {format} file dose not exist")
-        else:
-            if os.path.isfile(path):
-                self._session.file.put(
-                    path, temp_stage, auto_compress=False, overwrite=True
+
+        if os.path.exists(path) and os.path.isfile(path):
+            self._session.file.put(
+                path, temp_stage, auto_compress=False, overwrite=True
+            )
+            _, filename = os.path.split(path)
+            stage_path = f"{temp_stage}/{filename}"
+        if os.path.exists(path) and os.path.isdir(path):
+            if format != "csv":
+                raise ValueError(
+                    f"Only support a local directory for reading CSV files, but got {format}"
                 )
-                _, filename = os.path.split(path)
-                stage_path = f"{temp_stage}/{filename}"
-            if os.path.isdir(path):
-                if format != "csv":
-                    raise ValueError(
-                        f"Only support a local directory for reading CSV files, but got {format}"
+            filelist = os.listdir(path)
+            for file in filelist:
+                if os.path.splitext(file)[-1][1:].lower() == format.lower():
+                    filepath = os.path.join(path, file)
+                    self._session.file.put(
+                        filepath, temp_stage, auto_compress=False, overwrite=True
                     )
-                filelist = os.listdir(path)
-                for file in filelist:
-                    if os.path.splitext(file)[-1][1:].lower() == format.lower():
-                        filepath = os.path.join(path, file)
-                        self._session.file.put(
-                            filepath, temp_stage, auto_compress=False, overwrite=True
-                        )
-                stage_path = temp_stage
+            stage_path = temp_stage
         return stage_path

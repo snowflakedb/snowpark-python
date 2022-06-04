@@ -400,7 +400,7 @@ def test_to_read_csv_from_local_overwrite(session, mode, tmpdir):
         .option("compression", "auto")
         .csv(Utils.escape_path(tmpdir.strpath))
     ).collect()
-
+    Utils.check_answer(df, [Row("1", "one", "1.1")])
     f1.write("3,three,3.3")
     df = (
         reader.schema(schema)
@@ -425,7 +425,7 @@ def test_read_local_file_uploaded_to_stage(session, resources_path, mode):
     df2 = (
         reader.schema(user_schema)
         .option("compression", "auto")
-        .csv(f"{session.get_session_stage()}, {test_file_csv}")
+        .csv(f"{session.get_session_stage()}/{test_file_csv}")
     )
 
     # check if read from stage and read from local are the same
@@ -546,13 +546,12 @@ def test_to_read_json_from_local(session, resources_path, mode):
     reader = get_reader(session, mode)
 
     df = reader.json(Utils.escape_path(test_files.test_file_json))
-    res = df.collect()
     Utils.check_answer(
-        res, [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')]
+        df, [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')]
     )
-    res = df.where(sql_expr("$1:color") == "Red").collect()
     Utils.check_answer(
-        res, [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')]
+        df.where(sql_expr("$1:color") == "Red"),
+        [Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')],
     )
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
@@ -616,8 +615,7 @@ def test_to_read_avro_from_local(session, resources_path, mode):
         ],
     )
     # query_test
-    res = df.where(sql_expr('"num"') > 1).collect()
-    Utils.check_answer(res, [Row(str="str2", num=2)])
+    Utils.check_answer(df.where(sql_expr('"num"') > 1), [Row(str="str2", num=2)])
 
     # assert user cannot input a schema to read avro
     with pytest.raises(ValueError):
@@ -711,8 +709,7 @@ def test_to_read_parquet_from_local(session, resources_path, mode):
         ],
     )
     # query_test
-    res = df.where(sql_expr('"num"') > 1).collect()
-    Utils.check_answer(res, [Row(str="str2", num=2)])
+    Utils.check_answer(df.where(sql_expr('"num"') > 1), [Row(str="str2", num=2)])
 
     # assert user cannot input a schema to read avro
     with pytest.raises(ValueError):
