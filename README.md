@@ -22,7 +22,7 @@ pip install snowflake-snowpark-python
 ```
 Optionally, you need to install pandas in the same environment if you want to use pandas-related features:
 ```bash
-pip install snowflake-snowpark-python[pandas]
+pip install "snowflake-snowpark-python[pandas]"
 ```
 
 ### Create a session and use the APIs
