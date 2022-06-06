@@ -361,15 +361,6 @@ def test_to_read_local_file_not_exist(session):
     assert f"The local file {test_files} does not exist" in str(ex_info)
 
 
-def test_to_read_local_directory_not_csv(session, resources_path):
-    test_dir = resources_path
-    with pytest.raises(ValueError) as ex_info:
-        session.read.json(test_dir)
-    assert "Only support a local directory for reading CSV files, but got JSON" in str(
-        ex_info
-    )
-
-
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_to_read_csv_from_local_directory(session, mode, tmpdir):
     f1 = tmpdir.join("testCSV1.csv")
@@ -389,7 +380,7 @@ def test_to_read_csv_from_local_directory(session, mode, tmpdir):
 
     df = (
         reader.schema(schema)
-        .option("compression", "auto")
+        .option("pattern", ".*[.]csv")
         .csv(Utils.escape_path(tmpdir.strpath))
     )
     res = df.collect()
@@ -413,14 +404,14 @@ def test_to_read_csv_from_local_overwrite(session, mode, tmpdir):
 
     df = (
         reader.schema(schema)
-        .option("compression", "auto")
+        .option("pattern", ".*[.]csv")
         .csv(Utils.escape_path(tmpdir.strpath))
     ).collect()
     Utils.check_answer(df, [Row("1", "one", "1.1")])
     f1.write("3,three,3.3")
     df = (
         reader.schema(schema)
-        .option("compression", "auto")
+        .option("pattern", ".*[.]csv")
         .csv(Utils.escape_path(tmpdir.strpath))
     )
     Utils.check_answer(df, [Row("3", "three", "3.3")])
