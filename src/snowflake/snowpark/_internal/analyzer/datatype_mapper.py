@@ -87,7 +87,7 @@ def to_sql(value: Any, datatype: DataType) -> str:
 
     # Not nulls
     if isinstance(value, str) and isinstance(datatype, StringType):
-        return str_to_sql(value)
+        return f"{str_to_sql(value)} :: string"
     if isinstance(datatype, ByteType):
         return f"{value} :: tinyint"
     if isinstance(datatype, ShortType):
