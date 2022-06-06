@@ -476,7 +476,7 @@ class DataFrameReader:
     def _upload_local_file_to_stage(self, path: str, format: str) -> str:
         temp_stage = self._session.get_session_stage()
         stage_path = path
-        if not os.path.exists(path) and not path.startswith(STAGE_PREFIX):
+        if not path.startswith(STAGE_PREFIX) and not os.path.exists(path):
             raise ValueError(f"The local file {path} does not exist")
         if os.path.exists(path) and os.path.isfile(path):
             self._session.file.put(
