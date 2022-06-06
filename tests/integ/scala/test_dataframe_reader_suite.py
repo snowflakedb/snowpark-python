@@ -354,31 +354,17 @@ def test_to_read_csv_from_local(session, resources_path, mode):
     session.sql(f"remove {session.get_session_stage()}").collect()
 
 
-@pytest.mark.parametrize("mode", ["select", "copy"])
-def test_to_read_local_file_not_exist(session, mode):
-
+def test_to_read_local_file_not_exist(session):
     test_files = test_file_csv
-    reader = get_reader(session, mode)
     with pytest.raises(ValueError) as ex_info:
-        df = (
-            reader.schema(user_schema)
-            .option("compression", "auto")
-            .csv(Utils.escape_path(Utils.escape_path(test_files)))
-        )
-        df.collect()
+        session.read.schema(user_schema).csv(Utils.escape_path(test_files))
     assert f"The local file {test_files} does not exist" in str(ex_info)
 
 
-@pytest.mark.parametrize("mode", ["select", "copy"])
-def test_to_read_local_directory_not_csv(session, resources_path, mode):
-
+def test_to_read_local_directory_not_csv(session, resources_path):
     test_dir = resources_path
-    reader = get_reader(session, mode)
     with pytest.raises(ValueError) as ex_info:
-        df = reader.option("compression", "auto").json(
-            Utils.escape_path(Utils.escape_path(test_dir))
-        )
-        df.collect()
+        session.read.json(test_dir)
     assert "Only support a local directory for reading CSV files, but got JSON" in str(
         ex_info
     )

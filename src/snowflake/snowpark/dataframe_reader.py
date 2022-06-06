@@ -478,23 +478,24 @@ class DataFrameReader:
         stage_path = path
         if not path.startswith(STAGE_PREFIX) and not os.path.exists(path):
             raise ValueError(f"The local file {path} does not exist")
-        if os.path.exists(path) and os.path.isfile(path):
-            self._session.file.put(
-                path, temp_stage, auto_compress=False, overwrite=True
-            )
-            _, filename = os.path.split(path)
-            stage_path = f"{temp_stage}/{filename}"
-        if os.path.exists(path) and os.path.isdir(path):
-            if format != "csv":
-                raise ValueError(
-                    f"Only support a local directory for reading CSV files, but got {format}"
+        else:
+            if os.path.isfile(path):
+                self._session.file.put(
+                    path, temp_stage, auto_compress=False, overwrite=True
                 )
-            filelist = os.listdir(path)
-            for file in filelist:
-                if os.path.splitext(file)[-1][1:].lower() == format.lower():
-                    filepath = os.path.join(path, file)
-                    self._session.file.put(
-                        filepath, temp_stage, auto_compress=False, overwrite=True
+                _, filename = os.path.split(path)
+                stage_path = f"{temp_stage}/{filename}"
+            if os.path.isdir(path):
+                if format != "csv":
+                    raise ValueError(
+                        f"Only support a local directory for reading CSV files, but got {format}"
                     )
-            stage_path = temp_stage
+                filelist = os.listdir(path)
+                for file in filelist:
+                    if os.path.splitext(file)[-1][1:].lower() == format.lower():
+                        filepath = os.path.join(path, file)
+                        self._session.file.put(
+                            filepath, temp_stage, auto_compress=False, overwrite=True
+                        )
+                stage_path = temp_stage
         return stage_path
