@@ -3,7 +3,7 @@
 The Snowpark library provides intuitive APIs for querying and processing data in a data pipeline.
 Using this library, you can build applications that process data in Snowflake without having to move data to the system where your application code runs.
 
-[Source code][source code] | [Developer guide][developer guide] | [API reference][api references] | [Product documentation][snowpark] | [Samples](#samples)
+[Source code][source code] | [Developer guide][developer guide] | [API reference][api references] | [Product documentation][snowpark] | [Samples][samples]
 
 ## Getting started
 
@@ -53,7 +53,7 @@ The [Developer Guide][developer guide] and [API references][api references] have
 
 ## Logging
 Configure logging level for `snowflake.snowpark` for Snowpark Python API logs.
-Snowpark uses the the [Snowflake Python Connector][python connector].
+Snowpark uses the [Snowflake Python Connector][python connector].
 So you may also want to configure the logging level for `snowflake.connector` when the error is in the Python Connector.
 For instance,
 ```python
@@ -68,7 +68,7 @@ for logger_name in ('snowflake.snowpark', 'snowflake.connector'):
 ```
 
 ## Contributing
-Please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
+Please refer to [CONTRIBUTING.md][contributing].
 
 [add other sample code repo links]: # (Developer advocacy is open-sourcing a repo that has excellent sample code. The link will be added here.)
 
@@ -84,3 +84,5 @@ Please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 [python connector]: https://pypi.org/project/snowflake-connector-python/
 [use snowflake channel]: https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html#local-development-and-testing
 [snowflake lab sample code]: https://github.com/Snowflake-Labs/snowpark-python-demos
+[samples]: https://github.com/snowflakedb/snowpark-python/blob/main/README.md#samples
+[contributing]: https://github.com/snowflakedb/snowpark-python/blob/main/CONTRIBUTING.md
