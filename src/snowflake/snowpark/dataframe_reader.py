@@ -265,7 +265,7 @@ class DataFrameReader:
         """Specify the path of the CSV file(s) to load.
 
         Args:
-            path: A path pointing to a local CSV file, a local directory that has CSV files, a CSV file on a stage or a stage location that has CSV files
+            path: A path pointing to a local CSV file, a local directory that has CSV files, a CSV file on a stage or a stage location that has CSV files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
@@ -293,7 +293,7 @@ class DataFrameReader:
         """Specify the path of the JSON file(s) to load.
 
         Args:
-            path: A path pointing to a local JSON file, or a JSON file on a stage.
+            path: A path pointing to a local JSON file, a local directory that has JSON files, a JSON file on a stage or a stage location that has JSON files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
@@ -304,7 +304,7 @@ class DataFrameReader:
         """Specify the path of the AVRO file(s) to load.
 
         Args:
-            path: A path pointing to a local AVRO file, or a AVRO file on a stage.
+            path: A path pointing to a local AVRO file, a local directory that has AVRO files, a AVRO file on a stage or a stage location that has AVRO files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
@@ -315,7 +315,7 @@ class DataFrameReader:
         """Specify the path of the PARQUET file(s) to load.
 
         Args:
-            path: A path pointing to a local PARQUET file, or a PARQUET file on a stage.
+            path: A path pointing to a local PARQUET file, a local directory that has PARQUET files, a PARQUET file on a stage or a stage location that has PARQUET files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified PARQUET file(s) in a Snowflake stage.
@@ -326,7 +326,7 @@ class DataFrameReader:
         """Specify the path of the ORC file(s) to load.
 
         Args:
-            path: A path pointing to a local ORC file, or a ORC file on a stage.
+            path: A path pointing to a local ORC file, a local directory that has ORC files, a ORC file on a stage or a stage location that has ORC files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
@@ -337,7 +337,7 @@ class DataFrameReader:
         """Specify the path of the XML file(s) to load.
 
         Args:
-            path: A path pointing to a local XML file, or a XML file on a stage.
+            path: A path pointing to a local XML file, a local directory that has XML files, a XML file on a stage or a stage location that has XML files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
@@ -474,28 +474,25 @@ class DataFrameReader:
         return df
 
     def _upload_local_file_to_stage(self, path: str, format: str) -> str:
-        temp_stage = self._session.get_session_stage()
-        stage_path = path
+
         if not path.startswith(STAGE_PREFIX) and not os.path.exists(path):
             raise ValueError(f"The local file {path} does not exist")
+        temp_stage = self._session.get_session_stage()
+        if os.path.isfile(path):
+            self._session.file.put(
+                path, temp_stage, auto_compress=False, overwrite=True
+            )
+            _, filename = os.path.split(path)
+            stage_path = f"{temp_stage}/{filename}"
+        elif os.path.isdir(path):
+            filepath = os.path.join(path, f"*.{format}")
+            self._session.file.put(
+                filepath, temp_stage, auto_compress=False, overwrite=True
+            )
+            stage_path = temp_stage
+        elif path.startswith(STAGE_PREFIX):
+            stage_path = path
         else:
-            if os.path.isfile(path):
-                self._session.file.put(
-                    path, temp_stage, auto_compress=False, overwrite=True
-                )
-                _, filename = os.path.split(path)
-                stage_path = f"{temp_stage}/{filename}"
-            if os.path.isdir(path):
-                if format != "csv":
-                    raise ValueError(
-                        f"Only support a local directory for reading CSV files, but got {format}"
-                    )
-                filelist = os.listdir(path)
-                for file in filelist:
-                    if os.path.splitext(file)[-1][1:].lower() == format.lower():
-                        filepath = os.path.join(path, file)
-                        self._session.file.put(
-                            filepath, temp_stage, auto_compress=False, overwrite=True
-                        )
-                stage_path = temp_stage
+            raise ValueError(f"{path} is neither a file or a directory")
+
         return stage_path
