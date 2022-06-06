@@ -259,10 +259,10 @@ def test_read_csv_with_format_type_options(session, mode):
     assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
     # test when user does not input a right option:
-    df2 = get_reader(session, mode).schema(user_schema).csv(test_file_csv_colon)
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(ValueError) as ex_info:
+        df2 = get_reader(session, mode).schema(user_schema).csv(test_file_csv_colon)
         df2.collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert f"The local file {test_file_csv_colon} does not exist" in str(ex_info)
 
     # test for multiple formatTypeOptions
     df3 = (
@@ -352,6 +352,36 @@ def test_to_read_csv_from_local(session, resources_path, mode):
         ],
     )
     session.sql(f"remove {session.get_session_stage()}").collect()
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_to_read_local_file_not_exist(session, mode):
+
+    test_files = test_file_csv
+    reader = get_reader(session, mode)
+    with pytest.raises(ValueError) as ex_info:
+        df = (
+            reader.schema(user_schema)
+            .option("compression", "auto")
+            .csv(Utils.escape_path(Utils.escape_path(test_files)))
+        )
+        df.collect()
+    assert f"The local file {test_files} does not exist" in str(ex_info)
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_to_read_local_directory_not_csv(session, resources_path, mode):
+
+    test_dir = resources_path
+    reader = get_reader(session, mode)
+    with pytest.raises(ValueError) as ex_info:
+        df = reader.option("compression", "auto").json(
+            Utils.escape_path(Utils.escape_path(test_dir))
+        )
+        df.collect()
+    assert "Only support a local directory for reading CSV files, but got JSON" in str(
+        ex_info
+    )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])

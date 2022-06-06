@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     COPY_OPTIONS,
     INFER_SCHEMA_FORMAT_TYPES,
+    STAGE_PREFIX,
     TempObjectType,
     random_name_for_temp_object,
 )
@@ -475,7 +476,8 @@ class DataFrameReader:
     def _upload_local_file_to_stage(self, path: str, format: str) -> str:
         temp_stage = self._session.get_session_stage()
         stage_path = path
-
+        if not os.path.exists(path) and not path.startswith(STAGE_PREFIX):
+            raise ValueError(f"The local file {path} does not exist")
         if os.path.exists(path) and os.path.isfile(path):
             self._session.file.put(
                 path, temp_stage, auto_compress=False, overwrite=True
