@@ -1,68 +1,88 @@
-# Python Snowpark
+# Snowflake Snowpark Python API
 
-## To develop Python Snowpark
+The Snowpark library provides intuitive APIs for querying and processing data in a data pipeline.
+Using this library, you can build applications that process data in Snowflake without having to move data to the system where your application code runs.
 
-### Setup Python Environment
+[Source code][source code] | [Developer guide][developer guide] | [API reference][api references] | [Product documentation][snowpark] | [Samples][samples]
 
-#### Install Python
+## Getting started
 
-Python Snowpark requires Python 3.8 (or higher). Python 3.8 is available in the default CentOS 7
-repository and can be installed from source using the following commands:
+### Have your Snowflake account ready
+If you don't have a Snowflake account yet, you can [sign up for a 30-day free trial account][sign up trial].
+
+### Create a Python virtual environment
+Python 3.8 is required. You can use [miniconda][miniconda], [anaconda][anaconda], or [virtualenv][virtualenv]
+to create a Python 3.8 virtual environment.
+
+To have the best experience when using it with UDFs, [creating a local conda environment with the Snowflake channel][use snowflake channel] is recommended.
+
+### Install the library to the Python virtual environment
 ```bash
-# Install necessary install packages
-sudo yum install gcc openssl-devel bzip2-devel libffi-devel sqlite-devel
-cd /opt
-# Following operations may require sudo
-# Go here (https://www.python.org/downloads/) to find the latest Python 3.8 version
-wget https://www.python.org/ftp/python/3.8.11/Python-3.8.11.tgz
-tar xvf Python-3.8.11.tgz
-cd Python-3.8.11/
-./configure --enable-optimizations
-# Run altinstall to make sure you don't thrash your own system Python install
-sudo make altinstall
-# Check Python version
-python3.8 --version
+pip install snowflake-snowpark-python
 ```
-The `devel` package installs the Python headers necessary to compile C-extensions of Snowflake
-Python Connector.
-
-#### Clone the repository
-
+Optionally, you need to install pandas in the same environment if you want to use pandas-related features:
 ```bash
-git clone git@github.com:snowflakedb/snowpark-python.git
-cd snowpark-python
+pip install "snowflake-snowpark-python[pandas]"
 ```
 
-#### Setup a virtualenv
+### Create a session and use the APIs
+```python
+from snowflake.snowpark import Session
 
-A virtualenv should be installed, which can separate your development with the system-wide Python,
-and benefits us an easy package management. Assume you are using Python 3.6, then just run:
-```bash
-python3.8 -m pip install -U setuptools pip virtualenv
-python3.8 -m virtualenv venv
-source venv/bin/activate
+connection_parameters = {
+  "account": "<your snowflake account>",
+  "user": "<your snowflake user>",
+  "password": "<your snowflake password>",
+  "role": "<snowflake user role>",
+  "warehouse": "<snowflake warehouse>",
+  "database": "<snowflake database>",
+  "schema": "<snowflake schema>"
+}
+
+session = Session.builder.configs(connection_parameters).create()
+df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+df = df.filter(df.a > 1)
+df.show()
+pandas_df = df.to_pandas()  # this requires pandas installed in the Python environment
+result = df.collect()
 ```
-Note that you should activate your virtualenv after rebooting your machine and before
-developing Python Snowpark every time.
 
+## Samples
+The [Developer Guide][developer guide] and [API references][api references] have basic sample code.
+[Snowflake-Labs][snowflake lab sample code] has more curated demos.
 
-### Install the Python Snowpark and its dependencies
-```bash
-python -m pip install ".[development, pandas]"
+## Logging
+Configure logging level for `snowflake.snowpark` for Snowpark Python API logs.
+Snowpark uses the [Snowflake Python Connector][python connector].
+So you may also want to configure the logging level for `snowflake.connector` when the error is in the Python Connector.
+For instance,
+```python
+import logging
+for logger_name in ('snowflake.snowpark', 'snowflake.connector'):
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    ch.setFormatter(logging.Formatter('%(asctime)s - %(threadName)s %(filename)s:%(lineno)d - %(funcName)s() - %(levelname)s - %(message)s'))
+    logger.addHandler(ch)
 ```
 
+## Contributing
+Please refer to [CONTRIBUTING.md][contributing].
 
-### Setup Pycharm
+[add other sample code repo links]: # (Developer advocacy is open-sourcing a repo that has excellent sample code. The link will be added here.)
 
-#### Download and install Pycharm
-Download the newest community version of [Pycharm](https://www.jetbrains.com/pycharm/download/)
-and follow [installation instructions](https://www.jetbrains.com/help/pycharm/installation-guide.html#snap-install-tar)
-for CentOS 7.
-
-#### Setup project
-Open project and browse to the cloned git directory. Then right-click the directory `src` in Pycharm
-and "Mark Directory as" -> "Source Root".
-
-#### Setup Python Interpreter
-This should be setup automatically, but make sure that the Python interpreter in Pycharm is pointing
-to the Python binary in your virtualenv (`[cloned repo directory]/virtualenv/bin/python`).
+[developer guide]: https://docs.snowflake.com/en/LIMITEDACCESS/snowpark-python.html
+[api references]: https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/index.html
+[snowpark]: https://www.snowflake.com/snowpark
+[sign up trial]: https://signup.snowflake.com
+[source code]: https://github.com/snowflakedb/snowpark-python
+[miniconda]: https://docs.conda.io/en/latest/miniconda.html
+[anaconda]: https://www.anaconda.com/
+[virtualenv]: https://docs.python.org/3/tutorial/venv.html
+[config pycharm interpreter]: https://www.jetbrains.com/help/pycharm/configuring-python-interpreter.html
+[python connector]: https://pypi.org/project/snowflake-connector-python/
+[use snowflake channel]: https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html#local-development-and-testing
+[snowflake lab sample code]: https://github.com/Snowflake-Labs/snowpark-python-demos
+[samples]: https://github.com/snowflakedb/snowpark-python/blob/main/README.md#samples
+[contributing]: https://github.com/snowflakedb/snowpark-python/blob/main/CONTRIBUTING.md
