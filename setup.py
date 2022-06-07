@@ -16,20 +16,27 @@ with open(os.path.join(SNOWPARK_SRC_DIR, "version.py"), encoding="utf-8") as f:
     exec(f.read())
 version = ".".join([str(v) for v in VERSION if v is not None])
 
+with open(os.path.join(THIS_DIR, "README.md"), encoding="utf-8") as f:
+    readme = f.read()
+with open(os.path.join(THIS_DIR, "CHANGELOG.md"), encoding="utf-8") as f:
+    changelog = f.read()
+
 setup(
     name="snowflake-snowpark-python",
     version=version,
     description="Snowflake Snowpark for Python",
+    long_description=readme + "\n\n" + changelog,
+    long_description_content_type="text/markdown",
     author="Snowflake, Inc",
-    author_email="support@snowflake.com",
+    author_email="triage-snowpark-python-api-dl@snowflake.com",
     license="Apache License, Version 2.0",
     keywords="Snowflake db database cloud analytics warehouse",
     url="https://www.snowflake.com/",
     project_urls={
-        "Documentation": "https://docs.snowflake.com/",
-        # TODO: update it when we have documentation
-        # "Code": "https://github.com/snowflakedb/snowflake-connector-python",
-        # "Issue tracker": "https://github.com/snowflakedb/snowflake-connector-python/issues",
+        "Documentation": "https://docs.snowflake.com/en/developer-guide/snowpark/reference/python",
+        "Source": "https://github.com/snowflakedb/snowpark-python",
+        "Issues": "https://github.com/snowflakedb/snowpark-python/issues",
+        "Changelog": "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md",
     },
     python_requires="==3.8.*",
     install_requires=[
