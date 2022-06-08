@@ -270,7 +270,7 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
-        path = self._upload_local_file_to_stage(path, "csv")
+        path, uploadfile_parameters = self._upload_local_file_to_stage(path, "csv")
         if not self._user_schema:
             raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
 
@@ -284,6 +284,7 @@ class DataFrameReader:
                 self._cur_options,
                 self._session.get_fully_qualified_current_schema(),
                 self._user_schema._to_attributes(),
+                uploadfile_parameters=uploadfile_parameters,
             ),
         )
         df._reader = self
@@ -376,7 +377,7 @@ class DataFrameReader:
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         # upload file if it is local
-        path = self._upload_local_file_to_stage(path, format)
+        path, uploadfile_parameters = self._upload_local_file_to_stage(path, format)
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
@@ -421,6 +422,7 @@ class DataFrameReader:
                 new_schema = []
                 schema_to_cast = []
                 transformations = []
+
                 for r in results:
                     # Columns for r [column_name, type, nullable, expression, filenames]
                     name = quote_name_without_upper_casing(r[0])
@@ -457,7 +459,6 @@ class DataFrameReader:
                 self._session._conn.run_query(
                     drop_file_format_if_exists_query, is_ddl_on_temp_object=True
                 )
-
         df = DataFrame(
             self._session,
             self._session._plan_builder.read_file(
@@ -468,31 +469,34 @@ class DataFrameReader:
                 schema,
                 schema_to_cast=schema_to_cast,
                 transformations=read_file_transformations,
+                uploadfile_parameters=uploadfile_parameters,
             ),
         )
         df._reader = self
         return df
 
-    def _upload_local_file_to_stage(self, path: str, format: str) -> str:
+    def _upload_local_file_to_stage(self, path: str, format: str) -> (str, Dict):
 
         if not path.startswith(STAGE_PREFIX) and not os.path.exists(path):
             raise ValueError(f"The local file {path} does not exist")
         temp_stage = self._session.get_session_stage()
+        self.option("PURGE", True)
+        uploadfile_parameters = {}
+        uploadfile_parameters["command"] = "put"
+        uploadfile_parameters["stage_location"] = self._session.get_session_stage()
+        uploadfile_parameters["options"] = {"auto_compress": False}
         if os.path.isfile(path):
-            self._session.file.put(
-                path, temp_stage, auto_compress=False, overwrite=True
-            )
             _, filename = os.path.split(path)
             stage_path = f"{temp_stage}/{filename}"
+            uploadfile_parameters["file_name"] = path
         elif os.path.isdir(path):
             filepath = os.path.join(path, f"*.{format}")
-            self._session.file.put(
-                filepath, temp_stage, auto_compress=False, overwrite=True
-            )
             stage_path = temp_stage
+            uploadfile_parameters["file_name"] = filepath
         elif path.startswith(STAGE_PREFIX):
             stage_path = path
+            uploadfile_parameters = {}
         else:
             raise ValueError(f"{path} is neither a file or a directory")
 
-        return stage_path
+        return stage_path, uploadfile_parameters

@@ -62,6 +62,8 @@ from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
     generate_random_alphanumeric,
+    normalize_local_file,
+    normalize_remote_file_or_dir,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
@@ -606,6 +608,7 @@ class SnowflakePlanBuilder:
         schema: List[Attribute],
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
+        uploadfile_parameters: Optional[Dict] = None,
     ):
         copy_options = {}
         format_type_options = {}
@@ -696,35 +699,51 @@ class SnowflakePlanBuilder:
                 + "."
                 + random_name_for_temp_object(TempObjectType.TABLE)
             )
-            queries = [
-                Query(
-                    create_temp_table_statement(
-                        temp_table_name,
-                        attribute_to_schema_string(temp_table_schema),
+            queries = []
+            if uploadfile_parameters:
+                queries.append(
+                    Query(
+                        file_operation_statement(
+                            uploadfile_parameters["command"],
+                            normalize_local_file(uploadfile_parameters["file_name"]),
+                            normalize_remote_file_or_dir(
+                                uploadfile_parameters["stage_location"]
+                            ),
+                            uploadfile_parameters["options"],
+                        )
+                    )
+                )
+            queries.extend(
+                [
+                    Query(
+                        create_temp_table_statement(
+                            temp_table_name,
+                            attribute_to_schema_string(temp_table_schema),
+                        ),
+                        is_ddl_on_temp_object=True,
                     ),
-                    is_ddl_on_temp_object=True,
-                ),
-                Query(
-                    copy_into_table(
-                        temp_table_name,
-                        path,
-                        format,
-                        format_type_options,
-                        copy_options_with_force,
-                        pattern,
-                        transformations=transformations,
-                    )
-                ),
-                Query(
-                    project_statement(
-                        [
-                            f"{new_att.name} AS {input_att.name}"
-                            for new_att, input_att in zip(temp_table_schema, schema)
-                        ],
-                        temp_table_name,
-                    )
-                ),
-            ]
+                    Query(
+                        copy_into_table(
+                            temp_table_name,
+                            path,
+                            format,
+                            format_type_options,
+                            copy_options_with_force,
+                            pattern,
+                            transformations=transformations,
+                        )
+                    ),
+                    Query(
+                        project_statement(
+                            [
+                                f"{new_att.name} AS {input_att.name}"
+                                for new_att, input_att in zip(temp_table_schema, schema)
+                            ],
+                            temp_table_name,
+                        )
+                    ),
+                ]
+            )
 
             post_actions = [
                 Query(
