@@ -1583,3 +1583,18 @@ def test_unpivot(session, column_list):
         ],
         sort=False,
     )
+
+
+def test_create_dataframe_string_length(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe(["ab", "abc", "abcd"], schema=["a"])
+    df.write.mode("overwrite").save_as_table(table_name, create_temp_table=True)
+    datatype = json.loads(
+        session.sql(f"show columns in {table_name}").collect()[0]["data_type"]
+    )
+    assert datatype["type"] == "TEXT"
+    assert datatype["length"] == 2**20 * 16  # max length (16 MB)
+    session.sql(f"insert into {table_name} values('abcde')").collect()
+    Utils.check_answer(
+        session.table(table_name), [Row("ab"), Row("abc"), Row("abcd"), Row("abcde")]
+    )
