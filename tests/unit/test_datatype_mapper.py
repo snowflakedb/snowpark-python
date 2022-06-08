@@ -53,6 +53,10 @@ def test_to_sql():
 
     # Test non-nulls
     assert to_sql("\\ '  ' abc \n \\", StringType()) == "'\\\\ ''  '' abc \\n \\\\'"
+    assert (
+        to_sql("\\ '  ' abc \n \\", StringType(), True)
+        == "'\\\\ ''  '' abc \\n \\\\' :: string"
+    )
     assert to_sql(1, ByteType()) == "1 :: tinyint"
     assert to_sql(1, ShortType()) == "1 :: smallint"
     assert to_sql(1, IntegerType()) == "1 :: int"
@@ -98,9 +102,9 @@ def test_to_sql_without_cast():
     assert to_sql_without_cast(None, NullType()) == "NULL"
     assert to_sql_without_cast(None, IntegerType()) == "NULL"
 
-    assert to_sql_without_cast("abc", StringType()) == """abc"""
-    assert to_sql_without_cast(123, StringType()) == "123"
-    assert to_sql_without_cast(0.2, StringType()) == "0.2"
+    assert to_sql_without_cast("abc", StringType()) == "'abc'"
+    assert to_sql_without_cast(123, StringType()) == "'123'"
+    assert to_sql_without_cast(0.2, StringType()) == "'0.2'"
 
     assert to_sql_without_cast(123, IntegerType()) == "123"
     assert to_sql_without_cast(0.2, FloatType()) == "0.2"
