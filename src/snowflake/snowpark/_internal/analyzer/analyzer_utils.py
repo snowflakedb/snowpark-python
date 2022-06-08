@@ -432,7 +432,10 @@ def values_statement(output: List[Attribute], data: List[Row]) -> str:
     names = [quote_name(attr.name) for attr in output]
     rows = []
     for row in data:
-        cells = [to_sql(value, data_type) for value, data_type in zip(row, data_types)]
+        cells = [
+            to_sql(value, data_type, from_values_statement=True)
+            for value, data_type in zip(row, data_types)
+        ]
         rows.append(LEFT_PARENTHESIS + COMMA.join(cells) + RIGHT_PARENTHESIS)
     query_source = (
         VALUES

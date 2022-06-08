@@ -45,7 +45,7 @@ def str_to_sql(value: str) -> str:
     return f"'{sql_str}'"
 
 
-def to_sql(value: Any, datatype: DataType) -> str:
+def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
 
     # Handle null values
@@ -87,7 +87,14 @@ def to_sql(value: Any, datatype: DataType) -> str:
 
     # Not nulls
     if isinstance(value, str) and isinstance(datatype, StringType):
-        return str_to_sql(value)
+        # If this is used in a values statement (e.g., create_dataframe),
+        # the sql value has to be casted to make sure the varchar length
+        # will not be limited.
+        return (
+            f"{str_to_sql(value)} :: string"
+            if from_values_statement
+            else str_to_sql(value)
+        )
     if isinstance(datatype, ByteType):
         return f"{value} :: tinyint"
     if isinstance(datatype, ShortType):
@@ -196,9 +203,9 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
-def to_sql_without_cast(value: Any, data_type: DataType) -> str:
+def to_sql_without_cast(value: Any, datatype: DataType) -> str:
     if value is None:
         return "NULL"
-    if isinstance(data_type, StringType):
-        return f"""{value}"""
+    if isinstance(datatype, StringType):
+        return f"'{value}'"
     return str(value)
