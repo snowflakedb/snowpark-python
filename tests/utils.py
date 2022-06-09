@@ -43,9 +43,8 @@ IS_MACOS = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
 IS_UNIX = IS_LINUX or IS_MACOS
 IS_IN_STORED_PROC = is_in_stored_procedure()
-IS_IN_STORED_PROC_LOCALFS = (
-    IS_IN_STORED_PROC and os.getenv("SF_ACCOUNT") == "testaccount"
-)
+# this env variable is set in regression test
+IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
 
 
 class Utils:

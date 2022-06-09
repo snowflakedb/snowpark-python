@@ -1133,7 +1133,7 @@ def test_udf_parallel(session):
 
 
 @pytest.mark.skipif(
-    not is_pandas_and_numpy_available and IS_IN_STORED_PROC,
+    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
 def test_add_packages(session):
@@ -1223,7 +1223,7 @@ def test_add_packages_negative(session, caplog):
 
 
 @pytest.mark.skipif(
-    not is_pandas_and_numpy_available and IS_IN_STORED_PROC,
+    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
 def test_add_requirements(session, resources_path):
@@ -1248,7 +1248,7 @@ def test_add_requirements(session, resources_path):
 
 
 @pytest.mark.skipif(
-    not is_pandas_and_numpy_available and IS_IN_STORED_PROC,
+    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
 def test_udf_describe(session):
