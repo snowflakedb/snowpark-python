@@ -190,7 +190,9 @@ class SubfieldInt(Expression):
 
 
 class FunctionExpression(Expression):
-    def __init__(self, name: str, arguments: List[Expression], is_distinct: bool) -> None:
+    def __init__(
+        self, name: str, arguments: List[Expression], is_distinct: bool
+    ) -> None:
         super().__init__()
         self.name = name
         self.children = arguments

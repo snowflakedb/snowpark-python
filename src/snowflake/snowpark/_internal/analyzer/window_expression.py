@@ -48,7 +48,9 @@ class UnspecifiedFrame(WindowFrame):
 
 
 class SpecifiedWindowFrame(WindowFrame):
-    def __init__(self, frame_type: FrameType, lower: Expression, upper: Expression) -> None:
+    def __init__(
+        self, frame_type: FrameType, lower: Expression, upper: Expression
+    ) -> None:
         super().__init__()
         self.frame_type = frame_type
         self.lower = lower
@@ -69,7 +71,9 @@ class WindowSpecDefinition(Expression):
 
 
 class WindowExpression(Expression):
-    def __init__(self, window_function: Expression, window_spec: WindowSpecDefinition) -> None:
+    def __init__(
+        self, window_function: Expression, window_spec: WindowSpecDefinition
+    ) -> None:
         super().__init__()
         self.window_function = window_function
         self.window_spec = window_spec

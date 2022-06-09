@@ -33,7 +33,9 @@ class Sample(UnaryNode):
 
 
 class Sort(UnaryNode):
-    def __init__(self, order: List[SortOrder], is_global: bool, child: LogicalPlan) -> None:
+    def __init__(
+        self, order: List[SortOrder], is_global: bool, child: LogicalPlan
+    ) -> None:
         super().__init__(child)
         self.order = order
         self.is_global = is_global

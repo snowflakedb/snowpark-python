@@ -74,14 +74,18 @@ class TableFunctionRelation(LogicalPlan):
 
 
 class TableFunctionJoin(LogicalPlan):
-    def __init__(self, child: LogicalPlan, table_function: TableFunctionExpression) -> None:
+    def __init__(
+        self, child: LogicalPlan, table_function: TableFunctionExpression
+    ) -> None:
         super().__init__()
         self.children = [child]
         self.table_function = table_function
 
 
 class Lateral(LogicalPlan):
-    def __init__(self, child: LogicalPlan, table_function: TableFunctionExpression) -> None:
+    def __init__(
+        self, child: LogicalPlan, table_function: TableFunctionExpression
+    ) -> None:
         super().__init__()
         self.children = [child]
         self.table_function = table_function
