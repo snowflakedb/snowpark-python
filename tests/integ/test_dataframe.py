@@ -34,9 +34,10 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import TestData, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestData, TestFiles, Utils
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_read_stage_file_show(session, resources_path):
     tmp_stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)
@@ -1023,6 +1024,7 @@ def test_create_dataframe_empty(session):
     assert df.with_column("c", lit(2)).columns == ["A", "B", "C"]
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_create_dataframe_from_none_data(session):
     assert session.create_dataframe([None, None]).collect() == [
         Row(None),

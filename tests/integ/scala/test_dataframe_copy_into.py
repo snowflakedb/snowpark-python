@@ -22,7 +22,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
@@ -756,6 +756,10 @@ def test_copy_non_csv_transformation(
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-595068 the column order from infer_schema is not preserved",
+)
 @pytest.mark.parametrize(
     "file_format, file_name, assert_data",
     [
