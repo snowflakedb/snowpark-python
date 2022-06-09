@@ -11,7 +11,7 @@ import pytest
 
 from snowflake.snowpark._internal.utils import is_in_stored_procedure
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 
 def random_alphanumeric_name():
@@ -132,6 +132,9 @@ def test_put_with_one_file_twice(session, temp_stage, path1):
     # assert "File with same destination name and checksum already exists" in second_result.message
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="cannot write file to root directory in sandbox"
+)
 def test_put_with_one_relative_path_file(session, temp_stage, path1):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
@@ -237,6 +240,9 @@ def test_get_multiple_files(
         os.remove(f"{temp_target_directory}/{os.path.basename(path3)}")
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-570941: get with pattern is not supported"
+)
 def test_get_with_pattern_and_relative_target_directory(
     session, temp_stage, temp_target_directory, path1, path2, path3
 ):

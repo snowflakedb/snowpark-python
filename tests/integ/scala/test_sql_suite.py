@@ -10,9 +10,12 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import LongType, StructField, StructType
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-533647: Support statement level parameter"
+)
 def test_non_select_queries(session):
     try:
         stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
@@ -39,6 +42,7 @@ def test_non_select_queries(session):
         Utils.drop_table(session, table_name1)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need to support PUT/GET command")
 def test_put_get_should_not_be_performed_when_preparing(
     session, resources_path, tmpdir
 ):
