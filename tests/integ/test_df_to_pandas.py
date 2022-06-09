@@ -6,16 +6,14 @@ from typing import Iterator
 
 import pandas as pd
 import pytest
-from packaging import version
 from pandas import DataFrame as PandasDF, Series as PandasSeries
 from pandas.util.testing import assert_frame_equal
 
-import snowflake.connector
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
 from snowflake.snowpark.functions import col, to_timestamp
 from snowflake.snowpark.types import DecimalType, IntegerType
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 
 def test_to_pandas_new_df_from_range(session):
@@ -117,8 +115,7 @@ def test_to_pandas_non_select(session):
 
 
 @pytest.mark.skipif(
-    version.parse(snowflake.connector.__version__) < version.parse("2.7.5"),
-    reason="Python connector >= v2.7.5 ignores the index for the dataframe from fetch_pandas_all()",
+    IS_IN_STORED_PROC, reason="SNOW-507565: Need localaws for large result"
 )
 def test_to_pandas_batches(session):
     df = session.range(100000).cache_result()
