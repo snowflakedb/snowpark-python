@@ -32,7 +32,7 @@ class TableFunctionCall:
         func_name: Union[str, Iterable[str]],
         *func_arguments: ColumnOrName,
         **func_named_arguments: ColumnOrName,
-    ):
+    ) -> None:
         if func_arguments and func_named_arguments:
             raise ValueError("A table function shouldn't have both args and named args")
         self.name: str = func_name  #: The table function name

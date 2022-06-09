@@ -130,7 +130,7 @@ class ServerConnection:
         self,
         options: Dict[str, Union[int, str]],
         conn: Optional[SnowflakeConnection] = None,
-    ):
+    ) -> None:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_name()
         self._conn = conn if conn else connect(**self._lower_case_parameters)

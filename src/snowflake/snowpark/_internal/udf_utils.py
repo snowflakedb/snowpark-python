@@ -393,7 +393,7 @@ from threading import RLock
 lock = RLock()
 
 class InvokedFlag:
-    def __init__(self):
+    def __init__(self) -> None:
         self.invoked = False
 
 def lock_function_once(f, flag):
@@ -416,7 +416,7 @@ process_invoked = InvokedFlag()
 end_partition_invoked = InvokedFlag()
 
 class {_DEFAULT_HANDLER_NAME}(func):
-    def __init__(self):
+    def __init__(self) -> None:
         lock_function_once(super().__init__, init_invoked)()
 
     def process(self, {args}):

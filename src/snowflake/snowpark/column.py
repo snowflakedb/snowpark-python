@@ -737,7 +737,7 @@ class CaseExpr(Column):
         [Row(CASE_WHEN_COLUMN=1), Row(CASE_WHEN_COLUMN=2), Row(CASE_WHEN_COLUMN=3)]
     """
 
-    def __init__(self, expr: CaseWhen):
+    def __init__(self, expr: CaseWhen) -> None:
         super().__init__(expr)
         self._branches = expr.branches
 
