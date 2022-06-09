@@ -1,8 +1,10 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
+from tests.utils import IS_IN_STORED_PROC
 
 
 def test_query_history(session):
@@ -63,6 +65,9 @@ def test_query_history_no_actions(session):
     assert len(query_listener.queries) == 0
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-533647: Support statement level parameters"
+)
 def test_query_history_executemany(session):
     """Large local data frame uses ServerConnection.run_batch_insert instead of ServerConnection.run_query.
     run_batch_insert create a temp table and use parameter binding to insert values, then select from the temp table.

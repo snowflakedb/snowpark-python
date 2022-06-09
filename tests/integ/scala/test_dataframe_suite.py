@@ -54,7 +54,13 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import TestData, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC_LOCALFS,
+    TestData,
+    TestFiles,
+    Utils,
+)
 
 SAMPLING_DEVIATION = 0.4
 
@@ -113,7 +119,7 @@ def test_write_null_data_to_table(session):
         Utils.drop_table(session, table_name)
 
 
-def test_createOrReplaceView_with_null_data(session):
+def test_create_or_replace_view_with_null_data(session):
     df = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]]).to_df(
         ["a", "b"]
     )
@@ -593,6 +599,7 @@ def test_df_stat_sampleBy(session):
     assert len(sample_by_3.collect()) == 0
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_df_stat_crosstab_max_column_test(session):
     df1 = session.create_dataframe(
         [
@@ -654,6 +661,7 @@ def test_first(session):
     assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2), Row(3)]
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_sample_with_row_count(session):
     """Tests sample using n (row count)"""
     row_count = 10000
@@ -669,6 +677,7 @@ def test_sample_with_row_count(session):
     assert len(df.sample(n=row_count + 10).collect()) == row_count
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_sample_with_frac(session):
     """Tests sample using frac"""
     row_count = 10000
@@ -1437,6 +1446,7 @@ def test_createDataFrame_with_given_schema_time(session):
     assert df.collect() == data
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need to support PUT/GET command")
 def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
@@ -1528,6 +1538,10 @@ def test_escaped_character(session):
     assert res == [Row("'"), Row("\\"), Row("\n")]
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="creating new sessions within stored proc is not supported",
+)
 def test_create_or_replace_temporary_view(session, db_parameters):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     view_name1 = f'"{view_name}%^11"'

@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
@@ -12,7 +13,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
 def test_combination_of_multiple_operators(session):
@@ -86,6 +87,7 @@ def test_join_on_top_of_unions(session):
     assert res == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_combination_of_multiple_data_sources(session, resources_path):
     test_files = TestFiles(resources_path)
     test_file_csv = "testCSV.csv"
