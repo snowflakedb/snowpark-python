@@ -7,7 +7,13 @@ import pytest
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col
-from tests.utils import TYPE_MAP, TempObjectType, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC_LOCALFS,
+    TYPE_MAP,
+    TempObjectType,
+    TestFiles,
+    Utils,
+)
 
 tmp_stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
 tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -38,6 +44,7 @@ def setup(session):
     )
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_show_database_objects(session):
     sqls = [
         "show schemas",
@@ -66,6 +73,7 @@ def test_show_database_objects(session):
         Utils.verify_schema(sql, session.sql(sql).schema, session)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_show_account_objects(session):
     sqls = ["show functions", "show network policies", "show roles", "show databases"]
     for sql in sqls:
@@ -107,6 +115,7 @@ def test_alter(session):
     Utils.verify_schema(sql, session.sql(sql).schema, session)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_list_remove_file(session, resources_path):
     test_files = TestFiles(resources_path)
 

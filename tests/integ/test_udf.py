@@ -56,7 +56,7 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
 )
-from tests.utils import TempObjectType, TestData, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestData, TestFiles, Utils
 
 pytestmark = pytest.mark.udf
 
@@ -117,6 +117,9 @@ def test_basic_udf(session):
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
+)
 def test_call_named_udf(session, temp_schema, db_parameters):
     session._run_query("drop function if exists test_mul(int, int)")
     udf(
@@ -545,6 +548,9 @@ def test_add_import_package(session):
     session.clear_imports()
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
 def test_add_import_duplicate(session, resources_path, caplog):
     test_files = TestFiles(resources_path)
     abs_path = test_files.test_udf_directory
@@ -733,6 +739,7 @@ def return_dict(v: dict) -> Dict[str, str]:
     )
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need to support permanent udf")
 def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -1022,6 +1029,9 @@ def test_udf_geography_type(session):
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
+)
 def test_udf_replace(session):
     df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
 
@@ -1123,7 +1133,8 @@ def test_udf_parallel(session):
 
 
 @pytest.mark.skipif(
-    not is_pandas_and_numpy_available, reason="numpy and pandas are required"
+    not is_pandas_and_numpy_available and IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
 )
 def test_add_packages(session):
     session.add_packages(["numpy==1.20.1", "pandas==1.3.5", "pandas==1.3.5"])
@@ -1184,6 +1195,9 @@ def test_add_packages(session):
     session.clear_packages()
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Need certain version of datautil/pandas/numpy"
+)
 def test_add_packages_negative(session, caplog):
     with pytest.raises(ValueError) as ex_info:
         session.add_packages("python-dateutil****")
@@ -1209,7 +1223,8 @@ def test_add_packages_negative(session, caplog):
 
 
 @pytest.mark.skipif(
-    not is_pandas_and_numpy_available, reason="numpy and pandas are required"
+    not is_pandas_and_numpy_available and IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
 )
 def test_add_requirements(session, resources_path):
     test_files = TestFiles(resources_path)
@@ -1233,7 +1248,8 @@ def test_add_requirements(session, resources_path):
 
 
 @pytest.mark.skipif(
-    not is_pandas_and_numpy_available, reason="numpy and pandas are required"
+    not is_pandas_and_numpy_available and IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
 )
 def test_udf_describe(session):
     def get_numpy_pandas_version(s: str) -> str:

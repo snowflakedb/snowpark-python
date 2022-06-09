@@ -18,7 +18,7 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.types import DoubleType, IntegerType, PandasSeries, StringType
-from tests.utils import TempObjectType, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 try:
     import numpy  # noqa: F401
@@ -78,6 +78,10 @@ def test_basic_stored_procedure(session):
     assert pow_sp(2, 10, session=session) == 1024
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Named temporary procedure is not supported in stored proc",
+)
 def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     sproc_name = f"test_mul_{Utils.random_alphanumeric_str(3)}"
     session._run_query("drop function if exists sproc_name(int, int)")
@@ -462,6 +466,7 @@ def return_datetime(_: Session) -> datetime.datetime:
     assert return_datetime_sp() == dt
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()
     sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
@@ -653,6 +658,10 @@ def test_add_import_negative(session, resources_path):
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Named temporary procedure is not supported in stored proc",
+)
 def test_sp_replace(session):
     # Register named sp and expect that it works.
     add_sp = session.sproc.register(
