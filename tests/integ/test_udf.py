@@ -739,7 +739,7 @@ def return_dict(v: dict) -> Dict[str, str]:
     )
 
 
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="need to support permanent udf")
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
