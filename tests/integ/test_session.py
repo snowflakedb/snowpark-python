@@ -12,7 +12,7 @@ from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.session import _active_sessions, _get_active_session
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
 def test_select_1(session):
@@ -30,6 +30,10 @@ def test_session_builder(session):
     assert builder1 != builder2
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Query called from a stored procedure contains a function with side effects [SYSTEM$CANCEL_ALL_QUERIES]",
+)
 def test_session_cancel_all(session):
     session.cancel_all()
     qid = session._conn._cursor.sfqid
@@ -37,6 +41,7 @@ def test_session_cancel_all(session):
     assert "cancelled" in session._conn._cursor.fetchall()[0][0]
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create():
         with pytest.raises(SnowparkSessionException) as exec_info:
@@ -55,6 +60,9 @@ def test_no_default_session():
         _active_sessions.update(sessions_backup)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-544808: Use same connection to create session"
+)
 def test_create_session_in_sp(session, db_parameters):
     import snowflake.snowpark._internal.utils as internal_utils
 
@@ -81,6 +89,7 @@ def test_close_session_in_sp(session):
         internal_utils.PLATFORM = original_platform
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_list_files_in_stage(session, resources_path):
     stage_name = Utils.random_stage_name()
     special_name = f'"{stage_name}/aa"'
@@ -143,6 +152,7 @@ def test_list_files_in_stage(session, resources_path):
         Utils.drop_stage(session, single_quoted_name)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_parameters(db_parameters):
     session_builder = Session.builder.configs(db_parameters)
     new_session = session_builder.create()
@@ -156,6 +166,7 @@ def test_create_session_from_parameters(db_parameters):
         new_session.close()
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_connection(db_parameters):
     connection = snowflake.connector.connect(**db_parameters)
     session_builder = Session.builder.configs({"connection": connection})
@@ -170,6 +181,7 @@ def test_create_session_from_connection(db_parameters):
         new_session.close()
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_connection_with_noise_parameters(db_parameters):
     connection = snowflake.connector.connect(**db_parameters)
     session_builder = Session.builder.configs(
@@ -196,6 +208,7 @@ def test_table_exists(session):
     assert session._table_exists(table_name) is True
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_database(db_parameters):
     parameters = db_parameters.copy()
     del parameters["database"]
@@ -207,6 +220,7 @@ def test_use_database(db_parameters):
         assert session.get_current_database() == f'"{db_name.upper()}"'
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_schema(db_parameters):
     parameters = db_parameters.copy()
     del parameters["schema"]
@@ -217,6 +231,7 @@ def test_use_schema(db_parameters):
         assert session.get_current_schema() == f'"{schema_name.upper()}"'
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_warehouse(db_parameters):
     parameters = db_parameters.copy()
     del parameters["database"]
@@ -228,6 +243,7 @@ def test_use_warehouse(db_parameters):
         assert session.get_current_warehouse() == f'"{warehouse_name.upper()}"'
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_role(db_parameters):
     role_name = "PUBLIC"
     with Session.builder.configs(db_parameters).create() as session:
@@ -253,6 +269,9 @@ def test_use_negative_tests(session):
     assert exec_info.value.args[0] == "'role' must not be empty or None."
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
+)
 def test_get_current_schema(session):
     def check(schema_name: str, expected_name: str) -> None:
         try:

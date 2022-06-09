@@ -30,8 +30,10 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
+from tests.utils import IS_IN_STORED_PROC
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="flaky test in SP")
 def test_to_local_iterator_should_not_load_all_data_at_once(session):
     df = (
         session.range(1000000)
