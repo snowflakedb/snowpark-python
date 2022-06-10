@@ -13,7 +13,7 @@ lock = RLock()
 
 
 class InvokedFlag:
-    def __init__(self):
+    def __init__(self) -> None:
         self.invoked = False
 
 

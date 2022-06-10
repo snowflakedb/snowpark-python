@@ -25,7 +25,7 @@ class Expression:
     But the constructor accepts a single child. This might be refactored in the future.
     """
 
-    def __init__(self, child: Optional["Expression"] = None):
+    def __init__(self, child: Optional["Expression"] = None) -> None:
         """
         Subclasses will override these attributes
         """
@@ -64,32 +64,32 @@ class NamedExpression:
 
 
 class ScalarSubquery(Expression):
-    def __init__(self, plan: "SnowflakePlan"):
+    def __init__(self, plan: "SnowflakePlan") -> None:
         super().__init__()
         self.plan = plan
 
 
 class MultipleExpression(Expression):
-    def __init__(self, expressions: List[Expression]):
+    def __init__(self, expressions: List[Expression]) -> None:
         super().__init__()
         self.expressions = expressions
 
 
 class InExpression(Expression):
-    def __init__(self, columns: Expression, values: List[Expression]):
+    def __init__(self, columns: Expression, values: List[Expression]) -> None:
         super().__init__()
         self.columns = columns
         self.values = values
 
 
 class Star(Expression):
-    def __init__(self, expressions: List[NamedExpression]):
+    def __init__(self, expressions: List[NamedExpression]) -> None:
         super().__init__()
         self.expressions = expressions
 
 
 class Attribute(Expression, NamedExpression):
-    def __init__(self, name: str, datatype: DataType, nullable: bool = True):
+    def __init__(self, name: str, datatype: DataType, nullable: bool = True) -> None:
         super().__init__()
         self.name = name
         self.datatype = datatype
@@ -114,7 +114,7 @@ class Attribute(Expression, NamedExpression):
 
 
 class UnresolvedAttribute(Expression, NamedExpression):
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name
 
@@ -133,7 +133,7 @@ class UnresolvedAttribute(Expression, NamedExpression):
 
 
 class Literal(Expression):
-    def __init__(self, value: Any, datatype: Optional[DataType] = None):
+    def __init__(self, value: Any, datatype: Optional[DataType] = None) -> None:
         super().__init__()
 
         # check value
@@ -155,42 +155,44 @@ class Literal(Expression):
 
 
 class Like(Expression):
-    def __init__(self, expr: Expression, pattern: Expression):
+    def __init__(self, expr: Expression, pattern: Expression) -> None:
         super().__init__(expr)
         self.expr = expr
         self.pattern = pattern
 
 
 class RegExp(Expression):
-    def __init__(self, expr: Expression, pattern: Expression):
+    def __init__(self, expr: Expression, pattern: Expression) -> None:
         super().__init__(expr)
         self.expr = expr
         self.pattern = pattern
 
 
 class Collate(Expression):
-    def __init__(self, expr: Expression, collation_spec: str):
+    def __init__(self, expr: Expression, collation_spec: str) -> None:
         super().__init__(expr)
         self.expr = expr
         self.collation_spec = collation_spec
 
 
 class SubfieldString(Expression):
-    def __init__(self, expr: Expression, field: str):
+    def __init__(self, expr: Expression, field: str) -> None:
         super().__init__(expr)
         self.expr = expr
         self.field = field
 
 
 class SubfieldInt(Expression):
-    def __init__(self, expr: Expression, field: int):
+    def __init__(self, expr: Expression, field: int) -> None:
         super().__init__(expr)
         self.expr = expr
         self.field = field
 
 
 class FunctionExpression(Expression):
-    def __init__(self, name: str, arguments: List[Expression], is_distinct: bool):
+    def __init__(
+        self, name: str, arguments: List[Expression], is_distinct: bool
+    ) -> None:
         super().__init__()
         self.name = name
         self.children = arguments
@@ -209,7 +211,7 @@ class FunctionExpression(Expression):
 
 
 class WithinGroup(Expression):
-    def __init__(self, expr: Expression, order_by_cols: List[Expression]):
+    def __init__(self, expr: Expression, order_by_cols: List[Expression]) -> None:
         super().__init__(expr)
         self.expr = expr
         self.order_by_cols = order_by_cols
@@ -221,7 +223,7 @@ class CaseWhen(Expression):
         self,
         branches: List[Tuple[Expression, Expression]],
         else_value: Optional[Expression] = None,
-    ):
+    ) -> None:
         super().__init__()
         self.branches = branches
         self.else_value = else_value
@@ -234,7 +236,7 @@ class SnowflakeUDF(Expression):
         children: List[Expression],
         datatype: DataType,
         nullable: bool = True,
-    ):
+    ) -> None:
         super().__init__()
         self.udf_name = udf_name
         self.children = children
@@ -243,7 +245,7 @@ class SnowflakeUDF(Expression):
 
 
 class ListAgg(Expression):
-    def __init__(self, col: Expression, delimiter: str, is_distinct: bool):
+    def __init__(self, col: Expression, delimiter: str, is_distinct: bool) -> None:
         super().__init__()
         self.col = col
         self.delimiter = delimiter

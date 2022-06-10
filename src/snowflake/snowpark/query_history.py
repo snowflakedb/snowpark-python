@@ -16,7 +16,7 @@ class QueryRecord(NamedTuple):
 class QueryHistory:
     """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database."""
 
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self._queries: List[QueryRecord] = []
 

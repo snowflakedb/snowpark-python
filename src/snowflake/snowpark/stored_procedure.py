@@ -45,7 +45,7 @@ class StoredProcedure:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
-    ):
+    ) -> None:
         #: The Python function.
         self.func: Callable = func
         #: The stored procedure name.
@@ -281,7 +281,7 @@ class StoredProcedureRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
 
     def describe(

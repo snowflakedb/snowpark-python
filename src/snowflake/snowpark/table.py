@@ -56,7 +56,7 @@ class WhenMatchedClause:
             specified condition.
     """
 
-    def __init__(self, condition: Optional[Column] = None):
+    def __init__(self, condition: Optional[Column] = None) -> None:
         self._condition_expr = condition._expression if condition is not None else None
         self._clause = None
 
@@ -153,7 +153,7 @@ class WhenNotMatchedClause:
             specified condition.
     """
 
-    def __init__(self, condition: Optional[Column] = None):
+    def __init__(self, condition: Optional[Column] = None) -> None:
         self._condition_expr = condition._expression if condition is not None else None
         self._clause = None
 
@@ -250,7 +250,7 @@ class Table(DataFrame):
         self,
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
-    ):
+    ) -> None:
         super().__init__(
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )

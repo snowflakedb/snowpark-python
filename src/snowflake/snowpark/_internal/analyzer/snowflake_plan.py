@@ -159,7 +159,7 @@ class SnowflakePlan(LogicalPlan):
         session: Optional["snowflake.snowpark.session.Session"] = None,
         source_plan: Optional[LogicalPlan] = None,
         is_ddl_on_temp_object: bool = False,
-    ):
+    ) -> None:
         super().__init__()
         self.queries = queries
         self.schema_query = schema_query
@@ -219,7 +219,7 @@ class SnowflakePlan(LogicalPlan):
 
 
 class SnowflakePlanBuilder:
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -926,7 +926,7 @@ class Query:
         sql: str,
         query_id_place_holder: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
-    ):
+    ) -> None:
         self.sql = sql
         self.query_id_place_holder = (
             query_id_place_holder
@@ -941,6 +941,6 @@ class BatchInsertQuery(Query):
         self,
         sql: str,
         rows: Optional[List[Row]] = None,
-    ):
+    ) -> None:
         super().__init__(sql)
         self.rows = rows
