@@ -65,7 +65,7 @@ class UserDefinedTableFunction:
         output_schema: StructType,
         input_types: List[DataType],
         name: str,
-    ):
+    ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
         #: The UDTF name.
@@ -204,7 +204,7 @@ class UDTFRegistration:
             >>> from typing import Iterable, Tuple
             >>> from snowflake.snowpark.functions import lit
             >>> class MyWordCount:
-            ...     def __init__(self):
+            ...     def __init__(self) -> None:
             ...         self._total_per_partition = 0
             ...
             ...     def process(self, s1: str) -> Iterable[Tuple[str, int]]:
@@ -290,7 +290,7 @@ class UDTFRegistration:
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session"):
+    def __init__(self, session: "snowflake.snowpark.Session") -> None:
         self._session = session
 
     def register(

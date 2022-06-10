@@ -7,7 +7,7 @@ from snowflake.snowpark._internal.analyzer.expression import Expression
 class BinaryExpression(Expression):
     sql_operator: str
 
-    def __init__(self, left: Expression, right: Expression):
+    def __init__(self, left: Expression, right: Expression) -> None:
         super().__init__()
         self.left = left
         self.right = right

@@ -39,7 +39,7 @@ class SortOrder(Expression):
         child: Expression,
         direction: SortDirection,
         null_ordering: Optional[NullOrdering] = None,
-    ):
+    ) -> None:
         super().__init__(child)
         self.direction = direction
         self.null_ordering = (

@@ -726,7 +726,7 @@ class TestData:
 
 
 class TestFiles:
-    def __init__(self, resources_path):
+    def __init__(self, resources_path) -> None:
         self.resources_path = resources_path
 
     @property

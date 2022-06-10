@@ -110,7 +110,7 @@ def df_usage_telemetry(func):
 
 
 class TelemetryClient:
-    def __init__(self, conn: SnowflakeConnection):
+    def __init__(self, conn: SnowflakeConnection) -> None:
         self.telemetry: PCTelemetryClient = (
             None if is_in_stored_procedure() else conn._telemetry
         )

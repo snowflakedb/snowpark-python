@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 class SpecialFrameBoundary(Expression):
     sql: str
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
 
@@ -39,7 +39,7 @@ class RangeFrame(FrameType):
 
 
 class WindowFrame(Expression):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
 
@@ -48,7 +48,9 @@ class UnspecifiedFrame(WindowFrame):
 
 
 class SpecifiedWindowFrame(WindowFrame):
-    def __init__(self, frame_type: FrameType, lower: Expression, upper: Expression):
+    def __init__(
+        self, frame_type: FrameType, lower: Expression, upper: Expression
+    ) -> None:
         super().__init__()
         self.frame_type = frame_type
         self.lower = lower
@@ -61,7 +63,7 @@ class WindowSpecDefinition(Expression):
         partition_spec: List[Expression],
         order_spec: List[SortOrder],
         frame_spec: WindowFrame,
-    ):
+    ) -> None:
         super().__init__()
         self.partition_spec = partition_spec
         self.order_spec = order_spec
@@ -69,7 +71,9 @@ class WindowSpecDefinition(Expression):
 
 
 class WindowExpression(Expression):
-    def __init__(self, window_function: Expression, window_spec: WindowSpecDefinition):
+    def __init__(
+        self, window_function: Expression, window_spec: WindowSpecDefinition
+    ) -> None:
         super().__init__()
         self.window_function = window_function
         self.window_spec = window_spec
@@ -80,7 +84,7 @@ class RankRelatedFunctionExpression(Expression):
 
     def __init__(
         self, expr: Expression, offset: int, default: Expression, ignore_nulls: bool
-    ):
+    ) -> None:
         super().__init__()
         self.expr = expr
         self.offset = offset

@@ -12,7 +12,7 @@ from snowflake.snowpark.types import StructType
 
 
 class LogicalPlan:
-    def __init__(self):
+    def __init__(self) -> None:
         self.children = []
 
 
@@ -21,7 +21,7 @@ class LeafNode(LogicalPlan):
 
 
 class Range(LeafNode):
-    def __init__(self, start: int, end: int, step: int, num_slices: int = 1):
+    def __init__(self, start: int, end: int, step: int, num_slices: int = 1) -> None:
         super().__init__()
         if step == 0:
             raise ValueError("The step for range() cannot be 0.")
@@ -32,13 +32,13 @@ class Range(LeafNode):
 
 
 class UnresolvedRelation(LeafNode):
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name
 
 
 class SnowflakeValues(LeafNode):
-    def __init__(self, output: List[Attribute], data: List[Row]):
+    def __init__(self, output: List[Attribute], data: List[Row]) -> None:
         super().__init__()
         self.output = output
         self.data = data
@@ -58,7 +58,7 @@ class SnowflakeCreateTable(LogicalPlan):
         mode: SaveMode,
         query: Optional[LogicalPlan],
         create_temp_table: bool = False,
-    ):
+    ) -> None:
         super().__init__()
         self.table_name = table_name
         self.mode = mode
@@ -68,7 +68,7 @@ class SnowflakeCreateTable(LogicalPlan):
 
 
 class Limit(LogicalPlan):
-    def __init__(self, limit_expr: Expression, child: LogicalPlan):
+    def __init__(self, limit_expr: Expression, child: LogicalPlan) -> None:
         super().__init__()
         self.limit_expr = limit_expr
         self.child = child
@@ -92,7 +92,7 @@ class CopyIntoTableNode(LeafNode):
         user_schema: Optional[StructType] = None,
         cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
         create_table_from_infer_schema: bool = False,
-    ):
+    ) -> None:
         super().__init__()
         self.table_name = table_name
         self.file_path = file_path
@@ -121,7 +121,7 @@ class CopyIntoLocationNode(LogicalPlan):
         format_type_options: Optional[str] = None,
         header: bool = False,
         copy_options: Dict[str, Any],
-    ):
+    ) -> None:
         super().__init__()
         self.child = child
         self.children.append(child)
