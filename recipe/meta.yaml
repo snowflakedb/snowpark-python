@@ -11,21 +11,19 @@ source:
 
 build:
   number: {{ os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) }}
-  noarch: python
-  script:
-    - {{ PYTHON }} -m pip install . --no-deps -vvv
+  skip: True  # [py<38 or py>=39 or win32 or s390x]
+  script: {{ PYTHON }} -m pip install . --no-deps -vvv
 
 requirements:
-  build:
-    - wheel
   host:
-    - python 3.8
+    - python
     - pip
+    - setuptools >=40.6.0
+    - wheel
   run:
-    - python 3.8
+    - python
     - cloudpickle >=1.6.0,<=2.0.0
     - snowflake-connector-python
-    - setuptools >34.0.0
     - typing-extensions >=4.1.0
   run_constrained:
     - pandas >1,<1.4
