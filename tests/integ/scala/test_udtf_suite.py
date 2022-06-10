@@ -85,7 +85,7 @@ def test_basic_udtf_word_count_with_end_partition(session):
     func_name = Utils.random_function_name()
 
     class MyWordCount:
-        def __init__(self):
+        def __init__(self) -> None:
             self._total_per_partition = 0
 
         def process(self, s1: str) -> Iterable[Tuple[str, int]]:

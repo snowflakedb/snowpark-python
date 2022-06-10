@@ -141,7 +141,7 @@ ARRAY_BIND_THRESHOLD = 512
 
 
 class Analyzer:
-    def __init__(self, session: "snowflake.snowpark.session.Session"):
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}

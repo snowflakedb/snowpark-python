@@ -1489,7 +1489,7 @@ def test_udf_class_method(session):
     class UDFTest:
         a = 1
 
-        def __init__(self, b):
+        def __init__(self, b) -> None:
             self.b = b
 
         @staticmethod

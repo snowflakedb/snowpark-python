@@ -56,7 +56,7 @@ def create_join_type(join_type: str) -> "JoinType":
 class BinaryNode(LogicalPlan):
     sql: str
 
-    def __init__(self, left: LogicalPlan, right: LogicalPlan):
+    def __init__(self, left: LogicalPlan, right: LogicalPlan) -> None:
         super().__init__()
         self.left = left
         self.right = right
@@ -76,7 +76,7 @@ class Intersect(SetOperation):
 
 
 class Union(SetOperation):
-    def __init__(self, left: LogicalPlan, right: LogicalPlan, is_all: bool):
+    def __init__(self, left: LogicalPlan, right: LogicalPlan, is_all: bool) -> None:
         super().__init__(left, right)
         self.is_all = is_all
 
@@ -122,7 +122,7 @@ class LeftAnti(JoinType):
 
 
 class NaturalJoin(JoinType):
-    def __init__(self, tpe: JoinType):
+    def __init__(self, tpe: JoinType) -> None:
         if not isinstance(
             tpe,
             (
@@ -140,7 +140,7 @@ class NaturalJoin(JoinType):
 
 
 class UsingJoin(JoinType):
-    def __init__(self, tpe: JoinType, using_columns: List[str]):
+    def __init__(self, tpe: JoinType, using_columns: List[str]) -> None:
         if not isinstance(
             tpe,
             (
@@ -167,7 +167,7 @@ class Join(BinaryNode):
         right: LogicalPlan,
         join_type: JoinType,
         condition: Optional["Expression"],
-    ):
+    ) -> None:
         super().__init__(left, right)
         self.join_type = join_type
         self.condition = condition

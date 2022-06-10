@@ -11,7 +11,7 @@ class UnaryExpression(Expression):
     sql_operator: str
     operator_first: bool
 
-    def __init__(self, child: Expression):
+    def __init__(self, child: Expression) -> None:
         super().__init__()
         self.child = child
         self.nullable = child.nullable
@@ -33,7 +33,7 @@ class Cast(UnaryExpression):
     sql_operator = "CAST"
     operator_first = True
 
-    def __init__(self, child: Expression, to: DataType, try_: bool = False):
+    def __init__(self, child: Expression, to: DataType, try_: bool = False) -> None:
         super().__init__(child)
         self.to = to
         self.try_ = try_
@@ -68,7 +68,7 @@ class Alias(UnaryExpression, NamedExpression):
     sql_operator = "AS"
     operator_first = False
 
-    def __init__(self, child: Expression, name: str):
+    def __init__(self, child: Expression, name: str) -> None:
         super().__init__(child)
         self.name = name
 
@@ -80,6 +80,6 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
     sql_operator = "AS"
     operator_first = False
 
-    def __init__(self, child: Expression):
+    def __init__(self, child: Expression) -> None:
         super().__init__(child)
         self.name = child.sql

@@ -8,7 +8,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
 
 
 class MergeExpression(Expression):
-    def __init__(self, condition: Optional[Expression]):
+    def __init__(self, condition: Optional[Expression]) -> None:
         super().__init__()
         self.condition = condition
 
@@ -16,7 +16,7 @@ class MergeExpression(Expression):
 class UpdateMergeExpression(MergeExpression):
     def __init__(
         self, condition: Optional[Expression], assignments: Dict[Expression, Expression]
-    ):
+    ) -> None:
         super().__init__(condition)
         self.assignments = assignments
 
@@ -31,7 +31,7 @@ class InsertMergeExpression(MergeExpression):
         condition: Optional[Expression],
         keys: List[Expression],
         values: List[Expression],
-    ):
+    ) -> None:
         super().__init__(condition)
         self.keys = keys
         self.values = values
@@ -44,7 +44,7 @@ class TableUpdate(LogicalPlan):
         assignments: Dict[Expression, Expression],
         condition: Optional[Expression],
         source_data: Optional[LogicalPlan],
-    ):
+    ) -> None:
         super().__init__()
         self.table_name = table_name
         self.assignments = assignments
@@ -59,7 +59,7 @@ class TableDelete(LogicalPlan):
         table_name: str,
         condition: Optional[Expression],
         source_data: Optional[LogicalPlan],
-    ):
+    ) -> None:
         super().__init__()
         self.table_name = table_name
         self.condition = condition
@@ -74,7 +74,7 @@ class TableMerge(LogicalPlan):
         source: LogicalPlan,
         join_expr: Expression,
         clauses: List[Expression],
-    ):
+    ) -> None:
         super().__init__()
         self.table_name = table_name
         self.source = source
