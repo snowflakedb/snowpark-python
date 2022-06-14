@@ -20,7 +20,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_or_replace_view_statement,
     create_table_as_select_statement,
     create_table_statement,
-    create_temp_table_statement,
     delete_statement,
     drop_file_format_if_exists_statement,
     drop_table_if_exists_statement,
@@ -348,8 +347,11 @@ class SnowflakePlanBuilder:
         attributes = [
             Attribute(attr.name, attr.datatype, attr.nullable) for attr in output
         ]
-        create_table_stmt = create_temp_table_statement(
-            temp_table_name, attribute_to_schema_string(attributes)
+        create_table_stmt = create_table_statement(
+            temp_table_name,
+            attribute_to_schema_string(attributes),
+            replace=True,
+            temp=True,
         )
         insert_stmt = batch_insert_into_statement(
             temp_table_name, [attr.name for attr in attributes]
@@ -591,8 +593,10 @@ class SnowflakePlanBuilder:
         self, session, name: str, schema_query: str, query: str
     ) -> List[str]:
         attributes = session._get_result_attributes(schema_query)
-        create_table = create_temp_table_statement(
-            name, attribute_to_schema_string(attributes)
+        create_table = create_table_statement(
+            name,
+            attribute_to_schema_string(attributes),
+            temp=True,
         )
 
         return [create_table, insert_into_statement(name, query)]
@@ -698,9 +702,11 @@ class SnowflakePlanBuilder:
             )
             queries = [
                 Query(
-                    create_temp_table_statement(
+                    create_table_statement(
                         temp_table_name,
                         attribute_to_schema_string(temp_table_schema),
+                        replace=True,
+                        temp=True,
                     ),
                     is_ddl_on_temp_object=True,
                 ),
@@ -787,8 +793,7 @@ class SnowflakePlanBuilder:
                     create_table_statement(
                         table_name,
                         attribute_to_schema_string(attributes),
-                        False,
-                        False,
+                        temp=False,
                     ),
                     # This is an exception. The principle is to avoid surprising behavior and most of the time
                     # it applies to temp object. But this perm table creation is also one place where we create

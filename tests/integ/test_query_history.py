@@ -80,7 +80,7 @@ def test_query_history_executemany(session):
 
     queries = query_listener.queries
     assert all(query.query_id is not None for query in queries)
-    assert "CREATE  TEMPORARY" in queries[0].sql_text
+    assert "CREATE  OR  REPLACE  TEMPORARY" in queries[0].sql_text
     assert "alter session set query_tag" in queries[1].sql_text
     assert "INSERT  INTO" in queries[2].sql_text and "VALUES (?)" in queries[2].sql_text
     assert "alter session unset query_tag" in queries[3].sql_text

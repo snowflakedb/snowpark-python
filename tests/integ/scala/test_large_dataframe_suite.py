@@ -92,7 +92,9 @@ def test_limit_on_order_by(session, is_sample_data_available):
 
 def test_create_dataframe_for_large_values_check_plan(session):
     def check_plan(df, data):
-        assert df._plan.queries[0].sql.strip().startswith("CREATE  TEMPORARY  TABLE")
+        assert (
+            df._plan.queries[0].sql.strip().startswith("CREATE  OR  REPLACE  TEMPORARY")
+        )
         assert df._plan.queries[1].sql.strip().startswith("INSERT  INTO")
         assert df._plan.queries[2].sql.strip().startswith("SELECT")
         assert len(df._plan.post_actions) == 1
