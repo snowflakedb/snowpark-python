@@ -25,7 +25,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql, to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -792,7 +792,7 @@ class Session:
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
         if tag:
-            self._conn.run_query(f"alter session set query_tag = '{tag}'")
+            self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
         else:
             self._conn.run_query("alter session unset query_tag")
         self._query_tag = tag
