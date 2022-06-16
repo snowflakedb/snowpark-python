@@ -22,6 +22,8 @@ from tests.utils import Utils
         "te\\st_tag",
         "te\nst_tag",
         r"\utest_tag",
+        "test tag",
+        'test"tag',
     ],
 )
 def test_set_query_tag(session, query_tag):
@@ -94,7 +96,7 @@ def test_query_tags_from_trackback(session, code):
     assert len(query_history) == 1
 
 
-@pytest.mark.parametrize("data", ["a", "'a'", "\\a", "a\n", r"\ua"])
+@pytest.mark.parametrize("data", ["a", "'a'", "\\a", "a\n", r"\ua", " a", '"a'])
 def test_large_local_relation_query_tag_from_traceback(session, data):
     session.create_dataframe(
         [[data] * (ARRAY_BIND_THRESHOLD + 1)]
