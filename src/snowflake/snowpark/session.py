@@ -1337,10 +1337,7 @@ class Session:
         Args:
             database: The database name.
         """
-        if database:
-            self._run_query(f"use database {database}")
-        else:
-            raise ValueError("'database' must not be empty or None.")
+        self._use_object(database, "database")
 
     def use_schema(self, schema: str) -> None:
         """Specifies the active/current schema for the session.
@@ -1348,10 +1345,7 @@ class Session:
         Args:
             schema: The schema name.
         """
-        if schema:
-            self._run_query(f"use schema {schema}")
-        else:
-            raise ValueError("'schema' must not be empty or None.")
+        self._use_object(schema, "schema")
 
     def use_warehouse(self, warehouse: str) -> None:
         """Specifies the active/current warehouse for the session.
@@ -1359,10 +1353,7 @@ class Session:
         Args:
             warehouse: the warehouse name.
         """
-        if warehouse:
-            self._run_query(f"use warehouse {warehouse}")
-        else:
-            raise ValueError("'warehouse' must not be empty or None.")
+        self._use_object(warehouse, "warehouse")
 
     def use_role(self, role: str) -> None:
         """Specifies the active/current primary role for the session.
@@ -1370,10 +1361,14 @@ class Session:
         Args:
             role: the role name.
         """
-        if role:
-            self._run_query(f"use role {role}")
+        self._use_object(role, "role")
+
+    def _use_object(self, object_name: str, object_type: str) -> None:
+        if object_name:
+            validate_object_name(object_name)
+            self._run_query(f"use {object_type} {object_name}")
         else:
-            raise ValueError("'role' must not be empty or None.")
+            raise ValueError(f"'{object_type}' must not be empty or None.")
 
     @property
     def telemetry_enabled(self) -> bool:

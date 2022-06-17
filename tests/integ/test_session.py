@@ -10,7 +10,10 @@ import pytest
 import snowflake.connector
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.exceptions import (
+    SnowparkInvalidObjectNameException,
+    SnowparkSessionException,
+)
 from snowflake.snowpark.session import _active_sessions, _get_active_session
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
@@ -251,22 +254,30 @@ def test_use_role(db_parameters):
         assert session.get_current_role() == f'"{role_name}"'
 
 
-def test_use_negative_tests(session):
-    with pytest.raises(ValueError) as exec_info:
-        session.use_database(None)
-    assert exec_info.value.args[0] == "'database' must not be empty or None."
+@pytest.mark.parametrize("obj", [None, "'object'", "obje\\ct", "obj\nect", r"\uobject"])
+def test_use_negative_tests(session, obj):
+    if obj:
+        error_type = SnowparkInvalidObjectNameException
+        err_msg = f"The object name '{obj}' is invalid."
+    else:
+        error_type = ValueError
+        err_msg = "must not be empty or None."
 
-    with pytest.raises(ValueError) as exec_info:
-        session.use_schema(None)
-    assert exec_info.value.args[0] == "'schema' must not be empty or None."
+    with pytest.raises(error_type) as exec_info:
+        session.use_database(obj)
+    assert err_msg in exec_info.value.args[0]
 
-    with pytest.raises(ValueError) as exec_info:
-        session.use_warehouse(None)
-    assert exec_info.value.args[0] == "'warehouse' must not be empty or None."
+    with pytest.raises(error_type) as exec_info:
+        session.use_schema(obj)
+    assert err_msg in exec_info.value.args[0]
 
-    with pytest.raises(ValueError) as exec_info:
-        session.use_role(None)
-    assert exec_info.value.args[0] == "'role' must not be empty or None."
+    with pytest.raises(error_type) as exec_info:
+        session.use_warehouse(obj)
+    assert err_msg in exec_info.value.args[0]
+
+    with pytest.raises(error_type) as exec_info:
+        session.use_role(obj)
+    assert err_msg in exec_info.value.args[0]
 
 
 @pytest.mark.skipif(
