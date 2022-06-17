@@ -1137,7 +1137,7 @@ class Session:
             row: Union[Dict, List, Tuple], names: List[str]
         ) -> List:
             row_dict = None
-            if not row:
+            if row is None:
                 row = [None]
             elif isinstance(row, (tuple, list)):
                 if getattr(row, "_fields", None):  # Row or namedtuple

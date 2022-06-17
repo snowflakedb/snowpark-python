@@ -959,14 +959,13 @@ def test_create_dataframe_with_variant(session):
     ]
 
 
-def test_create_dataframe_with_single_value(session):
-    data = [1, 2, 3]
+@pytest.mark.parametrize("data", [[0, 1, 2, 3], [False], [None]])
+def test_create_dataframe_with_single_value(session, data):
     expected_names = ["_1"]
     expected_rows = [Row(d) for d in data]
     df = session.create_dataframe(data)
     assert [field.name for field in df.schema.fields] == expected_names
-    assert df.collect() == expected_rows
-    assert df.select(expected_names).collect() == expected_rows
+    Utils.check_answer(df, expected_rows)
 
 
 def test_create_dataframe_empty(session):
