@@ -1140,7 +1140,9 @@ class Session:
             if row is None:
                 row = [None]
             elif isinstance(row, (tuple, list)):
-                if getattr(row, "_fields", None):  # Row or namedtuple
+                if not row:
+                    row = [None]
+                elif getattr(row, "_fields", None):  # Row or namedtuple
                     row_dict = row.asDict() if isinstance(row, Row) else row._asdict()
             elif isinstance(row, dict):
                 row_dict = row.copy()
