@@ -1134,7 +1134,7 @@ class Session:
             )
 
         def convert_row_to_list(
-            row: Union[Dict, List, Tuple], names: List[str]
+            row: Union[Iterable[Any], Any], names: List[str]
         ) -> List:
             row_dict = None
             if row is None:

@@ -959,7 +959,7 @@ def test_create_dataframe_with_variant(session):
     ]
 
 
-@pytest.mark.parametrize("data", [[0, 1, 2, 3], [False], [None]])
+@pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
     expected_names = ["_1"]
     expected_rows = [Row(d) for d in data]
