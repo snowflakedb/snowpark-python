@@ -284,9 +284,9 @@ class UDFRegistration:
             >>> @udf(packages=["numpy"])
             ... def sin_udf(x: float) -> float:
             ...     return np.sin(x)
-            >>> df = session.create_dataframe([0.25 * math.pi, 0.5 * math.pi], schema=["d"])
+            >>> df = session.create_dataframe([0.0, 0.5 * math.pi], schema=["d"])
             >>> df.select(sin_udf("d")).to_df("col1").collect()
-            [Row(COL1=0.7071067811865475), Row(COL1=1.0)]
+            [Row(COL1=0.0), Row(COL1=1.0)]
 
     Example 6
         Creating a UDF from a local Python file::

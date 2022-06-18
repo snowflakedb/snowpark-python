@@ -1134,13 +1134,15 @@ class Session:
             )
 
         def convert_row_to_list(
-            row: Union[Dict, List, Tuple], names: List[str]
+            row: Union[Iterable[Any], Any], names: List[str]
         ) -> List:
             row_dict = None
-            if not row:
+            if row is None:
                 row = [None]
             elif isinstance(row, (tuple, list)):
-                if getattr(row, "_fields", None):  # Row or namedtuple
+                if not row:
+                    row = [None]
+                elif getattr(row, "_fields", None):  # Row or namedtuple
                     row_dict = row.asDict() if isinstance(row, Row) else row._asdict()
             elif isinstance(row, dict):
                 row_dict = row.copy()
