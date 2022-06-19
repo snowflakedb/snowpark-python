@@ -1,0 +1,9 @@
+from enum import Enum as Enum
+from typing import Iterable, Union
+
+import snowflake.snowpark
+
+class DataFrameWriter:
+    def __init__(self, dataframe: snowflake.snowpark.DataFrame) -> None: ...
+    def mode(self, save_mode: str) -> DataFrameWriter: ...
+    def saveAsTable(self, table_name: Union[str, Iterable[str]]) -> None: ...
