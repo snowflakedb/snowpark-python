@@ -872,6 +872,8 @@ class DataFrame:
 
         return self._with_plan(Sort(sort_exprs, True, self._plan))
 
+    orderBy = sort
+    
     def agg(
         self,
         exprs: Union[
