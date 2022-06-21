@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name,
     quote_name_without_upper_casing,
 )
+from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import (
     convert_result_meta_to_attribute,
@@ -449,7 +450,7 @@ class ServerConnection:
         )
         if query_tag:
             set_query_tag_cursor = self._cursor.execute(
-                f"alter session set query_tag='{query_tag}'"
+                f"alter session set query_tag = {str_to_sql(query_tag)}"
             )
             self.notify_query_listeners(
                 QueryRecord(set_query_tag_cursor.sfqid, set_query_tag_cursor.query)
