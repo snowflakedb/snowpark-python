@@ -14,9 +14,20 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import Utils
 
 
-def test_set_query_tag(session):
+@pytest.mark.parametrize(
+    "query_tag",
+    [
+        Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG),
+        "'test_tag'",
+        "te\\st_tag",
+        "te\nst_tag",
+        r"\utest_tag",
+        "test tag",
+        'test"tag',
+    ],
+)
+def test_set_query_tag(session, query_tag):
     """Test set query_tag properties on session"""
-    query_tag = Utils.random_name_for_temp_object(TempObjectType.QUERY_TAG)
     try:
         session.query_tag = query_tag
         assert session.query_tag == query_tag
@@ -85,9 +96,10 @@ def test_query_tags_from_trackback(session, code):
     assert len(query_history) == 1
 
 
-def test_large_local_relation_query_tag_from_traceback(session):
+@pytest.mark.parametrize("data", ["a", "'a'", "\\a", "a\n", r"\ua", " a", '"a'])
+def test_large_local_relation_query_tag_from_traceback(session, data):
     session.create_dataframe(
-        [["a"] * (ARRAY_BIND_THRESHOLD + 1)]
+        [[data] * (ARRAY_BIND_THRESHOLD + 1)]
     ).count()  # trigger large local relation query
     query_history = get_query_history_for_tags(
         session, "test_large_local_relation_query_tag_from_traceback"
