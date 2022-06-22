@@ -872,8 +872,6 @@ class DataFrame:
 
         return self._with_plan(Sort(sort_exprs, True, self._plan))
 
-    orderBy = sort
-    
     def agg(
         self,
         exprs: Union[
@@ -2679,6 +2677,8 @@ Query List:
     withColumnRenamed = with_column_renamed
     toLocalIterator = to_local_iterator
     randomSplit = random_split
+    order_by = sort
+    orderBy = order_by
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets
