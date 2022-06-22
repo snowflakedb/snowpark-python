@@ -578,7 +578,7 @@ def create_table_statement(
     temp: bool = False,
 ) -> str:
     return (
-        f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING} "
+        f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f"{TEMPORARY if temp else EMPTY_STRING}"
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
@@ -1106,18 +1106,6 @@ def merge_statement(
         + ON
         + join_expr
         + EMPTY_STRING.join(clauses)
-    )
-
-
-def create_temp_table_statement(table_name: str, schema: str) -> str:
-    return (
-        CREATE
-        + TEMPORARY
-        + TABLE
-        + table_name
-        + LEFT_PARENTHESIS
-        + schema
-        + RIGHT_PARENTHESIS
     )
 
 
