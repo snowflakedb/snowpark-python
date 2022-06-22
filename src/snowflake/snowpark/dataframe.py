@@ -105,7 +105,7 @@ from snowflake.snowpark.table_function import (
     TableFunctionCall,
     _create_table_function_expression,
 )
-from snowflake.snowpark.types import StringType, StructType, _NumericType
+from snowflake.snowpark.types import StringType, StructField, StructType, _NumericType
 
 _logger = getLogger(__name__)
 
@@ -1093,9 +1093,15 @@ class DataFrame:
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
         """
-        return self.group_by(
-            [self.col(quote_name(f.name)) for f in self.schema.fields]
-        ).agg([])
+        return self._distinct(self.schema.fields)
+
+    def _distinct(self, columns: List[StructField]) -> "DataFrame":
+        """Internal function that return a new DataFrame that contains only the rows with distinct values
+        from the current DataFrame.
+
+        This is equivalent to performing a SELECT DISTINCT in SQL.
+        """
+        return self.group_by([self.col(quote_name(f.name)) for f in columns]).agg([])
 
     def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
@@ -2319,7 +2325,10 @@ class DataFrame:
         """
         return self._na
 
-    def describe(
+    def describe(self, *cols: Union[str, List[str]]) -> "DataFrame":
+        return self._describe(cols, stats=None)
+
+    def _describe(
         self, *cols: Union[str, List[str]], stats: Optional[List[str]] = None
     ) -> "DataFrame":
         """
@@ -2357,14 +2366,23 @@ class DataFrame:
         }
 
         # These are five stats that pyspark's describe() outputs
-        all_stat_func_dict = {
-            "count": count,
-            "mean": mean,
-            "stddev": stddev,
-            "stddev_pop": stddev_pop,
-            "min": min_,
-            "max": max_,
-        }
+        if stats:
+            all_stat_func_dict = {
+                "count": count,
+                "mean": mean,
+                "stddev": stddev,
+                "stddev_pop": stddev_pop,
+                "min": min_,
+                "max": max_,
+            }
+        else:
+            all_stat_func_dict = {
+                "count": count,
+                "mean": mean,
+                "stddev": stddev,
+                "min": min_,
+                "max": max_,
+            }
         stat_func_dict = (
             {k: v for k, v in all_stat_func_dict.items() if k in stats}
             if stats
