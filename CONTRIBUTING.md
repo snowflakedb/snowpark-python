@@ -28,8 +28,14 @@ cd snowpark-python
 ```
 
 #### Install the library in edit mode and install its dependencies
-- Create a new Python virtual environment with any Python version that we support. Currently supported version is **Python 3.8**.
-- Activate the new Python virtual environment.
+- Create a new Python virtual environment with any Python version that we support. Currently supported version is **Python 3.8**. For example,
+  ```bash
+  conda create --name snowpark-dev python=3.8
+  ```
+- Activate the new Python virtual environment. For example,
+  ```bash
+  conda activate snowpark-dev
+  ```
 - Go to the cloned repository root folder.
 - Install the Snowpark API in edit/development mode.
     ```bash
@@ -38,18 +44,20 @@ cd snowpark-python
   The `-e` tells `pip` to install the library in [edit, or development mode](https://pip.pypa.io/en/stable/cli/pip_install/#editable-installs).
 
 #### Setup your IDE
-You can use Pycharm, VS Code, or any other IDE.
-The following steps assume you use Pycharm, VS Code or any other similar IDE.
-##### Download and install Pycharm
-Download the newest community version of [Pycharm](https://www.jetbrains.com/pycharm/download/)
+You can use PyCharm, VS Code, or any other IDE.
+The following steps assume you use PyCharm, VS Code or any other similar IDE.
+##### Download and install PyCharm
+Download the newest community version of [PyCharm](https://www.jetbrains.com/pycharm/download/)
 and follow the [installation instructions](https://www.jetbrains.com/help/pycharm/installation-guide.html).
+##### Download and install VS Code
+Downlaod and install the latest version of [VS Code](https://code.visualstudio.com/download)
 
 ##### Setup project
 Open project and browse to the cloned git directory. Then right-click the directory `src` in PyCharm
 and "Mark Directory as" -> "Source Root". **NOTE**: VS Code doesn't have "Source Root" so you can skip this step if you use VS Code.
 
 ##### Setup Python Interpreter
-[Configure Pycharm interpreter][config pycharm interpreter] to use the previously created Python virtual environment.
+[Configure PyCharm interpreter][config pycharm interpreter] or [Configure VS Code interpreter][config vscode interpreter] to use the previously created Python virtual environment.
 
 ## Tests
 The [README under tests folder](tests/README.md) tells you how to set up to run tests.
@@ -61,3 +69,4 @@ the rest of our testing suite. Feel free to tag [@snowflakedb/snowpark-python-ap
 if you feel like we are taking too long to get to your PR.
 
 [config pycharm interpreter]: https://www.jetbrains.com/help/pycharm/configuring-python-interpreter.html
+[config vscode interpreter]: https://code.visualstudio.com/docs/python/environments#_manually-specify-an-interpreter
