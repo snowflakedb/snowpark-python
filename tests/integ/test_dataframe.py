@@ -1599,3 +1599,43 @@ def test_create_dataframe_string_length(session):
     Utils.check_answer(
         session.table(table_name), [Row("ab"), Row("abc"), Row("abcd"), Row("abcde")]
     )
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
+def test_create_table_twice_no_error(session, resources_path):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    # 1) large local data in create_dataframe
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df1 = session.create_dataframe([[1, 2], [1, 3], [4, 4]], schema=["a", "b"])
+        df2, df3 = df1.select("a"), df1.select("b")
+        Utils.check_answer(df2.join(df3, df2.a == df3.b), [Row(4, 4)])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+    # 2) read file
+    tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+    test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
+
+    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
+    )
+    user_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", StringType()),
+            StructField("c", DoubleType()),
+        ]
+    )
+    df1 = (
+        session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    )
+    df2, df3 = df1.select("a"), df1.select("c")
+    Utils.check_answer(
+        df2.join(df3),
+        [Row(A=1, C=1.2), Row(A=1, C=2.2), Row(A=2, C=1.2), Row(A=2, C=2.2)],
+    )
