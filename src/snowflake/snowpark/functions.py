@@ -1007,11 +1007,11 @@ def soundex(e: ColumnOrName) -> Column:
     return builtin("soundex")(c)
 
 
-def trim(e: ColumnOrName, trim_string: ColumnOrName) -> Column:
+def trim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
     """Removes leading and trailing characters from a string."""
     c = _to_col_if_str(e, "trim")
-    t = _to_col_if_str(trim_string, "trim")
-    return builtin("trim")(c, t)
+    t = _to_col_if_str(trim_string, "trim") if trim_string is not None else None
+    return builtin("trim")(c, t) if t is not None else builtin("trim")(c)
 
 
 def upper(e: ColumnOrName) -> Column:
