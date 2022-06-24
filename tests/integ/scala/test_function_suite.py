@@ -2988,8 +2988,8 @@ def test_lpad_rpad(session, col_A):
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 def test_ltrim_rtrim_trim(session, col_A):
     Utils.check_answer(
-        TestData.string3(session).select(ltrim(col_A), rtrim(col_A)),
-        [Row("abcba  ", "  abcba"), Row("a12321a   ", " a12321a")],
+        TestData.string3(session).select(ltrim(col_A), rtrim(col_A), trim(col_A)),
+        [Row("abcba  ", "  abcba", "abcba"), Row("a12321a   ", " a12321a", "a12321a")],
         sort=False,
     )
 
