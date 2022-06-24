@@ -69,6 +69,7 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
+    array_agg,
     col,
     column,
     parse_json,
@@ -680,14 +681,30 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
     ) -> List[str]:
+        package_names = list()
+        for package in packages:
+            if isinstance(package, ModuleType):
+                package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
+                    package.__name__, package.__name__
+                )
+                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+            else:
+                package = package.strip().lower()
+            package_names.append(pkg_resources.Requirement.parse(package).key)
+
         valid_packages = (
             {
-                p[0]: p[1]
-                for p in self._run_query(
-                    "select package_name, version from information_schema.packages where language='python'"
+                p[0]: json.loads(p[1])
+                for p in self.table("information_schema.packages")
+                .filter(
+                    (col("language") == "python")
+                    & (col("package_name").in_(package_names))
                 )
+                .group_by("package_name")
+                .agg(array_agg("version"))
+                ._internal_collect_with_tag()
             }
-            if validate_package
+            if validate_package and package_names
             else None
         )
 
@@ -721,7 +738,7 @@ class Session:
                         package_client_version = pkg_resources.get_distribution(
                             package_name
                         ).version
-                        if package_client_version not in package_req:
+                        if package_client_version not in valid_packages[package_name]:
                             logging.warning(
                                 "The version of package %s in the local environment is %s, "
                                 "which does not fit the criteria for the requirement %s. "
