@@ -10,16 +10,8 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.functions import (
-    array_append,
-    array_construct,
-    builtin,
-    col,
-    count_distinct,
-    lit,
-)
-from snowflake.snowpark.ml.utils import scaler_fitter
-from snowflake.snowpark.types import StringType, StructField
+from snowflake.snowpark.functions import array_append, array_construct, col, lit
+from snowflake.snowpark.ml.utils import encoder_fitter, scaler_fitter
 
 
 class Transformer:
@@ -210,71 +202,7 @@ class OneHotEncoder(Transformer):
             self.merge = False
         else:
             raise ValueError("number of output colum and input column does not match")
-        if self.category == "auto":
-            encoder_length = None
-            for c, fc in zip(self.input_cols, self._states_table_cols):
-                self._category_table_name[c] = random_name_for_temp_object(
-                    TempObjectType.TABLE
-                )
-                df_save = df._distinct([StructField(c, StringType())]).select(
-                    [
-                        col(c).as_(fc),
-                    ]
-                )
-                if encoder_length:
-                    encoder_length = encoder_length.join(
-                        df_save.select([count_distinct(col(fc)).as_(f"{fc}_count")])
-                    )
-                else:
-                    encoder_length = df_save.select(
-                        [count_distinct(col(fc)).as_(f"{fc}_count")]
-                    )
-                df_save.with_column(
-                    f"{fc}_encoder", builtin("seq8")()
-                ).write.save_as_table(
-                    self._category_table_name[c], create_temp_table=True
-                )
-
-            if len(self._states_table_cols) > 1:
-                temp = encoder_length.select(
-                    [
-                        (
-                            col(f"{self._states_table_cols[i]}_count")
-                            + col(f"{self._states_table_cols[i + 1]}_count")
-                        ).as_("encoder_count")
-                        for i in range(len(self._states_table_cols) - 1)
-                    ]
-                )
-
-                encoder_length.join(temp).write.save_as_table(
-                    self._encoder_count_table, create_temp_table=True, mode="overwrite"
-                )
-            else:
-                temp = encoder_length.select(
-                    [(col(f"{self._states_table_cols[0]}_count")).as_("encoder_count")]
-                )
-                encoder_length.join(temp).write.save_as_table(
-                    self._encoder_count_table, create_temp_table=True, mode="overwrite"
-                )
-        else:
-            session = df._session
-            df_count = session.create_dataframe([1], schema=["temp"])
-            for c, fc, cat in zip(
-                self.input_cols, self._states_table_cols, self.category
-            ):
-                self._category_table_name[c] = random_name_for_temp_object(
-                    TempObjectType.TABLE
-                )
-                df_save = session.create_dataframe(cat, schema=[fc])
-                df_count.with_column(f"{fc}_count", lit(len(cat)))
-                df_save.with_column(
-                    f"{fc}_encoder", builtin("seq8")()
-                ).write.save_as_table(
-                    self._category_table_name[c], create_temp_table=True
-                )
-            df_count.write.save_as_table(
-                self._encoder_count_table, create_temp_table=True
-            )
+        encoder_fitter(self, df, "onehot")
         return self
 
     def transform(
@@ -297,7 +225,7 @@ class OneHotEncoder(Transformer):
             encoder_structure = array_append(
                 encoder_structure, col(ec) + encoder_offset
             )
-            encoder_offset = col(f"{fc}_count")
+            encoder_offset += col(f"{fc}_count")
 
         if self.merge:
             originalC.append("OnehotArray")
@@ -369,42 +297,12 @@ class OrdinalEncoder(Transformer):
             self.merge = False
         else:
             raise ValueError("number of output colum and input column does not match")
-        if self.category == "auto":
-            for c, fc in zip(self.input_cols, self._states_table_cols):
-                self._category_table_name[c] = random_name_for_temp_object(
-                    TempObjectType.TABLE
-                )
-                df_save = df._distinct([StructField(c, StringType())]).select(
-                    [
-                        col(c).as_(fc),
-                    ]
-                )
-                df_save.with_column(
-                    f"{fc}_encoder", builtin("seq8")()
-                ).write.save_as_table(
-                    self._category_table_name[c], create_temp_table=True
-                )
-        else:
-            session = df._session
-            for c, fc, cat in zip(
-                self.input_cols, self._states_table_cols, self.category
-            ):
-                self._category_table_name[c] = random_name_for_temp_object(
-                    TempObjectType.TABLE
-                )
-                df_save = session.create_dataframe(cat, schema=[fc])
-                df_save.with_column(
-                    f"{fc}_encoder", builtin("seq8")()
-                ).write.save_as_table(
-                    self._category_table_name[c], create_temp_table=True
-                )
-
+        encoder_fitter(self, df, "ordinal")
         return self
 
     def transform(
         self,
         df: DataFrame,
-        sparse: bool = False,
     ) -> DataFrame:
         originalC = df.columns
         encoder_structure = array_construct()
