@@ -1211,13 +1211,17 @@ def test_add_packages_negative(session, caplog):
 
     with pytest.raises(ValueError) as ex_info:
         with caplog.at_level(logging.WARNING):
-            session.add_packages("numpy", "numpy==0.1.0")
+            session.add_packages("numpy", "numpy==1.16.6")
     assert "is already added" in str(ex_info)
     assert "which does not fit the criteria for the requirement" in caplog.text
 
     with pytest.raises(ValueError) as ex_info:
         session.remove_package("python-dateutil")
     assert "is not in the package list" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        session.add_packages("xgboost==0.1.0")
+    assert "because this version is not available in Snowflake."
 
     session.clear_packages()
 

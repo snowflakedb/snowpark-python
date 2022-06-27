@@ -734,6 +734,18 @@ class Session:
                         f"and add it via session.add_import()."
                     )
                 elif not use_local_version:
+                    # check if user as requested for a specific version of package 'pkg==version'
+                    if package_req.specs:
+                        package_version_req = package_req.specs[0][1]
+                        if package_version_req not in valid_packages[package_name]:
+                            raise ValueError(
+                                f"Cannot add package {package_name} {package_version_req} "
+                                f"because this version is not available in Snowflake. "
+                                f"Check information_schema.packages to see available packages for UDFs. "
+                                f'If this package is a "pure-Python" package, you can find the directory '
+                                f"of this package and add it via session.add_import()."
+                            )
+
                     try:
                         package_client_version = pkg_resources.get_distribution(
                             package_name
