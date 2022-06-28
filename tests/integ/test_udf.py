@@ -1185,12 +1185,10 @@ def test_add_packages(session):
     # add module objects
     # but we can't register a udf with these versions
     # because the server might not have them
-    session.add_packages(numpy, pandas, dateutil)
-    assert session.get_packages() == {
-        "numpy": f"numpy=={numpy.__version__}",
-        "pandas": f"pandas=={pandas.__version__}",
-        "python-dateutil": f"python-dateutil=={dateutil.__version__}",
-    }
+    resolved_packages = session._resolve_packages([numpy, pandas, dateutil], validate_package=False)
+    assert f"numpy=={numpy.__version__}" in resolved_packages
+    assert f"pandas=={pandas.__version__}" in resolved_packages
+    assert f"python-dateutil=={dateutil.__version__}" in resolved_packages
 
     session.clear_packages()
 
@@ -1211,6 +1209,15 @@ def test_add_packages_negative(session, caplog):
 
     with pytest.raises(ValueError) as ex_info:
         with caplog.at_level(logging.WARNING):
+            # using numpy version 1.16.6 here because using any other version raises a
+            # ValueError for "non-existent python version in Snowflake" instead of
+            # "package is already added".
+            # In case this test fails in the future, choose a version of numpy which
+            # is supportezd by Snowflake using query:
+            #     select package_name, array_agg(version)
+            #     from information_schema.packages
+            #     where language='python' and package_name like 'numpy'
+            #     group by package_name;
             session.add_packages("numpy", "numpy==1.16.6")
     assert "is already added" in str(ex_info)
     assert "which does not fit the criteria for the requirement" in caplog.text

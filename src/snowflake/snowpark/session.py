@@ -681,37 +681,9 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
     ) -> List[str]:
-        package_names = list()
+        package_dict = dict()
         for package in packages:
-            if isinstance(package, ModuleType):
-                package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
-                    package.__name__, package.__name__
-                )
-                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
-            else:
-                package = package.strip().lower()
-            package_names.append(pkg_resources.Requirement.parse(package).key)
-
-        valid_packages = (
-            {
-                p[0]: json.loads(p[1])
-                for p in self.table("information_schema.packages")
-                .filter(
-                    (col("language") == "python")
-                    & (col("package_name").in_(package_names))
-                )
-                .group_by("package_name")
-                .agg(array_agg("version"))
-                ._internal_collect_with_tag()
-            }
-            if validate_package and package_names
-            else None
-        )
-
-        result_dict = (
-            existing_packages_dict if existing_packages_dict is not None else {}
-        )
-        for package in packages:
+            use_local_version = False
             if isinstance(package, ModuleType):
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
@@ -720,32 +692,61 @@ class Session:
                 use_local_version = True
             else:
                 package = package.strip().lower()
-                use_local_version = False
-            package_req = pkg_resources.Requirement.parse(package)
             # get the standard package name
-            package_name = package_req.key
+            package_name = pkg_resources.Requirement.parse(package).key
+            package_dict[package] = (package_name, use_local_version)
+
+        valid_packages = (
+            {
+                p[0]: json.loads(p[1])
+                for p in self.table("information_schema.packages")
+                .filter(
+                    (col("language") == "python")
+                    & (col("package_name").in_([v[0] for v in package_dict.values()]))
+                )
+                .group_by("package_name")
+                .agg(array_agg("version"))
+                ._internal_collect_with_tag()
+            }
+            if validate_package and package_dict
+            else None
+        )
+
+        result_dict = (
+            existing_packages_dict if existing_packages_dict is not None else {}
+        )
+        for package in package_dict:
+            package_req = pkg_resources.Requirement.parse(package)
+            package_name = package_dict[package][0]
+            use_local_version = package_dict[package][1]
+            package_version_req = package_req.specs[0][1] if package_req.specs else None
+
             if validate_package:
-                if package_name not in valid_packages:
-                    raise ValueError(
-                        f"Cannot add package {package_name} because it is not "
+
+                def get_missing_package_message(
+                    package_name: str, package_ver: Optional[str] = None
+                ) -> str:
+                    package_ver = f"=={package_ver}" if package_ver else ""
+                    # it is not available in Snowflake. Check information_schema.packages
+                    message = (
+                        f"Cannot add package {package_name}{package_ver} because it is not "
                         f"available in Snowflake. Check information_schema.packages "
                         f"to see available packages for UDFs. If this package is a "
                         f'"pure-Python" package, you can find the directory of this package '
                         f"and add it via session.add_import()."
                     )
-                elif not use_local_version:
-                    # check if user as requested for a specific version of package 'pkg==version'
-                    if package_req.specs:
-                        package_version_req = package_req.specs[0][1]
-                        if package_version_req not in valid_packages[package_name]:
-                            raise ValueError(
-                                f"Cannot add package {package_name} {package_version_req} "
-                                f"because this version is not available in Snowflake. "
-                                f"Check information_schema.packages to see available packages for UDFs. "
-                                f'If this package is a "pure-Python" package, you can find the directory '
-                                f"of this package and add it via session.add_import()."
-                            )
+                    return message
 
+                if package_name not in valid_packages:
+                    raise ValueError(get_missing_package_message(package_name))
+                elif (
+                    package_version_req
+                    and not any(v in package_req for v in valid_packages[package_name])
+                ):
+                    raise ValueError(
+                        get_missing_package_message(package_name, package_version_req)
+                    )
+                elif not use_local_version:
                     try:
                         package_client_version = pkg_resources.get_distribution(
                             package_name
