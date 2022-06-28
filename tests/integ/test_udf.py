@@ -1185,7 +1185,9 @@ def test_add_packages(session):
     # add module objects
     # but we can't register a udf with these versions
     # because the server might not have them
-    resolved_packages = session._resolve_packages([numpy, pandas, dateutil], validate_package=False)
+    resolved_packages = session._resolve_packages(
+        [numpy, pandas, dateutil], validate_package=False
+    )
     assert f"numpy=={numpy.__version__}" in resolved_packages
     assert f"pandas=={pandas.__version__}" in resolved_packages
     assert f"python-dateutil=={dateutil.__version__}" in resolved_packages
@@ -1228,7 +1230,7 @@ def test_add_packages_negative(session, caplog):
 
     with pytest.raises(ValueError) as ex_info:
         session.add_packages("xgboost==0.1.0")
-    assert "because this version is not available in Snowflake."
+    assert "xgboost==0.1.0 because it is not available in Snowflake." in str(ex_info)
 
     session.clear_packages()
 

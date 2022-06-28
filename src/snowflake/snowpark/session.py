@@ -715,10 +715,9 @@ class Session:
         result_dict = (
             existing_packages_dict if existing_packages_dict is not None else {}
         )
-        for package in package_dict:
+        for package, package_info in package_dict.items():
             package_req = pkg_resources.Requirement.parse(package)
-            package_name = package_dict[package][0]
-            use_local_version = package_dict[package][1]
+            package_name, use_local_version = package_info
             package_version_req = package_req.specs[0][1] if package_req.specs else None
 
             if validate_package:
@@ -739,9 +738,8 @@ class Session:
 
                 if package_name not in valid_packages:
                     raise ValueError(get_missing_package_message(package_name))
-                elif (
-                    package_version_req
-                    and not any(v in package_req for v in valid_packages[package_name])
+                elif package_version_req and not any(
+                    v in package_req for v in valid_packages[package_name]
                 ):
                     raise ValueError(
                         get_missing_package_message(package_name, package_version_req)
