@@ -10,7 +10,10 @@ from collections import namedtuple
 from decimal import Decimal
 from itertools import product
 
+import pandas as pd
 import pytest
+from pandas import DataFrame as PandasDF
+from pandas.testing import assert_frame_equal
 
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
@@ -1672,3 +1675,66 @@ def test_query_id_result_scan(session, resources_path):
     # read file
     df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
     check_df_with_query_id_result_scan(session, df)
+
+
+def test_call_with_statement_parameters(session):
+    statement_params = {"KEY": "VALUE"}
+    df = session.create_dataframe(["ab", "abc"], schema=["A"])
+    pandas_df = PandasDF(
+        [
+            "ab",
+            "abc",
+        ],
+        columns=["A"],
+    )
+
+    assert df.collect(_statement_params=statement_params) == [Row("ab"), Row("abc")]
+
+    assert list(df.to_local_iterator(_statement_params=statement_params)) == [
+        Row("ab"),
+        Row("abc"),
+    ]
+
+    assert_frame_equal(
+        df.to_pandas(_statement_params=statement_params), pandas_df, check_dtype=False
+    )
+
+    assert_frame_equal(
+        pd.concat(
+            list(df.to_pandas_batches(_statement_params=statement_params)),
+            ignore_index=True,
+        ),
+        pandas_df,
+    )
+
+    assert df.count(_statement_params=statement_params) == 2
+
+    # copy_into_table test is covered in test_datafrom_copy_into as it requires complex config
+
+    df.show(_statement_params=statement_params)
+
+    assert (
+        "successfully created"
+        in df.create_or_replace_view(
+            Utils.random_view_name(), _statement_params=statement_params
+        )[0]["status"]
+    )
+
+    assert (
+        "successfully created"
+        in df.create_or_replace_temp_view(
+            Utils.random_view_name(), _statement_params=statement_params
+        )[0]["status"]
+    )
+
+    assert df.first(_statement_params=statement_params) == Row("ab")
+
+    assert df.cache_result(_statement_params=statement_params).collect() == [
+        Row("ab"),
+        Row("abc"),
+    ]
+
+    assert (
+        len(df.random_split(weights=[0.5, 0.5], _statement_params=statement_params))
+        == 2
+    )

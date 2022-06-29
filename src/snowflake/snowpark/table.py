@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Dict, Iterable, List, NamedTuple, Optional, Union
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
@@ -315,6 +315,8 @@ class Table(DataFrame):
         assignments: Dict[str, ColumnOrLiteral],
         condition: Optional[Column] = None,
         source: Optional[DataFrame] = None,
+        *,
+        _statement_params: Optional[Dict[str, Any]] = None,
     ) -> UpdateResult:
         """
         Updates rows in the Table with specified ``assignments`` and returns a
@@ -329,6 +331,8 @@ class Table(DataFrame):
                 specified condition. It must be provided if ``source`` is provided.
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
+            _statement_params: Extra information that should be sent to Snowflake with query.
+
 
         Examples::
 
@@ -377,13 +381,17 @@ class Table(DataFrame):
                 else None,
             )
         )
-        return _get_update_result(new_df._internal_collect_with_tag())
+        return _get_update_result(
+            new_df._internal_collect_with_tag(_statement_params=_statement_params)
+        )
 
     @df_action_telemetry
     def delete(
         self,
         condition: Optional[Column] = None,
         source: Optional[DataFrame] = None,
+        *,
+        _statement_params: Optional[Dict[str, Any]] = None,
     ) -> DeleteResult:
         """
         Deletes rows in a Table and returns a :class:`DeleteResult`,
@@ -394,6 +402,8 @@ class Table(DataFrame):
                 specified condition. It must be provided if ``source`` is provided.
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
+            _statement_params: Extra information that should be sent to Snowflake with query.
+
 
         Examples::
 
@@ -437,7 +447,9 @@ class Table(DataFrame):
                 else None,
             )
         )
-        return _get_delete_result(new_df._internal_collect_with_tag())
+        return _get_delete_result(
+            new_df._internal_collect_with_tag(_statement_params=_statement_params)
+        )
 
     @df_action_telemetry
     def merge(
@@ -445,6 +457,8 @@ class Table(DataFrame):
         source: DataFrame,
         join_expr: Column,
         clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
+        *,
+        _statement_params: Optional[Dict[str, Any]] = None,
     ) -> MergeResult:
         """
         Merges this :class:`Table` with :class:`DataFrame` source on the specified
@@ -464,6 +478,8 @@ class Table(DataFrame):
                 match or not match on ``join_expr``. These actions can only be instances
                 of :class:`WhenMatchedClause` and :class:`WhenNotMatchedClause`, and will
                 be performed sequentially in this list.
+            _statement_params: Extra information that should be sent to Snowflake with query.
+
 
         Example::
 
@@ -503,7 +519,7 @@ class Table(DataFrame):
             )
         )
         return _get_merge_result(
-            new_df._internal_collect_with_tag(),
+            new_df._internal_collect_with_tag(_statement_params=_statement_params),
             inserted=inserted,
             updated=updated,
             deleted=deleted,

@@ -197,6 +197,19 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
         sort=False,
     )
 
+    # test statement params
+    df.copy_into_table(tmp_table_name, _statement_params={"KEY": "VALUE"})
+    Utils.check_answer(
+        session.table(tmp_table_name),
+        [
+            Row(1, "one", 1.2),
+            Row(2, "two", 2.2),
+            Row(1, "one", 1.2),
+            Row(2, "two", 2.2),
+        ],
+        sort=False,
+    )
+
 
 def test_copy_csv_create_table_if_not_exists(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
