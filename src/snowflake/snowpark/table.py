@@ -333,7 +333,6 @@ class Table(DataFrame):
                 It can also be another :class:`Table`.
             _statement_params: Extra information that should be sent to Snowflake with query.
 
-
         Examples::
 
             >>> target_df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
@@ -403,7 +402,6 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             _statement_params: Extra information that should be sent to Snowflake with query.
-
 
         Examples::
 
@@ -479,7 +477,6 @@ class Table(DataFrame):
                 of :class:`WhenMatchedClause` and :class:`WhenNotMatchedClause`, and will
                 be performed sequentially in this list.
             _statement_params: Extra information that should be sent to Snowflake with query.
-
 
         Example::
 

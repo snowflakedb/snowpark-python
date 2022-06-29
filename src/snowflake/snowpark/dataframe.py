@@ -441,8 +441,6 @@ class DataFrame:
 
         Args:
             _statement_params: Extra information that should be sent to Snowflake with query.
-        Returns:
-            A list of :class:`Row` objects.
         """
         return self._internal_collect_with_tag(_statement_params=_statement_params)
 
@@ -1860,7 +1858,6 @@ class DataFrame:
 
         Args:
             _statement_params: Extra information that should be sent to Snowflake with query.
-
         """
         return self.agg(("*", "count"))._internal_collect_with_tag(
             _statement_params=_statement_params
