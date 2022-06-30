@@ -1738,3 +1738,32 @@ def test_call_with_statement_parameters(session):
         len(df.random_split(weights=[0.5, 0.5], _statement_params=statement_params))
         == 2
     )
+
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    try:
+        df.write.save_as_table(
+            table_name,
+            mode="append",
+            create_temp_table=True,
+            _statement_params=statement_params,
+        )
+        Utils.check_answer(session.table(table_name), df, True)
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        assert table_info[0]["kind"] == "TEMPORARY"
+    finally:
+        Utils.drop_table(session, table_name)
+
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        df.write.copy_into_location(temp_stage, _statement_params=statement_params)
+        copied_files = session.sql(f"list @{temp_stage}").collect()
+        assert len(copied_files) == 1
+        assert ".csv" in copied_files[0][0]
+    finally:
+        Utils.drop_stage(session, temp_stage)
