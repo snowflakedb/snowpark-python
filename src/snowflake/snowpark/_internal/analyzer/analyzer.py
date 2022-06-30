@@ -75,6 +75,7 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
+from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
     SnowflakePlanBuilder,
@@ -698,3 +699,6 @@ class Analyzer:
                 self.analyze(logical_plan.join_expr),
                 [self.analyze(c) for c in logical_plan.clauses],
             )
+
+        if isinstance(logical_plan, Selectable):
+            return self.plan_builder.select_statement(logical_plan)

@@ -27,6 +27,10 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql, to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSQL,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Range,
@@ -896,7 +900,9 @@ class Session:
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
         """
-        return DataFrame(self, self._plan_builder.query(query, None))
+        return DataFrame(
+            self, SelectStatement(from_=SelectSQL(query, session=self), session=self)
+        )
 
     @property
     def read(self) -> "DataFrameReader":

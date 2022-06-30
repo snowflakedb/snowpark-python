@@ -33,6 +33,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     Star,
 )
+from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
     Limit,
@@ -410,6 +411,9 @@ class DataFrame:
         is_cached: bool = False,
     ) -> None:
         self._session = session
+        self._select_statement: Optional[SelectStatement] = (
+            plan if isinstance(plan, SelectStatement) else None
+        )
         self._plan = session._analyzer.resolve(plan)
         self.is_cached: bool = is_cached  #: Whether it is a cached dataframe
 
@@ -663,8 +667,10 @@ class DataFrame:
                 raise TypeError(
                     "The input of select() must be Column, column name, or a list of them"
                 )
-
-        return self._with_plan(Project(names, self._plan))
+        if self._select_statement:
+            return self._with_plan(self._select_statement.select(names))
+        else:
+            return self._with_plan(Project(names, self._plan))
 
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
         """
@@ -775,12 +781,19 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
-        return self._with_plan(
-            Filter(
-                _to_col_if_sql_expr(expr, "filter/where")._expression,
-                self._plan,
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.filter(
+                    _to_col_if_sql_expr(expr, "filter/where")._expression
+                )
             )
-        )
+        else:
+            return self._with_plan(
+                Filter(
+                    _to_col_if_sql_expr(expr, "filter/where")._expression,
+                    self._plan,
+                )
+            )
 
     def sort(
         self,
