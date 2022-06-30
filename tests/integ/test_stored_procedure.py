@@ -16,7 +16,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import current_date, lit, sproc, sqrt
+from snowflake.snowpark.functions import col, current_date, lit, sproc, sqrt
 from snowflake.snowpark.types import (
     DateType,
     DoubleType,
@@ -106,6 +106,18 @@ def test_stored_procedure_with_column_datatype(session):
     assert plus1_sp(lit(6)) == 7
     assert add_sp(4, sqrt(lit(36))) == 10
     assert add_date_sp(current_date(), 3) == dt
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        plus1_sp(col("a"))
+    assert "invalid identifier" in str(ex_info)
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        plus1_sp(current_date())
+    assert "Invalid argument types for function" in str(ex_info)
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        plus1_sp(lit(""))
+    assert "not recognized" in str(ex_info)
 
 
 @pytest.mark.skipif(
