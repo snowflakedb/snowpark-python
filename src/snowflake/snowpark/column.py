@@ -303,6 +303,9 @@ class Column:
             "'~' for 'not' if you're building DataFrame filter expressions. For example, use df.filter((col1 > 1) & (col2 > 2)) instead of df.filter(col1 > 1 and col2 > 2)."
         )
 
+    def __iter__(self) -> None:
+        raise TypeError("Column is not iterable")
+
     def in_(
         self,
         *vals: Union[
