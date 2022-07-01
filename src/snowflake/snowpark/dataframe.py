@@ -71,6 +71,8 @@ from snowflake.snowpark._internal.type_utils import (
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import (
+    SKIP_LEVELS_THREE,
+    SKIP_LEVELS_TWO,
     TempObjectType,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
@@ -434,18 +436,18 @@ class DataFrame:
 
     @df_action_telemetry
     def collect(
-        self, *, _statement_params: Optional[Dict[str, Any]] = None
+        self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> List["Row"]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
 
         Args:
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        return self._internal_collect_with_tag(_statement_params=_statement_params)
+        return self._internal_collect_with_tag(statement_params=statement_params)
 
     def _internal_collect_with_tag(
-        self, *, _statement_params: Optional[Dict[str, Any]] = None
+        self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> List["Row"]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
@@ -453,7 +455,7 @@ class DataFrame:
         return self._session._conn.execute(
             self._plan,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                _statement_params, self._session.query_tag, 3
+                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
         )
 
@@ -468,7 +470,7 @@ class DataFrame:
 
     @df_action_telemetry
     def to_local_iterator(
-        self, *, _statement_params: Optional[Dict[str, Any]] = None
+        self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> Iterator[Row]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
@@ -485,13 +487,13 @@ class DataFrame:
             Row(PRODUCT_ID='id2', AMOUNT=Decimal('20.00'))
 
         Args:
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         yield from self._session._conn.execute(
             self._plan,
             to_iter=True,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                _statement_params, self._session.query_tag, 3
+                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
         )
 
@@ -500,7 +502,7 @@ class DataFrame:
 
     @df_action_telemetry
     def to_pandas(
-        self, *, _statement_params: Optional[Dict[str, Any]] = None, **kwargs: Any
+        self, *, statement_params: Optional[Dict[str, str]] = None, **kwargs: Any
     ) -> "pandas.DataFrame":
         """
         Executes the query representing this DataFrame and returns the result as a
@@ -509,7 +511,7 @@ class DataFrame:
         When the data is too large to fit into memory, you can use :meth:`to_pandas_batches`.
 
         Args:
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -521,7 +523,7 @@ class DataFrame:
             self._plan,
             to_pandas=True,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                _statement_params, self._session.query_tag, 2
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
             **kwargs,
         )
@@ -542,7 +544,7 @@ class DataFrame:
 
     @df_action_telemetry
     def to_pandas_batches(
-        self, *, _statement_params: Optional[Dict[str, Any]] = None, **kwargs: Any
+        self, *, statement_params: Optional[Dict[str, str]] = None, **kwargs: Any
     ) -> Iterator["pandas.DataFrame"]:
         """
         Executes the query representing this DataFrame and returns an iterator of
@@ -562,7 +564,7 @@ class DataFrame:
             1  3  4
 
         Args:
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -575,7 +577,7 @@ class DataFrame:
             to_pandas=True,
             to_iter=True,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                _statement_params, self._session.query_tag, 2
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
             **kwargs,
         )
@@ -1852,15 +1854,15 @@ class DataFrame:
         return self.select([*old_cols, *new_cols])
 
     @df_action_telemetry
-    def count(self, *, _statement_params: Optional[Dict[str, Any]] = None) -> int:
+    def count(self, *, statement_params: Optional[Dict[str, str]] = None) -> int:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
 
         Args:
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         return self.agg(("*", "count"))._internal_collect_with_tag(
-            _statement_params=_statement_params
+            statement_params=statement_params
         )[0][0]
 
     @property
@@ -1897,7 +1899,7 @@ class DataFrame:
         target_columns: Optional[Iterable[str]] = None,
         transformations: Optional[Iterable[ColumnOrName]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
-        _statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, str]] = None,
         **copy_options: Any,
     ) -> List[Row]:
         """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
@@ -1949,7 +1951,7 @@ class DataFrame:
             target_columns: Name of the columns in the table where the data should be saved.
             transformations: A list of column transformations.
             format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
         if not self._reader or not self._reader._file_path:
@@ -2028,7 +2030,7 @@ class DataFrame:
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
-        )._internal_collect_with_tag(_statement_params=_statement_params)
+        )._internal_collect_with_tag(statement_params=statement_params)
 
     @df_action_telemetry
     def show(
@@ -2036,7 +2038,7 @@ class DataFrame:
         n: int = 10,
         max_width: int = 50,
         *,
-        _statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> None:
         """Evaluates this DataFrame and prints out the first ``n`` rows with the
         specified maximum number of characters per column.
@@ -2046,14 +2048,14 @@ class DataFrame:
             max_width: The maximum number of characters to print out for each column.
                 If the number of characters exceeds the maximum, the method prints out
                 an ellipsis (...) at the end of the column.
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         print(
             self._show_string(
                 n,
                 max_width,
                 _statement_params=create_or_update_statement_params_with_query_tag(
-                    _statement_params, self._session.query_tag, 2
+                    statement_params, self._session.query_tag, SKIP_LEVELS_TWO
                 ),
             )
         )
@@ -2235,7 +2237,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
-        _statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
 
@@ -2248,10 +2250,7 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
-            _statement_params: Extra information that should be sent to Snowflake with query.
-
-        Returns:
-            A list of :class:`Row` objects.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
             formatted_name = name
@@ -2266,7 +2265,7 @@ class DataFrame:
             formatted_name,
             PersistedView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
-                _statement_params, self._session.query_tag, 2
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
         )
 
@@ -2275,7 +2274,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
-        _statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
 
@@ -2292,7 +2291,7 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
             formatted_name = name
@@ -2307,7 +2306,7 @@ class DataFrame:
             formatted_name,
             LocalTempView(),
             _statement_params=create_or_update_statement_params_with_query_tag(
-                _statement_params, self._session.query_tag, 2
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
         )
 
@@ -2328,14 +2327,14 @@ class DataFrame:
         self,
         n: Optional[int] = None,
         *,
-        _statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> Union[Optional[Row], List[Row]]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
 
         Args:
             n: The number of rows to return.
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
              A list of the first ``n`` :class:`Row` objects if ``n`` is not ``None``. If ``n`` is negative or
@@ -2345,16 +2344,16 @@ class DataFrame:
         """
         if n is None:
             result = self.limit(1)._internal_collect_with_tag(
-                _statement_params=_statement_params
+                statement_params=statement_params
             )
             return result[0] if result else None
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
-            return self._internal_collect_with_tag(_statement_params=_statement_params)
+            return self._internal_collect_with_tag(statement_params=statement_params)
         else:
             return self.limit(n)._internal_collect_with_tag(
-                _statement_params=_statement_params
+                statement_params=statement_params
             )
 
     take = first
@@ -2528,7 +2527,7 @@ class DataFrame:
 
     @df_action_telemetry
     def cache_result(
-        self, *, _statement_params: Optional[Dict[str, Any]] = None
+        self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> "DataFrame":
         """Caches the content of this DataFrame to create a new cached DataFrame.
 
@@ -2568,7 +2567,7 @@ class DataFrame:
             [Row(NUM=1), Row(NUM=2), Row(NUM=3)]
 
         Args:
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
              A :class:`DataFrame` object that holds the cached result in a temporary table.
@@ -2581,7 +2580,7 @@ class DataFrame:
         self._session._conn.execute(
             create_temp_table,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                _statement_params, self._session.query_tag, 2
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
         )
         new_plan = self._session.table(temp_table_name)._plan
@@ -2593,7 +2592,7 @@ class DataFrame:
         weights: List[float],
         seed: Optional[int] = None,
         *,
-        _statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List["DataFrame"]:
         """
         Randomly splits the current DataFrame into separate DataFrames,
@@ -2606,7 +2605,7 @@ class DataFrame:
                 weight is specified, the returned DataFrame list only includes
                 the current DataFrame.
             seed: The seed for sampling.
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
 
@@ -2637,7 +2636,7 @@ class DataFrame:
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
                 temp_column_name, abs_(random(seed)) % _ONE_MILLION
-            ).cache_result(_statement_params=_statement_params)
+            ).cache_result(statement_params=statement_params)
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
                 int(w * _ONE_MILLION)

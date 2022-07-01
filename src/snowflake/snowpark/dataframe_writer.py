@@ -68,7 +68,7 @@ class DataFrameWriter:
         *,
         mode: Optional[str] = None,
         create_temp_table: bool = False,
-        _statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -87,7 +87,7 @@ class DataFrameWriter:
                 "ignore": Ignore this operation if data already exists.
 
             create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
 
@@ -114,7 +114,7 @@ class DataFrameWriter:
         )
         session = self._dataframe._session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
-        session._conn.execute(snowflake_plan, _statement_params=_statement_params)
+        session._conn.execute(snowflake_plan, _statement_params=statement_params)
 
     def copy_into_location(
         self,
@@ -125,7 +125,7 @@ class DataFrameWriter:
         file_format_type: Optional[str] = None,
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
-        _statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, Any]] = None,
         **copy_options: Optional[str],
     ) -> List[Row]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
@@ -137,7 +137,7 @@ class DataFrameWriter:
             file_format_type: Specifies the type of files unloaded from the table. If a format type is specified, additional format-specific options can be specified in ``format_type_options``.
             format_type_options: Depending on the ``file_format_type`` specified, you can include more format specific options. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
             header: Specifies whether to include the table column headings in the output files.
-            _statement_params: Extra information that should be sent to Snowflake with query.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
 
         Returns:
@@ -186,6 +186,6 @@ class DataFrameWriter:
                 copy_options=copy_options,
                 header=header,
             )
-        )._internal_collect_with_tag(_statement_params=_statement_params)
+        )._internal_collect_with_tag(statement_params=statement_params)
 
     saveAsTable = save_as_table

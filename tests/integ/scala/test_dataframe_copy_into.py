@@ -198,7 +198,7 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
     )
 
     # test statement params
-    df.copy_into_table(tmp_table_name, _statement_params={"KEY": "VALUE"})
+    df.copy_into_table(tmp_table_name, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
     Utils.check_answer(
         session.table(tmp_table_name),
         [

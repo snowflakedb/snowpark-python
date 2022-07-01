@@ -2,7 +2,7 @@
 ## 0.8.0 (Unreleased)
 
 ### New Features:
-- Added keyword only argument `_statement_params` to functions `collect`, `to_local_iterator`, `to_pandas`, `to_pandas_batches`,
+- Added keyword only argument `statement_params` to functions `collect`, `to_local_iterator`, `to_pandas`, `to_pandas_batches`,
 `count`, `copy_into_table`, `show`, `create_or_replace_view`, `create_or_replace_temp_view`, `first`, `cache_result`
 and `random_split` on class `snowflake.snowpark.Dateframe`; functions `update`, `delete` and `merge` on class `snowflake.snowpark.Table`;
 functions `save_as_table` and `copy_into_location` on class `snowflake.snowpark.DataFrameWriter` to specify statement level parameters.

@@ -110,8 +110,9 @@ COPY_OPTIONS = {
     "LOAD_UNCERTAIN_FILES",
 }
 
-_STATEMENT_PARAMS_STRING = "_statement_params"
 QUERY_TAG_STRING = "QUERY_TAG"
+SKIP_LEVELS_TWO = 2
+SKIP_LEVELS_THREE = 3
 
 
 class TempObjectType(Enum):
@@ -375,14 +376,16 @@ def create_statement_query_tag(skip_levels: int = 0) -> str:
 
 
 def create_or_update_statement_params_with_query_tag(
-    _statement_params, exists_session_query_tag, skip_levels: int = 0
+    statement_params: Optional[Dict[str, Any]] = None,
+    exists_session_query_tag: Optional[str] = None,
+    skip_levels: int = 0,
 ) -> Dict[str, Any]:
     if exists_session_query_tag or (
-        _statement_params and QUERY_TAG_STRING in _statement_params
+        statement_params and QUERY_TAG_STRING in statement_params
     ):
-        return _statement_params
+        return statement_params
 
-    ret = _statement_params or {}
+    ret = statement_params or {}
     # as create_statement_query_tag is called by the method, skip_levels needs to +1 to skip the current call
     ret[QUERY_TAG_STRING] = create_statement_query_tag(skip_levels + 1)
     return ret

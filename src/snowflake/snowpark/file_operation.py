@@ -3,7 +3,7 @@
 #
 import os
 import sys
-from typing import List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -57,6 +57,7 @@ class FileOperation:
         auto_compress: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[PutResult]:
         """Uploads local files to the stage.
 
@@ -86,6 +87,7 @@ class FileOperation:
             source_compression: Specifies the method of compression used on already-compressed files that are being staged.
                 Values can be 'AUTO_DETECT', 'GZIP', 'BZ2', 'BROTLI', 'ZSTD', 'DEFLATE', 'RAW_DEFLATE', 'NONE'.
             overwrite: Specifies whether Snowflake will overwrite an existing file with the same name during upload.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
             A ``list`` of :class:`PutResult` instances, each of which represents the results of an uploaded file.
@@ -118,7 +120,7 @@ class FileOperation:
             )
             put_result = snowflake.snowpark.dataframe.DataFrame(
                 self._session, plan
-            )._internal_collect_with_tag()
+            )._internal_collect_with_tag(statement_params=statement_params)
         return [PutResult(**file_result.asDict()) for file_result in put_result]
 
     def get(
@@ -128,6 +130,7 @@ class FileOperation:
         *,
         parallel: int = 10,
         pattern: Optional[str] = None,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[GetResult]:
         """Downloads the specified files from a path in a stage to a local directory.
 
@@ -160,6 +163,7 @@ class FileOperation:
             pattern: Specifies a regular expression pattern for filtering files to download.
                 The command lists all files in the specified path and applies the regular expression pattern on each of the files found.
                 Default: ``None`` (all files in the specified stage are downloaded).
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
             A ``list`` of :class:`GetResult` instances, each of which represents the result of a downloaded file.
@@ -198,7 +202,7 @@ class FileOperation:
                 os.makedirs(get_local_file_path(target_directory), exist_ok=True)
                 get_result = snowflake.snowpark.dataframe.DataFrame(
                     self._session, plan
-                )._internal_collect_with_tag()
+                )._internal_collect_with_tag(statement_params=statement_params)
             return [GetResult(**file_result.asDict()) for file_result in get_result]
         # connector raises IndexError when no file is downloaded from python connector.
         except IndexError:

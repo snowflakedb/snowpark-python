@@ -75,14 +75,44 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
     first_result = session.file.put(f"file://{path1}", stage_with_prefix)[0]
-    assert first_result.source == os.path.basename(path1)
-    assert first_result.target == os.path.basename(path1) + ".gz"
-    assert first_result.source_size in (10, 11)
-    assert first_result.target_size in (64, 96)
-    assert first_result.source_compression == "NONE"
-    assert first_result.target_compression == "GZIP"
-    assert first_result.status == "UPLOADED"
-    assert first_result.message == ""
+    first_result_with_statement_params = session.file.put(
+        f"file://{path1}",
+        stage_with_prefix,
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+    )[0]
+    assert (
+        first_result.source
+        == first_result_with_statement_params.source
+        == os.path.basename(path1)
+    )
+    assert (
+        first_result.target
+        == first_result_with_statement_params.target
+        == os.path.basename(path1) + ".gz"
+    )
+    assert first_result.source_size in (
+        10,
+        11,
+    ) and first_result_with_statement_params.source_size in (10, 11)
+    assert (
+        first_result.target_size in (64, 96)
+        and first_result_with_statement_params.target_size == 0
+    )
+    assert (
+        first_result.source_compression
+        == first_result_with_statement_params.source_compression
+        == "NONE"
+    )
+    assert (
+        first_result.target_compression
+        == first_result_with_statement_params.target_compression
+        == "GZIP"
+    )
+    assert (
+        first_result.status == "UPLOADED"
+        and first_result_with_statement_params.status == "SKIPPED"
+    )
+    assert first_result.message == first_result_with_statement_params.message == ""
     # Scala has encryption but python doesn't
     # assert first_result.encryption == "DECRYPTED"
 
@@ -202,14 +232,27 @@ def test_get_one_file(
     results = session.file.get(
         f"{stage_with_prefix}{os.path.basename(path1)}.gz", str(temp_target_directory)
     )  # temp_target_directory
+    results_with_statement_params = session.file.get(
+        f"{stage_with_prefix}{os.path.basename(path1)}.gz",
+        str(temp_target_directory),
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+    )  # temp_target_directory
     try:
-        assert len(results) == 1
-        assert results[0].file == f"{os.path.basename(path1)}.gz"
-        assert results[0].size in (54, 55)
-        assert results[0].status == "DOWNLOADED"
+        assert len(results) == len(results_with_statement_params) == 1
+        assert (
+            results[0].file
+            == results_with_statement_params[0].file
+            == f"{os.path.basename(path1)}.gz"
+        )
+        assert results[0].size in (54, 55) and results_with_statement_params[
+            0
+        ].size in (54, 55)
+        assert (
+            results[0].status == results_with_statement_params[0].status == "DOWNLOADED"
+        )
         # Scala has encryption but python doesn't
         # assert results[0].encryption == "DECRYPTED"
-        assert results[0].message == ""
+        assert results[0].message == results_with_statement_params[0].message == ""
     finally:
         os.remove(f"{temp_target_directory}/{os.path.basename(path1)}.gz")
 

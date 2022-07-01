@@ -43,7 +43,7 @@ def test_update_rows_in_table(session):
     )
 
     assert table.update(
-        {"b": 0}, col("a") == 1, _statement_params={"KEY": "VALUE"}
+        {"b": 0}, col("a") == 1, statement_params={"SF_PARTNER": "FAKE_PARTNER"}
     ) == UpdateResult(2, 0)
     Utils.check_answer(
         table, [Row(1, 0), Row(1, 0), Row(2, 1), Row(2, 2), Row(3, 1), Row(3, 2)]
@@ -88,7 +88,9 @@ def test_delete_rows_in_table(session):
     TestData.test_data2(session).write.saveAsTable(
         table_name, mode="overwrite", create_temp_table=True
     )
-    assert table.delete(_statement_params={"KEY": "VALUE"}) == DeleteResult(6)
+    assert table.delete(
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"}
+    ) == DeleteResult(6)
     Utils.check_answer(table, [])
 
     df = session.createDataFrame([1])
@@ -241,7 +243,7 @@ def test_merge_with_update_clause_only(session):
         source,
         target["id"] == source["id"],
         [when_matched(target["desc"] == "old").update({"desc": source["desc"]})],
-        _statement_params={"KEY": "VALUE"},
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
     ) == MergeResult(0, 1, 0)
     Utils.check_answer(target, [Row(10, "new"), Row(10, "too_old"), Row(11, "old")])
 
