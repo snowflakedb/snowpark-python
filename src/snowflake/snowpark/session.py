@@ -65,6 +65,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     zip_file_or_directory_to_stream,
 )
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
@@ -1462,7 +1463,10 @@ class Session:
 
         sql_args = []
         for arg in args:
-            sql_args.append(to_sql(arg, infer_type(arg)))
+            if isinstance(arg, Column):
+                sql_args.append(self._analyzer.analyze(arg._expression))
+            else:
+                sql_args.append(to_sql(arg, infer_type(arg)))
         return self.sql(f"CALL {sproc_name}({', '.join(sql_args)})").collect()[0][0]
 
     @deprecate(
