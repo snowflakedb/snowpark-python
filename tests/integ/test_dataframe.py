@@ -13,6 +13,7 @@ from itertools import product
 import pytest
 
 from snowflake.snowpark import Column, Row
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
@@ -35,6 +36,25 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestData, TestFiles, Utils
+
+tmp_stage_name = Utils.random_stage_name()
+test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
+user_schema = StructType(
+    [
+        StructField("a", IntegerType()),
+        StructField("b", StringType()),
+        StructField("c", DoubleType()),
+    ]
+)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def setup(session, resources_path):
+    test_files = TestFiles(resources_path)
+    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
+    )
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
@@ -1616,21 +1636,6 @@ def test_create_table_twice_no_error(session, resources_path):
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
     # 2) read file
-    tmp_stage_name = Utils.random_stage_name()
-    test_files = TestFiles(resources_path)
-    test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
-
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    Utils.upload_to_stage(
-        session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
-    )
-    user_schema = StructType(
-        [
-            StructField("a", IntegerType()),
-            StructField("b", StringType()),
-            StructField("c", DoubleType()),
-        ]
-    )
     df1 = (
         session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
     )
@@ -1639,3 +1644,31 @@ def test_create_table_twice_no_error(session, resources_path):
         df2.join(df3),
         [Row(A=1, C=1.2), Row(A=1, C=2.2), Row(A=2, C=1.2), Row(A=2, C=2.2)],
     )
+
+
+def check_df_with_query_id_result_scan(session, df):
+    query_id = df._execute_and_get_query_id()
+    df_from_result_scan = session.sql(result_scan_statement(query_id))
+    assert df.columns == df_from_result_scan.columns
+    Utils.check_answer(df, df_from_result_scan)
+
+
+def test_query_id_result_scan(session, resources_path):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    # create dataframe (small data)
+    df = session.create_dataframe([[1, 2], [1, 3], [4, 4]], schema=["a", "b"])
+    check_df_with_query_id_result_scan(session, df)
+
+    # create dataframe (large data)
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = session.create_dataframe([[1, 2], [1, 3], [4, 4]], schema=["a", "b"])
+        check_df_with_query_id_result_scan(session, df)
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+    # read file
+    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    check_df_with_query_id_result_scan(session, df)
