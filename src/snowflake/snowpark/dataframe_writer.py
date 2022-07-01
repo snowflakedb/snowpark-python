@@ -144,8 +144,9 @@ class DataFrameWriter:
             >>> # save this dataframe to a parquet file on the session stage
             >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
             >>> remote_file_path = f"{session.get_session_stage()}/names.parquet"
-            >>> df.write.copy_into_location(remote_file_path, file_format_type="parquet", header=True, overwrite=True, single=True)
-            [Row(rows_unloaded=3, input_bytes=597, output_bytes=597)]
+            >>> copy_result = df.write.copy_into_location(remote_file_path, file_format_type="parquet", header=True, overwrite=True, single=True)
+            >>> copy_result[0].rows_unloaded
+            3
             >>> # the following code snippet just verifies the file content and is actually irrelevant to Snowpark
             >>> # download this file and read it using pyarrow
             >>> import os
