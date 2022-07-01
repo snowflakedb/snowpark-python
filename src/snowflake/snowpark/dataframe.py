@@ -787,13 +787,12 @@ class DataFrame:
                     _to_col_if_sql_expr(expr, "filter/where")._expression
                 )
             )
-        else:
-            return self._with_plan(
-                Filter(
-                    _to_col_if_sql_expr(expr, "filter/where")._expression,
-                    self._plan,
-                )
+        return self._with_plan(
+            Filter(
+                _to_col_if_sql_expr(expr, "filter/where")._expression,
+                self._plan,
             )
+        )
 
     def sort(
         self,
@@ -883,6 +882,8 @@ class DataFrame:
                     SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
+        if self._select_statement:
+            return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, True, self._plan))
 
     def agg(
@@ -1257,6 +1258,10 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operate(other._plan, operator="union")
+            )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
     def union_all(self, other: "DataFrame") -> "DataFrame":
@@ -1282,6 +1287,10 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operate(other._plan, operator="union all")
+            )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
     @df_usage_telemetry
@@ -1413,6 +1422,10 @@ class DataFrame:
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operate(other._plan, operator="except")
+            )
         return self._with_plan(Except(self._plan, other._plan))
 
     def natural_join(
