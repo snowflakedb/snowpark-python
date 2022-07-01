@@ -22,9 +22,6 @@ class Selectable(LogicalPlan):
     def to_schema_sql(self) -> str:
         ...
 
-    def union(self, *selectables: "Selectable") -> "SelectStatement":
-        ...
-
     @cached_property
     def _snowflake_plan(self):
         return self.session._analyzer.resolve(self)
@@ -45,11 +42,6 @@ class SelectableEntity(Selectable):
     def to_schema_sql(self) -> str:
         return f"select * from {self.entity_name}"
 
-    def union(self, *selectables: "Selectable") -> "SelectStatement":
-        new = SelectStatement()
-        new.from_ = UnionStatement(self, *selectables)
-        return new
-
     def _columns_changed_exp_from_parent(self):
         return False
 
@@ -64,11 +56,6 @@ class SelectSQL(Selectable):
 
     def to_schema_sql(self) -> str:
         return self.sql
-
-    def union(self, *selectables: "Selectable") -> "SelectStatement":
-        new = SelectStatement()
-        new.from_ = UnionStatement(self, *selectables)
-        return new
 
     def _columns_changed_exp_from_parent(self):
         # not able to judge whether columns have changed from a sql statement unless it's parsed in the client
@@ -170,13 +157,15 @@ class SelectStatement(Selectable):
         return new
 
     def select(self, cols) -> "SelectStatement":
+        if self._columns_changed_exp_from_parent():
+            return SelectStatement(projection_=cols, from_=self, session=self.session)
         new = copy(self)
         new.projection_ = cols
-        if self._columns_changed_exp_from_parent():
-            new.from_ = self
         return new
 
     def sort(self, cols) -> "SelectStatement":
+        if self._columns_changed_exp_from_parent():
+            return SelectStatement(from_=self, where_=cols, session=self.session)
         new = copy(self)
         new.order_by_ = cols
         return new
@@ -189,14 +178,29 @@ class SelectStatement(Selectable):
         new.join_ = new.join_.append(join_) if new.join_ else [join_]
         return new
 
-    def union(self, *selectables: "Selectable") -> "SelectStatement":
-        if isinstance(self.from_, UnionStatement) and self._no_clause():
-            union_statement = self.from_.union(*selectables)
+    import snowflake.snowpark._internal.analyzer
+
+    def set_operate(
+        self,
+        *selectables: Union[
+            "snowflake.snowpark._internal.analyzer.snowflake_plan.SnowflakePlan",
+            "SelectStatement",
+        ],
+        operator: str = "union",
+    ) -> "SelectStatement":
+        set_operands = tuple(SetOperand(x, operator, self.session) for x in selectables)
+        if isinstance(self.from_, SetStatement) and self._no_clause():
+            set_statement = SetStatement(
+                *self.from_.selectables, *set_operands, session=self.session
+            )
         else:
-            selectables = [self, *selectables]
-            union_statement = UnionStatement(*selectables)
+            set_statement = SetStatement(
+                SetOperand(self, operator, self.session),
+                *set_operands,
+                session=self.session,
+            )
         new = SelectStatement()
-        new.from_ = union_statement
+        new.from_ = set_statement
         return new
 
     def limit(self, n: int):
@@ -215,21 +219,33 @@ class SelectStatement(Selectable):
         return False
 
 
-class UnionStatement(Selectable):
-    def __init__(self, *selectables: Selectable, session=None) -> None:
+class SetOperand:
+    def __init__(self, selectable, operator, session) -> None:
+        super().__init__()
+        self.selectable = selectable
+        self.operator = operator
+
+
+class SetStatement(Selectable):
+    def __init__(self, *selectables: SetOperand, session=None) -> None:
         super().__init__(session)
         self.selectables = selectables
 
     def to_sql(self) -> str:
-        return " union ".join(f"({s.to_sql()})" for s in self.selectables)
+        def selectable_to_sql(s):
+            return (
+                s.selectable.to_sql()
+                if isinstance(s.selectable, Selectable)
+                else s.selectable.queries[-1].sql
+            )
+
+        sql = selectable_to_sql(self.selectables[0])
+        for i in range(1, len(self.selectables)):
+            sql += f" {self.selectables[i].operator} {selectable_to_sql(self.selectables[i])}"
+        return sql
 
     def to_schema_sql(self) -> str:
-        return self.selectables[0].to_schema_sql()
-
-    def union(self, *selectables: Selectable) -> SelectStatement:
-        new = SelectStatement()
-        new.from_ = UnionStatement(*self.selectables, *selectables)
-        return new
+        return self.selectables[0].selectable.to_schema_sql()
 
     def _columns_changed_exp_from_parent(self):
         return True
