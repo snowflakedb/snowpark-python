@@ -2,10 +2,17 @@
 ## 0.8.0 (Unreleased)
 
 ### New Features:
-- Added keyword only argument `statement_params` to functions `collect`, `to_local_iterator`, `to_pandas`, `to_pandas_batches`,
-`count`, `copy_into_table`, `show`, `create_or_replace_view`, `create_or_replace_temp_view`, `first`, `cache_result`
-and `random_split` on class `snowflake.snowpark.Dateframe`; functions `update`, `delete` and `merge` on class `snowflake.snowpark.Table`;
-functions `save_as_table` and `copy_into_location` on class `snowflake.snowpark.DataFrameWriter` to specify statement level parameters.
+- Added keyword only argument `statement_params` to the following methods to allow for specifying statement level parameters:
+  - `collect`, `to_local_iterator`, `to_pandas`, `to_pandas_batches`,
+  `count`, `copy_into_table`, `show`, `create_or_replace_view`, `create_or_replace_temp_view`, `first`, `cache_result`
+  and `random_split` on class `snowflake.snowpark.Dateframe`
+  - `update`, `delete` and `merge` on class `snowflake.snowpark.Table`
+  - `save_as_table` and `copy_into_location` on class `snowflake.snowpark.DataFrameWriter`
+  - `approx_quantile`, `statement_params`, `cov` and `crosstab` on class `snowflake.snowpark.DataFrameStatFunctions`
+  - `register` and `register_from_file` on class `snowflake.snowpark.udf.UDFRegistration`
+  - `register` and `register_from_file` on class `snowflake.snowpark.udtf.UDTFRegistration`
+  - `register` and `register_from_file` on class `snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
+  - `udf`, `udtf` and `sproc` in `snowflake.snowpark.functions`
 
 ## 0.7.0 (2022-05-25)
 
