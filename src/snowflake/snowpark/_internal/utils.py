@@ -111,8 +111,12 @@ COPY_OPTIONS = {
 }
 
 QUERY_TAG_STRING = "QUERY_TAG"
-SKIP_LEVELS_TWO = 2
-SKIP_LEVELS_THREE = 3
+SKIP_LEVELS_TWO = (
+    2  # limit traceback to return up to 2 stack trace entries from traceback object tb
+)
+SKIP_LEVELS_THREE = (
+    3  # limit traceback to return up to 3 stack trace entries from traceback object tb
+)
 
 
 class TempObjectType(Enum):

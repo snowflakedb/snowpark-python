@@ -1677,7 +1677,7 @@ def test_query_id_result_scan(session, resources_path):
     check_df_with_query_id_result_scan(session, df)
 
 
-def test_call_with_statement_parameters(session):
+def test_call_with_statement_params(session):
     statement_params_wrong_date_format = {
         "DATE_INPUT_FORMAT": "YYYY-MM-DD",
         "SF_PARTNER": "FAKE_PARTNER",

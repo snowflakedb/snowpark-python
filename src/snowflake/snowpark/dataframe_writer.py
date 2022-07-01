@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -68,7 +68,7 @@ class DataFrameWriter:
         *,
         mode: Optional[str] = None,
         create_temp_table: bool = False,
-        statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> None:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -125,7 +125,7 @@ class DataFrameWriter:
         file_format_type: Optional[str] = None,
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
-        statement_params: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, str]] = None,
         **copy_options: Optional[str],
     ) -> List[Row]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.

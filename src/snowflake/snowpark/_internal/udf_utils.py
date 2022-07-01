@@ -10,6 +10,7 @@ from logging import getLogger
 from types import ModuleType
 from typing import (
     Callable,
+    Dict,
     Iterable,
     List,
     NamedTuple,
@@ -483,6 +484,8 @@ def resolve_imports_and_packages(
     is_pandas_udf: bool = False,
     is_dataframe_input: bool = False,
     max_batch_size: Optional[int] = None,
+    *,
+    statement_params: Optional[Dict[str, str]] = None,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -506,9 +509,13 @@ def resolve_imports_and_packages(
                     "or a tuple of the file path (str) and the import path (str)."
                 )
             udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
-        all_urls = session._resolve_imports(upload_stage, udf_level_imports)
+        all_urls = session._resolve_imports(
+            upload_stage, udf_level_imports, statement_params=statement_params
+        )
     elif imports is None:
-        all_urls = session._resolve_imports(upload_stage)
+        all_urls = session._resolve_imports(
+            upload_stage, statement_params=statement_params
+        )
     else:
         all_urls = []
 
