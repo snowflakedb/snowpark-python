@@ -105,7 +105,8 @@ def test_stored_procedure_with_column_datatype(session):
     dt = datetime.date.today() + datetime.timedelta(days=3)
     assert plus1_sp(lit(6)) == 7
     assert add_sp(4, sqrt(lit(36))) == 10
-    assert add_date_sp(current_date(), 3) == dt
+    # the date can be different between server and client due to timezone difference
+    assert -1 <= (add_date_sp(current_date(), 3) - dt).days <= 1
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         plus1_sp(col("a"))
