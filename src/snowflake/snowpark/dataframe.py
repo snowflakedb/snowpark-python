@@ -450,6 +450,15 @@ class DataFrame:
             else None,
         )
 
+    def _execute_and_get_query_id(self) -> str:
+        """This method is only used in stored procedures."""
+        return self._session._conn.get_result_query_id(
+            self._plan,
+            _statement_params={"QUERY_TAG": create_statement_query_tag(3)}
+            if not self._session.query_tag
+            else None,
+        )
+
     @df_action_telemetry
     def to_local_iterator(self) -> Iterator[Row]:
         """Executes the query representing this DataFrame and returns an iterator
