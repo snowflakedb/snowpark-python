@@ -7,7 +7,7 @@ import os
 import sys
 import time
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Set, Union
+from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
@@ -370,12 +370,12 @@ class ServerConnection:
             plan, to_pandas, to_iter, **kwargs
         )
         if to_pandas:
-            return result_set
+            return result_set["data"]
         else:
             if to_iter:
-                return result_set_to_iter(result_set, result_meta)
+                return result_set_to_iter(result_set["data"], result_meta)
             else:
-                return result_set_to_rows(result_set, result_meta)
+                return result_set_to_rows(result_set["data"], result_meta)
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -384,11 +384,17 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         **kwargs,
-    ) -> Union[
-        List[Any],
-        "pandas.DataFrame",
-        SnowflakeCursor,
-        Iterator["pandas.DataFrame"],
+    ) -> Tuple[
+        Dict[
+            str,
+            Union[
+                List[Any],
+                "pandas.DataFrame",
+                SnowflakeCursor,
+                Iterator["pandas.DataFrame"],
+                str,
+            ],
+        ],
         List[ResultMetadata],
     ]:
         action_id = plan.session._generate_new_action_id()
@@ -426,15 +432,19 @@ class ServerConnection:
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
 
-        return result["data"], result_meta
+        return result, result_meta
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
-    ) -> Union[List[Row], List[Attribute]]:
+    ) -> Tuple[List[Row], List[Attribute]]:
         result_set, result_meta = self.get_result_set(plan, **kwargs)
-        result = result_set_to_rows(result_set)
+        result = result_set_to_rows(result_set["data"])
         meta = convert_result_meta_to_attribute(result_meta)
         return result, meta
+
+    def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
+        result_set, _ = self.get_result_set(plan, **kwargs)
+        return result_set["sfqid"]
 
     @_Decorator.wrap_exception
     def run_batch_insert(self, query: str, rows: List[Row], **kwargs) -> None:
