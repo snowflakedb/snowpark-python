@@ -304,7 +304,14 @@ class Column:
         )
 
     def __iter__(self) -> None:
-        raise TypeError("Column is not iterable")
+        raise TypeError(
+            "Column is not iterable. This error can occur when you use the Python built-ins for sum, min and max. Please make sure you use the corresponding function from snowflake.snowpark.functions."
+        )
+
+    def __round__(self, n=None):
+        raise TypeError(
+            "Column cannot be rounded. This error can occur when you use the Python built-in round. Please make sure you use the snowflake.snowpark.functions.round function intead."
+        )
 
     def in_(
         self,
