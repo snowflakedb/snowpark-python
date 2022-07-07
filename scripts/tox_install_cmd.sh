@@ -11,7 +11,8 @@ for val in "${input_options[@]}"; do
   pip_options+=(${val// /})
 done
 
-echo "${pip_options[*]}"
+echo "Upgrading pip and setuptools. Installing cffi"
+python -m pip install -U pip setuptools wheel cffi --only-binary=:all:
 
 if [[ -z "${snowflake_path}" ]]; then
   echo "Using Python Connector from PyPI"
