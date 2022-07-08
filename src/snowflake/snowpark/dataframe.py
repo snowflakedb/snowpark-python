@@ -2,9 +2,13 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import concurrent.futures
 import copy
 import itertools
 import re
+import numpy as np
+import time
+from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from functools import cached_property
 from logging import getLogger
@@ -98,6 +102,7 @@ from snowflake.snowpark.functions import (
     sql_expr,
     stddev,
     to_char,
+    corr as corr_func
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
@@ -754,6 +759,81 @@ class DataFrame:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
         else:
             return self.select(list(keep_col_names))
+
+    # Target function for the threads to execute
+    def tgt(self, i, j, n, res, ans):
+
+        query_res = []
+
+        while len(query_res) == 0:
+            start_time = time.time()
+            # Execute the query
+            query_res = res._internal_collect_with_tag()
+            print("--- %s seconds ---" % (time.time() - start_time))
+            print(query_res, flush=True)
+
+        # Store the query results in list of lists
+        for k in range(j, min(j+n, len(ans))):
+            if len(query_res) == 0 or k >= len(query_res[0]) + j:
+                break
+            ans[i][k] = query_res[0][k-j]
+            ans[k][i] = query_res[0][k-j]
+
+    # Function that employs multithreading to generate the correlation matrix
+    def corr_matrix_mt(self):
+
+        # Define the number of calls to the inbuilt correlation function to be present inside a query
+        n = 4
+        cols = self.columns
+
+        # A mapping from matrix index to name of the column
+        dict_mapping = {ind: col for ind, col in enumerate(cols)}
+
+        # Initialize a list of lists to store the results
+        ans = [[None for i in range(len(cols))] for j in range(len(cols))]
+
+        # A list, which will be used by ThreadPoolExecutor to store the future objects
+        futures = []
+
+        # Using a context manager to work with the ThreadPoolExecutor. It will automatically call the shutdown()
+        # function in the end. It will also wait for all the threads to finish execution. The max_workers is set
+        # to the minimum of 1000 and total number of queries generated.
+        with ThreadPoolExecutor(max_workers=min(1000, len(cols)*(len(cols)+1)//(2*n))) as executor:
+            for i in range(0, len(cols)):
+                for j in range(i, len(cols), n):
+                    res = self.select(
+                        [corr_func(dict_mapping[i], dict_mapping[k]) for k in range(j, min(j + n, len(ans)))])
+                    futures.append(executor.submit(self.tgt, i, j, n, res, ans))
+
+        # Remove quotations from the names of the columns returned by self.columns
+        for ind, col in enumerate(cols):
+            if col.startswith("'") or col.startswith('"'):
+                cols[ind] = cols[ind][1:-1]
+
+        # Create a Pandas dataframe from list of lists. Replace any np.nan with None objects.
+        pandas_df = pandas.DataFrame(ans, columns=cols, index=cols).replace({np.nan: None})
+
+        return pandas_df
+
+    def corr_matrix(self) -> "pandas.DataFrame":
+
+        cols = self.schema.names
+
+        cols_pair = []
+
+        for i in cols:
+            for j in cols:
+                cols_pair.append((i, j))
+
+        res = self.select([corr_func(i, j) for (i, j) in cols_pair])._internal_collect_with_tag()
+        ans = [res[0][i:i+len(cols)] for i in range(0, len(res[0]), len(cols))]
+
+        for ind, col in enumerate(cols):
+            if col.startswith("'") or col.startswith('"'):
+                cols[ind] = cols[ind][1:-1]
+
+        pandas_df = pandas.DataFrame(ans, columns=cols, index=cols).replace({np.nan: None})
+        return pandas_df
 
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
