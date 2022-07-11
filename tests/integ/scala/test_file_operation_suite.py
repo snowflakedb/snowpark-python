@@ -94,10 +94,10 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
         10,
         11,
     ) and first_result_with_statement_params.source_size in (10, 11)
-    assert (
-        first_result.target_size in (64, 96)
-        and first_result_with_statement_params.target_size == 0
-    )
+    assert first_result.target_size in (
+        64,
+        96,
+    ) and first_result_with_statement_params.target_size in (0, 64)
     assert (
         first_result.source_compression
         == first_result_with_statement_params.source_compression
