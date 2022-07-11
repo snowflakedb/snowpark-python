@@ -538,7 +538,7 @@ class Column:
         For details, see the Snowflake documentation on
         `regular expressions <https://docs.snowflake.com/en/sql-reference/functions-regexp.html#label-regexp-general-usage-notes>`_.
 
-        :meth:`rlike` is an alias of :meth`regexp`.
+        :meth:`rlike` is an alias of :meth:`regexp`.
 
         """
         return Column(
