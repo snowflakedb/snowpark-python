@@ -443,7 +443,8 @@ class ServerConnection:
         return result, meta
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
-        result_set, _ = self.get_result_set(plan, **kwargs)
+        # get the iterator such that the data is not fetched
+        result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
         return result_set["sfqid"]
 
     @_Decorator.wrap_exception
