@@ -97,6 +97,7 @@ from snowflake.snowpark.functions import (
     row_number,
     sql_expr,
     stddev,
+    stddev_pop,
     to_char,
 )
 from snowflake.snowpark.row import Row
@@ -1101,9 +1102,15 @@ class DataFrame:
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
         """
-        return self.group_by(
-            [self.col(quote_name(f.name)) for f in self.schema.fields]
-        ).agg([])
+        return self._distinct(self.columns)
+
+    def _distinct(self, columns: List[str]) -> "DataFrame":
+        """Internal function that return a new DataFrame that contains only the rows with distinct values
+        from the current DataFrame.
+
+        This is equivalent to performing a SELECT DISTINCT in SQL.
+        """
+        return self.group_by([self.col(quote_name(c)) for c in columns]).agg([])
 
     def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
@@ -2352,6 +2359,13 @@ class DataFrame:
         Args:
             cols: The names of columns whose basic statistics are computed.
         """
+        # These are five stats that pyspark's describe() outputs
+        return self._describe(cols, stats=["count", "mean", "stddev", "min", "max"])
+
+    def _describe(
+        self, *cols: Union[str, List[str]], stats: Optional[List[str]] = None
+    ) -> "DataFrame":
+
         cols = parse_positional_args_to_list(*cols)
         df = self.select(cols) if len(cols) > 0 else self
 
@@ -2362,13 +2376,20 @@ class DataFrame:
             if isinstance(field.datatype, (StringType, _NumericType))
         }
 
-        stat_func_dict = {
+        all_stat_func_dict = {
             "count": count,
             "mean": mean,
             "stddev": stddev,
+            "stddev_pop": stddev_pop,
             "min": min_,
             "max": max_,
         }
+
+        stat_func_dict = (
+            {k: v for k, v in all_stat_func_dict.items() if k in stats}
+            if stats
+            else all_stat_func_dict
+        )
 
         # if no columns should be selected, just return stat names
         if len(numerical_string_col_type_dict) == 0:
