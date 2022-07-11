@@ -110,7 +110,7 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     )
     assert (
         first_result.status == "UPLOADED"
-        and first_result_with_statement_params.status == "SKIPPED"
+        and first_result_with_statement_params.status in ("SKIPPED", "UPLOADED")
     )
     assert first_result.message == first_result_with_statement_params.message == ""
     # Scala has encryption but python doesn't
