@@ -459,13 +459,15 @@ class DataFrame:
             ),
         )
 
-    def _execute_and_get_query_id(self) -> str:
+    def _execute_and_get_query_id(
+        self, *, statement_params: Optional[Dict[str, str]] = None
+    ) -> str:
         """This method is only used in stored procedures."""
         return self._session._conn.get_result_query_id(
             self._plan,
-            _statement_params={"QUERY_TAG": create_statement_query_tag(3)}
-            if not self._session.query_tag
-            else None,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+            ),
         )
 
     @df_action_telemetry
