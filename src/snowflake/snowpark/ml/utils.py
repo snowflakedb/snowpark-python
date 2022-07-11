@@ -14,7 +14,7 @@ from snowflake.snowpark.functions import builtin, col, count_distinct, lit, obje
 
 def scaler_fit(
     transformer: "snowflake.snowpark.ml.Transformer", df: DataFrame, stats: List[str]
-):
+) -> "None":
     """
     This table stores the value required by standard scaler or minmax scaler. stddev, mean and minimum, maximum to be
     specific.
@@ -46,7 +46,7 @@ def scaler_fit(
 
 def encoder_fit(
     transformer: "snowflake.snowpark.ml.Transformer", df: DataFrame, encoder_type: str
-):
+) -> "None":
     """
     given input of
     [
@@ -80,15 +80,15 @@ def encoder_fit(
     """
     if transformer._category == "auto":
         df_encoder_length = None
-        for input_cols, states_col in zip(
+        for input_col, states_col in zip(
             transformer.input_cols, transformer._states_table_cols
         ):
-            transformer._category_table_name[input_cols] = random_name_for_temp_object(
+            transformer._category_table_name[input_col] = random_name_for_temp_object(
                 TempObjectType.TABLE
             )
-            df_save = df._distinct([input_cols]).select(
+            df_save = df._distinct([input_col]).select(
                 [
-                    col(input_cols).as_(states_col),
+                    col(input_col).as_(states_col),
                 ]
             )
             if encoder_type == "onehot":
@@ -105,7 +105,7 @@ def encoder_fit(
             df_save.with_column(
                 f"{states_col}_encoder", builtin("seq8")()
             ).write.save_as_table(
-                transformer._category_table_name[input_cols], create_temp_table=True
+                transformer._category_table_name[input_col], create_temp_table=True
             )
         if encoder_type == "onehot":
             temp = lit(0)
@@ -120,12 +120,12 @@ def encoder_fit(
         session = df._session
         df_count = {}
         df_encoder_length = 0
-        for input_cols, states_col, category in zip(
+        for input_col, states_col, category in zip(
             transformer.input_cols,
             transformer._states_table_cols,
             transformer._category,
         ):
-            transformer._category_table_name[input_cols] = random_name_for_temp_object(
+            transformer._category_table_name[input_col] = random_name_for_temp_object(
                 TempObjectType.TABLE
             )
             df_save = session.create_dataframe(category, schema=[states_col])
@@ -135,7 +135,7 @@ def encoder_fit(
             df_save.with_column(
                 f"{states_col}_encoder", builtin("seq8")()
             ).write.save_as_table(
-                transformer._category_table_name[input_cols], create_temp_table=True
+                transformer._category_table_name[input_col], create_temp_table=True
             )
 
         if encoder_type == "onehot":
@@ -145,3 +145,10 @@ def encoder_fit(
             ).write.save_as_table(
                 transformer._encoder_count_table, create_temp_table=True
             )
+
+
+def check_if_input_output_match(
+    transformer: "snowflake.snowpark.ml.Transformer",
+) -> "None":
+    if len(transformer.input_cols) != len(transformer.output_cols):
+        raise ValueError("The number of output column and input column does not match")

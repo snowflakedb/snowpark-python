@@ -283,27 +283,28 @@ def test_input_cols_output_cols_negative(session):
     # test no input column
     with pytest.raises(ValueError) as ex_info:
         onehotencoder.transform(df)
-    assert "Input column can not be empty" == str(ex_info.value)
+    assert "Input column can not be empty" in str(ex_info.value)
 
     onehotencoder.input_cols = ["A", "B", "C"]
     # test no output column
     with pytest.raises(ValueError) as ex_info:
         onehotencoder.transform(df)
-    assert "Output column can not be empty" == str(ex_info.value)
-    onehotencoder.output_cols = ["B", "C"]
-    # test input column and output column dose not match
-    with pytest.raises(ValueError) as ex_info:
-        onehotencoder.transform(df)
-    assert "The number of output column and input column does not match" == str(
-        ex_info.value
-    )
+    assert "Output column can not be empty" in str(ex_info.value)
     onehotencoder.output_cols = ["A", "B", "C"]
     # test call transform before fit
     with pytest.raises(ValueError) as ex_info:
         onehotencoder.transform(df)
     assert (
         "The transformer is not fitted yet, call fit() function before transform"
-        == str(ex_info.value)
+        in str(ex_info.value)
+    )
+    onehotencoder.output_cols = ["B", "C"]
+    model = onehotencoder.fit(df)
+    # test input column and output column dose not match
+    with pytest.raises(ValueError) as ex_info:
+        model.transform(df)
+    assert "The number of output column and input column does not match" in str(
+        ex_info.value
     )
 
 

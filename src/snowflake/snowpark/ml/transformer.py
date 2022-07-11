@@ -21,7 +21,11 @@ from snowflake.snowpark.functions import (
     iff,
     lit,
 )
-from snowflake.snowpark.ml.utils import encoder_fit, scaler_fit
+from snowflake.snowpark.ml.utils import (
+    check_if_input_output_match,
+    encoder_fit,
+    scaler_fit,
+)
 
 
 class Transformer:
@@ -60,8 +64,6 @@ class Transformer:
             raise ValueError("Input column can not be empty")
         elif not self.output_cols:
             raise ValueError("Output column can not be empty")
-        elif len(self.input_cols) != len(self.output_cols):
-            raise ValueError("Input column and output column does not match")
         elif not self._fitted:
             raise ValueError(
                 "The transformer is not fitted yet, call fit() function before transform"
@@ -102,6 +104,7 @@ class StandardScaler(Transformer):
         z = (x - mean) / stddev
         """
         super().transform(df)
+        check_if_input_output_match(self)
         states_table = df._session.table(self._states_table_name)
         res_column = df.columns
         for input_col, states_col, output_col in zip(
@@ -166,6 +169,7 @@ class MinMaxScaler(Transformer):
         where min, max are provided by feature_range
         """
         super().transform(df)
+        check_if_input_output_match(self)
         states_table = df._session.table(self._states_table_name)
 
         res_column = df.columns
@@ -239,21 +243,14 @@ class OneHotEncoder(Transformer):
         df: DataFrame,
         sparse: bool = True,
     ) -> DataFrame:
-        if not self.input_cols:
-            raise ValueError("Input column can not be empty")
-        elif not self.output_cols:
-            raise ValueError("Output column can not be empty")
-        elif len(self._output_cols) == 1:
+        super().transform(df)
+        if len(self._output_cols) == 1:
             self._merge = True
         elif len(self._input_cols) == len(self._output_cols):
             self._merge = False
         else:
             raise ValueError(
                 "The number of output column and input column does not match"
-            )
-        if not self._fitted:
-            raise ValueError(
-                "The transformer is not fitted yet, call fit() function before transform"
             )
 
         original_columns = df.columns
@@ -434,24 +431,17 @@ class OrdinalEncoder(Transformer):
         df: DataFrame,
     ) -> DataFrame:
         """
-        The encoder value will be null if there are unknown types in this dataframe compared to that used in fit()
-        fed into fit() function.
+        The encoded value will be null if there are unknown types in this dataframe compared to that dataframe used in
+        fit() function.
         """
-        if not self.input_cols:
-            raise ValueError("Input column can not be empty")
-        elif not self.output_cols:
-            raise ValueError("Output column can not be empty")
-        elif len(self._output_cols) == 1:
+        super().transform(df)
+        if len(self._output_cols) == 1:
             self._merge = True
         elif len(self._input_cols) == len(self._output_cols):
             self._merge = False
         else:
             raise ValueError(
                 "The number of output column and input column does not match"
-            )
-        if not self._fitted:
-            raise ValueError(
-                "The transformer is not fitted yet, call fit() function before transform"
             )
         original_columns = df.columns
         encoder_structure = []
@@ -499,6 +489,7 @@ class Binarizer(Transformer):
 
     def transform(self, df: DataFrame) -> DataFrame:
         super().transform(df)
+        check_if_input_output_match(self)
         for input_col, output_col in zip(self._input_cols, self._output_cols):
             df = df.with_column(
                 output_col,
