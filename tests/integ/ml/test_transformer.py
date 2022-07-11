@@ -16,7 +16,7 @@ from snowflake.snowpark.ml.transformer import (
 from tests.utils import Utils
 
 
-def test_standardscaler(session):
+def test_standard_scaler(session):
     df = session.create_dataframe(
         [[1, 2, 3], [2, 3, 4], [4, 5, 6]], schema=["a", "b", "c"]
     )
@@ -46,7 +46,7 @@ def test_standardscaler(session):
     )
 
 
-def test_minmaxscaler(session):
+def test_minmax_scaler(session):
     df = session.create_dataframe(
         [[1, 2, 3], [2, 3, 4], [4, 5, 6]], schema=["a", "b", "c"]
     )
@@ -70,7 +70,7 @@ def test_minmaxscaler(session):
     )
 
 
-def test_merge_onehotencoder(session):
+def test_merge_onehot_encoder(session):
     df = session.create_dataframe(
         [[1, 4, 5], [2, 4, 5], [2, 3, 6]], schema=["a", "b", "c"]
     )
@@ -111,7 +111,7 @@ def test_merge_onehotencoder(session):
     )
 
 
-def test_no_merge_onehotencoder(session):
+def test_no_merge_onehot_encoder(session):
     df = session.create_dataframe(
         [[1, 4, 5], [2, 4, 5], [2, 3, 6]], schema=["a", "b", "c"]
     )
@@ -159,7 +159,7 @@ def test_no_merge_onehotencoder(session):
     )
 
 
-def test_preset_category_onehotencoder(session):
+def test_preset_category_onehot_encoder(session):
     df = session.create_dataframe(
         [[1, 4, 5], [2, 4, 5], [2, 3, 6]], schema=["a", "b", "c"]
     )
@@ -201,7 +201,7 @@ def test_preset_category_onehotencoder(session):
     )
 
 
-def test_sparse_onehotencoder(session):
+def test_sparse_onehot_encoder(session):
     df = session.create_dataframe(
         [[1, 4, 5], [2, 4, 5], [2, 3, 6]], schema=["a", "b", "c"]
     )
@@ -249,7 +249,7 @@ def test_sparse_onehotencoder(session):
     )
 
 
-def test_sparse_merge_onehotencoder(session):
+def test_sparse_merge_onehot_encoder(session):
     df = session.create_dataframe(
         [[1, 4, 5], [2, 4, 5], [2, 3, 6]], schema=["a", "b", "c"]
     )
@@ -275,18 +275,35 @@ def test_sparse_merge_onehotencoder(session):
     )
 
 
-def test_input_cols_output_cols_not_match(session):
+def test_input_cols_output_cols_negative(session):
     df = session.create_dataframe(
         [[1, 4, 5], [2, 4, 5], [2, 3, 6]], schema=["a", "b", "c"]
     )
     onehotencoder = OneHotEncoder()
-    onehotencoder.input_cols = ["A", "B", "C"]
-    onehotencoder.output_cols = ["B", "C"]
-    model = onehotencoder.fit(df)
+    # test no input column
     with pytest.raises(ValueError) as ex_info:
-        model.transform(df)
+        onehotencoder.transform(df)
+    assert "Input column can not be empty" == str(ex_info.value)
+
+    onehotencoder.input_cols = ["A", "B", "C"]
+    # test no output column
+    with pytest.raises(ValueError) as ex_info:
+        onehotencoder.transform(df)
+    assert "Output column can not be empty" == str(ex_info.value)
+    onehotencoder.output_cols = ["B", "C"]
+    # test input column and output column dose not match
+    with pytest.raises(ValueError) as ex_info:
+        onehotencoder.transform(df)
     assert "The number of output column and input column does not match" == str(
         ex_info.value
+    )
+    onehotencoder.output_cols = ["A", "B", "C"]
+    # test call transform before fit
+    with pytest.raises(ValueError) as ex_info:
+        onehotencoder.transform(df)
+    assert (
+        "The transformer is not fitted yet, call fit() function before transform"
+        == str(ex_info.value)
     )
 
 
@@ -405,7 +422,7 @@ def test_preset_category_not_match_real_category(session):
     )
 
 
-def test_unknown_category_given_by_transformer_onehotenoder(session):
+def test_unknown_category_given_by_transformer_onehot_enoder(session):
     df = session.create_dataframe(
         [[1, 4, 5], [2, 4, 5], [2, 3, 6]], schema=["a", "b", "c"]
     )
@@ -443,7 +460,7 @@ def test_unknown_category_given_by_transformer_onehotenoder(session):
     )
 
 
-def test_merge_ordinalcoder(session):
+def test_merge_ordinal_encoder(session):
     df = session.create_dataframe(
         [[1, 4, 5], [2, 4, 5], [2, 3, 6]], schema=["a", "b", "c"]
     )
@@ -515,10 +532,18 @@ def test_binarizer(session):
     df = session.create_dataframe(
         [[-1, 4, 5], [2, -4, 5], [-10, 3, 6]], schema=["a", "b", "c"]
     )
+    df2 = session.create_dataframe(
+        [[-1.0, 4.0, 5], [2.0, -4.0, 5], [-10.0, float("nan"), None]],
+        schema=["a", "b", "c"],
+    )
     binarizer = Binarizer()
     binarizer.input_cols = ["A", "B", "C"]
     binarizer.output_cols = ["A", "B", "C"]
     res = binarizer.transform(df)
     Utils.check_answer(
         res, [Row(A=0, B=1, C=1), Row(A=1, B=0, C=1), Row(A=0, B=1, C=1)]
+    )
+    res2 = binarizer.transform(df2)
+    Utils.check_answer(
+        res2, [Row(A=0, B=1, C=1), Row(A=1, B=0, C=1), Row(A=0, B=None, C=None)]
     )

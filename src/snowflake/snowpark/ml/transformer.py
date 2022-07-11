@@ -50,12 +50,12 @@ class Transformer:
     def output_cols(self, value: List[str]) -> None:
         self._output_cols = value
 
-    def fit(self, df: DataFrame) -> "Transformer":
+    def fit(self, df: DataFrame) -> "None":
         self._fitted = True
         if not self._input_cols:
-            raise ValueError("Input columns can not be None")
+            raise ValueError("Input column can not be empty")
 
-    def transform(self, df: DataFrame) -> DataFrame:
+    def transform(self, df: DataFrame) -> None:
         if not self.input_cols:
             raise ValueError("Input column can not be empty")
         elif not self.output_cols:
@@ -133,7 +133,7 @@ class MinMaxScaler(Transformer):
         super().__init__(input_cols, output_cols)
         if feature_range[0] >= feature_range[1]:
             raise ValueError(
-                "Maximum  can not be equal or greater than minimum in feature range"
+                "Maximum can not be equal or greater than minimum in feature range"
             )
         self._states_table_cols = (
             [f"states_{input_col}" for input_col in self._input_cols]
@@ -161,15 +161,16 @@ class MinMaxScaler(Transformer):
     def transform(self, df: DataFrame) -> DataFrame:
         """
         The transformation is given by:
-        X_std = (X - X.min(axis=0)) / (X.max(axis=0) - X.min(axis=0))
+        X_std = (X - min(X)) / (max(X) - min(X))
         X_scaled = X_std * (max - min) + min
-        where min, max are decided by feature_range
+        where min, max are provided by feature_range
         """
         super().transform(df)
         states_table = df._session.table(self._states_table_name)
 
         res_column = df.columns
 
+        # if max(X)-min(X) equals to 0, we will set it as 1 to avoid divided by 0 error
         for input_col, states_col, output_col in zip(
             self.input_cols, self._states_table_cols, self.output_cols
         ):
@@ -249,6 +250,10 @@ class OneHotEncoder(Transformer):
         else:
             raise ValueError(
                 "The number of output column and input column does not match"
+            )
+        if not self._fitted:
+            raise ValueError(
+                "The transformer is not fitted yet, call fit() function before transform"
             )
 
         original_columns = df.columns
@@ -429,7 +434,7 @@ class OrdinalEncoder(Transformer):
         df: DataFrame,
     ) -> DataFrame:
         """
-        The ordinal encoder will be "null" if there are new types in dataframe fed into transform compared to dataframe
+        The encoder value will be null if there are unknown types in this dataframe compared to that used in fit()
         fed into fit() function.
         """
         if not self.input_cols:
@@ -444,7 +449,10 @@ class OrdinalEncoder(Transformer):
             raise ValueError(
                 "The number of output column and input column does not match"
             )
-
+        if not self._fitted:
+            raise ValueError(
+                "The transformer is not fitted yet, call fit() function before transform"
+            )
         original_columns = df.columns
         encoder_structure = []
 
@@ -493,7 +501,12 @@ class Binarizer(Transformer):
         super().transform(df)
         for input_col, output_col in zip(self._input_cols, self._output_cols):
             df = df.with_column(
-                output_col, iff(col(input_col) > self._threshold, lit(1), lit(0))
+                output_col,
+                iff(
+                    col(input_col).is_null() | (col(input_col) == float("nan")),
+                    None,
+                    iff(col(input_col) > self._threshold, lit(1), lit(0)),
+                ),
             )
 
         return df

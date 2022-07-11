@@ -34,12 +34,12 @@ def scaler_fit(
     |}                                      |}                                      |}                                      |
     -------------------------------------------------------------------------------------------------------------------------
     """
-    if len(transformer.input_cols) != len(transformer.output_cols):
-        raise ValueError("The number of input column and output column does not match")
     df._describe(transformer.input_cols, stats=stats).select(
         [
-            object_agg("summary", c).as_(fc)
-            for c, fc in zip(transformer.input_cols, transformer._states_table_cols)
+            object_agg("summary", input_col).as_(states_col)
+            for input_col, states_col in zip(
+                transformer.input_cols, transformer._states_table_cols
+            )
         ]
     ).write.save_as_table(transformer._states_table_name, create_temp_table=True)
 
@@ -80,26 +80,32 @@ def encoder_fit(
     """
     if transformer._category == "auto":
         df_encoder_length = None
-        for c, fc in zip(transformer.input_cols, transformer._states_table_cols):
-            transformer._category_table_name[c] = random_name_for_temp_object(
+        for input_cols, states_col in zip(
+            transformer.input_cols, transformer._states_table_cols
+        ):
+            transformer._category_table_name[input_cols] = random_name_for_temp_object(
                 TempObjectType.TABLE
             )
-            df_save = df._distinct([c]).select(
+            df_save = df._distinct([input_cols]).select(
                 [
-                    col(c).as_(fc),
+                    col(input_cols).as_(states_col),
                 ]
             )
             if encoder_type == "onehot":
                 if df_encoder_length:
                     df_encoder_length = df_encoder_length.join(
-                        df_save.select([count_distinct(col(fc)).as_(f"{fc}_count")])
+                        df_save.select(
+                            [count_distinct(col(states_col)).as_(f"{states_col}_count")]
+                        )
                     )
                 else:
                     df_encoder_length = df_save.select(
-                        [count_distinct(col(fc)).as_(f"{fc}_count")]
+                        [count_distinct(col(states_col)).as_(f"{states_col}_count")]
                     )
-            df_save.with_column(f"{fc}_encoder", builtin("seq8")()).write.save_as_table(
-                transformer._category_table_name[c], create_temp_table=True
+            df_save.with_column(
+                f"{states_col}_encoder", builtin("seq8")()
+            ).write.save_as_table(
+                transformer._category_table_name[input_cols], create_temp_table=True
             )
         if encoder_type == "onehot":
             temp = lit(0)
@@ -114,20 +120,22 @@ def encoder_fit(
         session = df._session
         df_count = {}
         df_encoder_length = 0
-        for c, fc, cat in zip(
+        for input_cols, states_col, category in zip(
             transformer.input_cols,
             transformer._states_table_cols,
             transformer._category,
         ):
-            transformer._category_table_name[c] = random_name_for_temp_object(
+            transformer._category_table_name[input_cols] = random_name_for_temp_object(
                 TempObjectType.TABLE
             )
-            df_save = session.create_dataframe(cat, schema=[fc])
+            df_save = session.create_dataframe(category, schema=[states_col])
             if encoder_type == "onehot":
-                df_count[f"{fc}_count"] = len(cat)
-                df_encoder_length += len(cat)
-            df_save.with_column(f"{fc}_encoder", builtin("seq8")()).write.save_as_table(
-                transformer._category_table_name[c], create_temp_table=True
+                df_count[f"{states_col}_count"] = len(category)
+                df_encoder_length += len(category)
+            df_save.with_column(
+                f"{states_col}_encoder", builtin("seq8")()
+            ).write.save_as_table(
+                transformer._category_table_name[input_cols], create_temp_table=True
             )
 
         if encoder_type == "onehot":
