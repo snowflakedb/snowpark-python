@@ -86,7 +86,7 @@ class UserDefinedTableFunction:
 class UDTFRegistration:
     """
     Provides methods to register classes as UDTFs in the Snowflake database.
-    For more information about Snowflake Python UDTFs, see `Python UDTFs <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python.html>`__.
+    For more information about Snowflake Python UDTFs, see `Python UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python.html>`__.
 
     :attr:`session.udtf <snowflake.snowpark.Session.udtf>` returns an object of this class.
     You can use this object to register UDTFs that you plan to use in the current session or

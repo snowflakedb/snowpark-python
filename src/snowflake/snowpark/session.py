@@ -551,7 +551,7 @@ class Session:
         Use this method to add packages for UDFs as installing packages using
         `conda <https://docs.conda.io/en/latest/>`_. You can also find examples in
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
-        `third-party Python packages in Snowflake <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html>`_.
+        `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -597,7 +597,7 @@ class Session:
             ``packages`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
 
-            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html#local-development-and-testing>`_,
+            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#local-development-and-testing>`_,
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
@@ -673,7 +673,7 @@ class Session:
             ``packages`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
 
-            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html#local-development-and-testing>`_,
+            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#local-development-and-testing>`_,
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
