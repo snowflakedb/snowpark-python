@@ -72,7 +72,7 @@ Please refer to [CONTRIBUTING.md][contributing].
 
 [add other sample code repo links]: # (Developer advocacy is open-sourcing a repo that has excellent sample code. The link will be added here.)
 
-[developer guide]: https://docs.snowflake.com/en/LIMITEDACCESS/snowpark-python.html
+[developer guide]: https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html
 [api references]: https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/index.html
 [snowpark]: https://www.snowflake.com/snowpark
 [sign up trial]: https://signup.snowflake.com
@@ -82,7 +82,7 @@ Please refer to [CONTRIBUTING.md][contributing].
 [virtualenv]: https://docs.python.org/3/tutorial/venv.html
 [config pycharm interpreter]: https://www.jetbrains.com/help/pycharm/configuring-python-interpreter.html
 [python connector]: https://pypi.org/project/snowflake-connector-python/
-[use snowflake channel]: https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html#local-development-and-testing
+[use snowflake channel]: https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#local-development-and-testing
 [snowflake lab sample code]: https://github.com/Snowflake-Labs/snowpark-python-demos
 [samples]: https://github.com/snowflakedb/snowpark-python/blob/main/README.md#samples
 [contributing]: https://github.com/snowflakedb/snowpark-python/blob/main/CONTRIBUTING.md
