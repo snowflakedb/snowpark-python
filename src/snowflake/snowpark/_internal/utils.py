@@ -380,10 +380,10 @@ def create_statement_query_tag(skip_levels: int = 0) -> str:
 
 
 def create_or_update_statement_params_with_query_tag(
-    statement_params: Optional[Dict[str, Any]] = None,
+    statement_params: Optional[Dict[str, str]] = None,
     exists_session_query_tag: Optional[str] = None,
     skip_levels: int = 0,
-) -> Dict[str, Any]:
+) -> Dict[str, str]:
     if exists_session_query_tag or (
         statement_params and QUERY_TAG_STRING in statement_params
     ):

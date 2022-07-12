@@ -504,7 +504,10 @@ class DataFrame:
 
     @df_action_telemetry
     def to_pandas(
-        self, *, statement_params: Optional[Dict[str, str]] = None, **kwargs: Any
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        **kwargs: Dict[str, Any],
     ) -> "pandas.DataFrame":
         """
         Executes the query representing this DataFrame and returns the result as a
@@ -546,7 +549,10 @@ class DataFrame:
 
     @df_action_telemetry
     def to_pandas_batches(
-        self, *, statement_params: Optional[Dict[str, str]] = None, **kwargs: Any
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        **kwargs: Dict[str, Any],
     ) -> Iterator["pandas.DataFrame"]:
         """
         Executes the query representing this DataFrame and returns an iterator of

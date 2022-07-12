@@ -2968,6 +2968,7 @@ def udf(
             every batch by setting a smaller batch size. Note that setting a larger value does not
             guarantee that Snowflake will encode batches with the specified number of rows. It will
             be ignored when registering a non-vectorized UDF.
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3108,6 +3109,7 @@ def udtf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDTF files.
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
