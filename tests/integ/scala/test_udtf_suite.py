@@ -48,6 +48,15 @@ def test_basic_udtf_word_count_without_end_partition(session):
         MyWordCount, ["word", "count"], name=func_name, is_permanent=False, replace=True
     )
 
+    wordcount_udtf_with_statemenet_params = session.udtf.register(
+        MyWordCount,
+        ["word", "count"],
+        name=func_name,
+        is_permanent=False,
+        replace=True,
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+    )
+
     try:
         # Use table function name to query the new udtf
         df1 = session.table_function(func_name, lit("w1 w2 w2 w3 w3 w3"))
@@ -58,6 +67,16 @@ def test_basic_udtf_word_count_without_end_partition(session):
         df2 = session.table_function(wordcount_udtf(lit("w1 w2 w2 w3 w3 w3")))
         Utils.check_answer(df2, [Row("w1", 1), Row("w2", 2), Row("w3", 3)], sort=True)
         assert df2.columns == ["WORD", "COUNT"]
+
+        df2_with_statement_params = session.table_function(
+            wordcount_udtf_with_statemenet_params(lit("w1 w2 w2 w3 w3 w3"))
+        )
+        Utils.check_answer(
+            df2_with_statement_params,
+            [Row("w1", 1), Row("w2", 2), Row("w3", 3)],
+            sort=True,
+        )
+        assert df2_with_statement_params.columns == ["WORD", "COUNT"]
 
         # Call the UDTF with funcName and named parameters, result should be the same
         df3 = session.table_function(wordcount_udtf(arg1=lit("w1 w2 w2 w3 w3 w3")))

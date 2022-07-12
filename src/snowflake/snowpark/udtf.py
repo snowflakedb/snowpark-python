@@ -8,6 +8,7 @@ import sys
 from types import ModuleType
 from typing import (
     Callable,
+    Dict,
     Iterable,
     List,
     Optional,
@@ -305,6 +306,8 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
@@ -354,6 +357,7 @@ class UDTFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDTF files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -380,6 +384,7 @@ class UDTFRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def register_from_file(
@@ -395,6 +400,8 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
@@ -450,6 +457,7 @@ class UDTFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDTF files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -477,6 +485,7 @@ class UDTFRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def _do_register_udtf(
@@ -490,6 +499,8 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
         if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
@@ -595,6 +606,7 @@ class UDTFRegistration:
             parallel,
             False,
             False,
+            statement_params=statement_params,
         )
 
         raised = False
