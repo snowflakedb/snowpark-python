@@ -5,7 +5,7 @@
 """Stored procedures in Snowpark."""
 import sys
 from types import ModuleType
-from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -311,6 +311,8 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -360,6 +362,7 @@ class StoredProcedureRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -386,6 +389,7 @@ class StoredProcedureRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def register_from_file(
@@ -401,6 +405,8 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure from a Python or zip file,
@@ -456,6 +462,7 @@ class StoredProcedureRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -483,6 +490,7 @@ class StoredProcedureRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def _do_register_sp(
@@ -496,6 +504,8 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]],
         replace: bool,
         parallel: int,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -536,6 +546,7 @@ class StoredProcedureRegistration:
             imports,
             packages,
             parallel,
+            statement_params=statement_params,
         )
 
         raised = False

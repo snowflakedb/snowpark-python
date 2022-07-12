@@ -458,10 +458,14 @@ class Session:
         udf_level_import_paths: Optional[
             Dict[str, Tuple[Optional[str], Optional[str]]]
         ] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
-        stage_file_list = self._list_files_in_stage(stage_location)
+        stage_file_list = self._list_files_in_stage(
+            stage_location, statement_params=statement_params
+        )
         normalized_stage_location = unwrap_stage_location_single_quote(stage_location)
 
         import_paths = udf_level_import_paths or self._import_paths
@@ -512,14 +516,21 @@ class Session:
 
         return resolved_stage_files
 
-    def _list_files_in_stage(self, stage_location: Optional[str] = None) -> Set[str]:
+    def _list_files_in_stage(
+        self,
+        stage_location: Optional[str] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Set[str]:
         normalized = normalize_remote_file_or_dir(
             unwrap_single_quote(stage_location)
             if stage_location
             else self._session_stage
         )
         file_list = (
-            self.sql(f"ls {normalized}").select('"name"')._internal_collect_with_tag()
+            self.sql(f"ls {normalized}")
+            .select('"name"')
+            ._internal_collect_with_tag(statement_params=statement_params)
         )
         prefix_length = get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}

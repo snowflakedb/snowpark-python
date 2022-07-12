@@ -292,6 +292,14 @@ def test_session_register_sp(session):
     )
     assert add_sp(1, 2) == 3
 
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+    )
+    assert add_sp(1, 2) == 3
+
 
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
@@ -496,11 +504,15 @@ def return_datetime(_: Session) -> datetime.datetime:
         f.write(source)
 
     add_sp = session.sproc.register_from_file(file_path, "add")
+    add_sp_with_statement_params = session.sproc.register_from_file(
+        file_path, "add", statement_params={"SF_PARTNER": "FAKE_PARTNER"}
+    )
     snow_sp = session.sproc.register_from_file(file_path, "snow")
     double_str_list_sp = session.sproc.register_from_file(file_path, "double_str_list")
     return_datetime_sp = session.sproc.register_from_file(file_path, "return_datetime")
 
     assert add_sp(1, 2) == 3
+    assert add_sp_with_statement_params(1, 2) == 3
     assert snow_sp(0) == "snow"
     assert snow_sp(1) is None
     assert double_str_list_sp("abc") == '[\n  "abc",\n  "abc"\n]'

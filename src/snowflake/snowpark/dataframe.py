@@ -71,9 +71,11 @@ from snowflake.snowpark._internal.type_utils import (
     LiteralType,
 )
 from snowflake.snowpark._internal.utils import (
+    SKIP_LEVELS_THREE,
+    SKIP_LEVELS_TWO,
     TempObjectType,
     column_to_bool,
-    create_statement_query_tag,
+    create_or_update_statement_params_with_query_tag,
     deprecate,
     generate_random_alphanumeric,
     parse_positional_args_to_list,
@@ -433,34 +435,45 @@ class DataFrame:
         return self._stat
 
     @df_action_telemetry
-    def collect(self) -> List["Row"]:
+    def collect(
+        self, *, statement_params: Optional[Dict[str, str]] = None
+    ) -> List["Row"]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
-        """
-        return self._internal_collect_with_tag()
 
-    def _internal_collect_with_tag(self) -> List["Row"]:
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+        """
+        return self._internal_collect_with_tag(statement_params=statement_params)
+
+    def _internal_collect_with_tag(
+        self, *, statement_params: Optional[Dict[str, str]] = None
+    ) -> List["Row"]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
         return self._session._conn.execute(
             self._plan,
-            _statement_params={"QUERY_TAG": create_statement_query_tag(3)}
-            if not self._session.query_tag
-            else None,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+            ),
         )
 
-    def _execute_and_get_query_id(self) -> str:
+    def _execute_and_get_query_id(
+        self, *, statement_params: Optional[Dict[str, str]] = None
+    ) -> str:
         """This method is only used in stored procedures."""
         return self._session._conn.get_result_query_id(
             self._plan,
-            _statement_params={"QUERY_TAG": create_statement_query_tag(3)}
-            if not self._session.query_tag
-            else None,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+            ),
         )
 
     @df_action_telemetry
-    def to_local_iterator(self) -> Iterator[Row]:
+    def to_local_iterator(
+        self, *, statement_params: Optional[Dict[str, str]] = None
+    ) -> Iterator[Row]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
 
@@ -474,25 +487,36 @@ class DataFrame:
             ...     print(row)
             Row(PRODUCT_ID='id1', AMOUNT=Decimal('10.00'))
             Row(PRODUCT_ID='id2', AMOUNT=Decimal('20.00'))
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         yield from self._session._conn.execute(
             self._plan,
             to_iter=True,
-            _statement_params={"QUERY_TAG": create_statement_query_tag(3)}
-            if not self._session.query_tag
-            else None,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+            ),
         )
 
     def __copy__(self) -> "DataFrame":
         return DataFrame(self._session, copy.copy(self._plan))
 
     @df_action_telemetry
-    def to_pandas(self, **kwargs) -> "pandas.DataFrame":
+    def to_pandas(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        **kwargs: Dict[str, Any],
+    ) -> "pandas.DataFrame":
         """
         Executes the query representing this DataFrame and returns the result as a
         `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
 
         When the data is too large to fit into memory, you can use :meth:`to_pandas_batches`.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -500,9 +524,14 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        if not self._session.query_tag:
-            kwargs["_statement_params"] = {"QUERY_TAG": create_statement_query_tag(2)}
-        result = self._session._conn.execute(self._plan, to_pandas=True, **kwargs)
+        result = self._session._conn.execute(
+            self._plan,
+            to_pandas=True,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+            ),
+            **kwargs,
+        )
 
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
@@ -519,7 +548,12 @@ class DataFrame:
         return result
 
     @df_action_telemetry
-    def to_pandas_batches(self, **kwargs) -> Iterator["pandas.DataFrame"]:
+    def to_pandas_batches(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        **kwargs: Dict[str, Any],
+    ) -> Iterator["pandas.DataFrame"]:
         """
         Executes the query representing this DataFrame and returns an iterator of
         Pandas dataframes (containing a subset of rows) that you can use to
@@ -537,6 +571,8 @@ class DataFrame:
             0  1  2
             1  3  4
 
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -544,10 +580,14 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        if not self._session.query_tag:
-            kwargs["_statement_params"] = {"QUERY_TAG": create_statement_query_tag(2)}
         yield from self._session._conn.execute(
-            self._plan, to_pandas=True, to_iter=True, **kwargs
+            self._plan,
+            to_pandas=True,
+            to_iter=True,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+            ),
+            **kwargs,
         )
 
     def to_df(self, *names: Union[str, Iterable[str]]) -> "DataFrame":
@@ -1822,11 +1862,16 @@ class DataFrame:
         return self.select([*old_cols, *new_cols])
 
     @df_action_telemetry
-    def count(self) -> int:
+    def count(self, *, statement_params: Optional[Dict[str, str]] = None) -> int:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        return self.agg(("*", "count"))._internal_collect_with_tag()[0][0]
+        return self.agg(("*", "count"))._internal_collect_with_tag(
+            statement_params=statement_params
+        )[0][0]
 
     @property
     def write(self) -> DataFrameWriter:
@@ -1862,6 +1907,7 @@ class DataFrame:
         target_columns: Optional[Iterable[str]] = None,
         transformations: Optional[Iterable[ColumnOrName]] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
+        statement_params: Optional[Dict[str, str]] = None,
         **copy_options: Any,
     ) -> List[Row]:
         """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
@@ -1913,6 +1959,7 @@ class DataFrame:
             target_columns: Name of the columns in the table where the data should be saved.
             transformations: A list of column transformations.
             format_type_options: A dict that contains the ``formatTypeOptions`` of the ``COPY INTO <table>`` command.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
         if not self._reader or not self._reader._file_path:
@@ -1991,10 +2038,16 @@ class DataFrame:
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
-        )._internal_collect_with_tag()
+        )._internal_collect_with_tag(statement_params=statement_params)
 
     @df_action_telemetry
-    def show(self, n: int = 10, max_width: int = 50) -> None:
+    def show(
+        self,
+        n: int = 10,
+        max_width: int = 50,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> None:
         """Evaluates this DataFrame and prints out the first ``n`` rows with the
         specified maximum number of characters per column.
 
@@ -2003,14 +2056,15 @@ class DataFrame:
             max_width: The maximum number of characters to print out for each column.
                 If the number of characters exceeds the maximum, the method prints out
                 an ellipsis (...) at the end of the column.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         print(
             self._show_string(
                 n,
                 max_width,
-                _statement_params={"QUERY_TAG": create_statement_query_tag(2)}
-                if not self._session.query_tag
-                else None,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                ),
             )
         )
 
@@ -2187,7 +2241,12 @@ class DataFrame:
         )
 
     @df_action_telemetry
-    def create_or_replace_view(self, name: Union[str, Iterable[str]]) -> List[Row]:
+    def create_or_replace_view(
+        self,
+        name: Union[str, Iterable[str]],
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
 
         For ``name``, you can include the database and schema name (i.e. specify a
@@ -2199,6 +2258,7 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
             formatted_name = name
@@ -2212,13 +2272,18 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             PersistedView(),
-            _statement_params={"QUERY_TAG": create_statement_query_tag(2)}
-            if not self._session.query_tag
-            else None,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+            ),
         )
 
     @df_action_telemetry
-    def create_or_replace_temp_view(self, name: Union[str, Iterable[str]]) -> List[Row]:
+    def create_or_replace_temp_view(
+        self,
+        name: Union[str, Iterable[str]],
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
 
         You can use the view in subsequent SQL queries and statements during the
@@ -2234,6 +2299,7 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
             formatted_name = name
@@ -2247,9 +2313,9 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             LocalTempView(),
-            _statement_params={"QUERY_TAG": create_statement_query_tag(2)}
-            if not self._session.query_tag
-            else None,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+            ),
         )
 
     def _do_create_or_replace_view(self, view_name: str, view_type: ViewType, **kwargs):
@@ -2265,9 +2331,18 @@ class DataFrame:
         )
 
     @df_action_telemetry
-    def first(self, n: Optional[int] = None) -> Union[Optional[Row], List[Row]]:
+    def first(
+        self,
+        n: Optional[int] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Union[Optional[Row], List[Row]]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
+
+        Args:
+            n: The number of rows to return.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
              A list of the first ``n`` :class:`Row` objects if ``n`` is not ``None``. If ``n`` is negative or
@@ -2276,14 +2351,18 @@ class DataFrame:
              results, or ``None`` if it does not exist.
         """
         if n is None:
-            result = self.limit(1)._internal_collect_with_tag()
+            result = self.limit(1)._internal_collect_with_tag(
+                statement_params=statement_params
+            )
             return result[0] if result else None
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
-            return self._internal_collect_with_tag()
+            return self._internal_collect_with_tag(statement_params=statement_params)
         else:
-            return self.limit(n)._internal_collect_with_tag()
+            return self.limit(n)._internal_collect_with_tag(
+                statement_params=statement_params
+            )
 
     take = first
 
@@ -2455,7 +2534,9 @@ class DataFrame:
         return self.select(new_columns)
 
     @df_action_telemetry
-    def cache_result(self) -> "DataFrame":
+    def cache_result(
+        self, *, statement_params: Optional[Dict[str, str]] = None
+    ) -> "DataFrame":
         """Caches the content of this DataFrame to create a new cached DataFrame.
 
         All subsequent operations on the returned cached DataFrame are performed on the cached data
@@ -2493,6 +2574,9 @@ class DataFrame:
             >>> df3.collect()
             [Row(NUM=1), Row(NUM=2), Row(NUM=3)]
 
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+
         Returns:
              A :class:`DataFrame` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
@@ -2503,16 +2587,20 @@ class DataFrame:
         )
         self._session._conn.execute(
             create_temp_table,
-            _statement_params={"QUERY_TAG": create_statement_query_tag(2)}
-            if not self._session.query_tag
-            else None,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+            ),
         )
         new_plan = self._session.table(temp_table_name)._plan
         return DataFrame(session=self._session, plan=new_plan, is_cached=True)
 
     @df_action_telemetry
     def random_split(
-        self, weights: List[float], seed: Optional[int] = None
+        self,
+        weights: List[float],
+        seed: Optional[int] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List["DataFrame"]:
         """
         Randomly splits the current DataFrame into separate DataFrames,
@@ -2525,6 +2613,7 @@ class DataFrame:
                 weight is specified, the returned DataFrame list only includes
                 the current DataFrame.
             seed: The seed for sampling.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
 
@@ -2555,7 +2644,7 @@ class DataFrame:
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
                 temp_column_name, abs_(random(seed)) % _ONE_MILLION
-            ).cache_result()
+            ).cache_result(statement_params=statement_params)
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
                 int(w * _ONE_MILLION)

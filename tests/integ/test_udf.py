@@ -339,6 +339,21 @@ def test_session_register_udf(session):
         ],
     )
 
+    add_udf_with_statement_params = session.udf.register(
+        lambda x, y: x + y,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+    )
+    assert isinstance(add_udf_with_statement_params.func, Callable)
+    Utils.check_answer(
+        df.select(add_udf_with_statement_params("a", "b")).collect(),
+        [
+            Row(3),
+            Row(7),
+        ],
+    )
+
 
 def test_register_udf_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
@@ -401,6 +416,23 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
     )
     Utils.check_answer(
         df.select(mod5_udf3("a"), mod5_udf3("b")).collect(),
+        [
+            Row(3, 4),
+            Row(0, 1),
+        ],
+    )
+
+    mod5_udf3_with_statement_params = session.udf.register_from_file(
+        stage_file,
+        "mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+    )
+    Utils.check_answer(
+        df.select(
+            mod5_udf3_with_statement_params("a"), mod5_udf3_with_statement_params("b")
+        ).collect(),
         [
             Row(3, 4),
             Row(0, 1),
