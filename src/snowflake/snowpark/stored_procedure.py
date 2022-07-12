@@ -70,7 +70,7 @@ class StoredProcedure:
 class StoredProcedureRegistration:
     """
     Provides methods to register lambdas and functions as stored procedures in the Snowflake database.
-    For more information about Snowflake Python stored procedures, see `Python stored procedures <https://docs.snowflake.com/en/LIMITEDACCESS/stored-procedures-python.html>`__.
+    For more information about Snowflake Python stored procedures, see `Python stored procedures <https://docs.snowflake.com/en/sql-reference/stored-procedures-python.html>`__.
 
     :attr:`session.sproc <snowflake.snowpark.Session.sproc>` returns an object of this class.
     You can use this object to register stored procedures that you plan to use in the current session or
