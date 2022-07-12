@@ -5,7 +5,7 @@
 """User-defined functions (UDFs) in Snowpark."""
 import sys
 from types import ModuleType
-from typing import Callable, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -447,6 +447,8 @@ class UDFRegistration:
         replace: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> UserDefinedFunction:
         """
@@ -507,6 +509,7 @@ class UDFRegistration:
                 every batch by setting a smaller batch size. Note that setting a larger value does not
                 guarantee that Snowflake will encode batches with the specified number of rows. It will
                 be ignored when registering a non-vectorized UDF.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
@@ -535,6 +538,7 @@ class UDFRegistration:
             parallel,
             max_batch_size,
             kwargs.get("_from_pandas_udf_function", False),
+            statement_params=statement_params,
         )
 
     def register_from_file(
@@ -550,6 +554,8 @@ class UDFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -609,6 +615,7 @@ class UDFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -636,6 +643,7 @@ class UDFRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def _do_register_udf(
@@ -651,6 +659,8 @@ class UDFRegistration:
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         from_pandas_udf_function: bool = False,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -695,6 +705,7 @@ class UDFRegistration:
             is_pandas_udf,
             is_dataframe_input,
             max_batch_size,
+            statement_params=statement_params,
         )
 
         raised = False

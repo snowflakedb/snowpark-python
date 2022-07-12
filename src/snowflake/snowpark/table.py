@@ -315,6 +315,8 @@ class Table(DataFrame):
         assignments: Dict[str, ColumnOrLiteral],
         condition: Optional[Column] = None,
         source: Optional[DataFrame] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UpdateResult:
         """
         Updates rows in the Table with specified ``assignments`` and returns a
@@ -329,6 +331,7 @@ class Table(DataFrame):
                 specified condition. It must be provided if ``source`` is provided.
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
 
@@ -377,13 +380,17 @@ class Table(DataFrame):
                 else None,
             )
         )
-        return _get_update_result(new_df._internal_collect_with_tag())
+        return _get_update_result(
+            new_df._internal_collect_with_tag(statement_params=statement_params)
+        )
 
     @df_action_telemetry
     def delete(
         self,
         condition: Optional[Column] = None,
         source: Optional[DataFrame] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> DeleteResult:
         """
         Deletes rows in a Table and returns a :class:`DeleteResult`,
@@ -394,6 +401,7 @@ class Table(DataFrame):
                 specified condition. It must be provided if ``source`` is provided.
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
 
@@ -437,7 +445,9 @@ class Table(DataFrame):
                 else None,
             )
         )
-        return _get_delete_result(new_df._internal_collect_with_tag())
+        return _get_delete_result(
+            new_df._internal_collect_with_tag(statement_params=statement_params)
+        )
 
     @df_action_telemetry
     def merge(
@@ -445,6 +455,8 @@ class Table(DataFrame):
         source: DataFrame,
         join_expr: Column,
         clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> MergeResult:
         """
         Merges this :class:`Table` with :class:`DataFrame` source on the specified
@@ -464,6 +476,7 @@ class Table(DataFrame):
                 match or not match on ``join_expr``. These actions can only be instances
                 of :class:`WhenMatchedClause` and :class:`WhenNotMatchedClause`, and will
                 be performed sequentially in this list.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
 
@@ -503,7 +516,7 @@ class Table(DataFrame):
             )
         )
         return _get_merge_result(
-            new_df._internal_collect_with_tag(),
+            new_df._internal_collect_with_tag(statement_params=statement_params),
             inserted=inserted,
             updated=updated,
             deleted=deleted,
