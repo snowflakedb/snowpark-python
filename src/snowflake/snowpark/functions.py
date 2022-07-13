@@ -2953,7 +2953,7 @@ def udf(
             session-level packages.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDF with the same name is overwritten.
         session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -3100,7 +3100,7 @@ def udtf(
             :meth:`~snowflake.snowpark.Session.add_requirements`.
         replace: Whether to replace a UDTF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDTF with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDTF with the same name is overwritten.
         session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -3425,7 +3425,7 @@ def sproc(
             :meth:`~snowflake.snowpark.Session.add_requirements`.
         replace: Whether to replace a stored procedure that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a stored procedure with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing stored procedure with the same name is overwritten.
         session: Use this session to register the stored procedure. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
