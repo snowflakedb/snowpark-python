@@ -8,6 +8,7 @@ import pytest
 from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
@@ -46,6 +47,73 @@ def tmp_table_complex(session):
         yield table_name
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_write_pandas_with_overwrite(session, tmp_table_basic):
+    pd1 = PandasDF(
+        [
+            (1, 4.5, "t1"),
+            (2, 7.5, "t2"),
+            (3, 10.5, "t3"),
+        ],
+        columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
+    )
+
+    pd2 = PandasDF(
+        [(1, 2.3, "t1")],
+        columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
+    )
+
+    pd3 = PandasDF(
+        [(1, "dash", 1000, 32)],
+        columns=["id".upper(), "name".upper(), "points".upper(), "age".upper()],
+    )
+
+    df1 = session.write_pandas(pd1, tmp_table_basic)
+    results = df1.to_pandas()
+    assert_frame_equal(results, pd1, check_dtype=False)
+
+    # Overwrite True; Auto create True; Same schema
+    # In this case, the table is first dropped so the results should match pd2
+    df2 = session.write_pandas(
+        pd2, tmp_table_basic, overwrite=True, auto_create_table=True
+    )
+    results = df2.to_pandas()
+    assert_frame_equal(results, pd2, check_dtype=False)
+
+    # Overwrite True; Auto create False; Same schema
+    # In this case, the table is first truncated so the results should match pd1
+    df3 = session.write_pandas(
+        pd1, tmp_table_basic, overwrite=True, auto_create_table=False
+    )
+    results = df3.to_pandas()
+    assert_frame_equal(results, pd1, check_dtype=False)
+
+    # Overwrite True; Auto create True; Different schema
+    # In this case, the table is first dropped and since there's a schema mismatch, the results should now match pd3
+    df3 = session.write_pandas(
+        pd3, tmp_table_basic, overwrite=True, auto_create_table=True
+    )
+    results = df3.to_pandas()
+    assert_frame_equal(results, pd3, check_dtype=False)
+
+    # Overwrite True; Auto create False; Different schema
+    # In this case, the table is first truncated, but because there's a schema mismatch, it should throw an exception
+    with pytest.raises(ProgrammingError) as ex_info:
+        session.write_pandas(
+            pd2, tmp_table_basic, overwrite=True, auto_create_table=False
+        )
+    assert "invalid identifier 'FOOT_SIZE'" in str(ex_info)
+
+    with pytest.raises(SnowparkPandasException) as ex_info:
+        session.write_pandas(pd1, "tmp_table")
+    assert (
+        'Cannot write pandas DataFrame to table "tmp_table" because it does not exist. '
+        "Create table before trying to write a pandas DataFrame" in str(ex_info)
+    )
+
+    # Drop tables that were created for this test
+    session._run_query('drop table if exists "tmp_table_basic"')
 
 
 def test_write_pandas(session, tmp_table_basic):
