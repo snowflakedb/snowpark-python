@@ -254,6 +254,8 @@ class SelectStatement(Selectable):
             1. There is a column expression (regardless new or old column), and there is column expression in the parent layer, .
             2. There is a column expression on old column, no flatten.
 
+        select c + d as e, c, d (select a + 1 as c, b + 1 as d from test_table)
+        select c + d as e, a + 1 as c, b + 1 as d from test_table
         """
         final_projection = []
         new_column_states = get_column_states(cols, self)
@@ -263,23 +265,40 @@ class SelectStatement(Selectable):
         elif has_changed_column_exp(self.column_states):
             # If both this layer and the parent has changed column expression, we don't flatten.
             can_flatten = False
+        elif has_new_before_expression(new_column_states):
+            can_flatten = False
         else:
             can_flatten = True
+            parent_has_dropped_column = any(
+                x
+                for x in self.column_states.values()
+                if x.change_state == ColumnChangeState.DROPPED
+            )
             parent_column_states = self.column_states
             for col, state in new_column_states.items():
                 parent_state = parent_column_states.get(col)
                 if state.change_state == ColumnChangeState.CHANGED_EXP:
-                    if parent_state.change_state != ColumnChangeState.UNCHANGED_EXP:
+                    if (
+                        parent_has_dropped_column
+                        or parent_state.change_state != ColumnChangeState.UNCHANGED_EXP
+                    ):
                         can_flatten = False
                         break
                     final_projection.append(state.expression)
                 elif state.change_state == ColumnChangeState.NEW:
-                    if (
-                        parent_state
-                        and parent_state.change_state != ColumnChangeState.DROPPED
-                    ):
+                    if parent_has_dropped_column:
+                        # When the parent has a dropped column, a new column may use that dropped column.
+                        # Flattening the SQL would make a wrong SQL to work unexpectedly.
+                        # for instance, select c + 1 as d from (select a from test_table)
+                        # d is a new column. `select c + 1 as d from test_table` is wrong.
                         can_flatten = False
                         break
+                    # if (
+                    #     parent_state
+                    #     and parent_state.change_state != ColumnChangeState.DROPPED
+                    # ):
+                    #     can_flatten = False
+                    #     break
                     final_projection.append(state.expression)
                 elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
                     final_projection.append(
@@ -287,9 +306,11 @@ class SelectStatement(Selectable):
                     )  # add parent's expression for this column name
                 else:  # state == ColumnChangeState.DROPPED:
                     if parent_state and parent_state.change_state not in (
-                        ColumnChangeState.DROPPED,
+                        # ColumnChangeState.DROPPED,
                         ColumnChangeState.UNCHANGED_EXP,
                     ):
+                        # select e from (select a + 1 as d, d + 1 as e from test_table)
+                        # select d + 1 as e from test_table
                         can_flatten = False
                         break
         if can_flatten:
@@ -298,7 +319,7 @@ class SelectStatement(Selectable):
         else:
             final_projection = cols
             new = SelectStatement(projection_=cols, from_=self, analyzer=self.analyzer)
-        new._column_states = get_column_states(final_projection, self.from_)
+        new._column_states = get_column_states(final_projection, self)
         return new
 
     def sort(self, cols) -> "SelectStatement":
@@ -409,8 +430,8 @@ def get_column_states(
             else:
                 column_states[c_name] = ColumnState(ColumnChangeState.UNCHANGED_EXP, c)
         else:
-            if c_name == analyzer.analyze(c) if isinstance(c, Expression) else c:
-                raise ValueError(f"Wrong column name: {c_name}")
+            # if c_name == analyzer.analyze(c) if isinstance(c, Expression) else c:
+            #     raise ValueError(f"Wrong column name: {c_name}")
             column_states[c_name] = ColumnState(ColumnChangeState.NEW, c)
 
     dropped_columns = from_.column_states.keys() - column_states.keys()
@@ -425,3 +446,27 @@ def has_changed_column_exp(column_states: Dict[str, ColumnState]):
         for x in column_states.values()
         if x.change_state == ColumnChangeState.CHANGED_EXP
     )
+
+
+def has_new_before_expression(column_states: Dict[str, ColumnState]):
+    """
+    Can't flatten a sql if it has a new column selected before other columns.
+
+    select d + 1 as f, d from (select a, a + 1 as d  from test_table);
+    is flattened to
+    select d + 1 as f, a + 1 as d from test_table
+
+    `d + 1 as f` referenced column d before d is defined.
+
+    To be able to flatten a SQL, always append new columns.
+    """
+    has_new = False
+    for _, state in column_states.items():
+        if state.change_state == ColumnChangeState.NEW:
+            has_new = True
+        if has_new and state.change_state in (
+            ColumnChangeState.UNCHANGED_EXP,
+            ColumnChangeState.CHANGED_EXP,
+        ):
+            return True
+    return False
