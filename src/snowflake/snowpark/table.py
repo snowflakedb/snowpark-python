@@ -16,7 +16,11 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryField, df_action_telemetry
+from snowflake.snowpark._internal.telemetry import (
+    add_api_call,
+    df_action_telemetry,
+    set_api_call_source,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
@@ -258,7 +262,7 @@ class Table(DataFrame):
         # By default, the set the initial API call to say 'Table.__init__' since
         # people could instantiate a table directly. This value is overwritten when
         # created from Session object
-        self._plan.api_calls = ["Table.__init__"]
+        set_api_call_source(self, "Table.__init__")
 
     def __copy__(self) -> "Table":
         return Table(self.table_name, self._session)
@@ -384,7 +388,7 @@ class Table(DataFrame):
                 else None,
             )
         )
-        new_df._plan.api_calls.append({"name": "Table.update"})
+        add_api_call(new_df, "Table.update")
         return _get_update_result(
             new_df._internal_collect_with_tag(statement_params=statement_params)
         )
@@ -450,7 +454,7 @@ class Table(DataFrame):
                 else None,
             )
         )
-        new_df._plan.api_calls.append({"name": "Table.delete"})
+        add_api_call(new_df, "Table.delete")
         return _get_delete_result(
             new_df._internal_collect_with_tag(statement_params=statement_params)
         )
@@ -521,7 +525,7 @@ class Table(DataFrame):
                 merge_exprs,
             )
         )
-        new_df._plan.api_calls.append({TelemetryField.NAME.value: "Table.merge"})
+        add_api_call(new_df, "Table.update")
         return _get_merge_result(
             new_df._internal_collect_with_tag(statement_params=statement_params),
             inserted=inserted,

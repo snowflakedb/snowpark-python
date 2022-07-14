@@ -62,7 +62,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import (
-    TelemetryField,
+    adjust_api_subcalls,
     df_action_telemetry,
     df_api_usage,
     df_collect_api_telemetry,
@@ -1184,13 +1184,7 @@ class DataFrame:
         """
         if not subset:
             df = self.distinct()
-            df._plan.api_calls = [
-                *df._plan.api_calls[:-1],
-                {
-                    TelemetryField.NAME.value: "DataFrame.drop_duplicates",
-                    TelemetryField.KEY_SUBCALLS.value: [*df._plan.api_calls[-1:]],
-                },
-            ]
+            adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
             return df
         subset = parse_positional_args_to_list(*subset)
 
@@ -1206,13 +1200,7 @@ class DataFrame:
             .select(output_cols)
         )
         # Reformat the extra API calls
-        df._plan.api_calls = [
-            *df._plan.api_calls[:-3],
-            {
-                TelemetryField.NAME.value: "DataFrame.drop_duplicates",
-                TelemetryField.KEY_SUBCALLS.value: [*df._plan.api_calls[-3:]],
-            },
-        ]
+        adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
         return df
 
     @df_to_rgdf_api_usage
@@ -2508,13 +2496,12 @@ class DataFrame:
             )
             # We need to set the API calls for this to same API calls for describe
             # Also add the new API calls for creating this DataFrame to the describe subcalls
-            df._plan.api_calls = [
-                *self._plan.api_calls,
-                {
-                    TelemetryField.NAME.value: "DataFrame.describe",
-                    TelemetryField.KEY_SUBCALLS.value: [*df._plan.api_calls],
-                },
-            ]
+            adjust_api_subcalls(
+                df,
+                "DataFrame.describe",
+                precalls=self._plan.api_calls,
+                subcalls=df._plan.api_calls,
+            )
             return df
 
         # otherwise, calculate stats
@@ -2540,13 +2527,12 @@ class DataFrame:
             )
             res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
 
-        res_df._plan.api_calls = [
-            *self._plan.api_calls,
-            {
-                TelemetryField.NAME.value: "DataFrame.describe",
-                TelemetryField.KEY_SUBCALLS.value: res_df._plan.api_calls.copy(),
-            },
-        ]
+        adjust_api_subcalls(
+            res_df,
+            "DataFrame.describe",
+            precalls=self._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
+        )
         return res_df
 
     @df_api_usage

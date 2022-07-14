@@ -13,7 +13,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryField
+from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     COPY_OPTIONS,
@@ -270,7 +270,7 @@ class DataFrameReader:
             ),
         )
         df._reader = self
-        df._plan.api_calls = [{TelemetryField.NAME.value: "DataFrameReader.csv"}]
+        set_api_call_source(df, "DataFrameReader.csv")
         return df
 
     def json(self, path: str) -> DataFrame:
@@ -453,7 +453,5 @@ class DataFrameReader:
             ),
         )
         df._reader = self
-        df._plan.api_calls = [
-            {TelemetryField.NAME.value: f"DataFrameReader.{format.lower()}"}
-        ]
+        set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df

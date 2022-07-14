@@ -38,6 +38,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.telemetry import TelemetryField, set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     infer_schema,
@@ -834,7 +835,7 @@ class Session:
         validate_object_name(name)
         t = Table(name, self)
         # Replace API call origin for table
-        t._plan.api_calls = [{"name": "Session.table"}]
+        set_api_call_source(t, "Session.table")
         return t
 
     def table_function(
@@ -893,7 +894,7 @@ class Session:
             self,
             TableFunctionRelation(func_expr),
         )
-        d._plan.api_calls = [{"name": f"Session.table_function[{func_expr.func_name}]"}]
+        set_api_call_source(d, f"Session.table_function[{func_expr.func_name}]")
         return d
 
     def sql(self, query: str) -> DataFrame:
@@ -915,7 +916,9 @@ class Session:
         """
         return DataFrame(
             self,
-            self._plan_builder.query(query, None, api_calls=[{"name": "Session.sql"}]),
+            self._plan_builder.query(
+                query, None, api_calls=[{TelemetryField.NAME.value: "Session.sql"}]
+            ),
         )
 
     @property
@@ -1045,7 +1048,7 @@ class Session:
 
         if success:
             t = self.table(location)
-            t._plan.api_calls = [{"name": "Session.write_pandas"}]
+            set_api_call_source(t, "Session.write_pandas")
             return t
         else:
             raise SnowparkClientExceptionMessages.DF_PANDAS_GENERAL_EXCEPTION(
@@ -1136,7 +1139,7 @@ class Session:
                 auto_create_table=True,
                 create_temp_table=True,
             )
-            t._plan.api_calls = [{"name": "Session.create_dataframe[pandas]"}]
+            set_api_call_source(t, "Session.create_dataframe[pandas]")
             return t
 
         # infer the schema based on the data
@@ -1294,7 +1297,7 @@ class Session:
 
         df = DataFrame(self, SnowflakeValues(attrs, converted)).select(project_columns)
         # Get rid of the select statement api call here
-        df._plan.api_calls = [{"name": "Session.create_dataframe[values]"}]
+        set_api_call_source(df, "Session.create_dataframe[values]")
         return df
 
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
@@ -1320,7 +1323,7 @@ class Session:
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
         df = DataFrame(self, range_plan)
-        df._plan.api_calls = [{"name": "Session.range"}]
+        set_api_call_source(df, "Session.range")
         return df
 
     def get_current_database(self) -> Optional[str]:
@@ -1493,7 +1496,9 @@ class Session:
                 sql_args.append(self._analyzer.analyze(arg._expression))
             else:
                 sql_args.append(to_sql(arg, infer_type(arg)))
-        return self.sql(f"CALL {sproc_name}({', '.join(sql_args)})").collect()[0][0]
+        df = self.sql(f"CALL {sproc_name}({', '.join(sql_args)})")
+        set_api_call_source(df, f"Session.call[{sproc_name}]")
+        return df.collect()[0][0]
 
     @deprecate(
         deprecate_version="0.7.0",
@@ -1575,7 +1580,7 @@ class Session:
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
         )
-        df._plan.api_calls = [{"name": "Session.flatten"}]
+        set_api_call_source(df, "Session.flatten")
         return df
 
     def query_history(self) -> QueryHistory:

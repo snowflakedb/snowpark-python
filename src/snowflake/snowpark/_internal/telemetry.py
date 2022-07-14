@@ -58,7 +58,10 @@ class TelemetryField(Enum):
     PERF_CAT_UPLOAD_FILE = "upload_file"
 
 
-API_CALLS_TO_REMOVE = {
+# These DataFrame APIs call other DataFrame APIs
+# and so we remove those API calls and move them
+# inside the original API call
+API_CALLS_TO_ADJUST = {
     "to_df": 1,
     "select_expr": 1,
     "drop": 1,
@@ -68,7 +71,43 @@ API_CALLS_TO_REMOVE = {
     "with_columns": 1,
     "with_column_renamed": 1,
 }
-APIS_WITH_MULTIPLE_CALLS = list(API_CALLS_TO_REMOVE.keys())
+APIS_WITH_MULTIPLE_CALLS = list(API_CALLS_TO_ADJUST.keys())
+
+
+# Adjust API calls into subcalls for certain APIs that call other APIs
+def adjust_api_subcalls(
+    df,
+    func_name: str,
+    len_subcalls: Optional[int] = None,
+    precalls: Optional[List[Dict]] = None,
+    subcalls: Optional[List[Dict]] = None,
+) -> None:
+    if len_subcalls:
+        df._plan.api_calls = [
+            *df._plan.api_calls[:-len_subcalls],
+            {
+                TelemetryField.NAME.value: func_name,
+                TelemetryField.KEY_SUBCALLS.value: [
+                    *df._plan.api_calls[-len_subcalls:]
+                ],
+            },
+        ]
+    elif precalls is not None and subcalls is not None:
+        df._plan.api_calls = [
+            *precalls,
+            {
+                TelemetryField.NAME.value: func_name,
+                TelemetryField.KEY_SUBCALLS.value: [*subcalls],
+            },
+        ]
+
+
+def add_api_call(df, func_name: str) -> None:
+    df._plan.api_calls.append({TelemetryField.NAME.value: func_name})
+
+
+def set_api_call_source(df, func_name: str) -> None:
+    df._plan.api_calls = [{TelemetryField.NAME.value: func_name}]
 
 
 # A decorator to use in the Telemetry client to make sure operations
@@ -175,11 +214,12 @@ def df_api_usage(func):
         # Some DataFrame APIs call other DataFrame APIs, so we need to remove the extra call
         if (
             func.__name__ in APIS_WITH_MULTIPLE_CALLS
-            and len(r._plan.api_calls) >= API_CALLS_TO_REMOVE[func.__name__]
+            and len(r._plan.api_calls) >= API_CALLS_TO_ADJUST[func.__name__]
         ):
-            subcalls = r._plan.api_calls[-API_CALLS_TO_REMOVE[func.__name__] :]
+            len_api_calls_to_adjust = API_CALLS_TO_ADJUST[func.__name__]
+            subcalls = r._plan.api_calls[-len_api_calls_to_adjust:]
             # remove inner calls
-            r._plan.api_calls = r._plan.api_calls[: -API_CALLS_TO_REMOVE[func.__name__]]
+            r._plan.api_calls = r._plan.api_calls[:-len_api_calls_to_adjust]
             # Add in new API call and subcalls
             r._plan.api_calls.append(
                 {
@@ -207,7 +247,7 @@ def df_to_rgdf_api_usage(func):
 
 
 # For relational-grouped dataframe
-def rgdf_api_usage(func):
+def relational_group_df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         r = func(*args, **kwargs)

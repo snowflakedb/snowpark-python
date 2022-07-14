@@ -8,7 +8,7 @@ from typing import Dict, Iterable, List, Optional, Union
 import snowflake.snowpark
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryField
+from snowflake.snowpark._internal.telemetry import adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark.functions import (
     _to_col_if_str,
@@ -68,13 +68,9 @@ class DataFrameStatFunctions:
             df = self._df.select(
                 approx_percentile_accumulate(col).as_(temp_col_name)
             ).select([approx_percentile_estimate(temp_col_name, p) for p in percentile])
-            df._plan.api_calls = [
-                *df._plan.api_calls[:-2],
-                {
-                    TelemetryField.NAME.value: "DataFrameStatFunctions.approx_quantile",
-                    TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-2:],
-                },
-            ]
+            adjust_api_subcalls(
+                df, "DataFrameStatFunctions.approx_quantile", len_subcalls=2
+            )
             res = df._internal_collect_with_tag(statement_params=statement_params)
             return list(res[0])
         elif isinstance(col, (list, tuple)):
@@ -89,13 +85,9 @@ class DataFrameStatFunctions:
             ]
             percentile_len = len(output_cols) // len(accumate_cols)
             df = self._df.select(accumate_cols).select(output_cols)
-            df._plan.api_calls = [
-                *df._plan.api_calls[:-2],
-                {
-                    TelemetryField.NAME.value: "DataFrameStatFunctions.approx_quantile",
-                    TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-2:],
-                },
-            ]
+            adjust_api_subcalls(
+                df, "DataFrameStatFunctions.approx_quantile", len_subcalls=2
+            )
             res = df._internal_collect_with_tag(statement_params=statement_params)
             return [
                 [x for x in res[0][j * percentile_len : (j + 1) * percentile_len]]
@@ -132,13 +124,7 @@ class DataFrameStatFunctions:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         df = self._df.select(corr_func(col1, col2))
-        df._plan.api_calls = [
-            *df._plan.api_calls[:-1],
-            {
-                TelemetryField.NAME.value: "DataFrameStatFunctions.corr",
-                TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-1:],
-            },
-        ]
+        adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
         res = df._internal_collect_with_tag(statement_params=statement_params)
         return res[0][0] if res[0] is not None else None
 
@@ -167,13 +153,7 @@ class DataFrameStatFunctions:
             If there is not enough data to generate the covariance, the method returns None.
         """
         df = self._df.select(covar_samp(col1, col2))
-        df._plan.api_calls = [
-            *df._plan.api_calls[:-1],
-            {
-                TelemetryField.NAME.value: "DataFrameStatFunctions.cov",
-                TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-1:],
-            },
-        ]
+        adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
         res = df._internal_collect_with_tag(statement_params=statement_params)
         return res[0][0] if res[0] is not None else None
 
@@ -229,13 +209,7 @@ class DataFrameStatFunctions:
             ._internal_collect_with_tag(statement_params=statement_params)
         ]
         df = self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
-        df._plan.api_calls = [
-            *df._plan.api_calls[:-3],
-            {
-                TelemetryField.NAME.value: "DataFrameStatFunctions.crosstab",
-                TelemetryField.KEY_SUBCALLS.value: df._plan.api_calls[-3:],
-            },
-        ]
+        adjust_api_subcalls(df, "DataFrameStatFunctions.crosstab", len_subcalls=3)
         return df
 
     def sample_by(
@@ -245,7 +219,7 @@ class DataFrameStatFunctions:
 
         Example::
 
-            >>> df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=[TelemetryField.NAME.value, "age"])
+            >>> df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 12)], schema=["name", "age"])
             >>> fractions = {"Bob": 0.5, "Nico": 1.0}
             >>> sample_df = df.stat.sample_by("name", fractions)  # non-deterministic result
 
@@ -256,26 +230,21 @@ class DataFrameStatFunctions:
         """
         if not fractions:
             res_df = self._df.limit(0)
-            res_df._plan.api_calls = [
-                *res_df._plan.api_calls[:-1],
-                {
-                    TelemetryField.NAME.value: "DataFrameStatFunctions.sample_by",
-                    TelemetryField.KEY_SUBCALLS.value: res_df._plan.api_calls[-1:],
-                },
-            ]
+            adjust_api_subcalls(
+                res_df, "DataFrameStatFunctions.sample_by", len_subcalls=1
+            )
             return res_df
         col = _to_col_if_str(col, "sample_by")
         res_df = reduce(
             lambda x, y: x.union_all(y),
             [self._df.filter(col == k).sample(v) for k, v in fractions.items()],
         )
-        res_df._plan.api_calls = [
-            *self._df._plan.api_calls,
-            {
-                TelemetryField.NAME.value: "DataFrameStatFunctions.sample_by",
-                TelemetryField.KEY_SUBCALLS.value: res_df._plan.api_calls.copy(),
-            },
-        ]
+        adjust_api_subcalls(
+            res_df,
+            "DataFrameStatFunctions.sample_by",
+            precalls=self._df._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
+        )
         return res_df
 
     approxQuantile = approx_quantile
