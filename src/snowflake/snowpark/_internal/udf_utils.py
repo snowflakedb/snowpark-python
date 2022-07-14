@@ -20,9 +20,8 @@ from typing import (
     get_type_hints,
 )
 
-import cloudpickle
-
 import snowflake.snowpark
+from snowflake.snowpark._internal import snowpickle
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
     python_type_to_snow_type,
@@ -331,7 +330,7 @@ def pickle_function(func: Callable) -> bytes:
         "add it to the UDF with session.add_import(), and read it from the UDF."
     )
     try:
-        return cloudpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
+        return snowpickle.dumps(func, protocol=pickle.HIGHEST_PROTOCOL)
     # it happens when copying the global object inside the UDF that can't be pickled
     except TypeError as ex:
         error_message = str(ex)
