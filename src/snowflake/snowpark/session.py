@@ -901,7 +901,10 @@ class Session:
             [Row(1/2=Decimal('0.500000'))]
         """
         return DataFrame(
-            self, SelectStatement(from_=SelectSQL(query, session=self), session=self)
+            self,
+            SelectStatement(
+                from_=SelectSQL(query, analyzer=self._analyzer), analyzer=self._analyzer
+            ),
         )
 
     @property

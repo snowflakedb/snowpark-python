@@ -51,7 +51,6 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
@@ -904,11 +903,8 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def select_statement(self, selectable: Selectable) -> SnowflakePlan:
-        sql = selectable.to_sql()
-        return SnowflakePlan(
-            [Query(sql)], selectable.to_schema_sql(), session=self.session
-        )
+    def select_statement(self, selectable) -> SnowflakePlan:
+        return selectable.snowflake_plan
 
     def add_result_scan_if_not_select(self, plan: SnowflakePlan) -> SnowflakePlan:
         if isinstance(plan.source_plan, SetOperation):

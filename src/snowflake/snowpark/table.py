@@ -260,9 +260,9 @@ class Table(DataFrame):
         )
         self.table_name: str = table_name  #: The table name
         self._select_statement = SelectStatement(
-            from_=SelectableEntity(table_name, session=session),
+            from_=SelectableEntity(table_name, analyzer=session._analyzer),
             from_entity="table",
-            session=session,
+            analyzer=session._analyzer,
         )
 
     def __copy__(self) -> "Table":

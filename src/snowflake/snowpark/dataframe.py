@@ -33,7 +33,10 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     Star,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSnowflakePlan,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
     Limit,
@@ -1260,7 +1263,9 @@ class DataFrame:
         """
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.set_operate(other._plan, operator="union")
+                self._select_statement.set_operate(
+                    SelectSnowflakePlan(other._plan), operator="union"
+                )
             )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
@@ -1424,7 +1429,9 @@ class DataFrame:
         """
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.set_operate(other._plan, operator="except")
+                self._select_statement.set_operate(
+                    SelectSnowflakePlan(other._plan), operator="except"
+                )
             )
         return self._with_plan(Except(self._plan, other._plan))
 
