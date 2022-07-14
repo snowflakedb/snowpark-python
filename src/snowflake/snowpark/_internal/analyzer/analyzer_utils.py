@@ -1162,9 +1162,11 @@ def single_quote(value: str) -> str:
         return SINGLE_QUOTE + value + SINGLE_QUOTE
 
 
+already_quoted = re.compile('^(".+")$')
+unquoted_case_insensitive = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
+
+
 def quote_name(name: str) -> str:
-    already_quoted = re.compile('^(".+")$')
-    unquoted_case_insensitive = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
     if already_quoted.match(name):
         return validate_quoted_name(name)
     elif unquoted_case_insensitive.match(name):
