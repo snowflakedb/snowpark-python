@@ -49,19 +49,28 @@ def tmp_table_complex(session):
         Utils.drop_table(session, table_name)
 
 
-def test_write_pandas_with_overwrite(session, tmp_table_basic):
+@pytest.mark.parametrize("quote_identifiers", [True, False])
+@pytest.mark.parametrize("overwrite", [True, False])
+@pytest.mark.parametrize("auto_create_table", [True, False])
+def test_write_pandas_with_overwrite(
+    session,
+    tmp_table_basic,
+    quote_identifiers: bool,
+    overwrite: bool,
+    auto_create_table: bool,
+):
     pd1 = PandasDF(
         [
-            (1, 4.5, "t1"),
-            (2, 7.5, "t2"),
-            (3, 10.5, "t3"),
+            (1, 4.5, "Nike"),
+            (2, 7.5, "Adidas"),
+            (3, 10.5, "Puma"),
         ],
-        columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
+        columns=["id".upper(), "foot_size".upper(), "shoe_make".upper()],
     )
 
     pd2 = PandasDF(
-        [(1, 2.3, "t1")],
-        columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
+        [(1, 8.0, "Dia Dora")],
+        columns=["id".upper(), "foot_size".upper(), "shoe_make".upper()],
     )
 
     pd3 = PandasDF(
@@ -69,41 +78,57 @@ def test_write_pandas_with_overwrite(session, tmp_table_basic):
         columns=["id".upper(), "name".upper(), "points".upper(), "age".upper()],
     )
 
-    df1 = session.write_pandas(pd1, tmp_table_basic)
+    table_name = tmp_table_basic
+
+    # Create initial table and insert 3 rows
+    drop_sql = f'DROP TABLE IF EXISTS "{table_name}"'
+    session.sql(drop_sql).collect()
+    df1 = session.write_pandas(
+        pd1, table_name, quote_identifiers=quote_identifiers, auto_create_table=True
+    )
     results = df1.to_pandas()
     assert_frame_equal(results, pd1, check_dtype=False)
 
-    # Overwrite True; Auto create True; Same schema
-    # In this case, the table is first dropped so the results should match pd2
+    # Insert 1 row
     df2 = session.write_pandas(
-        pd2, tmp_table_basic, overwrite=True, auto_create_table=True
+        pd2,
+        table_name,
+        quote_identifiers=quote_identifiers,
+        overwrite=overwrite,
+        auto_create_table=auto_create_table,
     )
     results = df2.to_pandas()
-    assert_frame_equal(results, pd2, check_dtype=False)
+    if overwrite:
+        # Results should match pd2
+        assert_frame_equal(results, pd2, check_dtype=False)
+    else:
+        # Row count should match df1 + df2
+        assert results.shape[0] == 4
 
-    # Overwrite True; Auto create False; Same schema
-    # In this case, the table is first truncated so the results should match pd1
-    df3 = session.write_pandas(
-        pd1, tmp_table_basic, overwrite=True, auto_create_table=False
-    )
-    results = df3.to_pandas()
-    assert_frame_equal(results, pd1, check_dtype=False)
-
-    # Overwrite True; Auto create True; Different schema
-    # In this case, the table is first dropped and since there's a schema mismatch, the results should now match pd3
-    df3 = session.write_pandas(
-        pd3, tmp_table_basic, overwrite=True, auto_create_table=True
-    )
-    results = df3.to_pandas()
-    assert_frame_equal(results, pd3, check_dtype=False)
-
-    # Overwrite True; Auto create False; Different schema
-    # In this case, the table is first truncated, but because there's a schema mismatch, it should throw an exception
-    with pytest.raises(ProgrammingError) as ex_info:
-        session.write_pandas(
-            pd2, tmp_table_basic, overwrite=True, auto_create_table=False
-        )
-    assert "invalid identifier 'FOOT_SIZE'" in str(ex_info)
+    if overwrite:
+        # Insert 1 row with new schema
+        if auto_create_table:
+            # In this case, the table is first dropped and since there's a new schema, the results should now match pd3
+            df3 = session.write_pandas(
+                pd3,
+                table_name,
+                quote_identifiers=quote_identifiers,
+                overwrite=True,
+                auto_create_table=True,
+            )
+            results = df3.to_pandas()
+            assert_frame_equal(results, pd3, check_dtype=False)
+        else:
+            # In this case, the table is first truncated, but because there's a schema mismatch, it should fail
+            with pytest.raises(ProgrammingError) as ex_info:
+                session.write_pandas(
+                    pd3,
+                    table_name,
+                    quote_identifiers=quote_identifiers,
+                    overwrite=True,
+                    auto_create_table=False,
+                )
+            assert "invalid identifier 'NAME'" in str(ex_info)
 
     with pytest.raises(SnowparkPandasException) as ex_info:
         session.write_pandas(pd1, "tmp_table")
@@ -113,7 +138,7 @@ def test_write_pandas_with_overwrite(session, tmp_table_basic):
     )
 
     # Drop tables that were created for this test
-    session._run_query('drop table if exists "tmp_table_basic"')
+    session.sql(drop_sql).collect()
 
 
 def test_write_pandas(session, tmp_table_basic):
