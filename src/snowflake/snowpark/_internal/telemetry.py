@@ -236,7 +236,7 @@ def df_api_usage(func):
     return wrap
 
 
-def df_to_rgdf_api_usage(func):
+def df_to_relational_group_df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         r = func(*args, **kwargs)

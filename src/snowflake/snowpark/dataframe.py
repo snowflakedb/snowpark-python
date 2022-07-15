@@ -62,11 +62,11 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import (
+    add_api_call,
     adjust_api_subcalls,
-    df_action_telemetry,
     df_api_usage,
     df_collect_api_telemetry,
-    df_to_rgdf_api_usage,
+    df_to_relational_group_df_api_usage,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
@@ -447,24 +447,26 @@ class DataFrame:
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        return self._internal_collect_with_tag_inner(statement_params=statement_params)
+        return self._internal_collect_with_tag_no_telemetry(
+            statement_params=statement_params
+        )
 
-    @df_collect_api_telemetry
-    def _internal_collect_with_tag(
-            self, *, statement_params: Optional[Dict[str, str]] = None
+    def _internal_collect_with_tag_no_telemetry(
+        self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> List["Row"]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
-        return self._internal_collect_with_tag_inner(statement_params=statement_params)
-
-    def _internal_collect_with_tag_inner(self, *, statement_params: Optional[Dict[str, str]] = None) -> List["Row"]:
         return self._session._conn.execute(
             self._plan,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
         )
+
+    _internal_collect_with_tag = df_collect_api_telemetry(
+        _internal_collect_with_tag_no_telemetry
+    )
 
     @df_collect_api_telemetry
     def _execute_and_get_query_id(
@@ -1029,7 +1031,7 @@ class DataFrame:
 
         return self.group_by().agg(grouping_exprs)
 
-    @df_to_rgdf_api_usage
+    @df_to_relational_group_df_api_usage
     def rollup(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1048,7 +1050,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
         )
 
-    @df_to_rgdf_api_usage
+    @df_to_relational_group_df_api_usage
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1092,7 +1094,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
-    @df_to_rgdf_api_usage
+    @df_to_relational_group_df_api_usage
     def group_by_grouping_sets(
         self,
         *grouping_sets: Union[
@@ -1135,7 +1137,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
-    @df_to_rgdf_api_usage
+    @df_to_relational_group_df_api_usage
     def cube(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1203,7 +1205,7 @@ class DataFrame:
         adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
         return df
 
-    @df_to_rgdf_api_usage
+    @df_to_relational_group_df_api_usage
     def pivot(
         self,
         pivot_col: ColumnOrName,
@@ -1899,7 +1901,6 @@ class DataFrame:
         # Put it all together
         return self.select([*old_cols, *new_cols])
 
-    @df_action_telemetry
     def count(self, *, statement_params: Optional[Dict[str, str]] = None) -> int:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
@@ -1907,9 +1908,9 @@ class DataFrame:
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        return self.agg(("*", "count"))._internal_collect_with_tag(
-            statement_params=statement_params
-        )[0][0]
+        df = self.agg(("*", "count"))
+        add_api_call(df, "DataFrame.count")
+        return df._internal_collect_with_tag(statement_params=statement_params)[0][0]
 
     @property
     def write(self) -> DataFrameWriter:
@@ -1934,7 +1935,7 @@ class DataFrame:
 
         return self._writer
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def copy_into_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -2076,9 +2077,9 @@ class DataFrame:
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
-        )._internal_collect_with_tag(statement_params=statement_params)
+        )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def show(
         self,
         n: int = 10,
@@ -2279,7 +2280,7 @@ class DataFrame:
             + line
         )
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def create_or_replace_view(
         self,
         name: Union[str, Iterable[str]],
@@ -2316,7 +2317,7 @@ class DataFrame:
             ),
         )
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def create_or_replace_temp_view(
         self,
         name: Union[str, Iterable[str]],
@@ -2369,7 +2370,6 @@ class DataFrame:
             self._session._analyzer.resolve(cmd), **kwargs
         )
 
-    @df_action_telemetry
     def first(
         self,
         n: Optional[int] = None,
@@ -2390,18 +2390,18 @@ class DataFrame:
              results, or ``None`` if it does not exist.
         """
         if n is None:
-            result = self.limit(1)._internal_collect_with_tag(
-                statement_params=statement_params
-            )
+            df = self.limit(1)
+            add_api_call(df, "DataFrame.first")
+            result = df._internal_collect_with_tag(statement_params=statement_params)
             return result[0] if result else None
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
             return self._internal_collect_with_tag(statement_params=statement_params)
         else:
-            return self.limit(n)._internal_collect_with_tag(
-                statement_params=statement_params
-            )
+            df = self.limit(n)
+            add_api_call(df, "DataFrame.first")
+            return df._internal_collect_with_tag(statement_params=statement_params)
 
     take = first
 
@@ -2589,7 +2589,7 @@ class DataFrame:
         ]
         return self.select(new_columns)
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def cache_result(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> "DataFrame":
@@ -2650,7 +2650,7 @@ class DataFrame:
         new_plan = self._session.table(temp_table_name)._plan
         return DataFrame(session=self._session, plan=new_plan, is_cached=True)
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def random_split(
         self,
         weights: List[float],

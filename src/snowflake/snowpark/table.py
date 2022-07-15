@@ -16,11 +16,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import (
-    add_api_call,
-    df_action_telemetry,
-    set_api_call_source,
-)
+from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
@@ -317,7 +313,6 @@ class Table(DataFrame):
         sql_text = f"select * from {self.table_name} sample {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         return self._session.sql(sql_text)
 
-    @df_action_telemetry
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
@@ -393,7 +388,6 @@ class Table(DataFrame):
             new_df._internal_collect_with_tag(statement_params=statement_params)
         )
 
-    @df_action_telemetry
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -459,7 +453,6 @@ class Table(DataFrame):
             new_df._internal_collect_with_tag(statement_params=statement_params)
         )
 
-    @df_action_telemetry
     def merge(
         self,
         source: DataFrame,
