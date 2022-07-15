@@ -113,8 +113,8 @@ def test_write_pandas_with_overwrite(
                 pd3,
                 table_name,
                 quote_identifiers=quote_identifiers,
-                overwrite=True,
-                auto_create_table=True,
+                overwrite=overwrite,
+                auto_create_table=auto_create_table,
             )
             results = df3.to_pandas()
             assert_frame_equal(results, pd3, check_dtype=False)
@@ -125,8 +125,8 @@ def test_write_pandas_with_overwrite(
                     pd3,
                     table_name,
                     quote_identifiers=quote_identifiers,
-                    overwrite=True,
-                    auto_create_table=False,
+                    overwrite=overwrite,
+                    auto_create_table=auto_create_table,
                 )
             assert "invalid identifier 'NAME'" in str(ex_info)
 
