@@ -4,6 +4,7 @@
 
 import re
 from abc import ABC, abstractmethod
+from collections import UserDict
 from copy import copy
 from enum import Enum
 from typing import Dict, Iterable, List, NamedTuple, Optional, Union
@@ -29,6 +30,26 @@ class ColumnChangeState(Enum):
 class ColumnState(NamedTuple):
     change_state: ColumnChangeState
     expression: Optional[Union[str, Expression]]  # None means the expression is unknown
+
+
+class ColumnStateDict(UserDict):
+    def __init__(self, d) -> None:
+        super().__init__(d)
+
+    def has_dropped_columns(self):
+        ...
+
+    def has_changed_column_exp(self):
+        ...
+
+    def has_new_before_expression(self):
+        ...
+
+    def __getitem__(self, item):
+        fetched_item = super().__getitem__(item)
+        if fetched_item.change_state == ColumnChangeState.DROPPED:
+            raise KeyError(f"{item} is dropped.")
+        return fetched_item
 
 
 class Selectable(LogicalPlan, ABC):
@@ -305,10 +326,11 @@ class SelectStatement(Selectable):
                         parent_column_states[col].expression
                     )  # add parent's expression for this column name
                 else:  # state == ColumnChangeState.DROPPED:
-                    if parent_state and parent_state.change_state not in (
-                        # ColumnChangeState.DROPPED,
-                        ColumnChangeState.UNCHANGED_EXP,
+                    if (
+                        parent_state
+                        and parent_state.change_state != ColumnChangeState.UNCHANGED_EXP
                     ):
+                        # TODO: if a column is new and at the end of the projection list, it can also be safely dropped.
                         # select e from (select a + 1 as d, d + 1 as e from test_table)
                         # select d + 1 as e from test_table
                         can_flatten = False
@@ -319,7 +341,27 @@ class SelectStatement(Selectable):
         else:
             final_projection = cols
             new = SelectStatement(projection_=cols, from_=self, analyzer=self.analyzer)
-        new._column_states = get_column_states(final_projection, self)
+        new._column_states = get_column_states(final_projection, new.from_)
+        return new
+
+    def with_columns(self, cols) -> "SelectStatement":
+        can_flatten = True
+        for c in cols:
+            c_name = parse_column_name(c, self.analyzer)
+            parent_state = self.column_states.get(c_name)
+            if parent_state and parent_state == ColumnChangeState.CHANGED_EXP:
+                can_flatten = False
+                break
+        if can_flatten:
+            new = SelectStatement(
+                projection_=[*self.projection_, *cols],
+                from_=self,
+                analyzer=self.analyzer,
+            )
+            return new
+        else:
+            new = copy(self)
+            new.projection_ = [*self.projection_, *cols]
         return new
 
     def sort(self, cols) -> "SelectStatement":
@@ -434,7 +476,11 @@ def get_column_states(
             #     raise ValueError(f"Wrong column name: {c_name}")
             column_states[c_name] = ColumnState(ColumnChangeState.NEW, c)
 
-    dropped_columns = from_.column_states.keys() - column_states.keys()
+    dropped_columns = {
+        k
+        for k, v in from_.column_states.items()
+        if v.change_state != ColumnChangeState.DROPPED
+    } - column_states.keys()
     for dc in dropped_columns:
         column_states[dc] = ColumnState(ColumnChangeState.DROPPED, None)
     return column_states
