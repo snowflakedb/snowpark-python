@@ -11,21 +11,31 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import (
+    abs as abs_,
     array_agg,
     array_cat,
     array_construct,
     array_construct_compact,
     array_insert,
     array_slice,
+    builtin,
     col,
+    count,
+    count_distinct,
     iff,
+    lag,
     lit,
+    max as max_,
+    object_agg,
+    pow as pow_,
+    sum as sum_,
 )
 from snowflake.snowpark.ml.utils import (
     check_if_input_output_match,
     encoder_fit,
     scaler_fit,
 )
+from snowflake.snowpark.window import Window
 
 
 class Transformer:
@@ -501,3 +511,254 @@ class Binarizer(Transformer):
             )
 
         return df
+
+
+class Normalizer(Transformer):
+    def __init__(
+        self,
+        input_cols: Optional[List[str]] = None,
+        output_cols: Optional[List[str]] = None,
+        norm: str = "l2",
+    ) -> None:
+        super().__init__(input_cols, output_cols)
+        self._norm = norm
+        self._states_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        self._states_table_cols = (
+            [f"states_{input_col}" for input_col in self._input_cols]
+            if self._input_cols
+            else None
+        )
+
+    @Transformer.input_cols.setter
+    def input_cols(self, value: List[str]) -> None:
+        self._input_cols = value
+        self._states_table_cols = (
+            [f"states_{input_col}" for input_col in self._input_cols]
+            if self._input_cols
+            else None
+        )
+
+    def fit(self, df: DataFrame) -> "Normalizer":
+        super().fit(df)
+        if self._norm != "max" and (
+            self._norm[0] != "l" or not self._norm[1:].isdigit()
+        ):
+            raise ValueError("Norm must be max norm or l-norm")
+        elif self._norm[1] == "0":
+            raise ValueError("l0 norm is not supported")
+        """
+        ln norm is computed in this way:
+        (sum(x^n))^(1/n)
+        """
+        if self._norm[0] == "l":
+            norm_p = int(self._norm[1:])
+            df.select(
+                [
+                    pow_(sum_(pow_(abs_(col(input_col)), norm_p)), 1 / norm_p).as_(
+                        states_col
+                    )
+                    for input_col, states_col in zip(
+                        self.input_cols, self._states_table_cols
+                    )
+                ]
+            ).write.save_as_table(
+                self._states_table_name, create_temp_table=True, mode="overwrite"
+            )
+        else:
+            df.select(
+                [
+                    max_(abs_(col(input_col))).as_(states_col)
+                    for input_col, states_col in zip(
+                        self.input_cols, self._states_table_cols
+                    )
+                ]
+            ).write.save_as_table(
+                self._states_table_name, create_temp_table=True, mode="overwrite"
+            )
+        return self
+
+    def transform(self, df: DataFrame) -> DataFrame:
+        super().transform(df)
+        check_if_input_output_match(self)
+        session = df._session
+        df_norm_table = session.table(self._states_table_name)
+        column_res = []
+        column_output = df.columns
+        df = df.join(df_norm_table)
+        for input_col, output_col, states_col in zip(
+            self.input_cols, self.output_cols, self._states_table_cols
+        ):
+            column_res.append(df[input_col] / df[states_col])
+            column_output.append(output_col)
+        return df.with_columns(self.output_cols, column_res).select(
+            [column_out for column_out in column_output]
+        )
+
+
+class KBinsDiscretizer(Transformer):
+    def __init__(
+        self,
+        input_cols: Optional[List[str]] = None,
+        output_cols: Optional[List[str]] = None,
+        strategy: Optional[str] = "uniform",
+        n_bins: Optional[int] = 5,
+    ) -> None:
+        super().__init__(input_cols, output_cols)
+        self.strategy = strategy
+        self._states_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        self._states_table_cols = (
+            [f"states_{input_col}" for input_col in self._input_cols]
+            if self._input_cols
+            else None
+        )
+        self.n_bins = n_bins
+
+    @Transformer.input_cols.setter
+    def input_cols(self, value: List[str]) -> None:
+        self._input_cols = value
+        self._states_table_cols = (
+            [f"states_{input_col}" for input_col in self._input_cols]
+            if self._input_cols
+            else None
+        )
+
+    def _uniform_fit(self, df: DataFrame) -> "KBinsDiscretizer":
+        df._describe(self.input_cols, stats=["max", "min"]).select(
+            [
+                object_agg("summary", input_col).as_(states_col)
+                for input_col, states_col in zip(
+                    self.input_cols, self._states_table_cols
+                )
+            ]
+        ).write.save_as_table(
+            self._states_table_name, create_temp_table=True, mode="overwrite"
+        )
+        return self
+
+    def _quantile_fit(self, df: DataFrame) -> "KBinsDiscretizer":
+        self._states_table_name = {}
+        for input_col, output_col, states_col in zip(
+            self.input_cols, self.output_cols, self._states_table_cols
+        ):
+            df_quantile = None
+            self._states_table_name[input_col] = random_name_for_temp_object(
+                TempObjectType.TABLE
+            )
+            """
+            find the partition value of each quantile. df_quantile looks like this:
+            ------------------------
+            |"RES_A"  |"STATES_A"  |
+            ------------------------
+            |1        |1.5         |
+            |2        |2.0         |
+            |3        |3.0         |
+            |4        |4.0         |
+            ------------------------
+            """
+            for i in range(self.n_bins):
+                df_temp = df.select(
+                    [
+                        lit(i + 1).as_(output_col),
+                        builtin("percentile_disc")((i + 1) / self.n_bins)
+                        .within_group(input_col)
+                        .as_(states_col),
+                    ]
+                )
+                if not df_quantile:
+                    df_quantile = df_temp
+                else:
+                    df_quantile = df_quantile.union(df_temp)
+            df_judge = df_quantile.select(
+                [
+                    count_distinct(col(states_col)),
+                    count(col(states_col)),
+                ]
+            )
+            judge = df_judge.collect()
+            if judge[0][0] != judge[0][1]:
+                raise ValueError(
+                    "Bins' width is too small. Quantile partition can not be the same"
+                )
+            df_quantile.write.save_as_table(
+                self._states_table_name[input_col],
+                create_temp_table=True,
+                mode="overwrite",
+            )
+        return self
+
+    def fit(self, df: DataFrame) -> "KBinsDiscretizer":
+        super().fit(df)
+        if self.strategy == "uniform":
+            return self._uniform_fit(df)
+        elif self.strategy == "quantile":
+            return self._quantile_fit(df)
+        else:
+            raise ValueError(
+                "Wrong strategy, strategy has to be either uniform or quantile"
+            )
+
+    def _uniform_transform(self, df: DataFrame) -> "DataFrame":
+        session = df._session
+        results = df.columns
+        df_state_table = session.table(self._states_table_name)
+        df = df.join(df_state_table)
+        column_res = []
+        for input_col, output_col, states_col in zip(
+            self.input_cols, self.output_cols, self._states_table_cols
+        ):
+            results.append(output_col)
+            column_res.append(
+                iff(
+                    df[input_col] == df[states_col]["max"],
+                    self.n_bins,
+                    builtin("width_bucket")(
+                        df[input_col],
+                        df[states_col]["min"],
+                        df[states_col]["max"],
+                        self.n_bins,
+                    ),
+                )
+            )
+        return df.with_columns(self.output_cols, column_res).select(
+            [c for c in results]
+        )
+
+    def _quantile_transform(self, df: DataFrame) -> "DataFrame":
+        session = df._session
+        results = df.columns
+        for input_col, output_col, states_col in zip(
+            self.input_cols, self.output_cols, self._states_table_cols
+        ):
+            results.append(output_col)
+            df_quantile = session.table(self._states_table_name[input_col])
+            """
+            add columns of upper bound and lower bound of each quantile
+            """
+            df_quantile = df_quantile.with_column(
+                f"{states_col}_lower",
+                lag(df_quantile[states_col], 1, -(2**53)).over(
+                    Window.order_by(df_quantile[states_col])
+                ),
+            )
+            df_quantile = df_quantile.with_column_renamed(
+                col(states_col), f"{states_col}_upper"
+            )
+            # we use left join here to make sure when unknown value in transform will be reserved
+            df = df.join(
+                df_quantile,
+                (df[input_col] <= df_quantile[f"{states_col}_upper"])
+                & (df[input_col] > df_quantile[f"{states_col}_lower"]),
+                join_type="left",
+            )
+        return df.select([c for c in results])
+
+    def transform(self, df: DataFrame) -> "DataFrame":
+        super().transform(df)
+        if self.strategy == "uniform":
+            return self._uniform_transform(df)
+        elif self.strategy == "quantile":
+            return self._quantile_transform(df)
+        else:
+            raise ValueError(
+                "Wrong strategy, strategy has to be either uniform or quantile"
+            )

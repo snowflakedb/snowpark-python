@@ -41,7 +41,9 @@ def scaler_fit(
                 transformer.input_cols, transformer._states_table_cols
             )
         ]
-    ).write.save_as_table(transformer._states_table_name, create_temp_table=True)
+    ).write.save_as_table(
+        transformer._states_table_name, create_temp_table=True, mode="overwrite"
+    )
 
 
 def encoder_fit(
@@ -105,7 +107,9 @@ def encoder_fit(
             df_save.with_column(
                 f"{states_col}_encoder", builtin("seq8")()
             ).write.save_as_table(
-                transformer._category_table_name[input_col], create_temp_table=True
+                transformer._category_table_name[input_col],
+                create_temp_table=True,
+                mode="overwrite",
             )
         if encoder_type == "onehot":
             temp = lit(0)
@@ -115,6 +119,7 @@ def encoder_fit(
             df_encoder_length.with_column("encoder_count", temp).write.save_as_table(
                 transformer._encoder_count_table,
                 create_temp_table=True,
+                mode="overwrite",
             )
     else:
         session = df._session
@@ -135,7 +140,9 @@ def encoder_fit(
             df_save.with_column(
                 f"{states_col}_encoder", builtin("seq8")()
             ).write.save_as_table(
-                transformer._category_table_name[input_col], create_temp_table=True
+                transformer._category_table_name[input_col],
+                create_temp_table=True,
+                mode="overwrite",
             )
 
         if encoder_type == "onehot":
@@ -143,7 +150,9 @@ def encoder_fit(
             df_count.with_column(
                 "encoder_count", lit(df_encoder_length)
             ).write.save_as_table(
-                transformer._encoder_count_table, create_temp_table=True
+                transformer._encoder_count_table,
+                create_temp_table=True,
+                mode="overwrite",
             )
 
 
