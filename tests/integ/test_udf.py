@@ -1237,9 +1237,7 @@ def test_add_packages_negative(session, caplog):
 
     with pytest.raises(ValueError) as ex_info:
         session.add_packages("dateutil")
-    assert "it is not available in Snowflake. Check information_schema.packages" in str(
-        ex_info
-    )
+    assert "it is not available in Snowflake." in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
         with caplog.at_level(logging.WARNING):

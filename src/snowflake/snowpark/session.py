@@ -722,12 +722,24 @@ class Session:
             package_name = package_req.key
             if validate_package:
                 if package_name not in valid_packages:
+                    is_anaconda_terms_acknowledged = self._run_query(
+                        "select system$are_anaconda_terms_acknowledged()"
+                    )[0][0]
+                    if is_anaconda_terms_acknowledged:
+                        detailed_err_msg = (
+                            "Check information_schema.packages "
+                            "to see available packages for UDFs. If this package is a "
+                            '"pure-Python" package, you can find the directory of this package '
+                            "and add it via session.add_import()."
+                        )
+                    else:
+                        detailed_err_msg = (
+                            "Anaconda terms must be accepted by ORGADMIN to use "
+                            "Anaconda 3rd party packages. Please follow the instructions at "
+                            "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
+                        )
                     raise ValueError(
-                        f"Cannot add package {package_name} because it is not "
-                        f"available in Snowflake. Check information_schema.packages "
-                        f"to see available packages for UDFs. If this package is a "
-                        f'"pure-Python" package, you can find the directory of this package '
-                        f"and add it via session.add_import()."
+                        f"Cannot add package {package_name} because it is not available in Snowflake. {detailed_err_msg}"
                     )
                 elif not use_local_version:
                     try:
