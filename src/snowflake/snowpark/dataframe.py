@@ -62,8 +62,11 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import (
-    df_action_telemetry,
-    df_usage_telemetry,
+    add_api_call,
+    adjust_api_subcalls,
+    df_api_usage,
+    df_collect_api_telemetry,
+    df_to_relational_group_df_api_usage,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
@@ -434,7 +437,7 @@ class DataFrame:
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def collect(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> List["Row"]:
@@ -444,9 +447,11 @@ class DataFrame:
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        return self._internal_collect_with_tag(statement_params=statement_params)
+        return self._internal_collect_with_tag_no_telemetry(
+            statement_params=statement_params
+        )
 
-    def _internal_collect_with_tag(
+    def _internal_collect_with_tag_no_telemetry(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> List["Row"]:
         # When executing a DataFrame in any method of snowpark (either public or private),
@@ -459,6 +464,11 @@ class DataFrame:
             ),
         )
 
+    _internal_collect_with_tag = df_collect_api_telemetry(
+        _internal_collect_with_tag_no_telemetry
+    )
+
+    @df_collect_api_telemetry
     def _execute_and_get_query_id(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> str:
@@ -470,7 +480,7 @@ class DataFrame:
             ),
         )
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def to_local_iterator(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> Iterator[Row]:
@@ -502,7 +512,7 @@ class DataFrame:
     def __copy__(self) -> "DataFrame":
         return DataFrame(self._session, copy.copy(self._plan))
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def to_pandas(
         self,
         *,
@@ -547,7 +557,7 @@ class DataFrame:
 
         return result
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def to_pandas_batches(
         self,
         *,
@@ -590,6 +600,7 @@ class DataFrame:
             **kwargs,
         )
 
+    @df_api_usage
     def to_df(self, *names: Union[str, Iterable[str]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
@@ -669,6 +680,7 @@ class DataFrame:
         else:
             return Column(self._resolve(col_name))
 
+    @df_api_usage
     def select(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -715,6 +727,7 @@ class DataFrame:
 
         return self._with_plan(Project(names, self._plan))
 
+    @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
@@ -746,6 +759,7 @@ class DataFrame:
 
     selectExpr = select_expr
 
+    @df_api_usage
     def drop(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -804,6 +818,7 @@ class DataFrame:
         else:
             return self.select(list(keep_col_names))
 
+    @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -831,6 +846,7 @@ class DataFrame:
             )
         )
 
+    @df_api_usage
     def sort(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -921,6 +937,7 @@ class DataFrame:
 
         return self._with_plan(Sort(sort_exprs, True, self._plan))
 
+    @df_api_usage
     def agg(
         self,
         exprs: Union[
@@ -1014,6 +1031,7 @@ class DataFrame:
 
         return self.group_by().agg(grouping_exprs)
 
+    @df_to_relational_group_df_api_usage
     def rollup(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1032,6 +1050,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
         )
 
+    @df_to_relational_group_df_api_usage
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1075,6 +1094,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
+    @df_to_relational_group_df_api_usage
     def group_by_grouping_sets(
         self,
         *grouping_sets: Union[
@@ -1117,6 +1137,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
 
+    @df_to_relational_group_df_api_usage
     def cube(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1135,6 +1156,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
         )
 
+    @df_api_usage
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -1163,7 +1185,9 @@ class DataFrame:
         :meth:`dropDuplicates` is an alias of :meth:`drop_duplicates`.
         """
         if not subset:
-            return self.distinct()
+            df = self.distinct()
+            adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
+            return df
         subset = parse_positional_args_to_list(*subset)
 
         filter_cols = [self.col(x) for x in subset]
@@ -1172,12 +1196,16 @@ class DataFrame:
             snowflake.snowpark.Window.partition_by(*filter_cols).order_by(*filter_cols)
         )
         rownum_name = generate_random_alphanumeric()
-        return (
+        df = (
             self.select(*output_cols, rownum.as_(rownum_name))
             .where(col(rownum_name) == 1)
             .select(output_cols)
         )
+        # Reformat the extra API calls
+        adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
+        return df
 
+    @df_to_relational_group_df_api_usage
     def pivot(
         self,
         pivot_col: ColumnOrName,
@@ -1226,6 +1254,7 @@ class DataFrame:
             ),
         )
 
+    @df_api_usage
     def unpivot(
         self, value_column: str, name_column: str, column_list: List[ColumnOrName]
     ) -> "DataFrame":
@@ -1261,6 +1290,7 @@ class DataFrame:
             Unpivot(value_column, name_column, column_exprs, self._plan)
         )
 
+    @df_api_usage
     def limit(self, n: int) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame (similar to LIMIT in SQL).
@@ -1272,6 +1302,7 @@ class DataFrame:
         """
         return self._with_plan(Limit(Literal(n), self._plan))
 
+    @df_api_usage
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows. Both input
@@ -1295,6 +1326,7 @@ class DataFrame:
         """
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
+    @df_api_usage
     def union_all(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows. Both input
@@ -1320,7 +1352,7 @@ class DataFrame:
         """
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
-    @df_usage_telemetry
+    @df_api_usage
     def union_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows.
@@ -1346,7 +1378,7 @@ class DataFrame:
         """
         return self._union_by_name_internal(other, is_all=False)
 
-    @df_usage_telemetry
+    @df_api_usage
     def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows.
@@ -1405,6 +1437,7 @@ class DataFrame:
 
         return self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
 
+    @df_api_usage
     def intersect(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the
         current DataFrame and another DataFrame (``other``). Duplicate rows are
@@ -1428,6 +1461,7 @@ class DataFrame:
         """
         return self._with_plan(Intersect(self._plan, other._plan))
 
+    @df_api_usage
     def except_(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
         except for the rows that also appear in the ``other`` DataFrame. Duplicate rows are eliminated.
@@ -1451,6 +1485,7 @@ class DataFrame:
         """
         return self._with_plan(Except(self._plan, other._plan))
 
+    @df_api_usage
     def natural_join(
         self, right: "DataFrame", join_type: Optional[str] = None
     ) -> "DataFrame":
@@ -1495,6 +1530,7 @@ class DataFrame:
             )
         )
 
+    @df_api_usage
     def join(
         self,
         right: "DataFrame",
@@ -1627,6 +1663,7 @@ class DataFrame:
 
         raise TypeError("Invalid type for join. Must be Dataframe")
 
+    @df_api_usage
     def join_table_function(
         self,
         func: Union[str, List[str], TableFunctionCall],
@@ -1712,6 +1749,7 @@ class DataFrame:
         )
         return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
 
+    @df_api_usage
     def cross_join(self, right: "DataFrame") -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
         :class:`DataFrame` and another :class:`DataFrame` (``right``).
@@ -1784,6 +1822,7 @@ class DataFrame:
             )
         )
 
+    @df_api_usage
     def with_column(self, col_name: str, col: Column) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
@@ -1810,6 +1849,7 @@ class DataFrame:
         """
         return self.with_columns([col_name], [col])
 
+    @df_api_usage
     def with_columns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -1861,7 +1901,6 @@ class DataFrame:
         # Put it all together
         return self.select([*old_cols, *new_cols])
 
-    @df_action_telemetry
     def count(self, *, statement_params: Optional[Dict[str, str]] = None) -> int:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
@@ -1869,9 +1908,9 @@ class DataFrame:
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        return self.agg(("*", "count"))._internal_collect_with_tag(
-            statement_params=statement_params
-        )[0][0]
+        df = self.agg(("*", "count"))
+        add_api_call(df, "DataFrame.count")
+        return df._internal_collect_with_tag(statement_params=statement_params)[0][0]
 
     @property
     def write(self) -> DataFrameWriter:
@@ -1896,7 +1935,7 @@ class DataFrame:
 
         return self._writer
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def copy_into_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -2038,9 +2077,9 @@ class DataFrame:
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
-        )._internal_collect_with_tag(statement_params=statement_params)
+        )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def show(
         self,
         n: int = 10,
@@ -2073,6 +2112,7 @@ class DataFrame:
         extra_warning_text="`DataFrame.flatten()` is deprecated. Use `DataFrame.join_table_function()` instead.",
         extra_doc_string="This method is deprecated. Use :meth:`join_table_function` instead.",
     )
+    @df_api_usage
     def flatten(
         self,
         input: ColumnOrName,
@@ -2240,7 +2280,7 @@ class DataFrame:
             + line
         )
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def create_or_replace_view(
         self,
         name: Union[str, Iterable[str]],
@@ -2277,7 +2317,7 @@ class DataFrame:
             ),
         )
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def create_or_replace_temp_view(
         self,
         name: Union[str, Iterable[str]],
@@ -2330,7 +2370,6 @@ class DataFrame:
             self._session._analyzer.resolve(cmd), **kwargs
         )
 
-    @df_action_telemetry
     def first(
         self,
         n: Optional[int] = None,
@@ -2351,21 +2390,22 @@ class DataFrame:
              results, or ``None`` if it does not exist.
         """
         if n is None:
-            result = self.limit(1)._internal_collect_with_tag(
-                statement_params=statement_params
-            )
+            df = self.limit(1)
+            add_api_call(df, "DataFrame.first")
+            result = df._internal_collect_with_tag(statement_params=statement_params)
             return result[0] if result else None
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
             return self._internal_collect_with_tag(statement_params=statement_params)
         else:
-            return self.limit(n)._internal_collect_with_tag(
-                statement_params=statement_params
-            )
+            df = self.limit(n)
+            add_api_call(df, "DataFrame.first")
+            return df._internal_collect_with_tag(statement_params=statement_params)
 
     take = first
 
+    @df_api_usage
     def sample(
         self, frac: Optional[float] = None, n: Optional[int] = None
     ) -> "DataFrame":
@@ -2451,9 +2491,18 @@ class DataFrame:
 
         # if no columns should be selected, just return stat names
         if len(numerical_string_col_type_dict) == 0:
-            return self._session.create_dataframe(
+            df = self._session.create_dataframe(
                 list(stat_func_dict.keys()), schema=["summary"]
             )
+            # We need to set the API calls for this to same API calls for describe
+            # Also add the new API calls for creating this DataFrame to the describe subcalls
+            adjust_api_subcalls(
+                df,
+                "DataFrame.describe",
+                precalls=self._plan.api_calls,
+                subcalls=df._plan.api_calls,
+            )
+            return df
 
         # otherwise, calculate stats
         res_df = None
@@ -2478,8 +2527,15 @@ class DataFrame:
             )
             res_df = res_df.union(agg_stat_df) if res_df else agg_stat_df
 
+        adjust_api_subcalls(
+            res_df,
+            "DataFrame.describe",
+            precalls=self._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
+        )
         return res_df
 
+    @df_api_usage
     def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
@@ -2533,7 +2589,7 @@ class DataFrame:
         ]
         return self.select(new_columns)
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def cache_result(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> "DataFrame":
@@ -2594,7 +2650,7 @@ class DataFrame:
         new_plan = self._session.table(temp_table_name)._plan
         return DataFrame(session=self._session, plan=new_plan, is_cached=True)
 
-    @df_action_telemetry
+    @df_collect_api_telemetry
     def random_split(
         self,
         weights: List[float],
