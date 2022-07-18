@@ -741,13 +741,10 @@ class KBinsDiscretizer(Transformer):
                     Window.order_by(df_quantile[states_col])
                 ),
             )
-            df_quantile = df_quantile.with_column_renamed(
-                col(states_col), f"{states_col}_upper"
-            )
             # we use left join here to make sure when unknown value in transform will be reserved
             df = df.join(
                 df_quantile,
-                (df[input_col] <= df_quantile[f"{states_col}_upper"])
+                (df[input_col] <= df_quantile[states_col])
                 & (df[input_col] > df_quantile[f"{states_col}_lower"]),
                 join_type="left",
             )
