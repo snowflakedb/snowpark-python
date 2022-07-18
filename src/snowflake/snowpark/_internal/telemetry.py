@@ -4,7 +4,7 @@
 #
 import functools
 from enum import Enum, unique
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -46,6 +46,9 @@ class TelemetryField(Enum):
     KEY_DATA = "data"
     KEY_CATEGORY = "category"
     KEY_CREATED_BY_SNOWPARK = "created_by_snowpark"
+    KEY_API_CALLS = "api_calls"
+    KEY_SFQIDS = "sfqids"
+    KEY_SUBCALLS = "subcalls"
     # function categories
     FUNC_CAT_ACTION = "action"
     FUNC_CAT_USAGE = "usage"
@@ -53,6 +56,58 @@ class TelemetryField(Enum):
     FUNC_CAT_COPY = "copy"
     # performance categories
     PERF_CAT_UPLOAD_FILE = "upload_file"
+
+
+# These DataFrame APIs call other DataFrame APIs
+# and so we remove those API calls and move them
+# inside the original API call
+API_CALLS_TO_ADJUST = {
+    "to_df": 1,
+    "select_expr": 1,
+    "drop": 1,
+    "agg": 2,
+    "distinct": 2,
+    "with_column": 1,
+    "with_columns": 1,
+    "with_column_renamed": 1,
+}
+APIS_WITH_MULTIPLE_CALLS = list(API_CALLS_TO_ADJUST.keys())
+
+
+# Adjust API calls into subcalls for certain APIs that call other APIs
+def adjust_api_subcalls(
+    df,
+    func_name: str,
+    len_subcalls: Optional[int] = None,
+    precalls: Optional[List[Dict]] = None,
+    subcalls: Optional[List[Dict]] = None,
+) -> None:
+    if len_subcalls:
+        df._plan.api_calls = [
+            *df._plan.api_calls[:-len_subcalls],
+            {
+                TelemetryField.NAME.value: func_name,
+                TelemetryField.KEY_SUBCALLS.value: [
+                    *df._plan.api_calls[-len_subcalls:]
+                ],
+            },
+        ]
+    elif precalls is not None and subcalls is not None:
+        df._plan.api_calls = [
+            *precalls,
+            {
+                TelemetryField.NAME.value: func_name,
+                TelemetryField.KEY_SUBCALLS.value: [*subcalls],
+            },
+        ]
+
+
+def add_api_call(df, func_name: str) -> None:
+    df._plan.api_calls.append({TelemetryField.NAME.value: func_name})
+
+
+def set_api_call_source(df, func_name: str) -> None:
+    df._plan.api_calls = [{TelemetryField.NAME.value: func_name}]
 
 
 # A decorator to use in the Telemetry client to make sure operations
@@ -70,12 +125,55 @@ def safe_telemetry(func):
 
 
 # Action telemetry decorator for DataFrame class
+def df_collect_api_telemetry(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        with args[0]._session.query_history() as query_history:
+            result = func(*args, **kwargs)
+        api_calls = [
+            *args[0]._plan.api_calls,
+            {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
+        ]
+        args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
+            f"action_{func.__name__}",
+            TelemetryField.FUNC_CAT_ACTION.value,
+            api_calls=api_calls,
+            sfqids=[q.query_id for q in query_history.queries],
+        )
+        return result
+
+    return wrap
+
+
+# Action telemetry decorator for DataFrame class
 def df_action_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         result = func(*args, **kwargs)
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}", TelemetryField.FUNC_CAT_ACTION.value
+        )
+        return result
+
+    return wrap
+
+
+def dfw_collect_api_telemetry(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        with args[0]._dataframe._session.query_history() as query_history:
+            result = func(*args, **kwargs)
+        api_calls = [
+            *args[0]._dataframe._plan.api_calls,
+            {TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}"},
+        ]
+        args[
+            0
+        ]._dataframe._session._conn._telemetry_client.send_function_usage_telemetry(
+            f"action_{func.__name__}",
+            TelemetryField.FUNC_CAT_ACTION.value,
+            api_calls=api_calls,
+            sfqids=[q.query_id for q in query_history.queries],
         )
         return result
 
@@ -105,6 +203,60 @@ def df_usage_telemetry(func):
             f"usage_{func.__name__}", TelemetryField.FUNC_CAT_USAGE.value
         )
         return result
+
+    return wrap
+
+
+def df_api_usage(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        r = func(*args, **kwargs)
+        # Some DataFrame APIs call other DataFrame APIs, so we need to remove the extra call
+        if (
+            func.__name__ in APIS_WITH_MULTIPLE_CALLS
+            and len(r._plan.api_calls) >= API_CALLS_TO_ADJUST[func.__name__]
+        ):
+            len_api_calls_to_adjust = API_CALLS_TO_ADJUST[func.__name__]
+            subcalls = r._plan.api_calls[-len_api_calls_to_adjust:]
+            # remove inner calls
+            r._plan.api_calls = r._plan.api_calls[:-len_api_calls_to_adjust]
+            # Add in new API call and subcalls
+            r._plan.api_calls.append(
+                {
+                    TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
+                    TelemetryField.KEY_SUBCALLS.value: subcalls,
+                }
+            )
+        else:
+            r._plan.api_calls.append(
+                {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
+            )
+        return r
+
+    return wrap
+
+
+def df_to_relational_group_df_api_usage(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        r = func(*args, **kwargs)
+        r._df_api_call = {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
+        return r
+
+    return wrap
+
+
+# For relational-grouped dataframe
+def relational_group_df_api_usage(func):
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        r = func(*args, **kwargs)
+        if args[0]._df_api_call:
+            r._plan.api_calls.append(args[0]._df_api_call)
+        r._plan.api_calls.append(
+            {TelemetryField.NAME.value: f"RelationalGroupedDataFrame.{func.__name__}"}
+        )
+        return r
 
     return wrap
 
@@ -169,15 +321,26 @@ class TelemetryClient:
         self.send(message)
 
     @safe_telemetry
-    def send_function_usage_telemetry(self, func_name: str, function_category: str):
+    def send_function_usage_telemetry(
+        self,
+        func_name: str,
+        function_category: str,
+        api_calls: Optional[List[str]] = None,
+        sfqids: Optional[List[str]] = None,
+    ):
+        data = {
+            TelemetryField.KEY_FUNC_NAME.value: func_name,
+            TelemetryField.KEY_CATEGORY.value: function_category,
+        }
+        if api_calls is not None:
+            data[TelemetryField.KEY_API_CALLS.value] = api_calls
+        if sfqids is not None:
+            data[TelemetryField.KEY_SFQIDS.value] = sfqids
         message = {
             **self._create_basic_telemetry_data(
                 TelemetryField.TYPE_FUNCTION_USAGE.value
             ),
-            TelemetryField.KEY_DATA.value: {
-                TelemetryField.KEY_FUNC_NAME.value: func_name,
-                TelemetryField.KEY_CATEGORY.value: function_category,
-            },
+            TelemetryField.KEY_DATA.value: data,
         }
         self.send(message)
 
