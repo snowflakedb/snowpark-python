@@ -8,7 +8,9 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.ml.transformer import (
     Binarizer,
+    KBinsDiscretizer,
     MinMaxScaler,
+    Normalizer,
     OneHotEncoder,
     OrdinalEncoder,
     StandardScaler,
@@ -548,3 +550,176 @@ def test_binarizer(session):
     Utils.check_answer(
         res2, [Row(A=0, B=1, C=1), Row(A=1, B=0, C=1), Row(A=0, B=None, C=None)]
     )
+
+
+def test_normalizer(session):
+    df = session.create_dataframe(
+        [[1, 4, 5], [2, 4, 5], [5, 3, 6]], schema=["a", "b", "c"]
+    )
+    normalizer = Normalizer()
+    normalizer.input_cols = ["A", "B"]
+    normalizer.output_cols = ["res_A", "res_B"]
+    model = normalizer.fit(df)
+
+    # l2 normalization
+    res = model.transform(df)
+    Utils.check_answer(
+        res,
+        [
+            Row(A=1, B=4, C=5, RES_A=0.18257418583505536, RES_B=0.6246950475544243),
+            Row(A=2, B=4, C=5, RES_A=0.3651483716701107, RES_B=0.6246950475544243),
+            Row(A=5, B=3, C=6, RES_A=0.9128709291752769, RES_B=0.4685212856658182),
+        ],
+    )
+
+    # null and nan value in df
+    df2 = session.create_dataframe(
+        [[float("nan"), None, 5], [2.0, 4, 5], [5.0, 3, 6]], schema=["a", "b", "c"]
+    )
+    model.fit(df2)
+    res = model.transform(df2)
+    Utils.check_answer(
+        res,
+        [
+            Row(A=float("nan"), B=None, C=5, RES_A=float("nan"), RES_B=None),
+            Row(A=2.0, B=4, C=5, RES_A=float("nan"), RES_B=0.8),
+            Row(A=5.0, B=3, C=6, RES_A=float("nan"), RES_B=0.6),
+        ],
+    )
+    # l3 normalization
+    normalizer = Normalizer(norm="l3")
+    normalizer.input_cols = ["A", "B"]
+    normalizer.output_cols = ["res_A", "res_B"]
+    model = normalizer.fit(df)
+    res = model.transform(df)
+    res.show()
+    Utils.check_answer(
+        res,
+        [
+            Row(A=1, B=4, C=5, RES_A=0.19541822634010067, RES_B=0.7446452529684849),
+            Row(A=2, B=4, C=5, RES_A=0.39083645268020134, RES_B=0.7446452529684849),
+            Row(A=5, B=3, C=6, RES_A=0.9770911317005033, RES_B=0.5584839397263637),
+        ],
+    )
+    # l4 normalization
+    normalizer = Normalizer(norm="l4")
+    normalizer.input_cols = ["A", "B"]
+    normalizer.output_cols = ["res_A", "res_B"]
+    model = normalizer.fit(df)
+    res = model.transform(df)
+    Utils.check_answer(
+        res,
+        [
+            Row(A=1, B=4, C=5, RES_A=0.19866265854003093, RES_B=0.8105808102111383),
+            Row(A=2, B=4, C=5, RES_A=0.39732531708006186, RES_B=0.8105808102111383),
+            Row(A=5, B=3, C=6, RES_A=0.9933132927001546, RES_B=0.6079356076583537),
+        ],
+    )
+
+    normalizer = Normalizer(norm="max")
+    normalizer.input_cols = ["A", "B"]
+    normalizer.output_cols = ["res_A", "res_B"]
+    model = normalizer.fit(df)
+    # max normalization
+    res = model.transform(df)
+    Utils.check_answer(
+        res,
+        [
+            Row(A=1, B=4, C=5, RES_A=0.200000, RES_B=1.000000),
+            Row(A=2, B=4, C=5, RES_A=0.400000, RES_B=1.000000),
+            Row(A=5, B=3, C=6, RES_A=1.000000, RES_B=0.750000),
+        ],
+    )
+
+    # negative test
+    normalizer = Normalizer(norm="l0")
+    normalizer.input_cols = ["A", "B"]
+    normalizer.output_cols = ["res_A", "res_B"]
+    with pytest.raises(ValueError) as ex_info:
+        normalizer.fit(df)
+    assert "l0 norm is not supported" in str(ex_info.value)
+
+    normalizer = Normalizer(norm="xxx")
+    normalizer.input_cols = ["A", "B"]
+    normalizer.output_cols = ["res_A", "res_B"]
+    with pytest.raises(ValueError) as ex_info:
+        normalizer.fit(df)
+    assert "Norm must be max norm or l-norm" in str(ex_info.value)
+
+
+def test_kbins_discretizer(session):
+    df = session.create_dataframe(
+        [[1.5, 3, 5], [2.0, 4, 7], [3.0, 5, 6], [4.0, 6, 8]], schema=["a", "b", "c"]
+    )
+    kbins = KBinsDiscretizer(n_bins=4, strategy="quantile")
+    kbins.input_cols = ["A", "B"]
+    kbins.output_cols = ["res_A", "res_B"]
+    model = kbins.fit(df)
+
+    # quantile mode
+    res = model.transform(df)
+    Utils.check_answer(
+        res,
+        [
+            Row(A=1.5, B=3, C=5, RES_A=1, RES_B=1),
+            Row(A=2.0, B=4, C=7, RES_A=2, RES_B=2),
+            Row(A=3.0, B=5, C=6, RES_A=3, RES_B=3),
+            Row(A=4.0, B=6, C=8, RES_A=4, RES_B=4),
+        ],
+    )
+    kbins = KBinsDiscretizer(n_bins=4, strategy="uniform")
+    kbins.input_cols = ["A", "B"]
+    kbins.output_cols = ["res_A", "res_B"]
+    model = kbins.fit(df)
+    # uniform mode
+    res = model.transform(df)
+    Utils.check_answer(
+        res,
+        [
+            Row(A=1.5, B=3, C=5, RES_A=1, RES_B=1),
+            Row(A=2.0, B=4, C=7, RES_A=1, RES_B=2),
+            Row(A=3.0, B=5, C=6, RES_A=3, RES_B=3),
+            Row(A=4.0, B=6, C=8, RES_A=4, RES_B=4),
+        ],
+    )
+
+    # negative and nan input
+    df = session.createDataFrame(
+        [[float("nan"), 3, 5], [2.0, -4, 7], [3.0, 5, 6], [4.0, 6, 8]],
+        schema=["a", "b", "c"],
+    )
+    kbins = KBinsDiscretizer(n_bins=4, strategy="quantile")
+    kbins.input_cols = ["A", "B"]
+    kbins.output_cols = ["res_A", "res_B"]
+    model = kbins.fit(df)
+    res = model.transform(df)
+    Utils.check_answer(
+        res,
+        [
+            Row(A=float("nan"), B=3, C=5, RES_A=4, RES_B=2),
+            Row(A=2.0, B=-4, C=7, RES_A=1, RES_B=1),
+            Row(A=3.0, B=5, C=6, RES_A=2, RES_B=3),
+            Row(A=4.0, B=6, C=8, RES_A=3, RES_B=4),
+        ],
+    )
+
+    # negative tests: wrong strategy
+    kbins = KBinsDiscretizer(n_bins=4, strategy="xxx")
+    kbins.input_cols = ["A", "B"]
+    kbins.output_cols = ["res_A", "res_B"]
+    with pytest.raises(ValueError) as ex_info:
+        kbins.fit(df)
+    assert "Wrong strategy, strategy has to be either uniform or quantile" in str(
+        ex_info.value
+    )
+
+    # negative tests: bad quantile number or dirty data
+    df = session.create_dataframe(
+        [[1.5, 3, 5], [3.0, 4, 7], [3.0, 5, 6], [4.0, 6, 8]], schema=["a", "b", "c"]
+    )
+    kbins = KBinsDiscretizer(n_bins=3, strategy="quantile")
+    kbins.input_cols = ["A", "B"]
+    kbins.output_cols = ["res_A", "res_B"]
+    with pytest.raises(ValueError) as ex_info:
+        kbins.fit(df)
+    assert "Quantile partition can not be the same" in str(ex_info.value)
