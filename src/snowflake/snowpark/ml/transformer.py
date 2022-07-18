@@ -31,6 +31,7 @@ from snowflake.snowpark.functions import (
     sum as sum_,
 )
 from snowflake.snowpark.ml.utils import (
+    MAXSIZE,
     check_if_input_output_match,
     encoder_fit,
     scaler_fit,
@@ -390,7 +391,7 @@ class OneHotEncoder(Transformer):
                 onehot_arrays.append(onehot_array)
                 original_columns.append(output_col)
             df = df.with_columns(self._output_cols, onehot_arrays)
-            df = df.select([col(input_col) for input_col in original_columns])
+            df = df.select(original_columns)
         return df
 
 
@@ -482,7 +483,7 @@ class OrdinalEncoder(Transformer):
                 encoder_columns.append(df[f"{states_col}_encoder"])
                 original_columns.append(output_col)
             df = df.with_columns(self._output_cols, encoder_columns)
-            df = df.select([col(orginal_col) for orginal_col in original_columns])
+            df = df.select(original_columns)
         return df
 
 
@@ -557,6 +558,10 @@ class Normalizer(Transformer):
                     pow_(sum_(pow_(abs_(col(input_col)), norm_p)), 1 / norm_p).as_(
                         states_col
                     )
+                    if norm_p % 2 == 1
+                    else pow_(sum_(pow_(col(input_col), norm_p)), 1 / norm_p).as_(
+                        states_col
+                    )
                     for input_col, states_col in zip(
                         self.input_cols, self._states_table_cols
                     )
@@ -590,9 +595,7 @@ class Normalizer(Transformer):
         ):
             column_res.append(df[input_col] / df[states_col])
             column_output.append(output_col)
-        return df.with_columns(self.output_cols, column_res).select(
-            [column_out for column_out in column_output]
-        )
+        return df.with_columns(self.output_cols, column_res).select(column_output)
 
 
 class KBinsDiscretizer(Transformer):
@@ -719,9 +722,7 @@ class KBinsDiscretizer(Transformer):
                     ),
                 )
             )
-        return df.with_columns(self.output_cols, column_res).select(
-            [c for c in results]
-        )
+        return df.with_columns(self.output_cols, column_res).select(results)
 
     def _quantile_transform(self, df: DataFrame) -> "DataFrame":
         session = df._session
@@ -736,7 +737,7 @@ class KBinsDiscretizer(Transformer):
             """
             df_quantile = df_quantile.with_column(
                 f"{states_col}_lower",
-                lag(df_quantile[states_col], 1, -(2**53)).over(
+                lag(df_quantile[states_col], 1, -MAXSIZE).over(
                     Window.order_by(df_quantile[states_col])
                 ),
             )
@@ -750,7 +751,7 @@ class KBinsDiscretizer(Transformer):
                 & (df[input_col] > df_quantile[f"{states_col}_lower"]),
                 join_type="left",
             )
-        return df.select([c for c in results])
+        return df.select(results)
 
     def transform(self, df: DataFrame) -> "DataFrame":
         super().transform(df)

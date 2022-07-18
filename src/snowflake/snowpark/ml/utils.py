@@ -11,6 +11,8 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import builtin, col, count_distinct, lit, object_agg
 
+MAXSIZE = 2**53
+
 
 def scaler_fit(
     transformer: "snowflake.snowpark.ml.Transformer", df: DataFrame, stats: List[str]
