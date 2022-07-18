@@ -10,7 +10,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
 )
-from snowflake.snowpark._internal.telemetry import dfw_action_telemetry
+from snowflake.snowpark._internal.telemetry import (
+    add_api_call,
+    dfw_collect_api_telemetry,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
@@ -61,7 +64,7 @@ class DataFrameWriter:
         self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
         return self
 
-    @dfw_action_telemetry
+    @dfw_collect_api_telemetry
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -175,7 +178,7 @@ class DataFrameWriter:
             raise TypeError(
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
-        return self._dataframe._with_plan(
+        df = self._dataframe._with_plan(
             CopyIntoLocationNode(
                 self._dataframe._plan,
                 stage_location,
@@ -186,6 +189,8 @@ class DataFrameWriter:
                 copy_options=copy_options,
                 header=header,
             )
-        )._internal_collect_with_tag(statement_params=statement_params)
+        )
+        add_api_call(df, "DataFrameWriter.copy_into_location")
+        return df._internal_collect_with_tag(statement_params=statement_params)
 
     saveAsTable = save_as_table
