@@ -549,7 +549,7 @@ class Normalizer(Transformer):
             raise ValueError("l0 norm is not supported")
         """
         ln norm is computed in this way:
-        (sum(x^n))^(1/n)
+        (sum(|x|^n))^(1/n)
         """
         if self._norm[0] == "l":
             norm_p = int(self._norm[1:])
@@ -558,11 +558,9 @@ class Normalizer(Transformer):
                     pow_(
                         sum_(
                             pow_(
-                                abs_(
-                                    col(input_col)
-                                    if norm_p % 2 == 1
-                                    else col(input_col)
-                                ),
+                                abs_(col(input_col))
+                                if norm_p % 2 == 1
+                                else col(input_col),
                                 norm_p,
                             )
                         ),
@@ -673,10 +671,7 @@ class KBinsDiscretizer(Transformer):
                         .as_(states_col),
                     ]
                 )
-                if not df_quantile:
-                    df_quantile = df_temp
-                else:
-                    df_quantile = df_quantile.union(df_temp)
+                df_quantile = df_quantile.union(df_temp) if df_quantile else df_temp
             df_judge = df_quantile.select(
                 [
                     count_distinct(col(states_col)),
