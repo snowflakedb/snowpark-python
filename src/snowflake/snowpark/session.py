@@ -730,7 +730,8 @@ class Session:
                             "it is not available in Snowflake. Check information_schema.packages "
                             "to see available packages for UDFs. If this package is a "
                             '"pure-Python" package, you can find the directory of this package '
-                            "and add it via session.add_import()."
+                            "and add it via session.add_import(). See details at "
+                            "https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                         )
                     else:
                         detailed_err_msg = (
