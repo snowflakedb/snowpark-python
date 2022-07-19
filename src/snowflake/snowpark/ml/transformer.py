@@ -523,6 +523,12 @@ class Normalizer(Transformer):
     ) -> None:
         super().__init__(input_cols, output_cols)
         self._norm = norm
+        if self._norm != "max" and (
+            self._norm[0] != "l" or not self._norm[1:].isdigit()
+        ):
+            raise ValueError("Norm must be max norm or l-norm")
+        elif self._norm[1] == "0":
+            raise ValueError("l0 norm is not supported")
         self._states_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         self._states_table_cols = (
             [f"states_{input_col}" for input_col in self._input_cols]
@@ -541,12 +547,6 @@ class Normalizer(Transformer):
 
     def fit(self, df: DataFrame) -> "Normalizer":
         super().fit(df)
-        if self._norm != "max" and (
-            self._norm[0] != "l" or not self._norm[1:].isdigit()
-        ):
-            raise ValueError("Norm must be max norm or l-norm")
-        elif self._norm[1] == "0":
-            raise ValueError("l0 norm is not supported")
         """
         ln norm is computed in this way:
         (sum(|x|^n))^(1/n)

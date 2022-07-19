@@ -632,18 +632,12 @@ def test_normalizer(session):
     )
 
     # negative test
-    normalizer = Normalizer(norm="l0")
-    normalizer.input_cols = ["A", "B"]
-    normalizer.output_cols = ["res_A", "res_B"]
     with pytest.raises(ValueError) as ex_info:
-        normalizer.fit(df)
+        Normalizer(norm="l0")
     assert "l0 norm is not supported" in str(ex_info.value)
 
-    normalizer = Normalizer(norm="xxx")
-    normalizer.input_cols = ["A", "B"]
-    normalizer.output_cols = ["res_A", "res_B"]
     with pytest.raises(ValueError) as ex_info:
-        normalizer.fit(df)
+        Normalizer(norm="xxx")
     assert "Norm must be max norm or l-norm" in str(ex_info.value)
 
 
