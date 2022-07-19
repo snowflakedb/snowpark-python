@@ -575,11 +575,11 @@ def create_table_statement(
     schema: str,
     replace: bool = False,
     error: bool = True,
-    temp: bool = False,
+    table_type: str = "",
 ) -> str:
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
-        f"{TEMPORARY if temp else EMPTY_STRING}"
+        f" {table_type.upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
     )
@@ -603,10 +603,10 @@ def create_table_as_select_statement(
     child: str,
     replace: bool = False,
     error: bool = True,
-    temp: bool = False,
+    table_type: str = "",
 ) -> str:
     return (
-        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TEMPORARY if temp else EMPTY_STRING}{TABLE}"
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
         f" {table_name}{AS}{project_statement([], child)}"
     )

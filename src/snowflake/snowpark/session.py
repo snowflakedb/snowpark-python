@@ -821,7 +821,7 @@ class Session:
         Examples::
 
             >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df1.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> df1.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> session.table("my_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
             >>> current_db = session.get_current_database()

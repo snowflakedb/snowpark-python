@@ -733,7 +733,7 @@ def test_sample_with_seed(session):
     row_count = 10000
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.range(row_count).write.save_as_table(
-        temp_table_name, create_temp_table=True
+        temp_table_name, table_type="temporary"
     )
     df = session.table(temp_table_name)
     try:
@@ -749,7 +749,7 @@ def test_sample_with_sampling_method(session):
     row_count = 10000
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.range(row_count).write.save_as_table(
-        temp_table_name, create_temp_table=True
+        temp_table_name, table_type="temporary"
     )
     df = session.table(temp_table_name)
     try:

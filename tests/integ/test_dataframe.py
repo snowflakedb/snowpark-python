@@ -1475,12 +1475,65 @@ def test_write_temp_table(session, save_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
     try:
-        df.write.save_as_table(table_name, mode=save_mode, create_temp_table=True)
+        df.write.save_as_table(table_name, mode=save_mode, table_type="temp")
         Utils.check_answer(session.table(table_name), df, True)
         table_info = session.sql(f"show tables like '{table_name}'").collect()
         assert table_info[0]["kind"] == "TEMPORARY"
     finally:
         Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_write_temporary_table(session, save_mode):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    try:
+        df.write.save_as_table(table_name, mode=save_mode, table_type="temporary")
+        Utils.check_answer(session.table(table_name), df, True)
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        assert table_info[0]["kind"] == "TEMPORARY"
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_write_temp_table_no_breaking_change(session, save_mode):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    try:
+        with pytest.deprecated_call(match="create_temp_table is deprecated"):
+            df.write.save_as_table(table_name, mode=save_mode, create_temp_table=True)
+        Utils.check_answer(session.table(table_name), df, True)
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        assert table_info[0]["kind"] == "TEMPORARY"
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_write_transient_table(session, save_mode):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    try:
+        df.write.save_as_table(table_name, mode=save_mode, table_type="transient")
+        Utils.check_answer(session.table(table_name), df, True)
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        assert table_info[0]["kind"] == "TRANSIENT"
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+def test_write_invalid_table_type(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    with pytest.raises(ValueError, match="Unsupported table type"):
+        df.write.save_as_table(table_name, table_type="invalid")
 
 
 def test_write_copy_into_location_basic(session):
@@ -1612,7 +1665,7 @@ def test_unpivot(session, column_list):
 def test_create_dataframe_string_length(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe(["ab", "abc", "abcd"], schema=["a"])
-    df.write.mode("overwrite").save_as_table(table_name, create_temp_table=True)
+    df.write.mode("overwrite").save_as_table(table_name, table_type="temporary")
     datatype = json.loads(
         session.sql(f"show columns in {table_name}").collect()[0]["data_type"]
     )
@@ -1826,7 +1879,7 @@ def test_call_with_statement_params(session):
         df.write.save_as_table(
             table_name,
             mode="append",
-            create_temp_table=True,
+            table_type="temporary",
             statement_params=statement_params_correct_date_format,
         )
         Utils.check_answer(session.table(table_name), df, True)
