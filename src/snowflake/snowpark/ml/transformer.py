@@ -31,7 +31,7 @@ from snowflake.snowpark.functions import (
     sum as sum_,
 )
 from snowflake.snowpark.ml.utils import (
-    MAXSIZE,
+    SNOWFLAKE_MAX_INT_SIZE,
     check_if_input_output_match,
     encoder_fit,
     scaler_fit,
@@ -555,13 +555,19 @@ class Normalizer(Transformer):
             norm_p = int(self._norm[1:])
             df.select(
                 [
-                    pow_(sum_(pow_(abs_(col(input_col)), norm_p)), 1 / norm_p).as_(
-                        states_col
-                    )
-                    if norm_p % 2 == 1
-                    else pow_(sum_(pow_(col(input_col), norm_p)), 1 / norm_p).as_(
-                        states_col
-                    )
+                    pow_(
+                        sum_(
+                            pow_(
+                                abs_(
+                                    col(input_col)
+                                    if norm_p % 2 == 1
+                                    else col(input_col)
+                                ),
+                                norm_p,
+                            )
+                        ),
+                        1 / norm_p,
+                    ).as_(states_col)
                     for input_col, states_col in zip(
                         self.input_cols, self._states_table_cols
                     )
@@ -737,7 +743,7 @@ class KBinsDiscretizer(Transformer):
             """
             df_quantile = df_quantile.with_column(
                 f"{states_col}_lower",
-                lag(df_quantile[states_col], 1, -MAXSIZE).over(
+                lag(df_quantile[states_col], 1, -SNOWFLAKE_MAX_INT_SIZE).over(
                     Window.order_by(df_quantile[states_col])
                 ),
             )
