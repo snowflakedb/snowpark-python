@@ -727,7 +727,7 @@ class Session:
                     )[0][0]
                     if is_anaconda_terms_acknowledged:
                         detailed_err_msg = (
-                            "Check information_schema.packages "
+                            "it is not available in Snowflake. Check information_schema.packages "
                             "to see available packages for UDFs. If this package is a "
                             '"pure-Python" package, you can find the directory of this package '
                             "and add it via session.add_import()."
@@ -739,7 +739,7 @@ class Session:
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
                     raise ValueError(
-                        f"Cannot add package {package_name} because it is not available in Snowflake. {detailed_err_msg}"
+                        f"Cannot add package {package_name} because {detailed_err_msg}"
                     )
                 elif not use_local_version:
                     try:
