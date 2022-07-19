@@ -86,7 +86,7 @@ class UserDefinedTableFunction:
 class UDTFRegistration:
     """
     Provides methods to register classes as UDTFs in the Snowflake database.
-    For more information about Snowflake Python UDTFs, see `Python UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python.html>`__.
+    For more information about Snowflake Python UDTFs, see `Python UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions.html>`__.
 
     :attr:`session.udtf <snowflake.snowpark.Session.udtf>` returns an object of this class.
     You can use this object to register UDTFs that you plan to use in the current session or
@@ -96,6 +96,10 @@ class UDTFRegistration:
     Registering a UDTF is like registering a scalar UDF, you can use :meth:`register` or :func:`snowflake.snowpark.functions.udf`
     to explicitly register it. You can slso decorator `@udtf`. They all use ``cloudpickle`` to transfer the code from cleitn to the server.
     Another way is to use :meth:`register_from_file`. Refer to module :class:`snowflake.snowpark.udf.UDFRegistration` for when to use them respectively.
+
+    To query a registered UDTF is the same as to query other table functions.
+    Refer to :meth:`~snowflake.snowpark.Session.table_function` and :meth:`~snowflake.snowpark.DataFrame.join_table_function`.
+    If you want to query a UDTF right after it's created, you can call the created :class:`UserDefinedTableFunction` instance like in Example 1 below.
 
     Example 1
         Create a temporary UDTF and call it:
@@ -111,6 +115,19 @@ class UDTFRegistration:
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
             >>> session.table_function(generator_udtf.name, lit(3)).collect()  # Query it by using the name
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+            >>> # Or you can lateral-join a UDTF like any other table functions
+            >>> df = session.create_dataframe([2, 3], schema=["c"])
+            >>> df.join_table_function(generator_udtf(df["c"])).sort("c", "number").show()
+            ------------------
+            |"C"  |"NUMBER"  |
+            ------------------
+            |2    |0         |
+            |2    |1         |
+            |3    |0         |
+            |3    |1         |
+            |3    |2         |
+            ------------------
+            <BLANKLINE>
 
     Example 2
         Create a UDTF with type hints and ``@udtf`` decorator and query it:
@@ -276,10 +293,6 @@ class UDTFRegistration:
             ... )
             >>> session.table_function(generator_udtf(lit(3))).collect()
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
-
-    To query a registered UDTF is the same as to query other table functions.
-    Refer to :meth:`~snowflake.snowpark.Session.table_function` and :meth:`~snowflake.snowpark.DataFrame.join_table_function`.
-    If you want to call a UDTF right after it's created, refer to the above examples.
 
     See Also:
         - :func:`~snowflake.snowpark.functions.udtf`
