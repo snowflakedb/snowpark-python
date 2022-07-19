@@ -99,7 +99,7 @@ class UDTFRegistration:
 
     To query a registered UDTF is the same as to query other table functions.
     Refer to :meth:`~snowflake.snowpark.Session.table_function` and :meth:`~snowflake.snowpark.DataFrame.join_table_function`.
-    If you want to query a UDTF right after it's created, you can call the created UserDefinedTableFunction instance like in Example 1 below.
+    If you want to query a UDTF right after it's created, you can call the created :class:`UserDefinedTableFunction` instance like in Example 1 below.
 
     Example 1
         Create a temporary UDTF and call it:
@@ -117,7 +117,7 @@ class UDTFRegistration:
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
             >>> # Or you can lateral-join a UDTF like any other table functions
             >>> df = session.create_dataframe([2, 3], schema=["c"])
-            >>> df.join_table_function(generator_udtf(df["c"])).show()
+            >>> df.join_table_function(generator_udtf(df["c"])).sort("c", "number").show()
             ------------------
             |"C"  |"NUMBER"  |
             ------------------
