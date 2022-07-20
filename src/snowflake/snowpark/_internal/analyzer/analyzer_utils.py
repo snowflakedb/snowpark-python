@@ -575,7 +575,7 @@ def create_table_statement(
     schema: str,
     replace: bool = False,
     error: bool = True,
-    table_type: str = "",
+    table_type: str = EMPTY_STRING,
 ) -> str:
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
@@ -603,7 +603,7 @@ def create_table_as_select_statement(
     child: str,
     replace: bool = False,
     error: bool = True,
-    table_type: str = "",
+    table_type: str = EMPTY_STRING,
 ) -> str:
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"

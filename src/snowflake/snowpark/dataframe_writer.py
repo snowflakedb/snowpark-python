@@ -92,7 +92,7 @@ class DataFrameWriter:
 
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
             table_type: The table type of to-be-created table. The supported table types include ``temp``/``temporary``
-                        and ``transient``. Empty means permanent table as per SQL convention.
+                        and ``transient``. An empty string means permanent table as per SQL convention.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
@@ -104,8 +104,8 @@ class DataFrameWriter:
             >>> df.write.save_as_table("my_table", mode="append", table_type="temporary")
             >>> session.table("my_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4), Row(A=1, B=2), Row(A=3, B=4)]
-            >>> df.write.mode("overwrite").save_as_table("my_table", table_type="transient")
-            >>> session.table("my_table").collect()
+            >>> df.write.mode("overwrite").save_as_table("my_transient_table", table_type="transient")
+            >>> session.table("my_transient_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
         save_mode = (
