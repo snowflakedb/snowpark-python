@@ -1648,7 +1648,7 @@ def date_from_parts(
         >>> df = session.create_dataframe([[2022, 4, 1]], schema=["year", "month", "day"])
         >>> df.select(date_from_parts("year", "month", "day")).collect()
         [Row(DATE_FROM_PARTS("YEAR", "MONTH", "DAY")=datetime.date(2022, 4, 1))]
-        >>> session.table("dual").select(date_from_parts(2022, 4, 1))
+        >>> session.table("dual").select(date_from_parts(2022, 4, 1)).collect()
         [Row(DATE_FROM_PARTS(2022, 4, 1)=datetime.date(2022, 4, 1))]
     """
     y_col = _to_col_if_str_or_int(y, "date_from_parts")
