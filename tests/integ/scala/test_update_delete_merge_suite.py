@@ -33,8 +33,8 @@ table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
 
 def test_update_rows_in_table(session):
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
     table = session.table(table_name)
     assert table.update({"b": 0}, col("a") == 1) == UpdateResult(2, 0)
@@ -49,16 +49,16 @@ def test_update_rows_in_table(session):
         table, [Row(1, 0), Row(1, 0), Row(2, 1), Row(2, 2), Row(3, 1), Row(3, 2)]
     )
 
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
     assert table.update({"a": 1, "b": 0}) == UpdateResult(6, 0)
     Utils.check_answer(
         table, [Row(1, 0), Row(1, 0), Row(1, 0), Row(1, 0), Row(1, 0), Row(1, 0)]
     )
 
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
     assert table.update({"b": col("a") + col("b")}) == UpdateResult(6, 0)
     Utils.check_answer(
@@ -72,21 +72,21 @@ def test_update_rows_in_table(session):
 
 
 def test_delete_rows_in_table(session):
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
     table = session.table(table_name)
     assert table.delete((col("a") == 1) & (col("b") == 2)) == DeleteResult(1)
     Utils.check_answer(table, [Row(1, 1), Row(2, 1), Row(2, 2), Row(3, 1), Row(3, 2)])
 
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
     assert table.delete() == DeleteResult(6)
     Utils.check_answer(table, [])
 
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
     assert table.delete(
         statement_params={"SF_PARTNER": "FAKE_PARTNER"}
@@ -100,11 +100,11 @@ def test_delete_rows_in_table(session):
 
 
 def test_update_with_join(session):
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
-    TestData.upper_case_data(session).write.saveAsTable(
-        table_name2, mode="overwrite", create_temp_table=True
+    TestData.upper_case_data(session).write.save_as_table(
+        table_name2, mode="overwrite", table_type="temporary"
     )
     t1 = session.table(table_name)
     t2 = session.table(table_name2)
@@ -115,8 +115,8 @@ def test_update_with_join(session):
         sort=False,
     )
 
-    TestData.upper_case_data(session).write.saveAsTable(
-        table_name2, mode="overwrite", create_temp_table=True
+    TestData.upper_case_data(session).write.save_as_table(
+        table_name2, mode="overwrite", table_type="temporary"
     )
     sd = session.createDataFrame(["A", "B", "D", "E"], schema=["c"])
     assert t2.update({"n": 0}, t2.L == sd.c, sd) == UpdateResult(4, 0)
@@ -127,11 +127,11 @@ def test_update_with_join(session):
 
 
 def test_update_with_join_involving_ambiguous_columns(session):
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
-    TestData.test_data3(session).write.saveAsTable(
-        table_name2, mode="overwrite", create_temp_table=True
+    TestData.test_data3(session).write.save_as_table(
+        table_name2, mode="overwrite", table_type="temporary"
     )
     t1 = session.table(table_name)
     t2 = session.table(table_name2)
@@ -142,8 +142,8 @@ def test_update_with_join_involving_ambiguous_columns(session):
         sort=False,
     )
 
-    TestData.upper_case_data(session).write.saveAsTable(
-        table_name3, mode="overwrite", create_temp_table=True
+    TestData.upper_case_data(session).write.save_as_table(
+        table_name3, mode="overwrite", table_type="temporary"
     )
     up = session.table(table_name3)
     sd = session.createDataFrame(["A", "B", "D", "E"], schema=["L"])
@@ -156,7 +156,7 @@ def test_update_with_join_involving_ambiguous_columns(session):
 
 def test_update_with_join_with_aggregated_source_data(session):
     tmp = session.createDataFrame([[0, 10]], schema=["k", "v"])
-    tmp.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    tmp.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     src = session.createDataFrame([(0, 11), (0, 12), (0, 13)], schema=["k", "v"])
     target = session.table(table_name)
     b = src.groupBy("k").agg(min_(col("v")).as_("v"))
@@ -165,19 +165,19 @@ def test_update_with_join_with_aggregated_source_data(session):
 
 
 def test_delete_with_join(session):
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
-    TestData.upper_case_data(session).write.saveAsTable(
-        table_name2, mode="overwrite", create_temp_table=True
+    TestData.upper_case_data(session).write.save_as_table(
+        table_name2, mode="overwrite", table_type="temporary"
     )
     t1 = session.table(table_name)
     t2 = session.table(table_name2)
     assert t2.delete(t1.a == t2.n, t1) == DeleteResult(3)
     Utils.check_answer(t2, [Row(4, "D"), Row(5, "E"), Row(6, "F")], sort=False)
 
-    TestData.upper_case_data(session).write.saveAsTable(
-        table_name2, mode="overwrite", create_temp_table=True
+    TestData.upper_case_data(session).write.save_as_table(
+        table_name2, mode="overwrite", table_type="temporary"
     )
     sd = session.createDataFrame(["A", "B", "D", "E"], schema=["c"])
     assert t2.delete(t2.L == sd.c, sd) == DeleteResult(4)
@@ -185,19 +185,19 @@ def test_delete_with_join(session):
 
 
 def test_delete_with_join_involving_ambiguous_columns(session):
-    TestData.test_data2(session).write.saveAsTable(
-        table_name, mode="overwrite", create_temp_table=True
+    TestData.test_data2(session).write.save_as_table(
+        table_name, mode="overwrite", table_type="temporary"
     )
-    TestData.test_data3(session).write.saveAsTable(
-        table_name2, mode="overwrite", create_temp_table=True
+    TestData.test_data3(session).write.save_as_table(
+        table_name2, mode="overwrite", table_type="temporary"
     )
     t1 = session.table(table_name)
     t2 = session.table(table_name2)
     assert t1.delete(t1["a"] == t2["a"], t2) == DeleteResult(4)
     Utils.check_answer(t1, [Row(3, 1), Row(3, 2)], sort=False)
 
-    TestData.upper_case_data(session).write.saveAsTable(
-        table_name3, mode="overwrite", create_temp_table=True
+    TestData.upper_case_data(session).write.save_as_table(
+        table_name3, mode="overwrite", table_type="temporary"
     )
     up = session.table(table_name3)
     sd = session.createDataFrame(["A", "B", "D", "E"], schema=["L"])
@@ -207,7 +207,7 @@ def test_delete_with_join_involving_ambiguous_columns(session):
 
 def test_delete_with_join_with_aggregated_source_data(session):
     tmp = session.createDataFrame([(0, 1), (0, 2), (0, 3)], schema=["k", "v"])
-    tmp.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    tmp.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     src = session.createDataFrame([(0, 1), (0, 2), (0, 3)], schema=["k", "v"])
     target = session.table(table_name)
     b = src.groupBy("k").agg(mean(col("v")).as_("v"))
@@ -219,7 +219,7 @@ def test_merge_with_update_clause_only(session):
     target_df = session.createDataFrame(
         [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
     )
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
     source = session.createDataFrame([(10, "new")], schema=["id", "desc"])
 
@@ -230,7 +230,7 @@ def test_merge_with_update_clause_only(session):
     ) == MergeResult(0, 2, 0)
     Utils.check_answer(target, [Row(10, "new"), Row(10, "new"), Row(11, "old")])
 
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     assert target.merge(
         source,
         target["id"] == source["id"],
@@ -238,7 +238,7 @@ def test_merge_with_update_clause_only(session):
     ) == MergeResult(0, 1, 0)
     Utils.check_answer(target, [Row(10, "new"), Row(10, "too_old"), Row(11, "old")])
 
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     assert target.merge(
         source,
         target["id"] == source["id"],
@@ -252,7 +252,7 @@ def test_merge_with_delete_clause_only(session):
     target_df = session.createDataFrame(
         [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
     )
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
     source = session.createDataFrame([(10, "new")], schema=["id", "desc"])
 
@@ -261,7 +261,7 @@ def test_merge_with_delete_clause_only(session):
     ) == MergeResult(0, 0, 2)
     Utils.check_answer(target, [Row(11, "old")])
 
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     assert target.merge(
         source,
         target["id"] == source["id"],
@@ -274,7 +274,7 @@ def test_merge_with_insert_clause_only(session):
     target_df = session.createDataFrame(
         [(10, "old"), (11, "new")], schema=["id", "desc"]
     )
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
     source = session.createDataFrame([(12, "old"), (12, "new")], schema=["id", "desc"])
 
@@ -287,7 +287,7 @@ def test_merge_with_insert_clause_only(session):
         target, [Row(10, "old"), Row(11, "new"), Row(12, "new"), Row(12, "old")]
     )
 
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     assert target.merge(
         source,
         target["id"] == source["id"],
@@ -297,7 +297,7 @@ def test_merge_with_insert_clause_only(session):
         target, [Row(10, "old"), Row(11, "new"), Row(12, "new"), Row(12, "old")]
     )
 
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     assert target.merge(
         source,
         target["id"] == source["id"],
@@ -314,7 +314,7 @@ def test_merge_with_matched_and_not_matched_clauses(session):
     target_df = session.createDataFrame(
         [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
     )
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
     source = session.createDataFrame(
         [(10, "new"), (12, "new"), (13, "old")], schema=["id", "desc"]
@@ -339,7 +339,7 @@ def test_merge_with_matched_and_not_matched_clauses(session):
 
 def test_merge_with_aggregated_source(session):
     target_df = session.createDataFrame([(0, 10)], schema=["k", "v"])
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
     source_df = session.createDataFrame([(0, 10), (0, 11), (0, 12)], schema=["k", "v"])
     source = source_df.groupBy("k").agg(max_(col("v")).as_("v"))
@@ -359,7 +359,7 @@ def test_merge_with_multiple_clause_conditions(session):
     target_df = session.createDataFrame(
         [(0, 10), (1, 11), (2, 12), (3, 13)], schema=["k", "v"]
     )
-    target_df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
     source = session.createDataFrame(
         [(0, 20), (1, 21), (2, 22), (3, 23), (4, 24), (5, 25), (6, 26), (7, 27)],
@@ -388,7 +388,7 @@ def test_merge_with_multiple_clause_conditions(session):
 
 def test_copy(session):
     df = session.createDataFrame([1, 2], schema=["a"])
-    df.write.saveAsTable(table_name, mode="overwrite", create_temp_table=True)
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     table = session.table(table_name)
     assert isinstance(table, Table)
     cloned = copy.copy(table)

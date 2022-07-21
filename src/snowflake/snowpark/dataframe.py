@@ -1919,7 +1919,7 @@ class DataFrame:
 
         Example::
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df.write.mode("overwrite").save_as_table("saved_table", create_temp_table=True)
+            >>> df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
             >>> session.table("saved_table").show()
             -------------
             |"A"  |"B"  |

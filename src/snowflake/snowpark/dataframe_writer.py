@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
+import warnings
 from typing import Dict, Iterable, List, Optional, Union
 
 import snowflake.snowpark  # for forward references of type hints
@@ -71,6 +71,7 @@ class DataFrameWriter:
         *,
         mode: Optional[str] = None,
         create_temp_table: bool = False,
+        table_type: str = "",
         statement_params: Optional[Dict[str, str]] = None,
     ) -> None:
         """Writes the data to the specified table in a Snowflake database.
@@ -89,18 +90,24 @@ class DataFrameWriter:
 
                 "ignore": Ignore this operation if data already exists.
 
-            create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
+            create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
+            table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
+                        and ``transient``. An empty string means to create a permanent table. Learn more about table
+                        types in https://docs.snowflake.com/en/user-guide/tables-temp-transient.html.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
 
             >>> df = session.create_dataframe([[1,2],[3,4]], schema=["a", "b"])
-            >>> df.write.mode("overwrite").save_as_table("my_table", create_temp_table=True)
+            >>> df.write.mode("overwrite").save_as_table("my_table", table_type="temporary")
             >>> session.table("my_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
-            >>> df.write.save_as_table("my_table", mode="append", create_temp_table=True)
+            >>> df.write.save_as_table("my_table", mode="append", table_type="temporary")
             >>> session.table("my_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4), Row(A=1, B=2), Row(A=3, B=4)]
+            >>> df.write.mode("overwrite").save_as_table("my_transient_table", table_type="transient")
+            >>> session.table("my_transient_table").collect()
+            [Row(A=1, B=2), Row(A=3, B=4)]
         """
         save_mode = (
             str_to_enum(mode.lower(), SaveMode, "'mode'") if mode else self._save_mode
@@ -109,11 +116,26 @@ class DataFrameWriter:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
+        if create_temp_table:
+            warnings.warn(
+                "create_temp_table is deprecated. We still respect this parameter when it is True but "
+                'please consider using `table_type="temporary"` instead.',
+                DeprecationWarning,
+                # warnings.warn -> @dfw_collect_api_telemetry -> save_as_table
+                stacklevel=3,
+            )
+            table_type = "temporary"
+
+        if table_type and table_type.lower() not in ["temp", "temporary", "transient"]:
+            raise ValueError(
+                "Unsupported table type. Expected table types: temp/temporary, transient"
+            )
+
         create_table_logic_plan = SnowflakeCreateTable(
             full_table_name,
             save_mode,
             self._dataframe._plan,
-            create_temp_table,
+            table_type,
         )
         session = self._dataframe._session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
