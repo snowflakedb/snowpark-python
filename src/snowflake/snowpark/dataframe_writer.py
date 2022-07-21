@@ -91,8 +91,9 @@ class DataFrameWriter:
                 "ignore": Ignore this operation if data already exists.
 
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
-            table_type: The table type of to-be-created table. The supported table types include ``temp``/``temporary``
-                        and ``transient``. An empty string means permanent table as per SQL convention.
+            table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
+                        and ``transient``. An empty string means to create a permanent table. Learn more about table
+                        types in https://docs.snowflake.com/en/user-guide/tables-temp-transient.html.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
@@ -117,8 +118,8 @@ class DataFrameWriter:
         validate_object_name(full_table_name)
         if create_temp_table:
             warnings.warn(
-                "create_temp_table is deprecated, we still respect this parameter when it is True but "
-                'please consider using `table_type="temporary"` instead',
+                "create_temp_table is deprecated. We still respect this parameter when it is True but "
+                'please consider using `table_type="temporary"` instead.',
                 DeprecationWarning,
                 # warnings.warn -> @dfw_collect_api_telemetry -> save_as_table
                 stacklevel=3,
