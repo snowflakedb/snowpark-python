@@ -5,31 +5,28 @@
 - Added keyword only argument `statement_params` to the following methods to allow for specifying statement level parameters:
   - `collect`, `to_local_iterator`, `to_pandas`, `to_pandas_batches`,
   `count`, `copy_into_table`, `show`, `create_or_replace_view`, `create_or_replace_temp_view`, `first`, `cache_result`
-  and `random_split` on class `snowflake.snowpark.Dateframe`
-  - `update`, `delete` and `merge` on class `snowflake.snowpark.Table`
-  - `save_as_table` and `copy_into_location` on class `snowflake.snowpark.DataFrameWriter`
-  - `approx_quantile`, `statement_params`, `cov` and `crosstab` on class `snowflake.snowpark.DataFrameStatFunctions`
-  - `register` and `register_from_file` on class `snowflake.snowpark.udf.UDFRegistration`
-  - `register` and `register_from_file` on class `snowflake.snowpark.udtf.UDTFRegistration`
-  - `register` and `register_from_file` on class `snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
-  - `udf`, `udtf` and `sproc` in `snowflake.snowpark.functions`
-- Support `Column` as an input argument to a stored procedure call
-- Support `table_type` in `save_as_table`. You can now choose from three different `table_type` options: `"temporary"`, `"temp"` and `"transient"`
-- Added the ability to only get a query ID after evaluating a `DataFrame` instead of fetching results
+  and `random_split` on class `snowflake.snowpark.Dateframe`.
+  - `update`, `delete` and `merge` on class `snowflake.snowpark.Table`.
+  - `save_as_table` and `copy_into_location` on class `snowflake.snowpark.DataFrameWriter`.
+  - `approx_quantile`, `statement_params`, `cov` and `crosstab` on class `snowflake.snowpark.DataFrameStatFunctions`.
+  - `register` and `register_from_file` on class `snowflake.snowpark.udf.UDFRegistration`.
+  - `register` and `register_from_file` on class `snowflake.snowpark.udtf.UDTFRegistration`.
+  - `register` and `register_from_file` on class `snowflake.snowpark.stored_procedure.StoredProcedureRegistration`.
+  - `udf`, `udtf` and `sproc` in `snowflake.snowpark.functions`.
+- Added support `Column` as an input argument to a stored procedure call.
+- Added support for `table_type` in `save_as_table`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
 
 ### Improvements:
-- Validate object name in session.use_* methods
-- Added new flake8 plugin
-- Escape query tag in SQL when it has special characters
-- Check if anaconda terms are acknowledged when adding missing packages
-- Don't unnecessarily fetch the data when only getting the result query ID
+- Validate object name in session.use_* methods.
+- Escape query tag in SQL when it has special characters.
+- Check if anaconda terms are acknowledged when adding missing packages.
 
 ### Bug Fixes:
-- Fixed the limited length of string column in `create_dataframe`
-- Fixed `create_dataframe` that mistakenly converts 0 and False to None when the input data is only a list
-- Aligned definition of 'trim' with SQL function definition
-- snowpark-python no longer hangs when using builtin sum vs snowpark sum
-- Fixed calling `create_dataframe` using large local dataset can cause creating a temp table twice
+- Fixed the limited length of the string column in `create_dataframe`.
+- Fixed a bug in which `create_dataframe` mistakenly converted 0 and False to None when the input data was only a list.
+- Fixed calling `create_dataframe` using large local dataset can cause creating a temp table twice.
+- Aligned the definition of 'trim' with the SQL function definition.
+- snowpark-python no longer hangs when using builtin sum vs snowpark sum.
 
 
 ## 0.7.0 (2022-05-25)
@@ -46,7 +43,7 @@
   - Updated `Session.table_function()` and `DataFrame.join_table_function()` to accept `TableFunctionCall` instances.
 
 ### Breaking Changes:
-- Wnen creating a function with `functions.udf()` and `functions.sproc()`, you can now specify an empty list for the `imports` or `packages` argument to indicate that no import or package is used for this UDF or stored procedure. Previously, specifying an empty list meant that the function would use session-level imports or packages.
+- When creating a function with `functions.udf()` and `functions.sproc()`, you can now specify an empty list for the `imports` or `packages` argument to indicate that no import or package is used for this UDF or stored procedure. Previously, specifying an empty list meant that the function would use session-level imports or packages.
 - Improved the `__repr__` implementation of data types in `types.py`. The unused `type_name` property has been removed.
 - Added a Snowpark-specific exception class for SQL errors. This replaces the previous `ProgrammingError` from the Python connector.
 
