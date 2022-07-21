@@ -16,7 +16,14 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import col, current_date, lit, sproc, sqrt
+from snowflake.snowpark.functions import (
+    col,
+    current_date,
+    date_from_parts,
+    lit,
+    sproc,
+    sqrt,
+)
 from snowflake.snowpark.types import (
     DateType,
     DoubleType,
@@ -102,11 +109,11 @@ def test_stored_procedure_with_column_datatype(session):
         add_date, return_type=DateType(), input_types=[DateType(), IntegerType()]
     )
 
-    dt = datetime.date.today() + datetime.timedelta(days=3)
+    dt = datetime.date(1992, 12, 14) + datetime.timedelta(days=3)
     assert plus1_sp(lit(6)) == 7
     assert add_sp(4, sqrt(lit(36))) == 10
     # the date can be different between server and client due to timezone difference
-    assert -1 <= (add_date_sp(current_date(), 3) - dt).days <= 1
+    assert -1 <= (add_date_sp(date_from_parts(1992, 12, 14), 3) - dt).days <= 1
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         plus1_sp(col("a"))
