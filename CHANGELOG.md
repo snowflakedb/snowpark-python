@@ -1,5 +1,5 @@
 # Release History
-## 0.8.0 (Unreleased)
+## 0.8.0 (2022-07-22)
 
 ### New Features:
 - Added keyword only argument `statement_params` to the following methods to allow for specifying statement level parameters:
@@ -13,6 +13,24 @@
   - `register` and `register_from_file` on class `snowflake.snowpark.udtf.UDTFRegistration`
   - `register` and `register_from_file` on class `snowflake.snowpark.stored_procedure.StoredProcedureRegistration`
   - `udf`, `udtf` and `sproc` in `snowflake.snowpark.functions`
+- Support `Column` as an input argument to a stored procedure call
+- Support `table_type` in `save_as_table`. You can now choose from three different `table_type` options: `"temporary"`, `"temp"` and `"transient"`
+- Added the ability to only get a query ID after evaluating a `DataFrame` instead of fetching results
+
+### Improvements:
+- Validate object name in session.use_* methods
+- Added new flake8 plugin
+- Escape query tag in SQL when it has special characters
+- Check if anaconda terms are acknowledged when adding missing packages
+- Don't unnecessarily fetch the data when only getting the result query ID
+
+### Bug Fixes:
+- Fixed the limited length of string column in `create_dataframe`
+- Fixed `create_dataframe` that mistakenly converts 0 and False to None when the input data is only a list
+- Aligned definition of 'trim' with SQL function definition
+- snowpark-python no longer hangs when using builtin sum vs snowpark sum
+- Fixed calling `create_dataframe` using large local dataset can cause creating a temp table twice
+
 
 ## 0.7.0 (2022-05-25)
 
