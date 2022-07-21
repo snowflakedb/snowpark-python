@@ -370,7 +370,7 @@ class SnowflakePlanBuilder:
             temp_table_name,
             attribute_to_schema_string(attributes),
             replace=True,
-            temp=True,
+            table_type="temporary",
         )
         insert_stmt = batch_insert_into_statement(
             temp_table_name, [attr.name for attr in attributes]
@@ -494,7 +494,7 @@ class SnowflakePlanBuilder:
         self,
         table_name: str,
         mode: SaveMode,
-        create_temp_table: bool,
+        table_type: str,
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         if mode == SaveMode.APPEND:
@@ -502,7 +502,7 @@ class SnowflakePlanBuilder:
                 table_name,
                 attribute_to_schema_string(child.attributes),
                 error=False,
-                temp=create_temp_table,
+                table_type=table_type,
             )
             return SnowflakePlan(
                 [
@@ -520,7 +520,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    table_name, x, replace=True, temp=create_temp_table
+                    table_name, x, replace=True, table_type=table_type
                 ),
                 child,
                 None,
@@ -528,7 +528,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.IGNORE:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    table_name, x, error=False, temp=create_temp_table
+                    table_name, x, error=False, table_type=table_type
                 ),
                 child,
                 None,
@@ -536,7 +536,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    table_name, x, temp=create_temp_table
+                    table_name, x, table_type=table_type
                 ),
                 child,
                 None,
@@ -616,7 +616,7 @@ class SnowflakePlanBuilder:
         create_table = create_table_statement(
             name,
             attribute_to_schema_string(attributes),
-            temp=True,
+            table_type="temporary",
         )
 
         return [create_table, insert_into_statement(name, query)]
@@ -726,7 +726,7 @@ class SnowflakePlanBuilder:
                         temp_table_name,
                         attribute_to_schema_string(temp_table_schema),
                         replace=True,
-                        temp=True,
+                        table_type="temporary",
                     ),
                     is_ddl_on_temp_object=True,
                 ),
@@ -813,7 +813,6 @@ class SnowflakePlanBuilder:
                     create_table_statement(
                         table_name,
                         attribute_to_schema_string(attributes),
-                        temp=False,
                     ),
                     # This is an exception. The principle is to avoid surprising behavior and most of the time
                     # it applies to temp object. But this perm table creation is also one place where we create
