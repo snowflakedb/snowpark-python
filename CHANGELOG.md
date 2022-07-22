@@ -17,9 +17,9 @@
 - Added support for `table_type` in `save_as_table`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
 
 ### Improvements:
-- Validate object name in session.use_* methods.
-- Escape query tag in SQL when it has special characters.
-- Check if anaconda terms are acknowledged when adding missing packages.
+- Added validation of object name in `session.use_*` methods.
+- Updated the query tag in SQL to escape it when it has special characters.
+- Added a check to see if Anaconda terms are acknowledged when adding missing packages.
 
 ### Bug Fixes:
 - Fixed the limited length of the string column in `create_dataframe`.
