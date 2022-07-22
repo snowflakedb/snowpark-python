@@ -42,7 +42,7 @@ setup(
         "Issues": "https://github.com/snowflakedb/snowpark-python/issues",
         "Changelog": "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md",
     },
-    python_requires="==3.8.*",
+    python_requires=">=3.8",
     install_requires=[
         "setuptools>=40.6.0",
         "wheel",
