@@ -267,6 +267,7 @@ def test_save_as_table_not_affect_copy_into(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.xfail(reason="SNOW-632268 flaky test", strict=False)
 @pytest.mark.parametrize(
     "trans_columns", [([col("$1"), col("$2"), col("$3")]), (["$1", "$2", "$3"])]
 )
