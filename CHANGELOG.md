@@ -13,7 +13,7 @@
   - `register` and `register_from_file` on class `snowflake.snowpark.udtf.UDTFRegistration`.
   - `register` and `register_from_file` on class `snowflake.snowpark.stored_procedure.StoredProcedureRegistration`.
   - `udf`, `udtf` and `sproc` in `snowflake.snowpark.functions`.
-- Added support `Column` as an input argument to `session.call()`.
+- Added support for `Column` as an input argument to `session.call()`.
 - Added support for `table_type` in `df.write.save_as_table()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
 
 ### Improvements:
