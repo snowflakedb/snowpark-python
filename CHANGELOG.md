@@ -13,8 +13,8 @@
   - `register` and `register_from_file` on class `snowflake.snowpark.udtf.UDTFRegistration`.
   - `register` and `register_from_file` on class `snowflake.snowpark.stored_procedure.StoredProcedureRegistration`.
   - `udf`, `udtf` and `sproc` in `snowflake.snowpark.functions`.
-- Added support `Column` as an input argument to a stored procedure call.
-- Added support for `table_type` in `save_as_table`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
+- Added support `Column` as an input argument to `session.call()`.
+- Added support for `table_type` in `df.write.save_as_table()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
 
 ### Improvements:
 - Added validation of object name in `session.use_*` methods.
@@ -22,11 +22,11 @@
 - Added a check to see if Anaconda terms are acknowledged when adding missing packages.
 
 ### Bug Fixes:
-- Fixed the limited length of the string column in `create_dataframe`.
-- Fixed a bug in which `create_dataframe` mistakenly converted 0 and False to None when the input data was only a list.
-- Fixed a bug in which calling `create_dataframe` using a large local dataset sometimes created a temp table twice.
-- Aligned the definition of `trim` with the SQL function definition.
-- Fixed an issue where snowpark-python would hang when using the Snowflake system-defined (built-in function) `sum` vs. the Snowpark `sum`.
+- Fixed the limited length of the string column in `session.create_dataframe()`.
+- Fixed a bug in which `session.create_dataframe()` mistakenly converted 0 and `False` to `None` when the input data was only a list.
+- Fixed a bug in which calling `session.create_dataframe()` using a large local dataset sometimes created a temp table twice.
+- Aligned the definition of `function.trim()` with the SQL function definition.
+- Fixed an issue where snowpark-python would hang when using the Python system-defined (built-in function) `sum` vs. the Snowpark `function.sum()`.
 
 
 ## 0.7.0 (2022-05-25)
