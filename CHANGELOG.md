@@ -24,9 +24,9 @@
 ### Bug Fixes:
 - Fixed the limited length of the string column in `create_dataframe`.
 - Fixed a bug in which `create_dataframe` mistakenly converted 0 and False to None when the input data was only a list.
-- Fixed calling `create_dataframe` using large local dataset can cause creating a temp table twice.
-- Aligned the definition of 'trim' with the SQL function definition.
-- snowpark-python no longer hangs when using builtin sum vs snowpark sum.
+- Fixed a bug in which calling `create_dataframe` using a large local dataset sometimes created a temp table twice.
+- Aligned the definition of `trim` with the SQL function definition.
+- Fixed an issue where snowpark-python would hang when using the Snowflake system-defined (built-in function) `sum` vs. the Snowpark `sum`.
 
 
 ## 0.7.0 (2022-05-25)
