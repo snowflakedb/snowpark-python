@@ -52,5 +52,3 @@ create or replace table percentiles_data (
   constraint fkey_1 foreign key (dataset_version) REFERENCES dataset_context (version) enforced
 );
 -------------------------------------------------------------------------------------------------
-
-
