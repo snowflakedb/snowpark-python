@@ -74,7 +74,7 @@ setup(
             "pytest",
             "pytest-cov",
             "coverage",
-            "sphinx",
+            "sphinx==5.0.2",
             "cachetools",  # used in UDF doctest
         ],
     },
