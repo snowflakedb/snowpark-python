@@ -451,14 +451,28 @@ class DataFrame:
             statement_params=statement_params
         )
 
-    def _internal_collect_with_tag_no_telemetry(
+    @df_collect_api_telemetry
+    def collect_nowait(
         self, *, statement_params: Optional[Dict[str, str]] = None
+    ) -> List["Row"]:
+        """Executes the query representing this DataFrame asynchronously and returns query id(asyncjob instance).
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+        """
+        return self._internal_collect_with_tag_no_telemetry(
+            statement_params=statement_params, async_=True
+        )
+
+    def _internal_collect_with_tag_no_telemetry(
+        self, *, statement_params: Optional[Dict[str, str]] = None, async_: bool = False
     ) -> List["Row"]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
         return self._session._conn.execute(
             self._plan,
+            async_=async_,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
