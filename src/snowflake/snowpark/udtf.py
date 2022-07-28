@@ -90,12 +90,12 @@ class UDTFRegistration:
 
     :attr:`session.udtf <snowflake.snowpark.Session.udtf>` returns an object of this class.
     You can use this object to register UDTFs that you plan to use in the current session or
-    permanently. The methods that register a UDTF returns a :class:`UserDefinedTableFunction` object,
+    permanently. The methods that register a UDTF return a :class:`UserDefinedTableFunction` object,
     which you can also use to call the UDTF.
 
     Registering a UDTF is like registering a scalar UDF, you can use :meth:`register` or :func:`snowflake.snowpark.functions.udf`
-    to explicitly register it. You can slso decorator `@udtf`. They all use ``cloudpickle`` to transfer the code from cleitn to the server.
-    Another way is to use :meth:`register_from_file`. Refer to module :class:`snowflake.snowpark.udf.UDFRegistration` for when to use them respectively.
+    to explicitly register it. You can also use the decorator `@udtf`. They all use ``cloudpickle`` to transfer the code from the client to the server.
+    Another way is to use :meth:`register_from_file`. Refer to module :class:`snowflake.snowpark.udf.UDFRegistration` for when to use them.
 
     To query a registered UDTF is the same as to query other table functions.
     Refer to :meth:`~snowflake.snowpark.Session.table_function` and :meth:`~snowflake.snowpark.DataFrame.join_table_function`.
