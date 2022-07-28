@@ -21,22 +21,6 @@ class AsyncJob:
             raise ValueError("connection cannot be empty")
         return
 
-    @property
-    def query_id(self) -> str:
-        return self.query_id
-
-    @query_id.setter
-    def query_id(self, value: str) -> None:
-        self.query_id = value
-
-    @property
-    def query(self) -> str:
-        return self.query
-
-    @query.setter
-    def query(self, value: str) -> None:
-        self.query = value
-
     # iterator
     def __iter__(self):
         pass
@@ -55,7 +39,7 @@ class AsyncJob:
         # stop and cancel current query id
         self._conn._cancel_query(self.query, self.query_id)
 
-    def collect(self):
+    def result(self):
         # return result of the query, in the form of a list of Row object
         self._cursor.get_results_from_sfqid(self.query_id)
         return self._cursor.fetchall()
