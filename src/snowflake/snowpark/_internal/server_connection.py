@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.utils import (
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
+from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
@@ -309,7 +310,7 @@ class ServerConnection:
         is_ddl_on_temp_object: bool = False,
         async_: bool = False,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> Union[Dict[str, Any], AsyncJob]:
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
@@ -335,7 +336,7 @@ class ServerConnection:
         # have non-select statements, and it shouldn't fail if the user
         # calls to_pandas() to execute the query.
         if async_:
-            return results_cursor
+            return AsyncJob(results_cursor["queryId"], query, self._conn)
         if to_pandas:
             try:
                 data_or_iter = (
@@ -427,7 +428,9 @@ class ServerConnection:
                         async_=async_,
                         **kwargs,
                     )
-                    placeholders[query.query_id_place_holder] = result["sfqid"]
+                    placeholders[query.query_id_place_holder] = (
+                        result["sfqid"] if not async_ else None
+                    )
                     result_meta = self._cursor.description
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
