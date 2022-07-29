@@ -55,14 +55,14 @@ class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self,
         table_name: str,
-        column_list: Optional[Iterable[str]],
+        column_names: Optional[Iterable[str]],
         mode: SaveMode,
         query: Optional[LogicalPlan],
         table_type: str = "",
     ) -> None:
         super().__init__()
         self.table_name = table_name
-        self.column_list = column_list
+        self.column_names = column_names
         self.mode = mode
         self.query = query
         self.table_type = table_type

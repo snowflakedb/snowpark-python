@@ -66,7 +66,7 @@ def test_write_with_target_column_name_order(session):
 
 def test_write_with_target_table_autoincrement(
     session,
-):  # Scala doesn't suppor this yet.
+):  # Scala doesn't support this yet.
     table_name = Utils.random_table_name()
     Utils.create_table(
         session, table_name, "a int, b int, c int autoincrement", is_temporary=True
@@ -90,6 +90,13 @@ def test_negative_write_with_target_column_name_order(session):
         with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
             df1.write.save_as_table(
                 table_name, mode="append", column_order="name", table_type="temp"
+            )
+
+        with pytest.raises(
+            ValueError, match="'column_order' must be either 'name' or 'index'"
+        ):
+            df1.write.save_as_table(
+                table_name, mode="append", column_order="any_value", table_type="temp"
             )
     finally:
         Utils.drop_table(session, table_name)

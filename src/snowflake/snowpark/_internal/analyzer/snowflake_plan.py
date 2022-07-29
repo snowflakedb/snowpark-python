@@ -493,7 +493,7 @@ class SnowflakePlanBuilder:
     def save_as_table(
         self,
         table_name: str,
-        column_list: Optional[Iterable[str]],
+        column_names: Optional[Iterable[str]],
         mode: SaveMode,
         table_type: str,
         child: SnowflakePlan,
@@ -512,7 +512,7 @@ class SnowflakePlanBuilder:
                     Query(create_table),
                     Query(
                         insert_into_statement(
-                            table_name, column_list, child.queries[-1].sql
+                            table_name, column_names, child.queries[-1].sql
                         )
                     ),
                 ],

@@ -552,7 +552,7 @@ class Analyzer:
         if isinstance(logical_plan, SnowflakeCreateTable):
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
-                logical_plan.column_list,
+                logical_plan.column_names,
                 logical_plan.mode,
                 logical_plan.table_type,
                 resolved_children[logical_plan.children[0]],
