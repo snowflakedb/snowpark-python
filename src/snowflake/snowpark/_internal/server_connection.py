@@ -308,7 +308,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         is_ddl_on_temp_object: bool = False,
-        async_: bool = False,
+        block: bool = True,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -317,7 +317,7 @@ class ServerConnection:
                 if not kwargs.get("_statement_params"):
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
-            if not async_:
+            if block:
                 results_cursor = self._cursor.execute(query, **kwargs)
                 self.notify_query_listeners(
                     QueryRecord(results_cursor.sfqid, results_cursor.query)
@@ -325,6 +325,10 @@ class ServerConnection:
                 logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
                 results_cursor = self._cursor.execute_async(query, **kwargs)
+                self.notify_query_listeners(QueryRecord(results_cursor.sfqid, query))
+                logger.debug(
+                    f"Execute query [queryID: {results_cursor['queryID']}] {query}"
+                )
         except Exception as ex:
             query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
             logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
@@ -335,7 +339,7 @@ class ServerConnection:
         # because when the query plan has multiple queries, it will
         # have non-select statements, and it shouldn't fail if the user
         # calls to_pandas() to execute the query.
-        if async_:
+        if not block:
             return AsyncJob(results_cursor["queryId"], query, self._conn)
         if to_pandas:
             try:
@@ -369,7 +373,7 @@ class ServerConnection:
         plan: SnowflakePlan,
         to_pandas: bool = False,
         to_iter: bool = False,
-        async_: bool = False,
+        block: bool = True,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
@@ -377,7 +381,7 @@ class ServerConnection:
         result_set, result_meta = self.get_result_set(
             plan, to_pandas, to_iter, **kwargs
         )
-        if async_:
+        if not block:
             return result_set
         if to_pandas:
             return result_set["data"]
@@ -393,7 +397,7 @@ class ServerConnection:
         plan: SnowflakePlan,
         to_pandas: bool = False,
         to_iter: bool = False,
-        async_: bool = False,
+        block: bool = True,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -425,11 +429,11 @@ class ServerConnection:
                         to_pandas,
                         to_iter and (i == len(plan.queries) - 1),
                         is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                        async_=async_,
+                        block=block,
                         **kwargs,
                     )
                     placeholders[query.query_id_place_holder] = (
-                        result["sfqid"] if not async_ else None
+                        result["sfqid"] if not block else result["queryID"]
                     )
                     result_meta = self._cursor.description
                 if action_id < plan.session._last_canceled_id:
@@ -440,7 +444,7 @@ class ServerConnection:
                 self.run_query(
                     action.sql,
                     is_ddl_on_temp_object=action.is_ddl_on_temp_object,
-                    async_=async_,
+                    block=block,
                     **kwargs,
                 )
 

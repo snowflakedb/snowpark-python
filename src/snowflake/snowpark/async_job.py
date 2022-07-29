@@ -2,15 +2,15 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.snowpark._internal.server_connection import SnowflakeConnection
+from snowflake.connector import SnowflakeConnection
 
 
 class AsyncJob:
     def __init__(
         self,
-        query_id: str = None,
-        query: str = None,
-        conn: SnowflakeConnection = None,
+        query_id: str,
+        query: str,
+        conn: SnowflakeConnection,
     ) -> None:
         self.query_id = query_id
         self.query = query
