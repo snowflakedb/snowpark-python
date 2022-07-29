@@ -625,7 +625,10 @@ class SnowflakePlanBuilder:
             table_type="temporary",
         )
 
-        return [create_table, insert_into_statement(name, None, query)]
+        return [
+            create_table,
+            insert_into_statement(table_name=name, column_names=None, child=query),
+        ]
 
     def read_file(
         self,
