@@ -70,6 +70,7 @@ class DataFrameWriter:
         table_name: Union[str, Iterable[str]],
         *,
         mode: Optional[str] = None,
+        column_order: str = "index",
         create_temp_table: bool = False,
         table_type: str = "",
         statement_params: Optional[Dict[str, str]] = None,
@@ -89,6 +90,11 @@ class DataFrameWriter:
                 "errorifexists": Throw an exception if data already exists.
 
                 "ignore": Ignore this operation if data already exists.
+
+            column_order: When ``mode`` is "append", data will be inserted to the target table by matching column sequence or column name. Default is "index".
+
+                "index": Data will be inserted to the target table by column sequence.
+                "name": Data will be inserted to the target table by matching column names. If the target table has more columns than the source DataFrame, use this one.
 
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
@@ -131,8 +137,19 @@ class DataFrameWriter:
                 "Unsupported table type. Expected table types: temp/temporary, transient"
             )
 
+        if column_order:
+            column_order_lower = column_order.lower()
+            if column_order_lower == "name":
+                column_list = self._dataframe.columns
+            elif column_order_lower == "index":
+                column_list = None
+            else:
+                raise ValueError("'column_order' must be either 'name' or 'index'")
+        else:
+            column_list = None  # column_order default is index.
         create_table_logic_plan = SnowflakeCreateTable(
             full_table_name,
+            column_list,
             save_mode,
             self._dataframe._plan,
             table_type,
