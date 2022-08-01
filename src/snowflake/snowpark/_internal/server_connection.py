@@ -309,6 +309,7 @@ class ServerConnection:
         to_iter: bool = False,
         is_ddl_on_temp_object: bool = False,
         block: bool = True,
+        data_type: str = "row",
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -325,9 +326,11 @@ class ServerConnection:
                 logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
                 results_cursor = self._cursor.execute_async(query, **kwargs)
-                self.notify_query_listeners(QueryRecord(results_cursor.sfqid, query))
+                self.notify_query_listeners(
+                    QueryRecord(results_cursor["queryId"], query)
+                )
                 logger.debug(
-                    f"Execute query [queryID: {results_cursor['queryID']}] {query}"
+                    f"Execute query [queryID: {results_cursor['queryId']}] {query}"
                 )
         except Exception as ex:
             query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
@@ -340,7 +343,13 @@ class ServerConnection:
         # have non-select statements, and it shouldn't fail if the user
         # calls to_pandas() to execute the query.
         if not block:
-            return AsyncJob(results_cursor["queryId"], query, self._conn)
+            return AsyncJob(
+                results_cursor["queryId"],
+                query,
+                self._conn,
+                self._cursor.describe(query, **kwargs),
+                data_type,
+            )
         if to_pandas:
             try:
                 data_or_iter = (
@@ -374,16 +383,17 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         block: bool = True,
+        data_type: str = "row",
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         result_set, result_meta = self.get_result_set(
-            plan, to_pandas, to_iter, **kwargs
+            plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
         )
         if not block:
             return result_set
-        if to_pandas:
+        elif to_pandas:
             return result_set["data"]
         else:
             if to_iter:
@@ -398,6 +408,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         block: bool = True,
+        data_type: str = "row",
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -430,11 +441,13 @@ class ServerConnection:
                         to_iter and (i == len(plan.queries) - 1),
                         is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                         block=block,
+                        data_type=data_type,
                         **kwargs,
                     )
-                    placeholders[query.query_id_place_holder] = (
-                        result["sfqid"] if not block else result["queryID"]
-                    )
+                    if block:
+                        placeholders[query.query_id_place_holder] = result["sfqid"]
+                    else:
+                        placeholders[query.query_id_place_holder] = result.query_id
                     result_meta = self._cursor.description
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()

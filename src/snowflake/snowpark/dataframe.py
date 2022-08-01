@@ -85,6 +85,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     validate_object_name,
 )
+from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -453,26 +454,35 @@ class DataFrame:
 
     @df_collect_api_telemetry
     def collect_nowait(
-        self, *, statement_params: Optional[Dict[str, str]] = None
-    ) -> List["Row"]:
-        """Executes the query representing this DataFrame asynchronously and returns query id(asyncjob instance).
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        data_type: str = "row",
+    ) -> AsyncJob:
+        """Executes the query representing this DataFrame asynchronously and returns: class:'AsyncJob'
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            data_type: String that indicate the return type of AsyncJob.result()
         """
         return self._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params, async_=True
+            statement_params=statement_params, block=False, data_type=data_type
         )
 
     def _internal_collect_with_tag_no_telemetry(
-        self, *, statement_params: Optional[Dict[str, str]] = None, async_: bool = False
-    ) -> List["Row"]:
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        data_type: str = "row",
+    ) -> Union[List["Row"], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
         return self._session._conn.execute(
             self._plan,
-            async_=async_,
+            block=block,
+            data_type=data_type,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
