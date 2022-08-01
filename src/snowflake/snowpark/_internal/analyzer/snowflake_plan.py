@@ -6,7 +6,7 @@ import re
 import sys
 import uuid
 from functools import cached_property, reduce
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import snowflake.connector
 import snowflake.snowpark
@@ -493,6 +493,7 @@ class SnowflakePlanBuilder:
     def save_as_table(
         self,
         table_name: str,
+        column_names: Optional[Iterable[str]],
         mode: SaveMode,
         table_type: str,
         child: SnowflakePlan,
@@ -504,11 +505,18 @@ class SnowflakePlanBuilder:
                 error=False,
                 table_type=table_type,
             )
+
             return SnowflakePlan(
                 [
                     *child.queries[0:-1],
                     Query(create_table),
-                    Query(insert_into_statement(table_name, child.queries[-1].sql)),
+                    Query(
+                        insert_into_statement(
+                            table_name=table_name,
+                            child=child.queries[-1].sql,
+                            column_names=column_names,
+                        )
+                    ),
                 ],
                 create_table,
                 child.post_actions,
@@ -619,7 +627,10 @@ class SnowflakePlanBuilder:
             table_type="temporary",
         )
 
-        return [create_table, insert_into_statement(name, query)]
+        return [
+            create_table,
+            insert_into_statement(table_name=name, column_names=None, child=query),
+        ]
 
     def read_file(
         self,
