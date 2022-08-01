@@ -496,7 +496,7 @@ class UDFRegistration:
                 session-level packages.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
-                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
@@ -608,7 +608,7 @@ class UDFRegistration:
                 session-level packages.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
-                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_

@@ -1640,7 +1640,11 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("dateadd")(part, c1, c2)
 
 
-def date_from_parts(y: ColumnOrName, m: ColumnOrName, d: ColumnOrName) -> Column:
+def date_from_parts(
+    y: Union[ColumnOrName, int],
+    m: Union[ColumnOrName, int],
+    d: Union[ColumnOrName, int],
+) -> Column:
     """
     Creates a date from individual numeric components that represent the year, month, and day of the month.
 
@@ -1648,10 +1652,12 @@ def date_from_parts(y: ColumnOrName, m: ColumnOrName, d: ColumnOrName) -> Column
         >>> df = session.create_dataframe([[2022, 4, 1]], schema=["year", "month", "day"])
         >>> df.select(date_from_parts("year", "month", "day")).collect()
         [Row(DATE_FROM_PARTS("YEAR", "MONTH", "DAY")=datetime.date(2022, 4, 1))]
+        >>> session.table("dual").select(date_from_parts(2022, 4, 1)).collect()
+        [Row(DATE_FROM_PARTS(2022, 4, 1)=datetime.date(2022, 4, 1))]
     """
-    y_col = _to_col_if_str(y, "date_from_parts")
-    m_col = _to_col_if_str(m, "date_from_parts")
-    d_col = _to_col_if_str(d, "date_from_parts")
+    y_col = _to_col_if_str_or_int(y, "date_from_parts")
+    m_col = _to_col_if_str_or_int(m, "date_from_parts")
+    d_col = _to_col_if_str_or_int(d, "date_from_parts")
     return builtin("date_from_parts")(y_col, m_col, d_col)
 
 
@@ -2957,7 +2963,7 @@ def udf(
             session-level packages.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDF with the same name is overwritten.
         session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -3104,7 +3110,7 @@ def udtf(
             :meth:`~snowflake.snowpark.Session.add_requirements`.
         replace: Whether to replace a UDTF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDTF with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDTF with the same name is overwritten.
         session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -3429,7 +3435,7 @@ def sproc(
             :meth:`~snowflake.snowpark.Session.add_requirements`.
         replace: Whether to replace a stored procedure that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a stored procedure with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing stored procedure with the same name is overwritten.
         session: Use this session to register the stored procedure. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.

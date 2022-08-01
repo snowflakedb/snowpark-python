@@ -3,7 +3,7 @@ Snowpark API Reference (Python)
 
 .. sidebar:: Preview Feature --- Open
 
-   Support for this feature is currently not in production and is available only to selected accounts.
+   Available to all accounts.
 
 Snowpark is a new developer experience that provides an intuitive API for querying and handling data.
 Snowpark simplifies the process of building complex data pipelines and allows you to interact with
