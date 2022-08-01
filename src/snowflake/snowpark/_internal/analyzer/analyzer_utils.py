@@ -586,7 +586,7 @@ def create_table_statement(
 
 
 def insert_into_statement(
-    table_name: str, column_names: Optional[Iterable[str]], child: str
+    table_name: str, child: str, column_names: Optional[Iterable[str]] = None
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
