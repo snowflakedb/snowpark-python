@@ -741,21 +741,6 @@ class Session:
                     "and add it via session.add_import(). See details at "
                     "https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
                 )
-                unaccepted_terms_err_msg = (
-                    "Anaconda terms must be accepted by ORGADMIN to use "
-                    "Anaconda 3rd party packages. Please follow the instructions at "
-                    "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
-                )
-
-                def get_missing_package_message(
-                    package_name: str,
-                    detailed_err_msg: str,
-                    package_ver: Optional[str] = None,
-                ) -> str:
-                    package_ver = f"=={package_ver}" if package_ver else ""
-                    # it is not available in Snowflake. Check information_schema.packages
-                    message = f"Cannot add package {package_name}{package_ver} because {detailed_err_msg}"
-                    return message
 
                 if package_name not in valid_packages:
                     is_anaconda_terms_acknowledged = self._run_query(
@@ -764,18 +749,20 @@ class Session:
                     if is_anaconda_terms_acknowledged:
                         detailed_err_msg = unavailable_pkg_err_msg
                     else:
-                        detailed_err_msg = unaccepted_terms_err_msg
+                        detailed_err_msg = (
+                            "Anaconda terms must be accepted by ORGADMIN to use "
+                            "Anaconda 3rd party packages. Please follow the instructions at "
+                            "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
+                        )
 
                     raise ValueError(
-                        get_missing_package_message(package_name, detailed_err_msg)
+                        f"Cannot add package {package_name} because {detailed_err_msg}"
                     )
                 elif package_version_req and not any(
                     v in package_req for v in valid_packages[package_name]
                 ):
                     raise ValueError(
-                        get_missing_package_message(
-                            package_name, unavailable_pkg_err_msg, package_version_req
-                        )
+                        f"Cannot add package {package_name}=={package_version_req} because {unavailable_pkg_err_msg}"
                     )
                 elif not use_local_version:
                     try:
