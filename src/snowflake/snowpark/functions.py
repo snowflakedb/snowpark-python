@@ -203,7 +203,7 @@ from snowflake.snowpark.column import (
     _to_col_if_str_or_int,
 )
 from snowflake.snowpark.stored_procedure import StoredProcedure
-from snowflake.snowpark.types import DataType, StructType
+from snowflake.snowpark.types import DataType, FloatType, StructType
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
 
@@ -755,12 +755,16 @@ def uniform(
         >>> df.select(uniform(1, 100, col("a")).alias("UNIFORM")).collect()
         [Row(UNIFORM=62)]
     """
-    min_col = (
-        lit(min_) if isinstance(min_, (int, float)) else _to_col_if_str(min_, "uniform")
-    )
-    max_col = (
-        lit(max_) if isinstance(max_, (int, float)) else _to_col_if_str(max_, "uniform")
-    )
+
+    def convert_limit_to_col(limit):
+        if isinstance(limit, int):
+            return lit(limit)
+        elif isinstance(limit, float):
+            return lit(limit).cast(FloatType())
+        return _to_col_if_str(limit, "uniform")
+
+    min_col = convert_limit_to_col(min_)
+    max_col = convert_limit_to_col(max_)
     gen_col = (
         lit(gen) if isinstance(gen, (int, float)) else _to_col_if_str(gen, "uniform")
     )
