@@ -8,6 +8,7 @@ import sys
 from types import ModuleType
 from typing import (
     Callable,
+    Dict,
     Iterable,
     List,
     Optional,
@@ -85,16 +86,20 @@ class UserDefinedTableFunction:
 class UDTFRegistration:
     """
     Provides methods to register classes as UDTFs in the Snowflake database.
-    For more information about Snowflake Python UDTFs, see `Python UDTFs <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python.html>`__.
+    For more information about Snowflake Python UDTFs, see `Python UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions.html>`__.
 
     :attr:`session.udtf <snowflake.snowpark.Session.udtf>` returns an object of this class.
     You can use this object to register UDTFs that you plan to use in the current session or
-    permanently. The methods that register a UDTF returns a :class:`UserDefinedTableFunction` object,
+    permanently. The methods that register a UDTF return a :class:`UserDefinedTableFunction` object,
     which you can also use to call the UDTF.
 
     Registering a UDTF is like registering a scalar UDF, you can use :meth:`register` or :func:`snowflake.snowpark.functions.udf`
-    to explicitly register it. You can slso decorator `@udtf`. They all use ``cloudpickle`` to transfer the code from cleitn to the server.
-    Another way is to use :meth:`register_from_file`. Refer to module :class:`snowflake.snowpark.udf.UDFRegistration` for when to use them respectively.
+    to explicitly register it. You can also use the decorator `@udtf`. They all use ``cloudpickle`` to transfer the code from the client to the server.
+    Another way is to use :meth:`register_from_file`. Refer to module :class:`snowflake.snowpark.udf.UDFRegistration` for when to use them.
+
+    To query a registered UDTF is the same as to query other table functions.
+    Refer to :meth:`~snowflake.snowpark.Session.table_function` and :meth:`~snowflake.snowpark.DataFrame.join_table_function`.
+    If you want to query a UDTF right after it's created, you can call the created :class:`UserDefinedTableFunction` instance like in Example 1 below.
 
     Example 1
         Create a temporary UDTF and call it:
@@ -110,6 +115,19 @@ class UDTFRegistration:
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
             >>> session.table_function(generator_udtf.name, lit(3)).collect()  # Query it by using the name
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
+            >>> # Or you can lateral-join a UDTF like any other table functions
+            >>> df = session.create_dataframe([2, 3], schema=["c"])
+            >>> df.join_table_function(generator_udtf(df["c"])).sort("c", "number").show()
+            ------------------
+            |"C"  |"NUMBER"  |
+            ------------------
+            |2    |0         |
+            |2    |1         |
+            |3    |0         |
+            |3    |1         |
+            |3    |2         |
+            ------------------
+            <BLANKLINE>
 
     Example 2
         Create a UDTF with type hints and ``@udtf`` decorator and query it:
@@ -276,10 +294,6 @@ class UDTFRegistration:
             >>> session.table_function(generator_udtf(lit(3))).collect()
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
-    To query a registered UDTF is the same as to query other table functions.
-    Refer to :meth:`~snowflake.snowpark.Session.table_function` and :meth:`~snowflake.snowpark.DataFrame.join_table_function`.
-    If you want to call a UDTF right after it's created, refer to the above examples.
-
     See Also:
         - :func:`~snowflake.snowpark.functions.udtf`
         - :meth:`register`
@@ -305,6 +319,8 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
@@ -345,7 +361,7 @@ class UDTFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_requirements`.
             replace: Whether to replace a UDTF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDTF with a name that already exists
-                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDTF with the same name is overwritten.
             session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -354,6 +370,7 @@ class UDTFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDTF files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -380,6 +397,7 @@ class UDTFRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def register_from_file(
@@ -395,6 +413,8 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
@@ -441,7 +461,7 @@ class UDTFRegistration:
                 :meth:`~snowflake.snowpark.Session.add_requirements`.
             replace: Whether to replace a UDTF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDTF with a name that already exists
-                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDTF with the same name is overwritten.
             session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
                 You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -450,6 +470,7 @@ class UDTFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDTF files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -477,6 +498,7 @@ class UDTFRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def _do_register_udtf(
@@ -490,6 +512,8 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
         if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
@@ -595,6 +619,7 @@ class UDTFRegistration:
             parallel,
             False,
             False,
+            statement_params=statement_params,
         )
 
         raised = False

@@ -57,13 +57,13 @@ class SnowflakeCreateTable(LogicalPlan):
         table_name: str,
         mode: SaveMode,
         query: Optional[LogicalPlan],
-        create_temp_table: bool = False,
+        table_type: str = "",
     ) -> None:
         super().__init__()
         self.table_name = table_name
         self.mode = mode
         self.query = query
-        self.create_temp_table = create_temp_table
+        self.table_type = table_type
         self.children.append(query)
 
 

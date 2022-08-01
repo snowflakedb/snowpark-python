@@ -171,7 +171,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
 import functools
 from random import randint
 from types import ModuleType
-from typing import Callable, Iterable, List, Optional, Tuple, Union, overload
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -1007,11 +1007,11 @@ def soundex(e: ColumnOrName) -> Column:
     return builtin("soundex")(c)
 
 
-def trim(e: ColumnOrName, trim_string: ColumnOrName) -> Column:
+def trim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
     """Removes leading and trailing characters from a string."""
     c = _to_col_if_str(e, "trim")
-    t = _to_col_if_str(trim_string, "trim")
-    return builtin("trim")(c, t)
+    t = _to_col_if_str(trim_string, "trim") if trim_string is not None else None
+    return builtin("trim")(c, t) if t is not None else builtin("trim")(c)
 
 
 def upper(e: ColumnOrName) -> Column:
@@ -1636,7 +1636,11 @@ def dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("dateadd")(part, c1, c2)
 
 
-def date_from_parts(y: ColumnOrName, m: ColumnOrName, d: ColumnOrName) -> Column:
+def date_from_parts(
+    y: Union[ColumnOrName, int],
+    m: Union[ColumnOrName, int],
+    d: Union[ColumnOrName, int],
+) -> Column:
     """
     Creates a date from individual numeric components that represent the year, month, and day of the month.
 
@@ -1644,10 +1648,12 @@ def date_from_parts(y: ColumnOrName, m: ColumnOrName, d: ColumnOrName) -> Column
         >>> df = session.create_dataframe([[2022, 4, 1]], schema=["year", "month", "day"])
         >>> df.select(date_from_parts("year", "month", "day")).collect()
         [Row(DATE_FROM_PARTS("YEAR", "MONTH", "DAY")=datetime.date(2022, 4, 1))]
+        >>> session.table("dual").select(date_from_parts(2022, 4, 1)).collect()
+        [Row(DATE_FROM_PARTS(2022, 4, 1)=datetime.date(2022, 4, 1))]
     """
-    y_col = _to_col_if_str(y, "date_from_parts")
-    m_col = _to_col_if_str(m, "date_from_parts")
-    d_col = _to_col_if_str(d, "date_from_parts")
+    y_col = _to_col_if_str_or_int(y, "date_from_parts")
+    m_col = _to_col_if_str_or_int(m, "date_from_parts")
+    d_col = _to_col_if_str_or_int(d, "date_from_parts")
     return builtin("date_from_parts")(y_col, m_col, d_col)
 
 
@@ -2906,6 +2912,7 @@ def udf(
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
+    statement_params: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -2952,7 +2959,7 @@ def udf(
             session-level packages.
         replace: Whether to replace a UDF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDF with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDF with the same name is overwritten.
         session: Use this session to register the UDF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -2967,6 +2974,7 @@ def udf(
             every batch by setting a smaller batch size. Note that setting a larger value does not
             guarantee that Snowflake will encode batches with the specified number of rows. It will
             be ignored when registering a non-vectorized UDF.
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3023,6 +3031,7 @@ def udf(
             replace=replace,
             parallel=parallel,
             max_batch_size=max_batch_size,
+            statement_params=statement_params,
         )
     else:
         return session.udf.register(
@@ -3037,6 +3046,7 @@ def udf(
             replace=replace,
             parallel=parallel,
             max_batch_size=max_batch_size,
+            statement_params=statement_params,
         )
 
 
@@ -3053,6 +3063,7 @@ def udtf(
     replace: bool = False,
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
+    statement_params: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -3095,7 +3106,7 @@ def udtf(
             :meth:`~snowflake.snowpark.Session.add_requirements`.
         replace: Whether to replace a UDTF that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a UDTF with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing UDTF with the same name is overwritten.
         session: Use this session to register the UDTF. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -3104,6 +3115,7 @@ def udtf(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large UDTF files.
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3148,6 +3160,7 @@ def udtf(
             packages=packages,
             replace=replace,
             parallel=parallel,
+            statement_params=statement_params,
         )
     else:
         return session.udtf.register(
@@ -3161,6 +3174,7 @@ def udtf(
             packages=packages,
             replace=replace,
             parallel=parallel,
+            statement_params=statement_params,
         )
 
 
@@ -3178,6 +3192,7 @@ def pandas_udf(
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
+    statement_params: Optional[Dict[str, str]] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -3204,6 +3219,7 @@ def pandas_udf(
             parallel=parallel,
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
+            statement_params=statement_params,
         )
     else:
         return session.udf.register(
@@ -3219,6 +3235,7 @@ def pandas_udf(
             parallel=parallel,
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
+            statement_params=statement_params,
         )
 
 
@@ -3367,6 +3384,7 @@ def sproc(
     replace: bool = False,
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
+    statement_params: Optional[Dict[str, str]] = None,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -3413,7 +3431,7 @@ def sproc(
             :meth:`~snowflake.snowpark.Session.add_requirements`.
         replace: Whether to replace a stored procedure that already was registered. The default is ``False``.
             If it is ``False``, attempting to register a stored procedure with a name that already exists
-            results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+            results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
             an existing stored procedure with the same name is overwritten.
         session: Use this session to register the stored procedure. If it's not specified, the session that you created before calling this function will be used.
             You need to specify this parameter if you have created multiple sessions before calling this method.
@@ -3422,6 +3440,7 @@ def sproc(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large stored procedure files.
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -3464,6 +3483,7 @@ def sproc(
             packages=packages,
             replace=replace,
             parallel=parallel,
+            statement_params=statement_params,
         )
     else:
         return session.sproc.register(
@@ -3477,4 +3497,5 @@ def sproc(
             packages=packages,
             replace=replace,
             parallel=parallel,
+            statement_params=statement_params,
         )

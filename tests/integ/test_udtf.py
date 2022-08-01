@@ -107,3 +107,36 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
             )
         ],
     )
+
+    my_udtf_with_statement_params = session.udtf.register_from_file(
+        test_files.test_udtf_py_file,
+        "MyUDTFWithTypeHints",
+        output_schema=schema,
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+    )
+    assert isinstance(my_udtf_with_statement_params.handler, tuple)
+    df = session.table_function(
+        my_udtf_with_statement_params(
+            lit(1),
+            lit(2.2),
+            lit(True),
+            lit(decimal.Decimal("3.33")),
+            lit("python"),
+            lit(b"bytes"),
+            lit(bytearray("bytearray", "utf-8")),
+        )
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row(
+                1,
+                2.2,
+                True,
+                decimal.Decimal("3.33"),
+                "python",
+                b"bytes",
+                bytearray("bytearray", "utf-8"),
+            )
+        ],
+    )

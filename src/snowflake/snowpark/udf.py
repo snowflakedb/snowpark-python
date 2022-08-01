@@ -5,7 +5,7 @@
 """User-defined functions (UDFs) in Snowpark."""
 import sys
 from types import ModuleType
-from typing import Callable, Iterable, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -96,7 +96,7 @@ class UserDefinedFunction:
 class UDFRegistration:
     """
     Provides methods to register lambdas and functions as UDFs in the Snowflake database.
-    For more information about Snowflake Python UDFs, see `Python UDFs <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python.html>`__.
+    For more information about Snowflake Python UDFs, see `Python UDFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python.html>`__.
 
     :attr:`session.udf <snowflake.snowpark.Session.udf>` returns an object of this class.
     You can use this object to register UDFs that you plan to use in the current session or
@@ -179,7 +179,7 @@ class UDFRegistration:
     :func:`~snowflake.snowpark.functions.pandas_udf` to create a vectorized UDF by providing
     appropriate return and input types. If you would like to use :meth:`register_from_file` to
     create a vectorized UDF, you should follow the guide of
-    `Python UDF Batch API <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-batch.html>`_ in
+    `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`_ in
     your Python source files. See Example 9, 10 and 11 here for registering a vectorized UDF.
 
     Snowflake supports the following data types for the parameters for a UDF:
@@ -447,6 +447,8 @@ class UDFRegistration:
         replace: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> UserDefinedFunction:
         """
@@ -494,7 +496,7 @@ class UDFRegistration:
                 session-level packages.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
-                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
@@ -507,6 +509,7 @@ class UDFRegistration:
                 every batch by setting a smaller batch size. Note that setting a larger value does not
                 guarantee that Snowflake will encode batches with the specified number of rows. It will
                 be ignored when registering a non-vectorized UDF.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
@@ -535,6 +538,7 @@ class UDFRegistration:
             parallel,
             max_batch_size,
             kwargs.get("_from_pandas_udf_function", False),
+            statement_params=statement_params,
         )
 
     def register_from_file(
@@ -550,6 +554,8 @@ class UDFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -602,13 +608,14 @@ class UDFRegistration:
                 session-level packages.
             replace: Whether to replace a UDF that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a UDF with a name that already exists
-                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing UDF with the same name is overwritten.
             parallel: The number of threads to use for uploading UDF files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -636,6 +643,7 @@ class UDFRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def _do_register_udf(
@@ -651,6 +659,8 @@ class UDFRegistration:
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         from_pandas_udf_function: bool = False,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -695,6 +705,7 @@ class UDFRegistration:
             is_pandas_udf,
             is_dataframe_input,
             max_batch_size,
+            statement_params=statement_params,
         )
 
         raised = False

@@ -16,7 +16,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import df_action_telemetry
+from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
@@ -80,7 +80,7 @@ class WhenMatchedClause:
             >>> # corresponding row in source.
             >>> from snowflake.snowpark.functions import when_matched
             >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new")], schema=["key", "value"])
             >>> target.merge(source, target["key"] == source["key"], [when_matched().update({"value": source["value"]})])
@@ -118,7 +118,7 @@ class WhenMatchedClause:
             >>> # For all such rows, delete them.
             >>> from snowflake.snowpark.functions import when_matched
             >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new")], schema=["key", "value"])
             >>> target.merge(source, target["key"] == source["key"], [when_matched().delete()])
@@ -179,7 +179,7 @@ class WhenNotMatchedClause:
             >>> # are assigned to the key and value of the not matched row.
             >>> from snowflake.snowpark.functions import when_not_matched
             >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(12, "new")], schema=["key", "value"])
             >>> target.merge(source, target["key"] == source["key"], [when_not_matched().insert([source["key"], source["value"]])])
@@ -189,7 +189,7 @@ class WhenNotMatchedClause:
 
             >>> # For all such rows, insert a row into target whose key is
             >>> # assigned to the key of the not matched row.
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target.merge(source, target["key"] == source["key"], [when_not_matched().insert({"key": source["key"]})])
             MergeResult(rows_inserted=1, rows_updated=0, rows_deleted=0)
             >>> target.collect() # the rows are inserted
@@ -255,6 +255,10 @@ class Table(DataFrame):
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
         self.table_name: str = table_name  #: The table name
+        # By default, the set the initial API call to say 'Table.__init__' since
+        # people could instantiate a table directly. This value is overwritten when
+        # created from Session object
+        set_api_call_source(self, "Table.__init__")
 
     def __copy__(self) -> "Table":
         return Table(self.table_name, self._session)
@@ -309,12 +313,13 @@ class Table(DataFrame):
         sql_text = f"select * from {self.table_name} sample {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         return self._session.sql(sql_text)
 
-    @df_action_telemetry
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
         condition: Optional[Column] = None,
         source: Optional[DataFrame] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> UpdateResult:
         """
         Updates rows in the Table with specified ``assignments`` and returns a
@@ -329,11 +334,12 @@ class Table(DataFrame):
                 specified condition. It must be provided if ``source`` is provided.
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
 
             >>> target_df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> t = session.table("my_table")
 
             >>> # update all rows in column "b" to 0 and all rows in column "a"
@@ -344,7 +350,7 @@ class Table(DataFrame):
             [Row(A=2, B=0), Row(A=3, B=0), Row(A=3, B=0), Row(A=4, B=0), Row(A=4, B=0), Row(A=5, B=0)]
 
             >>> # update all rows in column "b" to 0 where column "a" has value 1
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> t.update({"b": 0}, t["a"] == 1)
             UpdateResult(rows_updated=2, multi_joined_rows_updated=0)
             >>> t.collect()
@@ -352,7 +358,7 @@ class Table(DataFrame):
 
             >>> # update all rows in column "b" to 0 where column "a" in this
             >>> # table is equal to column "a" in another dataframe
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> source_df = session.create_dataframe([1, 2, 3, 4], schema=["a"])
             >>> t.update({"b": 0}, t["a"] == source_df.a, source_df)
             UpdateResult(rows_updated=6, multi_joined_rows_updated=0)
@@ -377,13 +383,17 @@ class Table(DataFrame):
                 else None,
             )
         )
-        return _get_update_result(new_df._internal_collect_with_tag())
+        add_api_call(new_df, "Table.update")
+        return _get_update_result(
+            new_df._internal_collect_with_tag(statement_params=statement_params)
+        )
 
-    @df_action_telemetry
     def delete(
         self,
         condition: Optional[Column] = None,
         source: Optional[DataFrame] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> DeleteResult:
         """
         Deletes rows in a Table and returns a :class:`DeleteResult`,
@@ -394,11 +404,12 @@ class Table(DataFrame):
                 specified condition. It must be provided if ``source`` is provided.
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
 
             >>> target_df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> t = session.table("my_table")
 
             >>> # delete all rows in a table
@@ -408,7 +419,7 @@ class Table(DataFrame):
             []
 
             >>> # delete all rows where column "a" has value 1
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> t.delete(t["a"] == 1)
             DeleteResult(rows_deleted=2)
             >>> t.collect()
@@ -416,7 +427,7 @@ class Table(DataFrame):
 
             >>> # delete all rows in this table where column "a" in this
             >>> # table is equal to column "a" in another dataframe
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> source_df = session.create_dataframe([2, 3, 4, 5], schema=["a"])
             >>> t.delete(t["a"] == source_df.a, source_df)
             DeleteResult(rows_deleted=4)
@@ -437,14 +448,18 @@ class Table(DataFrame):
                 else None,
             )
         )
-        return _get_delete_result(new_df._internal_collect_with_tag())
+        add_api_call(new_df, "Table.delete")
+        return _get_delete_result(
+            new_df._internal_collect_with_tag(statement_params=statement_params)
+        )
 
-    @df_action_telemetry
     def merge(
         self,
         source: DataFrame,
         join_expr: Column,
         clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> MergeResult:
         """
         Merges this :class:`Table` with :class:`DataFrame` source on the specified
@@ -464,12 +479,13 @@ class Table(DataFrame):
                 match or not match on ``join_expr``. These actions can only be instances
                 of :class:`WhenMatchedClause` and :class:`WhenNotMatchedClause`, and will
                 be performed sequentially in this list.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
 
             >>> from snowflake.snowpark.functions import when_matched, when_not_matched
             >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
-            >>> target_df.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
             >>> target.merge(source, target["key"] == source["key"],
@@ -502,8 +518,9 @@ class Table(DataFrame):
                 merge_exprs,
             )
         )
+        add_api_call(new_df, "Table.update")
         return _get_merge_result(
-            new_df._internal_collect_with_tag(),
+            new_df._internal_collect_with_tag(statement_params=statement_params),
             inserted=inserted,
             updated=updated,
             deleted=deleted,

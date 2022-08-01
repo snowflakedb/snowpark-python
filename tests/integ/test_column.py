@@ -151,3 +151,40 @@ def test_when_accept_sql_expr(session):
     assert TestData.null_data1(session).select(
         when("a is NULL", 5).when("a = 1", 6).as_("a")
     ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
+
+
+def test_column_with_builtins_that_shadow_functions(session):
+    conversion_error_msg_text = "Cannot convert a Column object into bool"
+    iter_error_msg_text = "Column is not iterable. This error can occur when you use the Python built-ins for sum, min and max. Please make sure you use the corresponding function from snowflake.snowpark.functions."
+    round_error_msg_text = "Column cannot be rounded. This error can occur when you use the Python built-in round. Please make sure you use the snowflake.snowpark.functions.round function intead."
+
+    with pytest.raises(TypeError) as ex_info:
+        TestData.double1(session).select(max(col("a"), 25)).collect()
+    assert conversion_error_msg_text in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        TestData.double1(session).select(max(col("a"))).collect()
+    assert iter_error_msg_text in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        TestData.double1(session).select(min(col("a"), 25)).collect()
+    assert conversion_error_msg_text in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        TestData.double1(session).select(min(col("a"))).collect()
+    assert iter_error_msg_text in str(ex_info)
+
+    # This works because we explicitly implement the __pow__ and __rpow__ methods
+    assert TestData.double1(session).select(pow(col("a"), 2)).collect() == [
+        Row(1.234321),
+        Row(4.937284),
+        Row(11.108889000000001),
+    ]
+
+    with pytest.raises(TypeError) as ex_info:
+        TestData.double1(session).select(round(col("a"))).collect()
+    assert round_error_msg_text in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        TestData.double1(session).select(sum(col("a"))).collect()
+    assert iter_error_msg_text in str(ex_info)

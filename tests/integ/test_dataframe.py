@@ -10,9 +10,13 @@ from collections import namedtuple
 from decimal import Decimal
 from itertools import product
 
+import pandas as pd
 import pytest
+from pandas import DataFrame as PandasDF
+from pandas.testing import assert_frame_equal
 
 from snowflake.snowpark import Column, Row
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
@@ -35,6 +39,25 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestData, TestFiles, Utils
+
+tmp_stage_name = Utils.random_stage_name()
+test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
+user_schema = StructType(
+    [
+        StructField("a", IntegerType()),
+        StructField("b", StringType()),
+        StructField("c", DoubleType()),
+    ]
+)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def setup(session, resources_path):
+    test_files = TestFiles(resources_path)
+    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
+    )
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
@@ -1445,19 +1468,46 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
+@pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_write_temp_table(session, save_mode):
+def test_table_types_in_save_as_table(session, save_mode, table_type):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
     try:
-        df.write.save_as_table(table_name, mode=save_mode, create_temp_table=True)
+        df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
+        Utils.check_answer(session.table(table_name), df, True)
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        expected_table_kind = (
+            "TEMPORARY" if table_type == "temp" else table_type.upper()
+        )
+        assert table_info[0]["kind"] == expected_table_kind
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+)
+def test_write_temp_table_no_breaking_change(session, save_mode):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    try:
+        with pytest.deprecated_call(match="create_temp_table is deprecated"):
+            df.write.save_as_table(table_name, mode=save_mode, create_temp_table=True)
         Utils.check_answer(session.table(table_name), df, True)
         table_info = session.sql(f"show tables like '{table_name}'").collect()
         assert table_info[0]["kind"] == "TEMPORARY"
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_write_invalid_table_type(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    with pytest.raises(ValueError, match="Unsupported table type"):
+        df.write.save_as_table(table_name, table_type="invalid")
 
 
 def test_write_copy_into_location_basic(session):
@@ -1589,7 +1639,7 @@ def test_unpivot(session, column_list):
 def test_create_dataframe_string_length(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe(["ab", "abc", "abcd"], schema=["a"])
-    df.write.mode("overwrite").save_as_table(table_name, create_temp_table=True)
+    df.write.mode("overwrite").save_as_table(table_name, table_type="temporary")
     datatype = json.loads(
         session.sql(f"show columns in {table_name}").collect()[0]["data_type"]
     )
@@ -1616,21 +1666,6 @@ def test_create_table_twice_no_error(session, resources_path):
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
     # 2) read file
-    tmp_stage_name = Utils.random_stage_name()
-    test_files = TestFiles(resources_path)
-    test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
-
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    Utils.upload_to_stage(
-        session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
-    )
-    user_schema = StructType(
-        [
-            StructField("a", IntegerType()),
-            StructField("b", StringType()),
-            StructField("c", DoubleType()),
-        ]
-    )
     df1 = (
         session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
     )
@@ -1639,3 +1674,203 @@ def test_create_table_twice_no_error(session, resources_path):
         df2.join(df3),
         [Row(A=1, C=1.2), Row(A=1, C=2.2), Row(A=2, C=1.2), Row(A=2, C=2.2)],
     )
+
+
+def check_df_with_query_id_result_scan(session, df):
+    query_id = df._execute_and_get_query_id()
+    df_from_result_scan = session.sql(result_scan_statement(query_id))
+    assert df.columns == df_from_result_scan.columns
+    Utils.check_answer(df, df_from_result_scan)
+
+
+def test_query_id_result_scan(session, resources_path):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    # create dataframe (small data)
+    df = session.create_dataframe([[1, 2], [1, 3], [4, 4]], schema=["a", "b"])
+    check_df_with_query_id_result_scan(session, df)
+
+    # create dataframe (large data)
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = session.create_dataframe([[1, 2], [1, 3], [4, 4]], schema=["a", "b"])
+        check_df_with_query_id_result_scan(session, df)
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+    # read file
+    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    check_df_with_query_id_result_scan(session, df)
+
+
+def test_call_with_statement_params(session):
+    statement_params_wrong_date_format = {
+        "DATE_INPUT_FORMAT": "YYYY-MM-DD",
+        "SF_PARTNER": "FAKE_PARTNER",
+    }
+    statement_params_correct_date_format = {
+        "DATE_INPUT_FORMAT": "MM-DD-YYYY",
+        "SF_PARTNER": "FAKE_PARTNER",
+    }
+    schema = StructType([StructField("A", DateType())])
+    df = session.create_dataframe(["01-01-1970", "12-31-2000"], schema=schema)
+    pandas_df = PandasDF(
+        [
+            datetime.date(1970, 1, 1),
+            datetime.date(2000, 12, 31),
+        ],
+        columns=["A"],
+    )
+    expected_rows = [Row(datetime.date(1970, 1, 1)), Row(datetime.date(2000, 12, 31))]
+
+    # collect
+    with pytest.raises(SnowparkSQLException) as exc:
+        df.collect(statement_params=statement_params_wrong_date_format)
+    assert "is not recognized" in str(exc)
+    assert (
+        df.collect(statement_params=statement_params_correct_date_format)
+        == expected_rows
+    )
+
+    # to_local_iterator
+    with pytest.raises(SnowparkSQLException) as exc:
+        list(df.to_local_iterator(statement_params=statement_params_wrong_date_format))
+    assert "is not recognized" in str(exc)
+    assert (
+        list(
+            df.to_local_iterator(statement_params=statement_params_correct_date_format)
+        )
+        == expected_rows
+    )
+
+    # to_pandas
+    with pytest.raises(SnowparkSQLException) as exc:
+        df.to_pandas(statement_params=statement_params_wrong_date_format)
+    assert "is not recognized" in str(exc)
+    assert_frame_equal(
+        df.to_pandas(statement_params=statement_params_correct_date_format),
+        pandas_df,
+        check_dtype=False,
+    )
+
+    # to_pandas_batches
+    with pytest.raises(SnowparkSQLException) as exc:
+        pd.concat(
+            list(
+                df.to_pandas_batches(
+                    statement_params=statement_params_wrong_date_format
+                )
+            ),
+            ignore_index=True,
+        )
+    assert "is not recognized" in str(exc)
+    assert_frame_equal(
+        pd.concat(
+            list(
+                df.to_pandas_batches(
+                    statement_params=statement_params_correct_date_format
+                )
+            ),
+            ignore_index=True,
+        ),
+        pandas_df,
+    )
+
+    # count
+    # passing statement_params_wrong_date_format does not trigger error
+    assert df.count(statement_params=statement_params_correct_date_format) == 2
+
+    # copy_into_table test is covered in test_datafrom_copy_into as it requires complex config
+
+    # show
+    with pytest.raises(SnowparkSQLException) as exc:
+        df.show(statement_params=statement_params_wrong_date_format)
+    assert "is not recognized" in str(exc)
+    df.show(statement_params=statement_params_correct_date_format)
+
+    # create_or_replace_view
+    # passing statement_params_wrong_date_format does not trigger error
+    assert (
+        "successfully created"
+        in df.create_or_replace_view(
+            Utils.random_view_name(),
+            statement_params=statement_params_correct_date_format,
+        )[0]["status"]
+    )
+
+    # create_or_replace_temp_view
+    # passing statement_params_wrong_date_format does not trigger error
+    assert (
+        "successfully created"
+        in df.create_or_replace_temp_view(
+            Utils.random_view_name(),
+            statement_params=statement_params_correct_date_format,
+        )[0]["status"]
+    )
+
+    # first
+    with pytest.raises(SnowparkSQLException) as exc:
+        df.first(statement_params=statement_params_wrong_date_format)
+    assert "is not recognized" in str(exc)
+
+    assert (
+        df.first(statement_params=statement_params_correct_date_format)
+        == expected_rows[0]
+    )
+
+    # cache_result
+    with pytest.raises(SnowparkSQLException) as exc:
+        df.cache_result(statement_params=statement_params_wrong_date_format).collect()
+    assert "is not recognized" in str(exc)
+
+    assert (
+        df.cache_result(statement_params=statement_params_correct_date_format).collect()
+        == expected_rows
+    )
+
+    # random_split
+    with pytest.raises(SnowparkSQLException) as exc:
+        df.random_split(
+            weights=[0.5, 0.5], statement_params=statement_params_wrong_date_format
+        )
+    assert "is not recognized" in str(exc)
+    assert (
+        len(
+            df.random_split(
+                weights=[0.5, 0.5],
+                statement_params=statement_params_correct_date_format,
+            )
+        )
+        == 2
+    )
+
+    # save_as_table
+    # passing statement_params_wrong_date_format does not trigger error
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe(["01-01-1970", "12-31-2000"]).toDF("a")
+    try:
+        df.write.save_as_table(
+            table_name,
+            mode="append",
+            table_type="temporary",
+            statement_params=statement_params_correct_date_format,
+        )
+        Utils.check_answer(session.table(table_name), df, True)
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        assert table_info[0]["kind"] == "TEMPORARY"
+    finally:
+        Utils.drop_table(session, table_name)
+
+    # copy_into_location
+    # passing statement_params_wrong_date_format does not trigger error
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    df = session.create_dataframe(["01-01-1970", "12-31-2000"]).toDF("a")
+    df.write.copy_into_location(
+        temp_stage, statement_params=statement_params_correct_date_format
+    )
+    copied_files = session.sql(f"list @{temp_stage}").collect()
+    assert len(copied_files) == 1
+    assert ".csv" in copied_files[0][0]
+    Utils.drop_stage(session, temp_stage)

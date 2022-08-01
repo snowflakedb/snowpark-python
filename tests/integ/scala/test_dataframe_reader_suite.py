@@ -27,7 +27,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import TestFiles, Utils
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
@@ -521,10 +521,6 @@ def test_read_parquet_with_no_schema(session, mode):
     ]
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-595068 the column order from infer_schema is not preserved",
-)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_parquet_all_data_types_with_no_schema(session, mode):
     path = f"@{tmp_stage_name1}/{test_file_all_data_types_parquet}"
@@ -533,33 +529,33 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
     res = df1.collect()
     assert res == [
         Row(
+            N=Decimal("10.123456"),
+            F=1.2,
+            I=1,
+            S="string",
+            C="a",
+            D=datetime.date(2022, 4, 1),
+            T=datetime.time(11, 11, 11),
             TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
             TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
-            F=1.2,
             V='{"key":"value"}',
-            C="a",
-            I=1,
-            T=datetime.time(11, 11, 11),
-            D=datetime.date(2022, 4, 1),
-            N=Decimal("10.123456"),
-            S="string",
         ),
     ]
 
     # type and column test
     schema = df1.schema
-    assert schema.names == ["TS_NTZ", "TS", "F", "V", "C", "I", "T", "D", "N", "S"]
+    assert schema.names == ["N", "F", "I", "S", "C", "D", "T", "TS_NTZ", "TS", "V"]
     assert schema.fields == [
+        StructField('"N"', DecimalType(38, 6), nullable=True),
+        StructField('"F"', DoubleType(), nullable=True),
+        StructField('"I"', LongType(), nullable=True),
+        StructField('"S"', StringType(), nullable=True),
+        StructField('"C"', StringType(), nullable=True),
+        StructField('"D"', DateType(), nullable=True),
+        StructField('"T"', TimeType(), nullable=True),
         StructField('"TS_NTZ"', TimestampType(), nullable=True),
         StructField('"TS"', TimestampType(), nullable=True),
-        StructField('"F"', DoubleType(), nullable=True),
         StructField('"V"', StringType(), nullable=True),
-        StructField('"C"', StringType(), nullable=True),
-        StructField('"I"', LongType(), nullable=True),
-        StructField('"T"', TimeType(), nullable=True),
-        StructField('"D"', DateType(), nullable=True),
-        StructField('"N"', DecimalType(38, 6), nullable=True),
-        StructField('"S"', StringType(), nullable=True),
     ]
 
     # user can input customized formatTypeOptions
@@ -567,40 +563,36 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
     res = df2.collect()
     assert res == [
         Row(
+            N=Decimal("10.123456"),
+            F=1.2,
+            I=1,
+            S="string",
+            C="a",
+            D=datetime.date(2022, 4, 1),
+            T=datetime.time(11, 11, 11),
             TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
             TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
-            F=1.2,
             V='{"key":"value"}',
-            C="a",
-            I=1,
-            T=datetime.time(11, 11, 11),
-            D=datetime.date(2022, 4, 1),
-            N=Decimal("10.123456"),
-            S="string",
         ),
     ]
 
     # type and column test
     schema = df2.schema
-    assert schema.names == ["TS_NTZ", "TS", "F", "V", "C", "I", "T", "D", "N", "S"]
+    assert schema.names == ["N", "F", "I", "S", "C", "D", "T", "TS_NTZ", "TS", "V"]
     assert schema.fields == [
+        StructField('"N"', DecimalType(38, 6), nullable=True),
+        StructField('"F"', DoubleType(), nullable=True),
+        StructField('"I"', LongType(), nullable=True),
+        StructField('"S"', StringType(), nullable=True),
+        StructField('"C"', StringType(), nullable=True),
+        StructField('"D"', DateType(), nullable=True),
+        StructField('"T"', TimeType(), nullable=True),
         StructField('"TS_NTZ"', TimestampType(), nullable=True),
         StructField('"TS"', TimestampType(), nullable=True),
-        StructField('"F"', DoubleType(), nullable=True),
         StructField('"V"', StringType(), nullable=True),
-        StructField('"C"', StringType(), nullable=True),
-        StructField('"I"', LongType(), nullable=True),
-        StructField('"T"', TimeType(), nullable=True),
-        StructField('"D"', DateType(), nullable=True),
-        StructField('"N"', DecimalType(38, 6), nullable=True),
-        StructField('"S"', StringType(), nullable=True),
     ]
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-595068 the column order from infer_schema is not preserved",
-)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_parquet_with_special_characters_in_column_names(session, mode):
     path = f"@{tmp_stage_name1}/{test_file_with_special_characters_parquet}"
@@ -610,23 +602,23 @@ def test_read_parquet_with_special_characters_in_column_names(session, mode):
 
     schema = df1.schema
     assert schema.names == [
-        '"Length of Membership"',
         '"Ema!l"',
-        '"Avg. $ession Length"',
-        '"Av@t@r"',
-        '"T!me on App"',
         '"Address"',
+        '"Av@t@r"',
+        '"Avg. $ession Length"',
+        '"T!me on App"',
         '"T!me on Website"',
+        '"Length of Membership"',
         '"Ye@rly Amount $pent"',
     ]
     assert schema.fields == [
-        StructField('"Length of Membership"', DoubleType(), nullable=True),
         StructField('"Ema!l"', StringType(), nullable=True),
-        StructField('"Avg. $ession Length"', DoubleType(), nullable=True),
-        StructField('"Av@t@r"', StringType(), nullable=True),
-        StructField('"T!me on App"', DoubleType(), nullable=True),
         StructField('"Address"', StringType(), nullable=True),
+        StructField('"Av@t@r"', StringType(), nullable=True),
+        StructField('"Avg. $ession Length"', DoubleType(), nullable=True),
+        StructField('"T!me on App"', DoubleType(), nullable=True),
         StructField('"T!me on Website"', DoubleType(), nullable=True),
+        StructField('"Length of Membership"', DoubleType(), nullable=True),
         StructField('"Ye@rly Amount $pent"', DoubleType(), nullable=True),
     ]
 

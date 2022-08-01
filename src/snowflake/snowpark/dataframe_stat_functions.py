@@ -8,6 +8,7 @@ from typing import Dict, Iterable, List, Optional, Union
 import snowflake.snowpark
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark.functions import (
     _to_col_if_str,
@@ -34,6 +35,8 @@ class DataFrameStatFunctions:
         self,
         col: Union[ColumnOrName, Iterable[ColumnOrName]],
         percentile: Iterable[float],
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> Union[List[float], List[List[float]]]:
         """For a specified numeric column and a list of desired quantiles, returns an approximate value for the column at each of the desired quantiles.
         This function uses the t-Digest algorithm.
@@ -51,6 +54,7 @@ class DataFrameStatFunctions:
         Args:
             col: The name of the numeric column.
             percentile: A list of float values greater than or equal to 0.0 and less than 1.0.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
              A list of approximate percentile values if ``col`` is a single column name, or a matrix
@@ -61,13 +65,13 @@ class DataFrameStatFunctions:
         if not percentile or not col:
             return []
         if isinstance(col, (Column, str)):
-            res = (
-                self._df.select(approx_percentile_accumulate(col).as_(temp_col_name))
-                .select(
-                    [approx_percentile_estimate(temp_col_name, p) for p in percentile]
-                )
-                ._internal_collect_with_tag()
+            df = self._df.select(
+                approx_percentile_accumulate(col).as_(temp_col_name)
+            ).select([approx_percentile_estimate(temp_col_name, p) for p in percentile])
+            adjust_api_subcalls(
+                df, "DataFrameStatFunctions.approx_quantile", len_subcalls=2
             )
+            res = df._internal_collect_with_tag(statement_params=statement_params)
             return list(res[0])
         elif isinstance(col, (list, tuple)):
             accumate_cols = [
@@ -80,11 +84,11 @@ class DataFrameStatFunctions:
                 for p in percentile
             ]
             percentile_len = len(output_cols) // len(accumate_cols)
-            res = (
-                self._df.select(accumate_cols)
-                .select(output_cols)
-                ._internal_collect_with_tag()
+            df = self._df.select(accumate_cols).select(output_cols)
+            adjust_api_subcalls(
+                df, "DataFrameStatFunctions.approx_quantile", len_subcalls=2
             )
+            res = df._internal_collect_with_tag(statement_params=statement_params)
             return [
                 [x for x in res[0][j * percentile_len : (j + 1) * percentile_len]]
                 for j in range(len(accumate_cols))
@@ -94,7 +98,13 @@ class DataFrameStatFunctions:
                 "'col' must be a column name, a column object, or a list of them."
             )
 
-    def corr(self, col1: ColumnOrName, col2: ColumnOrName) -> Optional[float]:
+    def corr(
+        self,
+        col1: ColumnOrName,
+        col2: ColumnOrName,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Optional[float]:
         """Calculates the correlation coefficient for non-null pairs in two numeric columns.
 
         Example::
@@ -106,15 +116,25 @@ class DataFrameStatFunctions:
         Args:
             col1: The name of the first numeric column to use.
             col2: The name of the second numeric column to use.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Return:
             The correlation of the two numeric columns.
             If there is not enough data to generate the correlation, the method returns ``None``.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        res = self._df.select(corr_func(col1, col2))._internal_collect_with_tag()
+        df = self._df.select(corr_func(col1, col2))
+        adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
+        res = df._internal_collect_with_tag(statement_params=statement_params)
         return res[0][0] if res[0] is not None else None
 
-    def cov(self, col1: ColumnOrName, col2: ColumnOrName) -> Optional[float]:
+    def cov(
+        self,
+        col1: ColumnOrName,
+        col2: ColumnOrName,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Optional[float]:
         """Calculates the sample covariance for non-null pairs in two numeric columns.
 
         Example::
@@ -126,16 +146,23 @@ class DataFrameStatFunctions:
         Args:
             col1: The name of the first numeric column to use.
             col2: The name of the second numeric column to use.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Return:
             The sample covariance of the two numeric columns.
             If there is not enough data to generate the covariance, the method returns None.
         """
-        res = self._df.select(covar_samp(col1, col2))._internal_collect_with_tag()
+        df = self._df.select(covar_samp(col1, col2))
+        adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
+        res = df._internal_collect_with_tag(statement_params=statement_params)
         return res[0][0] if res[0] is not None else None
 
     def crosstab(
-        self, col1: ColumnOrName, col2: ColumnOrName
+        self,
+        col1: ColumnOrName,
+        col2: ColumnOrName,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> "snowflake.snowpark.DataFrame":
         """Computes a pair-wise frequency table (a ``contingency table``) for the specified columns.
         The method returns a DataFrame containing this table.
@@ -166,19 +193,24 @@ class DataFrameStatFunctions:
         Args:
             col1: The name of the first column to use.
             col2: The name of the second column to use.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        row_count = self._df.select(count_distinct(col2))._internal_collect_with_tag()[
-            0
-        ][0]
+        row_count = self._df.select(count_distinct(col2))._internal_collect_with_tag(
+            statement_params=statement_params
+        )[0][0]
         if row_count > _MAX_COLUMNS_PER_TABLE:
             raise SnowparkClientExceptionMessages.DF_CROSS_TAB_COUNT_TOO_LARGE(
                 row_count, _MAX_COLUMNS_PER_TABLE
             )
         column_names = [
             row[0]
-            for row in self._df.select(col2).distinct()._internal_collect_with_tag()
+            for row in self._df.select(col2)
+            .distinct()
+            ._internal_collect_with_tag(statement_params=statement_params)
         ]
-        return self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
+        df = self._df.select(col1, col2).pivot(col2, column_names).agg(count(col2))
+        adjust_api_subcalls(df, "DataFrameStatFunctions.crosstab", len_subcalls=3)
+        return df
 
     def sample_by(
         self, col: ColumnOrName, fractions: Dict[LiteralType, float]
@@ -197,11 +229,21 @@ class DataFrameStatFunctions:
                 If a stratum is not specified in the ``dict``, the method uses 0 as the fraction.
         """
         if not fractions:
-            return self._df.limit(0)
+            res_df = self._df.limit(0)
+            adjust_api_subcalls(
+                res_df, "DataFrameStatFunctions.sample_by", len_subcalls=1
+            )
+            return res_df
         col = _to_col_if_str(col, "sample_by")
         res_df = reduce(
             lambda x, y: x.union_all(y),
             [self._df.filter(col == k).sample(v) for k, v in fractions.items()],
+        )
+        adjust_api_subcalls(
+            res_df,
+            "DataFrameStatFunctions.sample_by",
+            precalls=self._df._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
         )
         return res_df
 

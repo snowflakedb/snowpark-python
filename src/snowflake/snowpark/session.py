@@ -38,6 +38,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.telemetry import TelemetryField, set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     infer_schema,
@@ -65,6 +66,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     zip_file_or_directory_to_stream,
 )
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
@@ -458,10 +460,14 @@ class Session:
         udf_level_import_paths: Optional[
             Dict[str, Tuple[Optional[str], Optional[str]]]
         ] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
-        stage_file_list = self._list_files_in_stage(stage_location)
+        stage_file_list = self._list_files_in_stage(
+            stage_location, statement_params=statement_params
+        )
         normalized_stage_location = unwrap_stage_location_single_quote(stage_location)
 
         import_paths = udf_level_import_paths or self._import_paths
@@ -512,14 +518,21 @@ class Session:
 
         return resolved_stage_files
 
-    def _list_files_in_stage(self, stage_location: Optional[str] = None) -> Set[str]:
+    def _list_files_in_stage(
+        self,
+        stage_location: Optional[str] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Set[str]:
         normalized = normalize_remote_file_or_dir(
             unwrap_single_quote(stage_location)
             if stage_location
             else self._session_stage
         )
         file_list = (
-            self.sql(f"ls {normalized}").select('"name"')._internal_collect_with_tag()
+            self.sql(f"ls {normalized}")
+            .select('"name"')
+            ._internal_collect_with_tag(statement_params=statement_params)
         )
         prefix_length = get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
@@ -540,7 +553,7 @@ class Session:
         Use this method to add packages for UDFs as installing packages using
         `conda <https://docs.conda.io/en/latest/>`_. You can also find examples in
         :class:`~snowflake.snowpark.udf.UDFRegistration`. See details of
-        `third-party Python packages in Snowflake <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html>`_.
+        `third-party Python packages in Snowflake <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html>`_.
 
         Args:
             packages: A `requirement specifier <https://packaging.python.org/en/latest/glossary/#term-Requirement-Specifier>`_,
@@ -586,7 +599,7 @@ class Session:
             ``packages`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
 
-            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html#local-development-and-testing>`_,
+            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#local-development-and-testing>`_,
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
@@ -662,7 +675,7 @@ class Session:
             ``packages`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
 
-            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-packages.html#local-development-and-testing>`_,
+            2. We recommend you to `setup the local environment with Anaconda <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#local-development-and-testing>`_,
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
@@ -721,28 +734,48 @@ class Session:
             package_version_req = package_req.specs[0][1] if package_req.specs else None
 
             if validate_package:
+                unavailable_pkg_err_msg = (
+                    "it is not available in Snowflake. Check information_schema.packages "
+                    "to see available packages for UDFs. If this package is a "
+                    '"pure-Python" package, you can find the directory of this package '
+                    "and add it via session.add_import(). See details at "
+                    "https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
+                )
+                unaccepted_terms_err_msg = (
+                    "Anaconda terms must be accepted by ORGADMIN to use "
+                    "Anaconda 3rd party packages. Please follow the instructions at "
+                    "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
+                )
 
                 def get_missing_package_message(
-                    package_name: str, package_ver: Optional[str] = None
+                    package_name: str,
+                    detailed_err_msg: str,
+                    package_ver: Optional[str] = None,
                 ) -> str:
                     package_ver = f"=={package_ver}" if package_ver else ""
                     # it is not available in Snowflake. Check information_schema.packages
-                    message = (
-                        f"Cannot add package {package_name}{package_ver} because it is not "
-                        f"available in Snowflake. Check information_schema.packages "
-                        f"to see available packages for UDFs. If this package is a "
-                        f'"pure-Python" package, you can find the directory of this package '
-                        f"and add it via session.add_import()."
-                    )
+                    message = f"Cannot add package {package_name}{package_ver} because {detailed_err_msg}"
                     return message
 
                 if package_name not in valid_packages:
-                    raise ValueError(get_missing_package_message(package_name))
+                    is_anaconda_terms_acknowledged = self._run_query(
+                        "select system$are_anaconda_terms_acknowledged()"
+                    )[0][0]
+                    if is_anaconda_terms_acknowledged:
+                        detailed_err_msg = unavailable_pkg_err_msg
+                    else:
+                        detailed_err_msg = unaccepted_terms_err_msg
+
+                    raise ValueError(
+                        get_missing_package_message(package_name, detailed_err_msg)
+                    )
                 elif package_version_req and not any(
                     v in package_req for v in valid_packages[package_name]
                 ):
                     raise ValueError(
-                        get_missing_package_message(package_name, package_version_req)
+                        get_missing_package_message(
+                            package_name, unavailable_pkg_err_msg, package_version_req
+                        )
                     )
                 elif not use_local_version:
                     try:
@@ -836,7 +869,7 @@ class Session:
         Examples::
 
             >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df1.write.save_as_table("my_table", mode="overwrite", create_temp_table=True)
+            >>> df1.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> session.table("my_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
             >>> current_db = session.get_current_database()
@@ -848,7 +881,10 @@ class Session:
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        return Table(name, self)
+        t = Table(name, self)
+        # Replace API call origin for table
+        set_api_call_source(t, "Session.table")
+        return t
 
     def table_function(
         self,
@@ -902,10 +938,12 @@ class Session:
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
-        return DataFrame(
+        d = DataFrame(
             self,
             TableFunctionRelation(func_expr),
         )
+        set_api_call_source(d, f"Session.table_function[{func_expr.func_name}]")
+        return d
 
     def sql(self, query: str) -> DataFrame:
         """
@@ -924,7 +962,12 @@ class Session:
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
         """
-        return DataFrame(self, self._plan_builder.query(query, None))
+        return DataFrame(
+            self,
+            self._plan_builder.query(
+                query, None, api_calls=[{TelemetryField.NAME.value: "Session.sql"}]
+            ),
+        )
 
     @property
     def read(self) -> "DataFrameReader":
@@ -1052,7 +1095,9 @@ class Session:
                 raise pe
 
         if success:
-            return self.table(location)
+            t = self.table(location)
+            set_api_call_source(t, "Session.write_pandas")
+            return t
         else:
             raise SnowparkClientExceptionMessages.DF_PANDAS_GENERAL_EXCEPTION(
                 str(ci_output)
@@ -1133,7 +1178,7 @@ class Session:
             sf_database = self._conn._get_current_parameter("database", quoted=False)
             sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
-            return self.write_pandas(
+            t = self.write_pandas(
                 data,
                 table_name,
                 database=sf_database,
@@ -1142,6 +1187,8 @@ class Session:
                 auto_create_table=True,
                 create_temp_table=True,
             )
+            set_api_call_source(t, "Session.create_dataframe[pandas]")
+            return t
 
         # infer the schema based on the data
         names = None
@@ -1296,9 +1343,10 @@ class Session:
             else:
                 project_columns.append(column(field.name))
 
-        return DataFrame(self, SnowflakeValues(attrs, converted)).select(
-            project_columns
-        )
+        df = DataFrame(self, SnowflakeValues(attrs, converted)).select(project_columns)
+        # Get rid of the select statement api call here
+        set_api_call_source(df, "Session.create_dataframe[values]")
+        return df
 
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
         """
@@ -1322,7 +1370,9 @@ class Session:
             [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
-        return DataFrame(self, range_plan)
+        df = DataFrame(self, range_plan)
+        set_api_call_source(df, "Session.range")
+        return df
 
     def get_current_database(self) -> Optional[str]:
         """
@@ -1490,8 +1540,13 @@ class Session:
 
         sql_args = []
         for arg in args:
-            sql_args.append(to_sql(arg, infer_type(arg)))
-        return self.sql(f"CALL {sproc_name}({', '.join(sql_args)})").collect()[0][0]
+            if isinstance(arg, Column):
+                sql_args.append(self._analyzer.analyze(arg._expression))
+            else:
+                sql_args.append(to_sql(arg, infer_type(arg)))
+        df = self.sql(f"CALL {sproc_name}({', '.join(sql_args)})")
+        set_api_call_source(df, f"Session.call[{sproc_name}]")
+        return df.collect()[0][0]
 
     @deprecate(
         deprecate_version="0.7.0",
@@ -1567,12 +1622,14 @@ class Session:
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
         if isinstance(input, str):
             input = col(input)
-        return DataFrame(
+        df = DataFrame(
             self,
             TableFunctionRelation(
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
         )
+        set_api_call_source(df, "Session.flatten")
+        return df
 
     def query_history(self) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
