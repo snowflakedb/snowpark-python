@@ -92,12 +92,16 @@ def test_negative_write_with_target_column_name_order(session):
                 table_name, mode="append", column_order="name", table_type="temp"
             )
 
-        with pytest.raises(
-            ValueError, match="'column_order' must be either 'name' or 'index'"
-        ):
-            df1.write.save_as_table(
-                table_name, mode="append", column_order="any_value", table_type="temp"
-            )
+        for column_order in ("any_value", "", None):
+            with pytest.raises(
+                ValueError, match="'column_order' must be either 'name' or 'index'"
+            ):
+                df1.write.save_as_table(
+                    table_name,
+                    mode="append",
+                    column_order=column_order,
+                    table_type="temp",
+                )
     finally:
         Utils.drop_table(session, table_name)
 

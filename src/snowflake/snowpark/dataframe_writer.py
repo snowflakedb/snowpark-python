@@ -91,7 +91,7 @@ class DataFrameWriter:
 
                 "ignore": Ignore this operation if data already exists.
 
-            column_order: When ``mode`` is "append", data will be inserted into the target table by matching column sequence or column name. Default is "index".
+            column_order: When ``mode`` is "append", data will be inserted into the target table by matching column sequence or column name. Default is "index". When ``mode`` is not "append", the ``column_order`` makes no difference.
 
                 "index": Data will be inserted into the target table by column sequence.
                 "name": Data will be inserted into the target table by matching column names. If the target table has more columns than the source DataFrame, use this one.
@@ -122,6 +122,12 @@ class DataFrameWriter:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
+        if column_order is None or column_order.lower() not in ("name", "index"):
+            raise ValueError("'column_order' must be either 'name' or 'index'")
+        column_names = (
+            self._dataframe.columns if column_order.lower() == "name" else None
+        )
+
         if create_temp_table:
             warnings.warn(
                 "create_temp_table is deprecated. We still respect this parameter when it is True but "
@@ -137,16 +143,6 @@ class DataFrameWriter:
                 "Unsupported table type. Expected table types: temp/temporary, transient"
             )
 
-        if column_order:
-            column_order_lower = column_order.lower()
-            if column_order_lower == "name":
-                column_names = self._dataframe.columns
-            elif column_order_lower == "index":
-                column_names = None
-            else:
-                raise ValueError("'column_order' must be either 'name' or 'index'")
-        else:
-            column_names = None  # column_order default is index.
         create_table_logic_plan = SnowflakeCreateTable(
             full_table_name,
             column_names,
