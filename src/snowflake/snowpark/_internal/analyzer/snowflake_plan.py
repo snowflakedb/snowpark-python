@@ -512,7 +512,9 @@ class SnowflakePlanBuilder:
                     Query(create_table),
                     Query(
                         insert_into_statement(
-                            table_name, column_names, child.queries[-1].sql
+                            table_name=table_name,
+                            child=child.queries[-1].sql,
+                            column_names=column_names,
                         )
                     ),
                 ],
