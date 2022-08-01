@@ -452,10 +452,11 @@ class ServerConnection:
         # with qmark, Python data type will be dynamically mapped to Snowflake data type
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings
         params = [list(row) for row in rows]
+        statement_params = kwargs.get("_statement_params")
         query_tag = (
-            kwargs["_statement_params"]["QUERY_TAG"]
-            if "_statement_params" in kwargs
-            and "QUERY_TAG" in kwargs["_statement_params"]
+            statement_params["QUERY_TAG"]
+            if statement_params is not None
+            and "QUERY_TAG" in statement_params
             and not is_in_stored_procedure()
             else None
         )

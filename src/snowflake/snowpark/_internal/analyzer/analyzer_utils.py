@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -585,8 +585,11 @@ def create_table_statement(
     )
 
 
-def insert_into_statement(table_name: str, child: str) -> str:
-    return f"{INSERT}{INTO}{table_name} {project_statement([], child)}"
+def insert_into_statement(
+    table_name: str, child: str, column_names: Optional[Iterable[str]] = None
+) -> str:
+    table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
+    return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
 def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str:

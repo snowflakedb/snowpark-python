@@ -70,6 +70,7 @@ class DataFrameWriter:
         table_name: Union[str, Iterable[str]],
         *,
         mode: Optional[str] = None,
+        column_order: str = "index",
         create_temp_table: bool = False,
         table_type: str = "",
         statement_params: Optional[Dict[str, str]] = None,
@@ -89,6 +90,11 @@ class DataFrameWriter:
                 "errorifexists": Throw an exception if data already exists.
 
                 "ignore": Ignore this operation if data already exists.
+
+            column_order: When ``mode`` is "append", data will be inserted into the target table by matching column sequence or column name. Default is "index". When ``mode`` is not "append", the ``column_order`` makes no difference.
+
+                "index": Data will be inserted into the target table by column sequence.
+                "name": Data will be inserted into the target table by matching column names. If the target table has more columns than the source DataFrame, use this one.
 
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
@@ -116,6 +122,12 @@ class DataFrameWriter:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
+        if column_order is None or column_order.lower() not in ("name", "index"):
+            raise ValueError("'column_order' must be either 'name' or 'index'")
+        column_names = (
+            self._dataframe.columns if column_order.lower() == "name" else None
+        )
+
         if create_temp_table:
             warnings.warn(
                 "create_temp_table is deprecated. We still respect this parameter when it is True but "
@@ -133,6 +145,7 @@ class DataFrameWriter:
 
         create_table_logic_plan = SnowflakeCreateTable(
             full_table_name,
+            column_names,
             save_mode,
             self._dataframe._plan,
             table_type,
