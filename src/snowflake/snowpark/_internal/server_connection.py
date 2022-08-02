@@ -348,8 +348,19 @@ class ServerConnection:
                 query,
                 self._conn,
                 self._cursor.describe(query, **kwargs),
+                self,
                 data_type,
             )
+        return self._to_data_or_iter(
+            results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+        )
+
+    def _to_data_or_iter(
+        self,
+        results_cursor: SnowflakeCursor,
+        to_pandas: bool = False,
+        to_iter: bool = False,
+    ) -> Dict[str, Any]:
         if to_pandas:
             try:
                 data_or_iter = (
@@ -388,6 +399,8 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        if is_in_stored_procedure() and not block:
+            raise ValueError("can not use async and stored procedure at the same time")
         result_set, result_meta = self.get_result_set(
             plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
         )

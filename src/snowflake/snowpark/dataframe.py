@@ -524,25 +524,11 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: Bool value indicate whether operate this function in async mode.
         """
-        if not block:
-            return self._session._conn.execute(
-                self._plan,
-                to_iter=True,
-                block=block,
-                data_type=AsyncDataType.ITERATOR,
-                _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params, self._session.query_tag, SKIP_LEVELS_THREE
-                ),
-            )
-        else:
-            return self._to_local_iterator(statement_params=statement_params)
-
-    def _to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None
-    ) -> Iterator[Row]:
-        yield from self._session._conn.execute(
+        return self._session._conn.execute(
             self._plan,
             to_iter=True,
+            block=block,
+            data_type=AsyncDataType.ITERATOR,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
@@ -634,31 +620,12 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        if not block:
-            return self._session._conn.execute(
-                self._plan,
-                to_pandas=True,
-                to_iter=True,
-                block=block,
-                data_type=AsyncDataType.PANDAS_BATCH,
-                _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params, self._session.query_tag, SKIP_LEVELS_TWO
-                ),
-                **kwargs,
-            )
-        else:
-            return self._to_pandas_batches(statement_params=statement_params)
-
-    def _to_pandas_batches(
-        self,
-        *,
-        statement_params: Optional[Dict[str, str]] = None,
-        **kwargs: Dict[str, Any],
-    ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
-        yield from self._session._conn.execute(
+        return self._session._conn.execute(
             self._plan,
             to_pandas=True,
             to_iter=True,
+            block=block,
+            data_type=AsyncDataType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
