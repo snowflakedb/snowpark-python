@@ -112,11 +112,13 @@ from snowflake.snowpark.functions import (
     translate,
     trim,
     try_cast,
+    uniform,
     upper,
 )
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
+    FloatType,
     MapType,
     StringType,
     VariantType,
@@ -880,6 +882,47 @@ def test_coalesce(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(coalesce(["A", "B", "C"]))
     assert "'COALESCE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+
+def test_uniform(session):
+    df = session.sql("select 1").to_df("a")
+
+    # both intervals are ints
+    int_uniform = df.select(uniform(1, 100, random()).alias("X")).collect()[0]
+    assert isinstance(int_uniform.as_dict()["X"], int)
+
+    # both intervals are decimals
+    float_uniform0 = df.select(uniform(1.0, 100.0, random()).alias("X")).collect()[0]
+    assert isinstance(float_uniform0.as_dict()["X"], float)
+
+    # min interval is decimal
+    float_uniform1 = df.select(uniform(1.0, 100, random()).alias("X")).collect()[0]
+    assert isinstance(float_uniform1.as_dict()["X"], float)
+
+    # max interval is decimal
+    float_uniform2 = df.select(uniform(1, 100.0, random()).alias("X")).collect()[0]
+    assert isinstance(float_uniform2.as_dict()["X"], float)
+
+    # float intervals are same explicit float interval queries
+    explicit = df.select(
+        uniform(
+            lit(-1.0).cast(FloatType()), lit(1.0).cast(FloatType()), col("a")
+        ).alias("X")
+    ).collect()[0]
+    non_explicit = df.select(uniform(-1.0, 1.0, col("a")).alias("X")).collect()[0]
+    assert explicit == non_explicit
+
+    # mix of decimal and int give same result as decimal and decimal
+    decimal_int = df.select(uniform(-10.0, 10, col("a")).alias("X")).collect()[0]
+    decimal_decimal = df.select(uniform(-10.0, 10.0, col("a")).alias("X")).collect()[0]
+    assert decimal_int == decimal_decimal
+
+
+def test_uniform_negative(session):
+    df = session.sql("select 1").to_df("a")
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.select(uniform(lit("z"), 11, random())).collect()
+    assert "Numeric value 'z' is not recognized" in str(ex_info)
 
 
 def test_negate_and_not_negative(session):
