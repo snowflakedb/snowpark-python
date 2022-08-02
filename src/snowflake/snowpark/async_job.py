@@ -4,6 +4,7 @@
 from enum import Enum
 from typing import List
 
+import snowflake.snowpark
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.snowpark._internal.utils import result_set_to_iter, result_set_to_rows
@@ -23,6 +24,7 @@ class AsyncJob:
         query: str,
         conn: SnowflakeConnection,
         result_meta: List[ResultMetadata],
+        server_connection: "snowflake.snowpark._internal.server_connection.ServerConnection",
         data_type: AsyncDataType = AsyncDataType.ROW,
     ) -> None:
         self.query_id = query_id
@@ -31,6 +33,7 @@ class AsyncJob:
         self._cursor = self._conn.cursor()
         self._data_type = data_type
         self._result_meta = result_meta
+        self._server_connection = server_connection
 
         return
 
@@ -54,8 +57,12 @@ class AsyncJob:
         elif self._data_type == AsyncDataType.ITERATOR:
             return result_set_to_iter(result_data, self._result_meta)
         elif self._data_type == AsyncDataType.PANDAS:
-            return self._cursor.fetch_pandas_all()
+            return self._server_connection._to_data_or_iter(
+                self._cursor, to_pandas=True, to_iter=False
+            )["data"]
         elif self._data_type == AsyncDataType.PANDAS_BATCH:
-            return iter([self._cursor.fetch_pandas_all()])
+            return self._server_connection._to_data_or_iter(
+                self._cursor, to_pandas=True, to_iter=True
+            )["data"]
         else:
             raise ValueError(f"{self._data_type} is not a supported data type")
