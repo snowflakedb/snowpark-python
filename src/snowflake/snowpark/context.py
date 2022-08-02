@@ -2,8 +2,9 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.snowpark.session import _get_active_session
 from snowflake.snowpark import Session
+from snowflake.snowpark.session import _get_active_session
+
 
 def get_active_session() -> "Session":
     return _get_active_session()
