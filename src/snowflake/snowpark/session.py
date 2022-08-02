@@ -1111,7 +1111,7 @@ class Session:
             [Row(A=1, B=2), Row(A=3, B=4)]
             >>> session.create_dataframe([Row(a=1, b=2, c=3, d=4)]).collect()
             [Row(A=1, B=2, C=3, D=4)]
-            >>> session.createDataFrame([{"a": 1}, {"b": 2}]).collect()
+            >>> session.create_dataframe([{"a": 1}, {"b": 2}]).collect()
             [Row(A=1, B=None), Row(A=None, B=2)]
 
             >>> # create a dataframe from a pandas Dataframe
@@ -1183,7 +1183,7 @@ class Session:
                 if not row:
                     row = [None]
                 elif getattr(row, "_fields", None):  # Row or namedtuple
-                    row_dict = row.asDict() if isinstance(row, Row) else row._asdict()
+                    row_dict = row.as_dict() if isinstance(row, Row) else row._asdict()
             elif isinstance(row, dict):
                 row_dict = row.copy()
             else:
@@ -1191,6 +1191,7 @@ class Session:
 
             if row_dict:
                 # fill None if the key doesn't exist
+                row_dict = {quote_name(k): v for k, v in row_dict.items()}
                 return [row_dict.get(name) for name in names]
             else:
                 # check the length of every row, which should be same across data
@@ -1204,16 +1205,14 @@ class Session:
                 return list(row)
 
         # always overwrite the column names if they are provided via schema
-        if names:
-            for i, name in enumerate(names):
-                new_schema.fields[i].name = name
-        else:
+        if not names:
             names = [f.name for f in new_schema.fields]
-        rows = [convert_row_to_list(row, names) for row in data]
+        quoted_names = [quote_name(name) for name in names]
+        rows = [convert_row_to_list(row, quoted_names) for row in data]
 
         # get attributes and data types
         attrs, data_types = [], []
-        for field in new_schema.fields:
+        for field, quoted_name in zip(new_schema.fields, quoted_names):
             sf_type = (
                 StringType()
                 if isinstance(
@@ -1230,7 +1229,7 @@ class Session:
                 )
                 else field.datatype
             )
-            attrs.append(Attribute(quote_name(field.name), sf_type, field.nullable))
+            attrs.append(Attribute(quoted_name, sf_type, field.nullable))
             data_types.append(field.datatype)
 
         # convert all variant/time/geography/array/map data to string
@@ -1276,37 +1275,31 @@ class Session:
 
         # construct a project statement to convert string value back to variant
         project_columns = []
-        for field in new_schema.fields:
+        for field, name in zip(new_schema.fields, names):
             if isinstance(field.datatype, DecimalType):
                 project_columns.append(
                     to_decimal(
-                        column(field.name),
+                        column(name),
                         field.datatype.precision,
                         field.datatype.scale,
-                    ).as_(field.name)
+                    ).as_(name)
                 )
             elif isinstance(field.datatype, TimestampType):
-                project_columns.append(to_timestamp(column(field.name)).as_(field.name))
+                project_columns.append(to_timestamp(column(name)).as_(name))
             elif isinstance(field.datatype, TimeType):
-                project_columns.append(to_time(column(field.name)).as_(field.name))
+                project_columns.append(to_time(column(name)).as_(name))
             elif isinstance(field.datatype, DateType):
-                project_columns.append(to_date(column(field.name)).as_(field.name))
+                project_columns.append(to_date(column(name)).as_(name))
             elif isinstance(field.datatype, VariantType):
-                project_columns.append(
-                    to_variant(parse_json(column(field.name))).as_(field.name)
-                )
+                project_columns.append(to_variant(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, GeographyType):
-                project_columns.append(to_geography(column(field.name)).as_(field.name))
+                project_columns.append(to_geography(column(name)).as_(name))
             elif isinstance(field.datatype, ArrayType):
-                project_columns.append(
-                    to_array(parse_json(column(field.name))).as_(field.name)
-                )
+                project_columns.append(to_array(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, MapType):
-                project_columns.append(
-                    to_object(parse_json(column(field.name))).as_(field.name)
-                )
+                project_columns.append(to_object(parse_json(column(name))).as_(name))
             else:
-                project_columns.append(column(field.name))
+                project_columns.append(column(name))
 
         df = DataFrame(self, SnowflakeValues(attrs, converted)).select(project_columns)
         # Get rid of the select statement api call here
