@@ -85,7 +85,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     validate_object_name,
 )
-from snowflake.snowpark.async_job import AsyncJob
+from snowflake.snowpark.async_job import AsyncDataType, AsyncJob
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -457,16 +457,14 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        data_type: str = "row",
     ) -> AsyncJob:
         """Executes the query representing this DataFrame asynchronously and returns: class:'AsyncJob'
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            data_type: String that indicate the return type of AsyncJob.result()
         """
         return self._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params, block=False, data_type=data_type
+            statement_params=statement_params, block=False, data_type=AsyncDataType.ROW
         )
 
     def _internal_collect_with_tag_no_telemetry(
@@ -474,7 +472,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        data_type: str = "row",
+        data_type: AsyncDataType = AsyncDataType.ROW,
     ) -> Union[List["Row"], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
@@ -506,8 +504,8 @@ class DataFrame:
 
     @df_collect_api_telemetry
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None
-    ) -> Iterator[Row]:
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> Union[Iterator[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
 
@@ -524,7 +522,24 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Bool value indicate whether operate this function in async mode.
         """
+        if not block:
+            return self._session._conn.execute(
+                self._plan,
+                to_iter=True,
+                block=block,
+                data_type=AsyncDataType.ITERATOR,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params, self._session.query_tag, SKIP_LEVELS_THREE
+                ),
+            )
+        else:
+            return self._to_local_iterator(statement_params=statement_params)
+
+    def _to_local_iterator(
+        self, *, statement_params: Optional[Dict[str, str]] = None
+    ) -> Iterator[Row]:
         yield from self._session._conn.execute(
             self._plan,
             to_iter=True,
@@ -541,8 +556,9 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         **kwargs: Dict[str, Any],
-    ) -> "pandas.DataFrame":
+    ) -> Union["pandas.DataFrame", AsyncJob]:
         """
         Executes the query representing this DataFrame and returns the result as a
         `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
@@ -551,6 +567,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Bool value indicate whether operate this function in async mode.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -561,6 +578,8 @@ class DataFrame:
         result = self._session._conn.execute(
             self._plan,
             to_pandas=True,
+            block=block,
+            data_type=AsyncDataType.PANDAS,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -570,7 +589,7 @@ class DataFrame:
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
-        if not isinstance(result, pandas.DataFrame):
+        if not isinstance(result, pandas.DataFrame) and block:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
                 "to_pandas() did not return a Pandas DataFrame. "
                 "If you use session.sql(...).to_pandas(), the input query can only be a "
@@ -586,8 +605,9 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         **kwargs: Dict[str, Any],
-    ) -> Iterator["pandas.DataFrame"]:
+    ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         """
         Executes the query representing this DataFrame and returns an iterator of
         Pandas dataframes (containing a subset of rows) that you can use to
@@ -614,6 +634,27 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
+        if not block:
+            return self._session._conn.execute(
+                self._plan,
+                to_pandas=True,
+                to_iter=True,
+                block=block,
+                data_type=AsyncDataType.PANDAS_BATCH,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                ),
+                **kwargs,
+            )
+        else:
+            return self._to_pandas_batches(statement_params=statement_params)
+
+    def _to_pandas_batches(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        **kwargs: Dict[str, Any],
+    ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         yield from self._session._conn.execute(
             self._plan,
             to_pandas=True,

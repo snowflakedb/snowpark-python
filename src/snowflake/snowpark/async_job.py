@@ -13,6 +13,7 @@ class AsyncDataType(Enum):
     PANDAS = "pandas"
     ROW = "row"
     ITERATOR = "iterator"
+    PANDAS_BATCH = "pandas_batch"
 
 
 class AsyncJob:
@@ -22,7 +23,7 @@ class AsyncJob:
         query: str,
         conn: SnowflakeConnection,
         result_meta: List[ResultMetadata],
-        data_type: str = AsyncDataType.ROW,
+        data_type: AsyncDataType = AsyncDataType.ROW,
     ) -> None:
         self.query_id = query_id
         self.query = query
@@ -53,6 +54,8 @@ class AsyncJob:
         elif self._data_type == AsyncDataType.ITERATOR:
             return result_set_to_iter(result_data, self._result_meta)
         elif self._data_type == AsyncDataType.PANDAS:
-            return result_data
+            return self._cursor.fetch_pandas_all()
+        elif self._data_type == AsyncDataType.PANDAS_BATCH:
+            return iter([self._cursor.fetch_pandas_all()])
         else:
             raise ValueError(f"{self._data_type} is not a supported data type")

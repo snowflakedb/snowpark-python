@@ -42,7 +42,7 @@ from snowflake.snowpark._internal.utils import (
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
-from snowflake.snowpark.async_job import AsyncJob
+from snowflake.snowpark.async_job import AsyncDataType, AsyncJob
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
@@ -309,7 +309,7 @@ class ServerConnection:
         to_iter: bool = False,
         is_ddl_on_temp_object: bool = False,
         block: bool = True,
-        data_type: str = "row",
+        data_type: AsyncDataType = AsyncDataType.ROW,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -383,7 +383,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         block: bool = True,
-        data_type: str = "row",
+        data_type: AsyncDataType = AsyncDataType.ROW,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
@@ -408,7 +408,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         block: bool = True,
-        data_type: str = "row",
+        data_type: AsyncDataType = AsyncDataType.ROW,
         **kwargs,
     ) -> Tuple[
         Dict[
