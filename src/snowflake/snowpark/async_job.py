@@ -1,12 +1,18 @@
-#!/usr/bin/env python3
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from enum import Enum
 from typing import List
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.snowpark._internal.utils import result_set_to_iter, result_set_to_rows
+
+
+class AsyncDataType(Enum):
+    PANDAS = "pandas"
+    ROW = "row"
+    ITERATOR = "iterator"
 
 
 class AsyncJob:
@@ -16,7 +22,7 @@ class AsyncJob:
         query: str,
         conn: SnowflakeConnection,
         result_meta: List[ResultMetadata],
-        data_type: str = "row",
+        data_type: str = AsyncDataType.ROW,
     ) -> None:
         self.query_id = query_id
         self.query = query
@@ -24,8 +30,7 @@ class AsyncJob:
         self._cursor = self._conn.cursor()
         self._data_type = data_type
         self._result_meta = result_meta
-        if not conn:
-            raise ValueError("connection cannot be empty")
+
         return
 
     def is_done(self) -> bool:
@@ -43,11 +48,11 @@ class AsyncJob:
         # return result of the query, in the form of a list of Row object
         self._cursor.get_results_from_sfqid(self.query_id)
         result_data = self._cursor.fetchall()
-        if self._data_type == "row":
+        if self._data_type == AsyncDataType.ROW:
             return result_set_to_rows(result_data, self._result_meta)
-        elif self._data_type == "iterator":
+        elif self._data_type == AsyncDataType.ITERATOR:
             return result_set_to_iter(result_data, self._result_meta)
-        elif self._data_type == "pandas":
+        elif self._data_type == AsyncDataType.PANDAS:
             return result_data
         else:
             raise ValueError(f"{self._data_type} is not a supported data type")
