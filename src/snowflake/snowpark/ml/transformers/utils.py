@@ -15,8 +15,10 @@ class StateTable(str, Enum):
 
 
 class ColumnsMetadataColumn(str, Enum):
-    COLUMN_NAME = "column_name"
-    NUMERIC_STATISTICS = "numeric_statistics"
+    VERSION = "VERSION"
+    COLUMN_NAME = "COLUMN_NAME"
+    BASIC_STATISTICS = "BASIC_STATISTICS"
+    NUMERIC_STATISTICS = "NUMERIC_STATISTICS"
 
 
 class NumericStatistics(str, Enum):

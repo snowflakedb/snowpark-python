@@ -3,7 +3,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import json
-from typing import Any, Dict, Optional
+import logging
+from typing import Dict, Optional
 
 from snowflake.snowpark import DataFrame, Session
 from snowflake.snowpark.functions import call_udf, col
@@ -42,7 +43,8 @@ class StandardScaler(BaseEstimator, BaseTransformer):
         unit standard deviation).
     """
 
-    _SESSION_SCHEMA = "standard_scaler_clone"
+    _SESSION_SCHEMA = "standard_scaler"
+    _logger = logging.getLogger("StandardScaler")
 
     def __init__(
         self,
@@ -75,11 +77,12 @@ class StandardScaler(BaseEstimator, BaseTransformer):
             Fitted scaler.
         """
         columns_metadata = self.session.table(StateTable.COLUMNS_METADATA)
-        metadata_df = columns_metadata.select().where(
+        metadata_df = columns_metadata.filter(
             col(ColumnsMetadataColumn.COLUMN_NAME) == self.input_col
         )
         stats_df = metadata_df.select(col(ColumnsMetadataColumn.NUMERIC_STATISTICS))
-        numeric_stats = json.loads(stats_df.collect()[0][0])
+        original_numeric_stats = stats_df.collect()[0][0]
+        numeric_stats = json.loads(original_numeric_stats)
 
         # missing mean or std
         if (
@@ -96,17 +99,87 @@ class StandardScaler(BaseEstimator, BaseTransformer):
             numeric_stats.update(computed_stats)
 
         # append the fitted row to columns metadata
-        metadata_df.update(
-            {
-                ColumnsMetadataColumn.COLUMN_NAME: f"{self.input_col}_standard_scaler_fitted",
-                ColumnsMetadataColumn.NUMERIC_STATISTICS: json.dumps(numeric_stats),
-            }
-        )
-        columns_metadata.write.mode("append").save_as_table(columns_metadata)
+        updated_column_name = f"{self.input_col}_standard_scaler_fitted"
+
+        self.session.sql(
+            f"insert into {columns_metadata.table_name} (VERSION, COLUMN_NAME, NUMERIC_STATISTICS) "
+            f"select '0.0.1', '{updated_column_name}', "
+            f"parse_json('{json.dumps(numeric_stats)}')"
+        ).collect()
+
+        # metadata_df = metadata_df.with_columns(
+        #     [ColumnsMetadataColumn.COLUMN_NAME.value],
+        #     [as_varchar(lit(updated_column_name)).cast(StringType())]
+        # )
+        # metadata_df.show()
+        # metadata_df.write.mode("append").save_as_table("standard_scaler_temp")
+        # metadata_df.write.mode("append").save_as_table(StateTable.COLUMNS_METADATA)
+
+        # row
+        # MetadataRow = Row(ColumnsMetadataColumn.VERSION, ColumnsMetadataColumn.COLUMN_NAME,
+        #                   ColumnsMetadataColumn.BASIC_STATISTICS, ColumnsMetadataColumn.NUMERIC_STATISTICS)
+        # updated_metadata_row = MetadataRow(
+        #     metadata_df[ColumnsMetadataColumn.VERSION],
+        #     metadata_df[ColumnsMetadataColumn.COLUMN_NAME],
+        #     metadata_df[ColumnsMetadataColumn.BASIC_STATISTICS],
+        #     metadata_df[ColumnsMetadataColumn.NUMERIC_STATISTICS]
+        # )
+        # updated_metadata_df = self.session.create_dataframe([updated_metadata_row]).to_df([
+        #     ColumnsMetadataColumn.VERSION.value, ColumnsMetadataColumn.COLUMN_NAME.value,
+        #     ColumnsMetadataColumn.BASIC_STATISTICS.value, ColumnsMetadataColumn.NUMERIC_STATISTICS.value
+        # ])
+        # updated_metadata_df.show()
+
+        # merge
+        # columns_metadata.merge(
+        #     metadata_df,
+        #     columns_metadata[ColumnsMetadataColumn.COLUMN_NAME] == metadata_df[ColumnsMetadataColumn.COLUMN_NAME],
+        #     [
+        #         when_matched().update({
+        #             ColumnsMetadataColumn.NUMERIC_STATISTICS: metadata_df[ColumnsMetadataColumn.NUMERIC_STATISTICS]
+        #         }),
+        #         when_not_matched().insert({
+        #             ColumnsMetadataColumn.VERSION: metadata_df[ColumnsMetadataColumn.VERSION],
+        #             ColumnsMetadataColumn.COLUMN_NAME: metadata_df[ColumnsMetadataColumn.COLUMN_NAME],
+        #             ColumnsMetadataColumn.BASIC_STATISTICS: metadata_df[ColumnsMetadataColumn.BASIC_STATISTICS],
+        #             ColumnsMetadataColumn.NUMERIC_STATISTICS: metadata_df[ColumnsMetadataColumn.NUMERIC_STATISTICS]
+        #         })
+        #     ]
+        # )
+
+        # pandas
+        # metadata_pandas = metadata_df.to_pandas()
+        # self._logger.info(metadata_pandas.to_string())
+        #
+        # metadata_pandas[ColumnsMetadataColumn.COLUMN_NAME.value].iloc[0] = updated_column_name
+        # metadata_pandas[ColumnsMetadataColumn.NUMERIC_STATISTICS.value].iloc[0] = json.dumps(numeric_stats)
+        # self._logger.info(metadata_pandas.to_string())
+        #
+        # updated_metadata_df = self.session.create_dataframe(data=metadata_pandas, schema=metadata_df.schema)
+        # updated_metadata_df.show()
+        # updated_metadata_df.write.mode("append").save_as_table(StateTable.COLUMNS_METADATA)
+
+        # update_df = pandas.DataFrame(
+        #     {
+        #         ColumnsMetadataColumn.COLUMN_NAME.value: [updated_column_name],
+        #         ColumnsMetadataColumn.NUMERIC_STATISTICS.value: [numeric_stats],
+        #     }
+        # )
+        # metadata_pandas.update(update_df)
+
+        # metadata_df.show()
+        # self._logger.info(msg=f"{metadata_df.select(col(ColumnsMetadataColumn.COLUMN_NAME)).collect()}")
+
+        # metadata_df.update(
+        #     {
+        #         ColumnsMetadataColumn.COLUMN_NAME: updated_column_name,
+        #         ColumnsMetadataColumn.NUMERIC_STATISTICS: json.dumps(numeric_stats),
+        #     }
+        # )
 
         return self
 
-    def compute(self, dataset: DataFrame) -> Dict[str, Any]:
+    def compute(self, dataset: DataFrame) -> Dict[str, float]:
         """Compute the mean and std.
 
         Parameters
@@ -116,15 +189,10 @@ class StandardScaler(BaseEstimator, BaseTransformer):
 
         Returns
         -------
-        dict : Dict[str, Any]
+        dict : Dict[str, float]
             Dictionary with mean and std.
         """
-        select_input_query = (
-            dataset.select(self.input_col)._DataFrame__plan.queries[-1].sql
-        )
-        # self.session.sql(
-        #     f"call {self._SESSION_SCHEMA}.fit($${select_input_query}$$)"
-        # )
+        select_input_query = dataset.select(self.input_col)._plan.queries[-1].sql
         self.session.call(f"{self._SESSION_SCHEMA}.fit", select_input_query)
         artifacts = self.session.table(_TEMP_TABLE).collect()
         return {
@@ -145,10 +213,7 @@ class StandardScaler(BaseEstimator, BaseTransformer):
         output_dataset : DataFrame
             Output dataset.
         """
-        # transformed_df = builtin(f"{self._SESSION_SCHEMA}.transform")(dataset.select(col(self.input_col)))
-        transformed_df = dataset.select(
-            col(self.input_col),
-            call_udf(f"{self._SESSION_SCHEMA}.transform", col(self.input_col)),
-        ).as_(self.output_col)
-        dataset.join(transformed_df, [self.input_col])
+        dataset = dataset.with_column(
+            self.output_col, call_udf(f"{self._SESSION_SCHEMA}.transform", dataset[0])
+        )
         return dataset

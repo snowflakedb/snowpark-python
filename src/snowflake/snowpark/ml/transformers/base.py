@@ -120,7 +120,7 @@ class BaseEstimator:
 
     @abstractmethod
     def fit(self, dataset: DataFrame) -> "BaseEstimator":
-        pass
+        raise NotImplementedError()
 
 
 class BaseTransformer:
@@ -128,4 +128,4 @@ class BaseTransformer:
 
     @abstractmethod
     def transform(self, dataset: DataFrame) -> DataFrame:
-        pass
+        raise NotImplementedError()
