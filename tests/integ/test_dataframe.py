@@ -852,6 +852,68 @@ def test_create_dataframe_with_dict(session):
     )
 
 
+def test_create_dataframe_with_dict_given_schema(session):
+    schema = StructType(
+        [
+            StructField("A", LongType(), nullable=True),
+            StructField("B", LongType(), nullable=True),
+        ]
+    )
+    df = session.createDataFrame([{"a": 1, "b": 1}, {"a": 2, "b": 2}], schema)
+    assert [field.name for field in df.schema.fields] == ["A", "B"]
+    Utils.check_answer(df, [Row(1, 1), Row(2, 2)])
+
+    schema = StructType(
+        [
+            StructField("a", LongType(), nullable=True),
+            StructField("b", LongType(), nullable=True),
+        ]
+    )
+    df = session.createDataFrame([{"A": 1, "B": 1}, {"A": 2, "B": 2}], schema)
+    assert [field.name for field in df.schema.fields] == ["A", "B"]
+    Utils.check_answer(df, [Row(1, 1), Row(2, 2)])
+
+    schema = StructType(
+        [
+            StructField("A", LongType(), nullable=True),
+            StructField("B", LongType(), nullable=True),
+        ]
+    )
+    df = session.createDataFrame([{'"a"': 1, '"b"': 1}, {'"a"': 2, '"b"': 2}], schema)
+    assert [field.name for field in df.schema.fields] == ["A", "B"]
+    Utils.check_answer(df, [Row(None, None), Row(None, None)])
+
+    schema = StructType(
+        [
+            StructField('"A"', LongType(), nullable=True),
+            StructField('"B"', LongType(), nullable=True),
+        ]
+    )
+    df = session.createDataFrame([{'"A"': 1, '"B"': 1}, {'"A"': 2, '"B"': 2}], schema)
+    assert [field.name for field in df.schema.fields] == ["A", "B"]
+    Utils.check_answer(df, [Row(1, 1), Row(2, 2)])
+
+    schema = StructType(
+        [
+            StructField('"A"', LongType(), nullable=True),
+            StructField('"B"', LongType(), nullable=True),
+        ]
+    )
+    df = session.createDataFrame([{"A": 1, "B": 1}, {"A": 2, "B": 2}], schema)
+    assert [field.name for field in df.schema.fields] == ["A", "B"]
+    Utils.check_answer(df, [Row(1, 1), Row(2, 2)])
+
+    schema = StructType(
+        [
+            StructField('"A"', LongType(), nullable=True),
+            StructField('"B"', LongType(), nullable=True),
+        ]
+    )
+    df = session.createDataFrame([{'"a"': 1, '"b"': 1}, {'"a"': 2, '"b"': 2}], schema)
+    assert [field.name for field in df.schema.fields] == ["A", "B"]
+    Utils.check_answer(df, [Row(None, None), Row(None, None)])
+
+
 def test_create_dataframe_with_namedtuple(session):
     Data = namedtuple("Data", [f"snow_{idx + 1}" for idx in range(5)])
     data = Data(*[idx**3 for idx in range(5)])
