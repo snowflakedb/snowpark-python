@@ -330,7 +330,7 @@ class ServerConnection:
                     QueryRecord(results_cursor["queryId"], query)
                 )
                 logger.debug(
-                    f"Execute query [queryID: {results_cursor['queryId']}] {query}"
+                    f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
                 )
         except Exception as ex:
             query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
