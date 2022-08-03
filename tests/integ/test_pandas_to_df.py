@@ -8,6 +8,7 @@ import pytest
 from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
@@ -50,11 +51,13 @@ def tmp_table_complex(session):
 
 @pytest.mark.parametrize("quote_identifiers", [True, False])
 @pytest.mark.parametrize("auto_create_table", [True, False])
+@pytest.mark.parametrize("overwrite", [True, False])
 def test_write_pandas_with_overwrite(
     session,
     tmp_table_basic,
     quote_identifiers: bool,
     auto_create_table: bool,
+    overwrite: bool,
 ):
     pd1 = PandasDF(
         [
@@ -91,25 +94,41 @@ def test_write_pandas_with_overwrite(
         pd2,
         table_name,
         quote_identifiers=quote_identifiers,
-        overwrite=True,
+        overwrite=overwrite,
         auto_create_table=auto_create_table,
     )
     results = df2.to_pandas()
-    # Results should match pd2
-    assert_frame_equal(results, pd2, check_dtype=False)
+    if overwrite:
+        # Results should match pd2
+        assert_frame_equal(results, pd2, check_dtype=False)
+    else:
+        # Results count should match pd1 + pd2
+        assert results.shape[0] == 4
 
     # Insert 1 row with new schema
     if auto_create_table:
-        # In this case, the table is first dropped and since there's a new schema, the results should now match pd3
-        df3 = session.write_pandas(
-            pd3,
-            table_name,
-            quote_identifiers=quote_identifiers,
-            overwrite=True,
-            auto_create_table=auto_create_table,
-        )
-        results = df3.to_pandas()
-        assert_frame_equal(results, pd3, check_dtype=False)
+        if overwrite:
+            # In this case, the table is first dropped and since there's a new schema, the results should now match pd3
+            df3 = session.write_pandas(
+                pd3,
+                table_name,
+                quote_identifiers=quote_identifiers,
+                overwrite=overwrite,
+                auto_create_table=auto_create_table,
+            )
+            results = df3.to_pandas()
+            assert_frame_equal(results, pd3, check_dtype=False)
+        else:
+            # In this case, the table is truncated but since there's a new schema, it should fail
+            with pytest.raises(ProgrammingError) as ex_info:
+                session.write_pandas(
+                    pd3,
+                    table_name,
+                    quote_identifiers=quote_identifiers,
+                    overwrite=overwrite,
+                    auto_create_table=auto_create_table,
+                )
+            assert "invalid identifier 'NAME'" in str(ex_info)
 
     with pytest.raises(SnowparkPandasException) as ex_info:
         session.write_pandas(pd1, "tmp_table")

@@ -983,9 +983,10 @@ class Session:
                 table, you can always create your own table before calling this function. For example, auto-created
                 tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
             create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
-            overwrite: When true, and if auto_create_table is true, then it drops the table. Otherwise, it
-                truncates the table. In both cases it will replace the existing contents of the table with that of the passed in
-                Pandas DataFrame.
+            overwrite: Default value is ``False`` and the Pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
+                then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
+                then it trunctates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
+                contents of the table with that of the passed in Pandas DataFrame.
 
         Example::
 
@@ -998,7 +999,7 @@ class Session:
             1   2    Bob
 
             >>> pandas_df2 = pd.DataFrame([(3, "John")], columns=["id", "name"])
-            >>> snowpark_df2 = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=False, overwrite=False)
+            >>> snowpark_df2 = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=False)
             >>> snowpark_df2.to_pandas()
                id   name
             0   1  Steve
