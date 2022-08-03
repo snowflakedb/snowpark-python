@@ -10,11 +10,13 @@ from snowflake.connector.cursor import ResultMetadata
 from snowflake.snowpark._internal.utils import result_set_to_iter, result_set_to_rows
 
 
-class AsyncDataType(Enum):
+class _AsyncDataType(Enum):
     PANDAS = "pandas"
     ROW = "row"
     ITERATOR = "iterator"
     PANDAS_BATCH = "pandas_batch"
+    COUNT = "count"
+    NO_TYPE = "no_type"
 
 
 class AsyncJob:
@@ -25,7 +27,7 @@ class AsyncJob:
         conn: SnowflakeConnection,
         result_meta: List[ResultMetadata],
         server_connection: "snowflake.snowpark._internal.server_connection.ServerConnection",
-        data_type: AsyncDataType = AsyncDataType.ROW,
+        data_type: _AsyncDataType = _AsyncDataType.ROW,
     ) -> None:
         self.query_id = query_id
         self.query = query
@@ -50,19 +52,23 @@ class AsyncJob:
 
     def result(self):
         # return result of the query, in the form of a list of Row object
+        if self._data_type == _AsyncDataType.NO_TYPE:
+            return None
         self._cursor.get_results_from_sfqid(self.query_id)
         result_data = self._cursor.fetchall()
-        if self._data_type == AsyncDataType.ROW:
+        if self._data_type == _AsyncDataType.ROW:
             return result_set_to_rows(result_data, self._result_meta)
-        elif self._data_type == AsyncDataType.ITERATOR:
+        elif self._data_type == _AsyncDataType.ITERATOR:
             return result_set_to_iter(result_data, self._result_meta)
-        elif self._data_type == AsyncDataType.PANDAS:
+        elif self._data_type == _AsyncDataType.PANDAS:
             return self._server_connection._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=False
             )["data"]
-        elif self._data_type == AsyncDataType.PANDAS_BATCH:
+        elif self._data_type == _AsyncDataType.PANDAS_BATCH:
             return self._server_connection._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True
             )["data"]
+        elif self._data_type == _AsyncDataType.COUNT:
+            return result_data[0][0]
         else:
             raise ValueError(f"{self._data_type} is not a supported data type")

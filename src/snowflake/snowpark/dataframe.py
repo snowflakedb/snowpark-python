@@ -85,7 +85,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     validate_object_name,
 )
-from snowflake.snowpark.async_job import AsyncDataType, AsyncJob
+from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -464,7 +464,7 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         return self._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params, block=False, data_type=AsyncDataType.ROW
+            statement_params=statement_params, block=False, data_type=_AsyncDataType.ROW
         )
 
     def _internal_collect_with_tag_no_telemetry(
@@ -472,7 +472,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        data_type: AsyncDataType = AsyncDataType.ROW,
+        data_type: _AsyncDataType = _AsyncDataType.ROW,
     ) -> Union[List["Row"], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
@@ -528,7 +528,7 @@ class DataFrame:
             self._plan,
             to_iter=True,
             block=block,
-            data_type=AsyncDataType.ITERATOR,
+            data_type=_AsyncDataType.ITERATOR,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
@@ -565,7 +565,7 @@ class DataFrame:
             self._plan,
             to_pandas=True,
             block=block,
-            data_type=AsyncDataType.PANDAS,
+            data_type=_AsyncDataType.PANDAS,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -625,7 +625,7 @@ class DataFrame:
             to_pandas=True,
             to_iter=True,
             block=block,
-            data_type=AsyncDataType.PANDAS_BATCH,
+            data_type=_AsyncDataType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -1933,16 +1933,24 @@ class DataFrame:
         # Put it all together
         return self.select([*old_cols, *new_cols])
 
-    def count(self, *, statement_params: Optional[Dict[str, str]] = None) -> int:
+    def count(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> int:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Bool value indicate whether operate this function in async mode.
         """
         df = self.agg(("*", "count"))
         add_api_call(df, "DataFrame.count")
-        return df._internal_collect_with_tag(statement_params=statement_params)[0][0]
+        result = df._internal_collect_with_tag(
+            statement_params=statement_params,
+            block=block,
+            data_type=_AsyncDataType.COUNT,
+        )
+        return result[0][0] if block else result
 
     @property
     def write(self) -> DataFrameWriter:
@@ -2407,13 +2415,15 @@ class DataFrame:
         n: Optional[int] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> Union[Optional[Row], List[Row]]:
+        block: bool = True,
+    ) -> Union[Optional[Row], List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
 
         Args:
             n: The number of rows to return.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Bool value indicate whether operate this function in async mode.
 
         Returns:
              A list of the first ``n`` :class:`Row` objects if ``n`` is not ``None``. If ``n`` is negative or
@@ -2424,16 +2434,24 @@ class DataFrame:
         if n is None:
             df = self.limit(1)
             add_api_call(df, "DataFrame.first")
-            result = df._internal_collect_with_tag(statement_params=statement_params)
+            result = df._internal_collect_with_tag(
+                statement_params=statement_params, block=block
+            )
+            if not block:
+                return result
             return result[0] if result else None
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
-            return self._internal_collect_with_tag(statement_params=statement_params)
+            return self._internal_collect_with_tag(
+                statement_params=statement_params, block=block
+            )
         else:
             df = self.limit(n)
             add_api_call(df, "DataFrame.first")
-            return df._internal_collect_with_tag(statement_params=statement_params)
+            return df._internal_collect_with_tag(
+                statement_params=statement_params, block=block
+            )
 
     take = first
 
