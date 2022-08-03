@@ -42,7 +42,7 @@ from snowflake.snowpark._internal.utils import (
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
-from snowflake.snowpark.async_job import AsyncDataType, AsyncJob
+from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
@@ -309,7 +309,7 @@ class ServerConnection:
         to_iter: bool = False,
         is_ddl_on_temp_object: bool = False,
         block: bool = True,
-        data_type: AsyncDataType = AsyncDataType.ROW,
+        data_type: _AsyncDataType = _AsyncDataType.ROW,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -394,13 +394,13 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         block: bool = True,
-        data_type: AsyncDataType = AsyncDataType.ROW,
+        data_type: _AsyncDataType = _AsyncDataType.ROW,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         if is_in_stored_procedure() and not block:
-            raise ValueError("can not use async and stored procedure at the same time")
+            raise ValueError("async query isn't yet supported in stored procedure")
         result_set, result_meta = self.get_result_set(
             plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
         )
@@ -421,7 +421,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         block: bool = True,
-        data_type: AsyncDataType = AsyncDataType.ROW,
+        data_type: _AsyncDataType = _AsyncDataType.ROW,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -457,10 +457,9 @@ class ServerConnection:
                         data_type=data_type,
                         **kwargs,
                     )
-                    if block:
-                        placeholders[query.query_id_place_holder] = result["sfqid"]
-                    else:
-                        placeholders[query.query_id_place_holder] = result.query_id
+                    placeholders[query.query_id_place_holder] = (
+                        result["sfqid"] if block else result.query_id
+                    )
                     result_meta = self._cursor.description
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()

@@ -320,6 +320,7 @@ class Table(DataFrame):
         source: Optional[DataFrame] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
     ) -> UpdateResult:
         """
         Updates rows in the Table with specified ``assignments`` and returns a
@@ -335,6 +336,7 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Bool value indicate whether operate this function in async mode.
 
         Examples::
 
@@ -384,9 +386,10 @@ class Table(DataFrame):
             )
         )
         add_api_call(new_df, "Table.update")
-        return _get_update_result(
-            new_df._internal_collect_with_tag(statement_params=statement_params)
+        result = new_df._internal_collect_with_tag(
+            statement_params=statement_params, block=block
         )
+        return _get_update_result(result) if block else result
 
     def delete(
         self,
@@ -394,6 +397,7 @@ class Table(DataFrame):
         source: Optional[DataFrame] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
     ) -> DeleteResult:
         """
         Deletes rows in a Table and returns a :class:`DeleteResult`,
@@ -405,6 +409,7 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Bool value indicate whether operate this function in async mode.
 
         Examples::
 
@@ -449,9 +454,10 @@ class Table(DataFrame):
             )
         )
         add_api_call(new_df, "Table.delete")
-        return _get_delete_result(
-            new_df._internal_collect_with_tag(statement_params=statement_params)
+        result = new_df._internal_collect_with_tag(
+            statement_params=statement_params, block=block
         )
+        return _get_delete_result(result) if block else result
 
     def merge(
         self,
@@ -460,6 +466,7 @@ class Table(DataFrame):
         clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
     ) -> MergeResult:
         """
         Merges this :class:`Table` with :class:`DataFrame` source on the specified
@@ -480,6 +487,7 @@ class Table(DataFrame):
                 of :class:`WhenMatchedClause` and :class:`WhenNotMatchedClause`, and will
                 be performed sequentially in this list.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Bool value indicate whether operate this function in async mode.
 
         Example::
 
@@ -519,9 +527,16 @@ class Table(DataFrame):
             )
         )
         add_api_call(new_df, "Table.update")
-        return _get_merge_result(
-            new_df._internal_collect_with_tag(statement_params=statement_params),
-            inserted=inserted,
-            updated=updated,
-            deleted=deleted,
+        result = new_df._internal_collect_with_tag(
+            statement_params=statement_params, block=block
+        )
+        return (
+            _get_merge_result(
+                result,
+                inserted=inserted,
+                updated=updated,
+                deleted=deleted,
+            )
+            if block
+            else result
         )
