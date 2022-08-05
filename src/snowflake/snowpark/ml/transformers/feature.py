@@ -7,7 +7,7 @@ import logging
 from typing import Dict, Optional
 
 from snowflake.snowpark import DataFrame, Session
-from snowflake.snowpark.functions import call_udf, col
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.ml.transformers.base import BaseEstimator, BaseTransformer
 from snowflake.snowpark.ml.transformers.utils import (
     ColumnsMetadataColumn,
@@ -60,6 +60,8 @@ class StandardScaler(BaseEstimator, BaseTransformer):
         self.with_std = with_std
         self.input_col = input_col
         self.output_col = output_col
+        self.mean = None
+        self.stddev = None
 
     def fit(self, dataset: DataFrame) -> "StandardScaler":
         """Append a fitted row with mean and std to columns
@@ -98,14 +100,33 @@ class StandardScaler(BaseEstimator, BaseTransformer):
                 del computed_stats[NumericStatistics.STDDEV]
             numeric_stats.update(computed_stats)
 
+        self.mean = numeric_stats[NumericStatistics.MEAN]
+        self.stddev = numeric_stats[NumericStatistics.STDDEV]
+
         # append the fitted row to columns metadata
         updated_column_name = f"{self.input_col}_standard_scaler_fitted"
+        temp_metadata = "temp_metadata"
+        metadata_df.write.save_as_table(
+            temp_metadata, mode="overwrite", create_temp_table=True
+        )
+        temp_metadata_table = self.session.table(temp_metadata)
+        temp_metadata_table.show()
+        temp_metadata_table.update(
+            {
+                ColumnsMetadataColumn.COLUMN_NAME: updated_column_name,
+                ColumnsMetadataColumn.NUMERIC_STATISTICS: json.dumps(numeric_stats),
+            }
+        )
+        temp_metadata_table.show()
+        temp_metadata_table.write.mode("append").save_as_table(
+            StateTable.COLUMNS_METADATA
+        )
 
-        self.session.sql(
-            f"insert into {columns_metadata.table_name} (VERSION, COLUMN_NAME, NUMERIC_STATISTICS) "
-            f"select '0.0.1', '{updated_column_name}', "
-            f"parse_json('{json.dumps(numeric_stats)}')"
-        ).collect()
+        # self.session.sql(
+        #     f"insert into {columns_metadata.table_name} (VERSION, COLUMN_NAME, NUMERIC_STATISTICS) "
+        #     f"select '0.0.1', '{updated_column_name}', "
+        #     f"parse_json('{json.dumps(numeric_stats)}')"
+        # ).collect()
 
         # metadata_df = metadata_df.with_columns(
         #     [ColumnsMetadataColumn.COLUMN_NAME.value],
@@ -129,23 +150,6 @@ class StandardScaler(BaseEstimator, BaseTransformer):
         #     ColumnsMetadataColumn.BASIC_STATISTICS.value, ColumnsMetadataColumn.NUMERIC_STATISTICS.value
         # ])
         # updated_metadata_df.show()
-
-        # merge
-        # columns_metadata.merge(
-        #     metadata_df,
-        #     columns_metadata[ColumnsMetadataColumn.COLUMN_NAME] == metadata_df[ColumnsMetadataColumn.COLUMN_NAME],
-        #     [
-        #         when_matched().update({
-        #             ColumnsMetadataColumn.NUMERIC_STATISTICS: metadata_df[ColumnsMetadataColumn.NUMERIC_STATISTICS]
-        #         }),
-        #         when_not_matched().insert({
-        #             ColumnsMetadataColumn.VERSION: metadata_df[ColumnsMetadataColumn.VERSION],
-        #             ColumnsMetadataColumn.COLUMN_NAME: metadata_df[ColumnsMetadataColumn.COLUMN_NAME],
-        #             ColumnsMetadataColumn.BASIC_STATISTICS: metadata_df[ColumnsMetadataColumn.BASIC_STATISTICS],
-        #             ColumnsMetadataColumn.NUMERIC_STATISTICS: metadata_df[ColumnsMetadataColumn.NUMERIC_STATISTICS]
-        #         })
-        #     ]
-        # )
 
         # pandas
         # metadata_pandas = metadata_df.to_pandas()
@@ -214,6 +218,16 @@ class StandardScaler(BaseEstimator, BaseTransformer):
             Output dataset.
         """
         dataset = dataset.with_column(
-            self.output_col, call_udf(f"{self._SESSION_SCHEMA}.transform", dataset[0])
+            self.output_col, (dataset[0] - self.mean) / self.stddev
         )
+
+        # udf
+        # dataset = dataset.with_column(
+        #     self.output_col, call_udf(f"{self._SESSION_SCHEMA}.transform", dataset[0])
+        # )
+
+        # save sql
+        # dataset = dataset.with_column(
+        #     self.output_col, (dataset.columns[0] - self.mean) + "/" + self.stddev
+        # )
         return dataset
