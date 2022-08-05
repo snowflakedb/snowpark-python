@@ -122,6 +122,7 @@ class ServerConnection:
                             func.__name__, duration, sfqid
                         )
                     logger.debug(f"Finished in {duration:.4f} secs")
+                    return result
 
                 return wrap
 

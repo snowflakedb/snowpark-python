@@ -3,7 +3,7 @@
 #
 import os
 import sys
-from typing import Dict, List, NamedTuple, Optional
+from typing import IO, Dict, List, NamedTuple, Optional
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -207,3 +207,47 @@ class FileOperation:
         # connector raises IndexError when no file is downloaded from python connector.
         except IndexError:
             return []
+
+    def put_stream(
+        self,
+        input_stream: IO[bytes],
+        stage_location: str,
+        dest_filename: str,
+        *,
+        parallel: int = 4,
+        auto_compress: bool = True,
+        source_compression: str = "AUTO_DETECT",
+        overwrite: bool = False,
+    ) -> PutResult:
+        """Uploads local files to the stage via file stream.
+
+        Args:
+            input_stream: The input stream from which the data will be uploaded.
+            stage_locatio: The stage and prefix where you want to upload the files.
+            dest_filenam: The filename used to store the file stream in the stage.
+            parallel: Specifies the number of threads to use for uploading files. The upload process separates batches of data files by size:
+
+                  - Small files (< 64 MB compressed or uncompressed) are staged in parallel as individual files.
+                  - Larger files are automatically split into chunks, staged concurrently, and reassembled in the target stage. A single thread can upload multiple chunks.
+
+                Increasing the number of threads can improve performance when uploading large files.
+                Supported values: Any integer value from 1 (no parallelism) to 99 (use 99 threads for uploading files).
+                Defaults to 4.
+            auto_compress: Specifies whether Snowflake uses gzip to compress files during upload. Defaults to True.
+            source_compression: Specifies the method of compression used on already-compressed files that are being staged.
+                Values can be 'AUTO_DETECT', 'GZIP', 'BZ2', 'BROTLI', 'ZSTD', 'DEFLATE', 'RAW_DEFLATE', 'NONE'. Defaults to "AUTO_DETECT".
+            overwrite: Specifies whether Snowflake will overwrite an existing file with the same name during upload. Defaults to False.
+
+        Returns:
+            An object of :class:`PutResult` which represents the results of an uploaded file.
+        """
+        put_result = self._session._conn.upload_stream(
+            input_stream=input_stream,
+            stage_location=stage_location,
+            dest_filename=dest_filename,
+            parallel=parallel,
+            compress_data=auto_compress,
+            source_compression=source_compression,
+            overwrite=overwrite,
+        )
+        return PutResult(*put_result["data"][0])
