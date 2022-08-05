@@ -223,8 +223,8 @@ class FileOperation:
 
         Args:
             input_stream: The input stream from which the data will be uploaded.
-            stage_locatio: The stage and prefix where you want to upload the files.
-            dest_filenam: The filename used to store the file stream in the stage.
+            stage_location: The stage and prefix where you want to upload the files.
+            dest_filename: The filename used to store the file stream in the stage.
             parallel: Specifies the number of threads to use for uploading files. The upload process separates batches of data files by size:
 
                   - Small files (< 64 MB compressed or uncompressed) are staged in parallel as individual files.
