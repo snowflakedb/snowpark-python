@@ -52,11 +52,11 @@ class AsyncJob:
 
     def result(self):
         # return result of the query, in the form of a list of Row object
-        if self._data_type == _AsyncDataType.NO_TYPE:
-            return None
         self._cursor.get_results_from_sfqid(self.query_id)
         result_data = self._cursor.fetchall()
-        if self._data_type == _AsyncDataType.ROW:
+        if self._data_type == _AsyncDataType.NO_TYPE:
+            return None
+        elif self._data_type == _AsyncDataType.ROW:
             return result_set_to_rows(result_data, self._result_meta)
         elif self._data_type == _AsyncDataType.ITERATOR:
             return result_set_to_iter(result_data, self._result_meta)
