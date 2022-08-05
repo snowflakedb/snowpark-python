@@ -110,14 +110,12 @@ class StandardScaler(BaseEstimator, BaseTransformer):
             temp_metadata, mode="overwrite", create_temp_table=True
         )
         temp_metadata_table = self.session.table(temp_metadata)
-        temp_metadata_table.show()
         temp_metadata_table.update(
             {
                 ColumnsMetadataColumn.COLUMN_NAME: updated_column_name,
                 ColumnsMetadataColumn.NUMERIC_STATISTICS: json.dumps(numeric_stats),
             }
         )
-        temp_metadata_table.show()
         temp_metadata_table.write.mode("append").save_as_table(
             StateTable.COLUMNS_METADATA
         )
