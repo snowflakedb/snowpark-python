@@ -252,7 +252,7 @@ def test_put_stream_withone_file_twice(session, temp_stage, path1):
     assert second_result.source == os.path.basename(path1)
     assert second_result.target == os.path.basename(path1) + ".gz"
     assert second_result.source_size in (10, 11)
-    assert second_result.target_size in (0, 64, 98)
+    assert second_result.target_size in (0, 32)
     assert second_result.source_compression == "NONE"
     assert second_result.target_compression == "GZIP"
     assert second_result.status in ("SKIPPED", "UPLOADED")
