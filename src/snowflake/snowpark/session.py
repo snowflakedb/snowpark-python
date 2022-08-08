@@ -999,7 +999,7 @@ class Session:
             1   2    Bob
 
             >>> pandas_df2 = pd.DataFrame([(3, "John")], columns=["id", "name"])
-            >>> snowpark_df2 = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=False)
+            >>> snowpark_df2 = session.write_pandas(pandas_df2, "write_pandas_table", auto_create_table=False)
             >>> snowpark_df2.to_pandas()
                id   name
             0   1  Steve
@@ -1007,7 +1007,7 @@ class Session:
             2   3   John
 
             >>> pandas_df3 = pd.DataFrame([(1, "Jane")], columns=["id", "name"])
-            >>> snowpark_df3 = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=False, overwrite=True)
+            >>> snowpark_df3 = session.write_pandas(pandas_df3, "write_pandas_table", auto_create_table=False, overwrite=True)
             >>> snowpark_df3.to_pandas()
                id   name
             0   1   Jane
