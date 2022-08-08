@@ -212,7 +212,7 @@ class FileOperation:
         self,
         input_stream: IO[bytes],
         stage_location: str,
-        dest_filename: str,
+        dest_file_name: str,
         *,
         parallel: int = 4,
         auto_compress: bool = True,
@@ -224,7 +224,7 @@ class FileOperation:
         Args:
             input_stream: The input stream from which the data will be uploaded.
             stage_location: The stage and prefix where you want to upload the files.
-            dest_filename: The filename used to store the file stream in the stage.
+            dest_file_name: The filename used to store the file stream in the stage.
             parallel: Specifies the number of threads to use for uploading files. The upload process separates batches of data files by size:
 
                   - Small files (< 64 MB compressed or uncompressed) are staged in parallel as individual files.
@@ -244,7 +244,7 @@ class FileOperation:
         put_result = self._session._conn.upload_stream(
             input_stream=input_stream,
             stage_location=stage_location,
-            dest_filename=dest_filename,
+            dest_filename=dest_file_name,
             parallel=parallel,
             compress_data=auto_compress,
             source_compression=source_compression,
