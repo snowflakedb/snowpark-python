@@ -7,11 +7,11 @@ from snowflake.snowpark.session import Session, _get_active_session
 
 
 def get_active_session() -> Session:
-    """Returns the current active snowpark session.
+    """Returns the current active Snowpark session.
 
-    Raises: SnowparkSessionException: If there are more than one active sessions or no active sessions.
+    Raises: SnowparkSessionException: If there is more than one active session or no active sessions.
 
     Returns:
-        A :class:`Session` object for current session.
+        A :class:`Session` object for the current session.
     """
     return _get_active_session()
