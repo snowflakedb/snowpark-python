@@ -441,6 +441,29 @@ class ServerConnection:
         result, result_meta = None, None
         try:
             placeholders = {}
+            if len(plan.queries) > 1 and not block:
+                sql = "begin "
+                for q in plan.queries:
+                    sql += q.sql + ";"
+                sql += " end;"
+                final_query = sql
+                for holder, id_ in placeholders.items():
+                    final_query = final_query.replace(holder, id_)
+                result = self.run_query(
+                    sql,
+                    to_pandas,
+                    to_iter,
+                    is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
+                    block=block,
+                    data_type=data_type,
+                    **kwargs,
+                )
+                placeholders[plan.queries[0].query_id_place_holder] = (
+                    result["sfqid"] if block else result.query_id
+                )
+                result_meta = self._cursor.description
+                if action_id < plan.session._last_canceled_id:
+                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             for i, query in enumerate(plan.queries):
                 if isinstance(query, BatchInsertQuery):
                     self.run_batch_insert(query.sql, query.rows, **kwargs)
