@@ -17,6 +17,9 @@ class _AsyncDataType(Enum):
     PANDAS_BATCH = "pandas_batch"
     COUNT = "count"
     NO_TYPE = "no_type"
+    UPDATE = "update"
+    DELETE = "delete"
+    MERGE = "merge"
 
 
 class AsyncJob:
@@ -50,6 +53,33 @@ class AsyncJob:
         # stop and cancel current query id
         self._conn._cancel_query(self.query, self.query_id)
 
+    def _table_result(self, result_data):
+        if self._data_type == _AsyncDataType.UPDATE:
+            return snowflake.snowpark.UpdateResult(
+                int(result_data[0][0]), int(result_data[0][1])
+            )
+        elif self._data_type == _AsyncDataType.DELETE:
+            return snowflake.snowpark.DeleteResult(int(result_data[0][0]))
+        else:
+            inserted, updated, deleted = (
+                self._data_type[6],
+                self._data_type[7],
+                self._data_type[8],
+            )
+            idx = 0
+            rows_inserted, rows_updated, rows_deleted = 0, 0, 0
+            if inserted == "1":
+                rows_inserted = int(result_data[0][idx])
+                idx += 1
+            if updated == "1":
+                rows_updated = int(result_data[0][idx])
+                idx += 1
+            if deleted == "1":
+                rows_deleted = int(result_data[0][idx])
+            return snowflake.snowpark.MergeResult(
+                rows_inserted, rows_updated, rows_deleted
+            )
+
     def result(self):
         # return result of the query, in the form of a list of Row object
         self._cursor.get_results_from_sfqid(self.query_id)
@@ -70,5 +100,17 @@ class AsyncJob:
             )["data"]
         elif self._data_type == _AsyncDataType.COUNT:
             return result_data[0][0]
+        elif self._data_type == _AsyncDataType.UPDATE:
+            return self._table_result(
+                result_set_to_rows(result_data, self._result_meta)
+            )
+        elif self._data_type == _AsyncDataType.DELETE:
+            return self._table_result(
+                result_set_to_rows(result_data, self._result_meta)
+            )
+        elif self._data_type[:5] == _AsyncDataType.MERGE.value:
+            return self._table_result(
+                result_set_to_rows(result_data, self._result_meta)
+            )
         else:
             raise ValueError(f"{self._data_type} is not a supported data type")

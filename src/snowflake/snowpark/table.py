@@ -387,7 +387,9 @@ class Table(DataFrame):
         )
         add_api_call(new_df, "Table.update")
         result = new_df._internal_collect_with_tag(
-            statement_params=statement_params, block=block
+            statement_params=statement_params,
+            block=block,
+            data_type=snowflake.snowpark._AsyncDataType.UPDATE,
         )
         return _get_update_result(result) if block else result
 
@@ -455,7 +457,9 @@ class Table(DataFrame):
         )
         add_api_call(new_df, "Table.delete")
         result = new_df._internal_collect_with_tag(
-            statement_params=statement_params, block=block
+            statement_params=statement_params,
+            block=block,
+            data_type=snowflake.snowpark._AsyncDataType.DELETE,
         )
         return _get_delete_result(result) if block else result
 
@@ -528,7 +532,9 @@ class Table(DataFrame):
         )
         add_api_call(new_df, "Table.update")
         result = new_df._internal_collect_with_tag(
-            statement_params=statement_params, block=block
+            statement_params=statement_params,
+            block=block,
+            data_type=f"{str(snowflake.snowpark._AsyncDataType.MERGE.value)}_{int(inserted)}{int(updated)}{int(deleted)}",
         )
         return (
             _get_merge_result(
