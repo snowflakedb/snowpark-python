@@ -1009,8 +1009,8 @@ class Session:
             >>> pandas_df3 = pd.DataFrame([(1, "Jane")], columns=["id", "name"])
             >>> snowpark_df3 = session.write_pandas(pandas_df3, "write_pandas_table", auto_create_table=False, overwrite=True)
             >>> snowpark_df3.to_pandas()
-               id   name
-            0   1   Jane
+               id  name
+            0   1  Jane
 
         Note:
             Unless ``auto_create_table`` is ``True``, you must first create a table in
