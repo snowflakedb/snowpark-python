@@ -400,7 +400,7 @@ class ServerConnection:
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         if is_in_stored_procedure() and not block:
-            raise ValueError("async query isn't yet supported in stored procedure")
+            raise ValueError("Async query is not supported in stored procedure yet")
         result_set, result_meta = self.get_result_set(
             plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
         )
@@ -450,7 +450,7 @@ class ServerConnection:
                 for holder, id_ in placeholders.items():
                     final_query = final_query.replace(holder, id_)
                 result = self.run_query(
-                    sql,
+                    final_query,
                     to_pandas,
                     to_iter,
                     is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
@@ -458,34 +458,36 @@ class ServerConnection:
                     data_type=data_type,
                     **kwargs,
                 )
-                placeholders[plan.queries[0].query_id_place_holder] = (
-                    result["sfqid"] if block else result.query_id
-                )
+                for q in plan.queries:
+                    placeholders[q.query_id_place_holder] = (
+                        result["sfqid"] if block else result.query_id
+                    )
                 result_meta = self._cursor.description
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-            for i, query in enumerate(plan.queries):
-                if isinstance(query, BatchInsertQuery):
-                    self.run_batch_insert(query.sql, query.rows, **kwargs)
-                else:
-                    final_query = query.sql
-                    for holder, id_ in placeholders.items():
-                        final_query = final_query.replace(holder, id_)
-                    result = self.run_query(
-                        final_query,
-                        to_pandas,
-                        to_iter and (i == len(plan.queries) - 1),
-                        is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                        block=block,
-                        data_type=data_type,
-                        **kwargs,
-                    )
-                    placeholders[query.query_id_place_holder] = (
-                        result["sfqid"] if block else result.query_id
-                    )
-                    result_meta = self._cursor.description
-                if action_id < plan.session._last_canceled_id:
-                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+            else:
+                for i, query in enumerate(plan.queries):
+                    if isinstance(query, BatchInsertQuery):
+                        self.run_batch_insert(query.sql, query.rows, **kwargs)
+                    else:
+                        final_query = query.sql
+                        for holder, id_ in placeholders.items():
+                            final_query = final_query.replace(holder, id_)
+                        result = self.run_query(
+                            final_query,
+                            to_pandas,
+                            to_iter and (i == len(plan.queries) - 1),
+                            is_ddl_on_temp_object=query.is_ddl_on_temp_object,
+                            block=block,
+                            data_type=data_type,
+                            **kwargs,
+                        )
+                        placeholders[query.query_id_place_holder] = (
+                            result["sfqid"] if block else result.query_id
+                        )
+                        result_meta = self._cursor.description
+                    if action_id < plan.session._last_canceled_id:
+                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
             for action in plan.post_actions:
