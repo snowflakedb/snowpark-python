@@ -18,7 +18,10 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import Utils
+from tests.utils import TestFiles, Utils
+
+test_file_csv = "testCSV.csv"
+tmp_stage_name1 = Utils.random_stage_name()
 
 
 def test_async_collect_common(session):
@@ -241,7 +244,7 @@ def test_async_copy_into_location(session):
     Utils.check_answer(res, df)
 
 
-def test_multiple_queries(session):
+def test_multiple_queries(session, resources_path):
     user_schema = StructType(
         [
             StructField("a", IntegerType()),
@@ -249,10 +252,12 @@ def test_multiple_queries(session):
             StructField("c", DoubleType()),
         ]
     )
-    session.file.put("../../resources/testCSV.csv", session.get_session_stage())
-    df = session.read.schema(user_schema).csv(
-        session.get_session_stage() + "/testCSV.csv"
+    test_files = TestFiles(resources_path)
+    Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
     )
+    df = session.read.schema(user_schema).csv(f"@{tmp_stage_name1}/{test_file_csv}")
     assert len(df.queries) > 1
     res = df.collect_nowait()
     Utils.check_answer(res.result(), df.collect())
