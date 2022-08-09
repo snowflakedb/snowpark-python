@@ -77,6 +77,7 @@ from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
     SKIP_LEVELS_TWO,
     TempObjectType,
+    check_is_pandas_dataframe,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecate,
@@ -440,16 +441,17 @@ class DataFrame:
 
     @df_collect_api_telemetry
     def collect(
-        self, *, statement_params: Optional[Dict[str, str]] = None
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> List["Row"]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
         """
         return self._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params
+            statement_params=statement_params, block=block
         )
 
     @df_collect_api_telemetry
@@ -458,7 +460,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> AsyncJob:
-        """Executes the query representing this DataFrame asynchronously and returns: class:'AsyncJob'
+        """Executes the query representing this DataFrame asynchronously and returns: class:'AsyncJob'.
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
@@ -522,7 +524,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: Bool value indicate whether operate this function in async mode.
+            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
         """
         return self._session._conn.execute(
             self._plan,
@@ -553,7 +555,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: Bool value indicate whether operate this function in async mode.
+            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -575,14 +577,8 @@ class DataFrame:
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
-        if not isinstance(result, pandas.DataFrame) and block:
-            raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-                "to_pandas() did not return a Pandas DataFrame. "
-                "If you use session.sql(...).to_pandas(), the input query can only be a "
-                "SELECT statement. Or you can use session.sql(...).collect() to get a "
-                "list of Row objects for a non-SELECT statement, then convert it to a "
-                "Pandas DataFrame."
-            )
+        if block:
+            check_is_pandas_dataframe(result)
 
         return result
 
@@ -613,6 +609,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -1941,7 +1938,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: Bool value indicate whether operate this function in async mode.
+            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
         """
         df = self.agg(("*", "count"))
         add_api_call(df, "DataFrame.count")
@@ -2423,7 +2420,7 @@ class DataFrame:
         Args:
             n: The number of rows to return.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: Bool value indicate whether operate this function in async mode.
+            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Returns:
              A list of the first ``n`` :class:`Row` objects if ``n`` is not ``None``. If ``n`` is negative or

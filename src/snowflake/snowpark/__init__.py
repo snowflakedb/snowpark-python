@@ -34,8 +34,6 @@ __all__ = [
     "WhenNotMatchedClause",
     "QueryRecord",
     "QueryHistory",
-    "AsyncJob",
-    "_AsyncDataType",
 ]
 
 
@@ -44,7 +42,6 @@ from snowflake.snowpark.version import VERSION
 __version__ = ".".join(str(x) for x in VERSION if x is not None)
 
 
-from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions

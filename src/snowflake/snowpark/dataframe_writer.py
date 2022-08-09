@@ -75,7 +75,7 @@ class DataFrameWriter:
         table_type: str = "",
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-    ) -> Union[None, AsyncJob]:
+    ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
         Args:
@@ -146,7 +146,7 @@ class DataFrameWriter:
             snowflake_plan,
             _statement_params=statement_params,
             block=block,
-            data_type=_AsyncDataType.NO_TYPE,
+            data_type=_AsyncDataType.NONE_TYPE,
         )
         return result if not block else None
 

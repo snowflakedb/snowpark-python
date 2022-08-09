@@ -25,6 +25,7 @@ from typing import IO, Any, Dict, Iterator, List, Optional, Type
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
+from snowflake.connector.options import pandas
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
@@ -522,3 +523,14 @@ def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
         return func_call_wrapper
 
     return deprecate_wrapper
+
+
+def check_is_pandas_dataframe(result):
+    if not isinstance(result, pandas.DataFrame):
+        raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
+            "to_pandas() did not return a Pandas DataFrame. "
+            "If you use session.sql(...).to_pandas(), the input query can only be a "
+            "SELECT statement. Or you can use session.sql(...).collect() to get a "
+            "list of Row objects for a non-SELECT statement, then convert it to a "
+            "Pandas DataFrame."
+        )
