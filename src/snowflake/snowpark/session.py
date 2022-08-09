@@ -980,6 +980,7 @@ class Session:
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
         create_temp_table: bool = False,
+        overwrite: bool = False,
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
         Snowpark :class:`DataFrame` object referring to the table where the
@@ -1006,6 +1007,10 @@ class Session:
                 table, you can always create your own table before calling this function. For example, auto-created
                 tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
             create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
+            overwrite: Default value is ``False`` and the Pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
+                then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
+                then it trunctates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
+                contents of the table with that of the passed in Pandas DataFrame.
 
         Example::
 
@@ -1016,6 +1021,20 @@ class Session:
                id   name
             0   1  Steve
             1   2    Bob
+
+            >>> pandas_df2 = pd.DataFrame([(3, "John")], columns=["id", "name"])
+            >>> snowpark_df2 = session.write_pandas(pandas_df2, "write_pandas_table", auto_create_table=False)
+            >>> snowpark_df2.to_pandas()
+               id   name
+            0   1  Steve
+            1   2    Bob
+            2   3   John
+
+            >>> pandas_df3 = pd.DataFrame([(1, "Jane")], columns=["id", "name"])
+            >>> snowpark_df3 = session.write_pandas(pandas_df3, "write_pandas_table", auto_create_table=False, overwrite=True)
+            >>> snowpark_df3.to_pandas()
+               id  name
+            0   1  Jane
 
         Note:
             Unless ``auto_create_table`` is ``True``, you must first create a table in
@@ -1050,6 +1069,7 @@ class Session:
                 quote_identifiers=quote_identifiers,
                 auto_create_table=auto_create_table,
                 create_temp_table=create_temp_table,
+                overwrite=overwrite,
             )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
