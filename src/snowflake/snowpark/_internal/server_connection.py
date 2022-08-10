@@ -347,13 +347,14 @@ class ServerConnection:
                 results_cursor["queryId"],
                 query,
                 self._conn,
-                self._cursor.describe(query, **kwargs),
+                kwargs,
                 self,
                 data_type,
             )
-        return self._to_data_or_iter(
-            results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
-        )
+        else:
+            return self._to_data_or_iter(
+                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+            )
 
     def _to_data_or_iter(
         self,
@@ -365,11 +366,15 @@ class ServerConnection:
             try:
                 data_or_iter = (
                     map(
-                        self._fix_pandas_df_integer,
+                        functools.partial(
+                            self._fix_pandas_df_integer, results_cursor=results_cursor
+                        ),
                         results_cursor.fetch_pandas_batches(),
                     )
                     if to_iter
-                    else self._fix_pandas_df_integer(results_cursor.fetch_pandas_all())
+                    else self._fix_pandas_df_integer(
+                        results_cursor.fetch_pandas_all(), results_cursor
+                    )
                 )
             except NotSupportedError:
                 data_or_iter = (
@@ -441,11 +446,21 @@ class ServerConnection:
         result, result_meta = None, None
         try:
             placeholders = {}
-            if len(plan.queries) > 1 and not block:
-                sql = "begin "
-                for q in plan.queries:
-                    sql += q.sql + ";"
-                sql += " end;"
+            is_batch_insert = False
+            for q in plan.queries:
+                if isinstance(q, BatchInsertQuery):
+                    is_batch_insert = True
+                    break
+            if len(plan.queries) > 1 and not block and not is_batch_insert:
+                sql = f"""execute immediate $$
+declare
+    res resultset;
+begin
+{";".join(q.sql for q in plan.queries[:-1])};
+res:=({plan.queries[-1].sql});
+return table(res);
+end;
+$$"""
                 final_query = sql
                 for holder, id_ in placeholders.items():
                     final_query = final_query.replace(holder, id_)
@@ -458,6 +473,7 @@ class ServerConnection:
                     data_type=data_type,
                     **kwargs,
                 )
+                result.query = plan.queries[-1].sql
                 for q in plan.queries:
                     placeholders[q.query_id_place_holder] = (
                         result["sfqid"] if block else result.query_id
@@ -470,6 +486,7 @@ class ServerConnection:
                     if isinstance(query, BatchInsertQuery):
                         self.run_batch_insert(query.sql, query.rows, **kwargs)
                     else:
+                        is_last = i == len(plan.queries) - 1 and not block
                         final_query = query.sql
                         for holder, id_ in placeholders.items():
                             final_query = final_query.replace(holder, id_)
@@ -478,25 +495,28 @@ class ServerConnection:
                             to_pandas,
                             to_iter and (i == len(plan.queries) - 1),
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                            block=block,
+                            block=not is_last,
                             data_type=data_type,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
-                            result["sfqid"] if block else result.query_id
+                            result["sfqid"] if not is_last else result.query_id
                         )
                         result_meta = self._cursor.description
                     if action_id < plan.session._last_canceled_id:
                         raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
-            for action in plan.post_actions:
-                self.run_query(
-                    action.sql,
-                    is_ddl_on_temp_object=action.is_ddl_on_temp_object,
-                    block=block,
-                    **kwargs,
-                )
+            if not block:
+                result._plan = plan
+            else:
+                for action in plan.post_actions:
+                    self.run_query(
+                        action.sql,
+                        is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+                        block=block,
+                        **kwargs,
+                    )
 
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
@@ -548,9 +568,11 @@ class ServerConnection:
             )
         logger.debug("Execute batch insertion query %s", query)
 
-    def _fix_pandas_df_integer(self, pd_df: "pandas.DataFrame") -> "pandas.DataFrame":
+    def _fix_pandas_df_integer(
+        self, pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
+    ) -> "pandas.DataFrame":
         for column_metadata, pandas_dtype, pandas_col_name in zip(
-            self._cursor.description, pd_df.dtypes, pd_df.columns
+            results_cursor.description, pd_df.dtypes, pd_df.columns
         ):
             if (
                 FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"

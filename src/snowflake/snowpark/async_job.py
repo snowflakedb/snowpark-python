@@ -2,11 +2,10 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 from enum import Enum
-from typing import Iterator, List, Union
+from typing import Dict, Iterator, List, Union
 
 import snowflake.snowpark
 from snowflake.connector import SnowflakeConnection
-from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe,
@@ -34,7 +33,7 @@ class AsyncJob:
         query_id: str,
         query: str,
         conn: SnowflakeConnection,
-        result_meta: List[ResultMetadata],
+        parameters: Dict[str, any],
         server_connection: "snowflake.snowpark._internal.server_connection.ServerConnection",
         data_type: _AsyncDataType = _AsyncDataType.ROW,
     ) -> None:
@@ -43,11 +42,13 @@ class AsyncJob:
         self._conn = conn
         self._cursor = self._conn.cursor()
         self._data_type = data_type
-        self._result_meta = result_meta
+        self._parameters = parameters
+        self._result_meta = None
         self._server_connection = server_connection
         self._inserted = False
         self._updated = False
         self._deleted = False
+        self._plan = None
 
         return
 
@@ -93,30 +94,39 @@ class AsyncJob:
     def result(self) -> Union[List[Row], pandas.DataFrame, Iterator[Row], int]:
         # return result of the query
         self._cursor.get_results_from_sfqid(self.query_id)
-        result_data = self._cursor.fetchall()
         if self._data_type == _AsyncDataType.NONE_TYPE:
-            return None
-        elif self._data_type == _AsyncDataType.ROW:
-            return result_set_to_rows(result_data, self._result_meta)
-        elif self._data_type == _AsyncDataType.ITERATOR:
-            return result_set_to_iter(result_data, self._result_meta)
+            self._cursor.fetchall()
+            result = None
         elif self._data_type == _AsyncDataType.PANDAS:
             result = self._server_connection._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=False
             )["data"]
             check_is_pandas_dataframe(result)
-            return result
         elif self._data_type == _AsyncDataType.PANDAS_BATCH:
-            return self._server_connection._to_data_or_iter(
+            result = self._server_connection._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True
             )["data"]
-        elif self._data_type == _AsyncDataType.COUNT:
-            return result_data[0][0]
-        elif self._data_type in [
-            _AsyncDataType.UPDATE,
-            _AsyncDataType.DELETE,
-            _AsyncDataType.MERGE,
-        ]:
-            return self._table_result(result_data)
         else:
-            raise ValueError(f"{self._data_type} is not a supported data type")
+            result_data = self._cursor.fetchall()
+            self._result_meta = self._cursor.description
+            if self._data_type == _AsyncDataType.ROW:
+                result = result_set_to_rows(result_data, self._result_meta)
+            elif self._data_type == _AsyncDataType.ITERATOR:
+                result = result_set_to_iter(result_data, self._result_meta)
+            elif self._data_type == _AsyncDataType.COUNT:
+                result = result_data[0][0]
+            elif self._data_type in [
+                _AsyncDataType.UPDATE,
+                _AsyncDataType.DELETE,
+                _AsyncDataType.MERGE,
+            ]:
+                result = self._table_result(result_data)
+            else:
+                raise ValueError(f"{self._data_type} is not a supported data type")
+        for action in self._plan.post_actions:
+            self._server_connection.run_query(
+                action.sql,
+                is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+                **self._parameters,
+            )
+        return result
