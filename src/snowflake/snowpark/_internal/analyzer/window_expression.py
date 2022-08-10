@@ -1,9 +1,12 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import List
+from typing import List, Optional, Set
 
-from snowflake.snowpark._internal.analyzer.expression import Expression
+from snowflake.snowpark._internal.analyzer.expression import (
+    Expression,
+    derive_dependent_columns,
+)
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 
 
@@ -69,6 +72,9 @@ class WindowSpecDefinition(Expression):
         self.order_spec = order_spec
         self.frame_spec = frame_spec
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(*self.partition_spec, *self.order_spec)
+
 
 class WindowExpression(Expression):
     def __init__(
@@ -77,6 +83,9 @@ class WindowExpression(Expression):
         super().__init__()
         self.window_function = window_function
         self.window_spec = window_spec
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.window_function)
 
 
 class RankRelatedFunctionExpression(Expression):
@@ -90,6 +99,9 @@ class RankRelatedFunctionExpression(Expression):
         self.offset = offset
         self.default = default
         self.ignore_nulls = ignore_nulls
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.expr, self.default)
 
 
 class Lag(RankRelatedFunctionExpression):

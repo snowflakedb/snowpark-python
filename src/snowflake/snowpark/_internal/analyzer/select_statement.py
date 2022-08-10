@@ -28,8 +28,15 @@ class ColumnChangeState(Enum):
 
 
 class ColumnState(NamedTuple):
+    index: Optional[int]
     change_state: ColumnChangeState
     expression: Optional[Union[str, Expression]]  # None means the expression is unknown
+
+    @property
+    def dependent_columns(self) -> Set[str]:
+        if isinstance(self.expression, Expression):
+            return self.expression.dependent_column_names()
+        return {"*"}
 
 
 class ColumnStateDict(UserDict):
@@ -121,8 +128,9 @@ class Selectable(LogicalPlan, ABC):
     def column_states(self) -> ColumnStateDict:
         if self._column_states is None:
             self._column_states = ColumnStateDict()
-            for attr in self.snowflake_plan.attributes:
+            for i, attr in enumerate(self.snowflake_plan.attributes):
                 self._column_states[attr.name] = ColumnState(
+                    i,
                     ColumnChangeState.UNCHANGED_EXP,
                     UnresolvedAttribute(quote_name(attr.name)),
                 )
@@ -315,9 +323,6 @@ class SelectStatement(Selectable):
         if self._has_clause_using_columns():
             # If there is any clause except limit, we don't flatten.
             can_flatten = False
-        elif self.column_states.has_changed_column_exp():
-            # If both this layer and the parent has changed column expression, we don't flatten.
-            can_flatten = False
         elif new_column_states.has_new_before_expression():
             can_flatten = False
         else:
@@ -327,21 +332,56 @@ class SelectStatement(Selectable):
             for col, state in new_column_states.items():
                 parent_state = parent_column_states.get(col)
                 if state.change_state == ColumnChangeState.CHANGED_EXP:
-                    if (
-                        parent_has_dropped_column
-                        or parent_state.change_state != ColumnChangeState.UNCHANGED_EXP
-                    ):
-                        can_flatten = False
-                        break
+                    dependent_columns = state.dependent_columns
+                    if dependent_columns is None:
+                        if (
+                            parent_has_dropped_column
+                            or parent_state.change_state
+                            != ColumnChangeState.UNCHANGED_EXP
+                        ) or self.column_states.has_changed_column_exp():
+                            # if the column depends on all parent columns, any parent column drop or change will not allow flattening.
+                            can_flatten = False
+                            break
+                    else:
+                        for dc in dependent_columns:
+                            if (
+                                parent_column_states[dc].change_state
+                                != ColumnChangeState.UNCHANGED_EXP
+                            ):
+                                # check if any dependent columns have changed value
+                                can_flatten = False
+                                break
+                        if not can_flatten:
+                            break
+                    # if (parent_state.change_state != ColumnChangeState.UNCHANGED_EXP):
+                    #     # If the same column in the parent has an expression, or dropped, the query shouldn't be flattened.
+                    #     can_flatten = False
+                    #     break
                     final_projection.append(state.expression)
                 elif state.change_state == ColumnChangeState.NEW:
-                    if parent_has_dropped_column:
-                        # When the parent has a dropped column, a new column may use that dropped column.
-                        # Flattening the SQL would make a wrong SQL to work unexpectedly.
-                        # for instance, select c + 1 as d from (select a from test_table)
-                        # d is a new column. `select c + 1 as d from test_table` is wrong.
-                        can_flatten = False
-                        break
+                    dependent_columns = state.dependent_columns
+                    if dependent_columns is None:
+                        if (
+                            parent_has_dropped_column
+                            or self.column_states.has_changed_column_exp()
+                        ):
+                            # When the parent has a dropped column, a new column may use that dropped column.
+                            # Flattening the SQL would make a wrong SQL to work unexpectedly.
+                            # for instance, select c + 1 as d from (select a from test_table)
+                            # d is a new column. `select c + 1 as d from test_table` is wrong.
+                            can_flatten = False
+                            break
+                    else:
+                        for dc in dependent_columns:
+                            if (
+                                parent_column_states[dc].change_state
+                                != ColumnChangeState.UNCHANGED_EXP
+                            ):
+                                # check if any dependent columns have changed value
+                                can_flatten = False
+                                break
+                        if not can_flatten:
+                            break
                     # if (
                     #     parent_state
                     #     and parent_state.change_state != ColumnChangeState.DROPPED
@@ -350,6 +390,7 @@ class SelectStatement(Selectable):
                     #     break
                     final_projection.append(state.expression)
                 elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
+                    # TODO: column sequence is changed. Need to check if the parent column has reference to another column as the same level
                     final_projection.append(
                         parent_column_states[col].expression
                     )  # add parent's expression for this column name
@@ -488,20 +529,26 @@ def parse_column_name(column: Union[str, Expression], analyzer):
 def get_column_states(cols: Iterable[Expression], from_: Selectable) -> ColumnStateDict:
     analyzer = from_.analyzer
     column_states = ColumnStateDict()
+    column_index = 0
     for c in cols:
         c_name = parse_column_name(c, analyzer)
         quoted_c_name = analyzer_utils.quote_name(c_name)
         from_c_state = from_.column_states.get(quoted_c_name)
         if from_c_state:
             if c_name != from_.analyzer.analyze(c):
-                column_states[c_name] = ColumnState(ColumnChangeState.CHANGED_EXP, c)
+                column_states[c_name] = ColumnState(
+                    column_index, ColumnChangeState.CHANGED_EXP, c
+                )
             else:
-                column_states[c_name] = ColumnState(ColumnChangeState.UNCHANGED_EXP, c)
+                column_states[c_name] = ColumnState(
+                    column_index, ColumnChangeState.UNCHANGED_EXP, c
+                )
         else:
-            column_states[c_name] = ColumnState(ColumnChangeState.NEW, c)
+            column_states[c_name] = ColumnState(column_index, ColumnChangeState.NEW, c)
+        column_index += 1
 
     for dc in from_.column_states.active_columns - column_states.active_columns:
-        column_states[dc] = ColumnState(ColumnChangeState.DROPPED, None)
+        column_states[dc] = ColumnState(None, ColumnChangeState.DROPPED, None)
     return column_states
 
 
