@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import uuid
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -19,6 +19,21 @@ from snowflake.snowpark._internal.type_utils import (
 from snowflake.snowpark.types import DataType
 
 
+def derive_dependent_columns(*expressions: "Expression"):
+    result = set()
+    for exp in expressions:
+        child_dependency = exp.dependent_column_names()
+        if child_dependency is None:
+            return None
+        if isinstance(exp, UnresolvedAttribute):
+            if not exp.is_sql_text:
+                result.add(exp.name)
+        elif isinstance(exp, NamedExpression):
+            result.add(exp.name)
+        result.union(child_dependency)
+    return result
+
+
 class Expression:
     """Consider removing attributes, and adding properties and methods.
     A subclass of Expression may have no child, one child, or multiple children.
@@ -33,6 +48,9 @@ class Expression:
         self.nullable = True
         self.children = [child] if child else None
         self.datatype: Optional[DataType] = None
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return set()
 
     @property
     def pretty_name(self) -> str:
@@ -74,18 +92,27 @@ class MultipleExpression(Expression):
         super().__init__()
         self.expressions = expressions
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(*self.expressions)
+
 
 class InExpression(Expression):
-    def __init__(self, columns: Expression, values: List[Expression]) -> None:
+    def __init__(self, columns: List[Expression], values: List[Expression]) -> None:
         super().__init__()
         self.columns = columns
         self.values = values
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(*self.columns, *self.values)
 
 
 class Star(Expression):
     def __init__(self, expressions: List[NamedExpression]) -> None:
         super().__init__()
         self.expressions = expressions
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return None
 
 
 class Attribute(Expression, NamedExpression):
@@ -112,11 +139,16 @@ class Attribute(Expression, NamedExpression):
     def __str__(self):
         return self.name
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return set()
+
 
 class UnresolvedAttribute(Expression, NamedExpression):
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, is_sql_text: bool = False) -> None:
         super().__init__()
         self.name = name
+        self.is_sql_text = is_sql_text
+        self._dependent_column_names = None if is_sql_text else {}
 
     @property
     def sql(self) -> str:
@@ -130,6 +162,9 @@ class UnresolvedAttribute(Expression, NamedExpression):
 
     def __hash__(self):
         return hash(self.name)
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return self._dependent_column_names
 
 
 class Literal(Expression):
@@ -153,12 +188,18 @@ class Literal(Expression):
         else:
             self.datatype = infer_type(value)
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return set()
+
 
 class Like(Expression):
     def __init__(self, expr: Expression, pattern: Expression) -> None:
         super().__init__(expr)
         self.expr = expr
         self.pattern = pattern
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.expr, self.pattern)
 
 
 class RegExp(Expression):
@@ -167,12 +208,18 @@ class RegExp(Expression):
         self.expr = expr
         self.pattern = pattern
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.expr, self.pattern)
+
 
 class Collate(Expression):
     def __init__(self, expr: Expression, collation_spec: str) -> None:
         super().__init__(expr)
         self.expr = expr
         self.collation_spec = collation_spec
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.expr)
 
 
 class SubfieldString(Expression):
@@ -181,12 +228,18 @@ class SubfieldString(Expression):
         self.expr = expr
         self.field = field
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.expr)
+
 
 class SubfieldInt(Expression):
     def __init__(self, expr: Expression, field: int) -> None:
         super().__init__(expr)
         self.expr = expr
         self.field = field
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.expr)
 
 
 class FunctionExpression(Expression):
@@ -209,6 +262,9 @@ class FunctionExpression(Expression):
             f"{self.pretty_name}({distinct}{', '.join([c.sql for c in self.children])})"
         )
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(*self.children)
+
 
 class WithinGroup(Expression):
     def __init__(self, expr: Expression, order_by_cols: List[Expression]) -> None:
@@ -216,6 +272,9 @@ class WithinGroup(Expression):
         self.expr = expr
         self.order_by_cols = order_by_cols
         self.datatype = expr.datatype
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.expr, *self.order_by_cols)
 
 
 class CaseWhen(Expression):
@@ -227,6 +286,9 @@ class CaseWhen(Expression):
         super().__init__()
         self.branches = branches
         self.else_value = else_value
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(*self.branches, *(self.else_value or ()))
 
 
 class SnowflakeUDF(Expression):
@@ -243,6 +305,9 @@ class SnowflakeUDF(Expression):
         self.datatype = datatype
         self.nullable = nullable
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(*self.children)
+
 
 class ListAgg(Expression):
     def __init__(self, col: Expression, delimiter: str, is_distinct: bool) -> None:
@@ -250,3 +315,6 @@ class ListAgg(Expression):
         self.col = col
         self.delimiter = delimiter
         self.is_distinct = is_distinct
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.col)
