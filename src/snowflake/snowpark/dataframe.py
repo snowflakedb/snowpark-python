@@ -587,7 +587,6 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
         **kwargs: Dict[str, Any],
     ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         """
@@ -621,8 +620,6 @@ class DataFrame:
             self._plan,
             to_pandas=True,
             to_iter=True,
-            block=block,
-            data_type=_AsyncDataType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),

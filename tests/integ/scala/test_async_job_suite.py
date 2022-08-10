@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from time import sleep, time
+
 import pytest
 
 from snowflake.connector.errors import DatabaseError
@@ -258,20 +260,38 @@ def test_multiple_queries(session, resources_path):
         session, "@" + tmp_stage_name1, test_files.test_file_csv, compress=False
     )
     df = session.read.schema(user_schema).csv(f"@{tmp_stage_name1}/{test_file_csv}")
-    assert len(df.queries) > 1
+    assert len(df._plan.queries) > 1
     res = df.collect_nowait()
-    print(res.result())
-    # Utils.check_answer(res.result(), df.collect())
+    Utils.check_answer(res.result(), df.collect())
 
 
-"""
- begin
- CREATE  TEMPORARY  FILE  FORMAT  If  NOT  EXISTS "READLOCAL_TEST"."PUBLIC".SNOWPARK_TEMP_FILE_FORMAT_I4UIKM6DKW TYPE  = csv   ;
- SELECT $1::INT AS "A", $2::STRING AS "B", $3::DOUBLE AS "C" FROM @SNOWPARK_TEMP_STAGE_PETQQT92DM/testCSV.csv( FILE_FORMAT  => '"READLOCAL_TEST"."PUBLIC".SNOWPARK_TEMP_FILE_FORMAT_I4UIKM6DKW');
- end;
+def test_async_batch_insert(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
 
-"""
+    # create dataframe (large data)
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = session.create_dataframe([[1, 2], [1, 3], [4, 4]], schema=["a", "b"])
+        async_job = df.collect_nowait()
+        Utils.check_answer(
+            async_job.result(), [Row(A=1, B=2), Row(A=4, B=4), Row(A=1, B=3)]
+        )
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
 
 
 def test_async_is_running_and_cancel(session):
-    pass
+    async_job = session.sql("select SYSTEM$WAIT(10)").collect_nowait()
+    while not async_job.is_done():
+        sleep(1.0)
+    assert async_job.is_done()
+
+    async_job2 = session.sql("select SYSTEM$WAIT(10)").collect_nowait()
+    assert not async_job2.is_done()
+    async_job2.cancel()
+    start = time()
+    while not async_job2.is_done():
+        sleep(1.0)
+    assert (time() - start) / 1000 < 60
+    assert async_job2.is_done()
