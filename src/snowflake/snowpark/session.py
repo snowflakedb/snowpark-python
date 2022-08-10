@@ -1476,8 +1476,8 @@ class Session:
     @property
     def udtf(self) -> UDTFRegistration:
         """
-        Returns a :class:`udf.UDTFRegistration` object that you can use to register UDFs.
-        See details of how to use this object in :class:`udf.UDFRegistration`.
+        Returns a :class:`udtf.UDTFRegistration` object that you can use to register UDTFs.
+        See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
         return self._udtf_registration
 
