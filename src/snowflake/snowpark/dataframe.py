@@ -1600,7 +1600,7 @@ class DataFrame:
             right: The other :class:`Dataframe` to join.
             using_columns: A list of names of the columns, or the column objects, to
                 use for the join.
-            join_type: The type of join ("inner", "full", "left", "right").
+            join_type: The type of join ("inner", "full", "left", "right", "semi", "anti", "cross").
 
         Note:
             When performing chained operations, this method will not work if there are
