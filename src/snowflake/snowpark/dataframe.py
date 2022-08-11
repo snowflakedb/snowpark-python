@@ -77,7 +77,7 @@ from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
     SKIP_LEVELS_TWO,
     TempObjectType,
-    check_is_pandas_dataframe,
+    check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecate,
@@ -578,7 +578,7 @@ class DataFrame:
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
         if block:
-            check_is_pandas_dataframe(result)
+            check_is_pandas_dataframe_in_to_pandas(result)
 
         return result
 
@@ -588,7 +588,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         **kwargs: Dict[str, Any],
-    ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
+    ) -> Iterator["pandas.DataFrame"]:
         """
         Executes the query representing this DataFrame and returns an iterator of
         Pandas dataframes (containing a subset of rows) that you can use to

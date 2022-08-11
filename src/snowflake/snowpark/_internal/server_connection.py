@@ -347,9 +347,9 @@ class ServerConnection:
                 results_cursor["queryId"],
                 query,
                 self._conn,
-                kwargs,
                 self,
                 data_type,
+                kwargs,
             )
         else:
             return self._to_data_or_iter(
@@ -457,7 +457,7 @@ declare
     res resultset;
 begin
 {";".join(q.sql for q in plan.queries[:-1])};
-res:=({plan.queries[-1].sql});
+res := ({plan.queries[-1].sql});
 return table(res);
 end;
 $$"""
@@ -473,7 +473,7 @@ $$"""
                     data_type=data_type,
                     **kwargs,
                 )
-                result.query = plan.queries[-1].sql
+                result.query = final_query
                 for q in plan.queries:
                     placeholders[q.query_id_place_holder] = (
                         result["sfqid"] if block else result.query_id

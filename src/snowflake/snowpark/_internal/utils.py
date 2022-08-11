@@ -525,7 +525,7 @@ def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
     return deprecate_wrapper
 
 
-def check_is_pandas_dataframe(result):
+def check_is_pandas_dataframe_in_to_pandas(result):
     if not isinstance(result, pandas.DataFrame):
         raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
             "to_pandas() did not return a Pandas DataFrame. "

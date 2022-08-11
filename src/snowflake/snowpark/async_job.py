@@ -8,7 +8,7 @@ import snowflake.snowpark
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.utils import (
-    check_is_pandas_dataframe,
+    check_is_pandas_dataframe_in_to_pandas,
     result_set_to_iter,
     result_set_to_rows,
 )
@@ -33,9 +33,9 @@ class AsyncJob:
         query_id: str,
         query: str,
         conn: SnowflakeConnection,
-        parameters: Dict[str, any],
         server_connection: "snowflake.snowpark._internal.server_connection.ServerConnection",
         data_type: _AsyncDataType = _AsyncDataType.ROW,
+        parameters: Dict[str, any] = None,
     ) -> None:
         self.query_id = query_id
         self.query = query
@@ -50,8 +50,6 @@ class AsyncJob:
         self._deleted = False
         self._plan = None
 
-        return
-
     def is_done(self) -> bool:
         # return a bool value to indicate whether the query is finished
         status = self._conn.get_query_status(self.query_id)
@@ -61,7 +59,7 @@ class AsyncJob:
 
     def cancel(self) -> None:
         # stop and cancel current query id
-        self._conn._cancel_query(self.query, self.query_id)
+        self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
 
     def _table_result(
         self, result_data
@@ -91,7 +89,7 @@ class AsyncJob:
                 rows_inserted, rows_updated, rows_deleted
             )
 
-    def result(self) -> Union[List[Row], pandas.DataFrame, Iterator[Row], int]:
+    def result(self) -> Union[List[Row], "pandas.DataFrame", Iterator[Row], int, None]:
         # return result of the query
         self._cursor.get_results_from_sfqid(self.query_id)
         if self._data_type == _AsyncDataType.NONE_TYPE:
@@ -101,7 +99,7 @@ class AsyncJob:
             result = self._server_connection._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=False
             )["data"]
-            check_is_pandas_dataframe(result)
+            check_is_pandas_dataframe_in_to_pandas(result)
         elif self._data_type == _AsyncDataType.PANDAS_BATCH:
             result = self._server_connection._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True
