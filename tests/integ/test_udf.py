@@ -72,7 +72,8 @@ def setup(session, resources_path):
     )
 
 
-def test_basic_udf(session):
+@pytest.mark.parametrize("source_code_generation", [False, True])
+def test_basic_udf(session, source_code_generation):
     def return1():
         return "1"
 
@@ -85,16 +86,32 @@ def test_basic_udf(session):
     def int2str(x):
         return str(x)
 
-    return1_udf = udf(return1, return_type=StringType())
-    plus1_udf = udf(plus1, return_type=IntegerType(), input_types=[IntegerType()])
-    add_udf = udf(
-        add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
+    return1_udf = udf(
+        return1, return_type=StringType(), source_code_generation=source_code_generation
     )
-    int2str_udf = udf(int2str, return_type=StringType(), input_types=[IntegerType()])
+    plus1_udf = udf(
+        plus1,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
+    )
+    add_udf = udf(
+        add,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        source_code_generation=source_code_generation,
+    )
+    int2str_udf = udf(
+        int2str,
+        return_type=StringType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
+    )
     pow_udf = udf(
         lambda x, y: x**y,
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
+        source_code_generation=source_code_generation,
     )
 
     df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
@@ -120,13 +137,15 @@ def test_basic_udf(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
-def test_call_named_udf(session, temp_schema, db_parameters):
+@pytest.mark.parametrize("source_code_generation", [False, True])
+def test_call_named_udf(session, temp_schema, db_parameters, source_code_generation):
     session._run_query("drop function if exists test_mul(int, int)")
     udf(
         lambda x, y: x * y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         name="test_mul",
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(session.sql("select test_mul(13, 19)").collect(), [Row(13 * 19)])
 
@@ -169,6 +188,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
             stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
+            source_code_generation=source_code_generation,
         )
         Utils.check_answer(
             new_session.sql(f"select {full_udf_name}(13, 19)").collect(), [Row(13 + 19)]
@@ -187,12 +207,16 @@ def test_call_named_udf(session, temp_schema, db_parameters):
         # restore active session
 
 
-def test_recursive_udf(session):
+@pytest.mark.parametrize("source_code_generation", [False, True])
+def test_recursive_udf(session, source_code_generation):
     def factorial(n):
         return 1 if n == 1 or n == 0 else n * factorial(n - 1)
 
     factorial_udf = udf(
-        factorial, return_type=IntegerType(), input_types=[IntegerType()]
+        factorial,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
     )
     df = session.range(10).to_df("a")
     Utils.check_answer(
@@ -200,7 +224,8 @@ def test_recursive_udf(session):
     )
 
 
-def test_nested_udf(session):
+@pytest.mark.parametrize("source_code_generation", [False, True])
+def test_nested_udf(session, source_code_generation):
     def outer_func():
         def inner_func():
             return "snow"
@@ -214,7 +239,11 @@ def test_nested_udf(session):
         return square(x) * x
 
     df = session.create_dataframe([1, 2]).to_df("a")
-    outer_func_udf = udf(outer_func, return_type=StringType())
+    outer_func_udf = udf(
+        outer_func,
+        return_type=StringType(),
+        source_code_generation=source_code_generation,
+    )
     Utils.check_answer(
         df.select(outer_func_udf()).collect(),
         [
@@ -224,11 +253,21 @@ def test_nested_udf(session):
     )
 
     # we don't need to register function square()
-    cube_udf = udf(cube, return_type=IntegerType(), input_types=[IntegerType()])
+    cube_udf = udf(
+        cube,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
+    )
     Utils.check_answer(df.select(cube_udf("a")).collect(), [Row(1), Row(8)])
 
     # but we can still register function square()
-    square_udf = udf(square, return_type=IntegerType(), input_types=[IntegerType()])
+    square_udf = udf(
+        square,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
+    )
     Utils.check_answer(
         df.select(cube_udf("a"), square_udf("a")).collect(),
         [
@@ -238,13 +277,29 @@ def test_nested_udf(session):
     )
 
 
-def test_python_builtin_udf(session):
+@pytest.mark.parametrize("source_code_generation", [False, True])
+def test_python_builtin_udf(session, source_code_generation):
     def my_sqrt(x):
         return math.sqrt(x)
 
-    abs_udf = udf(abs, return_type=IntegerType(), input_types=[IntegerType()])
-    sqrt_udf = udf(math.sqrt, return_type=DoubleType(), input_types=[DoubleType()])
-    my_sqrt_udf = udf(my_sqrt, return_type=DoubleType(), input_types=[DoubleType()])
+    abs_udf = udf(
+        abs,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
+    )
+    sqrt_udf = udf(
+        math.sqrt,
+        return_type=DoubleType(),
+        input_types=[DoubleType()],
+        source_code_generation=source_code_generation,
+    )
+    my_sqrt_udf = udf(
+        my_sqrt,
+        return_type=DoubleType(),
+        input_types=[DoubleType()],
+        source_code_generation=source_code_generation,
+    )
 
     df = session.range(-5, 5).to_df("a")
     Utils.check_answer(
@@ -260,7 +315,8 @@ def test_python_builtin_udf(session):
     )
 
 
-def test_decorator_udf(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_decorator_udf(session, source_code_generation):
     def decorator_do_twice(func):
         def wrapper(*args, **kwargs):
             l1 = func(*args, **kwargs)
@@ -278,6 +334,7 @@ def test_decorator_udf(session):
         duplicate_list_elements,
         return_type=ArrayType(IntegerType()),
         input_types=[ArrayType(IntegerType())],
+        source_code_generation=source_code_generation,
     )
     df = session.create_dataframe([[[1, 2], [2, 3]], [[3, 4], [4, 5]]]).to_df("a", "b")
     res = df.select(
@@ -298,8 +355,13 @@ def test_decorator_udf(session):
     )
 
 
-def test_annotation_syntax_udf(session):
-    @udf(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_annotation_syntax_udf(session, source_code_generation):
+    @udf(
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        source_code_generation=source_code_generation,
+    )
     def add_udf(x, y):
         return x + y
 
@@ -323,12 +385,14 @@ def test_annotation_syntax_udf(session):
     assert "must be Column, column name, or a list of them" in str(ex_info)
 
 
-def test_session_register_udf(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_session_register_udf(session, source_code_generation):
     df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     add_udf = session.udf.register(
         lambda x, y: x + y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
+        source_code_generation=source_code_generation,
     )
     assert isinstance(add_udf.func, Callable)
     Utils.check_answer(
@@ -344,6 +408,7 @@ def test_session_register_udf(session):
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+        source_code_generation=source_code_generation,
     )
     assert isinstance(add_udf_with_statement_params.func, Callable)
     Utils.check_answer(
@@ -355,7 +420,10 @@ def test_session_register_udf(session):
     )
 
 
-def test_register_udf_from_file(session, resources_path, tmpdir):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_register_udf_from_file(
+    session, resources_path, tmpdir, source_code_generation
+):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
 
@@ -364,6 +432,7 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         "mod5",
         return_type=IntegerType(),
         input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
     )
     assert isinstance(mod5_udf.func, tuple)
     Utils.check_answer(
@@ -379,6 +448,7 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         "pandas_apply_mod5",
         return_type=IntegerType(),
         input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(
         df.select(mod5_pandas_udf("a"), mod5_pandas_udf("b")).collect(),
@@ -398,7 +468,11 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         )
 
     mod5_udf2 = session.udf.register_from_file(
-        zip_path, "mod5", return_type=IntegerType(), input_types=[IntegerType()]
+        zip_path,
+        "mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
     )
 
     Utils.check_answer(
@@ -412,7 +486,11 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
     # test a remote python file
     stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
     mod5_udf3 = session.udf.register_from_file(
-        stage_file, "mod5", return_type=IntegerType(), input_types=[IntegerType()]
+        stage_file,
+        "mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(
         df.select(mod5_udf3("a"), mod5_udf3("b")).collect(),
@@ -428,6 +506,7 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         return_type=IntegerType(),
         input_types=[IntegerType()],
         statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(
         df.select(
@@ -440,7 +519,8 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
     )
 
 
-def test_add_import_local_file(session, resources_path):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_add_import_local_file(session, resources_path, source_code_generation):
     test_files = TestFiles(resources_path)
     # This is a hack in the test such that we can just use `from test_udf import mod5`,
     # instead of `from test.resources.test_udf.test_udf import mod5`. Then we can test
@@ -462,10 +542,14 @@ def test_add_import_local_file(session, resources_path):
         df = session.range(-5, 5).to_df("a")
 
         session.add_import(
-            test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
+            test_files.test_udf_py_file,
+            import_path="test_udf_dir.test_udf_file",
         )
         plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            source_code_generation=source_code_generation,
         )
         Utils.check_answer(
             df.select(plus4_then_mod5_udf("a")).collect(),
@@ -479,6 +563,7 @@ def test_add_import_local_file(session, resources_path):
             plus4_then_mod5_direct_import,
             return_type=IntegerType(),
             input_types=[IntegerType()],
+            source_code_generation=source_code_generation,
         )
         Utils.check_answer(
             df.select(plus4_then_mod5_direct_import_udf("a")).collect(),
@@ -489,7 +574,8 @@ def test_add_import_local_file(session, resources_path):
         session.clear_imports()
 
 
-def test_add_import_local_directory(session, resources_path):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_add_import_local_directory(session, resources_path, source_code_generation):
     test_files = TestFiles(resources_path)
     with patch.object(
         sys, "path", [*sys.path, resources_path, os.path.dirname(resources_path)]
@@ -511,7 +597,10 @@ def test_add_import_local_directory(session, resources_path):
             test_files.test_udf_directory, import_path="resources.test_udf_dir"
         )
         plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            source_code_generation=source_code_generation,
         )
         Utils.check_answer(
             df.select(plus4_then_mod5_udf("a")).collect(),
@@ -523,6 +612,7 @@ def test_add_import_local_directory(session, resources_path):
             plus4_then_mod5_direct_import,
             return_type=IntegerType(),
             input_types=[IntegerType()],
+            source_code_generation=source_code_generation,
         )
         Utils.check_answer(
             df.select(plus4_then_mod5_direct_import_udf("a")).collect(),
@@ -533,7 +623,8 @@ def test_add_import_local_directory(session, resources_path):
         session.clear_imports()
 
 
-def test_add_import_stage_file(session, resources_path):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_add_import_stage_file(session, resources_path, source_code_generation):
     test_files = TestFiles(resources_path)
     with patch.object(sys, "path", [*sys.path, test_files.test_udf_directory]):
 
@@ -547,7 +638,10 @@ def test_add_import_stage_file(session, resources_path):
         )
         session.add_import(stage_file)
         plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            source_code_generation=source_code_generation,
         )
 
         df = session.range(-5, 5).to_df("a")
@@ -561,7 +655,8 @@ def test_add_import_stage_file(session, resources_path):
 
 
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
-def test_add_import_package(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_add_import_package(session, source_code_generation):
     def plus_one_month(x):
         return x + relativedelta(month=1)
 
@@ -570,7 +665,10 @@ def test_add_import_package(session):
     session.add_import(six.__file__)
     df = session.create_dataframe([d]).to_df("a")
     plus_one_month_udf = udf(
-        plus_one_month, return_type=DateType(), input_types=[DateType()]
+        plus_one_month,
+        return_type=DateType(),
+        input_types=[DateType()],
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(
         df.select(plus_one_month_udf("a")).collect(), [Row(plus_one_month(d))]
@@ -607,7 +705,8 @@ def test_add_import_duplicate(session, resources_path, caplog):
     assert len(session.get_imports()) == 0
 
 
-def test_udf_level_import(session, resources_path):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_udf_level_import(session, resources_path, source_code_generation):
     test_files = TestFiles(resources_path)
     with patch.object(sys, "path", [*sys.path, resources_path]):
 
@@ -624,6 +723,7 @@ def test_udf_level_import(session, resources_path):
             return_type=IntegerType(),
             input_types=[IntegerType()],
             imports=[(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")],
+            source_code_generation=source_code_generation,
         )
         Utils.check_answer(
             df.select(plus4_then_mod5_udf("a")).collect(),
@@ -635,6 +735,7 @@ def test_udf_level_import(session, resources_path):
             plus4_then_mod5,
             return_type=IntegerType(),
             input_types=[IntegerType()],
+            source_code_generation=source_code_generation,
         )
         with pytest.raises(SnowparkSQLException) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect(),
@@ -648,6 +749,7 @@ def test_udf_level_import(session, resources_path):
             return_type=IntegerType(),
             input_types=[IntegerType()],
             imports=[],
+            source_code_generation=source_code_generation,
         )
         with pytest.raises(SnowparkSQLException) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect(),
@@ -657,30 +759,31 @@ def test_udf_level_import(session, resources_path):
         session.clear_imports()
 
 
-def test_type_hints(session):
-    @udf
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_type_hints(session, source_code_generation):
+    @udf(source_code_generation=source_code_generation)
     def add_udf(x: int, y: int) -> int:
         return x + y
 
-    @udf
+    @udf(source_code_generation=source_code_generation)
     def snow_udf(x: int) -> Optional[str]:
         return "snow" if x % 2 else None
 
-    @udf
+    @udf(source_code_generation=source_code_generation)
     def double_str_list_udf(x: str) -> List[str]:
         return [x, x]
 
     dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
 
-    @udf
+    @udf(source_code_generation=source_code_generation)
     def return_datetime_udf() -> datetime.datetime:
         return dt
 
-    @udf
+    @udf(source_code_generation=source_code_generation)
     def return_variant_dict_udf(v: Variant) -> Dict[str, str]:
         return {str(k): f"{str(k)} {str(v)}" for k, v in v.items()}
 
-    @udf
+    @udf(source_code_generation=source_code_generation)
     def return_geography_dict_udf(g: Geography) -> Dict[str, str]:
         return g
 
@@ -709,16 +812,18 @@ def test_type_hints(session):
     )
 
 
-def test_type_hint_no_change_after_registration(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_type_hint_no_change_after_registration(session, source_code_generation):
     def add(x: int, y: int) -> int:
         return x + y
 
     annotations = add.__annotations__
-    session.udf.register(add)
+    session.udf.register(add, source_code_generation=source_code_generation)
     assert annotations == add.__annotations__
 
 
-def test_register_udf_from_file_type_hints(session, tmpdir):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_register_udf_from_file_type_hints(session, tmpdir, source_code_generation):
     source = """
 import datetime
 from typing import Dict, List, Optional
@@ -744,11 +849,21 @@ def return_dict(v: dict) -> Dict[str, str]:
     with open(file_path, "w") as f:
         f.write(source)
 
-    add_udf = session.udf.register_from_file(file_path, "add")
-    snow_udf = session.udf.register_from_file(file_path, "snow")
-    double_str_list_udf = session.udf.register_from_file(file_path, "double_str_list")
-    return_datetime_udf = session.udf.register_from_file(file_path, "return_datetime")
-    return_variant_dict_udf = session.udf.register_from_file(file_path, "return_dict")
+    add_udf = session.udf.register_from_file(
+        file_path, "add", source_code_generation=source_code_generation
+    )
+    snow_udf = session.udf.register_from_file(
+        file_path, "snow", source_code_generation=source_code_generation
+    )
+    double_str_list_udf = session.udf.register_from_file(
+        file_path, "double_str_list", source_code_generation=source_code_generation
+    )
+    return_datetime_udf = session.udf.register_from_file(
+        file_path, "return_datetime", source_code_generation=source_code_generation
+    )
+    return_variant_dict_udf = session.udf.register_from_file(
+        file_path, "return_dict", source_code_generation=source_code_generation
+    )
 
     df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
@@ -772,7 +887,8 @@ def return_dict(v: dict) -> Dict[str, str]:
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_permanent_udf(session, db_parameters):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_permanent_udf(session, db_parameters, source_code_generation):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     with Session.builder.configs(db_parameters).create() as new_session:
@@ -786,6 +902,7 @@ def test_permanent_udf(session, db_parameters):
                 is_permanent=True,
                 stage_location=stage_name,
                 session=new_session,
+                source_code_generation=source_code_generation,
             )
             Utils.check_answer(
                 session.sql(f"select {udf_name}(8, 9)").collect(), [Row(17)]
@@ -798,29 +915,41 @@ def test_permanent_udf(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
-def test_udf_negative(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_udf_negative(session, source_code_generation):
     def f(x):
         return x
 
     df1 = session.create_dataframe(["a", "b"]).to_df("x")
 
-    udf0 = udf()
+    udf0 = udf(source_code_generation=source_code_generation)
     with pytest.raises(TypeError) as ex_info:
         df1.select(udf0("x")).collect()
     assert "Invalid function: not a function or callable" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
-        udf(1, return_type=IntegerType())
+        udf(1, return_type=IntegerType(), source_code_generation=source_code_generation)
     assert "Invalid function: not a function or callable" in str(ex_info)
 
     # if return_type is specified, it must be passed passed with keyword argument
     with pytest.raises(TypeError) as ex_info:
-        udf(f, IntegerType())
-    assert "udf() takes from 0 to 1 positional arguments but 2 were given" in str(
-        ex_info
-    )
+        udf(f, IntegerType(), source_code_generation=source_code_generation)
+    if not source_code_generation:
+        assert "udf() takes from 0 to 1 positional arguments but 2 were given" in str(
+            ex_info
+        )
+    else:
+        assert (
+            "udf() takes from 0 to 1 positional arguments but 2 positional arguments (and 1 keyword-only argument"
+            in str(ex_info)
+        )
 
-    udf1 = udf(f, return_type=IntegerType(), input_types=[IntegerType()])
+    udf1 = udf(
+        f,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
+    )
     with pytest.raises(ValueError) as ex_info:
         udf1("a", "")
     assert "Incorrect number of arguments passed to the UDF" in str(ex_info)
@@ -839,11 +968,17 @@ def test_udf_negative(session):
             return_type=IntegerType(),
             input_types=[IntegerType()],
             name="invalid name",
+            source_code_generation=source_code_generation,
         )
     assert "The object name 'invalid name' is invalid" in str(ex_info)
 
     # incorrect data type
-    udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
+    udf2 = udf(
+        lambda x: int(x),
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
+    )
     with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(udf2("x")).collect()
     assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
@@ -854,7 +989,7 @@ def test_udf_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @udf(IntegerType())
+        @udf(IntegerType(), source_code_generation=source_code_generation)
         def g(x):
             return x
 
@@ -862,7 +997,7 @@ def test_udf_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @udf
+        @udf(source_code_generation=source_code_generation)
         def _(x: int, y: int):
             return x + y
 
@@ -870,7 +1005,7 @@ def test_udf_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @udf
+        @udf(source_code_generation=source_code_generation)
         def _(x, y: int) -> int:
             return x + y
 
@@ -881,7 +1016,7 @@ def test_udf_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @udf
+        @udf(source_code_generation=source_code_generation)
         def _(x: int, y: Union[int, float]) -> Union[int, float]:
             return x + y
 
@@ -889,7 +1024,7 @@ def test_udf_negative(session):
 
     with pytest.raises(ValueError) as ex_info:
 
-        @udf(is_permanent=True)
+        @udf(is_permanent=True, source_code_generation=source_code_generation)
         def _(x: int, y: int) -> int:
             return x + y
 
@@ -897,14 +1032,17 @@ def test_udf_negative(session):
 
     with pytest.raises(ValueError) as ex_info:
 
-        @udf(is_permanent=True, name="udf")
+        @udf(
+            is_permanent=True, name="udf", source_code_generation=source_code_generation
+        )
         def _(x: int, y: int) -> int:
             return x + y
 
     assert "stage_location must be specified for permanent udf" in str(ex_info)
 
 
-def test_add_import_negative(session, resources_path):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_add_import_negative(session, resources_path, source_code_generation):
     test_files = TestFiles(resources_path)
 
     with pytest.raises(FileNotFoundError) as ex_info:
@@ -935,7 +1073,10 @@ def test_add_import_negative(session, resources_path):
     ]:
         session.add_import(test_files.test_udf_py_file, import_path)
         plus4_then_mod5_udf = udf(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+            plus4_then_mod5,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            source_code_generation=source_code_generation,
         )
         with pytest.raises(SnowparkSQLException) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect()
@@ -948,6 +1089,7 @@ def test_add_import_negative(session, resources_path):
             return_type=IntegerType(),
             input_types=[IntegerType()],
             imports=[1],
+            source_code_generation=source_code_generation,
         )
     assert (
         "udf-level import can only be a file path (str) "
@@ -955,12 +1097,16 @@ def test_add_import_negative(session, resources_path):
     )
 
 
-def test_udf_variant_type(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_udf_variant_type(session, source_code_generation):
     def variant_get_data_type(v):
         return str(type(v))
 
     variant_udf = udf(
-        variant_get_data_type, return_type=StringType(), input_types=[VariantType()]
+        variant_get_data_type,
+        return_type=StringType(),
+        input_types=[VariantType()],
+        source_code_generation=source_code_generation,
     )
 
     Utils.check_answer(
@@ -1047,12 +1193,16 @@ def test_udf_variant_type(session):
     )
 
 
-def test_udf_geography_type(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_udf_geography_type(session, source_code_generation):
     def get_type(g):
         return str(type(g))
 
     geography_udf = udf(
-        get_type, return_type=StringType(), input_types=[GeographyType()]
+        get_type,
+        return_type=StringType(),
+        input_types=[GeographyType()],
+        source_code_generation=source_code_generation,
     )
 
     Utils.check_answer(
@@ -1064,7 +1214,8 @@ def test_udf_geography_type(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
-def test_udf_replace(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_udf_replace(session, source_code_generation):
     df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
 
     # Register named UDF and expect that it works.
@@ -1074,6 +1225,7 @@ def test_udf_replace(session):
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         replace=True,
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(
         df.select(add_udf("a", "b")).collect(),
@@ -1090,6 +1242,7 @@ def test_udf_replace(session):
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         replace=True,
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(
         df.select(add_udf("a", "b")).collect(),
@@ -1107,6 +1260,7 @@ def test_udf_replace(session):
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
             replace=False,
+            source_code_generation=source_code_generation,
         )
     assert "SQL compilation error" in str(ex_info)
 
@@ -1126,6 +1280,7 @@ def test_udf_replace(session):
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         replace=True,
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(
         df.select(add_udf("a", "b")).collect(),
@@ -1136,13 +1291,15 @@ def test_udf_replace(session):
     )
 
 
-def test_udf_parallel(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_udf_parallel(session, source_code_generation):
     for i in [1, 50, 99]:
         udf(
             lambda x, y: x + y,
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
             parallel=i,
+            source_code_generation=source_code_generation,
         )
 
     with pytest.raises(ValueError) as ex_info:
@@ -1151,6 +1308,7 @@ def test_udf_parallel(session):
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
             parallel=0,
+            source_code_generation=source_code_generation,
         )
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
@@ -1160,6 +1318,7 @@ def test_udf_parallel(session):
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
             parallel=100,
+            source_code_generation=source_code_generation,
         )
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
@@ -1168,7 +1327,8 @@ def test_udf_parallel(session):
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_packages(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_add_packages(session, source_code_generation):
     session.add_packages(["numpy==1.20.1", "pandas==1.3.5", "pandas==1.3.5"])
     assert session.get_packages() == {
         "numpy": "numpy==1.20.1",
@@ -1180,7 +1340,11 @@ def test_add_packages(session):
         return f"{numpy.__version__}/{pandas.__version__}/{dateutil.__version__}"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    session.udf.register(get_numpy_pandas_dateutil_version, name=udf_name)
+    session.udf.register(
+        get_numpy_pandas_dateutil_version,
+        name=udf_name,
+        source_code_generation=source_code_generation,
+    )
     # don't need to check the version of dateutil, as it can be changed on the server side
     assert (
         session.sql(f"select {udf_name}()").collect()[0][0].startswith("1.20.1/1.3.5")
@@ -1196,7 +1360,11 @@ def test_add_packages(session):
         return True
 
     session.udf.register(
-        is_pandas_available, name=udf_name, replace=True, packages=["numpy"]
+        is_pandas_available,
+        name=udf_name,
+        replace=True,
+        packages=["numpy"],
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
 
@@ -1209,7 +1377,13 @@ def test_add_packages(session):
             return False
         return True
 
-    session.udf.register(is_numpy_available, name=udf_name, replace=True, packages=[])
+    session.udf.register(
+        is_numpy_available,
+        name=udf_name,
+        replace=True,
+        packages=[],
+        source_code_generation=source_code_generation,
+    )
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
 
     session.clear_packages()
@@ -1256,7 +1430,8 @@ def test_add_packages_negative(session, caplog):
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_add_requirements(session, resources_path):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_add_requirements(session, resources_path, source_code_generation):
     test_files = TestFiles(resources_path)
     session.clear_packages()
 
@@ -1268,7 +1443,7 @@ def test_add_requirements(session, resources_path):
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
-    @udf(name=udf_name)
+    @udf(name=udf_name, source_code_generation=source_code_generation)
     def get_numpy_pandas_version() -> str:
         return f"{numpy.__version__}/{pandas.__version__}"
 
@@ -1281,12 +1456,15 @@ def test_add_requirements(session, resources_path):
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-def test_udf_describe(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_udf_describe(session, source_code_generation):
     def get_numpy_pandas_version(s: str) -> str:
         return f"{s}{numpy.__version__}/{pandas.__version__}"
 
     get_numpy_pandas_version_udf = session.udf.register(
-        get_numpy_pandas_version, packages=["numpy", "pandas"]
+        get_numpy_pandas_version,
+        packages=["numpy", "pandas"],
+        source_code_generation=source_code_generation,
     )
     describe_res = session.udf.describe(get_numpy_pandas_version_udf).collect()
     assert [row[0] for row in describe_res] == [
@@ -1309,13 +1487,15 @@ def test_udf_describe(session):
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
-def test_basic_pandas_udf(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_basic_pandas_udf(session, source_code_generation):
     def return1():
         return pandas.Series(["1"])
 
     @pandas_udf(
         return_type=PandasSeriesType(IntegerType()),
         input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
+        source_code_generation=source_code_generation,
     )
     def add_one_df_pandas_udf(df):
         return df[0] + df[1] + 1
@@ -1323,21 +1503,28 @@ def test_basic_pandas_udf(session):
     def get_type_str(x):
         return pandas.Series([str(type(x))])
 
-    return1_pandas_udf = udf(return1, return_type=PandasSeriesType(StringType()))
+    return1_pandas_udf = udf(
+        return1,
+        return_type=PandasSeriesType(StringType()),
+        source_code_generation=source_code_generation,
+    )
     add_series_pandas_udf = udf(
         lambda x, y: x + y,
         return_type=PandasSeriesType(IntegerType()),
         input_types=[PandasSeriesType(IntegerType()), PandasSeriesType(IntegerType())],
+        source_code_generation=source_code_generation,
     )
     get_type_str_series_udf = udf(
         get_type_str,
         return_type=PandasSeriesType(StringType()),
         input_types=[PandasSeriesType(IntegerType())],
+        source_code_generation=source_code_generation,
     )
     get_type_str_df_udf = pandas_udf(
         get_type_str,
         return_type=PandasSeriesType(StringType()),
         input_types=[PandasDataFrameType([IntegerType()])],
+        source_code_generation=source_code_generation,
     )
 
     df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
@@ -1361,7 +1548,8 @@ def test_basic_pandas_udf(session):
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
-def test_pandas_udf_type_hints(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_pandas_udf_type_hints(session, source_code_generation):
     def return1() -> PandasSeries[str]:
         return pandas.Series(["1"])
 
@@ -1382,21 +1570,27 @@ def test_pandas_udf_type_hints(session):
     def add_one_df_pandas_annotation(df: pandas.DataFrame) -> pandas.Series:
         return df[0] + df[1] + 1
 
-    return1_pandas_udf = udf(return1)
+    return1_pandas_udf = udf(return1, source_code_generation=source_code_generation)
     return1_pandas_annotation_pandas_udf = udf(
-        return1_pandas_annotation, return_type=StringType()
+        return1_pandas_annotation,
+        return_type=StringType(),
+        source_code_generation=source_code_generation,
     )
-    add_series_pandas_udf = udf(add_series)
+    add_series_pandas_udf = udf(
+        add_series, source_code_generation=source_code_generation
+    )
     add_series_pandas_annotation_pandas_udf = udf(
         add_series_pandas_annotation,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
+        source_code_generation=source_code_generation,
     )
     add_one_df_pandas_udf = udf(add_one_df)
     add_one_df_pandas_annotation_pandas_udf = udf(
         add_one_df_pandas_annotation,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
+        source_code_generation=source_code_generation,
     )
 
     df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
@@ -1415,7 +1609,8 @@ def test_pandas_udf_type_hints(session):
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
-def test_pandas_udf_max_batch_size(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_pandas_udf_max_batch_size(session, source_code_generation):
     def check_len(s):
         length = s[0].size if isinstance(s, pandas.DataFrame) else s.size
         return pandas.Series([1 if 0 < length <= 100 else -1] * length)
@@ -1426,12 +1621,14 @@ def test_pandas_udf_max_batch_size(session):
         return_type=PandasSeriesType(IntegerType()),
         input_types=[PandasSeriesType(IntegerType())],
         max_batch_size=max_batch_size,
+        source_code_generation=source_code_generation,
     )
     add_len_df_pandas_udf = udf(
         check_len,
         return_type=PandasSeriesType(IntegerType()),
         input_types=[PandasDataFrameType([IntegerType()])],
         max_batch_size=max_batch_size,
+        source_code_generation=source_code_generation,
     )
 
     df = session.range(1000).to_df("a")
@@ -1444,10 +1641,14 @@ def test_pandas_udf_max_batch_size(session):
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
-def test_pandas_udf_negative(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_pandas_udf_negative(session, source_code_generation):
     with pytest.raises(ValueError) as ex_info:
         pandas_udf(
-            lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()]
+            lambda x: x + 1,
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            source_code_generation=source_code_generation,
         )
     assert "You cannot create a non-vectorized UDF using pandas_udf()" in str(ex_info)
 
@@ -1456,6 +1657,7 @@ def test_pandas_udf_negative(session):
             lambda df: df,
             return_type=PandasDataFrameType([IntegerType()]),
             input_types=[PandasDataFrameType([IntegerType()])],
+            source_code_generation=source_code_generation,
         )
     assert "Invalid return type or input types for UDF" in str(ex_info)
 
@@ -1464,6 +1666,7 @@ def test_pandas_udf_negative(session):
             lambda df: df,
             return_type=IntegerType(),
             input_types=[PandasDataFrameType([IntegerType()])],
+            source_code_generation=source_code_generation,
         )
     assert "Invalid return type or input types for UDF" in str(ex_info)
 
@@ -1472,6 +1675,7 @@ def test_pandas_udf_negative(session):
             lambda x, y: x + y,
             return_type=PandasSeriesType(IntegerType()),
             input_types=[IntegerType(), PandasSeriesType(IntegerType())],
+            source_code_generation=source_code_generation,
         )
     assert "Invalid return type or input types for UDF" in str(ex_info)
 
@@ -1483,7 +1687,8 @@ def test_pandas_udf_negative(session):
     assert "The return type must be specified" in str(ex_info)
 
 
-def test_register_udf_no_commit(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_register_udf_no_commit(session, source_code_generation):
     def plus1(x: int) -> int:
         return x + 1
 
@@ -1493,10 +1698,17 @@ def test_register_udf_no_commit(session):
     try:
         # Test function registration
         session.sql("begin").collect()
-        session.udf.register(func=plus1, name=temp_func_name)
+        session.udf.register(
+            func=plus1,
+            name=temp_func_name,
+            source_code_generation=source_code_generation,
+        )
         assert Utils.is_active_transaction(session)
         session.udf.register(
-            func=plus1, name=perm_func_name, stage_location=tmp_stage_name
+            func=plus1,
+            name=perm_func_name,
+            stage_location=tmp_stage_name,
+            source_code_generation=source_code_generation,
         )
         assert Utils.is_active_transaction(session)
 
@@ -1513,7 +1725,8 @@ def test_register_udf_no_commit(session):
         session._run_query(f"drop function if exists {perm_func_name}(int)")
 
 
-def test_udf_class_method(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_udf_class_method(session, source_code_generation):
     # Note that we never mention in the doc that we support registering UDF from a class method.
     # However, some users might still be interested in doing that.
     class UDFTest:
@@ -1538,7 +1751,9 @@ def test_udf_class_method(session):
             return self.b * 2
 
     # test staticmethod
-    plus1_udf = session.udf.register(UDFTest.plus1)
+    plus1_udf = session.udf.register(
+        UDFTest.plus1, source_code_generation=source_code_generation
+    )
     Utils.check_answer(
         session.range(5).select(plus1_udf("id")),
         [Row(1), Row(2), Row(3), Row(4), Row(5)],
@@ -1546,7 +1761,10 @@ def test_udf_class_method(session):
 
     # test classmethod (type hint does not work here because it has an extra argument cls)
     plus_a_udf = session.udf.register(
-        UDFTest.plus_a, return_type=IntegerType(), input_types=[IntegerType()]
+        UDFTest.plus_a,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(
         session.range(5).select(plus_a_udf("id")),
@@ -1556,7 +1774,10 @@ def test_udf_class_method(session):
     # test the general method
     udf_test = UDFTest(b=-1)
     plus_b_udf = session.udf.register(
-        udf_test.plus_b, return_type=IntegerType(), input_types=[IntegerType()]
+        udf_test.plus_b,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        source_code_generation=source_code_generation,
     )
     Utils.check_answer(
         session.range(5).select(plus_b_udf("id")),
@@ -1565,20 +1786,29 @@ def test_udf_class_method(session):
 
     # test property
     with pytest.raises(TypeError) as ex_info:
-        session.udf.register(udf_test.double_b, return_type=IntegerType())
+        session.udf.register(
+            udf_test.double_b,
+            return_type=IntegerType(),
+            source_code_generation=source_code_generation,
+        )
     assert (
         "Invalid function: not a function or callable (__call__ is not defined)"
         in str(ex_info)
     )
 
 
-def test_udf_pickle_failure(session):
+@pytest.mark.parametrize("source_code_generation", [True])
+def test_udf_pickle_failure(session, source_code_generation):
     from weakref import WeakValueDictionary
 
     d = WeakValueDictionary()
 
     with pytest.raises(TypeError) as ex_info:
-        session.udf.register(lambda: len(d), return_type=IntegerType())
+        session.udf.register(
+            lambda: len(d),
+            return_type=IntegerType(),
+            source_code_generation=source_code_generation,
+        )
     assert (
         "cannot pickle 'weakref' object: you might have to save the unpicklable object in the "
         "local environment first, add it to the UDF with session.add_import(), and read it from "

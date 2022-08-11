@@ -2917,6 +2917,7 @@ def udf(
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
     statement_params: Optional[Dict[str, str]] = None,
+    source_code_generation: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -2979,6 +2980,10 @@ def udf(
             guarantee that Snowflake will encode batches with the specified number of rows. It will
             be ignored when registering a non-vectorized UDF.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
+        source_code_generation: Register UDF `func` by its source code. The default value is False meaning
+            `func` is pickled by cloudpickle and stored as hex bytes. When setting to True, the client tries
+            to re-generate and store the Python source code of `func`. Please be aware that only `func` of
+            Python FunctionType defined in Python scripts is supported for source code generation.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3036,6 +3041,7 @@ def udf(
             parallel=parallel,
             max_batch_size=max_batch_size,
             statement_params=statement_params,
+            source_code_generation=source_code_generation,
         )
     else:
         return session.udf.register(
@@ -3051,6 +3057,7 @@ def udf(
             parallel=parallel,
             max_batch_size=max_batch_size,
             statement_params=statement_params,
+            source_code_generation=source_code_generation,
         )
 
 
@@ -3197,6 +3204,7 @@ def pandas_udf(
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
     statement_params: Optional[Dict[str, str]] = None,
+    source_code_generation: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -3224,6 +3232,7 @@ def pandas_udf(
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
             statement_params=statement_params,
+            source_code_generation=source_code_generation,
         )
     else:
         return session.udf.register(
@@ -3240,6 +3249,7 @@ def pandas_udf(
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
             statement_params=statement_params,
+            source_code_generation=source_code_generation,
         )
 
 
@@ -3389,6 +3399,7 @@ def sproc(
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
+    source_code_generation: bool = False,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -3488,6 +3499,7 @@ def sproc(
             replace=replace,
             parallel=parallel,
             statement_params=statement_params,
+            source_code_generation=source_code_generation,
         )
     else:
         return session.sproc.register(
@@ -3502,4 +3514,5 @@ def sproc(
             replace=replace,
             parallel=parallel,
             statement_params=statement_params,
+            source_code_generation=source_code_generation,
         )
