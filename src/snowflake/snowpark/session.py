@@ -1623,8 +1623,14 @@ class Session:
         return query_listener
 
     def _table_exists(self, table_name: str):
-        tables = self._run_query(f"show tables like '{table_name}'")
-        return tables is not None and len(tables) > 0
+        try:
+            # DESC is used here because SHOW does not work for qualified table name
+            self._conn._cursor.describe(f"DESC TABLE {table_name}")
+            return True
+        except ProgrammingError:
+            # We could verify if this is a compile error and throw otherwise, but directly return False gives no
+            # behavior change as the old behavior assumes table does not exist
+            return False
 
     def _explain_query(self, query: str) -> Optional[str]:
         try:

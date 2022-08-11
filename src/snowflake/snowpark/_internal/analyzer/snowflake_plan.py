@@ -63,7 +63,6 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -491,16 +490,6 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def _table_exists(self, table_name):
-        try:
-            # DESC is used here because SHOW does not work for qualified table name
-            self.session.sql(f"DESC TABLE {table_name}").collect()
-            return True
-        except SnowparkSQLException:
-            # We could verify if this is a compile error and throw otherwise, but directly return False gives no
-            # behavior change as the old behavior assumes table does not exist
-            return False
-
     def save_as_table(
         self,
         table_name: str,
@@ -510,7 +499,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         if mode == SaveMode.APPEND:
-            if self._table_exists(table_name):
+            if self.session._table_exists(table_name):
                 return self.build(
                     lambda x: insert_into_statement(
                         table_name=table_name,
