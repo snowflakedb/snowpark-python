@@ -219,7 +219,7 @@ class FileOperation:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> PutResult:
-        """Uploads local files to the stage via file stream.
+        """Uploads local files to the stage via a file stream.
 
         Args:
             input_stream: The input stream from which the data will be uploaded.
@@ -241,13 +241,18 @@ class FileOperation:
         Returns:
             An object of :class:`PutResult` which represents the results of an uploaded file.
         """
-        put_result = self._session._conn.upload_stream(
-            input_stream=input_stream,
-            stage_location=stage_location,
-            dest_filename=dest_file_name,
-            parallel=parallel,
-            compress_data=auto_compress,
-            source_compression=source_compression,
-            overwrite=overwrite,
-        )
-        return PutResult(*put_result["data"][0])
+        if is_in_stored_procedure():
+            raise NotImplementedError(
+                "Stream uploads for stored procedure are not supported yet"
+            )
+        else:
+            put_result = self._session._conn.upload_stream(
+                input_stream=input_stream,
+                stage_location=stage_location,
+                dest_filename=dest_file_name,
+                parallel=parallel,
+                compress_data=auto_compress,
+                source_compression=source_compression,
+                overwrite=overwrite,
+            )
+            return PutResult(*put_result["data"][0])

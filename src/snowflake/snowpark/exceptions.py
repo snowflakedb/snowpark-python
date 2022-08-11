@@ -231,7 +231,16 @@ class SnowparkFetchDataException(SnowparkServerException):
     pass
 
 
-class SnowparkUploadUdfFileException(SnowparkServerException):
+class SnowparkUploadFileException(SnowparkServerException):
+    """Exception for when we are trying to upload files to the server.
+
+    Includes error codes: 1408.
+    """
+
+    pass
+
+
+class SnowparkUploadUdfFileException(SnowparkUploadFileException):
     """Exception for when we are trying to upload UDF files to the server.
 
     Includes error codes: 1407.

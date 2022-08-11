@@ -291,7 +291,7 @@ class ServerConnection:
         # https://docs.python.org/3/library/io.html#io.IOBase.close
         except ValueError as ex:
             if input_stream.closed:
-                raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
+                raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
                     dest_filename
                 )
             else:

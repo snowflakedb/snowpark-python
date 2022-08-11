@@ -380,6 +380,14 @@ def test_server_udf_upload_file_stream_closed():
     assert "A file stream was closed when uploading UDF files" in ex.message
 
 
+def test_server_upload_file_stream_closed():
+    dest_filename = "file"
+    ex = SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(dest_filename)
+    assert isinstance(ex, SnowparkUploadUdfFileException)
+    assert ex.error_code == "1408"
+    assert "A file stream was closed when uploading files to the server." in ex.message
+
+
 def test_general_invalid_object_name():
     type_name = "Iterable"
     ex = SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(type_name)
