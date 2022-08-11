@@ -239,7 +239,7 @@ def test_async_copy_into_location(session):
     # check if copy is successful
     async_job = df.write.copy_into_location(remote_location, block=False)
     res = async_job.result()
-    Utils.check_answer(res, [Row(rows_unloaded=4, input_bytes=27, output_bytes=47)])
+    assert res[0].rows_unloaded == 4
 
     # check the content of copied table
     res = session.read.schema(test_schema).csv(remote_location)
@@ -262,7 +262,7 @@ def test_multiple_queries(session, resources_path):
     df = session.read.schema(user_schema).csv(f"@{tmp_stage_name1}/{test_file_csv}")
     assert len(df._plan.queries) > 1
     res = df.collect_nowait()
-    Utils.check_answer(res.result(), df.collect())
+    Utils.check_answer(res.result(), df)
 
 
 def test_async_batch_insert(session):
@@ -282,7 +282,7 @@ def test_async_batch_insert(session):
 
 
 def test_async_is_running_and_cancel(session):
-    async_job = session.sql("select SYSTEM$WAIT(10)").collect_nowait()
+    async_job = session.sql("select SYSTEM$WAIT(3)").collect_nowait()
     while not async_job.is_done():
         sleep(1.0)
     assert async_job.is_done()
@@ -293,5 +293,5 @@ def test_async_is_running_and_cancel(session):
     start = time()
     while not async_job2.is_done():
         sleep(1.0)
-    assert (time() - start) / 1000 < 60
+    assert (time() - start) < 10
     assert async_job2.is_done()
