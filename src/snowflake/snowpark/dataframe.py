@@ -408,6 +408,25 @@ class DataFrame:
             >>> df = session.create_dataframe([[1, 2], [3, 4], [5, -1]], schema=["a", "b"])
             >>> df.stat.corr("a", "b")
             -0.5960395606792697
+
+    Example 16
+        Performing a query and returning an array of Rows asynchronously::
+
+            >>> df = session.createDataFrame([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6],[4.0,6,8]], schema=["a", "b", "c"])
+            >>> async_job = df.collect_nowait()
+            >>> async_job.result()
+            [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
+
+    Example 17
+        Performing a query and transforming it into pandas dataframe asynchronously::
+
+            >>> async_job = df.to_pandas(block=False)
+            >>> async_job.result()
+                 A  B  C
+            0  4.0  3  5
+            1  2.0 -4  7
+            2  3.0  5  6
+            3  4.0  6  8
     """
 
     def __init__(
@@ -608,7 +627,6 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -616,7 +634,7 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        return self._session._conn.execute(
+        yield from self._session._conn.execute(
             self._plan,
             to_pandas=True,
             to_iter=True,
