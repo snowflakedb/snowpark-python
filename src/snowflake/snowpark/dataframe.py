@@ -1264,7 +1264,7 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operate(
-                    SelectSnowflakePlan(other._plan), operator="union"
+                    SelectSnowflakePlan(other._plan), operator="UNION"
                 )
             )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
@@ -1430,7 +1430,7 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operate(
-                    SelectSnowflakePlan(other._plan), operator="except"
+                    SelectSnowflakePlan(other._plan), operator="EXCEPT"
                 )
             )
         return self._with_plan(Except(self._plan, other._plan))
