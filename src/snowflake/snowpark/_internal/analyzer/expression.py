@@ -18,19 +18,22 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark.types import DataType
 
+COLUMN_DEPENDENCY_ALL = None
+COLUMN_DEPENDENCY_EMPTY = set()
+
 
 def derive_dependent_columns(*expressions: "Expression"):
     result = set()
     for exp in expressions:
         child_dependency = exp.dependent_column_names()
-        if child_dependency is None:
-            return None
+        if child_dependency == COLUMN_DEPENDENCY_ALL:
+            return COLUMN_DEPENDENCY_ALL
         if isinstance(exp, UnresolvedAttribute):
             if not exp.is_sql_text:
                 result.add(exp.name)
         elif isinstance(exp, NamedExpression):
             result.add(exp.name)
-        result.union(child_dependency)
+        result.update(child_dependency)
     return result
 
 
@@ -50,7 +53,7 @@ class Expression:
         self.datatype: Optional[DataType] = None
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return set()
+        return COLUMN_DEPENDENCY_EMPTY
 
     @property
     def pretty_name(self) -> str:
@@ -148,7 +151,9 @@ class UnresolvedAttribute(Expression, NamedExpression):
         super().__init__()
         self.name = name
         self.is_sql_text = is_sql_text
-        self._dependent_column_names = None if is_sql_text else {}
+        self._dependent_column_names = (
+            COLUMN_DEPENDENCY_ALL if is_sql_text else COLUMN_DEPENDENCY_EMPTY
+        )
 
     @property
     def sql(self) -> str:
@@ -189,7 +194,7 @@ class Literal(Expression):
             self.datatype = infer_type(value)
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return set()
+        return COLUMN_DEPENDENCY_EMPTY
 
 
 class Like(Expression):
