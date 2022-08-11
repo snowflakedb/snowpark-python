@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, Iterable, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -25,6 +25,9 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
+
+if TYPE_CHECKING:
+    from .column import Column
 
 
 class DataFrameReader:
@@ -214,14 +217,14 @@ class DataFrameReader:
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
-        self._user_schema = None
-        self._cur_options = {}
-        self._file_path = None
-        self._file_type = None
+        self._user_schema: Optional[StructType] = None
+        self._cur_options: dict[str, Any] = {}
+        self._file_path: Optional[str] = None
+        self._file_type: Optional[str] = None
         # Infer schema information
         self._infer_schema = False
-        self._infer_schema_transformations = None
-        self._infer_schema_target_columns = None
+        self._infer_schema_transformations: Optional[List["Column"]] = None
+        self._infer_schema_target_columns: Optional[List[str]] = None
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
@@ -328,7 +331,7 @@ class DataFrameReader:
         """
         return self._read_semi_structured_file(path, "XML")
 
-    def option(self, key: str, value) -> "DataFrameReader":
+    def option(self, key: str, value: Any) -> "DataFrameReader":
         """Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
@@ -402,7 +405,7 @@ class DataFrameReader:
                 results = self._session._conn.run_query(infer_schema_query)["data"]
                 new_schema = []
                 schema_to_cast = []
-                transformations = []
+                transformations: List["Column"] = []
                 for r in results:
                     # Columns for r [column_name, type, nullable, expression, filenames]
                     name = quote_name_without_upper_casing(r[0])

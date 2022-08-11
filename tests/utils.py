@@ -171,7 +171,7 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
-    ):
+    ) -> None:
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data
