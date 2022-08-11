@@ -346,10 +346,9 @@ class ServerConnection:
             return AsyncJob(
                 results_cursor["queryId"],
                 query,
-                self._conn,
                 self,
                 data_type,
-                kwargs,
+                **kwargs,
             )
         else:
             return self._to_data_or_iter(
@@ -452,16 +451,15 @@ class ServerConnection:
                     is_batch_insert = True
                     break
             if len(plan.queries) > 1 and not block and not is_batch_insert:
-                sql = f"""execute immediate $$
-declare
+                final_query = f"""EXECUTE IMMEDIATE $$
+DECLARE
     res resultset;
-begin
+BEGIN
 {";".join(q.sql for q in plan.queries[:-1])};
 res := ({plan.queries[-1].sql});
 return table(res);
-end;
+END;
 $$"""
-                final_query = sql
                 for holder, id_ in placeholders.items():
                     final_query = final_query.replace(holder, id_)
                 result = self.run_query(
@@ -478,7 +476,7 @@ $$"""
                     placeholders[q.query_id_place_holder] = (
                         result["sfqid"] if block else result.query_id
                     )
-                result_meta = self._cursor.description
+                result_meta = None
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:

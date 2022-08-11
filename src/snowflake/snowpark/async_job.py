@@ -2,10 +2,9 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 from enum import Enum
-from typing import Dict, Iterator, List, Union
+from typing import Iterator, List, Union
 
 import snowflake.snowpark
-from snowflake.connector import SnowflakeConnection
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
@@ -28,21 +27,96 @@ class _AsyncDataType(Enum):
 
 
 class AsyncJob:
+    """An instance that helps to manage queries that are executed asynchronously. If users decided to perform some
+    queries in a dataframe asynchronously, instead of return a result instantly, an AsyncJob instance will be returned
+    and within this AsyncJob instance, users can do:
+        retrieve result
+        check if this query is finished
+        cancel this asynchronously executed query
+        retrieve the query id and perform other actions on this query id manually
+
+    AsyncJob is strongly related to dataframe functions, to use AsyncJob, you need to create a dataframe first
+
+    create dataframe:
+        >>> df = session.createDataFrame([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6],[4.0,6,8]], schema=["a", "b", "c"])
+
+    Example 1
+        df.collect() can be performed asynchronously::
+
+            >>> async_job = df.collect_nowait()
+            >>> async_job.result()
+            [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
+
+        you can also do::
+            >>> async_job = df.collect(block=False)
+            >>> async_job.result()
+            [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
+
+    Example 2
+        df.to_pandas can be performed asynchronously::
+
+            >>> async_job = df.to_pandas(block=False)
+            >>> async_job.result()
+                 A  B  C
+            0  4.0  3  5
+            1  2.0 -4  7
+            2  3.0  5  6
+            3  4.0  6  8
+
+    Example 3
+        df.first() can be performed asynchronously::
+
+            >>> async_job = df.first(block=False)
+            >>> async_job.result()
+            [Row(A=4.0, B=3, C=5)]
+
+    Example 4
+        df.count() can be performed asynchronously::
+
+            >>> async_job = df.count(block=False)
+            >>> async_job.result()
+            4
+
+    Example 5
+        save dataframe to table or copy it into other locations can also be performed asynchronously::
+
+            >>> table_name = "name"
+            >>> async_job = df.write.save_as_table(table_name, block=False)
+            >>> # copy into other location
+            >>> remote_location = f"{session.get_session_stage()}/name.csv"
+            >>> async_job = df.write.copy_into_location(remote_location, block=False)
+
+    Example 7
+        table operations like merge, update and delete can also be perfromed asynchronously::
+
+            >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
+            >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+            >>> target = session.table("my_table")
+            >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
+            >>> target.merge(source,target["key"] == source["key"],[when_matched().update({"value": source["value"]}),when_not_matched().insert({"key": source["key"]}),],block=False,)
+
+    Example 8
+        AsyncJob also allows to cancel the query before it is finished::
+
+            >>> df = session.sql("select SYSTEM$WAIT(3)")
+            >>> async_job = df.collect_nowait()
+            >>> async_job.cancel()
+    """
+
     def __init__(
         self,
         query_id: str,
         query: str,
-        conn: SnowflakeConnection,
         server_connection: "snowflake.snowpark._internal.server_connection.ServerConnection",
         data_type: _AsyncDataType = _AsyncDataType.ROW,
-        parameters: Dict[str, any] = None,
+        **kwargs,
     ) -> None:
         self.query_id = query_id
         self.query = query
-        self._conn = conn
+        self._conn = server_connection._conn
         self._cursor = self._conn.cursor()
         self._data_type = data_type
-        self._parameters = parameters
+        self._parameters = kwargs
         self._result_meta = None
         self._server_connection = server_connection
         self._inserted = False
@@ -62,7 +136,7 @@ class AsyncJob:
         self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
 
     def _table_result(
-        self, result_data
+        self, result_data: Union[List[tuple], List[dict]]
     ) -> Union[
         "snowflake.snowpark.MergeResult",
         "snowflake.snowpark.UpdateResult",
@@ -120,7 +194,7 @@ class AsyncJob:
             ]:
                 result = self._table_result(result_data)
             else:
-                raise ValueError(f"{self._data_type} is not a supported data type")
+                raise ValueError(f"{self._data_type} is not supported")
         for action in self._plan.post_actions:
             self._server_connection.run_query(
                 action.sql,
