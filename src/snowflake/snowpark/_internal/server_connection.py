@@ -257,6 +257,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
+        is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
@@ -291,9 +292,14 @@ class ServerConnection:
         # https://docs.python.org/3/library/io.html#io.IOBase.close
         except ValueError as ex:
             if input_stream.closed:
-                raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
-                    dest_filename
-                )
+                if is_in_udf:
+                    raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
+                        dest_filename
+                    )
+                else:
+                    raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
+                        dest_filename
+                    )
             else:
                 raise ex
 

@@ -499,6 +499,7 @@ class Session:
                                 source_compression="DEFLATE",
                                 compress_data=False,
                                 overwrite=True,
+                                is_in_udf=True,
                             )
                     # local file
                     else:
