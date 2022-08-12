@@ -246,15 +246,13 @@ class FileOperation:
         else:
 
             def parse_stage_file_location(stage_location: str):
+                stage_location = stage_location.strip()
                 if not stage_location:
                     raise ValueError("stage_location cannot be empty")
                 elif stage_location[-1] == "/":
                     raise ValueError("stage_location should end with target filename")
                 else:
-                    stage_location_parts = stage_location.split("/")
-                    filename = stage_location_parts[-1]
-                    stage_with_prefix = "/".join(stage_location_parts[:-1])
-                    return stage_with_prefix, filename
+                    return stage_location.rsplit("/", maxsplit=1)
 
             stage_with_prefix, dest_filename = parse_stage_file_location(stage_location)
             put_result = self._session._conn.upload_stream(
