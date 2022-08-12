@@ -29,10 +29,10 @@ class _AsyncDataType(Enum):
 class AsyncJob:
     """AsyncJob is strongly related to dataframe functions, to use AsyncJob, you need to create a dataframe first
     Provides a way to track an asynchronous query in Snowflake. A :class:`DataFrame` object can be evaluated asynchronously and an :class:`AsyncJob` object will be returned. With this instance, you can do:
-        - retrieve results;
-        - check the query status (still running or done);
-        - cancel the running query;
-        - retrieve the query ID and perform other operations on this query ID manually.
+    - retrieve results;
+    - check the query status (still running or done);
+    - cancel the running query;
+    - retrieve the query ID and perform other operations on this query ID manually.
     We demonstrate how to evaluate a :class:`DataFrame` asynchronously and use returned :class:`AsyncJob` object:
 
 
@@ -108,10 +108,10 @@ class AsyncJob:
             >>> async_job.cancel()
 
     Note:
-    - If a dataframe is associated with multiple queries,
-        + if you use `:meth:Session.create_dataframe` to create a dataframe from a large amount of local data and evaluate this dataframe asynchronously, data will still be loaded into Snowflake synchronously, and only fetching data from Snowflake again will be performed asynchronously.
-        + otherwise, multiple queries will be wrapped into a `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_ and executed asynchronously as one query.
-    - Temporary objects (e.g., tables) might be created when evaluating dataframes and they will be dropped automatically after all queries finish when calling a synchronous API. When you evaluating dataframes asynchronously, temporary objects will only be dropped after calling :meth:`result`.
+        - If a dataframe is associated with multiple queries,
+            + if you use `:meth:Session.create_dataframe` to create a dataframe from a large amount of local data and evaluate this dataframe asynchronously, data will still be loaded into Snowflake synchronously, and only fetching data from Snowflake again will be performed asynchronously.
+            + otherwise, multiple queries will be wrapped into a `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_ and executed asynchronously as one query.
+        - Temporary objects (e.g., tables) might be created when evaluating dataframes and they will be dropped automatically after all queries finish when calling a synchronous API. When you evaluating dataframes asynchronously, temporary objects will only be dropped after calling :meth:`result`.
     """
 
     def __init__(
