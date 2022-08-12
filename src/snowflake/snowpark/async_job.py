@@ -27,17 +27,16 @@ class _AsyncDataType(Enum):
 
 
 class AsyncJob:
-    """AsyncJob is strongly related to dataframe functions, to use AsyncJob, you need to create a dataframe first
-    Provides a way to track an asynchronous query in Snowflake. A :class:`DataFrame` object can be evaluated asynchronously and an :class:`AsyncJob` object will be returned. With this instance, you can do:
+    """Provides a way to track an asynchronous query in Snowflake. A :class:`DataFrame` object can be evaluated asynchronously and an :class:`AsyncJob` object will be returned. With this instance, you can do:
     - retrieve results;
     - check the query status (still running or done);
     - cancel the running query;
     - retrieve the query ID and perform other operations on this query ID manually.
+    AsyncJob is strongly related to dataframe functions, to use AsyncJob, you need to create a dataframe first
     We demonstrate how to evaluate a :class:`DataFrame` asynchronously and use returned :class:`AsyncJob` object:
 
 
     First, we create a dataframe:
-        >>> from snowflake.snowpark import Session
         >>> from snowflake.snowpark.functions import when_matched, when_not_matched
         >>> df = session.create_dataframe([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6],[4.0,6,8]], schema=["a", "b", "c"])
 
@@ -86,8 +85,8 @@ class AsyncJob:
             >>> # copy into a stage file
             >>> remote_location = f"{session.get_session_stage()}/name.csv"
             >>> async_job = df.write.copy_into_location(remote_location, block=False)
-            >>> async_job.result()
-            [Row(rows_unloaded=4, input_bytes=27, output_bytes=47)]
+            >>> async_job.result()[0]['rows_unloaded']
+            4
 
     Example 7
         :meth:`Table.merge`, :meth:`Table.update`, :meth:`Table.delete` can also be performed asynchronously::
@@ -138,18 +137,17 @@ class AsyncJob:
         self._plan = None
 
     def is_done(self) -> bool:
-        """Check the status of query associated with this instance, return a bool value indicate whether the query is
+        """Check the status of the query associated with this instance and returns a bool value indicating whether the query has
         finished.
 
         """
-        # return a bool value to indicate whether the query is finished
         status = self._conn.get_query_status(self.query_id)
         is_running = self._conn.is_still_running(status)
 
         return not is_running
 
     def cancel(self) -> None:
-        """Cancel the query associated with this instance."""
+        """Cancels the query associated with this instance."""
         # stop and cancel current query id
         self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
 
@@ -182,12 +180,11 @@ class AsyncJob:
             )
 
     def result(self) -> Union[List[Row], "pandas.DataFrame", Iterator[Row], int, None]:
-        """Block and wait until the query associated with this instance is finished and return query results, this
-        functions acts like execute query in a synchronous way. Return data type is decided by the function that create
-        this instance
-
+        """Blocks and waits until the query associated with this instance finishes, then returns query results, this
+        functions acts like execute query in a synchronous way. The data type of returned results is determined by how
+        you create this :class:`AsyncJob` instance.For example, if this instance is returned
+        by :meth:`DataFrame.collect_nowait`, you will get a list of :class:`Row`s from this method.
         """
-        # return result of the query
         self._cursor.get_results_from_sfqid(self.query_id)
         if self._data_type == _AsyncDataType.NONE_TYPE:
             self._cursor.fetchall()
@@ -198,6 +195,7 @@ class AsyncJob:
             )["data"]
             check_is_pandas_dataframe_in_to_pandas(result)
         elif self._data_type == _AsyncDataType.PANDAS_BATCH:
+            # TODO: SNOW-642562 support to_pandas_batches once the connector side bug gets fixed
             result = self._server_connection._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True
             )["data"]
