@@ -6,7 +6,7 @@
     .. rubric:: {{ _('Classes') }}
 
     .. autosummary::
-        {% for item in ['CaseExpr', 'Column', 'DataFrame', 'DataFrameNaFunctions', 'DataFrameReader',
+        {% for item in ['Asy', 'CaseExpr', 'Column', 'DataFrame', 'DataFrameNaFunctions', 'DataFrameReader',
             'DataFrameStatFunctions', 'DataFrameWriter', 'GroupingSets', 'RelationalGroupedDataFrame',
             'Row', 'Session', 'FileOperation', 'PutResult', 'GetResult', 'Window', 'WindowSpec',
             'Table', 'UpdateResult', 'DeleteResult', 'MergeResult', 'WhenMatchedClause',
