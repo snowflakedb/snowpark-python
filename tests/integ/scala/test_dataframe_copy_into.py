@@ -22,7 +22,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
@@ -625,6 +625,10 @@ def test_copy_non_csv_basic(
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-645154 Need to enable ENABLE_SCHEMA_DETECTION_COLUMN_ORDER",
+)
 @pytest.mark.parametrize(
     "file_format, file_name, schema, transformations, assert_data, infer_schema",
     [
