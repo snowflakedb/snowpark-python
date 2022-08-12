@@ -1581,7 +1581,7 @@ def test_append_existing_table(session):
             df.write.save_as_table(table_name, mode="append")
         Utils.check_answer(session.table(table_name), df, True)
         assert len(history.queries) == 1  # INSERT only
-        assert history.queries[1].sql_text.startswith("INSERT")
+        assert history.queries[0].sql_text.startswith("INSERT")
     finally:
         Utils.drop_table(session, table_name)
 
