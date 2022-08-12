@@ -86,21 +86,11 @@ def test_basic_udf(session):
         return str(x)
 
     return1_udf = udf(return1, return_type=StringType())
-    plus1_udf = udf(
-        plus1,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
-    )
+    plus1_udf = udf(plus1, return_type=IntegerType(), input_types=[IntegerType()])
     add_udf = udf(
-        add,
-        return_type=IntegerType(),
-        input_types=[IntegerType(), IntegerType()],
+        add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
     )
-    int2str_udf = udf(
-        int2str,
-        return_type=StringType(),
-        input_types=[IntegerType()],
-    )
+    int2str_udf = udf(int2str, return_type=StringType(), input_types=[IntegerType()])
     pow_udf = udf(
         lambda x, y: x**y,
         return_type=DoubleType(),
@@ -202,9 +192,7 @@ def test_recursive_udf(session):
         return 1 if n == 1 or n == 0 else n * factorial(n - 1)
 
     factorial_udf = udf(
-        factorial,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        factorial, return_type=IntegerType(), input_types=[IntegerType()]
     )
     df = session.range(10).to_df("a")
     Utils.check_answer(
@@ -226,10 +214,7 @@ def test_nested_udf(session):
         return square(x) * x
 
     df = session.create_dataframe([1, 2]).to_df("a")
-    outer_func_udf = udf(
-        outer_func,
-        return_type=StringType(),
-    )
+    outer_func_udf = udf(outer_func, return_type=StringType())
     Utils.check_answer(
         df.select(outer_func_udf()).collect(),
         [
@@ -239,19 +224,11 @@ def test_nested_udf(session):
     )
 
     # we don't need to register function square()
-    cube_udf = udf(
-        cube,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
-    )
+    cube_udf = udf(cube, return_type=IntegerType(), input_types=[IntegerType()])
     Utils.check_answer(df.select(cube_udf("a")).collect(), [Row(1), Row(8)])
 
     # but we can still register function square()
-    square_udf = udf(
-        square,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
-    )
+    square_udf = udf(square, return_type=IntegerType(), input_types=[IntegerType()])
     Utils.check_answer(
         df.select(cube_udf("a"), square_udf("a")).collect(),
         [
@@ -265,21 +242,9 @@ def test_python_builtin_udf(session):
     def my_sqrt(x):
         return math.sqrt(x)
 
-    abs_udf = udf(
-        abs,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
-    )
-    sqrt_udf = udf(
-        math.sqrt,
-        return_type=DoubleType(),
-        input_types=[DoubleType()],
-    )
-    my_sqrt_udf = udf(
-        my_sqrt,
-        return_type=DoubleType(),
-        input_types=[DoubleType()],
-    )
+    abs_udf = udf(abs, return_type=IntegerType(), input_types=[IntegerType()])
+    sqrt_udf = udf(math.sqrt, return_type=DoubleType(), input_types=[DoubleType()])
+    my_sqrt_udf = udf(my_sqrt, return_type=DoubleType(), input_types=[DoubleType()])
 
     df = session.range(-5, 5).to_df("a")
     Utils.check_answer(
@@ -334,10 +299,7 @@ def test_decorator_udf(session):
 
 
 def test_annotation_syntax_udf(session):
-    @udf(
-        return_type=IntegerType(),
-        input_types=[IntegerType(), IntegerType()],
-    )
+    @udf(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
     def add_udf(x, y):
         return x + y
 
@@ -436,10 +398,7 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
         )
 
     mod5_udf2 = session.udf.register_from_file(
-        zip_path,
-        "mod5",
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        zip_path, "mod5", return_type=IntegerType(), input_types=[IntegerType()]
     )
 
     Utils.check_answer(
@@ -453,10 +412,7 @@ def test_register_udf_from_file(session, resources_path, tmpdir):
     # test a remote python file
     stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
     mod5_udf3 = session.udf.register_from_file(
-        stage_file,
-        "mod5",
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        stage_file, "mod5", return_type=IntegerType(), input_types=[IntegerType()]
     )
     Utils.check_answer(
         df.select(mod5_udf3("a"), mod5_udf3("b")).collect(),
@@ -506,13 +462,10 @@ def test_add_import_local_file(session, resources_path):
         df = session.range(-5, 5).to_df("a")
 
         session.add_import(
-            test_files.test_udf_py_file,
-            import_path="test_udf_dir.test_udf_file",
+            test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
         )
         plus4_then_mod5_udf = udf(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
+            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
         Utils.check_answer(
             df.select(plus4_then_mod5_udf("a")).collect(),
@@ -558,9 +511,7 @@ def test_add_import_local_directory(session, resources_path):
             test_files.test_udf_directory, import_path="resources.test_udf_dir"
         )
         plus4_then_mod5_udf = udf(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
+            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
         Utils.check_answer(
             df.select(plus4_then_mod5_udf("a")).collect(),
@@ -596,9 +547,7 @@ def test_add_import_stage_file(session, resources_path):
         )
         session.add_import(stage_file)
         plus4_then_mod5_udf = udf(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
+            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
 
         df = session.range(-5, 5).to_df("a")
@@ -621,9 +570,7 @@ def test_add_import_package(session):
     session.add_import(six.__file__)
     df = session.create_dataframe([d]).to_df("a")
     plus_one_month_udf = udf(
-        plus_one_month,
-        return_type=DateType(),
-        input_types=[DateType()],
+        plus_one_month, return_type=DateType(), input_types=[DateType()]
     )
     Utils.check_answer(
         df.select(plus_one_month_udf("a")).collect(), [Row(plus_one_month(d))]
@@ -711,29 +658,29 @@ def test_udf_level_import(session, resources_path):
 
 
 def test_type_hints(session):
-    @udf()
+    @udf
     def add_udf(x: int, y: int) -> int:
         return x + y
 
-    @udf()
+    @udf
     def snow_udf(x: int) -> Optional[str]:
         return "snow" if x % 2 else None
 
-    @udf()
+    @udf
     def double_str_list_udf(x: str) -> List[str]:
         return [x, x]
 
     dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
 
-    @udf()
+    @udf
     def return_datetime_udf() -> datetime.datetime:
         return dt
 
-    @udf()
+    @udf
     def return_variant_dict_udf(v: Variant) -> Dict[str, str]:
         return {str(k): f"{str(k)} {str(v)}" for k, v in v.items()}
 
-    @udf()
+    @udf
     def return_geography_dict_udf(g: Geography) -> Dict[str, str]:
         return g
 
@@ -873,11 +820,7 @@ def test_udf_negative(session):
         ex_info
     )
 
-    udf1 = udf(
-        f,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
-    )
+    udf1 = udf(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:
         udf1("a", "")
     assert "Incorrect number of arguments passed to the UDF" in str(ex_info)
@@ -900,11 +843,7 @@ def test_udf_negative(session):
     assert "The object name 'invalid name' is invalid" in str(ex_info)
 
     # incorrect data type
-    udf2 = udf(
-        lambda x: int(x),
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
-    )
+    udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(udf2("x")).collect()
     assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
@@ -923,7 +862,7 @@ def test_udf_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @udf()
+        @udf
         def _(x: int, y: int):
             return x + y
 
@@ -931,7 +870,7 @@ def test_udf_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @udf()
+        @udf
         def _(x, y: int) -> int:
             return x + y
 
@@ -942,7 +881,7 @@ def test_udf_negative(session):
 
     with pytest.raises(TypeError) as ex_info:
 
-        @udf()
+        @udf
         def _(x: int, y: Union[int, float]) -> Union[int, float]:
             return x + y
 
@@ -996,9 +935,7 @@ def test_add_import_negative(session, resources_path):
     ]:
         session.add_import(test_files.test_udf_py_file, import_path)
         plus4_then_mod5_udf = udf(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
+            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
         with pytest.raises(SnowparkSQLException) as ex_info:
             df.select(plus4_then_mod5_udf("a")).collect()
@@ -1023,9 +960,7 @@ def test_udf_variant_type(session):
         return str(type(v))
 
     variant_udf = udf(
-        variant_get_data_type,
-        return_type=StringType(),
-        input_types=[VariantType()],
+        variant_get_data_type, return_type=StringType(), input_types=[VariantType()]
     )
 
     Utils.check_answer(
@@ -1117,9 +1052,7 @@ def test_udf_geography_type(session):
         return str(type(g))
 
     geography_udf = udf(
-        get_type,
-        return_type=StringType(),
-        input_types=[GeographyType()],
+        get_type, return_type=StringType(), input_types=[GeographyType()]
     )
 
     Utils.check_answer(
@@ -1247,10 +1180,7 @@ def test_add_packages(session):
         return f"{numpy.__version__}/{pandas.__version__}/{dateutil.__version__}"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    session.udf.register(
-        get_numpy_pandas_dateutil_version,
-        name=udf_name,
-    )
+    session.udf.register(get_numpy_pandas_dateutil_version, name=udf_name)
     # don't need to check the version of dateutil, as it can be changed on the server side
     assert (
         session.sql(f"select {udf_name}()").collect()[0][0].startswith("1.20.1/1.3.5")
@@ -1266,10 +1196,7 @@ def test_add_packages(session):
         return True
 
     session.udf.register(
-        is_pandas_available,
-        name=udf_name,
-        replace=True,
-        packages=["numpy"],
+        is_pandas_available, name=udf_name, replace=True, packages=["numpy"]
     )
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
 
@@ -1282,12 +1209,7 @@ def test_add_packages(session):
             return False
         return True
 
-    session.udf.register(
-        is_numpy_available,
-        name=udf_name,
-        replace=True,
-        packages=[],
-    )
+    session.udf.register(is_numpy_available, name=udf_name, replace=True, packages=[])
     Utils.check_answer(session.sql(f"select {udf_name}()"), [Row(False)])
 
     session.clear_packages()
@@ -1364,8 +1286,7 @@ def test_udf_describe(session):
         return f"{s}{numpy.__version__}/{pandas.__version__}"
 
     get_numpy_pandas_version_udf = session.udf.register(
-        get_numpy_pandas_version,
-        packages=["numpy", "pandas"],
+        get_numpy_pandas_version, packages=["numpy", "pandas"]
     )
     describe_res = session.udf.describe(get_numpy_pandas_version_udf).collect()
     assert [row[0] for row in describe_res] == [
@@ -1402,10 +1323,7 @@ def test_basic_pandas_udf(session):
     def get_type_str(x):
         return pandas.Series([str(type(x))])
 
-    return1_pandas_udf = udf(
-        return1,
-        return_type=PandasSeriesType(StringType()),
-    )
+    return1_pandas_udf = udf(return1, return_type=PandasSeriesType(StringType()))
     add_series_pandas_udf = udf(
         lambda x, y: x + y,
         return_type=PandasSeriesType(IntegerType()),
@@ -1466,8 +1384,7 @@ def test_pandas_udf_type_hints(session):
 
     return1_pandas_udf = udf(return1)
     return1_pandas_annotation_pandas_udf = udf(
-        return1_pandas_annotation,
-        return_type=StringType(),
+        return1_pandas_annotation, return_type=StringType()
     )
     add_series_pandas_udf = udf(add_series)
     add_series_pandas_annotation_pandas_udf = udf(
@@ -1530,9 +1447,7 @@ def test_pandas_udf_max_batch_size(session):
 def test_pandas_udf_negative(session):
     with pytest.raises(ValueError) as ex_info:
         pandas_udf(
-            lambda x: x + 1,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
+            lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()]
         )
     assert "You cannot create a non-vectorized UDF using pandas_udf()" in str(ex_info)
 
@@ -1578,15 +1493,10 @@ def test_register_udf_no_commit(session):
     try:
         # Test function registration
         session.sql("begin").collect()
-        session.udf.register(
-            func=plus1,
-            name=temp_func_name,
-        )
+        session.udf.register(func=plus1, name=temp_func_name)
         assert Utils.is_active_transaction(session)
         session.udf.register(
-            func=plus1,
-            name=perm_func_name,
-            stage_location=tmp_stage_name,
+            func=plus1, name=perm_func_name, stage_location=tmp_stage_name
         )
         assert Utils.is_active_transaction(session)
 
@@ -1636,9 +1546,7 @@ def test_udf_class_method(session):
 
     # test classmethod (type hint does not work here because it has an extra argument cls)
     plus_a_udf = session.udf.register(
-        UDFTest.plus_a,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        UDFTest.plus_a, return_type=IntegerType(), input_types=[IntegerType()]
     )
     Utils.check_answer(
         session.range(5).select(plus_a_udf("id")),
@@ -1648,9 +1556,7 @@ def test_udf_class_method(session):
     # test the general method
     udf_test = UDFTest(b=-1)
     plus_b_udf = session.udf.register(
-        udf_test.plus_b,
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        udf_test.plus_b, return_type=IntegerType(), input_types=[IntegerType()]
     )
     Utils.check_answer(
         session.range(5).select(plus_b_udf("id")),
@@ -1659,10 +1565,7 @@ def test_udf_class_method(session):
 
     # test property
     with pytest.raises(TypeError) as ex_info:
-        session.udf.register(
-            udf_test.double_b,
-            return_type=IntegerType(),
-        )
+        session.udf.register(udf_test.double_b, return_type=IntegerType())
     assert (
         "Invalid function: not a function or callable (__call__ is not defined)"
         in str(ex_info)
@@ -1675,10 +1578,7 @@ def test_udf_pickle_failure(session):
     d = WeakValueDictionary()
 
     with pytest.raises(TypeError) as ex_info:
-        session.udf.register(
-            lambda: len(d),
-            return_type=IntegerType(),
-        )
+        session.udf.register(lambda: len(d), return_type=IntegerType())
     assert (
         "cannot pickle 'weakref' object: you might have to save the unpicklable object in the "
         "local environment first, add it to the UDF with session.add_import(), and read it from "
