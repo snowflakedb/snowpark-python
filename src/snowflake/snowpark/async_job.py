@@ -182,8 +182,9 @@ class AsyncJob:
     def result(self) -> Union[List[Row], "pandas.DataFrame", Iterator[Row], int, None]:
         """Blocks and waits until the query associated with this instance finishes, then returns query results, this
         functions acts like execute query in a synchronous way. The data type of returned results is determined by how
-        you create this :class:`AsyncJob` instance.For example, if this instance is returned
-        by :meth:`DataFrame.collect_nowait`, you will get a list of :class:`Row`s from this method.
+        you create this :class:`AsyncJob` instance.For example, if this instance is returned by
+        :meth:`DataFrame.collect_nowait`, you will get a list of :class:`Row` s from this method.
+
         """
         self._cursor.get_results_from_sfqid(self.query_id)
         if self._data_type == _AsyncDataType.NONE_TYPE:
