@@ -352,7 +352,7 @@ def generate_python_code(
     is_pandas_udf: bool,
     is_dataframe_input: bool,
     max_batch_size: Optional[int] = None,
-    source_code_generation: bool = True,
+    source_code_display: bool = False,
 ) -> str:
     # if func is a method object, we need to extract the target function first to check
     # annotations. However, we still serialize the original method because the extracted
@@ -380,7 +380,7 @@ def generate_python_code(
 
     try:
         source_code_comment = (
-            code_generation.generate_source_code(func) if source_code_generation else ""
+            code_generation.generate_source_code(func) if source_code_display else ""
         )
     except Exception as exc:
         logger.debug(f"Source code comment could not be generated due to error {exc!r}")
@@ -497,7 +497,7 @@ def resolve_imports_and_packages(
     max_batch_size: Optional[int] = None,
     *,
     statement_params: Optional[Dict[str, str]] = None,
-    source_code_generation: bool = True,
+    source_code_display: bool = False,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -555,7 +555,7 @@ def resolve_imports_and_packages(
             is_pandas_udf,
             is_dataframe_input,
             max_batch_size,
-            source_code_generation=source_code_generation,
+            source_code_display=source_code_display,
         )
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = get_udf_upload_prefix(udf_name)

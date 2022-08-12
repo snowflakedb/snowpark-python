@@ -13,7 +13,7 @@ import textwrap
 from collections import defaultdict
 from logging import getLogger
 from types import BuiltinFunctionType, CodeType, FunctionType, ModuleType
-from typing import Iterable, Union
+from typing import Any, Iterable, Set, Union
 
 import opcode
 
@@ -34,7 +34,7 @@ import pickle
 """
 
 
-def get_func_references(func: FunctionType, ref_objects: dict):
+def get_func_references(func: FunctionType, ref_objects: dict) -> None:
     # 1. resolve function global references
     code_object = func.__code__
     globals_ref = extract_func_global_refs(
@@ -67,7 +67,7 @@ def get_func_references(func: FunctionType, ref_objects: dict):
 
 def get_class_references(
     cls: type, func_module_name: str, ref_objects: dict, classes_to_generate: list
-):
+) -> None:
     """
     To get the referenced objects of a dynamically defined class.
     A class could have methods, classes referencing objects.
@@ -98,7 +98,7 @@ def get_class_references(
         )
 
 
-def extract_func_global_refs(code):
+def extract_func_global_refs(code: CodeType) -> dict:
     # inspired by cloudpickle to recursively extract all the global references used by the target func's code object
     co_names = code.co_names
     out_names = {}
@@ -115,7 +115,9 @@ def extract_func_global_refs(code):
     return out_names
 
 
-def remove_function_udf_annotation(udf_source_code, code_as_comment=True):
+def remove_function_udf_annotation(
+    udf_source_code: str, code_as_comment: bool = True
+) -> str:
     if code_as_comment:
         return udf_source_code
     # remove the udf/pandas_udf annotation to avoid re-registration
@@ -137,7 +139,7 @@ def remove_function_udf_annotation(udf_source_code, code_as_comment=True):
     return udf_source_code[:udf_anno_begin] + udf_source_code[udf_anno_end:]
 
 
-def check_func_type(func):
+def check_func_type(func: Any) -> None:
     if (
         isinstance(func, classmethod)
         or inspect.ismethod(func)
@@ -148,8 +150,8 @@ def check_func_type(func):
 
 
 def generate_source_code(
-    func: Union[FunctionType, BuiltinFunctionType], code_as_comment=True
-):
+    func: Union[FunctionType, BuiltinFunctionType], code_as_comment: bool = True
+) -> str:
     """
     Dynamically generate source code of the given Python functions including:
       - The function itself
@@ -309,11 +311,11 @@ def generate_source_code(
     return complete_source_code.strip()
 
 
-def is_lambda(func: FunctionType):
+def is_lambda(func: FunctionType) -> bool:
     return func.__name__ == "<lambda>"
 
 
-def get_lambda_code_text(code_text: str):
+def get_lambda_code_text(code_text: str) -> str:
     # add a wrapper to handle the case that the line of lambda source code does not include caller
     # such that ast could parse the expression tree:
     #     session.udf.register(
@@ -364,7 +366,7 @@ def get_lambda_code_text(code_text: str):
 
 def extract_submodule_imports(
     func: FunctionType, top_level_modules: Iterable[ModuleType]
-):
+) -> Set[tuple]:
     """
     Get submodule imports, the func code co_names only gives the top level module names, the submodule imports
     have to be inferred manually. Consider the following example:

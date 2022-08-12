@@ -313,7 +313,6 @@ class StoredProcedureRegistration:
         parallel: int = 4,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        source_code_generation=False,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -391,7 +390,6 @@ class StoredProcedureRegistration:
             replace,
             parallel,
             statement_params=statement_params,
-            source_code_generation=source_code_generation,
         )
 
     def register_from_file(
@@ -508,7 +506,6 @@ class StoredProcedureRegistration:
         parallel: int,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        source_code_generation=False,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -550,7 +547,6 @@ class StoredProcedureRegistration:
             packages,
             parallel,
             statement_params=statement_params,
-            source_code_generation=source_code_generation,
         )
 
         raised = False
