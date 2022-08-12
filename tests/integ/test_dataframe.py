@@ -1745,6 +1745,7 @@ def check_df_with_query_id_result_scan(session, df):
     Utils.check_answer(df, df_from_result_scan)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_query_id_result_scan(session, resources_path):
     from snowflake.snowpark._internal.analyzer import analyzer
 
