@@ -449,7 +449,6 @@ class UDFRegistration:
         max_batch_size: Optional[int] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        source_code_generation: bool = False,
         **kwargs,
     ) -> UserDefinedFunction:
         """
@@ -540,7 +539,6 @@ class UDFRegistration:
             max_batch_size,
             kwargs.get("_from_pandas_udf_function", False),
             statement_params=statement_params,
-            source_code_generation=source_code_generation,
         )
 
     def register_from_file(
@@ -558,7 +556,6 @@ class UDFRegistration:
         parallel: int = 4,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        source_code_generation: bool = False,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -664,7 +661,6 @@ class UDFRegistration:
         from_pandas_udf_function: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        source_code_generation: bool = False,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -710,7 +706,6 @@ class UDFRegistration:
             is_dataframe_input,
             max_batch_size,
             statement_params=statement_params,
-            source_code_generation=source_code_generation,
         )
 
         raised = False

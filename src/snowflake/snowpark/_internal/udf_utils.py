@@ -2,20 +2,12 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-import ast
-import builtins
-import dis
-import inspect
 import io
 import os
 import pickle
-import re
-import sys
-import textwrap
 import zipfile
-from collections import defaultdict
 from logging import getLogger
-from types import BuiltinFunctionType, CodeType, FunctionType, ModuleType
+from types import ModuleType
 from typing import (
     Callable,
     Dict,
@@ -29,9 +21,9 @@ from typing import (
 )
 
 import cloudpickle
-import opcode
 
 import snowflake.snowpark
+from snowflake.snowpark._internal import code_generation
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
     python_type_to_snow_type,
@@ -360,7 +352,7 @@ def generate_python_code(
     is_pandas_udf: bool,
     is_dataframe_input: bool,
     max_batch_size: Optional[int] = None,
-    source_code_generation: bool = False,
+    source_code_generation: bool = True,
 ) -> str:
     # if func is a method object, we need to extract the target function first to check
     # annotations. However, we still serialize the original method because the extracted
@@ -386,21 +378,19 @@ def generate_python_code(
         pickled_func = pickle_function(func)
     args = ",".join(arg_names)
 
-    if source_code_generation and not isinstance(
-        func, (FunctionType, BuiltinFunctionType)
-    ):
-        raise TypeError(
-            f"Cannot generate code for non-FunctionType object {func.__name__} of type {type(func)}"
+    try:
+        source_code_comment = (
+            code_generation.generate_source_code(func) if source_code_generation else ""
         )
+    except Exception as exc:
+        logger.debug(f"Source code comment could not be generated due to error {exc!r}")
+        source_code_comment = ""
 
-    deserialization_code = (
-        f"""
+    deserialization_code = f"""
 import pickle
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
+{source_code_comment}
 """.rstrip()
-        if not source_code_generation
-        else generate_source_code(func)
-    )
 
     if object_type == TempObjectType.PROCEDURE:
         func_code = f"""
@@ -507,7 +497,7 @@ def resolve_imports_and_packages(
     max_batch_size: Optional[int] = None,
     *,
     statement_params: Optional[Dict[str, str]] = None,
-    source_code_generation: bool = False,
+    source_code_generation: bool = True,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -674,264 +664,3 @@ HANDLER='{handler}'
 {inline_python_code_in_sql}
 """
     session._run_query(create_query, is_ddl_on_temp_object=is_temporary)
-
-
-STORE_GLOBAL = opcode.opmap["STORE_GLOBAL"]
-DELETE_GLOBAL = opcode.opmap["DELETE_GLOBAL"]
-LOAD_GLOBAL = opcode.opmap["LOAD_GLOBAL"]
-GLOBAL_OPS = (STORE_GLOBAL, DELETE_GLOBAL, LOAD_GLOBAL)
-
-
-def extract_func_global_refs(code):
-    co_names = code.co_names
-    out_names = {}
-    for instr in dis.get_instructions(code):
-        op = instr.opcode
-        if op in GLOBAL_OPS:
-            out_names[co_names[instr.arg]] = None
-
-    if code.co_consts:
-        for const in code.co_consts:
-            if isinstance(const, CodeType):
-                out_names.update(extract_func_global_refs(const))
-
-    return out_names
-
-
-def remove_function_udf_annotation(udf_source_code):
-    res = re.search(r"@(udf|pandas_udf)\(", udf_source_code)
-    if res is None:
-        return udf_source_code
-    udf_anno_begin = res.start()
-    udf_anno_end = res.end()
-    cnt = 1
-
-    while cnt != 0:
-        if udf_source_code[udf_anno_end] == "(":
-            cnt += 1
-        elif udf_source_code[udf_anno_end] == ")":
-            cnt -= 1
-        udf_anno_end += 1
-
-    return udf_source_code[:udf_anno_begin] + udf_source_code[udf_anno_end:]
-
-
-def get_references(func: FunctionType, ref_objects: dict):
-    # 1. resolve function global references
-    code_object = func.__code__
-    globals_ref = extract_func_global_refs(
-        func.__code__
-    )  # get the names of the objects which func references
-    globals = {
-        k: func.__globals__[k]
-        for k in globals_ref
-        if k in func.__globals__  # retrieve the objects by names
-        and k not in ref_objects
-    }
-
-    ref_objects.update(globals)
-
-    # 2. resolve function closure references
-    if func.__closure__ is not None:
-        closures = {
-            k: v
-            for k, v in zip(
-                code_object.co_freevars,
-                list(map(lambda x: x.cell_contents, func.__closure__)),
-            )
-        }
-        for k, v in closures.items():
-            if isinstance(v, FunctionType) and k not in ref_objects:
-                get_references(v, ref_objects)
-
-
-def generate_source_code(func: Union[FunctionType, BuiltinFunctionType]):
-    # 1. Resolve objects referenced by functions including classes, methods, modules, global variables
-    ref_objects = {}
-    to_import = set()
-    to_import_from_module = defaultdict(set)
-
-    is_cls_method = "." in func.__qualname__
-
-    if isinstance(func, FunctionType):
-        get_references(func, ref_objects)
-        to_import = to_import.union(
-            extract_submodule_imports(
-                func, [v for v in ref_objects.values() if isinstance(v, ModuleType)]
-            )
-        )
-    elif isinstance(func, BuiltinFunctionType):
-        if func.__module__ != builtins.__name__:
-            # NOTE: builtin module alias is not supported
-            to_import.add((func.__module__, func.__module__))
-    else:
-        # TODO: method support
-        raise TypeError(
-            f"Code generation for object type {type(func)} is not supported yet."
-        )
-
-    complete_source_code = """\
-from __future__ import annotations
-import pickle
-"""
-
-    # 2. Code Generation for different objects
-    for name, obj in ref_objects.items():
-        if inspect.ismodule(obj):
-            # a) imported modules
-            to_import.add((obj.__name__, name))  # name could be an alias
-        elif (
-            inspect.isclass(obj) or inspect.isfunction(obj)
-        ) and obj.__module__ != func.__module__:
-            # b) imported classes or functions from other modules
-            to_import_from_module[obj.__module__].add(
-                (obj.__name__, name)
-            )  # name could be an alias
-        else:
-            try:
-                # c) classes or functions used and defined in the same module as UDF's
-                complete_source_code += textwrap.dedent(inspect.getsource(obj))
-            except TypeError:
-                # d) global variables used by UDF
-                # v does not have source code, then it's a global variable of which the value has been evaluated
-                complete_source_code += f"""\
-{name} = pickle.loads(bytes.fromhex('{pickle.dumps(obj).hex()}'))  \
-# {name} is of type {type(obj)} and serialized by snowpark-python\n\
-"""
-            except Exception as exc:
-                logger.debug(
-                    "Unable to generate source code for object %s of type %s due to exception %r",
-                    type(name),
-                    type(obj),
-                    exc,
-                )
-                raise
-
-    # 3. deal with imports and alias
-    # import modules
-    imports = [
-        f"import {name + ' as ' if name != alias else ''}{alias}"
-        for name, alias in to_import
-    ]
-    for module, name_alias_pair in to_import_from_module.items():
-        classes = ", ".join(
-            f"{name + ' as ' if name != alias else ''}{alias}"
-            for name, alias in name_alias_pair
-        )
-        imports.append(f"from {module} import {classes}")
-
-    imports_str = "\n".join(imports)
-    complete_source_code = f"{complete_source_code}\n{imports_str}".rstrip()
-
-    # 4. handle func, remove the udf annotation
-    if isinstance(func, FunctionType):
-        if not is_cls_method:
-            func_source_code = remove_function_udf_annotation(
-                textwrap.dedent(inspect.getsource(func))
-            )
-            if not is_lambda(func):
-                complete_source_code = f"{complete_source_code}\n{func_source_code}"
-            func_assignment = (
-                get_lambda_code_text(func_source_code)
-                if is_lambda(func)
-                else func.__name__
-            )
-        else:
-            func_assignment = func.__qualname__
-    else:
-        # BuiltinFunctionType
-        func_assignment = (
-            func.__name__
-            if func.__module__ == builtins.__name__
-            else f"{func.__module__}.{func.__name__}"
-        )
-
-    # 5. handle function assignment
-    complete_source_code = f"""\
-{complete_source_code}\n
-{f"func = {func_assignment}"}\
-"""
-
-    return complete_source_code.strip()
-
-
-def is_lambda(func: FunctionType):
-    return func.__name__ == "<lambda>"
-
-
-def get_lambda_code_text(code_text: str):
-    # add a wrapper to handle the case that the line of lambda source code does not include caller
-    # such that ast could parse the expression tree:
-    #     session.udf.register(
-    #         lambda x, y: x + y, ...
-    #     )
-    try:
-        source_ast = ast.parse(code_text)
-    except SyntaxError as exc:
-        if "cannot assign to lambda" in str(exc):
-            # handle case like:
-            # session.udf.register(
-            #    lambda x, y: x + y, ...
-            # )
-            code_text = f"wrapper({code_text})"
-        elif "unmatched ')'" in str(exc):
-            # handle case like:
-            # session.udf.register(
-            #    lambda x, y: x + y, ...)
-            code_text = f"wrapper({code_text}"
-        source_ast = ast.parse(code_text)
-    lambda_node = next(
-        (node for node in ast.walk(source_ast) if isinstance(node, ast.Lambda)), None
-    )
-    if not lambda_node:
-        raise TypeError("lambda function can not be extracted")
-
-    lines = code_text.splitlines()
-    # single line lambda
-    if len(lines) == 1:
-        return code_text[lambda_node.col_offset : lambda_node.end_col_offset]
-
-    lambda_code_text = ""
-    # lambda of multiple lines
-    # handle case like:
-    # session.udf.register(
-    #    lambda x, y:\
-    #    x + y, ...)
-    for line_idx in range(lambda_node.lineno - 1, lambda_node.end_lineno):
-        line = lines[line_idx]
-        if line_idx == 0:
-            lambda_code_text += f"{line[lambda_node.col_offset:]}\n"
-        elif line_idx == lambda_node.end_lineno - 1:
-            lambda_code_text += line[: lambda_node.end_col_offset]
-        else:
-            lambda_code_text += f"{line}\n"
-    return lambda_code_text
-
-
-def extract_submodule_imports(
-    func: FunctionType, top_level_modules: Iterable[ModuleType]
-):
-    """
-    Get submodule imports, the func code co_names only gives the top level module names, the submodule imports
-    have to be inferred manually. Consider the following example:
-
-    import a1.a2.a3.a4
-    def func():
-        a1.a2.a3.a4.foo()
-
-    func.__code__.co_names only contains ("a1", "a2", "a3", "a4", "foo") which does not include the
-    complete import path information.
-
-    To reconstruct "a1.a2.a3.a4", the current strategy is to import each prefix import of the import chains.
-    This is not a perfect solution as we could import modules not used, but it works.
-    """
-    imports = set()
-    for module in top_level_modules:
-        module_prefix = f"{module.__name__}."
-        for name in [m for m in sys.modules if m.startswith(module_prefix)]:
-            tokens = set(name[len(module_prefix) :].split("."))
-            if not tokens - set(
-                func.__code__.co_names
-            ):  # only add imports that co_names contains
-                imports.add((name, name))
-    return imports
