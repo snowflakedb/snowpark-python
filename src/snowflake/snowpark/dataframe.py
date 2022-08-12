@@ -410,15 +410,15 @@ class DataFrame:
             -0.5960395606792697
 
     Example 16
-        Performing a query and returning an array of Rows asynchronously::
+        Performing a query asynchronously and returning a list of :class:`Row` objects::
 
-            >>> df = session.createDataFrame([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6],[4.0,6,8]], schema=["a", "b", "c"])
+            >>> df = session.create_dataframe([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6], [4.0, 6, 8]], schema=["a", "b", "c"])
             >>> async_job = df.collect_nowait()
             >>> async_job.result()
             [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
 
     Example 17
-        Performing a query and transforming it into pandas dataframe asynchronously::
+        Performing a query and transforming it into :class:`pandas.DataFrame` asynchronously::
 
             >>> async_job = df.to_pandas(block=False)
             >>> async_job.result()
@@ -468,6 +468,9 @@ class DataFrame:
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
+
+        See also:
+            :meth:`collect_nowait()`
         """
         return self._internal_collect_with_tag_no_telemetry(
             statement_params=statement_params, block=block
@@ -480,9 +483,13 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
     ) -> AsyncJob:
         """Executes the query representing this DataFrame asynchronously and returns: class:'AsyncJob'.
+        It is equivalent to ``collect(block=False)``.
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        See also:
+            :meth:`collect()`
         """
         return self._internal_collect_with_tag_no_telemetry(
             statement_params=statement_params, block=False, data_type=_AsyncDataType.ROW

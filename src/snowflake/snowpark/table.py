@@ -321,7 +321,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-    ) -> UpdateResult:
+    ) -> Union[UpdateResult, "snowflake.snowpark.AsyncJob"]:
         """
         Updates rows in the Table with specified ``assignments`` and returns a
         :class:`UpdateResult`, representing the number of rows modified and the
@@ -336,7 +336,7 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: Bool value indicate whether operate this function in async mode.
+            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Examples::
 
@@ -400,7 +400,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-    ) -> DeleteResult:
+    ) -> Union[DeleteResult, "snowflake.snowpark.AsyncJob"]:
         """
         Deletes rows in a Table and returns a :class:`DeleteResult`,
         representing the number of rows deleted.
@@ -411,7 +411,7 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: Bool value indicate whether operate this function in async mode.
+            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Examples::
 
@@ -471,7 +471,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-    ) -> MergeResult:
+    ) -> Union[MergeResult, "snowflake.snowpark.AsyncJob"]:
         """
         Merges this :class:`Table` with :class:`DataFrame` source on the specified
         join expression and a list of matched or not-matched clauses, and returns
@@ -491,7 +491,7 @@ class Table(DataFrame):
                 of :class:`WhenMatchedClause` and :class:`WhenNotMatchedClause`, and will
                 be performed sequentially in this list.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: Bool value indicate whether operate this function in async mode.
+            block: A bool value indicating whether blocking this function until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Example::
 
