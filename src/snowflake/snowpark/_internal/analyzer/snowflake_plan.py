@@ -499,32 +499,43 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         if mode == SaveMode.APPEND:
-            create_table = create_table_statement(
-                table_name,
-                attribute_to_schema_string(child.attributes),
-                error=False,
-                table_type=table_type,
-            )
-
-            return SnowflakePlan(
-                [
-                    *child.queries[0:-1],
-                    Query(create_table),
-                    Query(
-                        insert_into_statement(
-                            table_name=table_name,
-                            child=child.queries[-1].sql,
-                            column_names=column_names,
-                        )
+            if self.session._table_exists(table_name):
+                return self.build(
+                    lambda x: insert_into_statement(
+                        table_name=table_name,
+                        child=x,
+                        column_names=column_names,
                     ),
-                ],
-                create_table,
-                child.post_actions,
-                {},
-                self.session,
-                None,
-                api_calls=child.api_calls,
-            )
+                    child,
+                    None,
+                )
+            else:
+                create_table = create_table_statement(
+                    table_name,
+                    attribute_to_schema_string(child.attributes),
+                    error=False,
+                    table_type=table_type,
+                )
+
+                return SnowflakePlan(
+                    [
+                        *child.queries[0:-1],
+                        Query(create_table),
+                        Query(
+                            insert_into_statement(
+                                table_name=table_name,
+                                child=child.queries[-1].sql,
+                                column_names=column_names,
+                            )
+                        ),
+                    ],
+                    create_table,
+                    child.post_actions,
+                    {},
+                    self.session,
+                    None,
+                    api_calls=child.api_calls,
+                )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: create_table_as_select_statement(

@@ -1622,9 +1622,16 @@ class Session:
         self._conn.add_query_listener(query_listener)
         return query_listener
 
-    def _table_exists(self, table_name: str):
-        tables = self._run_query(f"show tables like '{table_name}'")
-        return tables is not None and len(tables) > 0
+    def _table_exists(self, table_name: str) -> bool:
+        try:
+            # DESC is used here because SHOW does not work for qualified table name. We use `cursor#describe` so that
+            # the failed query does not show up in query history to avoid confusion.
+            self._conn._cursor.describe(f"DESC TABLE {table_name}")
+            return True
+        except ProgrammingError:
+            # Assuming table does not exist is the current behavior. Ideally we can check whether "does not exist or
+            # not authorized" is in error message before returning False, but it can be fragile.
+            return False
 
     def _explain_query(self, query: str) -> Optional[str]:
         try:

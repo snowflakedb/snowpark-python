@@ -1572,6 +1572,20 @@ def test_write_invalid_table_type(session):
         df.write.save_as_table(table_name, table_type="invalid")
 
 
+def test_append_existing_table(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    try:
+        with session.query_history() as history:
+            df.write.save_as_table(table_name, mode="append")
+        Utils.check_answer(session.table(table_name), df, True)
+        assert len(history.queries) == 1  # INSERT only
+        assert history.queries[0].sql_text.startswith("INSERT")
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 def test_write_copy_into_location_basic(session):
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     Utils.create_stage(session, temp_stage, is_temporary=True)
