@@ -27,7 +27,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
 )
-from tests.utils import TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
@@ -521,6 +521,10 @@ def test_read_parquet_with_no_schema(session, mode):
     ]
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-645154 Need to enable ENABLE_SCHEMA_DETECTION_COLUMN_ORDER",
+)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_parquet_all_data_types_with_no_schema(session, mode):
     path = f"@{tmp_stage_name1}/{test_file_all_data_types_parquet}"
@@ -593,6 +597,10 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
     ]
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-645154 Need to enable ENABLE_SCHEMA_DETECTION_COLUMN_ORDER",
+)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_parquet_with_special_characters_in_column_names(session, mode):
     path = f"@{tmp_stage_name1}/{test_file_with_special_characters_parquet}"
