@@ -231,7 +231,7 @@ def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3):
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
     file_name = os.path.basename(path1)
     with open(path1, "rb") as fd:
-        first_result = session.file.put_stream(fd, stage_with_prefix, file_name)
+        first_result = session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
     assert first_result.source == file_name
     assert first_result.target == file_name + ".gz"
     assert first_result.source_size is not None
@@ -244,7 +244,7 @@ def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3):
     file_name = os.path.basename(path2)
     with open(path2, "rb") as fd:
         second_result = session.file.put_stream(
-            fd, stage_with_prefix, file_name, auto_compress=False
+            fd, f"{stage_with_prefix}/{file_name}", auto_compress=False
         )
     assert second_result.source == file_name
     assert second_result.target == file_name
@@ -259,7 +259,7 @@ def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3):
     file_name = os.path.basename(path3)
     with open(path3, "rb") as fd:
         third_result = session.file.put_stream(
-            fd, f"{temp_stage}/{stage_prefix}", file_name
+            fd, f"{temp_stage}/{stage_prefix}/{file_name}"
         )
     assert third_result.source == file_name
     assert third_result.target == file_name + ".gz"
@@ -275,16 +275,16 @@ def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3):
     IS_IN_STORED_PROC,
     reason="Stream uploads for stored procedure are not supported yet.",
 )
-def test_put_stream_withone_file_twice(session, temp_stage, path1):
+def test_put_stream_with_one_file_twice(session, temp_stage, path1):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
     file_name = os.path.basename(path1)
     fd = open(path1, "rb")
-    session.file.put_stream(fd, stage_with_prefix, file_name)
+    session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
 
     # put same file again
     second_result = session.file.put_stream(
-        fd, stage_with_prefix, file_name, overwrite=False
+        fd, f"{stage_with_prefix}/{file_name}", overwrite=False
     )
     assert second_result.source == os.path.basename(path1)
     assert second_result.target == os.path.basename(path1) + ".gz"
@@ -305,10 +305,18 @@ def test_put_stream_negative(session, temp_stage, path1):
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
     file_name = os.path.basename(path1)
     fd = open(path1, "rb")
-    fd.close()
 
+    with pytest.raises(ValueError) as ex_info:
+        session.file.put_stream(fd, "")
+    assert "stage_location cannot be empty" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        session.file.put_stream(fd, stage_with_prefix + "/")
+    assert "stage_location should end with target filename" in str(ex_info)
+
+    fd.close()
     with pytest.raises(SnowparkUploadFileException) as ex_info:
-        session.file.put_stream(fd, stage_with_prefix, file_name)
+        session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
     assert ex_info.value.error_code == "1408"
 
 

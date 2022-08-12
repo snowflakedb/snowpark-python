@@ -212,7 +212,6 @@ class FileOperation:
         self,
         input_stream: IO[bytes],
         stage_location: str,
-        dest_file_name: str,
         *,
         parallel: int = 4,
         auto_compress: bool = True,
@@ -223,8 +222,7 @@ class FileOperation:
 
         Args:
             input_stream: The input stream from which the data will be uploaded.
-            stage_location: The stage and prefix where you want to upload the files.
-            dest_file_name: The filename used to store the file stream in the stage.
+            stage_location: The full stage path with prefix and file name where you want the file to be uploaded.
             parallel: Specifies the number of threads to use for uploading files. The upload process separates batches of data files by size:
 
                   - Small files (< 64 MB compressed or uncompressed) are staged in parallel as individual files.
@@ -246,10 +244,23 @@ class FileOperation:
                 "Stream uploads for stored procedure are not supported yet"
             )
         else:
+
+            def parse_stage_file_location(stage_location: str):
+                if not stage_location:
+                    raise ValueError("stage_location cannot be empty")
+                elif stage_location[-1] == "/":
+                    raise ValueError("stage_location should end with target filename")
+                else:
+                    stage_location_parts = stage_location.split("/")
+                    filename = stage_location_parts[-1]
+                    stage_with_prefix = "/".join(stage_location_parts[:-1])
+                    return stage_with_prefix, filename
+
+            stage_with_prefix, dest_filename = parse_stage_file_location(stage_location)
             put_result = self._session._conn.upload_stream(
                 input_stream=input_stream,
-                stage_location=stage_location,
-                dest_filename=dest_file_name,
+                stage_location=stage_with_prefix,
+                dest_filename=dest_filename,
                 parallel=parallel,
                 compress_data=auto_compress,
                 source_compression=source_compression,
