@@ -27,33 +27,34 @@ class _AsyncDataType(Enum):
 
 
 class AsyncJob:
-    """An instance that helps to manage queries that are executed asynchronously. If users decided to perform some
-    queries in a dataframe asynchronously, instead of return a result instantly, an AsyncJob instance will be returned
-    and within this AsyncJob instance, users can do:
-        retrieve result
-        check if this query is finished
-        cancel this asynchronously executed query
-        retrieve the query id and perform other actions on this query id manually
+    """AsyncJob is strongly related to dataframe functions, to use AsyncJob, you need to create a dataframe first
+    Provides a way to track an asynchronous query in Snowflake. A :class:`DataFrame` object can be evaluated asynchronously and an :class:`AsyncJob` object will be returned. With this instance, you can do:
+        - retrieve results;
+        - check the query status (still running or done);
+        - cancel the running query;
+        - retrieve the query ID and perform other operations on this query ID manually.
+    We demonstrate how to evaluate a :class:`DataFrame` asynchronously and use returned :class:`AsyncJob` object:
 
-    AsyncJob is strongly related to dataframe functions, to use AsyncJob, you need to create a dataframe first
 
-    create dataframe:
-        >>> df = session.createDataFrame([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6],[4.0,6,8]], schema=["a", "b", "c"])
+    First, we create a dataframe:
+        >>> from snowflake.snowpark import Session
+        >>> from snowflake.snowpark.functions import when_matched, when_not_matched
+        >>> df = session.create_dataframe([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6],[4.0,6,8]], schema=["a", "b", "c"])
 
     Example 1
-        df.collect() can be performed asynchronously::
+        :meth:`DataFrame.collect` can be performed asynchronously::
 
             >>> async_job = df.collect_nowait()
             >>> async_job.result()
             [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
 
-        you can also do::
+        You can also do::
             >>> async_job = df.collect(block=False)
             >>> async_job.result()
             [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
 
     Example 2
-        df.to_pandas can be performed asynchronously::
+        :meth:`DataFrame.to_pandas` can be performed asynchronously::
 
             >>> async_job = df.to_pandas(block=False)
             >>> async_job.result()
@@ -64,43 +65,53 @@ class AsyncJob:
             3  4.0  6  8
 
     Example 3
-        df.first() can be performed asynchronously::
+        :meth:`DataFrame.first` can be performed asynchronously::
 
             >>> async_job = df.first(block=False)
             >>> async_job.result()
             [Row(A=4.0, B=3, C=5)]
 
     Example 4
-        df.count() can be performed asynchronously::
+        :meth:`DataFrame.count` can be performed asynchronously::
 
             >>> async_job = df.count(block=False)
             >>> async_job.result()
             4
 
     Example 5
-        save dataframe to table or copy it into other locations can also be performed asynchronously::
+        Save a dataframe to table or copy it into a stage file can also be performed asynchronously::
 
             >>> table_name = "name"
             >>> async_job = df.write.save_as_table(table_name, block=False)
-            >>> # copy into other location
+            >>> # copy into a stage file
             >>> remote_location = f"{session.get_session_stage()}/name.csv"
             >>> async_job = df.write.copy_into_location(remote_location, block=False)
+            >>> async_job.result()
+            [Row(rows_unloaded=4, input_bytes=27, output_bytes=47)]
 
     Example 7
-        table operations like merge, update and delete can also be perfromed asynchronously::
+        :meth:`Table.merge`, :meth:`Table.update`, :meth:`Table.delete` can also be performed asynchronously::
 
             >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
-            >>> target.merge(source,target["key"] == source["key"],[when_matched().update({"value": source["value"]}),when_not_matched().insert({"key": source["key"]}),],block=False,)
+            >>> target.merge(source,target["key"] == source["key"],[when_matched().update({"value": source["value"]}),when_not_matched().insert({"key": source["key"]})],block=False)
+            >>> target.result()
+            MergeResult(rows_inserted=2, rows_updated=2, rows_deleted=0)
 
     Example 8
-        AsyncJob also allows to cancel the query before it is finished::
+        Cancel the running query associated with the dataframe::
 
             >>> df = session.sql("select SYSTEM$WAIT(3)")
             >>> async_job = df.collect_nowait()
             >>> async_job.cancel()
+
+    Note:
+    - If a dataframe is associated with multiple queries,
+        + if you use `:meth:Session.create_dataframe` to create a dataframe from a large amount of local data and evaluate this dataframe asynchronously, data will still be loaded into Snowflake synchronously, and only fetching data from Snowflake again will be performed asynchronously.
+        + otherwise, multiple queries will be wrapped into a `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_ and executed asynchronously as one query.
+    - Temporary objects (e.g., tables) might be created when evaluating dataframes and they will be dropped automatically after all queries finish when calling a synchronous API. When you evaluating dataframes asynchronously, temporary objects will only be dropped after calling :meth:`result`.
     """
 
     def __init__(
@@ -111,7 +122,9 @@ class AsyncJob:
         data_type: _AsyncDataType = _AsyncDataType.ROW,
         **kwargs,
     ) -> None:
+        #: The query ID of the executed query
         self.query_id = query_id
+        #: The SQL text of of the executed query
         self.query = query
         self._conn = server_connection._conn
         self._cursor = self._conn.cursor()
@@ -125,6 +138,10 @@ class AsyncJob:
         self._plan = None
 
     def is_done(self) -> bool:
+        """Check the status of query associated with this instance, return a bool value indicate whether the query is
+        finished.
+
+        """
         # return a bool value to indicate whether the query is finished
         status = self._conn.get_query_status(self.query_id)
         is_running = self._conn.is_still_running(status)
@@ -132,6 +149,7 @@ class AsyncJob:
         return not is_running
 
     def cancel(self) -> None:
+        """Cancel the query associated with this instance."""
         # stop and cancel current query id
         self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
 
@@ -164,6 +182,11 @@ class AsyncJob:
             )
 
     def result(self) -> Union[List[Row], "pandas.DataFrame", Iterator[Row], int, None]:
+        """Block and wait until the query associated with this instance is finished and return query results, this
+        functions acts like execute query in a synchronous way. Return data type is decided by the function that create
+        this instance
+
+        """
         # return result of the query
         self._cursor.get_results_from_sfqid(self.query_id)
         if self._data_type == _AsyncDataType.NONE_TYPE:

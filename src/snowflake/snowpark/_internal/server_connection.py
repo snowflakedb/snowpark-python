@@ -366,12 +366,12 @@ class ServerConnection:
                 data_or_iter = (
                     map(
                         functools.partial(
-                            self._fix_pandas_df_integer, results_cursor=results_cursor
+                            _fix_pandas_df_integer, results_cursor=results_cursor
                         ),
                         results_cursor.fetch_pandas_batches(),
                     )
                     if to_iter
-                    else self._fix_pandas_df_integer(
+                    else _fix_pandas_df_integer(
                         results_cursor.fetch_pandas_all(), results_cursor
                     )
                 )
@@ -404,7 +404,9 @@ class ServerConnection:
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         if is_in_stored_procedure() and not block:
-            raise ValueError("Async query is not supported in stored procedure yet")
+            raise NotImplementedError(
+                "Async query is not supported in stored procedure yet"
+            )
         result_set, result_meta = self.get_result_set(
             plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
         )
@@ -450,14 +452,15 @@ class ServerConnection:
                 if isinstance(q, BatchInsertQuery):
                     is_batch_insert = True
                     break
+            # since batch insert does not support async execution (? in the query), we handle it separately here
             if len(plan.queries) > 1 and not block and not is_batch_insert:
                 final_query = f"""EXECUTE IMMEDIATE $$
 DECLARE
     res resultset;
 BEGIN
-{";".join(q.sql for q in plan.queries[:-1])};
-res := ({plan.queries[-1].sql});
-return table(res);
+    {";".join(q.sql for q in plan.queries[:-1])};
+    res := ({plan.queries[-1].sql});
+    return table(res);
 END;
 $$"""
                 for holder, id_ in placeholders.items():
@@ -476,6 +479,8 @@ $$"""
                     placeholders[q.query_id_place_holder] = (
                         result["sfqid"] if block else result.query_id
                     )
+                # since we will return a AsyncJob instance, result_meta is not needed, we will create reuslt_meta in
+                # AsyncJob instance when needed
                 result_meta = None
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
@@ -566,19 +571,20 @@ $$"""
             )
         logger.debug("Execute batch insertion query %s", query)
 
-    def _fix_pandas_df_integer(
-        self, pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
-    ) -> "pandas.DataFrame":
-        for column_metadata, pandas_dtype, pandas_col_name in zip(
-            results_cursor.description, pd_df.dtypes, pd_df.columns
+
+def _fix_pandas_df_integer(
+    pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
+) -> "pandas.DataFrame":
+    for column_metadata, pandas_dtype, pandas_col_name in zip(
+        results_cursor.description, pd_df.dtypes, pd_df.columns
+    ):
+        if (
+            FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
+            and column_metadata.precision is not None
+            and column_metadata.scale == 0
+            and not str(pandas_dtype).startswith("int")
         ):
-            if (
-                FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
-                and column_metadata.precision is not None
-                and column_metadata.scale == 0
-                and not str(pandas_dtype).startswith("int")
-            ):
-                pd_df[pandas_col_name] = pandas.to_numeric(
-                    pd_df[pandas_col_name], downcast="integer"
-                )
-        return pd_df
+            pd_df[pandas_col_name] = pandas.to_numeric(
+                pd_df[pandas_col_name], downcast="integer"
+            )
+    return pd_df
