@@ -564,6 +564,7 @@ def resolve_imports_and_packages(
                     source_compression="DEFLATE",
                     compress_data=False,
                     overwrite=True,
+                    is_in_udf=True,
                 )
             all_urls.append(upload_file_stage_location)
             inline_code = None
