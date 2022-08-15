@@ -5,7 +5,14 @@
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SET_EXCEPT,
+    SET_INTERSECT,
+    SET_UNION,
+    SET_UNION_ALL,
+)
+from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.functions import col, lit, sql_expr
 from tests.utils import Utils
 
 
@@ -18,38 +25,63 @@ def simplifier_table(session) -> None:
     Utils.drop_table(session, table_name)
 
 
-def test_union_union(session):
-    df1 = session.create_dataframe([[1, 2]], schema=["a", "b"])
-    df2 = session.create_dataframe([[2, 2]], schema=["a", "b"])
-    df3 = session.create_dataframe([[3, 2]], schema=["a", "b"])
-    df4 = session.create_dataframe([[4, 2]], schema=["a", "b"])
+@pytest.mark.parametrize(
+    "set_operator", [SET_UNION, SET_UNION_ALL, SET_EXCEPT, SET_INTERSECT]
+)
+def test_set_same_operator(session, set_operator):
+    df1 = session.sql("SELECT 1 as a, 2 as b")
+    df2 = session.sql("SELECT 2 as a, 2 as b")
+    df3 = session.sql("SELECT 3 as a, 2 as b")
+    df4 = session.sql("SELECT 4 as a, 2 as b")
+    if SET_UNION == set_operator:
+        result1 = df1.union(df2).union(df3.union(df4))
+        Utils.check_answer(
+            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
+        )
+    elif SET_UNION_ALL == set_operator:
+        result1 = df1.union_all(df2).union_all(df3.union_all(df4))
+        Utils.check_answer(
+            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
+        )
+    elif SET_EXCEPT == set_operator:
+        result1 = df1.except_(df2).except_(df3.except_(df4))
+        Utils.check_answer(result1, [Row(1, 2)], sort=False)
+    else:
+        result1 = df1.intersect(df2).intersect(df3.intersect(df4))
+        Utils.check_answer(result1, [], sort=False)
 
-    result1 = df1.union(df2).union(df3.union(df4))
-    Utils.check_answer(
-        result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
-    )
     query1 = result1._plan.queries[-1].sql
-    assert len(query1.split("UNION (")) == 4
+    assert (
+        query1
+        == f"SELECT 1 as a, 2 as b {set_operator} (SELECT 2 as a, 2 as b) {set_operator} (SELECT 3 as a, 2 as b {set_operator} (SELECT 4 as a, 2 as b))"
+    )
 
-    result2 = df1.union(df2).union(df3)
-    Utils.check_answer(result2, [Row(1, 2), Row(2, 2), Row(3, 2)], sort=False)
-    query2 = result2._plan.queries[-1].sql
-    assert len(query2.split("UNION (")) == 3
+
+@pytest.mark.parametrize("set_operator", [SET_UNION_ALL, SET_EXCEPT, SET_INTERSECT])
+def test_union_and_other_operators(session, set_operator):
+    df1 = session.sql("SELECT 1 as a")
+    df2 = session.sql("SELECT 2 as a")
+    df3 = session.sql("SELECT 3 as a")
 
     # mix union and union all
-    result3 = df1.union(df2).union(df3.union_all(df4))
-    Utils.check_answer(
-        result3, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
+    if SET_UNION_ALL == set_operator:
+        result1 = df1.union(df2).union_all(df3)
+        result2 = df1.union(df2.union_all(df3))
+    elif SET_EXCEPT == set_operator:
+        result1 = df1.union(df2).except_(df3)
+        result2 = df1.union(df2.except_(df3))
+    else:
+        result1 = df1.union(df2).intersect(df3)
+        result2 = df1.union(df2.intersect(df3))
+
+    assert (
+        result1._plan.queries[-1].sql
+        == f"SELECT 1 as a UNION (SELECT 2 as a) {set_operator} (SELECT 3 as a)"
     )
-    query3 = result1._plan.queries[-1].sql
-    assert len(query3.split("UNION (")) == 4
-    assert len(query3.split("UNION ( SELECT")) == 2
-    assert len(query3.split("UNION (( SELECT")) == 2
-    assert len(query3.split("UNION ALL ( SELECT")) == 2
-
-
-def union_all_plus_union_all(session):
-    ...
+    assert (
+        result2._plan.queries[-1].sql
+        == f"SELECT 1 as a UNION (SELECT 2 as a {set_operator} (SELECT 3 as a))"
+    )
 
 
 def test_select_new_columns(session, simplifier_table):
@@ -70,19 +102,19 @@ def test_select_new_columns(session, simplifier_table):
 
 def test_select_subquery_with_same_level_dependency(session, simplifier_table):
     df = session.table(simplifier_table)
-    # select columns and change sequence from columns that have same level column dependency. No flatten.
+    # select columns. subquery has same level column dependency. No flatten.
     df12 = df.select(df.a, df.b, (df.a + 10).as_("c"), (col("c") + 10).as_("d"))
     df13 = df12.select("a", "b", "d", "c")
     Utils.check_answer(df13, [Row(1, 2, 21, 11)])
     assert df13.queries["queries"][-1].count("SELECT") == 2
 
-    # select columns and change sequence from columns that have no same level column. Flatten.
+    # select columns. subquery has no same level column. Flatten.
     df14 = df.select(df.a, df.b, (df.a + 10).as_("c"), (col("b") + 10).as_("d"))
     df15 = df14.select("a", "b", "d", "c")
     Utils.check_answer(df15, [Row(1, 2, 12, 11)])
     assert df15.queries["queries"][-1].count("SELECT") == 1
 
-    # select columns, change a column that reference to the a same-level column. Flatten.
+    # select columns, change a column that reference to a same-level column. Flatten.
     df16 = df.select(df.a, (df.a + 10).as_("c"), (col("c") + 10).as_("b"))
     Utils.check_answer(df16, [Row(1, 11, 21)])
     assert df16.queries["queries"][-1].count("SELECT") == 1
@@ -198,6 +230,55 @@ def test_select_expr(session, simplifier_table):
     Utils.check_answer(df3, [Row(2, 3)])
     assert df3.queries["queries"][-1].count("SELECT") == 2
 
+    """ query has no new columns. subquery has new, chnged or dropped columns."""
+    # a new column in the subquery. sql text column doesn't know the dependency, to be safe, no flatten
+    df4 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    df5 = df4.select_expr("a + 1 as a", "b + 1 as b", "c + 1 as c")
+    Utils.check_answer(df5, [Row(2, 3, 4)])
+    assert df5.queries["queries"][-1].count("SELECT") == 2
+
+    # a changed column in the subquery. sql text column doesn't know the dependency, to be safe, no flatten
+    df6 = df.select("a", lit(10).as_("b"))
+    df7 = df6.select_expr("a + 1 as a", "b + 1 as b")
+    Utils.check_answer(df7, [Row(2, 11)])
+    assert df7.queries["queries"][-1].count("SELECT") == 2
+
+    # a dropped column in the subquery. sql text column doesn't know whether it references the dropped column, to be safe, no flatten
+    df8 = df.select("a")
+    df9 = df8.select_expr("a + 1 as a")
+    Utils.check_answer(df9, [Row(2)])
+    assert df9.queries["queries"][-1].count("SELECT") == 2
+
+    df10 = df.select("a", "b")
+    df11 = df10.select_expr("a + 1 as a")
+    Utils.check_answer(df11, [Row(2)])
+    assert df11.queries["queries"][-1].count("SELECT") == 1
+
+    """ query has new columns. subquery has new, chnged or dropped columns."""
+    # a new column in the subquery. sql text column doesn't know the dependency, to be safe, no flatten
+    df4 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    df5 = df4.select_expr("a + b as d")
+    Utils.check_answer(df5, [Row(3)])
+    assert df5.queries["queries"][-1].count("SELECT") == 2
+
+    # a changed column in the subquery. sql text column doesn't know the dependency, to be safe, no flatten
+    df6 = df.select("a", lit(10).as_("b"))
+    df7 = df6.select_expr("a + b as d")
+    Utils.check_answer(df7, [Row(11)])
+    assert df7.queries["queries"][-1].count("SELECT") == 2
+
+    # a dropped column in the subquery. sql text column doesn't know whether it references the dropped column, to be safe, no flatten
+    df8 = df.select("a")
+    df9 = df8.select_expr("a + b as d")
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df9.collect()
+
+    # The subquery has no new columns, no dropped columns, no changed columns. Safe to flatten even with sql text.
+    df10 = df.select("a", "b")
+    df11 = df10.select_expr("a + 1 as d")
+    Utils.check_answer(df11, [Row(2)])
+    assert df11.queries["queries"][-1].count("SELECT") == 1
+
 
 def test_with_column(session, simplifier_table):
     df = session.table(simplifier_table)
@@ -226,12 +307,22 @@ def test_drop_columns(session, simplifier_table):
     Utils.check_answer(df2, [Row(1, 2)])
     assert df2._plan.queries[-1].sql.count("SELECT") == 2
 
-    # drop a column not referenced by other same-level columns, but the subquery has other same-level reference
-    # we don't flatten even though in theory it can be flattened. It's not expected to happen very often that a user drops a column they defined previously.
-    # This saves some memory that would store which columns reference to a column
+    # drop the column d, which isn't referenced by other columns. Flatten
     df3 = df1.select("a", "b", "c")
     Utils.check_answer(df3, [Row(1, 2, 2)])
     assert df3._plan.queries[-1].sql.count("SELECT") == 1
+
+    # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
+    df4 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d"))
+    df5 = df4.select("a", "b", "d")
+    Utils.check_answer(df5, [Row(1, 2, 2)])
+    assert df5._plan.queries[-1].sql.count("SELECT") == 2
+
+    # On the other hand, safe to drop d as other columns don't depend on it
+    df4 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d"))
+    df5 = df4.select("a", "b", "c")
+    Utils.check_answer(df5, [Row(1, 2, 3)])
+    assert df5._plan.queries[-1].sql.count("SELECT") == 1
 
 
 def test_reference_non_exist_columns(session, simplifier_table):
@@ -241,3 +332,125 @@ def test_reference_non_exist_columns(session, simplifier_table):
         match="""Column name "C" used in a column expression but it doesn't exist""",
     ):
         df.select(col("c") + 1).collect()
+
+
+def test_order_by(session, simplifier_table):
+    df = session.table(simplifier_table)
+
+    # flatten
+    df1 = df.sort("a", col("b") + 1)
+    assert (
+        df1.queries["queries"][-1]
+        == f'SELECT  *  FROM  {simplifier_table}  ORDER BY  "A" ASC NULLS FIRST,("B" + 1 :: bigint) ASC NULLS FIRST'
+    )
+
+    # flatten
+    df2 = df.select("a", "b").sort("a", "b")
+    assert (
+        df2.queries["queries"][-1]
+        == f'SELECT  "A","B"  FROM  {simplifier_table}  ORDER BY  "A" ASC NULLS FIRST,"B" ASC NULLS FIRST'
+    )
+
+    # flatten because c is a new column
+    df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).sort("a", "b", "c")
+    assert (
+        df3.queries["queries"][-1]
+        == f'SELECT  "A","B",("A" - "B") AS "C"  FROM  {simplifier_table}  ORDER BY  "A" ASC NULLS FIRST,"B" ASC NULLS FIRST,"C" ASC NULLS FIRST'
+    )
+
+    # no flatten because a and be are changed
+    df4 = df.select((col("a") + 1).as_("a"), ((col("b") + 1).as_("b"))).sort("a", "b")
+    assert (
+        df4.queries["queries"][-1]
+        == f'SELECT  *  FROM  ( SELECT  ("A" + 1 :: bigint) AS "A",("B" + 1 :: bigint) AS "B"  FROM  {simplifier_table})  ORDER BY  "A" ASC NULLS FIRST,"B" ASC NULLS FIRST'
+    )
+
+
+def test_filter(session, simplifier_table):
+    df = session.table(simplifier_table)
+
+    # flatten
+    df1 = df.filter((col("a") > 1) & (col("b") > 2))
+    assert (
+        df1.queries["queries"][-1]
+        == f'SELECT  *  FROM  {simplifier_table}  WHERE  (("A" > 1 :: bigint) AND ("B" > 2 :: bigint))'
+    )
+    # print(df1.queries["queries"][-1])
+
+    # flatten
+    df2 = df.select("a", "b").filter((col("a") > 1) & (col("b") > 2))
+    assert (
+        df2.queries["queries"][-1]
+        == f'SELECT  "A","B"  FROM  {simplifier_table}  WHERE  (("A" > 1 :: bigint) AND ("B" > 2 :: bigint))'
+    )
+    # print(df2.queries["queries"][-1])
+
+    # flatten because c is a new column
+    df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).filter(
+        (col("a") > 1) & (col("b") > 2) & (col("c") < 1)
+    )
+    assert (
+        df3.queries["queries"][-1]
+        == f'SELECT  "A","B",("A" - "B") AS "C"  FROM  {simplifier_table}  WHERE  ((("A" > 1 :: bigint) AND ("B" > 2 :: bigint)) AND ("C" < 1 :: bigint))'
+    )
+    # print(df3.queries["queries"][-1])
+
+    # no flatten because a and be are changed
+    df4 = df.select((col("a") + 1).as_("a"), (col("b") + 1).as_("b")).filter(
+        (col("a") > 1) & (col("b") > 2)
+    )
+    assert (
+        df4.queries["queries"][-1]
+        == f'SELECT  *  FROM  ( SELECT  ("A" + 1 :: bigint) AS "A",("B" + 1 :: bigint) AS "B"  FROM  {simplifier_table})  WHERE  (("A" > 1 :: bigint) AND ("B" > 2 :: bigint))'
+    )
+    # print(df4.queries["queries"][-1])
+
+    df5 = df4.select("a")
+    print(df5.queries["queries"][-1])
+
+
+pytest.mark.skip(
+    "This test will fail because upstream code raises "
+    "'snowflake.snowpark.exceptions.SnowparkColumnException: (1105): "
+    "The DataFrame does not contain the column named b.'"
+    "The new design can support this scenario. Whether to support it is to be discussed."
+)
+
+
+def test_order_by_filter_deleted_columns(session, simplifier_table):
+    # df = session.table(simplifier_table)
+    # df1 = df.select("a").filter(col("b") > 1).sort("b")
+    # assert...
+    ...
+
+
+def test_limit(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df = df.limit(10)
+    assert (
+        df.queries["queries"][-1] == f"SELECT  *  FROM  {simplifier_table}  LIMIT  10"
+    )
+
+    df = session.sql("select * from test_table")
+    df = df.limit(10)
+    # we don't know if the original sql already has top/limit clause using a subquery is necessary.
+    #  or else there will be SQL compile error.
+    assert (
+        df.queries["queries"][-1]
+        == "SELECT  *  FROM  (select * from test_table)  LIMIT  10"
+    )
+
+
+def test_filter_order_limit_together(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.select("a", "b").filter(col("b") > 1).sort("a").limit(5)
+    assert (
+        df1.queries["queries"][-1]
+        == f'SELECT  "A","B"  FROM  {simplifier_table}  WHERE  ("B" > 1 :: bigint)  ORDER BY  "A" ASC NULLS FIRST  LIMIT  5'
+    )
+
+    df2 = df1.select("a")
+    assert (
+        df2.queries["queries"][-1]
+        == f'SELECT  "A"  FROM  ( SELECT  "A","B"  FROM  {simplifier_table}  WHERE  ("B" > 1 :: bigint)  ORDER BY  "A" ASC NULLS FIRST  LIMIT  5)'
+    )
