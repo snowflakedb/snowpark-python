@@ -32,8 +32,8 @@ class AsyncJob:
     - check the query status (still running or done);
     - cancel the running query;
     - retrieve the query ID and perform other operations on this query ID manually.
-    AsyncJob is strongly related to dataframe functions, to use AsyncJob, you need to create a dataframe first
-    We demonstrate how to evaluate a :class:`DataFrame` asynchronously and use returned :class:`AsyncJob` object:
+    :class:`AsyncJob` is created by action methods in :class:`DataFrame`. Therefore, to use it, you need to create a
+    dataframe first. Here we demonstrate how to do that:
 
 
     First, we create a dataframe:
@@ -95,8 +95,8 @@ class AsyncJob:
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new"), (12, "new"), (13, "old")], schema=["key", "value"])
-            >>> target.merge(source,target["key"] == source["key"],[when_matched().update({"value": source["value"]}),when_not_matched().insert({"key": source["key"]})],block=False)
-            >>> target.result()
+            >>> async_job = target.merge(source,target["key"] == source["key"],[when_matched().update({"value": source["value"]}),when_not_matched().insert({"key": source["key"]})],block=False)
+            >>> async_job.result()
             MergeResult(rows_inserted=2, rows_updated=2, rows_deleted=0)
 
     Example 8
@@ -182,7 +182,7 @@ class AsyncJob:
     def result(self) -> Union[List[Row], "pandas.DataFrame", Iterator[Row], int, None]:
         """Blocks and waits until the query associated with this instance finishes, then returns query results, this
         functions acts like execute query in a synchronous way. The data type of returned results is determined by how
-        you create this :class:`AsyncJob` instance.For example, if this instance is returned by
+        you create this :class:`AsyncJob` instance. For example, if this instance is returned by
         :meth:`DataFrame.collect_nowait`, you will get a list of :class:`Row` s from this method.
 
         """
