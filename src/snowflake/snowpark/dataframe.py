@@ -1238,6 +1238,8 @@ class DataFrame:
         Args:
             n: Number of rows to return.
         """
+        if self._select_statement:
+            return self._with_plan(self._select_statement.limit(n))
         return self._with_plan(Limit(Literal(n), self._plan))
 
     def union(self, other: "DataFrame") -> "DataFrame":
@@ -1294,7 +1296,9 @@ class DataFrame:
         """
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.set_operate(other._plan, operator="union all")
+                self._select_statement.set_operate(
+                    SelectSnowflakePlan(other._plan), operator="UNION ALL"
+                )
             )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
@@ -1404,6 +1408,12 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operate(
+                    SelectSnowflakePlan(other._plan), operator="INTERSECT"
+                )
+            )
         return self._with_plan(Intersect(self._plan, other._plan))
 
     def except_(self, other: "DataFrame") -> "DataFrame":
