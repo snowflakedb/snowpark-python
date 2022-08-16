@@ -15,6 +15,7 @@ from snowflake.connector.telemetry import (
 from snowflake.connector.time_util import get_time_millis
 from snowflake.snowpark._internal.utils import (
     get_application_name,
+    get_local_packages,
     get_os_name,
     get_python_version,
     get_version,
@@ -49,6 +50,7 @@ class TelemetryField(Enum):
     KEY_API_CALLS = "api_calls"
     KEY_SFQIDS = "sfqids"
     KEY_SUBCALLS = "subcalls"
+    KEY_INSTALLED_PACKAGES = "installed_packages"
     # function categories
     FUNC_CAT_ACTION = "action"
     FUNC_CAT_USAGE = "usage"
@@ -299,6 +301,7 @@ class TelemetryClient:
                 TelemetryField.KEY_CREATED_BY_SNOWPARK.value: PCTelemetryData.TRUE
                 if created_by_snowpark
                 else PCTelemetryData.FALSE,
+                TelemetryField.KEY_INSTALLED_PACKAGES.value: get_local_packages(),
             },
         }
         self.send(message)
