@@ -773,6 +773,10 @@ def test_copy_non_csv_transformation(
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-645154 Need to enable ENABLE_SCHEMA_DETECTION_COLUMN_ORDER",
+)
 @pytest.mark.parametrize(
     "file_format, file_name, assert_data",
     [
