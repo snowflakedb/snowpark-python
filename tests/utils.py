@@ -745,6 +745,10 @@ class TestFiles:
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
 
+    @functools.cached_property
+    def test_file_csv_special_format(self):
+        return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
+
     @property
     def test_file_json(self):
         return os.path.join(self.resources_path, "testJson.json")

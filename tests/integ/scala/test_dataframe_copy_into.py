@@ -29,6 +29,7 @@ test_file2_csv = "test2CSV.csv"
 test_file_csv_colon = "testCSVcolon.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_json = "testJson.json"
+test_file_csv_special_format = "testCSVspecialFormat.csv"
 test_file_avro = "test.avro"
 test_file_parquet = "test.parquet"
 test_file_all_data_types_parquet = "test_all_data_types.parquet"
@@ -122,6 +123,12 @@ def upload_files(session, tmp_stage_name1, tmp_stage_name2, resources_path):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_json,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_csv_special_format,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -453,6 +460,39 @@ def test_copy_json_write_with_column_names(session, tmp_stage_name1):
         Utils.check_answer(session.table(table_name), [Row("Red", '"Apple"', None)])
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_csv_read_format_name(session, tmp_stage_name1):
+    session.sql(
+        "create temporary file format TEST_FMT type = csv skip_header=1 "
+        "null_if = 'none';"
+    ).collect()
+    df = (
+        session.read.schema(
+            StructType(
+                [
+                    StructField("ID", IntegerType()),
+                    StructField("USERNAME", StringType()),
+                    StructField("FIRSTNAME", StringType()),
+                    StructField("LASTNAME", StringType()),
+                ]
+            )
+        )
+        .option("format_name", "TEST_FMT")
+        .csv(
+            f"@{tmp_stage_name1}/{test_file_csv_special_format}",
+        )
+        .sort("ID")
+        .collect()
+    )
+
+    Utils.check_answer(
+        df,
+        [
+            Row(0, "admin", None, None),
+            Row(1, "test_user", "test", "user"),
+        ],
+    )
 
 
 def test_copy_json_negative_test_with_column_names(session, tmp_stage_name1):

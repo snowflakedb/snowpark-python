@@ -680,37 +680,48 @@ class SnowflakePlanBuilder:
                 + "."
                 + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
             )
-            queries = [
-                Query(
-                    create_file_format_statement(
-                        temp_file_format_name,
-                        format,
-                        format_type_options,
-                        temp=True,
-                        if_not_exist=True,
-                    ),
-                    is_ddl_on_temp_object=True,
-                ),
+            queries: List[Query] = []
+            post_queries: List[Query] = []
+            use_temp_file_format: bool = "FORMAT_NAME" not in options
+            if use_temp_file_format:
+                format_name = temp_file_format_name
+                queries.append(
+                    Query(
+                        create_file_format_statement(
+                            format_name,
+                            format,
+                            format_type_options,
+                            temp=True,
+                            if_not_exist=True,
+                        ),
+                        is_ddl_on_temp_object=True,
+                    )
+                )
+                post_queries.append(
+                    Query(
+                        drop_file_format_if_exists_statement(format_name),
+                        is_ddl_on_temp_object=True,
+                    )
+                )
+            else:
+                format_name = options["FORMAT_NAME"]
+
+            queries.append(
                 Query(
                     select_from_path_with_format_statement(
                         schema_cast_named(schema_to_cast)
                         if infer_schema
                         else schema_cast_seq(schema),
                         path,
-                        temp_file_format_name,
+                        format_name,
                         pattern,
                     )
-                ),
-            ]
+                )
+            )
             return SnowflakePlan(
                 queries,
                 schema_value_statement(schema),
-                [
-                    Query(
-                        drop_file_format_if_exists_statement(temp_file_format_name),
-                        is_ddl_on_temp_object=True,
-                    )
-                ],
+                post_queries,
                 {},
                 self.session,
                 None,
