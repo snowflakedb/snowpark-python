@@ -342,17 +342,17 @@ class ServerConnection:
         # because when the query plan has multiple queries, it will
         # have non-select statements, and it shouldn't fail if the user
         # calls to_pandas() to execute the query.
-        if not block:
+        if block:
+            return self._to_data_or_iter(
+                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+            )
+        else:
             return AsyncJob(
                 results_cursor["queryId"],
                 query,
                 self,
                 data_type,
                 **kwargs,
-            )
-        else:
-            return self._to_data_or_iter(
-                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
             )
 
     def _to_data_or_iter(
@@ -510,9 +510,7 @@ $$"""
                         raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
-            if not block:
-                result._plan = plan
-            else:
+            if block:
                 for action in plan.post_actions:
                     self.run_query(
                         action.sql,
@@ -520,6 +518,9 @@ $$"""
                         block=block,
                         **kwargs,
                     )
+
+            else:
+                result._plan = plan
 
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
