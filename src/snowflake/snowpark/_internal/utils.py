@@ -22,6 +22,8 @@ from json import JSONEncoder
 from random import choice
 from typing import IO, Any, Dict, Iterator, List, Optional, Type
 
+import pkg_resources
+
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
@@ -522,3 +524,9 @@ def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
         return func_call_wrapper
 
     return deprecate_wrapper
+
+
+def get_local_packages():
+    return sorted(
+        ((p.key, p.version) for p in pkg_resources.working_set), key=lambda x: x[0]
+    )

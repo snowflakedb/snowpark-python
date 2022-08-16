@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -678,3 +679,19 @@ def test_dataframe_na_functions_api_calls(session):
     ]
     # check to make sure that the original DF is unchanged
     assert df2._plan.api_calls == [{"name": "Session.sql"}]
+
+
+def test_installed_packages_exception(session):
+    from snowflake.snowpark._internal import utils
+
+    original_get_local_packages = utils.get_local_packages
+    try:
+        # Test empty output
+        utils.get_local_packages = MagicMock(return_value=[])
+        session._conn._telemetry_client.send_session_created_telemetry(False)
+
+        # Test exception
+        utils.get_local_packages = Mock(side_effect=ImportError("Fake exception"))
+        session._conn._telemetry_client.send_session_created_telemetry(False)
+    finally:
+        utils.get_local_packages = original_get_local_packages
