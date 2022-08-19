@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
+import os
 from typing import Dict, Iterable, Union
 
 import snowflake.snowpark
@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     COPY_OPTIONS,
     INFER_SCHEMA_FORMAT_TYPES,
+    STAGE_PREFIX,
     TempObjectType,
     random_name_for_temp_object,
 )
@@ -210,6 +211,22 @@ class DataFrameReader:
             ---------------------
             <BLANKLINE>
 
+
+    Example 10:
+        Loading a local JSON file (other file formats are similar):
+            >>> df = session.read.json("tests/resources/testJson.json")
+            >>> # Load the data from a local file or directory.
+            >>> df.show()
+            -----------------------
+            |"$1"                 |
+            -----------------------
+            |{                    |
+            |  "color": "Red",    |
+            |  "fruit": "Apple",  |
+            |  "size": "Large"    |
+            |}                    |
+            -----------------------
+            <BLANKLINE>
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
@@ -249,11 +266,12 @@ class DataFrameReader:
         """Specify the path of the CSV file(s) to load.
 
         Args:
-            path: The stage location of a CSV file, or a stage location that has CSV files.
+            path: A path pointing to a local CSV file, a local directory that has CSV files, a CSV file on a stage or a stage location that has CSV files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
+        path = self._upload_local_file_to_stage(path, "csv")
         if not self._user_schema:
             raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
 
@@ -277,7 +295,7 @@ class DataFrameReader:
         """Specify the path of the JSON file(s) to load.
 
         Args:
-            path: The stage location of a JSON file, or a stage location that has JSON files.
+            path: A path pointing to a local JSON file, a local directory that has JSON files, a JSON file on a stage or a stage location that has JSON files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified JSON file(s) in a Snowflake stage.
@@ -288,7 +306,7 @@ class DataFrameReader:
         """Specify the path of the AVRO file(s) to load.
 
         Args:
-            path: The stage location of an AVRO file, or a stage location that has AVRO files.
+            path: A path pointing to a local AVRO file, a local directory that has AVRO files, a AVRO file on a stage or a stage location that has AVRO files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
@@ -299,7 +317,7 @@ class DataFrameReader:
         """Specify the path of the PARQUET file(s) to load.
 
         Args:
-            path: The stage location of a PARQUET file, or a stage location that has PARQUET files.
+            path: A path pointing to a local PARQUET file, a local directory that has PARQUET files, a PARQUET file on a stage or a stage location that has PARQUET files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified PARQUET file(s) in a Snowflake stage.
@@ -310,7 +328,7 @@ class DataFrameReader:
         """Specify the path of the ORC file(s) to load.
 
         Args:
-            path: The stage location of a ORC file, or a stage location that has ORC files.
+            path: A path pointing to a local ORC file, a local directory that has ORC files, a ORC file on a stage or a stage location that has ORC files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
@@ -321,7 +339,7 @@ class DataFrameReader:
         """Specify the path of the XML file(s) to load.
 
         Args:
-            path: The stage location of an XML file, or a stage location that has XML files.
+            path: A path pointing to a local XML file, a local directory that has XML files, a XML file on a stage or a stage location that has XML files.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
@@ -359,6 +377,8 @@ class DataFrameReader:
         return self
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
+        # upload file if it is local
+        path = self._upload_local_file_to_stage(path, format)
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
         self._file_path = path
@@ -455,3 +475,27 @@ class DataFrameReader:
         df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
+
+    def _upload_local_file_to_stage(self, path: str, format: str) -> str:
+
+        if not path.startswith(STAGE_PREFIX) and not os.path.exists(path):
+            raise ValueError(f"The local file {path} does not exist")
+        temp_stage = self._session.get_session_stage()
+        if os.path.isfile(path):
+            self._session.file.put(
+                path, temp_stage, auto_compress=False, overwrite=True
+            )
+            _, filename = os.path.split(path)
+            stage_path = f"{temp_stage}/{filename}"
+        elif os.path.isdir(path):
+            filepath = os.path.join(path, f"*.{format}")
+            self._session.file.put(
+                filepath, temp_stage, auto_compress=False, overwrite=True
+            )
+            stage_path = temp_stage
+        elif path.startswith(STAGE_PREFIX):
+            stage_path = path
+        else:
+            raise ValueError(f"{path} is neither a file or a directory")
+
+        return stage_path
