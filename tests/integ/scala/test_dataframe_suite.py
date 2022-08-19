@@ -994,15 +994,15 @@ def test_select(session):
 
     # test single column selection
     expected_result = [Row(TWO_X=2), Row(TWO_X=4), Row(TWO_X=6)]
-    assert df.select(table_func("a")).collect() == expected_result
-    assert df.select(table_func(col("a"))).collect() == expected_result
-    assert df.select(table_func(df.a)).collect() == expected_result
+    Utils.check_answer(df.select(table_func("a")), expected_result)
+    Utils.check_answer(df.select(table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(table_func(df.a)), expected_result)
 
     # test multiple column selection
     expected_result = [Row(A=1, TWO_X=2), Row(A=2, TWO_X=4), Row(A=3, TWO_X=6)]
-    assert df.select("a", table_func("a")).collect() == expected_result
-    assert df.select(col("a"), table_func(col("a"))).collect() == expected_result
-    assert df.select(df.a, table_func(df.a)).collect() == expected_result
+    Utils.check_answer(df.select("a", table_func("a")), expected_result)
+    Utils.check_answer(df.select(col("a"), table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(df.a, table_func(df.a)), expected_result)
 
     # test multiple column selection with order preservation
     expected_result = [
@@ -1010,11 +1010,11 @@ def test_select(session):
         Row(A=2, TWO_X=4, C=20),
         Row(A=3, TWO_X=6, C=30),
     ]
-    assert df.select("a", table_func("a"), "c").collect() == expected_result
-    assert (
-        df.select(col("a"), table_func(col("a")), col("c")).collect() == expected_result
+    Utils.check_answer(df.select("a", table_func("a"), "c"), expected_result)
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("a")), col("c")), expected_result
     )
-    assert df.select(df.a, table_func(df.a), df.c).collect() == expected_result
+    Utils.check_answer(df.select(df.a, table_func(df.a), df.c), expected_result)
 
     # test multiple output column udtf
     class TwoXSixXUDTF:
@@ -1035,9 +1035,9 @@ def test_select(session):
         Row(TWO_X=4, SIX_X=12),
         Row(TWO_X=6, SIX_X=18),
     ]
-    assert df.select(table_func("a")).collect() == expected_result
-    assert df.select(table_func(col("a"))).collect() == expected_result
-    assert df.select(table_func(df.a)).collect() == expected_result
+    Utils.check_answer(df.select(table_func("a")), expected_result)
+    Utils.check_answer(df.select(table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(table_func(df.a)), expected_result)
 
     # test multiple column selection
     expected_result = [
@@ -1045,9 +1045,9 @@ def test_select(session):
         Row(A=2, TWO_X=4, SIX_X=12),
         Row(A=3, TWO_X=6, SIX_X=18),
     ]
-    assert df.select("a", table_func("a")).collect() == expected_result
-    assert df.select(col("a"), table_func(col("a"))).collect() == expected_result
-    assert df.select(df.a, table_func(df.a)).collect() == expected_result
+    Utils.check_answer(df.select("a", table_func("a")), expected_result)
+    Utils.check_answer(df.select(col("a"), table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(df.a, table_func(df.a)), expected_result)
 
     # test multiple column selection with order preservation
     expected_result = [
@@ -1055,11 +1055,11 @@ def test_select(session):
         Row(A=2, TWO_X=4, SIX_X=12, C=20),
         Row(A=3, TWO_X=6, SIX_X=18, C=30),
     ]
-    assert df.select("a", table_func("a"), "c").collect() == expected_result
-    assert (
-        df.select(col("a"), table_func(col("a")), col("c")).collect() == expected_result
+    Utils.check_answer(df.select("a", table_func("a"), "c"), expected_result)
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("a")), col("c")), expected_result
     )
-    assert df.select(df.a, table_func(df.a), df.c).collect() == expected_result
+    Utils.check_answer(df.select(df.a, table_func(df.a), df.c), expected_result)
 
 
 def test_select_negative_select(session):
