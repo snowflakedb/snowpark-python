@@ -396,6 +396,12 @@ def test_df_stat_corr(session):
     assert "Numeric value 'a' is not recognized" in str(exec_info)
 
     assert TestData.null_data2(session).stat.corr("a", "b") is None
+    assert (
+        TestData.null_data2(session).stat.corr(
+            "a", "b", statement_params={"SF_PARTNER": "FAKE_PARTNER"}
+        )
+        is None
+    )
     assert TestData.double4(session).stat.corr("a", "b") is None
     assert math.isnan(TestData.double3(session).stat.corr("a", "b"))
     math.isclose(TestData.double2(session).stat.corr("a", "b"), 0.9999999999999991)
@@ -407,6 +413,12 @@ def test_df_stat_cov(session):
     assert "Numeric value 'a' is not recognized" in str(exec_info)
 
     assert TestData.null_data2(session).stat.cov("a", "b") == 0
+    assert (
+        TestData.null_data2(session).stat.cov(
+            "a", "b", statement_params={"SF_PARTNER": "FAKE_PARTNER"}
+        )
+        == 0
+    )
     assert TestData.double4(session).stat.cov("a", "b") is None
     assert math.isnan(TestData.double3(session).stat.cov("a", "b"))
     math.isclose(TestData.double2(session).stat.cov("a", "b"), 0.010000000000000037)
@@ -414,6 +426,9 @@ def test_df_stat_cov(session):
 
 def test_df_stat_approx_quantile(session):
     assert TestData.approx_numbers(session).stat.approx_quantile("a", [0.5]) == [4.5]
+    assert TestData.approx_numbers(session).stat.approx_quantile(
+        "a", [0.5], statement_params={"SF_PARTNER": "FAKE_PARTNER"}
+    ) == [4.5]
     assert TestData.approx_numbers(session).stat.approx_quantile(
         "a", [0, 0.1, 0.4, 0.6, 1]
     ) == [-0.5, 0.5, 3.5, 5.5, 9.5]
@@ -543,6 +558,22 @@ def test_df_stat_crosstab(session):
         cross_tab_6[1]["B"] == 2
         and cross_tab_6[1]["'str'"] == 0
         and cross_tab_6[1]["NULL"] == 0
+    )
+
+    cross_tab_7 = (
+        TestData.string7(session)
+        .stat.crosstab("b", "a", statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+        .collect()
+    )
+    assert (
+        cross_tab_7[0]["B"] == 1
+        and cross_tab_7[0]["'str'"] == 1
+        and cross_tab_7[0]["NULL"] == 0
+    )
+    assert (
+        cross_tab_7[1]["B"] == 2
+        and cross_tab_7[1]["'str'"] == 0
+        and cross_tab_7[1]["NULL"] == 0
     )
 
 
@@ -702,7 +733,7 @@ def test_sample_with_seed(session):
     row_count = 10000
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.range(row_count).write.save_as_table(
-        temp_table_name, create_temp_table=True
+        temp_table_name, table_type="temporary"
     )
     df = session.table(temp_table_name)
     try:
@@ -718,7 +749,7 @@ def test_sample_with_sampling_method(session):
     row_count = 10000
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.range(row_count).write.save_as_table(
-        temp_table_name, create_temp_table=True
+        temp_table_name, table_type="temporary"
     )
     df = session.table(temp_table_name)
     try:

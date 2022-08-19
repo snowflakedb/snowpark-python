@@ -6,7 +6,7 @@ import re
 import sys
 import uuid
 from functools import cached_property, reduce
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import snowflake.connector
 import snowflake.snowpark
@@ -158,6 +158,7 @@ class SnowflakePlan(LogicalPlan):
         session: Optional["snowflake.snowpark.session.Session"] = None,
         source_plan: Optional[LogicalPlan] = None,
         is_ddl_on_temp_object: bool = False,
+        api_calls: Optional[List[Dict]] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
@@ -167,11 +168,15 @@ class SnowflakePlan(LogicalPlan):
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
+        # We need to copy this list since we don't want to change it for the
+        # previous SnowflakePlan objects
+        self.api_calls = api_calls.copy() if api_calls else []
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
         new_schema_query = self.schema_query
         new_post_actions = [*self.post_actions]
+        api_calls = [*self.api_calls]
 
         for plan in subquery_plans:
             for query in plan.queries[:-1]:
@@ -183,6 +188,7 @@ class SnowflakePlan(LogicalPlan):
             for action in plan.post_actions:
                 if action not in new_post_actions:
                     new_post_actions.append(action)
+            api_calls.extend(plan.api_calls)
 
         return SnowflakePlan(
             pre_queries + [self.queries[-1]],
@@ -191,6 +197,7 @@ class SnowflakePlan(LogicalPlan):
             expr_to_alias=self.expr_to_alias,
             session=self.session,
             source_plan=self.source_plan,
+            api_calls=api_calls,
         )
 
     @cached_property
@@ -211,6 +218,8 @@ class SnowflakePlan(LogicalPlan):
             dict(self.expr_to_alias) if self.expr_to_alias else None,
             self.session,
             self.source_plan,
+            self.is_ddl_on_temp_object,
+            self.api_calls.copy() if self.api_calls else None,
         )
 
     def add_aliases(self, to_add: Dict) -> None:
@@ -250,6 +259,7 @@ class SnowflakePlanBuilder:
             self.session,
             source_plan,
             is_ddl_on_temp_object,
+            api_calls=select_child.api_calls,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -279,6 +289,7 @@ class SnowflakePlanBuilder:
             select_child.expr_to_alias,
             self.session,
             source_plan,
+            api_calls=select_child.api_calls,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -319,6 +330,7 @@ class SnowflakePlanBuilder:
             }.items()
             if k not in common_columns
         }
+        api_calls = [*select_left.api_calls, *select_right.api_calls]
 
         return SnowflakePlan(
             queries,
@@ -327,14 +339,21 @@ class SnowflakePlanBuilder:
             new_expr_to_alias,
             self.session,
             source_plan,
+            api_calls=api_calls,
         )
 
-    def query(self, sql: str, source_plan: Optional[LogicalPlan]) -> SnowflakePlan:
+    def query(
+        self,
+        sql: str,
+        source_plan: Optional[LogicalPlan],
+        api_calls: Optional[List[Dict]] = None,
+    ) -> SnowflakePlan:
         return SnowflakePlan(
             queries=[Query(sql)],
             schema_query=sql,
             session=self.session,
             source_plan=source_plan,
+            api_calls=api_calls,
         )
 
     def large_local_relation_plan(
@@ -351,7 +370,7 @@ class SnowflakePlanBuilder:
             temp_table_name,
             attribute_to_schema_string(attributes),
             replace=True,
-            temp=True,
+            table_type="temporary",
         )
         insert_stmt = batch_insert_into_statement(
             temp_table_name, [attr.name for attr in attributes]
@@ -474,33 +493,53 @@ class SnowflakePlanBuilder:
     def save_as_table(
         self,
         table_name: str,
+        column_names: Optional[Iterable[str]],
         mode: SaveMode,
-        create_temp_table: bool,
+        table_type: str,
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         if mode == SaveMode.APPEND:
-            create_table = create_table_statement(
-                table_name,
-                attribute_to_schema_string(child.attributes),
-                error=False,
-                temp=create_temp_table,
-            )
-            return SnowflakePlan(
-                [
-                    *child.queries[0:-1],
-                    Query(create_table),
-                    Query(insert_into_statement(table_name, child.queries[-1].sql)),
-                ],
-                create_table,
-                child.post_actions,
-                {},
-                self.session,
-                None,
-            )
+            if self.session._table_exists(table_name):
+                return self.build(
+                    lambda x: insert_into_statement(
+                        table_name=table_name,
+                        child=x,
+                        column_names=column_names,
+                    ),
+                    child,
+                    None,
+                )
+            else:
+                create_table = create_table_statement(
+                    table_name,
+                    attribute_to_schema_string(child.attributes),
+                    error=False,
+                    table_type=table_type,
+                )
+
+                return SnowflakePlan(
+                    [
+                        *child.queries[0:-1],
+                        Query(create_table),
+                        Query(
+                            insert_into_statement(
+                                table_name=table_name,
+                                child=child.queries[-1].sql,
+                                column_names=column_names,
+                            )
+                        ),
+                    ],
+                    create_table,
+                    child.post_actions,
+                    {},
+                    self.session,
+                    None,
+                    api_calls=child.api_calls,
+                )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    table_name, x, replace=True, temp=create_temp_table
+                    table_name, x, replace=True, table_type=table_type
                 ),
                 child,
                 None,
@@ -508,7 +547,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.IGNORE:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    table_name, x, error=False, temp=create_temp_table
+                    table_name, x, error=False, table_type=table_type
                 ),
                 child,
                 None,
@@ -516,7 +555,7 @@ class SnowflakePlanBuilder:
         elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
                 lambda x: create_table_as_select_statement(
-                    table_name, x, temp=create_temp_table
+                    table_name, x, table_type=table_type
                 ),
                 child,
                 None,
@@ -596,10 +635,13 @@ class SnowflakePlanBuilder:
         create_table = create_table_statement(
             name,
             attribute_to_schema_string(attributes),
-            temp=True,
+            table_type="temporary",
         )
 
-        return [create_table, insert_into_statement(name, query)]
+        return [
+            create_table,
+            insert_into_statement(table_name=name, column_names=None, child=query),
+        ]
 
     def read_file(
         self,
@@ -706,7 +748,7 @@ class SnowflakePlanBuilder:
                         temp_table_name,
                         attribute_to_schema_string(temp_table_schema),
                         replace=True,
-                        temp=True,
+                        table_type="temporary",
                     ),
                     is_ddl_on_temp_object=True,
                 ),
@@ -793,7 +835,6 @@ class SnowflakePlanBuilder:
                     create_table_statement(
                         table_name,
                         attribute_to_schema_string(attributes),
-                        temp=False,
                     ),
                     # This is an exception. The principle is to avoid surprising behavior and most of the time
                     # it applies to temp object. But this perm table creation is also one place where we create
@@ -925,6 +966,7 @@ class SnowflakePlanBuilder:
                 plan.expr_to_alias,
                 self.session,
                 plan.source_plan,
+                api_calls=plan.api_calls,
             )
 
 

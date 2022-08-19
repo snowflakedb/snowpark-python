@@ -60,7 +60,7 @@ class TableFunctionCall:
           - Partitioning allows Snowflake to divide up the workload to improve parallelization and thus performance.
           - Partitioning allows Snowflake to process all rows with a common characteristic as a group. You can return results that are based on all rows in the group, not just on individual rows.
 
-        Refer to `table functions and partitions <https://docs.snowflake.com/en/LIMITEDACCESS/udf-python-tabular-functions.html#processing-partitions>`__ for more information.
+        Refer to `table functions and partitions <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions.html#processing-partitions>`__ for more information.
 
         Args:
             partition_by: Specify the partitioning column(s). It tells the table function to partition by these columns.

@@ -7,7 +7,7 @@ import os
 import sys
 import time
 from logging import getLogger
-from typing import IO, Any, Dict, Iterator, List, Optional, Set, Union
+from typing import IO, Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import snowflake.connector
 from snowflake.connector import SnowflakeConnection, connect
@@ -122,6 +122,7 @@ class ServerConnection:
                             func.__name__, duration, sfqid
                         )
                     logger.debug(f"Finished in {duration:.4f} secs")
+                    return result
 
                 return wrap
 
@@ -256,6 +257,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
+        is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
@@ -290,9 +292,14 @@ class ServerConnection:
         # https://docs.python.org/3/library/io.html#io.IOBase.close
         except ValueError as ex:
             if input_stream.closed:
-                raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
-                    dest_filename
-                )
+                if is_in_udf:
+                    raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
+                        dest_filename
+                    )
+                else:
+                    raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
+                        dest_filename
+                    )
             else:
                 raise ex
 
@@ -370,12 +377,12 @@ class ServerConnection:
             plan, to_pandas, to_iter, **kwargs
         )
         if to_pandas:
-            return result_set
+            return result_set["data"]
         else:
             if to_iter:
-                return result_set_to_iter(result_set, result_meta)
+                return result_set_to_iter(result_set["data"], result_meta)
             else:
-                return result_set_to_rows(result_set, result_meta)
+                return result_set_to_rows(result_set["data"], result_meta)
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -384,11 +391,17 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         **kwargs,
-    ) -> Union[
-        List[Any],
-        "pandas.DataFrame",
-        SnowflakeCursor,
-        Iterator["pandas.DataFrame"],
+    ) -> Tuple[
+        Dict[
+            str,
+            Union[
+                List[Any],
+                "pandas.DataFrame",
+                SnowflakeCursor,
+                Iterator["pandas.DataFrame"],
+                str,
+            ],
+        ],
         List[ResultMetadata],
     ]:
         action_id = plan.session._generate_new_action_id()
@@ -426,25 +439,31 @@ class ServerConnection:
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
 
-        return result["data"], result_meta
+        return result, result_meta
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
-    ) -> Union[List[Row], List[Attribute]]:
+    ) -> Tuple[List[Row], List[Attribute]]:
         result_set, result_meta = self.get_result_set(plan, **kwargs)
-        result = result_set_to_rows(result_set)
+        result = result_set_to_rows(result_set["data"])
         meta = convert_result_meta_to_attribute(result_meta)
         return result, meta
+
+    def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
+        # get the iterator such that the data is not fetched
+        result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
+        return result_set["sfqid"]
 
     @_Decorator.wrap_exception
     def run_batch_insert(self, query: str, rows: List[Row], **kwargs) -> None:
         # with qmark, Python data type will be dynamically mapped to Snowflake data type
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings
         params = [list(row) for row in rows]
+        statement_params = kwargs.get("_statement_params")
         query_tag = (
-            kwargs["_statement_params"]["QUERY_TAG"]
-            if "_statement_params" in kwargs
-            and "QUERY_TAG" in kwargs["_statement_params"]
+            statement_params["QUERY_TAG"]
+            if statement_params is not None
+            and "QUERY_TAG" in statement_params
             and not is_in_stored_procedure()
             else None
         )

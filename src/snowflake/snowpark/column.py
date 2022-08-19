@@ -303,6 +303,16 @@ class Column:
             "'~' for 'not' if you're building DataFrame filter expressions. For example, use df.filter((col1 > 1) & (col2 > 2)) instead of df.filter(col1 > 1 and col2 > 2)."
         )
 
+    def __iter__(self) -> None:
+        raise TypeError(
+            "Column is not iterable. This error can occur when you use the Python built-ins for sum, min and max. Please make sure you use the corresponding function from snowflake.snowpark.functions."
+        )
+
+    def __round__(self, n=None):
+        raise TypeError(
+            "Column cannot be rounded. This error can occur when you use the Python built-in round. Please make sure you use the snowflake.snowpark.functions.round function intead."
+        )
+
     def in_(
         self,
         *vals: Union[
@@ -528,7 +538,7 @@ class Column:
         For details, see the Snowflake documentation on
         `regular expressions <https://docs.snowflake.com/en/sql-reference/functions-regexp.html#label-regexp-general-usage-notes>`_.
 
-        :meth:`rlike` is an alias of :meth`regexp`.
+        :meth:`rlike` is an alias of :meth:`regexp`.
 
         """
         return Column(

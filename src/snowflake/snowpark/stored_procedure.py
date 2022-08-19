@@ -5,7 +5,7 @@
 """Stored procedures in Snowpark."""
 import sys
 from types import ModuleType
-from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -70,7 +70,7 @@ class StoredProcedure:
 class StoredProcedureRegistration:
     """
     Provides methods to register lambdas and functions as stored procedures in the Snowflake database.
-    For more information about Snowflake Python stored procedures, see `Python stored procedures <https://docs.snowflake.com/en/LIMITEDACCESS/stored-procedures-python.html>`__.
+    For more information about Snowflake Python stored procedures, see `Python stored procedures <https://docs.snowflake.com/en/sql-reference/stored-procedures-python.html>`__.
 
     :attr:`session.sproc <snowflake.snowpark.Session.sproc>` returns an object of this class.
     You can use this object to register stored procedures that you plan to use in the current session or
@@ -311,6 +311,8 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -353,13 +355,14 @@ class StoredProcedureRegistration:
                 :meth:`~snowflake.snowpark.Session.add_requirements`.
             replace: Whether to replace a stored procedure that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a stored procedure with a name that already exists
-                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing stored procedure with the same name is overwritten.
             parallel: The number of threads to use for uploading stored procedure files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -386,6 +389,7 @@ class StoredProcedureRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def register_from_file(
@@ -401,6 +405,8 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure from a Python or zip file,
@@ -449,13 +455,14 @@ class StoredProcedureRegistration:
                 :meth:`~snowflake.snowpark.Session.add_requirements`.
             replace: Whether to replace a stored procedure that already was registered. The default is ``False``.
                 If it is ``False``, attempting to register a stored procedure with a name that already exists
-                results in a ``ProgrammingError`` exception being thrown. If it is ``True``,
+                results in a ``SnowparkSQLException`` exception being thrown. If it is ``True``,
                 an existing stored procedure with the same name is overwritten.
             parallel: The number of threads to use for uploading stored procedure files with the
                 `PUT <https://docs.snowflake.com/en/sql-reference/sql/put.html#put>`_
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -483,6 +490,7 @@ class StoredProcedureRegistration:
             packages,
             replace,
             parallel,
+            statement_params=statement_params,
         )
 
     def _do_register_sp(
@@ -496,6 +504,8 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]],
         replace: bool,
         parallel: int,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -536,6 +546,7 @@ class StoredProcedureRegistration:
             imports,
             packages,
             parallel,
+            statement_params=statement_params,
         )
 
         raised = False

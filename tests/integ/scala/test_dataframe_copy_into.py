@@ -197,6 +197,19 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
         sort=False,
     )
 
+    # test statement params
+    df.copy_into_table(tmp_table_name, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+    Utils.check_answer(
+        session.table(tmp_table_name),
+        [
+            Row(1, "one", 1.2),
+            Row(2, "two", 2.2),
+            Row(1, "one", 1.2),
+            Row(2, "two", 2.2),
+        ],
+        sort=False,
+    )
+
 
 def test_copy_csv_create_table_if_not_exists(session, tmp_stage_name1):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
@@ -254,6 +267,7 @@ def test_save_as_table_not_affect_copy_into(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.xfail(reason="SNOW-632268 flaky test", strict=False)
 @pytest.mark.parametrize(
     "trans_columns", [([col("$1"), col("$2"), col("$3")]), (["$1", "$2", "$3"])]
 )
@@ -612,6 +626,10 @@ def test_copy_non_csv_basic(
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-645154 Need to enable ENABLE_SCHEMA_DETECTION_COLUMN_ORDER",
+)
 @pytest.mark.parametrize(
     "file_format, file_name, schema, transformations, assert_data, infer_schema",
     [
@@ -758,7 +776,7 @@ def test_copy_non_csv_transformation(
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
-    reason="SNOW-595068 the column order from infer_schema is not preserved",
+    reason="SNOW-645154 Need to enable ENABLE_SCHEMA_DETECTION_COLUMN_ORDER",
 )
 @pytest.mark.parametrize(
     "file_format, file_name, assert_data",
@@ -773,16 +791,16 @@ def test_copy_non_csv_transformation(
             test_file_all_data_types_parquet,
             [
                 Row(
+                    N=Decimal("10.123456"),
+                    F=1.2,
+                    I=1,
+                    S="string",
+                    C="a",
+                    D=datetime.date(2022, 4, 1),
+                    T=datetime.time(11, 11, 11),
                     TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
                     TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
-                    F=1.2,
                     V='{"key":"value"}',
-                    C="a",
-                    I=1,
-                    T=datetime.time(11, 11, 11),
-                    D=datetime.date(2022, 4, 1),
-                    N=Decimal("10.123456"),
-                    S="string",
                 )
             ],
         ),
@@ -791,53 +809,53 @@ def test_copy_non_csv_transformation(
             test_file_with_special_characters_parquet,
             [
                 Row(
-                    4.082620632952961,
                     "mstephenson@fernandez.com",
-                    34.49726772511229,
-                    "Violet",
-                    12.655651149166752,
                     "835 Frank Tunnel\nWrightmouth, MI 82180-9605",
+                    "Violet",
+                    34.49726772511229,
+                    12.655651149166752,
                     39.57766801952616,
+                    4.082620632952961,
                     587.9510539684005,
                 ),
                 Row(
-                    2.66403418213262,
                     "hduke@hotmail.com",
-                    31.92627202636016,
-                    "DarkGreen",
-                    11.109460728682564,
                     "4547 Archer Common\nDiazchester, CA 06566-8576",
+                    "DarkGreen",
+                    31.92627202636016,
+                    11.109460728682564,
                     37.268958868297744,
+                    2.66403418213262,
                     392.2049334443264,
                 ),
                 Row(
-                    4.104543202376424,
                     "pallen@yahoo.com",
-                    33.000914755642675,
-                    "Bisque",
-                    11.330278057777512,
                     "24645 Valerie Unions Suite 582\nCobbborough, DC 99414-7564",
+                    "Bisque",
+                    33.000914755642675,
+                    11.330278057777512,
                     37.11059744212085,
+                    4.104543202376424,
                     487.54750486747207,
                 ),
                 Row(
-                    3.120178782748092,
                     "riverarebecca@gmail.com",
-                    34.30555662975554,
-                    "SaddleBrown",
-                    13.717513665142508,
                     "1414 David Throughway\nPort Jason, OH 22070-1220",
+                    "SaddleBrown",
+                    34.30555662975554,
+                    13.717513665142508,
                     36.72128267790313,
+                    3.120178782748092,
                     581.8523440352178,
                 ),
                 Row(
-                    4.446308318351435,
                     "mstephens@davidson-herman.com",
-                    33.33067252364639,
-                    "MediumAquaMarine",
-                    12.795188551078114,
                     "14023 Rodriguez Passage\nPort Jacobville, PR 37242-1057",
+                    "MediumAquaMarine",
+                    33.33067252364639,
+                    12.795188551078114,
                     37.53665330059473,
+                    4.446308318351435,
                     599.4060920457634,
                 ),
             ],

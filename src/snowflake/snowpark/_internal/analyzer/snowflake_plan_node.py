@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
@@ -55,15 +55,17 @@ class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self,
         table_name: str,
+        column_names: Optional[Iterable[str]],
         mode: SaveMode,
         query: Optional[LogicalPlan],
-        create_temp_table: bool = False,
+        table_type: str = "",
     ) -> None:
         super().__init__()
         self.table_name = table_name
+        self.column_names = column_names
         self.mode = mode
         self.query = query
-        self.create_temp_table = create_temp_table
+        self.table_type = table_type
         self.children.append(query)
 
 

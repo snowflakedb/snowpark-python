@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
+import warnings
 from typing import Dict, Iterable, List, Optional, Union
 
 import snowflake.snowpark  # for forward references of type hints
@@ -10,7 +10,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
 )
-from snowflake.snowpark._internal.telemetry import dfw_action_telemetry
+from snowflake.snowpark._internal.telemetry import (
+    add_api_call,
+    dfw_collect_api_telemetry,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
@@ -61,13 +64,16 @@ class DataFrameWriter:
         self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
         return self
 
-    @dfw_action_telemetry
+    @dfw_collect_api_telemetry
     def save_as_table(
         self,
         table_name: Union[str, Iterable[str]],
         *,
         mode: Optional[str] = None,
+        column_order: str = "index",
         create_temp_table: bool = False,
+        table_type: str = "",
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> None:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -85,17 +91,29 @@ class DataFrameWriter:
 
                 "ignore": Ignore this operation if data already exists.
 
-            create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
+            column_order: When ``mode`` is "append", data will be inserted into the target table by matching column sequence or column name. Default is "index". When ``mode`` is not "append", the ``column_order`` makes no difference.
+
+                "index": Data will be inserted into the target table by column sequence.
+                "name": Data will be inserted into the target table by matching column names. If the target table has more columns than the source DataFrame, use this one.
+
+            create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
+            table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
+                        and ``transient``. An empty string means to create a permanent table. Learn more about table
+                        types in https://docs.snowflake.com/en/user-guide/tables-temp-transient.html.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
 
             >>> df = session.create_dataframe([[1,2],[3,4]], schema=["a", "b"])
-            >>> df.write.mode("overwrite").save_as_table("my_table", create_temp_table=True)
+            >>> df.write.mode("overwrite").save_as_table("my_table", table_type="temporary")
             >>> session.table("my_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
-            >>> df.write.save_as_table("my_table", mode="append", create_temp_table=True)
+            >>> df.write.save_as_table("my_table", mode="append", table_type="temporary")
             >>> session.table("my_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4), Row(A=1, B=2), Row(A=3, B=4)]
+            >>> df.write.mode("overwrite").save_as_table("my_transient_table", table_type="transient")
+            >>> session.table("my_transient_table").collect()
+            [Row(A=1, B=2), Row(A=3, B=4)]
         """
         save_mode = (
             str_to_enum(mode.lower(), SaveMode, "'mode'") if mode else self._save_mode
@@ -104,15 +122,37 @@ class DataFrameWriter:
             table_name if isinstance(table_name, str) else ".".join(table_name)
         )
         validate_object_name(full_table_name)
+        if column_order is None or column_order.lower() not in ("name", "index"):
+            raise ValueError("'column_order' must be either 'name' or 'index'")
+        column_names = (
+            self._dataframe.columns if column_order.lower() == "name" else None
+        )
+
+        if create_temp_table:
+            warnings.warn(
+                "create_temp_table is deprecated. We still respect this parameter when it is True but "
+                'please consider using `table_type="temporary"` instead.',
+                DeprecationWarning,
+                # warnings.warn -> @dfw_collect_api_telemetry -> save_as_table
+                stacklevel=3,
+            )
+            table_type = "temporary"
+
+        if table_type and table_type.lower() not in ["temp", "temporary", "transient"]:
+            raise ValueError(
+                "Unsupported table type. Expected table types: temp/temporary, transient"
+            )
+
         create_table_logic_plan = SnowflakeCreateTable(
             full_table_name,
+            column_names,
             save_mode,
             self._dataframe._plan,
-            create_temp_table,
+            table_type,
         )
         session = self._dataframe._session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
-        session._conn.execute(snowflake_plan)
+        session._conn.execute(snowflake_plan, _statement_params=statement_params)
 
     def copy_into_location(
         self,
@@ -123,6 +163,7 @@ class DataFrameWriter:
         file_format_type: Optional[str] = None,
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
         **copy_options: Optional[str],
     ) -> List[Row]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
@@ -134,6 +175,7 @@ class DataFrameWriter:
             file_format_type: Specifies the type of files unloaded from the table. If a format type is specified, additional format-specific options can be specified in ``format_type_options``.
             format_type_options: Depending on the ``file_format_type`` specified, you can include more format specific options. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
             header: Specifies whether to include the table column headings in the output files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
 
         Returns:
@@ -144,8 +186,9 @@ class DataFrameWriter:
             >>> # save this dataframe to a parquet file on the session stage
             >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
             >>> remote_file_path = f"{session.get_session_stage()}/names.parquet"
-            >>> df.write.copy_into_location(remote_file_path, file_format_type="parquet", header=True, overwrite=True, single=True)
-            [Row(rows_unloaded=3, input_bytes=597, output_bytes=597)]
+            >>> copy_result = df.write.copy_into_location(remote_file_path, file_format_type="parquet", header=True, overwrite=True, single=True)
+            >>> copy_result[0].rows_unloaded
+            3
             >>> # the following code snippet just verifies the file content and is actually irrelevant to Snowpark
             >>> # download this file and read it using pyarrow
             >>> import os
@@ -170,7 +213,7 @@ class DataFrameWriter:
             raise TypeError(
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
-        return self._dataframe._with_plan(
+        df = self._dataframe._with_plan(
             CopyIntoLocationNode(
                 self._dataframe._plan,
                 stage_location,
@@ -181,6 +224,8 @@ class DataFrameWriter:
                 copy_options=copy_options,
                 header=header,
             )
-        )._internal_collect_with_tag()
+        )
+        add_api_call(df, "DataFrameWriter.copy_into_location")
+        return df._internal_collect_with_tag(statement_params=statement_params)
 
     saveAsTable = save_as_table

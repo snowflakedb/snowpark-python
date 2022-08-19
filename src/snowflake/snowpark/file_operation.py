@@ -3,7 +3,7 @@
 #
 import os
 import sys
-from typing import List, NamedTuple, Optional
+from typing import IO, Dict, List, NamedTuple, Optional
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -57,6 +57,7 @@ class FileOperation:
         auto_compress: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[PutResult]:
         """Uploads local files to the stage.
 
@@ -86,6 +87,7 @@ class FileOperation:
             source_compression: Specifies the method of compression used on already-compressed files that are being staged.
                 Values can be 'AUTO_DETECT', 'GZIP', 'BZ2', 'BROTLI', 'ZSTD', 'DEFLATE', 'RAW_DEFLATE', 'NONE'.
             overwrite: Specifies whether Snowflake will overwrite an existing file with the same name during upload.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
             A ``list`` of :class:`PutResult` instances, each of which represents the results of an uploaded file.
@@ -118,7 +120,7 @@ class FileOperation:
             )
             put_result = snowflake.snowpark.dataframe.DataFrame(
                 self._session, plan
-            )._internal_collect_with_tag()
+            )._internal_collect_with_tag(statement_params=statement_params)
         return [PutResult(**file_result.asDict()) for file_result in put_result]
 
     def get(
@@ -128,6 +130,7 @@ class FileOperation:
         *,
         parallel: int = 10,
         pattern: Optional[str] = None,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[GetResult]:
         """Downloads the specified files from a path in a stage to a local directory.
 
@@ -160,6 +163,7 @@ class FileOperation:
             pattern: Specifies a regular expression pattern for filtering files to download.
                 The command lists all files in the specified path and applies the regular expression pattern on each of the files found.
                 Default: ``None`` (all files in the specified stage are downloaded).
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
             A ``list`` of :class:`GetResult` instances, each of which represents the result of a downloaded file.
@@ -198,8 +202,66 @@ class FileOperation:
                 os.makedirs(get_local_file_path(target_directory), exist_ok=True)
                 get_result = snowflake.snowpark.dataframe.DataFrame(
                     self._session, plan
-                )._internal_collect_with_tag()
+                )._internal_collect_with_tag(statement_params=statement_params)
             return [GetResult(**file_result.asDict()) for file_result in get_result]
         # connector raises IndexError when no file is downloaded from python connector.
         except IndexError:
             return []
+
+    def put_stream(
+        self,
+        input_stream: IO[bytes],
+        stage_location: str,
+        *,
+        parallel: int = 4,
+        auto_compress: bool = True,
+        source_compression: str = "AUTO_DETECT",
+        overwrite: bool = False,
+    ) -> PutResult:
+        """Uploads local files to the stage via a file stream.
+
+        Args:
+            input_stream: The input stream from which the data will be uploaded.
+            stage_location: The full stage path with prefix and file name where you want the file to be uploaded.
+            parallel: Specifies the number of threads to use for uploading files. The upload process separates batches of data files by size:
+
+                  - Small files (< 64 MB compressed or uncompressed) are staged in parallel as individual files.
+                  - Larger files are automatically split into chunks, staged concurrently, and reassembled in the target stage. A single thread can upload multiple chunks.
+
+                Increasing the number of threads can improve performance when uploading large files.
+                Supported values: Any integer value from 1 (no parallelism) to 99 (use 99 threads for uploading files).
+                Defaults to 4.
+            auto_compress: Specifies whether Snowflake uses gzip to compress files during upload. Defaults to True.
+            source_compression: Specifies the method of compression used on already-compressed files that are being staged.
+                Values can be 'AUTO_DETECT', 'GZIP', 'BZ2', 'BROTLI', 'ZSTD', 'DEFLATE', 'RAW_DEFLATE', 'NONE'. Defaults to "AUTO_DETECT".
+            overwrite: Specifies whether Snowflake will overwrite an existing file with the same name during upload. Defaults to False.
+
+        Returns:
+            An object of :class:`PutResult` which represents the results of an uploaded file.
+        """
+        if is_in_stored_procedure():
+            raise NotImplementedError(
+                "Stream uploads for stored procedure are not supported yet"
+            )
+        else:
+
+            def parse_stage_file_location(stage_location: str):
+                stage_location = stage_location.strip()
+                if not stage_location:
+                    raise ValueError("stage_location cannot be empty")
+                elif stage_location[-1] == "/":
+                    raise ValueError("stage_location should end with target filename")
+                else:
+                    return stage_location.rsplit("/", maxsplit=1)
+
+            stage_with_prefix, dest_filename = parse_stage_file_location(stage_location)
+            put_result = self._session._conn.upload_stream(
+                input_stream=input_stream,
+                stage_location=stage_with_prefix,
+                dest_filename=dest_filename,
+                parallel=parallel,
+                compress_data=auto_compress,
+                source_compression=source_compression,
+                overwrite=overwrite,
+            )
+            return PutResult(*put_result["data"][0])

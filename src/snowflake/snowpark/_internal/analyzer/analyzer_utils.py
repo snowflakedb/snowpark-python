@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -576,18 +576,21 @@ def create_table_statement(
     schema: str,
     replace: bool = False,
     error: bool = True,
-    temp: bool = False,
+    table_type: str = EMPTY_STRING,
 ) -> str:
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
-        f"{TEMPORARY if temp else EMPTY_STRING}"
+        f" {table_type.upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
     )
 
 
-def insert_into_statement(table_name: str, child: str) -> str:
-    return f"{INSERT}{INTO}{table_name} {project_statement([], child)}"
+def insert_into_statement(
+    table_name: str, child: str, column_names: Optional[Iterable[str]] = None
+) -> str:
+    table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
+    return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
 def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str:
@@ -604,10 +607,10 @@ def create_table_as_select_statement(
     child: str,
     replace: bool = False,
     error: bool = True,
-    temp: bool = False,
+    table_type: str = EMPTY_STRING,
 ) -> str:
     return (
-        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TEMPORARY if temp else EMPTY_STRING}{TABLE}"
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
         f" {table_name}{AS}{project_statement([], child)}"
     )

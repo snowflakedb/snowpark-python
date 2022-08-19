@@ -21,6 +21,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLInvalidIdException,
     SnowparkSQLUnexpectedAliasException,
     SnowparkTableException,
+    SnowparkUploadFileException,
     SnowparkUploadUdfFileException,
     _SnowparkInternalException,
 )
@@ -338,6 +339,16 @@ class SnowparkClientExceptionMessages:
             "UDF can be read it from the stage while also retain a "
             "small size.",
             "1407",
+        )
+
+    @staticmethod
+    def SERVER_UPLOAD_FILE_STREAM_CLOSED(
+        dest_filename: str,
+    ):
+        return SnowparkUploadFileException(
+            "A file stream was closed when uploading files to the server."
+            f"The destination file name is: {dest_filename}. ",
+            "1408",
         )
 
     @staticmethod

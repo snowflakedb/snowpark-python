@@ -10,7 +10,10 @@ import string
 import pytest
 
 from snowflake.snowpark._internal.utils import is_in_stored_procedure
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.exceptions import (
+    SnowparkSQLException,
+    SnowparkUploadFileException,
+)
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 
@@ -75,14 +78,44 @@ def test_put_with_one_file(session, temp_stage, path1, path2, path3):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
     first_result = session.file.put(f"file://{path1}", stage_with_prefix)[0]
-    assert first_result.source == os.path.basename(path1)
-    assert first_result.target == os.path.basename(path1) + ".gz"
-    assert first_result.source_size in (10, 11)
-    assert first_result.target_size in (64, 96)
-    assert first_result.source_compression == "NONE"
-    assert first_result.target_compression == "GZIP"
-    assert first_result.status == "UPLOADED"
-    assert first_result.message == ""
+    first_result_with_statement_params = session.file.put(
+        f"file://{path1}",
+        stage_with_prefix,
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+    )[0]
+    assert (
+        first_result.source
+        == first_result_with_statement_params.source
+        == os.path.basename(path1)
+    )
+    assert (
+        first_result.target
+        == first_result_with_statement_params.target
+        == os.path.basename(path1) + ".gz"
+    )
+    assert first_result.source_size in (
+        10,
+        11,
+    ) and first_result_with_statement_params.source_size in (10, 11)
+    assert first_result.target_size in (
+        64,
+        96,
+    ) and first_result_with_statement_params.target_size in (0, 64)
+    assert (
+        first_result.source_compression
+        == first_result_with_statement_params.source_compression
+        == "NONE"
+    )
+    assert (
+        first_result.target_compression
+        == first_result_with_statement_params.target_compression
+        == "GZIP"
+    )
+    assert (
+        first_result.status == "UPLOADED"
+        and first_result_with_statement_params.status in ("SKIPPED", "UPLOADED")
+    )
+    assert first_result.message == first_result_with_statement_params.message == ""
     # Scala has encryption but python doesn't
     # assert first_result.encryption == "DECRYPTED"
 
@@ -189,6 +222,104 @@ def test_put_negative(session, temp_stage, temp_source_directory, path1):
     assert "does not exist or not authorized." in str(stage_not_exist_info)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Stream uploads for stored procedure are not supported yet.",
+)
+def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3):
+    stage_prefix = f"prefix_{random_alphanumeric_name()}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
+    file_name = os.path.basename(path1)
+    with open(path1, "rb") as fd:
+        first_result = session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+    assert first_result.source == file_name
+    assert first_result.target == file_name + ".gz"
+    assert first_result.source_size is not None
+    assert first_result.target_size is not None
+    assert first_result.source_compression == "NONE"
+    assert first_result.target_compression == "GZIP"
+    assert first_result.status == "UPLOADED"
+    assert first_result.message == ""
+
+    file_name = os.path.basename(path2)
+    with open(path2, "rb") as fd:
+        second_result = session.file.put_stream(
+            fd, f"{stage_with_prefix}/{file_name}", auto_compress=False
+        )
+    assert second_result.source == file_name
+    assert second_result.target == file_name
+    assert second_result.source_size is not None
+    assert second_result.target_size is not None
+    assert second_result.source_compression == "NONE"
+    assert second_result.target_compression == "NONE"
+    assert second_result.status == "UPLOADED"
+    assert second_result.message == ""
+
+    # PUT file at path3 without "@" in stageLocation
+    file_name = os.path.basename(path3)
+    with open(path3, "rb") as fd:
+        third_result = session.file.put_stream(
+            fd, f"{temp_stage}/{stage_prefix}/{file_name}"
+        )
+    assert third_result.source == file_name
+    assert third_result.target == file_name + ".gz"
+    assert third_result.source_size is not None
+    assert third_result.target_size is not None
+    assert third_result.source_compression == "NONE"
+    assert third_result.target_compression == "GZIP"
+    assert third_result.status == "UPLOADED"
+    assert third_result.message == ""
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Stream uploads for stored procedure are not supported yet.",
+)
+def test_put_stream_with_one_file_twice(session, temp_stage, path1):
+    stage_prefix = f"prefix_{random_alphanumeric_name()}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
+    file_name = os.path.basename(path1)
+    fd = open(path1, "rb")
+    session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+
+    # put same file again
+    second_result = session.file.put_stream(
+        fd, f"{stage_with_prefix}/{file_name}", overwrite=False
+    )
+    assert second_result.source == os.path.basename(path1)
+    assert second_result.target == os.path.basename(path1) + ".gz"
+    assert second_result.source_size in (10, 11)
+    assert second_result.target_size in (0, 32)
+    assert second_result.source_compression == "NONE"
+    assert second_result.target_compression == "GZIP"
+    assert second_result.status in ("SKIPPED", "UPLOADED")
+    assert second_result.message == ""
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Stream uploads for stored procedure are not supported yet.",
+)
+def test_put_stream_negative(session, temp_stage, path1):
+    stage_prefix = f"prefix_{random_alphanumeric_name()}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
+    file_name = os.path.basename(path1)
+    fd = open(path1, "rb")
+
+    with pytest.raises(ValueError) as ex_info:
+        session.file.put_stream(fd, "")
+    assert "stage_location cannot be empty" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        session.file.put_stream(fd, stage_with_prefix + "/")
+    assert "stage_location should end with target filename" in str(ex_info)
+
+    fd.close()
+    with pytest.raises(SnowparkUploadFileException) as ex_info:
+        session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+    assert ex_info.value.error_code == "1408"
+
+
 @pytest.mark.parametrize("with_file_prefix", [True, False])
 def test_get_one_file(
     session, temp_stage, temp_target_directory, path1, with_file_prefix
@@ -202,14 +333,27 @@ def test_get_one_file(
     results = session.file.get(
         f"{stage_with_prefix}{os.path.basename(path1)}.gz", str(temp_target_directory)
     )  # temp_target_directory
+    results_with_statement_params = session.file.get(
+        f"{stage_with_prefix}{os.path.basename(path1)}.gz",
+        str(temp_target_directory),
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+    )  # temp_target_directory
     try:
-        assert len(results) == 1
-        assert results[0].file == f"{os.path.basename(path1)}.gz"
-        assert results[0].size in (54, 55)
-        assert results[0].status == "DOWNLOADED"
+        assert len(results) == len(results_with_statement_params) == 1
+        assert (
+            results[0].file
+            == results_with_statement_params[0].file
+            == f"{os.path.basename(path1)}.gz"
+        )
+        assert results[0].size in (54, 55) and results_with_statement_params[
+            0
+        ].size in (54, 55)
+        assert (
+            results[0].status == results_with_statement_params[0].status == "DOWNLOADED"
+        )
         # Scala has encryption but python doesn't
         # assert results[0].encryption == "DECRYPTED"
-        assert results[0].message == ""
+        assert results[0].message == results_with_statement_params[0].message == ""
     finally:
         os.remove(f"{temp_target_directory}/{os.path.basename(path1)}.gz")
 

@@ -16,8 +16,21 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import sproc
-from snowflake.snowpark.types import DoubleType, IntegerType, PandasSeries, StringType
+from snowflake.snowpark.functions import (
+    col,
+    current_date,
+    date_from_parts,
+    lit,
+    sproc,
+    sqrt,
+)
+from snowflake.snowpark.types import (
+    DateType,
+    DoubleType,
+    IntegerType,
+    PandasSeries,
+    StringType,
+)
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 try:
@@ -78,13 +91,50 @@ def test_basic_stored_procedure(session):
     assert pow_sp(2, 10, session=session) == 1024
 
 
+def test_stored_procedure_with_column_datatype(session):
+    def plus1(session_, x):
+        return x + 1
+
+    def add(session_, x, y):
+        return x + y
+
+    def add_date(session_, date, add_days):
+        return date + datetime.timedelta(days=add_days)
+
+    plus1_sp = sproc(plus1, return_type=IntegerType(), input_types=[IntegerType()])
+    add_sp = sproc(
+        add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
+    )
+    add_date_sp = sproc(
+        add_date, return_type=DateType(), input_types=[DateType(), IntegerType()]
+    )
+
+    dt = datetime.date(1992, 12, 14) + datetime.timedelta(days=3)
+    assert plus1_sp(lit(6)) == 7
+    assert add_sp(4, sqrt(lit(36))) == 10
+    # the date can be different between server and client due to timezone difference
+    assert -1 <= (add_date_sp(date_from_parts(1992, 12, 14), 3) - dt).days <= 1
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        plus1_sp(col("a"))
+    assert "invalid identifier" in str(ex_info)
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        plus1_sp(current_date())
+    assert "Invalid argument types for function" in str(ex_info)
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        plus1_sp(lit(""))
+    assert "not recognized" in str(ex_info)
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Named temporary procedure is not supported in stored proc",
 )
 def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     sproc_name = f"test_mul_{Utils.random_alphanumeric_str(3)}"
-    session._run_query("drop function if exists sproc_name(int, int)")
+    session._run_query(f"drop function if exists {sproc_name}(int, int)")
     sproc(
         lambda session_, x, y: session_.sql(f"select {x} * {y}").collect()[0][0],
         return_type=IntegerType(),
@@ -246,6 +296,14 @@ def test_session_register_sp(session):
         lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
+    )
+    assert add_sp(1, 2) == 3
+
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
     )
     assert add_sp(1, 2) == 3
 
@@ -453,11 +511,15 @@ def return_datetime(_: Session) -> datetime.datetime:
         f.write(source)
 
     add_sp = session.sproc.register_from_file(file_path, "add")
+    add_sp_with_statement_params = session.sproc.register_from_file(
+        file_path, "add", statement_params={"SF_PARTNER": "FAKE_PARTNER"}
+    )
     snow_sp = session.sproc.register_from_file(file_path, "snow")
     double_str_list_sp = session.sproc.register_from_file(file_path, "double_str_list")
     return_datetime_sp = session.sproc.register_from_file(file_path, "return_datetime")
 
     assert add_sp(1, 2) == 3
+    assert add_sp_with_statement_params(1, 2) == 3
     assert snow_sp(0) == "snow"
     assert snow_sp(1) is None
     assert double_str_list_sp("abc") == '[\n  "abc",\n  "abc"\n]'
