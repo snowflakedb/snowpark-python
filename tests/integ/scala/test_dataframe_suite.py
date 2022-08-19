@@ -993,19 +993,23 @@ def test_select(session):
     )
 
     # test single column selection
-    expected_result = [Row(2), Row(4), Row(6)]
+    expected_result = [Row(TWO_X=2), Row(TWO_X=4), Row(TWO_X=6)]
     assert df.select(table_func("a")).collect() == expected_result
     assert df.select(table_func(col("a"))).collect() == expected_result
     assert df.select(table_func(df.a)).collect() == expected_result
 
     # test multiple column selection
-    expected_result = [Row(1, 2), Row(2, 4), Row(3, 6)]
+    expected_result = [Row(A=1, TWO_X=2), Row(A=2, TWO_X=4), Row(A=3, TWO_X=6)]
     assert df.select("a", table_func("a")).collect() == expected_result
     assert df.select(col("a"), table_func(col("a"))).collect() == expected_result
     assert df.select(df.a, table_func(df.a)).collect() == expected_result
 
     # test multiple column selection with order preservation
-    expected_result = [Row(1, 2, 10), Row(2, 4, 20), Row(3, 6, 30)]
+    expected_result = [
+        Row(A=1, TWO_X=2, C=10),
+        Row(A=2, TWO_X=4, C=20),
+        Row(A=3, TWO_X=6, C=30),
+    ]
     assert df.select("a", table_func("a"), "c").collect() == expected_result
     assert (
         df.select(col("a"), table_func(col("a")), col("c")).collect() == expected_result
@@ -1026,19 +1030,31 @@ def test_select(session):
     )
 
     # test single column selection
-    expected_result = [Row(2, 6), Row(4, 12), Row(6, 18)]
+    expected_result = [
+        Row(TWO_X=2, SIX_X=6),
+        Row(TWO_X=4, SIX_X=12),
+        Row(TWO_X=6, SIX_X=18),
+    ]
     assert df.select(table_func("a")).collect() == expected_result
     assert df.select(table_func(col("a"))).collect() == expected_result
     assert df.select(table_func(df.a)).collect() == expected_result
 
     # test multiple column selection
-    expected_result = [Row(1, 2, 6), Row(2, 4, 12), Row(3, 6, 18)]
+    expected_result = [
+        Row(A=1, TWO_X=2, SIX_X=6),
+        Row(A=2, TWO_X=4, SIX_X=12),
+        Row(A=3, TWO_X=6, SIX_X=18),
+    ]
     assert df.select("a", table_func("a")).collect() == expected_result
     assert df.select(col("a"), table_func(col("a"))).collect() == expected_result
     assert df.select(df.a, table_func(df.a)).collect() == expected_result
 
     # test multiple column selection with order preservation
-    expected_result = [Row(1, 2, 6, 10), Row(2, 4, 12, 20), Row(3, 6, 18, 30)]
+    expected_result = [
+        Row(A=1, TWO_X=2, SIX_X=6, C=10),
+        Row(A=2, TWO_X=4, SIX_X=12, C=20),
+        Row(A=3, TWO_X=6, SIX_X=18, C=30),
+    ]
     assert df.select("a", table_func("a"), "c").collect() == expected_result
     assert (
         df.select(col("a"), table_func(col("a")), col("c")).collect() == expected_result
