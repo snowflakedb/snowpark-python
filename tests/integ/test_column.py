@@ -118,7 +118,7 @@ def test_substring(session):
     )
 
 
-def test_when_accept_literal_value(session):
+def eitest_when_accept_literal_value(session):
     assert TestData.null_data1(session).select(
         when(col("a").is_null(), 5).when(col("a") == 1, 6).otherwise(7).as_("a")
     ).collect() == [Row(5), Row(7), Row(6), Row(7), Row(5)]

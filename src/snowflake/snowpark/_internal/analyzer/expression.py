@@ -25,15 +25,16 @@ COLUMN_DEPENDENCY_EMPTY = set()
 def derive_dependent_columns(*expressions: "Expression"):
     result = set()
     for exp in expressions:
-        child_dependency = exp.dependent_column_names()
-        if child_dependency == COLUMN_DEPENDENCY_ALL:
-            return COLUMN_DEPENDENCY_ALL
-        if isinstance(exp, UnresolvedAttribute):
-            if not exp.is_sql_text:
+        if exp is not None:
+            child_dependency = exp.dependent_column_names()
+            if child_dependency == COLUMN_DEPENDENCY_ALL:
+                return COLUMN_DEPENDENCY_ALL
+            if isinstance(exp, UnresolvedAttribute):
+                if not exp.is_sql_text:
+                    result.add(exp.name)
+            elif isinstance(exp, NamedExpression):
                 result.add(exp.name)
-        elif isinstance(exp, NamedExpression):
-            result.add(exp.name)
-        result.update(child_dependency)
+            result.update(child_dependency)
     return result
 
 
@@ -293,7 +294,12 @@ class CaseWhen(Expression):
         self.else_value = else_value
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return derive_dependent_columns(*self.branches, *(self.else_value or ()))
+        exps = []
+        for exp_tuple in self.branches:
+            exps.extend(exp_tuple)
+        if self.else_value is not None:
+            exps.append(self.else_value)
+        return derive_dependent_columns(*exps)
 
 
 class SnowflakeUDF(Expression):
