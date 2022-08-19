@@ -296,3 +296,9 @@ def test_async_is_running_and_cancel(session):
     # If query is canceled, it takes less time than originally needed
     assert (time() - start) < 10
     assert async_job2.is_done()
+
+
+def test_async_place_holder(session):
+    exp = session.sql("show functions").where("1=1").collect()
+    async_job = session.sql("show functions").where("1=1").collect_nowait()
+    Utils.check_answer(async_job.result(), exp)

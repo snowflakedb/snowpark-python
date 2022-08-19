@@ -27,12 +27,12 @@ class _AsyncDataType(Enum):
 
 
 class AsyncJob:
-    """Provides a way to track an asynchronous query in Snowflake. A :class:`DataFrame` object can be evaluated asynchronously and an :class:`AsyncJob` object will be returned. With this instance, you can do:
+    """Provides a way to track an asynchronous query in Snowflake. A :class:`DataFrame` object can be evaluated asynchronously and an :class:`AsyncJob` object will be returned. With this instance, you can:
     - retrieve results;
     - check the query status (still running or done);
     - cancel the running query;
     - retrieve the query ID and perform other operations on this query ID manually.
-    :class:`AsyncJob` is created by action methods in :class:`DataFrame`. Therefore, to use it, you need to create a
+    :class:`AsyncJob` is created by action methods in :class:`DataFrame`. All :meth:`DataFrame.function_nowait` execute asynchronously and create a :class:`AsyncJob` instance. They are also equivalent to :meth:`DataFrame.function` that set block=False. Therefore, to use it, you need to create a
     dataframe first. Here we demonstrate how to do that:
 
 
@@ -106,6 +106,25 @@ class AsyncJob:
             >>> async_job = df.collect_nowait()
             >>> async_job.cancel()
 
+    Example 9
+        Executing two queries asynchronously is faster than executing two queries one by one::
+
+            >>> from time import time
+            >>> df1 = session.sql("select SYSTEM$WAIT(3)")
+            >>> df2 = session.sql("select SYSTEM$WAIT(3)")
+            >>> start = time()
+            >>> df1.collect()
+            >>> df2.collect()
+            >>> time1 = time() - start
+            >>> start = time()
+            >>> async_job1 = df1.collect_nowait()
+            >>> async_job2 = df2.collect_nowait()
+            >>> async_job1.result()
+            >>> async_job2.result()
+            >>> time2 = time() - start
+            >>> time2 < time1
+            True
+
     Note:
         - If a dataframe is associated with multiple queries,
             + if you use :meth:`Session.create_dataframe` to create a dataframe from a large amount of local data and evaluate this dataframe asynchronously, data will still be loaded into Snowflake synchronously, and only fetching data from Snowflake again will be performed asynchronously.
@@ -137,7 +156,7 @@ class AsyncJob:
         self._plan = None
 
     def is_done(self) -> bool:
-        """Check the status of the query associated with this instance and returns a bool value indicating whether the query has
+        """Checks the status of the query associated with this instance and returns a bool value indicating whether the query has
         finished.
 
         """

@@ -463,8 +463,13 @@ BEGIN
     return table(res);
 END;
 $$"""
-                for holder, id_ in placeholders.items():
-                    final_query = final_query.replace(holder, id_)
+                # In multiple queries scenario, we are unable to get the query id of former query, so we replace
+                # place holder with fucntion last_query_id() here
+                for q in plan.queries:
+                    final_query = final_query.replace(
+                        f"'{q.query_id_place_holder}'", "LAST_QUERY_ID()"
+                    )
+
                 result = self.run_query(
                     final_query,
                     to_pandas,
@@ -475,10 +480,7 @@ $$"""
                     **kwargs,
                 )
                 result.query = final_query
-                for q in plan.queries:
-                    placeholders[q.query_id_place_holder] = (
-                        result["sfqid"] if block else result.query_id
-                    )
+
                 # since we will return a AsyncJob instance, result_meta is not needed, we will create reuslt_meta in
                 # AsyncJob instance when needed
                 result_meta = None
