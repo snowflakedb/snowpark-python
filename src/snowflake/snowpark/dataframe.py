@@ -112,8 +112,6 @@ from snowflake.snowpark.table_function import (
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
-from ._internal.analyzer.snowflake_plan import SnowflakePlan
-
 _logger = getLogger(__name__)
 
 _ONE_MILLION = 1000000
@@ -744,8 +742,12 @@ class DataFrame:
                 else:
                     table_func = e
                     func_expr = _create_table_function_expression(func=table_func)
-                    join_plan = self._session._analyzer.resolve(TableFunctionJoin(self._plan, func_expr))
-                    _, new_cols = _get_cols_after_join_table(self._session, table_func, self._plan, join_plan)
+                    join_plan = self._session._analyzer.resolve(
+                        TableFunctionJoin(self._plan, func_expr)
+                    )
+                    _, new_cols = _get_cols_after_join_table(
+                        func_expr, self._plan, join_plan
+                    )
                     names.extend(new_cols)
             else:
                 raise TypeError(
@@ -1783,9 +1785,13 @@ class DataFrame:
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
         )
-        if func._aliases:
-            join_plan = self._session._analyzer.resolve(TableFunctionJoin(self._plan, func_expr))
-            old_cols, new_cols = _get_cols_after_join_table(self._session, func, self._plan, join_plan)
+        if func_expr.aliases:
+            join_plan = self._session._analyzer.resolve(
+                TableFunctionJoin(self._plan, func_expr)
+            )
+            old_cols, new_cols = _get_cols_after_join_table(
+                func_expr, self._plan, join_plan
+            )
             return self._with_plan(Project([*old_cols, *new_cols], join_plan))
 
         return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
@@ -1864,7 +1870,9 @@ class DataFrame:
         )
 
     @df_api_usage
-    def with_column(self, col_name: str, col: Union[Column, TableFunctionCall]) -> "DataFrame":
+    def with_column(
+        self, col_name: str, col: Union[Column, TableFunctionCall]
+    ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
         ``col_name``. The column is computed by using the specified expression ``col``.
@@ -1891,7 +1899,9 @@ class DataFrame:
         return self.with_columns([col_name], [col])
 
     @df_api_usage
-    def with_columns(self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]) -> "DataFrame":
+    def with_columns(
+        self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]
+    ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
         ``values``.

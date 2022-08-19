@@ -5,10 +5,6 @@
 """Contains table function related classes."""
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
-from ._internal.analyzer.analyzer_utils import quote_name
-
-from ._internal.analyzer.snowflake_plan import SnowflakePlan
-
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
     NamedArgumentsTableFunction,
@@ -19,6 +15,9 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import validate_object_name
 from snowflake.snowpark.column import Column, _to_col_if_str
+
+from ._internal.analyzer.analyzer_utils import quote_name
+from ._internal.analyzer.snowflake_plan import SnowflakePlan
 
 
 class TableFunctionCall:
@@ -109,7 +108,7 @@ class TableFunctionCall:
             new_table_function._order_by = order_spec
         return new_table_function
 
-    def alias(self, aliases = List[str]):
+    def alias(self, aliases=List[str]):
         canonicalized_aliases = [quote_name(col) for col in aliases]
 
         value_set = set(canonicalized_aliases)
@@ -142,6 +141,7 @@ def _create_table_function_expression(
     over = None
     partition_by = None
     order_by = None
+    aliases = None
     if args and named_args:
         raise ValueError("A table function shouldn't have both args and named args.")
     if isinstance(func, str):
@@ -161,6 +161,7 @@ def _create_table_function_expression(
         over = func._over
         partition_by = func._partition_by
         order_by = func._order_by
+        aliases = func._aliases
     else:
         raise TypeError(
             "'func' should be a function name in str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
@@ -183,17 +184,22 @@ def _create_table_function_expression(
         if over
         else None
     )
+    table_function_expression.aliases = aliases
     return table_function_expression
 
 
-def _get_cols_after_join_table(session, func: TableFunctionCall, current_plan: SnowflakePlan, join_plan: SnowflakePlan) -> Tuple[List, List]:
+def _get_cols_after_join_table(
+    func_expr: TableFunctionExpression,
+    current_plan: SnowflakePlan,
+    join_plan: SnowflakePlan,
+) -> Tuple[List, List]:
     def get_column_names_from_plan(plan: SnowflakePlan) -> List[str]:
-        return [ attr.name for attr in plan.output ]
+        return [attr.name for attr in plan.output]
 
     # we ensure that all columns coming after the join should be unique
     cols_before_join = get_column_names_from_plan(current_plan)
     cols_after_join = get_column_names_from_plan(join_plan)
-    aliases = func._aliases
+    aliases = func_expr.aliases
 
     new_cols = [col for col in cols_after_join if col not in cols_before_join]
     old_cols = [Column(col)._named() for col in cols_before_join]
@@ -204,8 +210,11 @@ def _get_cols_after_join_table(session, func: TableFunctionCall, current_plan: S
             raise ValueError(
                 f"The number of aliases should be same as the number of cols added by table function. "
                 f"Columns added by table function are {new_cols} and aliases given are {aliases}"
-                )
-        new_cols = [Column(col).alias(alias_col)._named() for col, alias_col in zip(new_cols, aliases)]
+            )
+        new_cols = [
+            Column(col).alias(alias_col)._named()
+            for col, alias_col in zip(new_cols, aliases)
+        ]
     else:
         new_cols = [Column(col)._named() for col in new_cols]
 

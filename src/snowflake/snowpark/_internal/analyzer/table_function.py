@@ -27,10 +27,12 @@ class TableFunctionExpression(Expression):
         self,
         func_name: str,
         partition_spec: Optional[TableFunctionPartitionSpecDefinition] = None,
+        aliases: Optional[List[str]] = None,
     ) -> None:
         super().__init__()
         self.func_name = func_name
         self.partition_spec = partition_spec
+        self.aliases = aliases
 
 
 class FlattenFunction(TableFunctionExpression):
