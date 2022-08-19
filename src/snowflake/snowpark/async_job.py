@@ -113,14 +113,14 @@ class AsyncJob:
             >>> df1 = session.sql("select SYSTEM$WAIT(3)")
             >>> df2 = session.sql("select SYSTEM$WAIT(3)")
             >>> start = time()
-            >>> df1.collect()
-            >>> df2.collect()
+            >>> sync_res1 = df1.collect()
+            >>> sync_res2 = df2.collect()
             >>> time1 = time() - start
             >>> start = time()
             >>> async_job1 = df1.collect_nowait()
             >>> async_job2 = df2.collect_nowait()
-            >>> async_job1.result()
-            >>> async_job2.result()
+            >>> async_res1 = async_job1.result()
+            >>> async_res2 = async_job2.result()
             >>> time2 = time() - start
             >>> time2 < time1
             True
