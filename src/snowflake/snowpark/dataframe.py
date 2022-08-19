@@ -108,8 +108,11 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
     _create_table_function_expression,
+    _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
+
+from ._internal.analyzer.snowflake_plan import SnowflakePlan
 
 _logger = getLogger(__name__)
 
@@ -683,7 +686,10 @@ class DataFrame:
     @df_api_usage
     def select(
         self,
-        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        *cols: Union[
+            Union[ColumnOrName, TableFunctionCall],
+            Iterable[Union[ColumnOrName, TableFunctionCall]],
+        ],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -707,24 +713,47 @@ class DataFrame:
 
             >>> df_selected = df.select(df["col1"], df.col2, df.col("col3"))
 
+        Example 5::
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df_selected = df.select(df.col1, split_to_table(df.col2, lit(" ")), df.col("col3"))
+
         Args:
-            *cols: A :class:`Column`, :class:`str`, or a list of those.
+            *cols: A :class:`Column`, :class:`str`, :class:`TableFunctionCall`, or a list of those.
         """
         exprs = parse_positional_args_to_list(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
 
         names = []
+        table_func = None
+        join_plan = None
+
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
             elif isinstance(e, str):
                 names.append(Column(e)._named())
+            elif isinstance(e, TableFunctionCall):
+                if table_func:
+                    raise ValueError(
+                        f"More than one table function cannot be called inside a select(). "
+                        f"Called '{table_func.name}' and '{e.name}'."
+                    )
+                else:
+                    table_func = e
+                    func_expr = _create_table_function_expression(func=table_func)
+                    join_plan = self._session._analyzer.resolve(TableFunctionJoin(self._plan, func_expr))
+                    _, new_cols = _get_cols_after_join_table(self._session, table_func, self._plan, join_plan)
+                    names.extend(new_cols)
             else:
                 raise TypeError(
-                    "The input of select() must be Column, column name, or a list of them"
+                    "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
 
+        if join_plan:
+            return self._with_plan(Project(names, join_plan))
         return self._with_plan(Project(names, self._plan))
 
     @df_api_usage
@@ -1722,20 +1751,20 @@ class DataFrame:
             ...     ["Cathy", "Stone", "address4 address5 address6"],
             ... ],
             ... schema=["first_name", "last_name", "addresses"])
-            >>> df.join_table_function(split_to_table(df["addresses"], lit(" ")).over(partition_by="last_name", order_by="first_name")).show()
-            ----------------------------------------------------------------------------------------
-            |"FIRST_NAME"  |"LAST_NAME"  |"ADDRESSES"                 |"SEQ"  |"INDEX"  |"VALUE"   |
-            ----------------------------------------------------------------------------------------
-            |John          |James        |address1 address2 address3  |1      |1        |address1  |
-            |John          |James        |address1 address2 address3  |1      |2        |address2  |
-            |John          |James        |address1 address2 address3  |1      |3        |address3  |
-            |Mike          |James        |address4 address5 address6  |2      |1        |address4  |
-            |Mike          |James        |address4 address5 address6  |2      |2        |address5  |
-            |Mike          |James        |address4 address5 address6  |2      |3        |address6  |
-            |Cathy         |Stone        |address4 address5 address6  |3      |1        |address4  |
-            |Cathy         |Stone        |address4 address5 address6  |3      |2        |address5  |
-            |Cathy         |Stone        |address4 address5 address6  |3      |3        |address6  |
-            ----------------------------------------------------------------------------------------
+            >>> df.join_table_function(split_to_table(df["addresses"], lit(" ")).over(partition_by="last_name", order_by="first_name").alias(["seq", "idx", "val"])).show()
+            --------------------------------------------------------------------------------------
+            |"FIRST_NAME"  |"LAST_NAME"  |"ADDRESSES"                 |"SEQ"  |"IDX"  |"VAL"     |
+            --------------------------------------------------------------------------------------
+            |John          |James        |address1 address2 address3  |1      |1      |address1  |
+            |John          |James        |address1 address2 address3  |1      |2      |address2  |
+            |John          |James        |address1 address2 address3  |1      |3      |address3  |
+            |Mike          |James        |address4 address5 address6  |2      |1      |address4  |
+            |Mike          |James        |address4 address5 address6  |2      |2      |address5  |
+            |Mike          |James        |address4 address5 address6  |2      |3      |address6  |
+            |Cathy         |Stone        |address4 address5 address6  |3      |1      |address4  |
+            |Cathy         |Stone        |address4 address5 address6  |3      |2      |address5  |
+            |Cathy         |Stone        |address4 address5 address6  |3      |3      |address6  |
+            --------------------------------------------------------------------------------------
             <BLANKLINE>
 
         Args:
@@ -1754,6 +1783,11 @@ class DataFrame:
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
         )
+        if func._aliases:
+            join_plan = self._session._analyzer.resolve(TableFunctionJoin(self._plan, func_expr))
+            old_cols, new_cols = _get_cols_after_join_table(self._session, func, self._plan, join_plan)
+            return self._with_plan(Project([*old_cols, *new_cols], join_plan))
+
         return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
 
     @df_api_usage
@@ -1830,7 +1864,7 @@ class DataFrame:
         )
 
     @df_api_usage
-    def with_column(self, col_name: str, col: Column) -> "DataFrame":
+    def with_column(self, col_name: str, col: Union[Column, TableFunctionCall]) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
         ``col_name``. The column is computed by using the specified expression ``col``.
@@ -1857,7 +1891,7 @@ class DataFrame:
         return self.with_columns([col_name], [col])
 
     @df_api_usage
-    def with_columns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
+    def with_columns(self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
         ``values``.
@@ -1879,8 +1913,9 @@ class DataFrame:
 
         Args:
             col_names: A list of the names of the columns to add or replace.
-            values: A list of the :class:`Column` objects to
-                    add or replace.
+            values: A list of the :class:`Column` objects or at most one
+                    :class:`TableFunctionCall` object with single column output
+                    to add or replace.
         """
         if len(col_names) != len(values):
             raise ValueError(
@@ -1896,7 +1931,12 @@ class DataFrame:
                 "The same column name is used multiple times in the col_names parameter."
             )
 
-        new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
+        new_cols = []
+        for name, col in zip(qualified_names, values):
+            if isinstance(col, Column):
+                new_cols.append(col.as_(name))
+            else:
+                new_cols.append(col.alias([name]))
 
         # Get a list of existing column names that are not being replaced
         old_cols = [
