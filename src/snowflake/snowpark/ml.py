@@ -117,39 +117,94 @@ def corr_mt(df):
 
 
 # The target function for the mixed approach
-def corr_mixed_tgt(session_dict, query_id, cols):
+def corr_mixed_tgt(wastage, session_dict, query_id, cols1, cols2):
     session_new = session_dict[current_thread().name]
+    temp = True
+    count = 0
 
-    ans = session_new.call('proc_3', query_id, cols)
+    # Handling SNOW-640816 bug. Will only be tried 4 times.
+    while temp and count < 4:
+        try:
+            ans = session_new.call('proc_3', query_id, cols1, cols2)
+        except Exception as e:
+            temp = True
+            count += 1
+            print(e, flush=True)
+            continue
+        temp = False
 
+    if count > 0:
+        print(count, flush=True)
     return ans
 
 
 # Mixed approach
-def corr_mixed(session, df):
-
-    n = 10
+def corr_mixed(session, df, n):
     session_dict = {}
     cols = list(df.columns)
-
-    ans = []
+    shard_size = 200
+    final_ans = [[] for _ in range(len(cols))]
     futures = []
+    wastage = {}
+    ct = 0
+    maxi = 0
 
-    query_id = session.call('helper', df.queries['queries'][0])
-    # query_id = session.sql('select last_query_id()').collect()
+    # To store information about each component of the stored procedure execution time.
+    logs = []
+
+    # Execute the query once to load data. As the data can be huge, pandas_batches is used.
+    df = session.sql(df.queries['queries'][0]).to_pandas_batches()
+
+    # Executes the query of the above DataFrame
+    for j in df:
+        a = j
+
+    # Retrieve the query id
+    query_id = session.sql('select last_query_id()').collect()[0][0]
+
+    # Spawn multiple threads.
     with ThreadPoolExecutor(max_workers=300, initializer=initializer_worker,
                             initargs=tuple([session_dict])) as executor:
-        for i in range(0, len(cols), n):
-            futures.append(executor.submit(corr_mixed_tgt, session_dict, query_id, cols[i:min(i + n, len(cols))]))
+
+        for i in range(0, len(cols), shard_size):
+            for j in range(i + 1, len(cols), n):
+                futures.append(
+                    executor.submit(corr_mixed_tgt, wastage, session_dict, query_id, cols[i:min(i + shard_size, len(cols))],
+                                    cols[j:min(j + n, len(cols))]))
 
         wait(futures)
-        for future in futures:
-            res = future.result()
-            ans = ans + ast.literal_eval(res)
 
-    return pandas.DataFrame(ans, columns=cols, index=cols).replace({numpy.nan: None})
+    # Retrieve the results
+    for i in range(0, len(cols), shard_size):
+
+        for j in range(i + 1, len(cols), n):
+
+            res = ast.literal_eval(futures[ct].result())
+            for k in range(j, min(j + n, len(cols))):
+                final_ans[k] += res[k - j]
+
+            log = res.pop()
+            logs.append(log)
+
+            maxi = max(maxi, sum([float(i) for i in log[0].split(',')]))
+
+            ct += 1
+    session_dict.clear()
+
+    for i in range(len(cols)):
+        for j in range(len(final_ans[i]), len(cols)):
+
+            if i == j:
+                final_ans[i].append(1)
+            else:
+                final_ans[i].append(final_ans[j][i])
+
+    # Maximum amount of time a stored procedure took
+    print(maxi)
+    return pandas.DataFrame(final_ans, columns=cols, index=cols).replace({numpy.nan: None}).astype(float).round(3), logs
 
 
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  Grid Search Project
 def hp_sp(input_cols, output_col, query, file_name):
 
     dbfile = open(file_name, 'rb')
