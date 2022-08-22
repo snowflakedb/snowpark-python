@@ -201,8 +201,9 @@ def check_func_type(func: Any) -> None:
         or inspect.ismethod(func)
         or not (isinstance(func, (FunctionType, BuiltinFunctionType)))
     ):
-        logger.debug(f"Code generation for {type(func)} is not supported yet.")
-        raise TypeError(f"Code generation for {type(func)} is not supported yet.")
+        error_msg = f"Code generation for {type(func)} is not supported yet."
+        logger.debug(error_msg)
+        raise TypeError(error_msg)
 
 
 def generate_source_code(
@@ -334,7 +335,7 @@ def get_lambda_code_text(code_text: str) -> str:
             lambda_code_text = f"{lambda_code_text}{line[: lambda_node.end_col_offset]}"
         else:
             lambda_code_text = f"{lambda_code_text}{line}\n"
-    return lambda_code_text
+    return lambda_code_text.strip()
 
 
 def extract_submodule_imports(
@@ -444,10 +445,7 @@ def resolve_target_func_referenced_objects_by_type(
 """
                 except Exception as exc:
                     logger.debug(
-                        "Unable to generate source code for object %s of type %s due to exception %r",
-                        type(name),
-                        type(obj),
-                        exc,
+                        f"Unable to generate source code for object {name} of type {type(obj)} due to exception {exc}"
                     )
                     raise
     return func_text, global_vars_text
@@ -462,12 +460,12 @@ def resolve_target_func_imports(
     """
     imports = [
         f"import {name + ' as ' if name != alias else ''}{alias}"
-        for name, alias in to_import
+        for name, alias in sorted(to_import)
     ]
-    for module, name_alias_pair in to_import_from_module.items():
+    for module, name_alias_pairs in sorted(to_import_from_module.items()):
         classes = ", ".join(
             f"{name + ' as ' if name != alias else ''}{alias}"
-            for name, alias in name_alias_pair
+            for name, alias in sorted(name_alias_pairs)
         )
         imports.append(f"from {module} import {classes}")
     return "\n".join(imports) + ("\n" if imports else "")
