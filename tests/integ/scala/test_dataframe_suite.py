@@ -1106,7 +1106,7 @@ def test_select_negative_select(session):
 
     with pytest.raises(ValueError) as ex_info:
         df.select(two_x_udtf("a"), "b", two_x_udtf("c"))
-    assert "More than one table function cannot be called" in str(ex_info)
+    assert "At most one table function can be called" in str(ex_info)
 
 
 def test_drop_and_dropcolumns(session):
