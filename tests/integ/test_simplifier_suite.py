@@ -375,7 +375,6 @@ def test_filter(session, simplifier_table):
         df1.queries["queries"][-1]
         == f'SELECT  *  FROM  {simplifier_table}  WHERE  (("A" > 1 :: bigint) AND ("B" > 2 :: bigint))'
     )
-    # print(df1.queries["queries"][-1])
 
     # flatten
     df2 = df.select("a", "b").filter((col("a") > 1) & (col("b") > 2))
@@ -383,7 +382,6 @@ def test_filter(session, simplifier_table):
         df2.queries["queries"][-1]
         == f'SELECT  "A","B"  FROM  {simplifier_table}  WHERE  (("A" > 1 :: bigint) AND ("B" > 2 :: bigint))'
     )
-    # print(df2.queries["queries"][-1])
 
     # flatten because c is a new column
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).filter(
@@ -393,7 +391,6 @@ def test_filter(session, simplifier_table):
         df3.queries["queries"][-1]
         == f'SELECT  "A","B",("A" - "B") AS "C"  FROM  {simplifier_table}  WHERE  ((("A" > 1 :: bigint) AND ("B" > 2 :: bigint)) AND ("C" < 1 :: bigint))'
     )
-    # print(df3.queries["queries"][-1])
 
     # no flatten because a and be are changed
     df4 = df.select((col("a") + 1).as_("a"), (col("b") + 1).as_("b")).filter(
@@ -403,7 +400,6 @@ def test_filter(session, simplifier_table):
         df4.queries["queries"][-1]
         == f'SELECT  *  FROM  ( SELECT  ("A" + 1 :: bigint) AS "A",("B" + 1 :: bigint) AS "B"  FROM  {simplifier_table})  WHERE  (("A" > 1 :: bigint) AND ("B" > 2 :: bigint))'
     )
-    # print(df4.queries["queries"][-1])
 
     df5 = df4.select("a")
     print(df5.queries["queries"][-1])
@@ -431,13 +427,13 @@ def test_limit(session, simplifier_table):
         df.queries["queries"][-1] == f"SELECT  *  FROM  {simplifier_table}  LIMIT  10"
     )
 
-    df = session.sql("select * from test_table")
+    df = session.sql(f"select * from {simplifier_table}")
     df = df.limit(10)
     # we don't know if the original sql already has top/limit clause using a subquery is necessary.
     #  or else there will be SQL compile error.
     assert (
         df.queries["queries"][-1]
-        == "SELECT  *  FROM  (select * from test_table)  LIMIT  10"
+        == f"SELECT  *  FROM  (select * from {simplifier_table})  LIMIT  10"
     )
 
 
