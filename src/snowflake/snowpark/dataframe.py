@@ -737,19 +737,18 @@ class DataFrame:
             elif isinstance(e, TableFunctionCall):
                 if table_func:
                     raise ValueError(
-                        f"More than one table function cannot be called inside a select(). "
+                        f"At most one table function can be called inside a select(). "
                         f"Called '{table_func.name}' and '{e.name}'."
                     )
-                else:
-                    table_func = e
-                    func_expr = _create_table_function_expression(func=table_func)
-                    join_plan = self._session._analyzer.resolve(
-                        TableFunctionJoin(self._plan, func_expr)
-                    )
-                    _, new_cols = _get_cols_after_join_table(
-                        func_expr, self._plan, join_plan
-                    )
-                    names.extend(new_cols)
+                table_func = e
+                func_expr = _create_table_function_expression(func=table_func)
+                join_plan = self._session._analyzer.resolve(
+                    TableFunctionJoin(self._plan, func_expr)
+                )
+                _, new_cols = _get_cols_after_join_table(
+                    func_expr, self._plan, join_plan
+                )
+                names.extend(new_cols)
             else:
                 raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
