@@ -1346,7 +1346,8 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operate(
-                    SelectSnowflakePlan(other._plan), operator="UNION"
+                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    operator="UNION",
                 )
             )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
@@ -1378,7 +1379,8 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operate(
-                    SelectSnowflakePlan(other._plan), operator="UNION ALL"
+                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    operator="UNION ALL",
                 )
             )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
@@ -1493,7 +1495,8 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operate(
-                    SelectSnowflakePlan(other._plan), operator="INTERSECT"
+                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    operator="INTERSECT",
                 )
             )
         return self._with_plan(Intersect(self._plan, other._plan))
@@ -1523,7 +1526,8 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operate(
-                    SelectSnowflakePlan(other._plan), operator="EXCEPT"
+                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    operator="EXCEPT",
                 )
             )
         return self._with_plan(Except(self._plan, other._plan))

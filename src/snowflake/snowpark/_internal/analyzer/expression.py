@@ -116,7 +116,7 @@ class Star(Expression):
         self.expressions = expressions
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return None
+        return COLUMN_DEPENDENCY_EMPTY
 
 
 class Attribute(Expression, NamedExpression):
