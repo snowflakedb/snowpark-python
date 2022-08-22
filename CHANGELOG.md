@@ -1,4 +1,11 @@
 # Release History
+## 0.9.0 (Unreleased)
+
+### New Features:
+- Added support for displaying source code as comments in the generated scripts when registering UDFs.
+This feature is turned on by default and could be turned off by passing the new keyword argument `source_code_display` as `False` when calling `register()` or `@udf()`.
+
+
 ## 0.8.0 (2022-07-22)
 
 ### New Features:

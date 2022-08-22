@@ -13,7 +13,7 @@ import textwrap
 from collections import defaultdict
 from logging import getLogger
 from types import BuiltinFunctionType, CodeType, FunctionType, ModuleType
-from typing import Any, Iterable, Set, Union
+from typing import Any, Dict, Iterable, List, Set, Tuple, Union
 
 import opcode
 
@@ -34,7 +34,15 @@ import pickle
 """
 
 
-def get_func_references(func: FunctionType, ref_objects: dict) -> None:
+def get_func_references(func: FunctionType, ref_objects: Dict[str, Any]) -> None:
+    """
+    Get the objects references by target func, they could be methods, modules, classes, methods, global variables
+    and its closures.
+
+    param func: The function to be analyzed.
+    param ref_objects: A dict of the referenced objects with key being the name and value being the referenced object.
+
+    """
     # 1. resolve function global references
     code_object = func.__code__
     globals_ref = extract_func_global_refs(
@@ -61,44 +69,84 @@ def get_func_references(func: FunctionType, ref_objects: dict) -> None:
         for k, v in closures.items():
             ref_objects[k] = v
             # if the closure item is a function and is not itself (recursive) and has not been visited
-            if isinstance(v, FunctionType) and k not in ref_objects and v != func:
+            if isinstance(v, FunctionType) and v != func:
                 get_func_references(v, ref_objects)
 
 
 def get_class_references(
-    cls: type, func_module_name: str, ref_objects: dict, classes_to_generate: list
+    cls: type,
+    func: FunctionType,
+    ref_objects: Dict[str, Any],
+    classes_to_generate: list,
+    *,
+    generate_code_for_class: bool = True,
 ) -> None:
     """
-    To get the referenced objects of a dynamically defined class.
-    A class could have methods, classes referencing objects.
+    To get the referenced objects of a class defined in the same module.
+    A class could have methods, subclasses referencing other objects.
 
     """
-    # order matters to classes_to_generate, when constructing source code, referenced classes need to be defined first.
-    classes_to_generate.insert(0, cls)
-    # get base classes first
-    inferred_clses = [v for v in reversed(cls.__bases__) if v.__qualname__ != "object"]
+    func_module_name = func.__module__
+
+    if generate_code_for_class:
+        # order matters to classes_to_generate, when constructing source code,
+        # referenced classes need to be defined first.
+        classes_to_generate.insert(0, cls)
+
+    inferred_classes: List[Tuple[Any, bool]] = []
+
+    for base_class in cls.__bases__:
+        base_class_name = base_class.__qualname__
+        top_level_class = base_class_name.split(".")[0]
+        if base_class_name == "object":
+            continue
+        elif base_class.__module__ == func_module_name:
+            # if base class is from the same module, we need to parse the class as well as generate code for the class
+            # False in the tuple means this is not a nested class
+            inferred_classes.append((base_class, False))
+        else:
+            # if base class is from another module, we need to import it
+            ref_objects[top_level_class] = func.__globals__[top_level_class]
 
     # __dict__ contains function, classmethod, classes attributes within a given class which
     # needs to be further analyzed
-    clsdict = dict(cls.__dict__)
-    for v in clsdict.values():
-        if isinstance(v, type) and v.__module__ == func_module_name:
-            # v is a class defined in the same module as UDF func's, need to dynamically parse the class
-            inferred_clses.append(v)
+    for v in dict(cls.__dict__).values():
+        if inspect.isclass(v):
+            top_level_cls_name = v.__qualname__.split(".")[0]
+            if v.__module__ == func_module_name:
+                # v is a class defined in the same module as UDF func's, need to dynamically parse the class
+                # if v is class defined in cls, then we should not re-generate code for the nested class
+                inferred_classes.append(
+                    (v, v.__qualname__.startswith(top_level_cls_name))
+                )
+            else:
+                # v is a class defined in another module, import the top level class from another module
+                ref_objects[top_level_cls_name] = v
         elif inspect.isfunction(v) or isinstance(v, classmethod):
             # v is a function/classmethod, get the references objects of the Function object
             get_func_references(
                 v if not isinstance(v, classmethod) else v.__func__, ref_objects
             )
+        else:
+            # cls.__dict__ would also return __module__, __doc__, __weakref__ which are not required
+            # for code generation, however, class variables is also included in __dict__, we don't do value evaluation
+            # for them in the current implementation (e.g. the declaration of class variables is assigned the
+            # result of function call). But we shall introduce an argument to control the behavior,
+            # check JIRA SNOW-649884
+            pass
 
-    # recursively handling classes that should be parsed dynamically
-    for more_cls in inferred_clses:
+    # recursively handling inferred classes that should be analyzed dynamically
+    for inferred_class, is_nested_class in inferred_classes:
         get_class_references(
-            more_cls, func_module_name, ref_objects, classes_to_generate
+            inferred_class,
+            func,
+            ref_objects,
+            classes_to_generate,
+            generate_code_for_class=not is_nested_class,
         )
 
 
-def extract_func_global_refs(code: CodeType) -> dict:
+def extract_func_global_refs(code: CodeType) -> Dict[str, None]:
     # inspired by cloudpickle to recursively extract all the global references used by the target func's code object
     co_names = code.co_names
     out_names = {}
@@ -121,22 +169,30 @@ def remove_function_udf_annotation(
     if code_as_comment:
         return udf_source_code
     # remove the udf/pandas_udf annotation to avoid re-registration
-    res = re.search(r"@(udf|pandas_udf)\(", udf_source_code)
+    res = re.search(r"@(pandas_)?udf", udf_source_code)
     if res is None:
         return udf_source_code
     udf_anno_begin = res.start()
     udf_anno_end = res.end()
-    cnt = 1
+    if udf_source_code[udf_anno_end] == "\n":
+        # just @udf
+        return udf_source_code[udf_anno_end + 1 :]
+    elif udf_source_code[udf_anno_end] != "(":
+        # not a @udf
+        return udf_source_code
+
+    udf_anno_end = udf_anno_end + 1
+    parenthesis_count = 1
 
     # find the pairing ')' of the leading 'udf('
-    while cnt != 0:
+    while parenthesis_count != 0:
         if udf_source_code[udf_anno_end] == "(":
-            cnt += 1
+            parenthesis_count += 1
         elif udf_source_code[udf_anno_end] == ")":
-            cnt -= 1
+            parenthesis_count -= 1
         udf_anno_end += 1
 
-    return udf_source_code[:udf_anno_begin] + udf_source_code[udf_anno_end:]
+    return f"{udf_source_code[:udf_anno_begin].strip()}\n{udf_source_code[udf_anno_end:].strip()}".strip()
 
 
 def check_func_type(func: Any) -> None:
@@ -172,123 +228,48 @@ def generate_source_code(
         check_func_type(func)
     except TypeError:
         if code_as_comment:
-            # if it is an unsupported type, then no code generation and return emtpy string
+            # if it is an unsupported type, then no code generation and return empty string
             return ""
         raise
 
     # stored referenced object, key is the object name, value is the object
-    ref_objects = {}
+    ref_objects: Dict[str, Any] = {}
     # stored modules, each item should be a tuple of two strings, first is the true module name, second is the used name
     # such as alias or just the name
-    to_import = set()
+    to_import: Set[Tuple[str, str]] = set()
     # imports class/funcs/vars form other modules, each key is the module name
     # each item is a set of tuples of two strings as the to_import, first module name, second alias
-    to_import_from_module = defaultdict(set)
+    to_import_from_module: Dict[str, Set[Tuple[str, str]]] = defaultdict(set)
     # classes that should be generated source code
-    classes_to_generate = []
+    classes_to_generate: List[type] = []
 
     header_text = CODE_AS_COMMENT_HINT if code_as_comment else CODE_HEADER
-    global_vars_text = ""
-    func_text = ""
     classes_text = ""
 
-    func_module_name = func.__module__
+    # 1. find objects referenced by functions including classes, methods, modules, global variables
+    find_target_func_objects_references(
+        func, to_import, ref_objects, classes_to_generate
+    )
 
-    # 1. Resolve objects referenced by functions including classes, methods, modules, global variables
-    if isinstance(func, FunctionType):
-        get_func_references(func, ref_objects)
-        to_import = to_import.union(
-            extract_submodule_imports(
-                func, [v for v in ref_objects.values() if isinstance(v, ModuleType)]
-            )
-        )
-        for v in [
-            v
-            for v in ref_objects.values()
-            if inspect.isclass(v) and v.__module__ == func_module_name
-        ]:
-            get_class_references(v, func_module_name, ref_objects, classes_to_generate)
-    elif isinstance(func, BuiltinFunctionType):
-        if func_module_name != builtins.__name__:
-            to_import.add((func_module_name, func_module_name))
-
-    # 2. Dealing with the referenced objects by types
-    for name, obj in ref_objects.items():
-        if obj == func:
-            continue
-        if inspect.ismodule(obj):
-            # a) imported modules
-            to_import.add((obj.__name__, name))  # name could be an alias
-        elif (
-            inspect.isclass(obj) or inspect.isfunction(obj)
-        ) and obj.__module__ != func_module_name:
-            # b) classes or functions imported from other modules
-            to_import_from_module[obj.__module__].add(
-                (obj.__name__, name)
-            )  # name could be an alias
-        else:
-            # function/class/variables defined in the same module
-            if inspect.isfunction(obj):
-                func_text += textwrap.dedent(inspect.getsource(obj))
-            elif inspect.isclass(obj):
-                # dynamic class parsing will be handled separately
-                pass
-            else:
-                # c) global variables used by UDF
-                if code_as_comment:
-                    global_vars_text += f"{name}  # variable of type {type(obj)}\n"
-                    continue  # skip the serialization part if we just need code as comment
-                # v does not have source code, then it's a global variable of which the value has been evaluated
-                try:
-                    global_vars_text += f"""
-{name} = pickle.loads(bytes.fromhex('{pickle.dumps(obj).hex()}'))  \
-# {name} is of type {type(obj)} and serialized by snowpark-python
-"""
-                except Exception as exc:
-                    logger.debug(
-                        "Unable to generate source code for object %s of type %s due to exception %r",
-                        type(name),
-                        type(obj),
-                        exc,
-                    )
-                    raise
+    # 2. deal with the referenced objects by types
+    func_text, global_vars_text = resolve_target_func_referenced_objects_by_type(
+        func, to_import, to_import_from_module, ref_objects, code_as_comment
+    )
 
     # 3. deal with the classes defined in the same module as func's
     for cls in classes_to_generate:
-        classes_text += textwrap.dedent(inspect.getsource(cls))
+        classes_text = f"{classes_text}{textwrap.dedent(inspect.getsource(cls))}"
 
     # 4. deal with imports and alias
-    imports = [
-        f"import {name + ' as ' if name != alias else ''}{alias}"
-        for name, alias in to_import
-    ]
-    for module, name_alias_pair in to_import_from_module.items():
-        classes = ", ".join(
-            f"{name + ' as ' if name != alias else ''}{alias}"
-            for name, alias in name_alias_pair
-        )
-        imports.append(f"from {module} import {classes}")
+    imports_str = resolve_target_func_imports(to_import, to_import_from_module)
 
-    imports_str = "\n".join(imports) + ("\n" if imports else "")
+    # concatenating all the referenced parts
     complete_source_code = f"{header_text}{imports_str}{global_vars_text}{classes_text}{func_text}".rstrip()
 
     # 5. handle func, remove the udf annotation
-    if isinstance(func, FunctionType):
-        func_source_code = remove_function_udf_annotation(
-            textwrap.dedent(inspect.getsource(func))
-        )
-        if not is_lambda(func):
-            complete_source_code = f"{complete_source_code}\n{func_source_code}"
-        func_assignment = (
-            get_lambda_code_text(func_source_code) if is_lambda(func) else func.__name__
-        )
-    else:
-        # BuiltinFunctionType
-        func_assignment = (
-            func.__name__
-            if func_module_name == builtins.__name__
-            else f"{func_module_name}.{func.__name__}"
-        )
+    complete_source_code, func_assignment = handle_target_func_self_source_code(
+        func, complete_source_code
+    )
 
     # 6. handle function assignment
     complete_source_code = f"""\
@@ -297,16 +278,8 @@ def generate_source_code(
 """.strip()
 
     # 7. if code as comment is true, prefix each line with '#'
-    complete_source_code = (
-        complete_source_code
-        if not code_as_comment
-        else "\n".join(
-            [
-                f"#{f' {line}' if line else ''}"
-                for line in complete_source_code.splitlines()
-            ]
-        )
-    )
+    if code_as_comment:
+        complete_source_code = comment_source_code(complete_source_code)
 
     return complete_source_code.strip()
 
@@ -391,3 +364,143 @@ def extract_submodule_imports(
             ):  # only add imports that co_names contains
                 imports.add((name, name))
     return imports
+
+
+def find_target_func_objects_references(
+    func: Union[FunctionType, BuiltinFunctionType],
+    to_import: Set[Tuple[str, str]],
+    ref_objects: Dict[str, Any],
+    classes_to_generate: List[type],
+):
+    """
+    find objects referenced by functions including classes, methods, modules, global variables
+    """
+    func_module_name = func.__module__
+    if isinstance(func, FunctionType):
+        get_func_references(func, ref_objects)
+        to_import.update(
+            extract_submodule_imports(
+                func, [v for v in ref_objects.values() if isinstance(v, ModuleType)]
+            )
+        )
+        for v in [
+            v
+            for v in ref_objects.values()
+            if inspect.isclass(v) and v.__module__ == func_module_name
+        ]:
+            get_class_references(v, func, ref_objects, classes_to_generate)
+    elif isinstance(func, BuiltinFunctionType):
+        if func_module_name != builtins.__name__:
+            to_import.add((func_module_name, func_module_name))
+
+
+def resolve_target_func_referenced_objects_by_type(
+    func: Union[FunctionType, BuiltinFunctionType],
+    to_import: Set[Tuple[str, str]],
+    to_import_from_module: Dict[str, Set[Tuple[str, str]]],
+    ref_objects: Dict[str, Any],
+    code_as_comment: bool,
+):
+    """
+    deal with the referenced objects by types
+    handles modules/classes/methods/global variables
+    """
+    func_module_name = func.__module__
+    func_text = ""
+    global_vars_text = ""
+    for name, obj in ref_objects.items():
+        if obj == func:
+            continue
+        if inspect.ismodule(obj):
+            # a) imported modules
+            to_import.add((obj.__name__, name))  # name could be an alias
+        elif (
+            inspect.isclass(obj) or inspect.isfunction(obj)
+        ) and obj.__module__ != func_module_name:
+            # b) classes or functions imported from other modules
+            to_import_from_module[obj.__module__].add(
+                (obj.__name__, name)
+            )  # name could be an alias
+        else:
+            # function/class/variables defined in the same module
+            if inspect.isfunction(obj):
+                func_text += textwrap.dedent(inspect.getsource(obj))
+            elif inspect.isclass(obj):
+                # dynamic class parsing will be handled separately
+                pass
+            else:
+                # c) global variables used by UDF
+                if code_as_comment:
+                    global_vars_text = (
+                        f"{global_vars_text}{name}  # variable of type {type(obj)}\n"
+                    )
+                    continue  # skip the serialization part if we just need code as comment
+                # v does not have source code, then it's a global variable of which the value has been evaluated
+                try:
+                    global_vars_text = f"""\
+{global_vars_text}
+{name} = pickle.loads(bytes.fromhex('{pickle.dumps(obj).hex()}'))  \
+# {name} is of type {type(obj)} and serialized by snowpark-python
+"""
+                except Exception as exc:
+                    logger.debug(
+                        "Unable to generate source code for object %s of type %s due to exception %r",
+                        type(name),
+                        type(obj),
+                        exc,
+                    )
+                    raise
+    return func_text, global_vars_text
+
+
+def resolve_target_func_imports(
+    to_import: Set[Tuple[str, str]],
+    to_import_from_module: Dict[str, Set[Tuple[str, str]]],
+):
+    """
+    deal with imports and alias, generate imports strings
+    """
+    imports = [
+        f"import {name + ' as ' if name != alias else ''}{alias}"
+        for name, alias in to_import
+    ]
+    for module, name_alias_pair in to_import_from_module.items():
+        classes = ", ".join(
+            f"{name + ' as ' if name != alias else ''}{alias}"
+            for name, alias in name_alias_pair
+        )
+        imports.append(f"from {module} import {classes}")
+    return "\n".join(imports) + ("\n" if imports else "")
+
+
+def handle_target_func_self_source_code(func: FunctionType, complete_source_code: str):
+    """
+    handle the source code of the target func itself, function assignment
+    """
+    func_module_name = func.__module__
+    if isinstance(func, FunctionType):
+        func_source_code = remove_function_udf_annotation(
+            textwrap.dedent(inspect.getsource(func))
+        )
+        if not is_lambda(func):
+            complete_source_code = f"{complete_source_code}\n{func_source_code}"
+        func_assignment = (
+            get_lambda_code_text(func_source_code) if is_lambda(func) else func.__name__
+        )
+    else:
+        # BuiltinFunctionType
+        func_assignment = (
+            func.__name__
+            if func_module_name == builtins.__name__
+            else f"{func_module_name}.{func.__name__}"
+        )
+    return complete_source_code, func_assignment
+
+
+def comment_source_code(complete_source_code: str):
+    """
+    prefix each line in source code with '#'
+    """
+    return "\n".join(
+        [f"#{f' {line}' if line else ''}" for line in complete_source_code.splitlines()]
+    )
