@@ -12,7 +12,7 @@ def test_add_column_dependency():
     b = UnresolvedAttribute("B", False)
     add = Add(a, b)
     alias = Alias(add, "C")
-    assert a.dependent_column_names() == set()
-    assert b.dependent_column_names() == set()
+    assert a.dependent_column_names() == {"A"}
+    assert b.dependent_column_names() == {"B"}
     assert add.dependent_column_names() == {"A", "B"}
     assert alias.dependent_column_names() == {"A", "B"}
