@@ -329,11 +329,11 @@ def get_lambda_code_text(code_text: str) -> str:
     for line_idx in range(lambda_node.lineno - 1, lambda_node.end_lineno):
         line = lines[line_idx]
         if line_idx == 0:
-            lambda_code_text += f"{line[lambda_node.col_offset:]}\n"
+            lambda_code_text = f"{lambda_code_text}{line[lambda_node.col_offset:]}\n"
         elif line_idx == lambda_node.end_lineno - 1:
-            lambda_code_text += line[: lambda_node.end_col_offset]
+            lambda_code_text = f"{lambda_code_text}{line[: lambda_node.end_col_offset]}"
         else:
-            lambda_code_text += f"{line}\n"
+            lambda_code_text = f"{lambda_code_text}{line}\n"
     return lambda_code_text
 
 
@@ -424,7 +424,7 @@ def resolve_target_func_referenced_objects_by_type(
         else:
             # function/class/variables defined in the same module
             if inspect.isfunction(obj):
-                func_text += textwrap.dedent(inspect.getsource(obj))
+                func_text = f"{func_text}{textwrap.dedent(inspect.getsource(obj))}"
             elif inspect.isclass(obj):
                 # dynamic class parsing will be handled separately
                 pass
