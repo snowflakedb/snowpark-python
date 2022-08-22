@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark.types import DataType
 
+COLUMN_DEPENDENCY_DOLLAR = {"$"}
 COLUMN_DEPENDENCY_ALL = None
 COLUMN_DEPENDENCY_EMPTY = set()
 
@@ -27,6 +28,8 @@ def derive_dependent_columns(*expressions: "Expression"):
     for exp in expressions:
         if exp is not None:
             child_dependency = exp.dependent_column_names()
+            if child_dependency == COLUMN_DEPENDENCY_DOLLAR:
+                return COLUMN_DEPENDENCY_DOLLAR
             if child_dependency == COLUMN_DEPENDENCY_ALL:
                 return COLUMN_DEPENDENCY_ALL
             if isinstance(exp, UnresolvedAttribute):
@@ -152,9 +155,13 @@ class UnresolvedAttribute(Expression, NamedExpression):
         super().__init__()
         self.name = name
         self.is_sql_text = is_sql_text
-        self._dependent_column_names = (
-            COLUMN_DEPENDENCY_ALL if is_sql_text else COLUMN_DEPENDENCY_EMPTY
-        )
+        name_startswith_dollar = name.startswith('"$') or name.startswith("$")
+        if name_startswith_dollar:
+            self._dependent_column_names = COLUMN_DEPENDENCY_DOLLAR
+        else:
+            self._dependent_column_names = (
+                COLUMN_DEPENDENCY_ALL if is_sql_text else {name}
+            )
 
     @property
     def sql(self) -> str:

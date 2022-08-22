@@ -1,9 +1,12 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Optional
+from typing import Optional, Set
 
-from snowflake.snowpark._internal.analyzer.expression import Expression
+from snowflake.snowpark._internal.analyzer.expression import (
+    Expression,
+    derive_dependent_columns,
+)
 
 
 class NullOrdering:
@@ -47,3 +50,6 @@ class SortOrder(Expression):
         )
         self.datatype = child.datatype
         self.nullable = child.nullable
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.child)

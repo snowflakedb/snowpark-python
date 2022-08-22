@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_ALL,
+    COLUMN_DEPENDENCY_DOLLAR,
     COLUMN_DEPENDENCY_EMPTY,
     Expression,
     Star,
@@ -353,12 +354,15 @@ class SelectStatement(Selectable):
             can_flatten = True
             subquery_column_states = self.column_states
             for col, state in new_column_states.items():
+                dependent_columns = state.dependent_columns
+                if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
+                    can_flatten = False
+                    break
                 subquery_state = subquery_column_states.get(col)
                 if state.change_state in (
                     ColumnChangeState.CHANGED_EXP,
                     ColumnChangeState.NEW,
                 ):
-                    dependent_columns = state.dependent_columns
                     if dependent_columns == COLUMN_DEPENDENCY_ALL:
                         if (
                             subquery_column_states.has_changed_columns
@@ -422,7 +426,7 @@ class SelectStatement(Selectable):
         )
 
     def sort(self, cols) -> "SelectStatement":
-        dependent_columns = get_dependent_columns(cols)
+        dependent_columns = get_dependent_columns(*cols)
         can_flatten = can_clause_dependent_columns_flatten(
             dependent_columns, self.column_states
         )
@@ -543,10 +547,12 @@ def get_dependent_columns(*column_exp: Union[Expression, str]) -> Set[str]:
     if len(column_exp) == 1:
         if isinstance(column_exp[0], Expression):
             return column_exp[0].dependent_column_names()
-        return COLUMN_DEPENDENCY_ALL
+        return COLUMN_DEPENDENCY_DOLLAR
     result = set()
     for c in column_exp:
         c_dependent_columns = get_dependent_columns(c)
+        if c_dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
+            return COLUMN_DEPENDENCY_DOLLAR
         if c_dependent_columns == COLUMN_DEPENDENCY_ALL:
             return COLUMN_DEPENDENCY_ALL
         result.update(c_dependent_columns)
@@ -557,7 +563,9 @@ def can_projection_dependent_columns_flatten(
     dependent_columns: Optional[Set[str]], column_states: ColumnStateDict
 ):
     can_flatten = True
-    if (
+    if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
+        can_flatten = False
+    elif (
         column_states.has_changed_columns
         or column_states.has_dropped_columns
         or column_states.has_new_columns
@@ -583,7 +591,9 @@ def can_clause_dependent_columns_flatten(
     dependent_columns: Optional[Set[str]], column_states: ColumnStateDict
 ):
     can_flatten = True
-    if column_states.has_changed_columns:
+    if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
+        can_flatten = False
+    elif column_states.has_changed_columns:
         if dependent_columns == COLUMN_DEPENDENCY_ALL:
             can_flatten = False
         else:
@@ -659,7 +669,9 @@ def derive_column_states_from_subquery(
     for c, quoted_c_name in zip(cols, quoted_col_names):
         dependent_column_names = get_dependent_columns(c)
         column_states[quoted_c_name].dependent_columns = dependent_column_names
-        if dependent_column_names == COLUMN_DEPENDENCY_ALL:
+        if dependent_column_names == COLUMN_DEPENDENCY_DOLLAR:
+            column_states[quoted_c_name].depend_on_same_level = False
+        elif dependent_column_names == COLUMN_DEPENDENCY_ALL:
             column_states[quoted_c_name].depend_on_same_level = True
             column_states.columns_referencing_all_columns.add(quoted_c_name)
         else:
