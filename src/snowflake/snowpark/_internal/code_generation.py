@@ -197,7 +197,11 @@ def remove_function_udf_annotation(udf_source_code: str) -> str:
             parenthesis_count -= 1
         udf_anno_end += 1
 
-    return f"{udf_source_code[:udf_anno_begin].strip()}\n{udf_source_code[udf_anno_end:].strip()}".strip()
+    # check if there are still @udf annotations, then it's a
+    code_after_remove = f"{udf_source_code[:udf_anno_begin].strip()}\n{udf_source_code[udf_anno_end:].strip()}".strip()
+    if re.search(r"@(pandas_)?udf", code_after_remove) is not None:
+        raise ValueError("An UDF can not be registered more than once.")
+    return code_after_remove
 
 
 def check_func_type(func: Any) -> None:
