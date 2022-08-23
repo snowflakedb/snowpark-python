@@ -32,7 +32,6 @@ from snowflake.snowpark.functions import (
     parse_json,
     sum as sum_,
     to_timestamp,
-    udtf,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -981,86 +980,6 @@ def test_select(session):
     # select(Seq[Column]) with col("a") + col("b")
     assert df.select([col("b"), col("a") + col("c")]).collect() == expected_result
 
-    # test single output column udtf
-    class TwoXUDTF:
-        def process(self, n: int) -> int:
-            yield (2 * n,)
-
-    table_func = udtf(
-        TwoXUDTF,
-        output_schema=StructType([StructField("two_x", IntegerType())]),
-        input_types=[IntegerType()],
-    )
-
-    # test single column selection
-    expected_result = [Row(TWO_X=2), Row(TWO_X=4), Row(TWO_X=6)]
-    Utils.check_answer(df.select(table_func("a")), expected_result)
-    Utils.check_answer(df.select(table_func(col("a"))), expected_result)
-    Utils.check_answer(df.select(table_func(df.a)), expected_result)
-
-    # test multiple column selection
-    expected_result = [Row(A=1, TWO_X=2), Row(A=2, TWO_X=4), Row(A=3, TWO_X=6)]
-    Utils.check_answer(df.select("a", table_func("a")), expected_result)
-    Utils.check_answer(df.select(col("a"), table_func(col("a"))), expected_result)
-    Utils.check_answer(df.select(df.a, table_func(df.a)), expected_result)
-
-    # test multiple column selection with order preservation
-    expected_result = [
-        Row(A=1, TWO_X=2, C=10),
-        Row(A=2, TWO_X=4, C=20),
-        Row(A=3, TWO_X=6, C=30),
-    ]
-    Utils.check_answer(df.select("a", table_func("a"), "c"), expected_result)
-    Utils.check_answer(
-        df.select(col("a"), table_func(col("a")), col("c")), expected_result
-    )
-    Utils.check_answer(df.select(df.a, table_func(df.a), df.c), expected_result)
-
-    # test multiple output column udtf
-    class TwoXSixXUDTF:
-        def process(self, n: int) -> int:
-            yield (2 * n, 6 * n)
-
-    table_func = udtf(
-        TwoXSixXUDTF,
-        output_schema=StructType(
-            [StructField("two_x", IntegerType()), StructField("six_x", IntegerType())]
-        ),
-        input_types=[IntegerType()],
-    )
-
-    # test single column selection
-    expected_result = [
-        Row(TWO_X=2, SIX_X=6),
-        Row(TWO_X=4, SIX_X=12),
-        Row(TWO_X=6, SIX_X=18),
-    ]
-    Utils.check_answer(df.select(table_func("a")), expected_result)
-    Utils.check_answer(df.select(table_func(col("a"))), expected_result)
-    Utils.check_answer(df.select(table_func(df.a)), expected_result)
-
-    # test multiple column selection
-    expected_result = [
-        Row(A=1, TWO_X=2, SIX_X=6),
-        Row(A=2, TWO_X=4, SIX_X=12),
-        Row(A=3, TWO_X=6, SIX_X=18),
-    ]
-    Utils.check_answer(df.select("a", table_func("a")), expected_result)
-    Utils.check_answer(df.select(col("a"), table_func(col("a"))), expected_result)
-    Utils.check_answer(df.select(df.a, table_func(df.a)), expected_result)
-
-    # test multiple column selection with order preservation
-    expected_result = [
-        Row(A=1, TWO_X=2, SIX_X=6, C=10),
-        Row(A=2, TWO_X=4, SIX_X=12, C=20),
-        Row(A=3, TWO_X=6, SIX_X=18, C=30),
-    ]
-    Utils.check_answer(df.select("a", table_func("a"), "c"), expected_result)
-    Utils.check_answer(
-        df.select(col("a"), table_func(col("a")), col("c")), expected_result
-    )
-    Utils.check_answer(df.select(df.a, table_func(df.a), df.c), expected_result)
-
 
 def test_select_negative_select(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
@@ -1092,21 +1011,6 @@ def test_select_negative_select(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select([col("not_exists_column")]).collect()
     assert "SQL compilation error" in str(ex_info)
-
-    # table function related errors
-    class TwoXUDTF:
-        def process(self, n: int) -> int:
-            yield (2 * n,)
-
-    two_x_udtf = udtf(
-        TwoXUDTF,
-        output_schema=StructType([StructField("two_x", IntegerType())]),
-        input_types=[IntegerType()],
-    )
-
-    with pytest.raises(ValueError) as ex_info:
-        df.select(two_x_udtf("a"), "b", two_x_udtf("c"))
-    assert "At most one table function can be called" in str(ex_info)
 
 
 def test_drop_and_dropcolumns(session):
