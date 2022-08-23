@@ -39,9 +39,9 @@ def get_func_references(func: FunctionType, ref_objects: Dict[str, Any]) -> None
     Get the objects references by target func, they could be methods, modules, classes, methods, global variables
     and its closures.
 
-    param func: The function to be analyzed.
-    param ref_objects: A dict of the referenced objects with key being the name and value being the referenced object.
-
+    Args:
+        func: The target function to generate source code for.
+        ref_objects: dict of objects referenced by the target function, key is the name and value is the object.
     """
     # 1. resolve function global references
     code_object = func.__code__
@@ -85,6 +85,13 @@ def get_class_references(
     To get the referenced objects of a class defined in the same module.
     A class could have methods, subclasses referencing other objects.
 
+    Args:
+        cls: The class to be analyzed to find references.
+        func: The target function to generate source code for.
+        ref_objects: dict of objects referenced by the target function, key is the name and value is the object.
+        classes_to_generate: list of classes which are defined in the same module as the target function.
+            Code generation is required for these classes.
+        generate_code_for_class: Whether the source code for the class shall be generated.
     """
     func_module_name = func.__module__
 
@@ -163,12 +170,10 @@ def extract_func_global_refs(code: CodeType) -> Dict[str, None]:
     return out_names
 
 
-def remove_function_udf_annotation(
-    udf_source_code: str, code_as_comment: bool = True
-) -> str:
-    if code_as_comment:
-        return udf_source_code
-    # remove the udf/pandas_udf annotation to avoid re-registration
+def remove_function_udf_annotation(udf_source_code: str) -> str:
+    """
+    Remove the udf/pandas_udf annotation to avoid re-registration.
+    """
     res = re.search(r"@(pandas_)?udf", udf_source_code)
     if res is None:
         return udf_source_code
@@ -196,6 +201,9 @@ def remove_function_udf_annotation(
 
 
 def check_func_type(func: Any) -> None:
+    """
+    Check whether the target function is a valid type for source code generation. Raise error if not supported.
+    """
     if (
         isinstance(func, classmethod)
         or inspect.ismethod(func)
@@ -220,9 +228,12 @@ def generate_source_code(
      - Decorated functions: https://snowflakecomputing.atlassian.net/browse/SNOW-644983
      - Method and classmethod: https://snowflakecomputing.atlassian.net/browse/SNOW-644984
 
-    param func: The target function that has to been generated
-    param code_as_comment: All lines of the generated source code will be prefixed with '#' in which case code
-     are turned in comments. This is the default behavior.
+    Args:
+        func: The target function to generate source code for.
+        code_as_comment: Whether the code will be generated as comment.
+
+    Returns:
+        The generated source code.
     """
 
     try:
@@ -265,11 +276,11 @@ def generate_source_code(
     imports_str = resolve_target_func_imports(to_import, to_import_from_module)
 
     # concatenating all the referenced parts
-    complete_source_code = f"{header_text}{imports_str}{global_vars_text}{classes_text}{func_text}".rstrip()
+    source_code_without_target_func = f"{header_text}{imports_str}{global_vars_text}{classes_text}{func_text}".rstrip()
 
     # 5. handle func, remove the udf annotation
     complete_source_code, func_assignment = handle_target_func_self_source_code(
-        func, complete_source_code
+        func, source_code_without_target_func, code_as_comment
     )
 
     # 6. handle function assignment
@@ -286,10 +297,23 @@ def generate_source_code(
 
 
 def is_lambda(func: FunctionType) -> bool:
+    """
+    Check whether the target function is a lambda function.
+    """
     return func.__name__ == "<lambda>"
 
 
 def get_lambda_code_text(code_text: str) -> str:
+    """
+    Extract the lambda expression from code text.
+
+    Args:
+        The original code text containing the lambda expression.
+
+    Returns:
+        The string of the lambda expression.
+
+    """
     # add a wrapper to handle the case that the line of lambda source code does not include caller
     # such that ast could parse the expression tree:
     #     session.udf.register(
@@ -340,7 +364,7 @@ def get_lambda_code_text(code_text: str) -> str:
 
 def extract_submodule_imports(
     func: FunctionType, top_level_modules: Iterable[ModuleType]
-) -> Set[tuple]:
+) -> Set[Tuple[str, str]]:
     """
     Get submodule imports, the func code co_names only gives the top level module names, the submodule imports
     have to be inferred manually. Consider the following example:
@@ -354,6 +378,16 @@ def extract_submodule_imports(
 
     To reconstruct "a1.a2.a3.a4", the current strategy is to import each prefix import of the import chains.
     This is not a perfect solution as we could import modules not used, but it works.
+
+    Args:
+        func: The target function to generate source code for.
+        top_level_modules: The name of top level modules from which to search the referenced imported objects
+            or submodules.
+
+    Returns:
+        A set of tuple with each tuple composed of two string, the first one is actual name for the imported object,
+        and the second one is alias.
+
     """
     imports = set()
     for module in top_level_modules:
@@ -372,9 +406,17 @@ def find_target_func_objects_references(
     to_import: Set[Tuple[str, str]],
     ref_objects: Dict[str, Any],
     classes_to_generate: List[type],
-):
+) -> None:
     """
-    find objects referenced by functions including classes, methods, modules, global variables
+    Find objects referenced by functions including classes, methods, modules, global variables.
+
+    Args:
+        func: The target function to generate source code for.
+        to_import: set of name and alias pairs of direct imports which should be generated as "import xxx"
+            or "import xxx as yyy".
+        ref_objects: dict of objects referenced by the target function, key is the name and value is the object.
+        classes_to_generate: list of classes which are defined in the same module as the target function.
+            Code generation is required for these classes.
     """
     func_module_name = func.__module__
     if isinstance(func, FunctionType):
@@ -401,10 +443,24 @@ def resolve_target_func_referenced_objects_by_type(
     to_import_from_module: Dict[str, Set[Tuple[str, str]]],
     ref_objects: Dict[str, Any],
     code_as_comment: bool,
-):
+) -> Tuple[str, str]:
     """
-    deal with the referenced objects by types
-    handles modules/classes/methods/global variables
+    Deal with the referenced objects by types, handles modules/classes/methods/global variables, generate source code
+    for referenced functions defined in the same module as the target function's and referenced variables.
+
+    Args:
+        func: The target function to generate source code for.
+        to_import: set of name and alias pairs of direct imports which should be generated as "import xxx"
+            or "import xxx as yyy".
+        to_import_from_module: dict of import information, key is the module name with value being the set of
+            name and alias paris of imported objects which should be generated as "from xxx import yyy" or
+            "from xxx import yyy as zzz".
+        ref_objects: dict of objects referenced by the target function, key is the name and value is the object.
+        code_as_comment: Whether the code will be generated as comment.
+
+    Returns:
+        A tuple of two strings, the first one is the source code of referenced functions defined in the same module
+        as the target function's, and the second is the source code of referenced variables.
     """
     func_module_name = func.__module__
     func_text = ""
@@ -454,9 +510,19 @@ def resolve_target_func_referenced_objects_by_type(
 def resolve_target_func_imports(
     to_import: Set[Tuple[str, str]],
     to_import_from_module: Dict[str, Set[Tuple[str, str]]],
-):
+) -> str:
     """
-    deal with imports and alias, generate imports strings
+    Deal with imports and alias, generate imports string.
+
+    Args:
+        to_import: set of name and alias pairs of direct imports which should be generated as "import xxx"
+            or "import xxx as yyy".
+        to_import_from_module: dict of import information, key is the module name with value being the set of
+            name and alias paris of imported objects which should be generated as "from xxx import yyy" or
+            "from xxx import yyy as zzz".
+
+    Returns:
+        A string of generated imports.
     """
     imports = [
         f"import {name + ' as ' if name != alias else ''}{alias}"
@@ -471,15 +537,28 @@ def resolve_target_func_imports(
     return "\n".join(imports) + ("\n" if imports else "")
 
 
-def handle_target_func_self_source_code(func: FunctionType, complete_source_code: str):
+def handle_target_func_self_source_code(
+    func: FunctionType, source_code_without_target_func: str, code_as_comment: bool
+) -> Tuple[str, str]:
     """
-    handle the source code of the target func itself, function assignment
+    Generate the source code of the target func itself and apply function assignment.
+
+    Args:
+        func: The target function to generate source code for.
+        source_code_without_target_func: The generated code without the target function. The target function code
+            and function assignment will be appended to this one.
+        code_as_comment: Whether the code will be generated as comment.
+
+    Returns:
+        A tuple of two strings, the first one is the complete source code including target functions and all of its
+        referenced objects, and the second one is function assignment.
     """
     func_module_name = func.__module__
+    complete_source_code = source_code_without_target_func
     if isinstance(func, FunctionType):
-        func_source_code = remove_function_udf_annotation(
-            textwrap.dedent(inspect.getsource(func))
-        )
+        func_source_code = textwrap.dedent(inspect.getsource(func))
+        if not code_as_comment:
+            func_source_code = remove_function_udf_annotation(func_source_code)
         if not is_lambda(func):
             complete_source_code = f"{complete_source_code}\n{func_source_code}"
         func_assignment = (
@@ -495,9 +574,16 @@ def handle_target_func_self_source_code(func: FunctionType, complete_source_code
     return complete_source_code, func_assignment
 
 
-def comment_source_code(complete_source_code: str):
+def comment_source_code(complete_source_code: str) -> str:
     """
-    prefix each line in source code with '#'
+    Prefix each line in source code with '#'
+
+    Args:
+        complete_source_code: The complete source code including target functions and all of its
+        referenced objects
+
+    Returns:
+        The complete source code string with each line prefixed with "#".
     """
     return "\n".join(
         [f"#{f' {line}' if line else ''}" for line in complete_source_code.splitlines()]
