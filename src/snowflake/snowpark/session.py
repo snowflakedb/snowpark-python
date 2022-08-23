@@ -42,7 +42,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.telemetry import set_api_call_source
+from snowflake.snowpark._internal.telemetry import TelemetryField, set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     infer_schema,
@@ -933,18 +933,20 @@ class Session:
             [Row(1/2=Decimal('0.500000'))]
         """
 
-        # return DataFrame(
-        #     self,
-        #     self._plan_builder.query(
-        #         query, None, api_calls=[{TelemetryField.NAME.value: "Session.sql"}]
-        #     ),
-        # )
-        # TODO: Add telemetry
+        from snowflake.snowpark import context
 
+        if context._USE_SQL_SIMPLIFIER:
+            return DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectSQL(query, analyzer=self._analyzer),
+                    analyzer=self._analyzer,
+                ),
+            )
         return DataFrame(
             self,
-            SelectStatement(
-                from_=SelectSQL(query, analyzer=self._analyzer), analyzer=self._analyzer
+            self._plan_builder.query(
+                query, None, api_calls=[{TelemetryField.NAME.value: "Session.sql"}]
             ),
         )
 

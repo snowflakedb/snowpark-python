@@ -5,6 +5,8 @@
 """Context module for Snowpark."""
 from snowflake.snowpark.session import Session, _get_active_session
 
+_USE_SQL_SIMPLIFIER = True
+
 
 def get_active_session() -> Session:
     """Returns the current active Snowpark session.

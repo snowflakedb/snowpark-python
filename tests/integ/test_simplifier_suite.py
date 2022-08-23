@@ -432,3 +432,54 @@ def test_filter_order_limit_together(session, simplifier_table):
         df2.queries["queries"][-1]
         == f'SELECT  "A"  FROM  ( SELECT  "A","B"  FROM  {simplifier_table}  WHERE  ("B" > 1 :: bigint)  ORDER BY  "A" ASC NULLS FIRST  LIMIT  5)'
     )
+
+
+def test_use_sql_simplifier(session, simplifier_table):
+    from snowflake.snowpark import context
+
+    try:
+        context._USE_SQL_SIMPLIFIER = False
+        df1 = (
+            session.sql(f"SELECT * from {simplifier_table}")
+            .select("*")
+            .select("a")
+            .select("a")
+            .filter(col("a") == 1)
+            .sort("a")
+        )
+        context._USE_SQL_SIMPLIFIER = True
+        df2 = (
+            session.sql(f"SELECT * from {simplifier_table}")
+            .select("*")
+            .select("a")
+            .select("a")
+            .filter(col("a") == 1)
+            .sort("a")
+        )
+        assert df1.queries["queries"][0].count("SELECT") == 6
+        assert df2.queries["queries"][0].count("SELECT") == 2
+        Utils.check_answer(df1, df2, sort=True)
+
+        context._USE_SQL_SIMPLIFIER = False
+        df3 = (
+            session.table(simplifier_table)
+            .select("*")
+            .select("a")
+            .select("a")
+            .filter(col("a") == 1)
+            .sort("a")
+        )
+        context._USE_SQL_SIMPLIFIER = True
+        df4 = (
+            session.table(simplifier_table)
+            .select("*")
+            .select("a")
+            .select("a")
+            .filter(col("a") == 1)
+            .sort("a")
+        )
+        assert df3.queries["queries"][0].count("SELECT") == 6
+        assert df4.queries["queries"][0].count("SELECT") == 1
+        Utils.check_answer(df3, df4, sort=True)
+    finally:
+        context._USE_SQL_SIMPLIFIER = True

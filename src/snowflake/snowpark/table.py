@@ -259,10 +259,13 @@ class Table(DataFrame):
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
         self.table_name: str = table_name  #: The table name
-        self._select_statement = SelectStatement(
-            from_=SelectableEntity(table_name, analyzer=session._analyzer),
-            analyzer=session._analyzer,
-        )
+        from snowflake.snowpark import context
+
+        if context._USE_SQL_SIMPLIFIER:
+            self._select_statement = SelectStatement(
+                from_=SelectableEntity(table_name, analyzer=session._analyzer),
+                analyzer=session._analyzer,
+            )
         # By default, the set the initial API call to say 'Table.__init__' since
         # people could instantiate a table directly. This value is overwritten when
         # created from Session object
