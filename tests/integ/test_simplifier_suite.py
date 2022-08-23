@@ -215,20 +215,19 @@ def test_select_subquery_has_columns_changed(session, simplifier_table):
 
 def test_select_expr(session, simplifier_table):
     df = session.table(simplifier_table)
-    # use column name as sql text
+
     df1 = df.select_expr("a", "b")
     Utils.check_answer(df1, [Row(1, 2)])
-    assert df1.queries["queries"][-1].count("SELECT") == 1
+    assert df1.queries["queries"][-1].count("SELECT") == 2
 
-    # use an sql expression. Flatten.
     df2 = df.select_expr("a + 1 as a", "b + 1 as b")
     Utils.check_answer(df2, [Row(2, 3)])
-    assert df2.queries["queries"][-1].count("SELECT") == 1
+    assert df2.queries["queries"][-1].count("SELECT") == 2
 
     # query again after sql_expr. No flatten.
     df3 = df2.select("a", "b")
     Utils.check_answer(df3, [Row(2, 3)])
-    assert df3.queries["queries"][-1].count("SELECT") == 2
+    assert df3.queries["queries"][-1].count("SELECT") == 3
 
     """ query has no new columns. subquery has new, chnged or dropped columns."""
     # a new column in the subquery. sql text column doesn't know the dependency, to be safe, no flatten
@@ -252,7 +251,7 @@ def test_select_expr(session, simplifier_table):
     df10 = df.select("a", "b")
     df11 = df10.select_expr("a + 1 as a")
     Utils.check_answer(df11, [Row(2)])
-    assert df11.queries["queries"][-1].count("SELECT") == 1
+    assert df11.queries["queries"][-1].count("SELECT") == 2
 
     """ query has new columns. subquery has new, chnged or dropped columns."""
     # a new column in the subquery. sql text column doesn't know the dependency, to be safe, no flatten
@@ -273,11 +272,10 @@ def test_select_expr(session, simplifier_table):
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df9.collect()
 
-    # The subquery has no new columns, no dropped columns, no changed columns. Safe to flatten even with sql text.
     df10 = df.select("a", "b")
     df11 = df10.select_expr("a + 1 as d")
     Utils.check_answer(df11, [Row(2)])
-    assert df11.queries["queries"][-1].count("SELECT") == 1
+    assert df11.queries["queries"][-1].count("SELECT") == 2
 
 
 def test_with_column(session, simplifier_table):
@@ -316,20 +314,19 @@ def test_drop_columns(session, simplifier_table):
     df4 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d"))
     df5 = df4.select("a", "b", "d")
     Utils.check_answer(df5, [Row(1, 2, 2)])
-    assert df5._plan.queries[-1].sql.count("SELECT") == 2
+    assert df5._plan.queries[-1].sql.count("SELECT") == 3
 
-    # On the other hand, safe to drop d as other columns don't depend on it
     df4 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d"))
     df5 = df4.select("a", "b", "c")
     Utils.check_answer(df5, [Row(1, 2, 3)])
-    assert df5._plan.queries[-1].sql.count("SELECT") == 1
+    assert df5._plan.queries[-1].sql.count("SELECT") == 3
 
 
 def test_reference_non_exist_columns(session, simplifier_table):
     df = session.table(simplifier_table)
     with pytest.raises(
-        ValueError,
-        match="""Column name "C" used in a column expression but it doesn't exist""",
+        SnowparkSQLException,
+        match="invalid identifier 'C'",
     ):
         df.select(col("c") + 1).collect()
 
@@ -403,21 +400,6 @@ def test_filter(session, simplifier_table):
 
     df5 = df4.select("a")
     print(df5.queries["queries"][-1])
-
-
-pytest.mark.skip(
-    "This test will fail because upstream code raises "
-    "'snowflake.snowpark.exceptions.SnowparkColumnException: (1105): "
-    "The DataFrame does not contain the column named b.'"
-    "The new design can support this scenario. Whether to support it is to be discussed."
-)
-
-
-def test_order_by_filter_deleted_columns(session, simplifier_table):
-    # df = session.table(simplifier_table)
-    # df1 = df.select("a").filter(col("b") > 1).sort("b")
-    # assert...
-    ...
 
 
 def test_limit(session, simplifier_table):

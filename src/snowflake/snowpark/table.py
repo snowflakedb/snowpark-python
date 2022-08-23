@@ -261,7 +261,6 @@ class Table(DataFrame):
         self.table_name: str = table_name  #: The table name
         self._select_statement = SelectStatement(
             from_=SelectableEntity(table_name, analyzer=session._analyzer),
-            from_entity="table",
             analyzer=session._analyzer,
         )
         # By default, the set the initial API call to say 'Table.__init__' since
