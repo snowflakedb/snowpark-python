@@ -32,10 +32,9 @@ class AsyncJob:
     - check the query status (still running or done);
     - cancel the running query;
     - retrieve the query ID and perform other operations on this query ID manually.
-    :class:`AsyncJob` is created by action methods in :class:`DataFrame`. All functions in :class:`DataFrame` with a subfix of '_nowait' execute
-    asynchronously and create a :class:`AsyncJob` instance. They are also equivalent to functions in :class:`DataFrame` that
-    set `block=False`. Therefore, to use it, you need to create a
-    dataframe first. Here we demonstrate how to do that:
+    :class:`AsyncJob` is created by action methods in :class:`DataFrame`. All functions in :class:`DataFrame` with a suffix of ``_nowait`` execute
+    asynchronously and create an :class:`AsyncJob` instance. They are also equivalent to coreesponding functions in :class:`DataFrame` that
+    set ``block=False``. Therefore, to use it, you need to create a dataframe first. Here we demonstrate how to do that:
 
 
     First, we create a dataframe:
@@ -205,7 +204,6 @@ class AsyncJob:
         functions acts like execute query in a synchronous way. The data type of returned results is determined by how
         you create this :class:`AsyncJob` instance. For example, if this instance is returned by
         :meth:`DataFrame.collect_nowait`, you will get a list of :class:`Row` s from this method.
-
         """
         self._cursor.get_results_from_sfqid(self.query_id)
         if self._data_type == _AsyncDataType.NONE_TYPE:
