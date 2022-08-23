@@ -3,7 +3,7 @@
 #
 
 """Contains table function related classes."""
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -15,6 +15,8 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import validate_object_name
 from snowflake.snowpark.column import Column, _to_col_if_str
+
+from ._internal.analyzer.snowflake_plan import SnowflakePlan
 
 
 class TableFunctionCall:
@@ -169,3 +171,23 @@ def _create_table_function_expression(
         else None
     )
     return table_function_expression
+
+
+def _get_cols_after_join_table(
+    func_expr: TableFunctionExpression,
+    current_plan: SnowflakePlan,
+    join_plan: SnowflakePlan,
+) -> Tuple[List, List]:
+    def get_column_names_from_plan(plan: SnowflakePlan) -> List[str]:
+        return [attr.name for attr in plan.output]
+
+    # we ensure that all columns coming after the join should be unique
+    cols_before_join = get_column_names_from_plan(current_plan)
+    cols_after_join = get_column_names_from_plan(join_plan)
+
+    new_cols = [
+        Column(col)._named() for col in cols_after_join if col not in cols_before_join
+    ]
+    old_cols = [Column(col)._named() for col in cols_before_join]
+
+    return old_cols, new_cols
