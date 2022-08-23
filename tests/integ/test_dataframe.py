@@ -9,6 +9,7 @@ from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
+from typing import Iterable, Tuple
 
 import pandas as pd
 import pytest
@@ -350,6 +351,24 @@ def test_select_table_function(session):
     )
     Utils.check_answer(df.select(df.a, table_func(df.a), df.c), expected_result)
 
+    # test with aliases
+    expected_result = [
+        Row(A=1, DOUBLE=2, SIX_X=6, C=10),
+        Row(A=2, DOUBLE=4, SIX_X=12, C=20),
+        Row(A=3, DOUBLE=6, SIX_X=18, C=30),
+    ]
+    Utils.check_answer(
+        df.select("a", table_func("a").alias("double", "six_x"), "c"), expected_result
+    )
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("a")).alias("double", "six_x"), col("c")),
+        expected_result,
+    )
+    Utils.check_answer(
+        df.select(df.a, table_func(df.a).alias("double", "six_x"), df.c),
+        expected_result,
+    )
+
     # testing in-built table functions
     table_func = table_function("split_to_table")
     expected_result = [
@@ -386,6 +405,22 @@ def test_select_table_function_negative(session):
     with pytest.raises(ValueError) as ex_info:
         df.select(two_x_udtf("a"), "b", two_x_udtf("c"))
     assert "At most one table function can be called" in str(ex_info)
+
+    @udtf(output_schema=["two_x", "three_x"])
+    class multiplier_udtf:
+        def process(self, n: int) -> Iterable[Tuple[int, int]]:
+            yield (2 * n, 3 * n)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.select(multiplier_udtf(df.a).alias("double", "double"))
+    assert "All output column names after aliasing must be uniqu" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.select(multiplier_udtf(df.a).alias("double"))
+    assert (
+        "The number of aliases should be same as the number of cols added by table function"
+        in str(ex_info)
+    )
 
 
 def test_df_subscriptable(session):
