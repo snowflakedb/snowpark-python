@@ -108,6 +108,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
     _create_table_function_expression,
+    _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
@@ -683,7 +684,10 @@ class DataFrame:
     @df_api_usage
     def select(
         self,
-        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        *cols: Union[
+            Union[ColumnOrName, TableFunctionCall],
+            Iterable[Union[ColumnOrName, TableFunctionCall]],
+        ],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -707,24 +711,63 @@ class DataFrame:
 
             >>> df_selected = df.select(df["col1"], df.col2, df.col("col3"))
 
+        Example 5::
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df_selected = df.select(df.col1, split_to_table(df.col2, lit(" ")), df.col("col3")).show()
+            -----------------------------------------------
+            |"COL1"  |"SEQ"  |"INDEX"  |"VALUE"  |"COL3"  |
+            -----------------------------------------------
+            |1       |1      |1        |some     |3       |
+            |1       |1      |2        |string   |3       |
+            |1       |1      |3        |value    |3       |
+            -----------------------------------------------
+            <BLANKLINE>
+
+        Note:
+            A `TableFunctionCall` can be added in `select` when the dataframe results from another join. This is possible because we know
+            the hierarchy in which the joins are applied.
+
         Args:
-            *cols: A :class:`Column`, :class:`str`, or a list of those.
+            *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
+                   :class:`table_function.TableFunctionCall` object is supported within a select call.
         """
         exprs = parse_positional_args_to_list(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
 
         names = []
+        table_func = None
+        join_plan = None
+
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
             elif isinstance(e, str):
                 names.append(Column(e)._named())
+            elif isinstance(e, TableFunctionCall):
+                if table_func:
+                    raise ValueError(
+                        f"At most one table function can be called inside a select(). "
+                        f"Called '{table_func.name}' and '{e.name}'."
+                    )
+                table_func = e
+                func_expr = _create_table_function_expression(func=table_func)
+                join_plan = self._session._analyzer.resolve(
+                    TableFunctionJoin(self._plan, func_expr)
+                )
+                _, new_cols = _get_cols_after_join_table(
+                    func_expr, self._plan, join_plan
+                )
+                names.extend(new_cols)
             else:
                 raise TypeError(
-                    "The input of select() must be Column, column name, or a list of them"
+                    "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
 
+        if join_plan:
+            return self._with_plan(Project(names, join_plan))
         return self._with_plan(Project(names, self._plan))
 
     @df_api_usage
