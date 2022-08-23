@@ -331,7 +331,8 @@ class Table(DataFrame):
         source: Optional[DataFrame] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> UpdateResult:
+        block: bool = True,
+    ) -> Union[UpdateResult, "snowflake.snowpark.AsyncJob"]:
         """
         Updates rows in the Table with specified ``assignments`` and returns a
         :class:`UpdateResult`, representing the number of rows modified and the
@@ -346,6 +347,7 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Examples::
 
@@ -395,9 +397,12 @@ class Table(DataFrame):
             )
         )
         add_api_call(new_df, "Table.update")
-        return _get_update_result(
-            new_df._internal_collect_with_tag(statement_params=statement_params)
+        result = new_df._internal_collect_with_tag(
+            statement_params=statement_params,
+            block=block,
+            data_type=snowflake.snowpark.async_job._AsyncDataType.UPDATE,
         )
+        return _get_update_result(result) if block else result
 
     def delete(
         self,
@@ -405,7 +410,8 @@ class Table(DataFrame):
         source: Optional[DataFrame] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> DeleteResult:
+        block: bool = True,
+    ) -> Union[DeleteResult, "snowflake.snowpark.AsyncJob"]:
         """
         Deletes rows in a Table and returns a :class:`DeleteResult`,
         representing the number of rows deleted.
@@ -416,6 +422,7 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Examples::
 
@@ -460,9 +467,12 @@ class Table(DataFrame):
             )
         )
         add_api_call(new_df, "Table.delete")
-        return _get_delete_result(
-            new_df._internal_collect_with_tag(statement_params=statement_params)
+        result = new_df._internal_collect_with_tag(
+            statement_params=statement_params,
+            block=block,
+            data_type=snowflake.snowpark.async_job._AsyncDataType.DELETE,
         )
+        return _get_delete_result(result) if block else result
 
     def merge(
         self,
@@ -471,7 +481,8 @@ class Table(DataFrame):
         clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
         *,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> MergeResult:
+        block: bool = True,
+    ) -> Union[MergeResult, "snowflake.snowpark.AsyncJob"]:
         """
         Merges this :class:`Table` with :class:`DataFrame` source on the specified
         join expression and a list of matched or not-matched clauses, and returns
@@ -491,6 +502,7 @@ class Table(DataFrame):
                 of :class:`WhenMatchedClause` and :class:`WhenNotMatchedClause`, and will
                 be performed sequentially in this list.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
 
         Example::
 
@@ -530,9 +542,22 @@ class Table(DataFrame):
             )
         )
         add_api_call(new_df, "Table.update")
-        return _get_merge_result(
-            new_df._internal_collect_with_tag(statement_params=statement_params),
-            inserted=inserted,
-            updated=updated,
-            deleted=deleted,
+        result = new_df._internal_collect_with_tag(
+            statement_params=statement_params,
+            block=block,
+            data_type=snowflake.snowpark.async_job._AsyncDataType.MERGE,
+        )
+        if not block:
+            result._inserted = inserted
+            result._updated = updated
+            result._deleted = deleted
+        return (
+            _get_merge_result(
+                result,
+                inserted=inserted,
+                updated=updated,
+                deleted=deleted,
+            )
+            if block
+            else result
         )
