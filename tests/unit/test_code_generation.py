@@ -320,15 +320,16 @@ def test():
 """
     )
 
-    before_code = """\
+    with pytest.raises(TypeError):
+        remove_function_udf_annotation(
+            """\
 @udf(1=2)
 @udf()
 @udf
 def test():
     pass\
 """
-    with pytest.raises(ValueError):
-        remove_function_udf_annotation(before_code)
+        )
 
 
 def test_lambda_code_extraction():
