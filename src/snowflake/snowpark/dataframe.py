@@ -716,10 +716,22 @@ class DataFrame:
             >>> from snowflake.snowpark.functions import table_function
             >>> split_to_table = table_function("split_to_table")
             >>> df_selected = df.select(df.col1, split_to_table(df.col2, lit(" ")), df.col("col3"))
+            -----------------------------------------------
+            |"COL1"  |"SEQ"  |"INDEX"  |"VALUE"  |"COL3"  |
+            -----------------------------------------------
+            |1       |1      |1        |some     |3       |
+            |1       |1      |2        |string   |3       |
+            |1       |1      |3        |value    |3       |
+            -----------------------------------------------
+            <BLANKLINE>
+
+        Note:
+            A `TableFunctionCall` can be added in `select` when the dataframe results from another join. This is possible because we know
+            the hierarchy in which the joins are applied.
 
         Args:
-            *cols: A :class:`Column`, :class:`str`, :class:`TableFunctionCall`, or a list of those. Note that at most one
-                   :class:`TableFunctionCall` object is supported within a select statement.
+            *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
+                   :class:`table_function.TableFunctionCall` object is supported within a select call.
         """
         exprs = parse_positional_args_to_list(*cols)
         if not exprs:
@@ -1785,7 +1797,6 @@ class DataFrame:
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
         )
-
         return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
 
     @df_api_usage

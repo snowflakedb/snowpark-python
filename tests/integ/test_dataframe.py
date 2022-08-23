@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_sta
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
-from snowflake.snowpark.functions import col, concat, lit, when
+from snowflake.snowpark.functions import col, concat, lit, table_function, udtf, when
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -263,6 +263,129 @@ def test_select_star(session):
     res = df.select("*").collect()
     expected = [Row(3, 3), Row(4, 4), Row(5, 5), Row(6, 6), Row(7, 7)]
     assert res == expected
+
+
+def test_select_table_function(session):
+    df = session.create_dataframe(
+        [(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)]
+    ).to_df(["a", "b", "c"])
+
+    # test single output column udtf
+    class TwoXUDTF:
+        def process(self, n: int) -> int:
+            yield (2 * n,)
+
+    table_func = udtf(
+        TwoXUDTF,
+        output_schema=StructType([StructField("two_x", IntegerType())]),
+        input_types=[IntegerType()],
+    )
+
+    # test single column selection
+    expected_result = [Row(TWO_X=2), Row(TWO_X=4), Row(TWO_X=6)]
+    Utils.check_answer(df.select(table_func("a")), expected_result)
+    Utils.check_answer(df.select(table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(table_func(df.a)), expected_result)
+
+    # test multiple column selection
+    expected_result = [Row(A=1, TWO_X=2), Row(A=2, TWO_X=4), Row(A=3, TWO_X=6)]
+    Utils.check_answer(df.select("a", table_func("a")), expected_result)
+    Utils.check_answer(df.select(col("a"), table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(df.a, table_func(df.a)), expected_result)
+
+    # test multiple column selection with order preservation
+    expected_result = [
+        Row(A=1, TWO_X=2, C=10),
+        Row(A=2, TWO_X=4, C=20),
+        Row(A=3, TWO_X=6, C=30),
+    ]
+    Utils.check_answer(df.select("a", table_func("a"), "c"), expected_result)
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("a")), col("c")), expected_result
+    )
+    Utils.check_answer(df.select(df.a, table_func(df.a), df.c), expected_result)
+
+    # test multiple output column udtf
+    class TwoXSixXUDTF:
+        def process(self, n: int) -> int:
+            yield (2 * n, 6 * n)
+
+    table_func = udtf(
+        TwoXSixXUDTF,
+        output_schema=StructType(
+            [StructField("two_x", IntegerType()), StructField("six_x", IntegerType())]
+        ),
+        input_types=[IntegerType()],
+    )
+
+    # test single column selection
+    expected_result = [
+        Row(TWO_X=2, SIX_X=6),
+        Row(TWO_X=4, SIX_X=12),
+        Row(TWO_X=6, SIX_X=18),
+    ]
+    Utils.check_answer(df.select(table_func("a")), expected_result)
+    Utils.check_answer(df.select(table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(table_func(df.a)), expected_result)
+
+    # test multiple column selection
+    expected_result = [
+        Row(A=1, TWO_X=2, SIX_X=6),
+        Row(A=2, TWO_X=4, SIX_X=12),
+        Row(A=3, TWO_X=6, SIX_X=18),
+    ]
+    Utils.check_answer(df.select("a", table_func("a")), expected_result)
+    Utils.check_answer(df.select(col("a"), table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(df.a, table_func(df.a)), expected_result)
+
+    # test multiple column selection with order preservation
+    expected_result = [
+        Row(A=1, TWO_X=2, SIX_X=6, C=10),
+        Row(A=2, TWO_X=4, SIX_X=12, C=20),
+        Row(A=3, TWO_X=6, SIX_X=18, C=30),
+    ]
+    Utils.check_answer(df.select("a", table_func("a"), "c"), expected_result)
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("a")), col("c")), expected_result
+    )
+    Utils.check_answer(df.select(df.a, table_func(df.a), df.c), expected_result)
+
+    # testing in-built table functions
+    table_func = table_function("split_to_table")
+    expected_result = [
+        Row(A=1, SEQ=1, INDEX=1, VALUE="one"),
+        Row(A=1, SEQ=1, INDEX=2, VALUE="o"),
+        Row(A=1, SEQ=1, INDEX=3, VALUE="one"),
+        Row(A=2, SEQ=2, INDEX=1, VALUE="twenty"),
+        Row(A=2, SEQ=2, INDEX=2, VALUE="two"),
+        Row(A=3, SEQ=3, INDEX=1, VALUE="thirty"),
+        Row(A=3, SEQ=3, INDEX=2, VALUE="three"),
+    ]
+    Utils.check_answer(df.select("a", table_func("b", lit(" "))), expected_result)
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("b"), lit(" "))), expected_result
+    )
+    Utils.check_answer(df.select(df.a, table_func(df.b, lit(" "))), expected_result)
+
+
+def test_select_table_function_negative(session):
+    df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
+        ["a", "b", "c"]
+    )
+
+    class TwoXUDTF:
+        def process(self, n: int) -> int:
+            yield (2 * n,)
+
+    two_x_udtf = udtf(
+        TwoXUDTF,
+        output_schema=StructType([StructField("two_x", IntegerType())]),
+        input_types=[IntegerType()],
+    )
+
+    with pytest.raises(ValueError) as ex_info:
+        df.select(two_x_udtf("a"), "b", two_x_udtf("c"))
+    assert "At most one table function can be called" in str(ex_info)
 
 
 def test_df_subscriptable(session):
