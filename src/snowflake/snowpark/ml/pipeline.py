@@ -3,8 +3,9 @@
 #
 from typing import List
 
+import snowflake
 import snowflake.snowpark
-from snowflake.snowpark.ml import Transformer
+from snowflake.snowpark.ml.transformer import Transformer
 
 
 def _is_read(monitors: List["snowflake.snowpark.AsyncJob"]):

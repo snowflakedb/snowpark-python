@@ -5,6 +5,7 @@
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.ml import MinMaxScaler, OneHotEncoder, Pipeline, StandardScaler
 from tests.utils import Utils
 
@@ -69,6 +70,16 @@ def test_pipeline_async(session):
 
     model = pipeline.fit(df)
     df = model.transform(df)
+    df = df.select(
+        [
+            col("A"),
+            col("B"),
+            col("C"),
+            col("A_STANDARD"),
+            col("A_MINMAX"),
+            col("A_ONEHOT"),
+        ]
+    )
     Utils.check_answer(
         df,
         [

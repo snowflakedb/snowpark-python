@@ -56,6 +56,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark.ml",
     ],
     package_dir={
         "": "src",
