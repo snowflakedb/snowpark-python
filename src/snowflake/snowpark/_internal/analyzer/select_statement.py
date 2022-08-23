@@ -250,26 +250,6 @@ class SelectSnowflakePlan(Selectable):
         return self.snowflake_plan.schema_query
 
 
-class Join:
-    def __init__(
-        self,
-        left: Selectable,
-        right: Selectable,
-        joincolumn: Optional[Expression],
-        jointype: str,
-        *,
-        analyzer=None,
-    ) -> None:
-        self.left = left
-        self.right = right
-        self.jointype = jointype
-        self.joincolumn: Expression = joincolumn
-        self.analyzer = analyzer
-
-    def sql_query(self) -> str:
-        return f""" {self.jointype} ({self.right.sql_query()}) on {self.analyzer.analyze(self.joincolumn)}"""
-
-
 class SelectStatement(Selectable):
     """The main logic plan to be used by a DataFrame.
     It structurally has the parts of a query and uses the ColumnState to decide whether a query can be flattened."""
@@ -279,7 +259,6 @@ class SelectStatement(Selectable):
         *,
         projection_: Optional[List[Union[Expression]]] = None,
         from_: Optional["Selectable"] = None,
-        join: Optional[List[Join]] = None,
         where: Optional[Expression] = None,
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
@@ -289,7 +268,6 @@ class SelectStatement(Selectable):
         super().__init__(analyzer)
         self.projection_: Optional[List[Expression]] = projection_
         self.from_: Optional["Selectable"] = from_
-        self.join: Optional[List[Join]] = join
         self.where: Optional[Expression] = where
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
@@ -307,7 +285,6 @@ class SelectStatement(Selectable):
     def _has_clause_using_columns(self) -> bool:
         return any(
             (
-                self.join is not None,
                 self.where is not None,
                 self.order_by is not None,
             )
@@ -333,7 +310,6 @@ class SelectStatement(Selectable):
             if not isinstance(self.from_, SelectableEntity)
             else self.from_.sql_query()
         )
-        join_clause = ", ".join(x.sql_query() for x in self.join) if self.join else ""
         where_clause = (
             f" {analyzer_utils.WHERE} {self.analyzer.analyze(self.where)}"
             if self.where is not None
@@ -348,8 +324,8 @@ class SelectStatement(Selectable):
             f" {analyzer_utils.LIMIT} {self.limit_}" if self.limit_ is not None else ""
         )
         offset_clause = f" {analyzer_utils.OFFSET} {self.offset}" if self.offset else ""
-        self._schema_query = f"{analyzer_utils.SELECT} {projection} {analyzer_utils.FROM}({self.from_.schema_query()}){join_clause}"
-        return f"{analyzer_utils.SELECT} {projection} {analyzer_utils.FROM} {from_clause}{join_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        self._schema_query = f"{analyzer_utils.SELECT} {projection} {analyzer_utils.FROM}({self.from_.schema_query()})"
+        return f"{analyzer_utils.SELECT} {projection} {analyzer_utils.FROM} {from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
 
     def schema_query(self) -> str:
         return self._schema_query or self.from_.schema_query()
@@ -486,14 +462,6 @@ class SelectStatement(Selectable):
         return SelectStatement(
             from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
         )
-
-    def join(
-        self, other: Selectable, joincolumn: Optional[Expression], jointype: str
-    ) -> "SelectStatement":
-        new = copy(self)
-        join = Join(self, other, joincolumn, jointype, analyzer=self.analyzer)
-        new.join = new.join.append(join) if new.join else [join]
-        return new
 
     def set_operate(
         self,
