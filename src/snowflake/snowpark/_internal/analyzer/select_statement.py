@@ -174,7 +174,9 @@ class Selectable(LogicalPlan, ABC):
         Refer to class ColumnStateDict.
         """
         if self._column_states is None:
-            self._column_states = initiate_column_states(self.snowflake_plan)
+            self._column_states = initiate_column_states(
+                [attr.name for attr in self.snowflake_plan.attributes]
+            )
         return self._column_states
 
 
@@ -325,7 +327,7 @@ class SelectStatement(Selectable):
         )
         offset_clause = f" {analyzer_utils.OFFSET} {self.offset}" if self.offset else ""
         self._schema_query = f"{analyzer_utils.SELECT} {projection} {analyzer_utils.FROM}({self.from_.schema_query()})"
-        return f"{analyzer_utils.SELECT} {projection} {analyzer_utils.FROM} {from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        return f"{analyzer_utils.SELECT}{projection}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
 
     def schema_query(self) -> str:
         return self._schema_query or self.from_.schema_query()
@@ -538,7 +540,9 @@ class SetStatement(Selectable):
     @property
     def column_states(self) -> Optional[ColumnStateDict]:
         if not self._column_states:
-            self._column_states = self.set_operands[0].selectable.column_states
+            self._column_states = initiate_column_states(
+                [k for k in self.set_operands[0].selectable.column_states.keys()]
+            )
         return self._column_states
 
 
@@ -615,26 +619,36 @@ def can_clause_dependent_columns_flatten(
     can_flatten = True
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
         can_flatten = False
-    elif column_states.has_changed_columns:
+    elif column_states.has_changed_columns or column_states.has_new_columns:
         if dependent_columns == COLUMN_DEPENDENCY_ALL:
             can_flatten = False
         else:
             for dc in dependent_columns:
                 dc_state = column_states.get(dc)
-                if dc_state and dc_state.change_state == ColumnChangeState.CHANGED_EXP:
-                    can_flatten = False
-                    break
+                if dc_state:
+                    if dc_state.change_state == ColumnChangeState.CHANGED_EXP:
+                        can_flatten = False
+                        break
+                    elif dc_state.change_state == ColumnChangeState.NEW:
+                        # Most of the time this can be flatten. But if a new column uses window function and this column
+                        # is used in a clause, the sql doesn't work in Snowflake.
+                        # For instance `select a, rank() over(order by b) as d from test_table where d = 1` doesn't work.
+                        # But `select a, b as d from test_table where d = 1` works
+                        # We can inspect whether the referenced new column uses window function. Here we are being
+                        # conservative for now to not flatten the SQL.
+                        can_flatten = False
+                        break
     return can_flatten
 
 
-def initiate_column_states(snowflake_plan: SnowflakePlan):
+def initiate_column_states(column_names: List[str]):
     column_states = ColumnStateDict()
-    for i, attr in enumerate(snowflake_plan.attributes):
-        column_states[attr.name] = ColumnState(
-            attr.name,
+    for i, name in enumerate(column_names):
+        column_states[name] = ColumnState(
+            name,
             index=i,
             change_state=ColumnChangeState.UNCHANGED_EXP,
-            expression=UnresolvedAttribute(quote_name(attr.name)),
+            expression=UnresolvedAttribute(quote_name(name)),
             dependent_columns=COLUMN_DEPENDENCY_EMPTY,
             depend_on_same_level=False,
             referenced_by_same_level_columns=COLUMN_DEPENDENCY_EMPTY,

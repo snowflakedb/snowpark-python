@@ -32,11 +32,6 @@ def derive_dependent_columns(*expressions: "Expression"):
                 return COLUMN_DEPENDENCY_DOLLAR
             if child_dependency == COLUMN_DEPENDENCY_ALL:
                 return COLUMN_DEPENDENCY_ALL
-            if isinstance(exp, UnresolvedAttribute):
-                if not exp.is_sql_text:
-                    result.add(exp.name)
-            elif isinstance(exp, NamedExpression):
-                result.add(exp.name)
             result.update(child_dependency)
     return result
 
@@ -104,13 +99,13 @@ class MultipleExpression(Expression):
 
 
 class InExpression(Expression):
-    def __init__(self, columns: List[Expression], values: List[Expression]) -> None:
+    def __init__(self, columns: Expression, values: List[Expression]) -> None:
         super().__init__()
         self.columns = columns
         self.values = values
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return derive_dependent_columns(*self.columns, *self.values)
+        return derive_dependent_columns(self.columns, *self.values)
 
 
 class Star(Expression):
@@ -119,7 +114,7 @@ class Star(Expression):
         self.expressions = expressions
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return COLUMN_DEPENDENCY_EMPTY
+        return derive_dependent_columns(*self.expressions)
 
 
 class Attribute(Expression, NamedExpression):
@@ -147,7 +142,7 @@ class Attribute(Expression, NamedExpression):
         return self.name
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return set()
+        return {self.name}
 
 
 class UnresolvedAttribute(Expression, NamedExpression):
