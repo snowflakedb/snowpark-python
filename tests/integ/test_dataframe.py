@@ -413,10 +413,84 @@ def test_select_table_function_negative(session):
 
     with pytest.raises(ValueError) as ex_info:
         df.select(multiplier_udtf(df.a).alias("double", "double"))
-    assert "All output column names after aliasing must be uniqu" in str(ex_info)
+    assert "All output column names after aliasing must be unique" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
         df.select(multiplier_udtf(df.a).alias("double"))
+    assert (
+        "The number of aliases should be same as the number of cols added by table function"
+        in str(ex_info)
+    )
+
+
+def test_with_column(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    expected = [Row(A=1, B=2, MEAN=1.5), Row(A=3, B=4, MEAN=3.5)]
+    Utils.check_answer(df.with_column("mean", (df["a"] + df["b"]) / 2), expected)
+
+    @udtf(output_schema=["number"])
+    class sum_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            yield (a + b,)
+
+    expected = [Row(A=1, B=2, TOTAL=3), Row(A=3, B=4, TOTAL=7)]
+    Utils.check_answer(df.with_column("total", sum_udtf(df.a, df.b)), expected)
+
+
+def test_with_column_negative(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+    # raise error when table function returns multiple columns
+    @udtf(output_schema=["sum", "diff"])
+    class sum_diff_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:
+            yield (a + b, a - b)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.with_column("total", sum_diff_udtf(df.a, df.b))
+    assert (
+        "The number of aliases should be same as the number of cols added by table function"
+        in str(ex_info)
+    )
+
+
+def test_with_columns(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+    @udtf(output_schema=["number"])
+    class sum_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            yield (a + b,)
+
+    expected = [Row(A=1, B=2, MEAN=1.5, TOTAL=3), Row(A=3, B=4, MEAN=3.5, TOTAL=7)]
+    Utils.check_answer(
+        df.with_columns(
+            ["mean", "total"], [(df["a"] + df["b"]) / 2, sum_udtf(df.a, df.b)]
+        ),
+        expected,
+    )
+
+
+def test_with_columns_negative(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    # raise error when more column names are added than cols
+    with pytest.raises(ValueError) as ex_info:
+        df.with_columns(["sum", "diff"], [(df["a"] + df["b"]) / 2])
+    assert (
+        "The size of column names (2) is not equal to the size of columns (1)"
+        in str(ex_info)
+    )
+
+    # raise error when table function returns multiple columns
+    @udtf(output_schema=["sum", "diff"])
+    class sum_diff_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:
+            yield (a + b, a - b)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.with_columns(
+            ["mean", "total"], [(df["a"] + df["b"]) / 2, sum_diff_udtf(df.a, df.b)]
+        )
     assert (
         "The number of aliases should be same as the number of cols added by table function"
         in str(ex_info)

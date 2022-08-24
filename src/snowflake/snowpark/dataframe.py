@@ -1927,12 +1927,12 @@ class DataFrame:
             ...     def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
             ...         yield (a + b, )
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df.with_column("total", sum_udtf(df.a, df.b)).show()
+            >>> df.with_column("total", sum_udtf(df.a, df.b)).sort(df.a).show()
             -----------------------
             |"A"  |"B"  |"TOTAL"  |
             -----------------------
-            |3    |4    |7        |
             |1    |2    |3        |
+            |3    |4    |7        |
             -----------------------
             <BLANKLINE>
 
@@ -1961,12 +1961,12 @@ class DataFrame:
             ...     def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
             ...         yield (a + b, )
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df.with_columns(["mean", "total"], [(df["a"] + df["b"]) / 2, sum_udtf(df.a, df.b)]).show()
+            >>> df.with_columns(["mean", "total"], [(df["a"] + df["b"]) / 2, sum_udtf(df.a, df.b)]).sort(df.a).show()
             ----------------------------------
             |"A"  |"B"  |"MEAN"    |"TOTAL"  |
             ----------------------------------
-            |3    |4    |3.500000  |7        |
             |1    |2    |1.500000  |3        |
+            |3    |4    |3.500000  |7        |
             ----------------------------------
             <BLANKLINE>
 
