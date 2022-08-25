@@ -383,8 +383,13 @@ def generate_python_code(
             code_generation.generate_source_code(func) if source_code_display else ""
         )
     except Exception as exc:
-        logger.debug(f"Source code comment could not be generated due to error {exc!r}")
-        source_code_comment = ""
+        error_msg = (
+            f"Source code comment could not be generated for {func} due to error {exc}."
+        )
+        logger.debug(error_msg)
+        # We shall also have telemetry for the code generation
+        # check https://snowflakecomputing.atlassian.net/browse/SNOW-651381
+        source_code_comment = code_generation.comment_source_code(error_msg)
 
     deserialization_code = f"""
 import pickle
