@@ -40,7 +40,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
+from snowflake.snowpark.functions import call_udf, col, count_distinct, pandas_udf, udf
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
@@ -1225,6 +1225,33 @@ def test_add_packages(session):
     }
 
     session.clear_packages()
+
+
+def test_add_packages_with_underscore(session):
+    packages = ["spacy-model-en_core_web_sm", "typing_extensions"]
+    count = (
+        session.table("information_schema.packages")
+        .where(col("package_name").in_(packages))
+        .select(count_distinct("package_name"))
+        .collect()[0][0]
+    )
+    if count != len(packages):
+        pytest.skip("These packages with underscores are not available")
+
+    udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    @udf(name=udf_name, packages=packages)
+    def check_if_package_installed() -> bool:
+        try:
+            import spacy
+            import typing_extensions  # noqa: F401
+
+            spacy.load("en_core_web_sm")
+            return True
+        except Exception:
+            return False
+
+    Utils.check_answer(session.sql(f"select {udf_name}()").collect(), [Row(True)])
 
 
 @pytest.mark.skipif(
