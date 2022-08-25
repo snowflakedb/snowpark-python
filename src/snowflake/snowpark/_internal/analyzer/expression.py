@@ -150,8 +150,7 @@ class UnresolvedAttribute(Expression, NamedExpression):
         super().__init__()
         self.name = name
         self.is_sql_text = is_sql_text
-        name_startswith_dollar = name.startswith('"$') or name.startswith("$")
-        if name_startswith_dollar:
+        if "$" in name:
             self._dependent_column_names = COLUMN_DEPENDENCY_DOLLAR
         else:
             self._dependent_column_names = (

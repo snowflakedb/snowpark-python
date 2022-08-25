@@ -373,20 +373,11 @@ class SelectStatement(Selectable):
                         ColumnChangeState.CHANGED_EXP,
                         ColumnChangeState.NEW,
                     ):
-                        if dependent_columns == COLUMN_DEPENDENCY_ALL:
-                            if (
-                                subquery_column_states.has_changed_columns
-                                or subquery_column_states.has_new_columns
-                                or subquery_column_states.has_dropped_columns
-                            ):
-                                can_flatten = False
-                                break
-                        else:
-                            can_flatten = can_projection_dependent_columns_flatten(
-                                dependent_columns, subquery_column_states
-                            )
-                            if not can_flatten:
-                                break
+                        can_flatten = can_projection_dependent_columns_flatten(
+                            dependent_columns, subquery_column_states
+                        )
+                        if not can_flatten:
+                            break
                         final_projection.append(state.expression)
                     elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
                         # query may change sequence of columns. If subquery has same-level reference, flattened sql may not work.
@@ -500,7 +491,7 @@ class SelectStatement(Selectable):
         new._column_states = set_statement.column_states
         return new
 
-    def limit(self, n: int, *, offset: int = 0):
+    def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
         new = copy(self)
         new.from_ = self.from_.to_subqueryable()
         new.limit_ = min(self.limit_, n) if self.limit_ else n
@@ -520,8 +511,6 @@ class SetStatement(Selectable):
         super().__init__(analyzer=analyzer)
         self.analyzer = analyzer
         self.set_operands = set_operands
-        self.pre_actions = []
-        self.post_actions = []
         for operand in set_operands:
             if operand.selectable.pre_actions:
                 self.pre_actions.extend(operand.selectable.pre_actions)
@@ -586,21 +575,21 @@ def get_dependent_columns(*column_exp: Union[Expression, str]) -> Set[str]:
 
 
 def can_projection_dependent_columns_flatten(
-    dependent_columns: Optional[Set[str]], column_states: ColumnStateDict
+    dependent_columns: Optional[Set[str]], subquery_column_states: ColumnStateDict
 ):
     can_flatten = True
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
         can_flatten = False
     elif (
-        column_states.has_changed_columns
-        or column_states.has_dropped_columns
-        or column_states.has_new_columns
+        subquery_column_states.has_changed_columns
+        or subquery_column_states.has_dropped_columns
+        or subquery_column_states.has_new_columns
     ):
         if dependent_columns == COLUMN_DEPENDENCY_ALL:
             can_flatten = False
         else:
             for dc in dependent_columns:
-                dc_state = column_states.get(dc)
+                dc_state = subquery_column_states.get(dc)
                 if dc_state and dc_state.change_state in (
                     (
                         ColumnChangeState.CHANGED_EXP,
@@ -614,17 +603,20 @@ def can_projection_dependent_columns_flatten(
 
 
 def can_clause_dependent_columns_flatten(
-    dependent_columns: Optional[Set[str]], column_states: ColumnStateDict
+    dependent_columns: Optional[Set[str]], subquery_column_states: ColumnStateDict
 ):
     can_flatten = True
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
         can_flatten = False
-    elif column_states.has_changed_columns or column_states.has_new_columns:
+    elif (
+        subquery_column_states.has_changed_columns
+        or subquery_column_states.has_new_columns
+    ):
         if dependent_columns == COLUMN_DEPENDENCY_ALL:
             can_flatten = False
         else:
             for dc in dependent_columns:
-                dc_state = column_states.get(dc)
+                dc_state = subquery_column_states.get(dc)
                 if dc_state:
                     if dc_state.change_state == ColumnChangeState.CHANGED_EXP:
                         can_flatten = False
@@ -673,7 +665,7 @@ def derive_column_states_from_subquery(
         quoted_c_name = analyzer_utils.quote_name(c_name)
         quoted_col_names.append(quoted_c_name)
         from_c_state = from_.column_states.get(quoted_c_name)
-        if from_c_state:
+        if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
             if c_name != from_.analyzer.analyze(c):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,
