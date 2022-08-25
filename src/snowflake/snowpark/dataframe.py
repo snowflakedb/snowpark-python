@@ -1953,7 +1953,7 @@ class DataFrame:
         If columns with the same names already exist in the DataFrame, those columns
         are removed and appended at the end by new columns.
 
-        Example::
+        Example 1::
 
             >>> from snowflake.snowpark.functions import udtf
             >>> @udtf(output_schema=["number"])
@@ -1970,16 +1970,26 @@ class DataFrame:
             ----------------------------------
             <BLANKLINE>
 
+        Example 2::
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
+            >>> df.with_columns(["seq", "idx", "val"], [split_to_table(df.addresses, lit(" "))]).show()
+            ------------------------------------------------------------------
+            |"NAME"  |"ADDRESSES"                 |"SEQ"  |"IDX"  |"VAL"     |
+            ------------------------------------------------------------------
+            |James   |address1 address2 address3  |1      |1      |address1  |
+            |James   |address1 address2 address3  |1      |2      |address2  |
+            |James   |address1 address2 address3  |1      |3      |address3  |
+            ------------------------------------------------------------------
+            <BLANKLINE>
+
         Args:
             col_names: A list of the names of the columns to add or replace.
             values: A list of the :class:`Column` objects or :class:`table_function.TableFunctionCall` object
-                    with single column output to add or replace.
+                    to add or replace.
         """
-        if len(col_names) != len(values):
-            raise ValueError(
-                f"The size of column names ({len(col_names)}) is not equal to the size of columns ({len(values)})"
-            )
-
         # Get a list of the new columns and their dedupped values
         qualified_names = [quote_name(n) for n in col_names]
         new_column_names = set(qualified_names)
@@ -1989,7 +1999,35 @@ class DataFrame:
                 "The same column name is used multiple times in the col_names parameter."
             )
 
-        new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
+        num_table_func_calls = sum(
+            1 if isinstance(col, TableFunctionCall) else 0 for col in values
+        )
+        if num_table_func_calls == 0:
+            if len(col_names) != len(values):
+                raise ValueError(
+                    f"The size of column names ({len(col_names)}) is not equal to the size of columns ({len(values)})"
+                )
+            new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
+        elif num_table_func_calls > 1:
+            raise ValueError(
+                f"Only one table function call accepted inside with_columns call, ({num_table_func_calls}) provided"
+            )
+        else:
+            if len(col_names) < len(values):
+                raise ValueError(
+                    "The size of column names must be equal to the size of the output columns. Fewer columns provided."
+                )
+            new_cols = []
+            offset = 0
+            for i in range(len(values)):
+                col = values[i]
+                if isinstance(col, Column):
+                    name = col_names[i + offset]
+                    new_cols.append(col.as_(name))
+                else:
+                    offset = len(col_names) - len(values)
+                    names = col_names[i : i + offset + 1]
+                    new_cols.append(col.as_(*names))
 
         # Get a list of existing column names that are not being replaced
         old_cols = [

@@ -470,9 +470,65 @@ def test_with_columns(session):
         expected,
     )
 
+    # test with a udtf sandwitched between names
+    @udtf(output_schema=["sum", "diff"])
+    class sum_diff_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:
+            yield (a + b, a - b)
+
+    expected = [
+        Row(A=1, B=2, MEAN=1.5, ADD=3, SUB=-1, TWO_A=2),
+        Row(A=3, B=4, MEAN=3.5, ADD=7, SUB=-1, TWO_A=6),
+    ]
+    Utils.check_answer(
+        df.with_columns(
+            ["mean", "add", "sub", "two_a"],
+            [(df["a"] + df["b"]) / 2, sum_diff_udtf(df.a, df.b), df.a + df.a],
+        ),
+        expected,
+    )
+
+    # test with built-in table function
+    split_to_table = table_function("split_to_table")
+    df = session.sql(
+        "select 'James' as name, 'address1 address2 address3' as addresses"
+    )
+    expected = [
+        Row(
+            NAME="James",
+            ADDRESSES="address1 address2 address3",
+            SEQ=1,
+            IDX=1,
+            VAL="address1",
+        ),
+        Row(
+            NAME="James",
+            ADDRESSES="address1 address2 address3",
+            SEQ=1,
+            IDX=2,
+            VAL="address2",
+        ),
+        Row(
+            NAME="James",
+            ADDRESSES="address1 address2 address3",
+            SEQ=1,
+            IDX=3,
+            VAL="address3",
+        ),
+    ]
+    Utils.check_answer(
+        df.with_columns(
+            ["seq", "idx", "val"], [split_to_table(df.addresses, lit(" "))]
+        ),
+        expected,
+    )
+
 
 def test_with_columns_negative(session):
-    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df = session.create_dataframe(
+        [[1, 2, "one o one"], [3, 4, "two o two"]], schema=["a", "b", "c"]
+    )
+
     # raise error when more column names are added than cols
     with pytest.raises(ValueError) as ex_info:
         df.with_columns(["sum", "diff"], [(df["a"] + df["b"]) / 2])
@@ -481,7 +537,29 @@ def test_with_columns_negative(session):
         in str(ex_info)
     )
 
-    # raise error when table function returns multiple columns
+    # raise when more than one table function is called
+    split_to_table = table_function("split_to_table")
+
+    @udtf(output_schema=["number"])
+    class sum_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            yield (a + b,)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.with_columns(
+            ["total", "sum", "diff"], [sum_udtf(df.a, df.b), split_to_table(df.c)]
+        )
+    assert (
+        "Only one table function call accepted inside with_columns call, (2) provided"
+        in str(ex_info)
+    )
+
+    # raise when len(cols) < len(values)
+    with pytest.raises(ValueError) as ex_info:
+        df.with_columns(["total"], [sum_udtf(df.a, df.b), (df.a + df.b) / 2])
+    assert "Fewer columns provided." in str(ex_info)
+
+    # raise when col names don't match output cols
     @udtf(output_schema=["sum", "diff"])
     class sum_diff_udtf:
         def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:
@@ -489,7 +567,7 @@ def test_with_columns_negative(session):
 
     with pytest.raises(ValueError) as ex_info:
         df.with_columns(
-            ["mean", "total"], [(df["a"] + df["b"]) / 2, sum_diff_udtf(df.a, df.b)]
+            ["mean", "total"], [(df["a"] + df["b"]) / 2, split_to_table(df.c, lit(" "))]
         )
     assert (
         "The number of aliases should be same as the number of cols added by table function"
