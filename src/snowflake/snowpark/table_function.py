@@ -108,6 +108,17 @@ class TableFunctionCall:
             new_table_function._order_by = order_spec
         return new_table_function
 
+    def as_(self, *aliases: str) -> "TableFunctionCall":
+        """Alias the output columns from the output of this table function call.
+
+        Args:
+            aliases: An iterable of unique column names that do not collide with columns names after join with the main table.
+
+        Raises:
+            ValueError: Raises error when the aliases are not unique after being canonicalized.
+        """
+        return self.alias(*aliases)
+
     def alias(self, *aliases: str) -> "TableFunctionCall":
         """Alias the output columns from the output of this table function call.
 

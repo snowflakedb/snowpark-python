@@ -1989,7 +1989,7 @@ class DataFrame:
                 "The same column name is used multiple times in the col_names parameter."
             )
 
-        new_cols = [col.alias(name) for name, col in zip(qualified_names, values)]
+        new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
 
         # Get a list of existing column names that are not being replaced
         old_cols = [
