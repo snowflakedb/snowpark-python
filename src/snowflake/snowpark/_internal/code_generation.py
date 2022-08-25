@@ -44,6 +44,7 @@ def get_func_references(func: FunctionType, ref_objects: Dict[str, Any]) -> None
     """
     Get the objects references by target func, they could be methods, modules, classes, methods, global variables
     and its closures.
+    This method will update the input ref_objects.
 
     Args:
         func: The target function to generate source code for.
@@ -82,13 +83,14 @@ def get_class_references(
     cls: type,
     func: FunctionType,
     ref_objects: Dict[str, Any],
-    classes_to_generate: list,
+    classes_to_generate: List[type],
     *,
     generate_code_for_class: bool = True,
 ) -> None:
     """
     To get the referenced objects of a class defined in the same module.
     A class could have methods, subclasses referencing other objects.
+    This method will update the input ref_objects and classes_to_generate.
 
     Args:
         cls: The class to be analyzed to find references.
@@ -106,8 +108,9 @@ def get_class_references(
         classes_to_generate.insert(0, cls)
 
     # if base class is from the same module, we need to parse the class as well as generate code for the class
-    # False in the tuple means this is not a nested class
-    inferred_classes: List[Tuple[Any, bool]] = []
+    # ClassCodeGeneration.generate_code indicates whether we should generate code for the class -- a nested class
+    # doesn't need to be generated code for as the source code of the parent class contains it already.
+    inferred_classes: List[ClassCodeGeneration] = []
 
     for base_class in cls.__bases__:
         base_class_name = base_class.__qualname__
@@ -130,7 +133,8 @@ def get_class_references(
             top_level_cls_name = v.__qualname__.split(".")[0]
             if v.__module__ == func_module_name:
                 # v is a class defined in the same module as UDF func's, need to dynamically parse the class
-                # if v is class defined in cls, then we should not re-generate code for the nested class
+                # one exception is that if v is class defined in cls,
+                # then we should not re-generate code for the nested class
                 inferred_classes.append(
                     ClassCodeGeneration(
                         class_object=v,
@@ -157,6 +161,8 @@ def get_class_references(
 
     # recursively handling inferred classes that should be analyzed dynamically
     for inferred_class, generate_code in inferred_classes:
+        # generate_code controls whether to generate code for inferred_class and is set to false
+        # if inferred_classes is nested class.
         get_class_references(
             inferred_class,
             func,
@@ -187,6 +193,7 @@ def remove_function_udf_annotation(udf_source_code: str) -> str:
     """
     Remove the udf/pandas_udf annotation to avoid re-registration.
     """
+    udf_source_code = udf_source_code.strip()
     res = re.search(r"@(pandas_)?udf", udf_source_code)
     if res is None:
         return udf_source_code
@@ -265,7 +272,7 @@ def generate_source_code(
     ref_objects: Dict[str, Any] = {}
     # stored modules, each item should be a tuple of two strings, first is the true module name, second is the used name
     # such as alias or just the name
-    to_import: Set[Tuple[ImportNameAliasPair]] = set()
+    to_import: Set[ImportNameAliasPair] = set()
     # imports class/funcs/vars from other modules, each key is the module name
     # each item is a set of tuples of two strings as the to_import, first module name, second alias
     to_import_from_module: Dict[str, Set[ImportNameAliasPair]] = defaultdict(set)
@@ -384,7 +391,11 @@ def extract_submodule_imports(
 ) -> Set[ImportNameAliasPair]:
     """
     Get submodule imports, the func code co_names only gives the top level module names, the submodule imports
-    have to be inferred manually. Consider the following example:
+    have to be inferred manually.
+    Top level modules refers the top level modules that is imported, e.g., in "import a1.a2",
+    "a1" is the top level imported module.
+
+    Consider the following example:
 
     import a1.a2.a3.a4
     def func():
