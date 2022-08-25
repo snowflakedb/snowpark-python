@@ -112,7 +112,7 @@ class TableFunctionCall:
         """Alias the output columns from the output of this table function call.
 
         Args:
-            aliases: An iterable of unique column names that do not collide with columns names after join with the main table.
+            aliases: An iterable of unique column names that do not collide with column names after join with the main table.
 
         Raises:
             ValueError: Raises error when the aliases are not unique after being canonicalized.
@@ -123,7 +123,7 @@ class TableFunctionCall:
         """Alias the output columns from the output of this table function call.
 
         Args:
-            aliases: An iterable of unique column names that do not collide with columns names after join with the main table.
+            aliases: An iterable of unique column names that do not collide with column names after join with the main table.
 
         Raises:
             ValueError: Raises error when the aliases are not unique after being canonicalized.
