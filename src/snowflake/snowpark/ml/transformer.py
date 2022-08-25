@@ -647,7 +647,10 @@ class KBinsDiscretizer(Transformer):
                 ]
             )
             .write.save_as_table(
-                self._states_table_name, create_temp_table=True, mode="overwrite"
+                self._states_table_name,
+                create_temp_table=True,
+                mode="overwrite",
+                block=block,
             )
         )
         return self if block else (self, [async_monitor])
