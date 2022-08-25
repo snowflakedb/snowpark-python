@@ -32,9 +32,7 @@ CODE_HEADER = """\
 from __future__ import annotations
 import pickle
 """
-ImportNameAliasPair = namedtuple(
-    "ImportNameAliasPair", "name alias", defaults=[None] * 2
-)
+ImportNameAliasPair = namedtuple("ImportNameAliasPair", "name alias", defaults=[""] * 2)
 ClassCodeGeneration = namedtuple(
     "ClassCodeGeneration", "class_object, generate_code", defaults=[None, True]
 )
@@ -351,11 +349,13 @@ def get_lambda_code_text(code_text: str) -> str:
             # session.udf.register(
             #    lambda x, y: x + y, ...
             # )
+            # code_text in this case is "lambda x, y: x + y, ..."
             code_text = f"wrapper({code_text})"
         elif "unmatched ')'" in str(exc):
             # handle case like:
             # session.udf.register(
             #    lambda x, y: x + y, ...)
+            # code_text in this case is "lambda x, y: x + y, ...)"
             code_text = f"wrapper({code_text}"
         source_ast = ast.parse(code_text)
     lambda_node = next(
@@ -427,13 +427,14 @@ def extract_submodule_imports(
         # top level module is already collected by get_func_references method so will not be handled here
         for name in [m for m in sys.modules if m.startswith(module_prefix)]:
             tokens = set(name[len(module_prefix) :].split("."))
-            if (
-                not tokens - func_co_names
-            ):  # only add imports that co_names contains all the tokens
-                # if any token does not show up in func_co_names, it means the module is not used by
-                # func, thus there is no need to import the module
-                # if all tokens showing up in the func_co_names, it means the module *might* be used by
-                # func, import the token
+            # only add imports that co_names contains all the tokens
+            # if any token does not show up in func_co_names, it means the module is not used by
+            # func, thus there is no need to import the module
+            # if all tokens showing up in the func_co_names, it means the module *might* be used by
+            # func, import the token
+            if not tokens - func_co_names:
+                # submodule is not expected to have an alias.
+                # alias module are expected to be detected and handled by get_func_references
                 imports.add(ImportNameAliasPair(name=name))
     return imports
 
@@ -510,7 +511,7 @@ def resolve_target_func_referenced_objects_by_type(
             # a) imported modules
             to_import.add(
                 ImportNameAliasPair(
-                    name=obj.__name__, alias=name if name != obj.__name__ else None
+                    name=obj.__name__, alias=name if name != obj.__name__ else ""
                 )
             )  # name could be an alias
         elif (
@@ -519,7 +520,7 @@ def resolve_target_func_referenced_objects_by_type(
             # b) classes or functions imported from other modules
             to_import_from_module[obj.__module__].add(
                 ImportNameAliasPair(
-                    name=obj.__name__, alias=name if name != obj.__name__ else None
+                    name=obj.__name__, alias=name if name != obj.__name__ else ""
                 )
             )  # name could be an alias
         else:

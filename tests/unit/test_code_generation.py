@@ -535,7 +535,7 @@ def test_import_multilevel_and_alias_modules():
             ref_objects["pandas_api"],
         ],
     )
-    assert imports == {("pandas.io", None), ("pandas.io.sql", None)}
+    assert imports == {("pandas.io", ""), ("pandas.io.sql", "")}
 
     assert (
         generate_source_code(func)
