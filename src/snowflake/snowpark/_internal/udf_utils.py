@@ -393,6 +393,7 @@ def generate_python_code(
 
     deserialization_code = f"""
 import pickle
+
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
 {source_code_comment}
 """.rstrip()
