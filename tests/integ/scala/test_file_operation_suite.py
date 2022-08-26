@@ -222,10 +222,6 @@ def test_put_negative(session, temp_stage, temp_source_directory, path1):
     assert "does not exist or not authorized." in str(stage_not_exist_info)
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Stream uploads for stored procedure are not supported yet.",
-)
 def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
@@ -271,10 +267,6 @@ def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3):
     assert third_result.message == ""
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Stream uploads for stored procedure are not supported yet.",
-)
 def test_put_stream_with_one_file_twice(session, temp_stage, path1):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
@@ -296,10 +288,6 @@ def test_put_stream_with_one_file_twice(session, temp_stage, path1):
     assert second_result.message == ""
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Stream uploads for stored procedure are not supported yet.",
-)
 def test_put_stream_negative(session, temp_stage, path1):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
