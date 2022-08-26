@@ -749,6 +749,10 @@ class TestFiles:
     def test_file_csv_special_format(self):
         return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
 
+    @functools.cached_property
+    def test_file_json_special_format(self):
+        return os.path.join(self.resources_path, "testJSONspecialFormat.json.gz")
+
     @property
     def test_file_json(self):
         return os.path.join(self.resources_path, "testJson.json")

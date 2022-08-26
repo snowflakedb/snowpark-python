@@ -30,6 +30,7 @@ test_file_csv_colon = "testCSVcolon.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_json = "testJson.json"
 test_file_csv_special_format = "testCSVspecialFormat.csv"
+test_file_json_special_format = "testJSONspecialFormat.json.gz"
 test_file_avro = "test.avro"
 test_file_parquet = "test.parquet"
 test_file_all_data_types_parquet = "test_all_data_types.parquet"
@@ -129,6 +130,12 @@ def upload_files(session, tmp_stage_name1, tmp_stage_name2, resources_path):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_csv_special_format,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_json_special_format,
         compress=False,
     )
     Utils.upload_to_stage(
