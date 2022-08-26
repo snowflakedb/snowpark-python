@@ -449,6 +449,7 @@ class UDFRegistration:
         max_batch_size: Optional[int] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        source_code_display: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
         """
@@ -510,6 +511,10 @@ class UDFRegistration:
                 guarantee that Snowflake will encode batches with the specified number of rows. It will
                 be ignored when registering a non-vectorized UDF.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            source_code_display: Display the source code of the UDF `func` as comments in the generated script.
+                The source code is dynamically generated therefore it may not be identical to how the
+                `func` is originally defined. The default is ``True``.
+                If it is ``False``, source code will not be generated or displayed.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
@@ -539,6 +544,7 @@ class UDFRegistration:
             max_batch_size,
             kwargs.get("_from_pandas_udf_function", False),
             statement_params=statement_params,
+            source_code_display=source_code_display,
         )
 
     def register_from_file(
@@ -556,6 +562,7 @@ class UDFRegistration:
         parallel: int = 4,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        source_code_display: bool = True,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -616,6 +623,10 @@ class UDFRegistration:
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            source_code_display: Display the source code of the UDF `func` as comments in the generated script.
+                The source code is dynamically generated therefore it may not be identical to how the
+                `func` is originally defined. The default is ``True``.
+                If it is ``False``, source code will not be generated or displayed.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -644,6 +655,7 @@ class UDFRegistration:
             replace,
             parallel,
             statement_params=statement_params,
+            source_code_display=source_code_display,
         )
 
     def _do_register_udf(
@@ -661,6 +673,7 @@ class UDFRegistration:
         from_pandas_udf_function: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        source_code_display: bool = True,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -706,6 +719,7 @@ class UDFRegistration:
             is_dataframe_input,
             max_batch_size,
             statement_params=statement_params,
+            source_code_display=source_code_display,
         )
 
         raised = False
