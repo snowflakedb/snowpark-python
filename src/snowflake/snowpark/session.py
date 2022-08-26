@@ -710,17 +710,23 @@ class Session:
         )
         for package in packages:
             if isinstance(package, ModuleType):
-                package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
+                package = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+                package = (
+                    f"{package}=={pkg_resources.get_distribution(package).version}"
+                )
                 use_local_version = True
             else:
                 package = package.strip().lower()
                 use_local_version = False
             package_req = pkg_resources.Requirement.parse(package)
-            # get the standard package name
-            package_name = package_req.key
+            # get the standard package name if there is no underscore
+            # underscores are discouraged in package names, but are still used in Anaconda channel
+            # pkg_resources.Requirement.parse will convert all underscores to dashes
+            package_name = (
+                package if not use_local_version and "_" in package else package_req.key
+            )
             if validate_package:
                 if package_name not in valid_packages:
                     is_anaconda_terms_acknowledged = self._run_query(
