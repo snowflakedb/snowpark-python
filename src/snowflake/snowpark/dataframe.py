@@ -1781,6 +1781,22 @@ class DataFrame:
             ----------------------------------------------------------------------------------------
             <BLANKLINE>
 
+        Example 4
+            Lateral join a table function with aliasing the output column names:
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
+            >>> df.join_table_function(split_to_table(col("addresses"), lit(" ")).alias("seq", "idx", "val")).show()
+            ------------------------------------------------------------------
+            |"NAME"  |"ADDRESSES"                 |"SEQ"  |"IDX"  |"VAL"     |
+            ------------------------------------------------------------------
+            |James   |address1 address2 address3  |1      |1      |address1  |
+            |James   |address1 address2 address3  |1      |2      |address2  |
+            |James   |address1 address2 address3  |1      |3      |address3  |
+            ------------------------------------------------------------------
+            <BLANKLINE>
+
         Args:
 
             func_name: The SQL function name.
@@ -1797,6 +1813,14 @@ class DataFrame:
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
         )
+        if func_expr.aliases:
+            join_plan = self._session._analyzer.resolve(
+                TableFunctionJoin(self._plan, func_expr)
+            )
+            old_cols, new_cols = _get_cols_after_join_table(
+                func_expr, self._plan, join_plan
+            )
+            return self._with_plan(Project([*old_cols, *new_cols], join_plan))
         return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
 
     @df_api_usage
@@ -1873,7 +1897,9 @@ class DataFrame:
         )
 
     @df_api_usage
-    def with_column(self, col_name: str, col: Column) -> "DataFrame":
+    def with_column(
+        self, col_name: str, col: Union[Column, TableFunctionCall]
+    ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
         ``col_name``. The column is computed by using the specified expression ``col``.
@@ -1881,7 +1907,7 @@ class DataFrame:
         If a column with the same name already exists in the DataFrame, that column is
         replaced by the new column.
 
-        Example::
+        Example 1::
 
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> df.with_column("mean", (df["a"] + df["b"]) / 2).show()
@@ -1893,14 +1919,33 @@ class DataFrame:
             ------------------------
             <BLANKLINE>
 
+        Example 2::
+
+            >>> from snowflake.snowpark.functions import udtf
+            >>> @udtf(output_schema=["number"])
+            ... class sum_udtf:
+            ...     def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            ...         yield (a + b, )
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df.with_column("total", sum_udtf(df.a, df.b)).sort(df.a).show()
+            -----------------------
+            |"A"  |"B"  |"TOTAL"  |
+            -----------------------
+            |1    |2    |3        |
+            |3    |4    |7        |
+            -----------------------
+            <BLANKLINE>
+
         Args:
             col_name: The name of the column to add or replace.
-            col: The :class:`Column` to add or replace.
+            col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
         """
         return self.with_columns([col_name], [col])
 
     @df_api_usage
-    def with_columns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
+    def with_columns(
+        self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]
+    ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
         ``values``.
@@ -1908,10 +1953,15 @@ class DataFrame:
         If columns with the same names already exist in the DataFrame, those columns
         are removed and appended at the end by new columns.
 
-        Example::
+        Example 1::
 
+            >>> from snowflake.snowpark.functions import udtf
+            >>> @udtf(output_schema=["number"])
+            ... class sum_udtf:
+            ...     def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            ...         yield (a + b, )
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df.with_columns(["mean", "total"], [(df["a"] + df["b"]) / 2, df["a"] + df["b"]]).show()
+            >>> df.with_columns(["mean", "total"], [(df["a"] + df["b"]) / 2, sum_udtf(df.a, df.b)]).sort(df.a).show()
             ----------------------------------
             |"A"  |"B"  |"MEAN"    |"TOTAL"  |
             ----------------------------------
@@ -1920,16 +1970,26 @@ class DataFrame:
             ----------------------------------
             <BLANKLINE>
 
+        Example 2::
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
+            >>> df.with_columns(["seq", "idx", "val"], [split_to_table(df.addresses, lit(" "))]).show()
+            ------------------------------------------------------------------
+            |"NAME"  |"ADDRESSES"                 |"SEQ"  |"IDX"  |"VAL"     |
+            ------------------------------------------------------------------
+            |James   |address1 address2 address3  |1      |1      |address1  |
+            |James   |address1 address2 address3  |1      |2      |address2  |
+            |James   |address1 address2 address3  |1      |3      |address3  |
+            ------------------------------------------------------------------
+            <BLANKLINE>
+
         Args:
             col_names: A list of the names of the columns to add or replace.
-            values: A list of the :class:`Column` objects to
-                    add or replace.
+            values: A list of the :class:`Column` objects or :class:`table_function.TableFunctionCall` object
+                    to add or replace.
         """
-        if len(col_names) != len(values):
-            raise ValueError(
-                f"The size of column names ({len(col_names)}) is not equal to the size of columns ({len(values)})"
-            )
-
         # Get a list of the new columns and their dedupped values
         qualified_names = [quote_name(n) for n in col_names]
         new_column_names = set(qualified_names)
@@ -1939,7 +1999,35 @@ class DataFrame:
                 "The same column name is used multiple times in the col_names parameter."
             )
 
-        new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
+        num_table_func_calls = sum(
+            1 if isinstance(col, TableFunctionCall) else 0 for col in values
+        )
+        if num_table_func_calls == 0:
+            if len(col_names) != len(values):
+                raise ValueError(
+                    f"The size of column names ({len(col_names)}) is not equal to the size of columns ({len(values)})"
+                )
+            new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
+        elif num_table_func_calls > 1:
+            raise ValueError(
+                f"Only one table function call accepted inside with_columns call, ({num_table_func_calls}) provided"
+            )
+        else:
+            if len(col_names) < len(values):
+                raise ValueError(
+                    "The size of column names must be equal to the size of the output columns. Fewer columns provided."
+                )
+            new_cols = []
+            offset = 0
+            for i in range(len(values)):
+                col = values[i]
+                if isinstance(col, Column):
+                    name = col_names[i + offset]
+                    new_cols.append(col.as_(name))
+                else:
+                    offset = len(col_names) - len(values)
+                    names = col_names[i : i + offset + 1]
+                    new_cols.append(col.as_(*names))
 
         # Get a list of existing column names that are not being replaced
         old_cols = [
