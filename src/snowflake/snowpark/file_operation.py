@@ -239,24 +239,33 @@ class FileOperation:
         Returns:
             An object of :class:`PutResult` which represents the results of an uploaded file.
         """
+        if is_in_stored_procedure():
+            options = {
+                "parallel": parallel,
+                "source_compression": source_compression,
+                "auto_compress": auto_compress,
+                "overwrite": overwrite,
+            }
+            self._session._cursor._upload_stream(input_stream, stage_location, options)
+        else:
 
-        def parse_stage_file_location(stage_location: str):
-            stage_location = stage_location.strip()
-            if not stage_location:
-                raise ValueError("stage_location cannot be empty")
-            elif stage_location[-1] == "/":
-                raise ValueError("stage_location should end with target filename")
-            else:
-                return stage_location.rsplit("/", maxsplit=1)
+            def parse_stage_file_location(stage_location: str):
+                stage_location = stage_location.strip()
+                if not stage_location:
+                    raise ValueError("stage_location cannot be empty")
+                elif stage_location[-1] == "/":
+                    raise ValueError("stage_location should end with target filename")
+                else:
+                    return stage_location.rsplit("/", maxsplit=1)
 
-        stage_with_prefix, dest_filename = parse_stage_file_location(stage_location)
-        put_result = self._session._conn.upload_stream(
-            input_stream=input_stream,
-            stage_location=stage_with_prefix,
-            dest_filename=dest_filename,
-            parallel=parallel,
-            compress_data=auto_compress,
-            source_compression=source_compression,
-            overwrite=overwrite,
-        )
-        return PutResult(*put_result["data"][0])
+            stage_with_prefix, dest_filename = parse_stage_file_location(stage_location)
+            put_result = self._session._conn.upload_stream(
+                input_stream=input_stream,
+                stage_location=stage_with_prefix,
+                dest_filename=dest_filename,
+                parallel=parallel,
+                compress_data=auto_compress,
+                source_compression=source_compression,
+                overwrite=overwrite,
+            )
+            return PutResult(*put_result["data"][0])

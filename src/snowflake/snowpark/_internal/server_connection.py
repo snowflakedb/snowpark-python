@@ -264,16 +264,10 @@ class ServerConnection:
             if is_in_stored_procedure():
                 input_stream.seek(0)
                 target_path = _build_target_path(stage_location, dest_prefix)
-                options = {
-                    "parallel": parallel,
-                    "source_compression": source_compression,
-                    "auto_compress": compress_data,
-                    "overwrite": overwrite,
-                }
                 try:
-                    # _upload_stream directly consume stage path, so we don't need to normalize it
-                    self._cursor._upload_stream(
-                        input_stream, f"{target_path}/{dest_filename}", options
+                    # upload_stream directly consume stage path, so we don't need to normalize it
+                    self._cursor.upload_stream(
+                        input_stream, f"{target_path}/{dest_filename}"
                     )
                 except ProgrammingError as pe:
                     tb = sys.exc_info()[2]
