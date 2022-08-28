@@ -823,7 +823,7 @@ class SnowflakePlanBuilder:
             table_name=table_name,
             file_path=path,
             files=files,
-            file_format=file_format,
+            file_format_type=file_format,
             format_type_options=format_type_options,
             copy_options=copy_options,
             pattern=pattern,
@@ -992,6 +992,9 @@ class Query:
             else f"query_id_place_holder_{generate_random_alphanumeric()}"
         )
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
+
+    def __repr__(self) -> str:
+        return f"Query({self.sql}, {self.query_id_place_holder}, {self.is_ddl_on_temp_object})"
 
 
 class BatchInsertQuery(Query):

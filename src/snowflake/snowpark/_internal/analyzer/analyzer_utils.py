@@ -698,6 +698,10 @@ def get_options_statement(options: Dict[str, Any]) -> str:
     return (
         SPACE
         + SPACE.join(
+            # TODO: this next line adds single quotes around the option values, this is
+            #  incorrect to do unless we escape single quotes in the middle of the string
+            # TODO: I can't find documentation that string's repr is guaranteed to be
+            #  surrounded by single quotes, if this ever changes we'll be broken
             # repr("a") return "'a'" instead of "a". This is what we need for str values. For bool, int, float, repr(v) and str(v) return the same.
             f"{k}{EQUALS}{v if (isinstance(v, str) and is_single_quoted(v)) else repr(v)}"
             for k, v in options.items()
@@ -859,7 +863,7 @@ def unpivot_statement(
 def copy_into_table(
     table_name: str,
     file_path: str,
-    file_format: str,
+    file_format_type: str,
     format_type_options: Dict[str, Any],
     copy_options: Dict[str, Any],
     pattern: str,
@@ -919,9 +923,14 @@ def copy_into_table(
         if validation_mode
         else EMPTY_STRING
     )
-    ftostr = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS + TYPE + EQUALS + file_format
-    if format_type_options:
-        ftostr += SPACE + get_options_statement(format_type_options) + SPACE
+    file_format_name = format_type_options.get("FORMAT_NAME")
+    ftostr = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS
+    if file_format_name is None:
+        ftostr += TYPE + EQUALS + file_format_type
+        if format_type_options:
+            ftostr += SPACE + get_options_statement(format_type_options) + SPACE
+    else:
+        ftostr += FORMAT_NAME + EQUALS + file_format_name
     ftostr += RIGHT_PARENTHESIS
 
     if copy_options:

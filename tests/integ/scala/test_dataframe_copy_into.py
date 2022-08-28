@@ -2,7 +2,9 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import json
 from decimal import Decimal
+from textwrap import dedent
 
 import pytest
 
@@ -500,6 +502,81 @@ def test_csv_read_format_name(session, tmp_stage_name1):
             Row(1, "test_user", "test", "user"),
         ],
     )
+
+
+def test_copy_into_csv_format_name(session, tmp_stage_name1):
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.sql(
+        dedent(
+            f"""create temporary table {temp_table_name}
+                (ID number not null, username varchar, firstname varchar, lastname varchar);
+            """
+        )
+    ).collect()
+    session.sql(
+        "create temporary file format TEST_FMT type = csv skip_header=1 "
+        "null_if = 'none';"
+    ).collect()
+    session.read.option("format_name", "TEST_FMT").schema(
+        StructType(
+            [
+                StructField("ID", IntegerType()),
+                StructField("USERNAME", StringType()),
+                StructField("FIRSTNAME", StringType()),
+                StructField("LASTNAME", StringType()),
+            ]
+        )
+    ).csv(f"@{tmp_stage_name1}/{test_file_csv_special_format}",).copy_into_table(
+        temp_table_name
+    )
+
+    Utils.check_answer(
+        session.table(temp_table_name).sort("ID"),
+        [
+            Row(0, "admin", None, None),
+            Row(1, "test_user", "test", "user"),
+        ],
+    )
+
+
+def test_json_read_format_name(session, tmp_stage_name1):
+    session.sql(
+        "create temporary file format TEST_FMT type = json compression=gzip;"
+    ).collect()
+    sf_df = session.read.option("format_name", "TEST_FMT").json(
+        f"@{tmp_stage_name1}/{test_file_json_special_format}",
+    )
+
+    assert any("FILE_FORMAT  => 'TEST_FMT'" in q for q in sf_df.queries["queries"])
+
+    df = sf_df.collect()
+
+    assert json.loads(df[0][0]) == [
+        {
+            "id": 10,
+            "log": "user xyz logged in",
+            "ts": "20:57:01.123456789",
+        },
+    ]
+
+
+def test_copy_into_json_format_name(session, tmp_stage_name1):
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.sql(f"create temporary table {temp_table_name} (src variant);").collect()
+    session.sql(
+        "create temporary file format TEST_FMT type = json compression=gzip;"
+    ).collect()
+    session.read.option("format_name", "TEST_FMT").json(
+        f"@{tmp_stage_name1}/{test_file_json_special_format}",
+    ).copy_into_table(temp_table_name)
+
+    assert json.loads(session.table(temp_table_name).collect()[0][0]) == [
+        {
+            "id": 10,
+            "log": "user xyz logged in",
+            "ts": "20:57:01.123456789",
+        },
+    ]
 
 
 def test_copy_json_negative_test_with_column_names(session, tmp_stage_name1):

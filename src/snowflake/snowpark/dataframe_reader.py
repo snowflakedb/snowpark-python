@@ -381,27 +381,32 @@ class DataFrameReader:
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
+        create_tmp_file_format_query: Optional[str] = None
+        drop_tmp_file_format_if_exists_query: Optional[str] = None
         if self._infer_schema:
             temp_file_format_name = (
                 self._session.get_fully_qualified_current_schema()
                 + "."
                 + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
             )
-            create_file_format_query = create_file_format_statement(
-                temp_file_format_name,
-                format,
-                format_type_options,
-                temp=True,
-                if_not_exist=True,
-            )
-            drop_file_format_if_exists_query = drop_file_format_if_exists_statement(
-                temp_file_format_name
-            )
+            file_format_name = self._cur_options.get("FORMAT_NAME")
+            if file_format_name is not None:
+                create_tmp_file_format_query = create_file_format_statement(
+                    temp_file_format_name,
+                    format,
+                    format_type_options,
+                    temp=True,
+                    if_not_exist=True,
+                )
+                drop_tmp_file_format_if_exists_query = (
+                    drop_file_format_if_exists_statement(temp_file_format_name)
+                )
             infer_schema_query = infer_schema_statement(path, temp_file_format_name)
             try:
-                self._session._conn.run_query(
-                    create_file_format_query, is_ddl_on_temp_object=True
-                )
+                if create_tmp_file_format_query is not None:
+                    self._session._conn.run_query(
+                        create_tmp_file_format_query, is_ddl_on_temp_object=True
+                    )
                 results = self._session._conn.run_query(infer_schema_query)["data"]
                 new_schema = []
                 schema_to_cast = []
@@ -439,9 +444,10 @@ class DataFrameReader:
                 read_file_transformations = [t._expression.sql for t in transformations]
             finally:
                 # Clean up the file format we created
-                self._session._conn.run_query(
-                    drop_file_format_if_exists_query, is_ddl_on_temp_object=True
-                )
+                if drop_tmp_file_format_if_exists_query is not None:
+                    self._session._conn.run_query(
+                        drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
+                    )
 
         df = DataFrame(
             self._session,
