@@ -3,22 +3,22 @@
 
 ### New Features:
 - Added support for displaying source code as comments in the generated scripts when registering UDFs.
-This feature is turned on by default. To turn if off, pass the new keyword argument `source_code_display` as `False` when calling `register()` or `@udf()`.
-- Added support for `column_names` in `df.write.save_as_table()`. You can now specify the names of columns when appending new data to an existing table.
-- Added function `get_active_session()` in module `snowflake.snowpark.context` to get the current active Snowpark session.
+This feature is turned on by default. To turn it off, pass the new keyword argument `source_code_display` as `False` when calling `register()` or `@udf()`.
+- Added support for calling table functions from `DataFrame.select()`, `DataFrame.with_column()` and `DataFrame.with_columns()` which now take parameters of type `table_function.TableFunctionCall` for columns.
 - Added keyword argument `overwrite` to `session.write_pandas()` to allow overwriting contents of a Snowflake table with that of a Pandas DataFrame.
-- Added `FileOperation.put_stream()` to upload local files to a stage via file stream.
-- Added support for calling table functions from `DataFrame.select()`, `DataFrame.with_column()` and `DataFrame.with_columns` which now take parameters of type `table_function.TableFunctionCall` for columns.
-- Added `TableFunctionCall.alias` to allow aliasing the names of columns that come from the output of table function joins.
+- Added keyword argument `column_names` to `df.write.save_as_table()` to specify the names of columns when appending new data to an existing table.
+- Added method `FileOperation.put_stream()` to upload local files to a stage via file stream.
+- Added methods `TableFunctionCall.alias()` and `TableFunctionCall.as_()` to allow aliasing the names of columns that come from the output of table function joins.
+- Added function `get_active_session()` in module `snowflake.snowpark.context` to get the current active Snowpark session.
 
 ### Bug Fixes:
-- Fixed a bug in which batch insert should not raise error when `statement_params` is not passed to the function.
-- Fixed a bug in which column names should be quoted when `create_dataframe` is called with dicts and a given schema.
-- Fxied a bug in which creation of table shall be skipped if the table already exists and is in append mode.
-- Fxied a bug that packages with underscores cannot be added when registering UDFs.
+- Fixed a bug in which batch insert should not raise an error when `statement_params` is not passed to the function.
+- Fixed a bug in which column names should be quoted when `session.create_dataframe()` is called with dicts and a given schema.
+- Fixed a bug in which creation of table should be skipped if the table already exists and is in append mode when calling `df.write.save_as_table()`.
+- Fixed a bug in which third-party packages with underscores cannot be added when registering UDFs.
 
 ### Improvements:
-- Improved function `uniform` to infer the types of inputs `max_` and `_min` and cast the limits to `IntegerType` or `FloatType` correspondingly.
+- Improved function `function.uniform()` to infer the types of inputs `max_` and `min_` and cast the limits to `IntegerType` or `FloatType` correspondingly.
 
 ## 0.8.0 (2022-07-22)
 
