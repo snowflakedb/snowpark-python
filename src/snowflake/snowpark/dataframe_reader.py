@@ -389,21 +389,24 @@ class DataFrameReader:
                 + "."
                 + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
             )
-            file_format_name = self._cur_options.get("FORMAT_NAME")
-            if file_format_name is not None:
+            use_temp_file_format = "FORMAT_NAME" not in self._cur_options
+            file_format_name = self._cur_options.get(
+                "FORMAT_NAME", temp_file_format_name
+            )
+            if use_temp_file_format is not None:
                 create_tmp_file_format_query = create_file_format_statement(
-                    temp_file_format_name,
+                    file_format_name,
                     format,
                     format_type_options,
                     temp=True,
                     if_not_exist=True,
                 )
                 drop_tmp_file_format_if_exists_query = (
-                    drop_file_format_if_exists_statement(temp_file_format_name)
+                    drop_file_format_if_exists_statement(file_format_name)
                 )
-            infer_schema_query = infer_schema_statement(path, temp_file_format_name)
+            infer_schema_query = infer_schema_statement(path, file_format_name)
             try:
-                if create_tmp_file_format_query is not None:
+                if use_temp_file_format is not None:
                     self._session._conn.run_query(
                         create_tmp_file_format_query, is_ddl_on_temp_object=True
                     )

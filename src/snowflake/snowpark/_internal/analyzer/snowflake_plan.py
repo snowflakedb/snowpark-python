@@ -675,16 +675,15 @@ class SnowflakePlanBuilder:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
         if not copy_options:  # use select
-            temp_file_format_name = (
-                fully_qualified_schema
-                + "."
-                + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
-            )
             queries: List[Query] = []
             post_queries: List[Query] = []
             use_temp_file_format: bool = "FORMAT_NAME" not in options
             if use_temp_file_format:
-                format_name = temp_file_format_name
+                format_name = (
+                    fully_qualified_schema
+                    + "."
+                    + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+                )
                 queries.append(
                     Query(
                         create_file_format_statement(
