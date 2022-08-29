@@ -59,6 +59,9 @@ class SpecifiedWindowFrame(WindowFrame):
         self.lower = lower
         self.upper = upper
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.lower, self.upper)
+
 
 class WindowSpecDefinition(Expression):
     def __init__(
@@ -73,7 +76,9 @@ class WindowSpecDefinition(Expression):
         self.frame_spec = frame_spec
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return derive_dependent_columns(*self.partition_spec, *self.order_spec)
+        return derive_dependent_columns(
+            *self.partition_spec, *self.partition_spec, *self.order_spec
+        )
 
 
 class WindowExpression(Expression):
@@ -85,7 +90,7 @@ class WindowExpression(Expression):
         self.window_spec = window_spec
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return derive_dependent_columns(self.window_function)
+        return derive_dependent_columns(self.window_function, self.window_spec)
 
 
 class RankRelatedFunctionExpression(Expression):

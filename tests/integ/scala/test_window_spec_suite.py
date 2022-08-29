@@ -8,6 +8,7 @@ import pytest
 
 from snowflake.snowpark import Row, Window
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.context import _USE_SQL_SIMPLIFIER
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     avg,
@@ -112,7 +113,12 @@ def test_window_function_inside_where_and_having_clauses(session):
         TestData.test_data2(session).select("a").where(
             rank().over(Window.order_by("b")) == 1
         ).collect()
-    assert "invalid identifier" in str(ex_info)
+    if _USE_SQL_SIMPLIFIER:
+        # The SQL has two errors - invalid identifier and using window function in where clause.
+        # After sql is simplified, the SQL error reports using window function first.
+        assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
+    else:
+        assert "invalid identifier" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).where(

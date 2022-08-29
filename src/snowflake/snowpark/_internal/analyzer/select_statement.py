@@ -103,6 +103,7 @@ class ColumnStateDict(UserDict):
 
     def __init__(self) -> None:
         super().__init__(dict())
+        self.projection: List[str] = []
         # The following are useful aggregate information of all columns. Used to quickly rule if a query can be flattened.
         self.has_changed_columns: bool = False
         self.has_new_columns: bool = False
@@ -358,7 +359,11 @@ class SelectStatement(Selectable):
             final_projection = []
             new_column_states = derive_column_states_from_subquery(cols, self)
             disable_next_level_flatten = False
-            if self.flatten_disabled or self._has_clause_using_columns():
+            if len(new_column_states.active_columns) != len(
+                new_column_states.projection
+            ):
+                can_flatten = False
+            elif self.flatten_disabled or self._has_clause_using_columns():
                 can_flatten = False
             else:
                 can_flatten = True
@@ -467,23 +472,35 @@ class SelectStatement(Selectable):
         if isinstance(self.from_, SetStatement) and not self._has_clause():
             last_operator = self.from_.set_operands[-1].operator
             if operator == last_operator:
+                existing_set_operands = self.from_.set_operands
                 set_operands = tuple(
                     SetOperand(x.to_subqueryable(), operator) for x in selectables
                 )
+            elif operator == SET_INTERSECT:
+                # In Snowflake SQL, intersect has higher precedence than other set operators.
+                # So we need to put all operands before intersect into a single operand.
+                existing_set_operands = (
+                    SetOperand(SetStatement(*self.from_.set_operands)),
+                )
+                sub_statement = SetStatement(
+                    *(SetOperand(x.to_subqueryable(), operator) for x in selectables)
+                )
+                set_operands = (SetOperand(sub_statement.to_subqueryable(), operator),)
             else:
+                existing_set_operands = self.from_.set_operands
                 sub_statement = SetStatement(
                     *(SetOperand(x.to_subqueryable(), operator) for x in selectables)
                 )
                 set_operands = (SetOperand(sub_statement.to_subqueryable(), operator),)
             set_statement = SetStatement(
-                *self.from_.set_operands, *set_operands, analyzer=self.analyzer
+                *existing_set_operands, *set_operands, analyzer=self.analyzer
             )
         else:
             set_operands = tuple(
                 SetOperand(x.to_subqueryable(), operator) for x in selectables
             )
             set_statement = SetStatement(
-                SetOperand(self.to_subqueryable(), operator),
+                SetOperand(self.to_subqueryable()),
                 *set_operands,
                 analyzer=self.analyzer,
             )
@@ -500,7 +517,7 @@ class SelectStatement(Selectable):
 
 
 class SetOperand:
-    def __init__(self, selectable: Selectable, operator: str) -> None:
+    def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
         super().__init__()
         self.selectable = selectable
         self.operator = operator
@@ -513,12 +530,16 @@ class SetStatement(Selectable):
         self.set_operands = set_operands
         for operand in set_operands:
             if operand.selectable.pre_actions:
+                if not self.pre_actions:
+                    self.pre_actions = []
                 self.pre_actions.extend(operand.selectable.pre_actions)
             if operand.selectable.post_actions:
+                if not self.post_actions:
+                    self.post_actions = []
                 self.post_actions.extend(operand.selectable.post_actions)
 
     def sql_query(self) -> str:
-        sql = self.set_operands[0].selectable.sql_query()
+        sql = f"({self.set_operands[0].selectable.sql_query()})"
         for i in range(1, len(self.set_operands)):
             sql += f" {self.set_operands[i].operator} ({self.set_operands[i].selectable.sql_query()})"
         return sql
@@ -654,14 +675,15 @@ def derive_column_states_from_subquery(
 ) -> ColumnStateDict:
     analyzer = from_.analyzer
     column_states = ColumnStateDict()
-    column_index = 0
     # populate column status against subquery
     quoted_col_names = []
-    for c in cols:
+    for column_index, c in enumerate(cols):
         if isinstance(c, UnresolvedAlias) and isinstance(c.child, Star):
+            column_states.projection.extend(from_.column_states.projection)
             column_states.update(from_.column_states)
             continue
         c_name = parse_column_name(c, analyzer)
+        column_states.projection.append(c_name)
         quoted_c_name = analyzer_utils.quote_name(c_name)
         quoted_col_names.append(quoted_c_name)
         from_c_state = from_.column_states.get(quoted_c_name)
@@ -690,7 +712,6 @@ def derive_column_states_from_subquery(
                 c,
                 state_dict=column_states,
             )
-        column_index += 1
     # end of populate column status against subquery
 
     # populate column dependency

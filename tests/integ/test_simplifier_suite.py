@@ -53,7 +53,7 @@ def test_set_same_operator(session, set_operator):
     query1 = result1._plan.queries[-1].sql
     assert (
         query1
-        == f"SELECT 1 as a, 2 as b {set_operator} (SELECT 2 as a, 2 as b) {set_operator} (SELECT 3 as a, 2 as b {set_operator} (SELECT 4 as a, 2 as b))"
+        == f"(SELECT 1 as a, 2 as b) {set_operator} (SELECT 2 as a, 2 as b) {set_operator} ((SELECT 3 as a, 2 as b) {set_operator} (SELECT 4 as a, 2 as b))"
     )
 
 
@@ -63,25 +63,40 @@ def test_union_and_other_operators(session, set_operator):
     df2 = session.sql("SELECT 2 as a")
     df3 = session.sql("SELECT 3 as a")
 
-    # mix union and union all
     if SET_UNION_ALL == set_operator:
         result1 = df1.union(df2).union_all(df3)
         result2 = df1.union(df2.union_all(df3))
+        assert (
+            result1._plan.queries[-1].sql
+            == f"(SELECT 1 as a) UNION (SELECT 2 as a) {set_operator} ((SELECT 3 as a))"
+        )
+        assert (
+            result2._plan.queries[-1].sql
+            == f"(SELECT 1 as a) UNION ((SELECT 2 as a) {set_operator} (SELECT 3 as a))"
+        )
     elif SET_EXCEPT == set_operator:
         result1 = df1.union(df2).except_(df3)
         result2 = df1.union(df2.except_(df3))
-    else:
+        assert (
+            result1._plan.queries[-1].sql
+            == f"(SELECT 1 as a) UNION (SELECT 2 as a) {set_operator} ((SELECT 3 as a))"
+        )
+        assert (
+            result2._plan.queries[-1].sql
+            == f"(SELECT 1 as a) UNION ((SELECT 2 as a) {set_operator} (SELECT 3 as a))"
+        )
+    else:  # intersect
+        # intersect has higher precedence than union and other set operators
         result1 = df1.union(df2).intersect(df3)
         result2 = df1.union(df2.intersect(df3))
-
-    assert (
-        result1._plan.queries[-1].sql
-        == f"SELECT 1 as a UNION (SELECT 2 as a) {set_operator} (SELECT 3 as a)"
-    )
-    assert (
-        result2._plan.queries[-1].sql
-        == f"SELECT 1 as a UNION (SELECT 2 as a {set_operator} (SELECT 3 as a))"
-    )
+        assert (
+            result1._plan.queries[-1].sql
+            == f"((SELECT 1 as a) UNION (SELECT 2 as a)) {set_operator} ((SELECT 3 as a))"
+        )
+        assert (
+            result2._plan.queries[-1].sql
+            == f"(SELECT 1 as a) UNION ((SELECT 2 as a) {set_operator} (SELECT 3 as a))"
+        )
 
 
 def test_select_new_columns(session, simplifier_table):
