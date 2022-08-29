@@ -246,7 +246,10 @@ class FileOperation:
                 "auto_compress": auto_compress,
                 "overwrite": overwrite,
             }
-            self._session._cursor._upload_stream(input_stream, stage_location, options)
+            cursor = self._session._conn._cursor
+            cursor._upload_stream(input_stream, stage_location, options)
+            result_data = cursor.fetchall()
+            return PutResult(*result_data[0])
         else:
 
             def parse_stage_file_location(stage_location: str):
