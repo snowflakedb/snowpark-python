@@ -472,8 +472,9 @@ def test_copy_json_write_with_column_names(session, tmp_stage_name1):
 
 
 def test_csv_read_format_name(session, tmp_stage_name1):
+    temp_file_fmt_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     session.sql(
-        "create temporary file format TEST_FMT type = csv skip_header=1 "
+        f"create temporary file format {temp_file_fmt_name} type = csv skip_header=1 "
         "null_if = 'none';"
     ).collect()
     df = (
@@ -487,7 +488,7 @@ def test_csv_read_format_name(session, tmp_stage_name1):
                 ]
             )
         )
-        .option("format_name", "TEST_FMT")
+        .option("format_name", temp_file_fmt_name)
         .csv(
             f"@{tmp_stage_name1}/{test_file_csv_special_format}",
         )
@@ -506,6 +507,7 @@ def test_csv_read_format_name(session, tmp_stage_name1):
 
 def test_copy_into_csv_format_name(session, tmp_stage_name1):
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    file_fmt_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     session.sql(
         dedent(
             f"""create temporary table {temp_table_name}
@@ -514,10 +516,10 @@ def test_copy_into_csv_format_name(session, tmp_stage_name1):
         )
     ).collect()
     session.sql(
-        "create temporary file format TEST_FMT type = csv skip_header=1 "
+        f"create temporary file format {file_fmt_name} type = csv skip_header=1 "
         "null_if = 'none';"
     ).collect()
-    session.read.option("format_name", "TEST_FMT").schema(
+    session.read.option("format_name", file_fmt_name).schema(
         StructType(
             [
                 StructField("ID", IntegerType()),
@@ -540,14 +542,17 @@ def test_copy_into_csv_format_name(session, tmp_stage_name1):
 
 
 def test_json_read_format_name(session, tmp_stage_name1):
+    file_fmt_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     session.sql(
-        "create temporary file format TEST_FMT type = json compression=gzip;"
+        f"create temporary file format {file_fmt_name} type = json compression=gzip;"
     ).collect()
-    sf_df = session.read.option("format_name", "TEST_FMT").json(
+    sf_df = session.read.option("format_name", file_fmt_name).json(
         f"@{tmp_stage_name1}/{test_file_json_special_format}",
     )
 
-    assert any("FILE_FORMAT  => 'TEST_FMT'" in q for q in sf_df.queries["queries"])
+    assert any(
+        f"FILE_FORMAT  => '{file_fmt_name}'" in q for q in sf_df.queries["queries"]
+    )
 
     df = sf_df.collect()
 
@@ -561,12 +566,13 @@ def test_json_read_format_name(session, tmp_stage_name1):
 
 
 def test_copy_into_json_format_name(session, tmp_stage_name1):
+    file_fmt_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.sql(f"create temporary table {temp_table_name} (src variant);").collect()
     session.sql(
-        "create temporary file format TEST_FMT type = json compression=gzip;"
+        f"create temporary file format {file_fmt_name} type = json compression=gzip;"
     ).collect()
-    session.read.option("format_name", "TEST_FMT").json(
+    session.read.option("format_name", file_fmt_name).json(
         f"@{tmp_stage_name1}/{test_file_json_special_format}",
     ).copy_into_table(temp_table_name)
 
