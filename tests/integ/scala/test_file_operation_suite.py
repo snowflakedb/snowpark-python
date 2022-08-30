@@ -331,9 +331,9 @@ def test_put_stream_negative(session, temp_stage, path1):
 
     fd.close()
     if is_in_stored_procedure():
-        with pytest.raises(SnowparkSQLException) as ex_info:
+        with pytest.raises(ValueError) as ex_info:
             session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
-        assert ex_info.value.error_code == "1304"
+        assert "seek of closed file" in str(ex_info)
     else:
         with pytest.raises(SnowparkUploadFileException) as ex_info:
             session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
