@@ -1,5 +1,5 @@
 # Release History
-## 0.9.0 (2022-08-31)
+## 0.9.0 (2022-08-30)
 
 ### New Features:
 - Added support for displaying source code as comments in the generated scripts when registering UDFs.
