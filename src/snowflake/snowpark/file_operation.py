@@ -255,7 +255,9 @@ class FileOperation:
             cursor = self._session._conn._cursor
             cursor._upload_stream(input_stream, stage_location, options)
             result_data = cursor.fetchall()
-            return PutResult(*result_data[0])
+            result_meta = cursor.description
+            put_result = result_set_to_rows(result_data, result_meta)[0]
+            return PutResult(**put_result.asDict())
         else:
             stage_with_prefix, dest_filename = stage_location.rsplit("/", maxsplit=1)
             put_result = self._session._conn.upload_stream(
