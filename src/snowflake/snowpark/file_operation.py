@@ -241,9 +241,13 @@ class FileOperation:
         """
         stage_location = stage_location.strip()
         if not stage_location:
-            raise ValueError("stage_location cannot be empty")
+            raise ValueError(
+                "stage_location cannot be empty. It must be a full stage path with prefix and file name like @mystage/stage/prefix/filename"
+            )
         if stage_location[-1] == "/":
-            raise ValueError("stage_location should end with target filename")
+            raise ValueError(
+                "stage_location should end with target filename like @mystage/prefix/stage/filename"
+            )
 
         if is_in_stored_procedure():
             options = {
