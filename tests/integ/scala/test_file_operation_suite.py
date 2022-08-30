@@ -3,9 +3,10 @@
 #
 
 import os
-import random
 import shutil
 import string
+from random import random
+from time import sleep
 
 import pytest
 
@@ -24,12 +25,17 @@ def random_alphanumeric_name():
     )
 
 
+def onerror(func, path, exc_info):
+    sleep(1 + random.random() * 4)
+    func(path)
+
+
 @pytest.fixture(scope="module")
 def temp_source_directory(tmpdir_factory):
     directory = tmpdir_factory.mktemp("snowpark_test_source")
     yield directory
     if not is_in_stored_procedure():
-        shutil.rmtree(str(directory))
+        shutil.rmtree(str(directory), onerror=onerror)
 
 
 @pytest.fixture(scope="module")
@@ -37,7 +43,7 @@ def temp_target_directory(tmpdir_factory):
     directory = tmpdir_factory.mktemp("snowpark_test_target")
     yield directory
     if not is_in_stored_procedure():
-        shutil.rmtree(str(directory))
+        shutil.rmtree(str(directory), onerror=onerror)
 
 
 @pytest.fixture(scope="module")
