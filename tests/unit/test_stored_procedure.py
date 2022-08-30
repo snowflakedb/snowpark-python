@@ -45,3 +45,18 @@ def test_stored_procedure_execute_as(execute_as):
         f"EXECUTE AS {execute_as.upper()}" in c.args[0]
         for c in fake_session._run_query.call_args_list
     )
+
+
+def test_negative_execute_as():
+    fake_session = mock.create_autospec(Session)
+    fake_session.sproc = StoredProcedureRegistration(fake_session)
+    with pytest.raises(
+        TypeError,
+        match="'execute_as' value 'invalid EXECUTE AS' "
+        "is invalid, choose from owner, caller",
+    ):
+        sproc(
+            lambda: 1,
+            session=fake_session,
+            execute_as="invalid EXECUTE AS",
+        )

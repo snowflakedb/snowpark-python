@@ -169,11 +169,10 @@ The return type is always ``Column``. The input types tell you the acceptable va
     <BLANKLINE>
 """
 import functools
+import typing
 from random import randint
 from types import ModuleType
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union, overload
-
-import typing_extensions as te
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -3401,7 +3400,7 @@ def sproc(
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
-    execute_as: te.Literal["caller", "owner"] = "owner",
+    execute_as: typing.Literal["caller", "owner"] = "owner",
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -3458,7 +3457,8 @@ def sproc(
             Increasing the number of threads can improve performance when uploading
             large stored procedure files.
         execute_as: What permissions should the procedure have while executing. This
-            supports caller, or owner for now.
+            supports caller, or owner for now. See https://docs.snowflake.com/en/sql-reference/stored-procedures-rights.html
+            for more information.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     Returns:

@@ -25,6 +25,8 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import DataType
 
+EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
+
 
 class StoredProcedure:
     """
@@ -56,7 +58,7 @@ class StoredProcedure:
 
         self._return_type = return_type
         self._input_types = input_types
-        self.execute_as = execute_as
+        self._execute_as = execute_as
 
     def __call__(
         self,
@@ -379,6 +381,14 @@ class StoredProcedureRegistration:
             raise TypeError(
                 "Invalid function: not a function or callable "
                 f"(__call__ is not defined): {type(func)}"
+            )
+        if (
+            not isinstance(execute_as, str)
+            or execute_as.lower() not in EXECUTE_AS_WHITELIST
+        ):
+            raise TypeError(
+                f"'execute_as' value '{execute_as}' is invalid, choose from "
+                f"{', '.join(EXECUTE_AS_WHITELIST, )}"
             )
 
         check_register_args(
