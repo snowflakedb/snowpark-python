@@ -4,4 +4,4 @@
 #
 
 # Update this for the versions
-VERSION = (0, 8, 0)
+VERSION = (0, 9, 0)
