@@ -249,6 +249,7 @@ class FileOperation:
                 "stage_location should end with target filename like @mystage/prefix/stage/filename"
             )
 
+        cursor = self._session._conn._cursor
         if is_in_stored_procedure():
             try:
                 options = {
@@ -257,12 +258,8 @@ class FileOperation:
                     "auto_compress": auto_compress,
                     "overwrite": overwrite,
                 }
-                cursor = self._session._conn._cursor
                 cursor._upload_stream(input_stream, stage_location, options)
                 result_data = cursor.fetchall()
-                result_meta = cursor.description
-                put_result = result_set_to_rows(result_data, result_meta)[0]
-                return PutResult(**put_result.asDict())
             except ProgrammingError as pe:
                 tb = sys.exc_info()[2]
                 ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
@@ -280,4 +277,8 @@ class FileOperation:
                 source_compression=source_compression,
                 overwrite=overwrite,
             )
-            return PutResult(*put_result["data"][0])
+            result_data = put_result["data"]
+
+        result_meta = cursor.description
+        put_result = result_set_to_rows(result_data, result_meta)[0]
+        return PutResult(**put_result.asDict())
