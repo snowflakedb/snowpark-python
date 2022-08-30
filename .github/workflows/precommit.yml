@@ -24,25 +24,6 @@ jobs:
       - name: Run fix_lint
         run: python -m tox -e fix_lint
 
-  whitesource:
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
-      - name: Setup Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-      - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
-      - name: Install Snowpark
-        run: python -m pip install ".[development, pandas]"
-      - name: Run WhiteSource script
-        run: ./scripts/wss.sh
-        env:
-          WHITESOURCE_API_KEY: ${{ secrets.WHITESOURCE_API_KEY }}
-
   build:
     needs: lint
     name: Build Wheel File
