@@ -654,7 +654,7 @@ def create_python_udf_or_sp(
         execute_as_sql = ""
     else:
         execute_as_sql = f"""
-EXECUTE AS {execute_as}
+EXECUTE AS {execute_as.upper()}
 """
     inline_python_code_in_sql = (
         f"""
