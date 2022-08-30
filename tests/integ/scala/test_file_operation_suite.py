@@ -3,9 +3,9 @@
 #
 
 import os
+import random
 import shutil
 import string
-from random import random
 from time import sleep
 
 import pytest
