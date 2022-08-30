@@ -21,6 +21,7 @@ from typing import (
 )
 
 import cloudpickle
+from typing_extensions import Literal
 
 import snowflake.snowpark
 from snowflake.snowpark._internal import code_generation
@@ -637,6 +638,7 @@ def create_python_udf_or_sp(
     is_temporary: bool,
     replace: bool,
     inline_python_code: Optional[str] = None,
+    execute_as: Optional[Literal["caller", "owner"]] = None,
 ) -> None:
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
@@ -648,6 +650,12 @@ def create_python_udf_or_sp(
     )
     imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
     packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
+    if execute_as is None:
+        execute_as_sql = ""
+    else:
+        execute_as_sql = f"""
+EXECUTE AS {execute_as}
+"""
     inline_python_code_in_sql = (
         f"""
 AS $$
@@ -659,14 +667,14 @@ $$
     )
 
     create_query = f"""
-CREATE {"OR REPLACE " if replace else ""}
+CREATE{" OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} {object_type.value} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
 {imports_in_sql}
 {packages_in_sql}
-HANDLER='{handler}'
+HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
     session._run_query(create_query, is_ddl_on_temp_object=is_temporary)

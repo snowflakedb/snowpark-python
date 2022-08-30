@@ -7,6 +7,8 @@ import sys
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+from typing_extensions import Literal
+
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -45,6 +47,7 @@ class StoredProcedure:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
+        execute_as: Literal["caller", "owner"] = "owner",
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -53,6 +56,7 @@ class StoredProcedure:
 
         self._return_type = return_type
         self._input_types = input_types
+        self.execute_as = execute_as
 
     def __call__(
         self,
@@ -311,6 +315,7 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        execute_as: Literal["caller", "owner"] = "owner",
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
@@ -362,6 +367,8 @@ class StoredProcedureRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
+            execute_as: What permissions should the procedure have while executing. This
+                supports caller, or owner for now.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
@@ -390,6 +397,7 @@ class StoredProcedureRegistration:
             replace,
             parallel,
             statement_params=statement_params,
+            execute_as=execute_as,
         )
 
     def register_from_file(
@@ -506,6 +514,7 @@ class StoredProcedureRegistration:
         parallel: int,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        execute_as: Literal["caller", "owner"] = "owner",
     ) -> StoredProcedure:
         (
             udf_name,
@@ -563,6 +572,7 @@ class StoredProcedureRegistration:
                 is_temporary=stage_location is None,
                 replace=replace,
                 inline_python_code=code,
+                execute_as=execute_as,
             )
         # an exception might happen during registering a stored procedure
         # (e.g., a dependency might not be found on the stage),
@@ -584,4 +594,10 @@ class StoredProcedureRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return StoredProcedure(func, return_type, input_types, udf_name)
+        return StoredProcedure(
+            func,
+            return_type,
+            input_types,
+            udf_name,
+            execute_as=execute_as,
+        )

@@ -173,6 +173,8 @@ from random import randint
 from types import ModuleType
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union, overload
 
+import typing_extensions as te
+
 import snowflake.snowpark
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -3399,6 +3401,7 @@ def sproc(
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
+    execute_as: te.Literal["caller", "owner"] = "owner",
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -3454,6 +3457,8 @@ def sproc(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large stored procedure files.
+        execute_as: What permissions should the procedure have while executing. This
+            supports caller, or owner for now.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     Returns:
@@ -3498,6 +3503,7 @@ def sproc(
             replace=replace,
             parallel=parallel,
             statement_params=statement_params,
+            execute_as=execute_as,
         )
     else:
         return session.sproc.register(
@@ -3512,4 +3518,5 @@ def sproc(
             replace=replace,
             parallel=parallel,
             statement_params=statement_params,
+            execute_as=execute_as,
         )

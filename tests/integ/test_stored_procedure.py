@@ -855,3 +855,20 @@ def test_register_sp_no_commit(session):
     finally:
         session._run_query(f"drop procedure if exists {temp_sp_name}(int)")
         session._run_query(f"drop procedure if exists {perm_sp_name}(int)")
+
+
+@pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
+def test_execute_as_options(session, execute_as):
+    """Make sure that a stored procedure can be run with any EXECUTE AS option."""
+
+    def return1(_):
+        return 1
+
+    sproc_kwargs = {
+        "return_type": IntegerType(),
+    }
+    if execute_as is not None:
+        sproc_kwargs["execute_as"] = execute_as
+
+    return1_sp = sproc(return1, **sproc_kwargs)
+    assert return1_sp() == 1
