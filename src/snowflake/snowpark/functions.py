@@ -3457,7 +3457,7 @@ def sproc(
             Increasing the number of threads can improve performance when uploading
             large stored procedure files.
         execute_as: What permissions should the procedure have while executing. This
-            supports caller, or owner for now. See https://docs.snowflake.com/en/sql-reference/stored-procedures-rights.html
+            supports caller, or owner for now. See `owner and caller rights <https://docs.snowflake.com/en/sql-reference/stored-procedures-rights.html>`_
             for more information.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
 
