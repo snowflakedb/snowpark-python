@@ -6,7 +6,7 @@
 This feature is turned on by default. To turn it off, pass the new keyword argument `source_code_display` as `False` when calling `register()` or `@udf()`.
 - Added support for calling table functions from `DataFrame.select()`, `DataFrame.with_column()` and `DataFrame.with_columns()` which now take parameters of type `table_function.TableFunctionCall` for columns.
 - Added keyword argument `overwrite` to `session.write_pandas()` to allow overwriting contents of a Snowflake table with that of a Pandas DataFrame.
-- Added keyword argument `column_names` to `df.write.save_as_table()` to specify the names of columns when appending new data to an existing table.
+- Added keyword argument `column_order` to `df.write.save_as_table()` to specify the matching rules when inserting data into table in append mode.
 - Added method `FileOperation.put_stream()` to upload local files to a stage via file stream.
 - Added methods `TableFunctionCall.alias()` and `TableFunctionCall.as_()` to allow aliasing the names of columns that come from the output of table function joins.
 - Added function `get_active_session()` in module `snowflake.snowpark.context` to get the current active Snowpark session.
