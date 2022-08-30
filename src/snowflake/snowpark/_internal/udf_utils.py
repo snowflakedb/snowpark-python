@@ -5,6 +5,7 @@
 import io
 import os
 import pickle
+import typing
 import zipfile
 from logging import getLogger
 from types import ModuleType
@@ -21,7 +22,6 @@ from typing import (
 )
 
 import cloudpickle
-from typing_extensions import Literal
 
 import snowflake.snowpark
 from snowflake.snowpark._internal import code_generation
@@ -638,7 +638,7 @@ def create_python_udf_or_sp(
     is_temporary: bool,
     replace: bool,
     inline_python_code: Optional[str] = None,
-    execute_as: Optional[Literal["caller", "owner"]] = None,
+    execute_as: Optional[typing.Literal["caller", "owner"]] = None,
 ) -> None:
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
@@ -650,6 +650,10 @@ def create_python_udf_or_sp(
     )
     imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
     packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
+    # Since this function is called for UDFs and Stored Procedures we need to
+    #  make execute_as_sql a multi-line string for cases when we need it.
+    #  This makes sure that when we don't need it we don't end up inserting
+    #  totally empty lines.
     if execute_as is None:
         execute_as_sql = ""
     else:

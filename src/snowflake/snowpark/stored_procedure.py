@@ -4,10 +4,9 @@
 #
 """Stored procedures in Snowpark."""
 import sys
+import typing
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-
-from typing_extensions import Literal
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -49,7 +48,7 @@ class StoredProcedure:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
-        execute_as: Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner"] = "owner",
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -317,7 +316,7 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
-        execute_as: Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner"] = "owner",
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
@@ -524,7 +523,7 @@ class StoredProcedureRegistration:
         parallel: int,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        execute_as: Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner"] = "owner",
     ) -> StoredProcedure:
         (
             udf_name,
