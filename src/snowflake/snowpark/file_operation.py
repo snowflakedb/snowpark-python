@@ -250,18 +250,25 @@ class FileOperation:
             )
 
         if is_in_stored_procedure():
-            options = {
-                "parallel": parallel,
-                "source_compression": source_compression,
-                "auto_compress": auto_compress,
-                "overwrite": overwrite,
-            }
-            cursor = self._session._conn._cursor
-            cursor._upload_stream(input_stream, stage_location, options)
-            result_data = cursor.fetchall()
-            result_meta = cursor.description
-            put_result = result_set_to_rows(result_data, result_meta)[0]
-            return PutResult(**put_result.asDict())
+            try:
+                options = {
+                    "parallel": parallel,
+                    "source_compression": source_compression,
+                    "auto_compress": auto_compress,
+                    "overwrite": overwrite,
+                }
+                cursor = self._session._conn._cursor
+                cursor._upload_stream(input_stream, stage_location, options)
+                result_data = cursor.fetchall()
+                result_meta = cursor.description
+                put_result = result_set_to_rows(result_data, result_meta)[0]
+                return PutResult(**put_result.asDict())
+            except ProgrammingError as pe:
+                tb = sys.exc_info()[2]
+                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    pe
+                )
+                raise ne.with_traceback(tb) from None
         else:
             stage_with_prefix, dest_filename = stage_location.rsplit("/", maxsplit=1)
             put_result = self._session._conn.upload_stream(
