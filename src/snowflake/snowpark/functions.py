@@ -225,7 +225,7 @@ def lit(literal: LiteralType) -> Column:
     It supports basic Python data types, including ``int``, ``float``, ``str``,
     ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
     ``datetime.datetime`` and ``decimal.Decimal``. Also, it supports Python structured data types,
-    including ``list``, ``tuple`` and ``dict``, whereas all elements in the container must
+    including ``list``, ``tuple`` and ``dict``, but this container must
     be JSON serializable.
     """
     return literal if isinstance(literal, Column) else Column(Literal(literal))
