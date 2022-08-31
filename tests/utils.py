@@ -171,7 +171,7 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
-    ):
+    ) -> None:
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data
@@ -744,6 +744,14 @@ class TestFiles:
     @property
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
+
+    @functools.cached_property
+    def test_file_csv_special_format(self):
+        return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
+
+    @functools.cached_property
+    def test_file_json_special_format(self):
+        return os.path.join(self.resources_path, "testJSONspecialFormat.json.gz")
 
     @property
     def test_file_json(self):
