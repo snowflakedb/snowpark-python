@@ -52,8 +52,7 @@ def test_negative_execute_as():
     fake_session.sproc = StoredProcedureRegistration(fake_session)
     with pytest.raises(
         TypeError,
-        match="'execute_as' value 'invalid EXECUTE AS' "
-        "is invalid, choose from owner, caller",
+        match="'execute_as' value 'invalid EXECUTE AS' " "is invalid, choose from",
     ):
         sproc(
             lambda: 1,
