@@ -6,7 +6,6 @@ import os
 import random
 import shutil
 import string
-from time import sleep
 
 import pytest
 
@@ -25,24 +24,12 @@ def random_alphanumeric_name():
     )
 
 
-def onerror(func, path, exc_info):
-    retries = 3
-    for retry in range(retries):
-        try:
-            sleep(1)
-            func(path)
-            return
-        except Exception as ex:
-            if retry == retries - 1:
-                raise ex
-
-
 @pytest.fixture(scope="module")
 def temp_source_directory(tmpdir_factory):
     directory = tmpdir_factory.mktemp("snowpark_test_source")
     yield directory
     if not is_in_stored_procedure():
-        shutil.rmtree(str(directory), onerror=onerror)
+        shutil.rmtree(str(directory))
 
 
 @pytest.fixture(scope="module")
@@ -50,7 +37,7 @@ def temp_target_directory(tmpdir_factory):
     directory = tmpdir_factory.mktemp("snowpark_test_target")
     yield directory
     if not is_in_stored_procedure():
-        shutil.rmtree(str(directory), onerror=onerror)
+        shutil.rmtree(str(directory))
 
 
 @pytest.fixture(scope="module")
@@ -299,6 +286,7 @@ def test_put_stream_with_one_file_twice(session, temp_stage, path1):
     second_result = session.file.put_stream(
         fd, f"{stage_with_prefix}/{file_name}", overwrite=False
     )
+    fd.close()
     assert second_result.source == os.path.basename(path1)
     assert second_result.target == os.path.basename(path1) + ".gz"
     assert second_result.source_size in (10, 11)
