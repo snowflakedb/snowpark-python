@@ -212,8 +212,8 @@ class DataFrameReader:
     Example 10:
         Loading a CSV file with an already existing FILE_FORMAT:
             >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
-            >>> session.sql("create file format csv_format type=csv skip_header=1 null_if='none';").collect()
-            >>> session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
+            >>> _ = session.sql("create file format csv_format type=csv skip_header=1 null_if='none';").collect()
+            >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
             >>> # Define the schema for the data in the CSV files.
             >>> schema = StructType([StructField("ID", IntegerType()),StructField("USERNAME", StringType()),StructField("FIRSTNAME", StringType()),StructField("LASTNAME", StringType())])
             >>> # Create a DataFrame that is configured to load data from the CSV files in the stage.
