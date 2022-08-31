@@ -129,6 +129,7 @@ class TempObjectType(Enum):
     COLUMN = "COLUMN"
     PROCEDURE = "PROCEDURE"
     TABLE_FUNCTION = "TABLE_FUNCTION"
+    UDF = "UDF"
 
 
 def validate_object_name(name: str):
