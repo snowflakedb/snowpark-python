@@ -304,6 +304,7 @@ def test_put_stream_with_one_file_twice(session, temp_stage, path1):
     second_result = session.file.put_stream(
         fd, f"{stage_with_prefix}/{file_name}", overwrite=False
     )
+    fd.close()
     assert second_result.source == os.path.basename(path1)
     assert second_result.target == os.path.basename(path1) + ".gz"
     # On GCP, the files are not skipped if target file already exists
