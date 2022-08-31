@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
+import typing
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
@@ -923,15 +924,7 @@ def copy_into_table(
         if validation_mode
         else EMPTY_STRING
     )
-    file_format_name = format_type_options.get("FORMAT_NAME")
-    ftostr = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS
-    if file_format_name is None:
-        ftostr += TYPE + EQUALS + file_format_type
-        if format_type_options:
-            ftostr += SPACE + get_options_statement(format_type_options) + SPACE
-    else:
-        ftostr += FORMAT_NAME + EQUALS + file_format_name
-    ftostr += RIGHT_PARENTHESIS
+    ftostr = get_file_format_spec(file_format_type, format_type_options)
 
     if copy_options:
         costr = SPACE + get_options_statement(copy_options) + SPACE
@@ -1212,3 +1205,20 @@ def number(precision: int = 38, scale: int = 0) -> str:
         + str(scale)
         + RIGHT_PARENTHESIS
     )
+
+
+def get_file_format_spec(
+    file_format_type: str, format_type_options: typing.Dict[str, Any]
+) -> str:
+    file_format_name = format_type_options.get("FORMAT_NAME")
+    file_format_str = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS
+    if file_format_name is None:
+        file_format_str += TYPE + EQUALS + file_format_type
+        if format_type_options:
+            file_format_str += (
+                SPACE + get_options_statement(format_type_options) + SPACE
+            )
+    else:
+        file_format_str += FORMAT_NAME + EQUALS + file_format_name
+    file_format_str += RIGHT_PARENTHESIS
+    return file_format_str
