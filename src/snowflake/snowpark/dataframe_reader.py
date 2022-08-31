@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, Iterable, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -190,7 +190,6 @@ class DataFrameReader:
 
     Example 9:
         Loading an XML file:
-            >>> from snowflake.snowpark.functions import col, xmlget, parse_xml, lit, get, sql_expr
             >>> _ = session.file.put("tests/resources/test.xml", "@mystage", auto_compress=False)
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
             >>> df = session.read.xml("@mystage/test.xml")
@@ -210,18 +209,33 @@ class DataFrameReader:
             ---------------------
             <BLANKLINE>
 
+    Example 10:
+        Loading a CSV file with an already existing FILE_FORMAT:
+            >>> from snowflake.snowpark.types import StructType, StructField, IntegerType, StringType
+            >>> _ = session.sql("create file format csv_format type=csv skip_header=1 null_if='none';").collect()
+            >>> _ = session.file.put("tests/resources/testCSVspecialFormat.csv", "@mystage", auto_compress=False)
+            >>> # Define the schema for the data in the CSV files.
+            >>> schema = StructType([StructField("ID", IntegerType()),StructField("USERNAME", StringType()),StructField("FIRSTNAME", StringType()),StructField("LASTNAME", StringType())])
+            >>> # Create a DataFrame that is configured to load data from the CSV files in the stage.
+            >>> df = session.read.schema(schema).option("format_name", "csv_format").csv("@mystage/testCSVspecialFormat.csv")
+            >>> # Load the data into the DataFrame and return an array of rows containing the results.
+            >>> df.collect()
+            [Row(ID=0, USERNAME='admin', FIRSTNAME=None, LASTNAME=None), Row(ID=1, USERNAME='test_user', FIRSTNAME='test', LASTNAME='user')]
+
     """
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
-        self._user_schema = None
-        self._cur_options = {}
-        self._file_path = None
-        self._file_type = None
+        self._user_schema: Optional[StructType] = None
+        self._cur_options: dict[str, Any] = {}
+        self._file_path: Optional[str] = None
+        self._file_type: Optional[str] = None
         # Infer schema information
         self._infer_schema = False
-        self._infer_schema_transformations = None
-        self._infer_schema_target_columns = None
+        self._infer_schema_transformations: Optional[
+            List["snowflake.snowpark.column.Column"]
+        ] = None
+        self._infer_schema_target_columns: Optional[List[str]] = None
 
     def table(self, name: Union[str, Iterable[str]]) -> Table:
         """Returns a Table that points to the specified table.
@@ -328,7 +342,7 @@ class DataFrameReader:
         """
         return self._read_semi_structured_file(path, "XML")
 
-    def option(self, key: str, value) -> "DataFrameReader":
+    def option(self, key: str, value: Any) -> "DataFrameReader":
         """Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
@@ -378,31 +392,37 @@ class DataFrameReader:
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
+        drop_tmp_file_format_if_exists_query: Optional[str] = None
         if self._infer_schema:
             temp_file_format_name = (
                 self._session.get_fully_qualified_current_schema()
                 + "."
                 + random_name_for_temp_object(TempObjectType.FILE_FORMAT)
             )
-            create_file_format_query = create_file_format_statement(
-                temp_file_format_name,
-                format,
-                format_type_options,
-                temp=True,
-                if_not_exist=True,
+            use_temp_file_format = "FORMAT_NAME" not in self._cur_options
+            file_format_name = self._cur_options.get(
+                "FORMAT_NAME", temp_file_format_name
             )
-            drop_file_format_if_exists_query = drop_file_format_if_exists_statement(
-                temp_file_format_name
-            )
-            infer_schema_query = infer_schema_statement(path, temp_file_format_name)
+            infer_schema_query = infer_schema_statement(path, file_format_name)
             try:
-                self._session._conn.run_query(
-                    create_file_format_query, is_ddl_on_temp_object=True
-                )
+                if use_temp_file_format:
+                    self._session._conn.run_query(
+                        create_file_format_statement(
+                            file_format_name,
+                            format,
+                            format_type_options,
+                            temp=True,
+                            if_not_exist=True,
+                        ),
+                        is_ddl_on_temp_object=True,
+                    )
+                    drop_tmp_file_format_if_exists_query = (
+                        drop_file_format_if_exists_statement(file_format_name)
+                    )
                 results = self._session._conn.run_query(infer_schema_query)["data"]
                 new_schema = []
                 schema_to_cast = []
-                transformations = []
+                transformations: List["snowflake.snowpark.column.Column"] = []
                 for r in results:
                     # Columns for r [column_name, type, nullable, expression, filenames]
                     name = quote_name_without_upper_casing(r[0])
@@ -436,9 +456,10 @@ class DataFrameReader:
                 read_file_transformations = [t._expression.sql for t in transformations]
             finally:
                 # Clean up the file format we created
-                self._session._conn.run_query(
-                    drop_file_format_if_exists_query, is_ddl_on_temp_object=True
-                )
+                if drop_tmp_file_format_if_exists_query is not None:
+                    self._session._conn.run_query(
+                        drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
+                    )
 
         df = DataFrame(
             self._session,

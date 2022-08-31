@@ -2,7 +2,20 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.snowpark import DataFrame, DataFrameNaFunctions, DataFrameStatFunctions
+from unittest import mock
+
+import pytest
+
+import snowflake.snowpark.session
+from snowflake.snowpark import (
+    DataFrame,
+    DataFrameNaFunctions,
+    DataFrameReader,
+    DataFrameStatFunctions,
+)
+from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
 
 
@@ -76,3 +89,23 @@ def test_dataframe_method_alias():
     assert (
         DataFrameStatFunctions.approxQuantile == DataFrameStatFunctions.approx_quantile
     )
+
+
+@pytest.mark.parametrize(
+    "format_type",
+    [
+        "json",
+        "avro",
+        "parquet",
+        "orc",
+    ],
+)
+def test_copy_into_format_name_syntax(format_type):
+    fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
+    fake_session._conn = mock.create_autospec(ServerConnection)
+    fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
+    fake_session._analyzer = Analyzer(fake_session)
+    df = getattr(
+        DataFrameReader(fake_session).option("format_name", "TEST_FMT"), format_type
+    )("@stage/file")
+    assert any("FILE_FORMAT  => 'TEST_FMT'" in q for q in df.queries["queries"])
