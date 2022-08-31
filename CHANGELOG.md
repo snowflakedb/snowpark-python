@@ -1,4 +1,15 @@
 # Release History
+## 0.10.0 (Unreleased)
+
+### New Features:
+- Added support for `table_type` in `session.write_pandas()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
+
+### Deprecations:
+- Keyword Argument `create_temp_table` in `session.write_pandas()`.
+
+### Dependency updates
+- Updated ``snowflake-connector-python`` to 2.7.12.
+
 ## 0.9.0 (2022-08-30)
 
 ### New Features:

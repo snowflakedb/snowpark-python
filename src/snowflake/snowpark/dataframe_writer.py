@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import warnings
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Literal, Optional, Union
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -72,7 +72,7 @@ class DataFrameWriter:
         mode: Optional[str] = None,
         column_order: str = "index",
         create_temp_table: bool = False,
-        table_type: str = "",
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
         statement_params: Optional[Dict[str, str]] = None,
     ) -> None:
         """Writes the data to the specified table in a Snowflake database.
