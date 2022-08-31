@@ -26,8 +26,15 @@ def random_alphanumeric_name():
 
 
 def onerror(func, path, exc_info):
-    sleep(1 + random.random() * 4)
-    func(path)
+    retries = 3
+    for retry in range(retries):
+        try:
+            sleep(1)
+            func(path)
+            return
+        except Exception as ex:
+            if retry == retries - 1:
+                raise ex
 
 
 @pytest.fixture(scope="module")
