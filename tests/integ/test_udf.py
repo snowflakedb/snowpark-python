@@ -121,18 +121,21 @@ def test_basic_udf(session):
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
 def test_call_named_udf(session, temp_schema, db_parameters):
+    mult_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     session._run_query("drop function if exists test_mul(int, int)")
     udf(
         lambda x, y: x * y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        name="test_mul",
+        name=mult_udf_name,
     )
-    Utils.check_answer(session.sql("select test_mul(13, 19)").collect(), [Row(13 * 19)])
+    Utils.check_answer(
+        session.sql(f"select {mult_udf_name}(13, 19)").collect(), [Row(13 * 19)]
+    )
 
     df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
     Utils.check_answer(
-        df.select(call_udf("test_mul", col("a"), col("b"))).collect(),
+        df.select(call_udf(mult_udf_name, col("a"), col("b"))).collect(),
         [
             Row(2),
             Row(12),
@@ -141,7 +144,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     Utils.check_answer(
         df.select(
             call_udf(
-                f"{session.get_fully_qualified_current_schema()}.test_mul",
+                f"{session.get_fully_qualified_current_schema()}.{mult_udf_name}",
                 6,
                 7,
             )
@@ -155,17 +158,18 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     )
     try:
         assert not new_session.get_current_schema()
+        add_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
         tmp_stage_name_in_temp_schema = (
             f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
         )
         new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
-        full_udf_name = f"{temp_schema}.test_add"
+        full_udf_name = f"{temp_schema}.{add_udf_name}"
         new_session._run_query(f"drop function if exists {full_udf_name}(int, int)")
         new_session.udf.register(
             lambda x, y: x + y,
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
-            name=[*temp_schema.split("."), "test_add"],
+            name=[*temp_schema.split("."), add_udf_name],
             stage_location=unwrap_stage_location_single_quote(
                 tmp_stage_name_in_temp_schema
             ),
@@ -177,7 +181,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
         assert (
             len(
                 new_session.sql(
-                    f"show functions like '%test_add%' in schema {temp_schema}"
+                    f"show functions like '%{add_udf_name}%' in schema {temp_schema}"
                 ).collect()
             )
             == 1
