@@ -121,7 +121,7 @@ def test_basic_udf(session):
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
 def test_call_named_udf(session, temp_schema, db_parameters):
-    mult_udf_name = Utils.random_name_for_temp_object(TempObjectType.UDF)
+    mult_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     session._run_query("drop function if exists test_mul(int, int)")
     udf(
         lambda x, y: x * y,
@@ -158,7 +158,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     )
     try:
         assert not new_session.get_current_schema()
-        add_udf_name = Utils.random_name_for_temp_object(TempObjectType.UDF)
+        add_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
         tmp_stage_name_in_temp_schema = (
             f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
         )
