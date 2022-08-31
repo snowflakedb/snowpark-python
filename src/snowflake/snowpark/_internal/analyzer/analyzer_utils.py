@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
+import typing
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
@@ -698,6 +699,10 @@ def get_options_statement(options: Dict[str, Any]) -> str:
     return (
         SPACE
         + SPACE.join(
+            # TODO: this next line adds single quotes around the option values, this is
+            #  incorrect to do unless we escape single quotes in the middle of the string
+            # TODO: I can't find documentation that string's repr is guaranteed to be
+            #  surrounded by single quotes, if this ever changes we'll be broken
             # repr("a") return "'a'" instead of "a". This is what we need for str values. For bool, int, float, repr(v) and str(v) return the same.
             f"{k}{EQUALS}{v if (isinstance(v, str) and is_single_quoted(v)) else repr(v)}"
             for k, v in options.items()
@@ -859,7 +864,7 @@ def unpivot_statement(
 def copy_into_table(
     table_name: str,
     file_path: str,
-    file_format: str,
+    file_format_type: str,
     format_type_options: Dict[str, Any],
     copy_options: Dict[str, Any],
     pattern: str,
@@ -919,10 +924,7 @@ def copy_into_table(
         if validation_mode
         else EMPTY_STRING
     )
-    ftostr = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS + TYPE + EQUALS + file_format
-    if format_type_options:
-        ftostr += SPACE + get_options_statement(format_type_options) + SPACE
-    ftostr += RIGHT_PARENTHESIS
+    ftostr = get_file_format_spec(file_format_type, format_type_options)
 
     if copy_options:
         costr = SPACE + get_options_statement(copy_options) + SPACE
@@ -1203,3 +1205,20 @@ def number(precision: int = 38, scale: int = 0) -> str:
         + str(scale)
         + RIGHT_PARENTHESIS
     )
+
+
+def get_file_format_spec(
+    file_format_type: str, format_type_options: typing.Dict[str, Any]
+) -> str:
+    file_format_name = format_type_options.get("FORMAT_NAME")
+    file_format_str = FILE_FORMAT + EQUALS + LEFT_PARENTHESIS
+    if file_format_name is None:
+        file_format_str += TYPE + EQUALS + file_format_type
+        if format_type_options:
+            file_format_str += (
+                SPACE + get_options_statement(format_type_options) + SPACE
+            )
+    else:
+        file_format_str += FORMAT_NAME + EQUALS + file_format_name
+    file_format_str += RIGHT_PARENTHESIS
+    return file_format_str
