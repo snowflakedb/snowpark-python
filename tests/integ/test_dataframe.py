@@ -1871,7 +1871,7 @@ def test_write_temp_table_no_breaking_change(session, save_mode, table_type):
                 table_type=table_type,
             )
         Utils.check_answer(session.table(table_name), df, True)
-        Utils.assert_table_type(session, table_name, table_type)
+        Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
 

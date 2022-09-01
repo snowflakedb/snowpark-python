@@ -248,7 +248,7 @@ def test_write_temp_table_no_breaking_change(session, table_type):
 
         results = df.to_pandas()
         assert_frame_equal(results, pd, check_dtype=False)
-        Utils.assert_table_type(session, table_name, table_type)
+        Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
 
