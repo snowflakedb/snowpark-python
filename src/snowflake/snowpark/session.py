@@ -1015,13 +1015,15 @@ class Session:
                 would allow you to upload a particular pandas DataFrame successfully. If you don't like the auto created
                 table, you can always create your own table before calling this function. For example, auto-created
                 tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
-            create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
+            create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``. Note
+                that to avoid breaking changes, currently when this is set to True, it overrides ``table_type``.
             overwrite: Default value is ``False`` and the Pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
                 then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
                 then it trunctates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
                 contents of the table with that of the passed in Pandas DataFrame.
-            table_type: The table type of to-be-created table. The supported table types include ``temp``/``temporary``
-                and ``transient``. Empty means permanent table as per SQL convention.
+            table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
+                        and ``transient``. An empty string means to create a permanent table. Learn more about table
+                        types in https://docs.snowflake.com/en/user-guide/tables-temp-transient.html.
 
         Example::
 

@@ -231,7 +231,8 @@ def test_write_pandas_with_table_type(session, table_type):
         Utils.drop_table(session, table_name)
 
 
-def test_write_temp_table_no_breaking_change(session):
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+def test_write_temp_table_no_breaking_change(session, table_type):
     pd = PandasDF(
         [
             (1, 4.5, "t1"),
@@ -249,6 +250,7 @@ def test_write_temp_table_no_breaking_change(session):
                 table_name,
                 create_temp_table=True,
                 auto_create_table=True,
+                table_type=table_type,
             )
 
         results = df.to_pandas()
