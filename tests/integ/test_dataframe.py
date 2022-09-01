@@ -1713,8 +1713,8 @@ def test_replace(session):
 
     df = session.create_dataframe([[[1, 2], (1, 3)]], schema=["col1", "col2"])
     Utils.check_answer(
-        df.replace((1, 3), [2, 3]),
-        [Row("[\n  1,\n  2\n]", "[\n  1,\n  3\n]")],
+        df.replace([(1, 3)], [[2, 3]]),
+        [Row("[\n  1,\n  2\n]", "[\n  2,\n  3\n]")],
     )
 
     # negative case
