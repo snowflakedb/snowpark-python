@@ -199,7 +199,7 @@ def test_write_pandas(session, tmp_table_basic):
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
-def test_write_pandas_with_table_type(session, table_type):
+def test_write_pandas_with_table_type(session, table_type: str):
     pd = PandasDF(
         [
             (1, 4.5, "t1"),
@@ -219,14 +219,7 @@ def test_write_pandas_with_table_type(session, table_type):
         )
         results = df.to_pandas()
         assert_frame_equal(results, pd, check_dtype=False)
-        table_info = session.sql(f"show tables like '{table_name}'").collect()
-        if not table_type:
-            expected_table_kind = "TABLE"
-        elif table_type == "temp":
-            expected_table_kind = "TEMPORARY"
-        else:
-            expected_table_kind = table_type.upper()
-        assert table_info[0]["kind"] == expected_table_kind
+        Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
 
@@ -255,8 +248,7 @@ def test_write_temp_table_no_breaking_change(session, table_type):
 
         results = df.to_pandas()
         assert_frame_equal(results, pd, check_dtype=False)
-        table_info = session.sql(f"show tables like '{table_name}'").collect()
-        assert table_info[0]["kind"] == "TEMPORARY"
+        Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
 
@@ -300,7 +292,8 @@ def test_create_dataframe_from_pandas(session):
     # assert_frame_equal(results, pd, check_dtype=False)
 
 
-def test_write_pandas_temp_table_and_irregular_column_names(session):
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+def test_write_pandas_temp_table_and_irregular_column_names(session, table_type):
     pd = PandasDF(
         [
             (1, 4.5, "t1"),
@@ -311,9 +304,10 @@ def test_write_pandas_temp_table_and_irregular_column_names(session):
     )
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        session.write_pandas(pd, table_name, auto_create_table=True, table_type="temp")
-        table_info = session.sql(f"show tables like '{table_name}'").collect()
-        assert table_info[0]["kind"] == "TEMPORARY"
+        session.write_pandas(
+            pd, table_name, auto_create_table=True, table_type=table_type
+        )
+        Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
 
