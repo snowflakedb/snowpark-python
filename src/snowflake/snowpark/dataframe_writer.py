@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.telemetry import (
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
+    SUPPORTED_TABLE_TYPES,
     normalize_remote_file_or_dir,
     str_to_enum,
     validate_object_name,
@@ -99,7 +100,7 @@ class DataFrameWriter:
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                         and ``transient``. An empty string means to create a permanent table. Learn more about table
-                        types in https://docs.snowflake.com/en/user-guide/tables-temp-transient.html.
+                        types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Examples::
@@ -138,9 +139,9 @@ class DataFrameWriter:
             )
             table_type = "temporary"
 
-        if table_type and table_type.lower() not in ["temp", "temporary", "transient"]:
+        if table_type and table_type.lower() not in SUPPORTED_TABLE_TYPES:
             raise ValueError(
-                "Unsupported table type. Expected table types: temp/temporary, transient"
+                f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
             )
 
         create_table_logic_plan = SnowflakeCreateTable(

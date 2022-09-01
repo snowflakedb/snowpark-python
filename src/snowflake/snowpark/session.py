@@ -49,6 +49,7 @@ from snowflake.snowpark._internal.type_utils import (
 from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
+    SUPPORTED_TABLE_TYPES,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -1023,7 +1024,7 @@ class Session:
                 contents of the table with that of the passed in Pandas DataFrame.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                         and ``transient``. An empty string means to create a permanent table. Learn more about table
-                        types in https://docs.snowflake.com/en/user-guide/tables-temp-transient.html.
+                        types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
 
         Example::
 
@@ -1071,9 +1072,9 @@ class Session:
             )
             table_type = "temporary"
 
-        if table_type and table_type.lower() not in ["temp", "temporary", "transient"]:
+        if table_type and table_type.lower() not in SUPPORTED_TABLE_TYPES:
             raise ValueError(
-                "Unsupported table type. Expected table types: temp/temporary, transient"
+                f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
             )
 
         success = None  # forward declaration
