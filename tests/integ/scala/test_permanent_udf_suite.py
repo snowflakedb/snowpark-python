@@ -316,6 +316,8 @@ def test_call_udf_with_literal_value(session):
         datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
         datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
         datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        [1, 2],
+        {"1": "2"},
     ]
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
@@ -329,11 +331,17 @@ def test_call_udf_with_literal_value(session):
         h: datetime.datetime,
         i: datetime.time,
         j: datetime.date,
+        k: list,
+        m: dict,
     ) -> str:
-        return f"{a} {b} {float(c)} {d} {e} {g} {h} {i} {j}"
+        return f"{a} {b} {float(c)} {d} {e} {g} {h} {i} {j} {k} {m}"
 
     session.udf.register(func, name=udf_name)
     Utils.check_answer(
         session.range(1).select(call_udf(udf_name, *values)),
-        [Row("2 1.1 1.2 str True b'a' 2017-02-24 12:00:05.456000 20:57:06 2017-02-25")],
+        [
+            Row(
+                "2 1.1 1.2 str True b'a' 2017-02-24 12:00:05.456000 20:57:06 2017-02-25 [1, 2] {'1': '2'}"
+            )
+        ],
     )

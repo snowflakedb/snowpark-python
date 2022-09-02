@@ -177,10 +177,17 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
 }
 
 
-VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = tuple(PYTHON_TO_SNOW_TYPE_MAPPINGS.keys())
+VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
+    *PYTHON_TO_SNOW_TYPE_MAPPINGS.keys(),
+    list,
+    tuple,
+    dict,
+)
 VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     *PYTHON_TO_SNOW_TYPE_MAPPINGS.values(),
     _NumericType,
+    ArrayType,
+    MapType,
 )
 
 # Mapping Python array types to DataType
