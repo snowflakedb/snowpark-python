@@ -34,6 +34,10 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Star,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
+    SET_EXCEPT,
+    SET_INTERSECT,
+    SET_UNION,
+    SET_UNION_ALL,
     SelectSnowflakePlan,
     SelectStatement,
 )
@@ -1345,9 +1349,9 @@ class DataFrame:
         """
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.set_operate(
+                self._select_statement.set_operator(
                     other._select_statement or SelectSnowflakePlan(other._plan),
-                    operator="UNION",
+                    operator=SET_UNION,
                 )
             )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
@@ -1378,9 +1382,9 @@ class DataFrame:
         """
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.set_operate(
+                self._select_statement.set_operator(
                     other._select_statement or SelectSnowflakePlan(other._plan),
-                    operator="UNION ALL",
+                    operator=SET_UNION_ALL,
                 )
             )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
@@ -1494,9 +1498,9 @@ class DataFrame:
         """
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.set_operate(
+                self._select_statement.set_operator(
                     other._select_statement or SelectSnowflakePlan(other._plan),
-                    operator="INTERSECT",
+                    operator=SET_INTERSECT,
                 )
             )
         return self._with_plan(Intersect(self._plan, other._plan))
@@ -1525,9 +1529,9 @@ class DataFrame:
         """
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.set_operate(
+                self._select_statement.set_operator(
                     other._select_statement or SelectSnowflakePlan(other._plan),
-                    operator="EXCEPT",
+                    operator=SET_EXCEPT,
                 )
             )
         return self._with_plan(Except(self._plan, other._plan))

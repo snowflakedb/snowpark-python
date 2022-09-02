@@ -33,4 +33,5 @@ class GroupingSetsExpression(Expression):
         self.args = args
 
     def dependent_column_names(self) -> Optional[Set[str]]:
-        return derive_dependent_columns(*self.args)
+        flattened_args = [exp for sublist in self.args for exp in sublist]
+        return derive_dependent_columns(*flattened_args)

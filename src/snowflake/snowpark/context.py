@@ -5,7 +5,7 @@
 """Context module for Snowpark."""
 from snowflake.snowpark.session import Session, _get_active_session
 
-_USE_SQL_SIMPLIFIER = True
+_use_sql_simplifier = True
 
 
 def get_active_session() -> Session:

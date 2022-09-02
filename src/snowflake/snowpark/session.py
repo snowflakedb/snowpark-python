@@ -936,7 +936,7 @@ class Session:
 
         from snowflake.snowpark import context
 
-        if context._USE_SQL_SIMPLIFIER:
+        if context._use_sql_simplifier:
             return DataFrame(
                 self,
                 SelectStatement(
@@ -1340,7 +1340,7 @@ class Session:
 
         from snowflake.snowpark import context
 
-        if context._USE_SQL_SIMPLIFIER:
+        if context._use_sql_simplifier:
             df = DataFrame(
                 self,
                 SelectStatement(

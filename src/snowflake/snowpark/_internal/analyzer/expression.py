@@ -18,12 +18,14 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark.types import DataType
 
-COLUMN_DEPENDENCY_DOLLAR = {"$"}
-COLUMN_DEPENDENCY_ALL = None
-COLUMN_DEPENDENCY_EMPTY = set()
+COLUMN_DEPENDENCY_DOLLAR = frozenset(
+    "$"
+)  # depend on any columns with expression `$n`. We don't flatten when seeing a $
+COLUMN_DEPENDENCY_ALL = None  # depend on all columns including subquery's and same level columns when we can't infer the dependent columns
+COLUMN_DEPENDENCY_EMPTY = frozenset()  # depend on no columns.
 
 
-def derive_dependent_columns(*expressions: "Expression"):
+def derive_dependent_columns(*expressions: "Expression") -> Optional[Set[str]]:
     result = set()
     for exp in expressions:
         if exp is not None:
@@ -151,6 +153,8 @@ class UnresolvedAttribute(Expression, NamedExpression):
         self.name = name
         self.is_sql_text = is_sql_text
         if "$" in name:
+            # $n refers to a column by index. We don't consider column index yet.
+            # even though "$" isn't necessarily used to refer to a column by index. We're conservative here.
             self._dependent_column_names = COLUMN_DEPENDENCY_DOLLAR
         else:
             self._dependent_column_names = (
@@ -194,9 +198,6 @@ class Literal(Expression):
             self.datatype = datatype
         else:
             self.datatype = infer_type(value)
-
-    def dependent_column_names(self) -> Optional[Set[str]]:
-        return COLUMN_DEPENDENCY_EMPTY
 
 
 class Like(Expression):

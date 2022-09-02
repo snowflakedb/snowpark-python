@@ -6,7 +6,10 @@ import re
 import sys
 import uuid
 from functools import cached_property, reduce
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
 import snowflake.connector
 import snowflake.snowpark
@@ -944,7 +947,7 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def select_statement(self, selectable) -> SnowflakePlan:
+    def select_statement(self, selectable: "Selectable") -> SnowflakePlan:
         return selectable.snowflake_plan
 
     def add_result_scan_if_not_select(self, plan: SnowflakePlan) -> SnowflakePlan:

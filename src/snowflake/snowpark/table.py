@@ -261,7 +261,7 @@ class Table(DataFrame):
         self.table_name: str = table_name  #: The table name
         from snowflake.snowpark import context
 
-        if context._USE_SQL_SIMPLIFIER:
+        if context._use_sql_simplifier:
             self._select_statement = SelectStatement(
                 from_=SelectableEntity(table_name, analyzer=session._analyzer),
                 analyzer=session._analyzer,

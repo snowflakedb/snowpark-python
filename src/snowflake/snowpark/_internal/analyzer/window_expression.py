@@ -77,7 +77,7 @@ class WindowSpecDefinition(Expression):
 
     def dependent_column_names(self) -> Optional[Set[str]]:
         return derive_dependent_columns(
-            *self.partition_spec, *self.partition_spec, *self.order_spec
+            *self.partition_spec, *self.order_spec, self.frame_spec
         )
 
 
