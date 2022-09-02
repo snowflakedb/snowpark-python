@@ -142,12 +142,20 @@ class Selectable(LogicalPlan, ABC):
         self.flatten_disabled: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
+        self.expr_to_alias = {}
 
+    @property
     @abstractmethod
     def sql_query(self) -> str:
         """Returns the sql query of this Selectable logical plan."""
         ...
 
+    @property
+    def sql_in_subquery(self) -> str:
+        """Return the sql when this Selectable is used in a subquery."""
+        return f"{analyzer_utils.LEFT_PARENTHESIS}{self.sql_query}{analyzer_utils.RIGHT_PARENTHESIS}"
+
+    @property
     @abstractmethod
     def schema_query(self) -> str:
         """Returns the schema query that can be used to retrieve the schema information."""
@@ -161,14 +169,15 @@ class Selectable(LogicalPlan, ABC):
     def snowflake_plan(self):
         """Convert to a SnowflakePlan"""
         if self._snowflake_plan is None:
-            queries = [Query(self.sql_query())]
+            queries = [Query(self.sql_query)]
             if self.pre_actions:
                 queries = self.pre_actions + queries
             self._snowflake_plan = SnowflakePlan(
                 queries,
-                self.schema_query(),
+                self.schema_query,
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
+                expr_to_alias=self.expr_to_alias,
             )
         return self._snowflake_plan
 
@@ -193,11 +202,17 @@ class SelectableEntity(Selectable):
         super().__init__(analyzer)
         self.entity_name = entity_name
 
+    @property
     def sql_query(self) -> str:
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity_name}"
+
+    @property
+    def sql_in_subquery(self) -> str:
         return self.entity_name
 
+    @property
     def schema_query(self) -> str:
-        return f"{analyzer_utils.SELECT} * {analyzer_utils.FROM} {self.entity_name}"
+        return self.sql_query
 
 
 class SelectSQL(Selectable):
@@ -225,9 +240,11 @@ class SelectSQL(Selectable):
             self.sql = sql
             self._schema_query = sql
 
+    @property
     def sql_query(self) -> str:
         return self.sql
 
+    @property
     def schema_query(self) -> str:
         return self._schema_query
 
@@ -257,9 +274,11 @@ class SelectSnowflakePlan(Selectable):
     def snowflake_plan(self):
         return self._snowflake_plan
 
+    @property
     def sql_query(self) -> str:
         return self._snowflake_plan.queries[-1].sql
 
+    @property
     def schema_query(self) -> str:
         return self.snowflake_plan.schema_query
 
@@ -291,6 +310,7 @@ class SelectStatement(Selectable):
         self._sql_query = None
         self._schema_query = None
         self._projection_in_str = None
+        self.expr_to_alias.update(self.from_.expr_to_alias)
 
     def __copy__(self):
         new = SelectStatement(
@@ -343,21 +363,14 @@ class SelectStatement(Selectable):
             )
         return self._projection_in_str
 
+    @property
     def sql_query(self) -> str:
         if self._sql_query:
             return self._sql_query
         if not self.has_clause and not self.projection:
-            self._sql_query = (
-                self.from_.sql_query()
-                if not isinstance(self.from_, SelectableEntity)
-                else f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.from_.sql_query()}"
-            )
+            self._sql_query = self.from_.sql_query
             return self._sql_query
-        from_clause = (
-            f"({self.from_.sql_query()})"
-            if not isinstance(self.from_, SelectableEntity)
-            else self.from_.sql_query()
-        )
+        from_clause = f"{self.from_.sql_in_subquery}"
         where_clause = (
             f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where)}"
             if self.where is not None
@@ -369,19 +382,26 @@ class SelectStatement(Selectable):
             else analyzer_utils.EMPTY_STRING
         )
         limit_clause = (
-            f"{analyzer_utils.LIMIT}{self.limit_}" if self.limit_ is not None else ""
+            f"{analyzer_utils.LIMIT}{self.limit_}"
+            if self.limit_ is not None
+            else analyzer_utils.EMPTY_STRING
         )
-        offset_clause = f"{analyzer_utils.OFFSET}{self.offset}" if self.offset else ""
+        offset_clause = (
+            f"{analyzer_utils.OFFSET}{self.offset}"
+            if self.offset
+            else analyzer_utils.EMPTY_STRING
+        )
         self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
         return self._sql_query
 
+    @property
     def schema_query(self) -> str:
         if self._schema_query:
             return self._schema_query
         if not self.projection:
-            self._schema_query = self.from_.schema_query()
+            self._schema_query = self.from_.schema_query
             return self._schema_query
-        self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}({self.from_.schema_query()})"
+        self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}({self.from_.schema_query})"
         return self._schema_query
 
     def to_subqueryable(self) -> "Selectable":
@@ -592,16 +612,18 @@ class SetStatement(Selectable):
                     self.post_actions = []
                 self.post_actions.extend(operand.selectable.post_actions)
 
+    @property
     def sql_query(self) -> str:
-        sql = f"({self.set_operands[0].selectable.sql_query()})"
+        sql = f"({self.set_operands[0].selectable.sql_query})"
         for i in range(1, len(self.set_operands)):
-            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query()})"
+            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
         return sql
 
+    @property
     def schema_query(self) -> str:
         """The first operand decide the column attributes of a query with set operations.
         Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
-        return self.set_operands[0].selectable.schema_query()
+        return self.set_operands[0].selectable.schema_query
 
     @property
     def column_states(self) -> Optional[ColumnStateDict]:

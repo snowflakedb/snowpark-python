@@ -54,6 +54,7 @@ class Expression:
         self.datatype: Optional[DataType] = None
 
     def dependent_column_names(self) -> Optional[Set[str]]:
+        # TODO: consider adding it to __init__ or use cached_property.
         return COLUMN_DEPENDENCY_EMPTY
 
     @property

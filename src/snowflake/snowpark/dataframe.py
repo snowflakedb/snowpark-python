@@ -423,10 +423,12 @@ class DataFrame:
         is_cached: bool = False,
     ) -> None:
         self._session = session
-        self._select_statement: Optional[SelectStatement] = (
-            plan if isinstance(plan, SelectStatement) else None
-        )
-        self._plan = session._analyzer.resolve(plan)
+        self._plan = self._session._analyzer.resolve(plan)
+        if isinstance(plan, SelectStatement):
+            self._select_statement = plan
+            plan.expr_to_alias.update(self._plan.expr_to_alias)
+        else:
+            self._select_statement = None
         self.is_cached: bool = is_cached  #: Whether it is a cached dataframe
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
