@@ -1840,7 +1840,7 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
-@pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
@@ -1850,27 +1850,28 @@ def test_table_types_in_save_as_table(session, save_mode, table_type):
     try:
         df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
         Utils.check_answer(session.table(table_name), df, True)
-        table_info = session.sql(f"show tables like '{table_name}'").collect()
-        expected_table_kind = (
-            "TEMPORARY" if table_type == "temp" else table_type.upper()
-        )
-        assert table_info[0]["kind"] == expected_table_kind
+        Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_write_temp_table_no_breaking_change(session, save_mode):
+def test_write_temp_table_no_breaking_change(session, save_mode, table_type):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
     try:
         with pytest.deprecated_call(match="create_temp_table is deprecated"):
-            df.write.save_as_table(table_name, mode=save_mode, create_temp_table=True)
+            df.write.save_as_table(
+                table_name,
+                mode=save_mode,
+                create_temp_table=True,
+                table_type=table_type,
+            )
         Utils.check_answer(session.table(table_name), df, True)
-        table_info = session.sql(f"show tables like '{table_name}'").collect()
-        assert table_info[0]["kind"] == "TEMPORARY"
+        Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
 

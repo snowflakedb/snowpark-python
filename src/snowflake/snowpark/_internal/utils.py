@@ -118,6 +118,8 @@ SKIP_LEVELS_THREE = (
     3  # limit traceback to return up to 3 stack trace entries from traceback object tb
 )
 
+SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
+
 
 class TempObjectType(Enum):
     TABLE = "TABLE"

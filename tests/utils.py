@@ -237,6 +237,17 @@ class Utils:
         # `SELECT CURRENT_TRANSACTION()` returns a valid txn ID if there is active txn or NULL otherwise
         return session.sql("SELECT CURRENT_TRANSACTION()").collect()[0][0] is not None
 
+    @staticmethod
+    def assert_table_type(session: Session, table_name: str, table_type: str) -> None:
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        if not table_type:
+            expected_table_kind = "TABLE"
+        elif table_type == "temp":
+            expected_table_kind = "TEMPORARY"
+        else:
+            expected_table_kind = table_type.upper()
+        assert table_info[0]["kind"] == expected_table_kind
+
 
 class TestData:
     class Data(NamedTuple):
