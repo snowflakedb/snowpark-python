@@ -7,12 +7,13 @@ import decimal
 import json
 import logging
 import os
+import warnings
 from array import array
 from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
 
 import cloudpickle
 import pkg_resources
@@ -48,6 +49,7 @@ from snowflake.snowpark._internal.type_utils import (
 from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
+    SUPPORTED_TABLE_TYPES,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -988,6 +990,7 @@ class Session:
         auto_create_table: bool = False,
         create_temp_table: bool = False,
         overwrite: bool = False,
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
         Snowpark :class:`DataFrame` object referring to the table where the
@@ -1013,17 +1016,21 @@ class Session:
                 would allow you to upload a particular pandas DataFrame successfully. If you don't like the auto created
                 table, you can always create your own table before calling this function. For example, auto-created
                 tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
-            create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
+            create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``. Note
+                that to avoid breaking changes, currently when this is set to True, it overrides ``table_type``.
             overwrite: Default value is ``False`` and the Pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
                 then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
                 then it trunctates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
                 contents of the table with that of the passed in Pandas DataFrame.
+            table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
+                        and ``transient``. An empty string means to create a permanent table. Learn more about table
+                        types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
 
         Example::
 
             >>> import pandas as pd
             >>> pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
-            >>> snowpark_df = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=True, create_temp_table=True)
+            >>> snowpark_df = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=True, table_type="temp")
             >>> snowpark_df.to_pandas()
                id   name
             0   1  Steve
@@ -1043,12 +1050,33 @@ class Session:
                id  name
             0   1  Jane
 
+            >>> pandas_df4 = pd.DataFrame([(1, "Jane")], columns=["id", "name"])
+            >>> snowpark_df4 = session.write_pandas(pandas_df4, "write_pandas_transient_table", auto_create_table=True, table_type="transient")
+            >>> snowpark_df4.to_pandas()
+               id  name
+            0   1  Jane
+
         Note:
             Unless ``auto_create_table`` is ``True``, you must first create a table in
             Snowflake that the passed in pandas DataFrame can be written to. If
             your pandas DataFrame cannot be written to the specified table, an
             exception will be raised.
         """
+        if create_temp_table:
+            warnings.warn(
+                "create_temp_table is deprecated. We still respect this parameter when it is True but "
+                'please consider using `table_type="temporary"` instead.',
+                DeprecationWarning,
+                # warnings.warn -> write_pandas
+                stacklevel=2,
+            )
+            table_type = "temporary"
+
+        if table_type and table_type.lower() not in SUPPORTED_TABLE_TYPES:
+            raise ValueError(
+                f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
+            )
+
         success = None  # forward declaration
         try:
             if quote_identifiers:
@@ -1075,8 +1103,8 @@ class Session:
                 parallel=parallel,
                 quote_identifiers=quote_identifiers,
                 auto_create_table=auto_create_table,
-                create_temp_table=create_temp_table,
                 overwrite=overwrite,
+                table_type=table_type,
             )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
