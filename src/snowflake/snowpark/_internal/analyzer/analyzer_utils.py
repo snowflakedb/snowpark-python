@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    get_temp_type_for_object,
     is_single_quoted,
     random_name_for_temp_object,
 )
@@ -137,6 +138,8 @@ UNION = " UNION "
 UNION_ALL = " UNION ALL "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
+
+TEMPORARY_STRING_SET = ("temporary", "temp")
 
 
 def result_scan_statement(uuid_place_holder: str) -> str:
@@ -584,10 +587,13 @@ def create_table_statement(
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
+    *,
+    use_scoped_temp_object: bool = False,
+    is_generated: bool = False,
 ) -> str:
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
-        f" {table_type.upper()} "
+        f" {(get_temp_type_for_object(use_scoped_temp_object, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
     )
@@ -654,11 +660,18 @@ def create_file_format_statement(
     options: Dict,
     temp: bool,
     if_not_exist: bool,
+    *,
+    use_scoped_temp_object: bool = False,
+    is_generated: bool = False,
 ) -> str:
     options_str = TYPE + EQUALS + file_type + SPACE + get_options_statement(options)
     return (
         CREATE
-        + (TEMPORARY if temp else EMPTY_STRING)
+        + (
+            get_temp_type_for_object(use_scoped_temp_object, is_generated)
+            if temp
+            else EMPTY_STRING
+        )
         + FILE
         + FORMAT
         + (IF + NOT + EXISTS if if_not_exist else EMPTY_STRING)

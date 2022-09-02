@@ -117,6 +117,8 @@ SKIP_LEVELS_TWO = (
 SKIP_LEVELS_THREE = (
     3  # limit traceback to return up to 3 stack trace entries from traceback object tb
 )
+TEMPORARY_STRING = "TEMPORARY"
+SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
@@ -524,3 +526,11 @@ def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
         return func_call_wrapper
 
     return deprecate_wrapper
+
+
+def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool):
+    return (
+        TEMPORARY_STRING
+        if not use_scoped_temp_objects
+        else (SCOPED_TEMPORARY_STRING if is_generated else TEMPORARY_STRING)
+    )

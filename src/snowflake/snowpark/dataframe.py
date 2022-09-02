@@ -2836,7 +2836,10 @@ class DataFrame:
         """
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         create_temp_table = self._session._plan_builder.create_temp_table(
-            temp_table_name, self._plan
+            temp_table_name,
+            self._plan,
+            use_scoped_temp_object=self._session._use_scoped_temp_object,
+            is_generated=True,
         )
         self._session._conn.execute(
             create_temp_table,
