@@ -1646,22 +1646,21 @@ def test_fillna(session):
         [Row(1, 1.1), Row(None, 1)],
     )
 
-    # negative case
     df = session.create_dataframe(
         [[[1, 2], (1, 3)], [None, None]], schema=["col1", "col2"]
     )
+    Utils.check_answer(
+        df.fillna([1, 3]),
+        [
+            Row("[\n  1,\n  2\n]", "[\n  1,\n  3\n]"),
+            Row("[\n  1,\n  3\n]", "[\n  1,\n  3\n]"),
+        ],
+    )
+
+    # negative case
     with pytest.raises(TypeError) as ex_info:
         df.fillna(1, subset={1: "a"})
     assert "subset should be a list or tuple of column names" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.fillna([1, 3])
-    assert "All values in value should be in one of" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.fillna((1, 3))
-    assert "All values in value should be in one of" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.fillna({1: 3})
-    assert "All keys in value should be column names (str)" in str(ex_info)
 
 
 def test_replace(session):
@@ -1712,6 +1711,12 @@ def test_replace(session):
         [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
     )
 
+    df = session.create_dataframe([[[1, 2], (1, 3)]], schema=["col1", "col2"])
+    Utils.check_answer(
+        df.replace([(1, 3)], [[2, 3]]),
+        [Row("[\n  1,\n  2\n]", "[\n  2,\n  3\n]")],
+    )
+
     # negative case
     with pytest.raises(SnowparkColumnException) as ex_info:
         df.replace({1: 3}, subset=["d"])
@@ -1722,15 +1727,6 @@ def test_replace(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.replace(1, [2, 3])
-    assert "All keys and values in value should be in one of" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.replace([1, (1, 2)], [2, 3])
-    assert "All keys and values in value should be in one of" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.replace(1, {1: 2})
-    assert "All keys and values in value should be in one of" in str(ex_info)
 
 
 def test_select_case_expr(session):
