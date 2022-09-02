@@ -222,10 +222,11 @@ def column(col_name: str) -> Column:
 def lit(literal: LiteralType) -> Column:
     """
     Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
-    It only supports basic Python data types, such as: ``int``, ``float``, ``str``,
+    It supports basic Python data types, including ``int``, ``float``, ``str``,
     ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
-    ``datetime.datetime``, ``decimal.Decimal``. Structured data types,
-    such as: ``list``, ``tuple``, ``dict`` are not supported.
+    ``datetime.datetime`` and ``decimal.Decimal``. Also, it supports Python structured data types,
+    including ``list``, ``tuple`` and ``dict``, but this container must
+    be JSON serializable.
     """
     return literal if isinstance(literal, Column) else Column(Literal(literal))
 
