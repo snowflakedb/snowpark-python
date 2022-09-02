@@ -374,7 +374,7 @@ class SnowflakePlanBuilder:
             attribute_to_schema_string(attributes),
             replace=True,
             table_type="temporary",
-            use_scoped_temp_object=self.session._use_scoped_temp_object,
+            use_scoped_temp_objects=self.session._use_scoped_temp_objects,
             is_generated=True,
         )
         insert_stmt = batch_insert_into_statement(
@@ -627,19 +627,22 @@ class SnowflakePlanBuilder:
         name: str,
         child: SnowflakePlan,
         *,
-        use_scoped_temp_object: bool = False,
+        use_scoped_temp_objects: bool = False,
         is_generated: bool = False,
     ) -> SnowflakePlan:
         return self.build_from_multiple_queries(
             lambda x: self.create_table_and_insert(
-                self.session, name, child.schema_query, x
+                self.session,
+                name,
+                child.schema_query,
+                x,
+                use_scoped_temp_objects=use_scoped_temp_objects,
+                is_generated=is_generated,
             ),
             child,
             None,
             child.schema_query,
             is_ddl_on_temp_object=True,
-            use_scoped_temp_object=use_scoped_temp_object,
-            is_generated=is_generated,
         )
 
     def create_table_and_insert(
@@ -649,7 +652,7 @@ class SnowflakePlanBuilder:
         schema_query: str,
         query: str,
         *,
-        use_scoped_temp_object: bool = False,
+        use_scoped_temp_objects: bool = False,
         is_generated: bool = False,
     ) -> List[str]:
         attributes = session._get_result_attributes(schema_query)
@@ -657,7 +660,7 @@ class SnowflakePlanBuilder:
             name,
             attribute_to_schema_string(attributes),
             table_type="temporary",
-            use_scoped_temp_object=use_scoped_temp_object,
+            use_scoped_temp_objects=use_scoped_temp_objects,
             is_generated=is_generated,
         )
 
@@ -715,7 +718,7 @@ class SnowflakePlanBuilder:
                             format_type_options,
                             temp=True,
                             if_not_exist=True,
-                            use_scoped_temp_object=self.session._use_scoped_temp_object,
+                            use_scoped_temp_objects=self.session._use_scoped_temp_objects,
                             is_generated=True,
                         ),
                         is_ddl_on_temp_object=True,
@@ -784,7 +787,7 @@ class SnowflakePlanBuilder:
                         attribute_to_schema_string(temp_table_schema),
                         replace=True,
                         table_type="temporary",
-                        use_scoped_temp_object=self.session._use_scoped_temp_object,
+                        use_scoped_temp_objects=self.session._use_scoped_temp_objects,
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,

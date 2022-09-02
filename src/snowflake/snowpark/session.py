@@ -119,7 +119,10 @@ _logger = getLogger(__name__)
 
 _session_management_lock = RLock()
 _active_sessions: Set["Session"] = set()
-_use_scoped_temp_object = True
+_use_scoped_temp_objects = True
+_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
+    "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
+)
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -255,10 +258,14 @@ class Session:
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
         self._last_canceled_id = 0
-        self._use_scoped_temp_object = (
-            _use_scoped_temp_object
-            and conn._conn._session_parameters.get(
-                "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS", True
+        self._use_scoped_temp_objects = bool(
+            _use_scoped_temp_objects
+            and (
+                conn._conn._session_parameters.get(
+                    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
+                )
+                if conn._conn._session_parameters
+                else True
             )
         )
 
@@ -993,7 +1000,7 @@ class Session:
         )
         if not self._stage_created:
             self._run_query(
-                f"create {get_temp_type_for_object(self._use_scoped_temp_object, True)} \
+                f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
                 stage if not exists {qualified_stage_name}",
                 is_ddl_on_temp_object=True,
             )

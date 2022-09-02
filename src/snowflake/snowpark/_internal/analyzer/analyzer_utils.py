@@ -588,12 +588,12 @@ def create_table_statement(
     error: bool = True,
     table_type: str = EMPTY_STRING,
     *,
-    use_scoped_temp_object: bool = False,
+    use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
 ) -> str:
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
-        f" {(get_temp_type_for_object(use_scoped_temp_object, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
+        f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
     )
@@ -661,14 +661,14 @@ def create_file_format_statement(
     temp: bool,
     if_not_exist: bool,
     *,
-    use_scoped_temp_object: bool = False,
+    use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
 ) -> str:
     options_str = TYPE + EQUALS + file_type + SPACE + get_options_statement(options)
     return (
         CREATE
         + (
-            get_temp_type_for_object(use_scoped_temp_object, is_generated)
+            get_temp_type_for_object(use_scoped_temp_objects, is_generated)
             if temp
             else EMPTY_STRING
         )

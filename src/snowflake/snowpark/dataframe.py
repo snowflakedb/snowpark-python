@@ -2838,7 +2838,7 @@ class DataFrame:
         create_temp_table = self._session._plan_builder.create_temp_table(
             temp_table_name,
             self._plan,
-            use_scoped_temp_object=self._session._use_scoped_temp_object,
+            use_scoped_temp_objects=self._session._use_scoped_temp_objects,
             is_generated=True,
         )
         self._session._conn.execute(
