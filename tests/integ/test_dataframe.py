@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import gc
 import json
 import math
 from array import array
@@ -2263,3 +2264,13 @@ def test_call_with_statement_params(session):
     assert len(copied_files) == 1
     assert ".csv" in copied_files[0][0]
     Utils.drop_stage(session, temp_stage)
+
+
+def test_finalizer_cleans_up_cached_temp_tables(session):
+    df = session.create_dataframe([69], schema=['foo']).cache_result()
+    tbl = df._temp_table_name
+    df = 42
+    gc.collect() # force garbage collection cycle
+    with pytest.raises(SnowparkSQLException) as exc:
+        session.sql(f"select * from {tbl}").collect()
+    assert "does not exist" in str(exc)
