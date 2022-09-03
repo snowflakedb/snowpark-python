@@ -90,3 +90,49 @@ def test_multiple_queries(session):
         assert res2 == [Row(1), Row(2), Row(3), Row(4)]
     finally:
         Utils.drop_table(session, table_name2)
+
+
+def test_create_scoped_temp_table(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        Utils.create_table(session, table_name, "num int, str string")
+        session.sql(
+            f"insert into {table_name} values(1, 'a'),(2, 'b'),(3, 'c')"
+        ).collect()
+        df = session.table(table_name)
+        temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        assert (
+            session._plan_builder.create_temp_table(
+                temp_table_name,
+                df._plan,
+                use_scoped_temp_objects=True,
+                is_generated=True,
+            )
+            .queries[0]
+            .sql
+            == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING)'
+        )
+        assert (
+            session._plan_builder.create_temp_table(
+                temp_table_name,
+                df._plan,
+                use_scoped_temp_objects=False,
+                is_generated=True,
+            )
+            .queries[0]
+            .sql
+            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING)'
+        )
+        assert (
+            session._plan_builder.create_temp_table(
+                temp_table_name,
+                df._plan,
+                use_scoped_temp_objects=True,
+                is_generated=False,
+            )
+            .queries[0]
+            .sql
+            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING)'
+        )
+    finally:
+        Utils.drop_table(session, table_name)
