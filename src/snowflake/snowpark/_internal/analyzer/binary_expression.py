@@ -1,7 +1,12 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.snowpark._internal.analyzer.expression import Expression
+from typing import Optional, Set
+
+from snowflake.snowpark._internal.analyzer.expression import (
+    Expression,
+    derive_dependent_columns,
+)
 
 
 class BinaryExpression(Expression):
@@ -16,6 +21,9 @@ class BinaryExpression(Expression):
 
     def __str__(self):
         return f"{self.left} {self.sql_operator} {self.right}"
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(self.left, self.right)
 
 
 class BinaryArithmeticExpression(BinaryExpression):

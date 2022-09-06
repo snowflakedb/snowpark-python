@@ -7,6 +7,8 @@ import typing
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    Except,
+    Intersect,
     JoinType,
     LeftAnti,
     LeftSemi,
@@ -57,6 +59,7 @@ SELECT = " SELECT "
 FROM = " FROM "
 WHERE = " WHERE "
 LIMIT = " LIMIT "
+OFFSET = " OFFSET "
 PIVOT = " PIVOT "
 UNPIVOT = " UNPIVOT "
 FOR = " FOR "
@@ -130,6 +133,10 @@ MATCHED = " MATCHED "
 LISTAGG = " LISTAGG "
 HEADER = " HEADER "
 IGNORE_NULLS = " IGNORE NULLS "
+UNION = " UNION "
+UNION_ALL = " UNION ALL "
+INTERSECT = f" {Intersect.sql} "
+EXCEPT = f" {Except.sql} "
 
 
 def result_scan_statement(uuid_place_holder: str) -> str:
@@ -1167,12 +1174,14 @@ def single_quote(value: str) -> str:
         return SINGLE_QUOTE + value + SINGLE_QUOTE
 
 
+ALREADY_QUOTED = re.compile('^(".+")$')
+UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
+
+
 def quote_name(name: str) -> str:
-    already_quoted = re.compile('^(".+")$')
-    unquoted_case_insensitive = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
-    if already_quoted.match(name):
+    if ALREADY_QUOTED.match(name):
         return validate_quoted_name(name)
-    elif unquoted_case_insensitive.match(name):
+    elif UNQUOTED_CASE_INSENSITIVE.match(name):
         return DOUBLE_QUOTE + escape_quotes(name.upper()) + DOUBLE_QUOTE
     else:
         return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE

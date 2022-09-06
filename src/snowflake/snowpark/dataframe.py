@@ -33,6 +33,14 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     Star,
 )
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SET_EXCEPT,
+    SET_INTERSECT,
+    SET_UNION,
+    SET_UNION_ALL,
+    SelectSnowflakePlan,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
     Limit,
@@ -416,7 +424,12 @@ class DataFrame:
         is_cached: bool = False,
     ) -> None:
         self._session = session
-        self._plan = session._analyzer.resolve(plan)
+        self._plan = self._session._analyzer.resolve(plan)
+        if isinstance(plan, SelectStatement):
+            self._select_statement = plan
+            plan.expr_to_alias.update(self._plan.expr_to_alias)
+        else:
+            self._select_statement = None
         self.is_cached: bool = is_cached  #: Whether it is a cached dataframe
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
@@ -765,10 +778,12 @@ class DataFrame:
                 raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
-
         if join_plan:
             return self._with_plan(Project(names, join_plan))
-        return self._with_plan(Project(names, self._plan))
+        if self._select_statement:
+            return self._with_plan(self._select_statement.select(names))
+        else:
+            return self._with_plan(Project(names, self._plan))
 
     @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
@@ -882,6 +897,12 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.filter(
+                    _to_col_if_sql_expr(expr, "filter/where")._expression
+                )
+            )
         return self._with_plan(
             Filter(
                 _to_col_if_sql_expr(expr, "filter/where")._expression,
@@ -978,6 +999,8 @@ class DataFrame:
                     SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
+        if self._select_statement:
+            return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, True, self._plan))
 
     @df_api_usage
@@ -1343,6 +1366,8 @@ class DataFrame:
         Args:
             n: Number of rows to return.
         """
+        if self._select_statement:
+            return self._with_plan(self._select_statement.limit(n))
         return self._with_plan(Limit(Literal(n), self._plan))
 
     @df_api_usage
@@ -1367,6 +1392,16 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operator(
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
+                    operator=SET_UNION,
+                )
+            )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
     @df_api_usage
@@ -1393,6 +1428,16 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operator(
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
+                    operator=SET_UNION_ALL,
+                )
+            )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
     @df_api_usage
@@ -1502,6 +1547,13 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operator(
+                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    operator=SET_INTERSECT,
+                )
+            )
         return self._with_plan(Intersect(self._plan, other._plan))
 
     @df_api_usage
@@ -1526,6 +1578,13 @@ class DataFrame:
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operator(
+                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    operator=SET_EXCEPT,
+                )
+            )
         return self._with_plan(Except(self._plan, other._plan))
 
     @df_api_usage
