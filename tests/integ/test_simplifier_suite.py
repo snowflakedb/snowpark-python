@@ -353,7 +353,7 @@ def test_order_by(session, simplifier_table):
     df1 = df.sort("a", col("b") + 1)
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT  *  FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, ("B" + 1 :: bigint) ASC NULLS FIRST'
+        == f'SELECT  *  FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, ("B" + 1 :: INT) ASC NULLS FIRST'
     )
 
     # flatten
@@ -374,7 +374,7 @@ def test_order_by(session, simplifier_table):
     df4 = df.select((col("a") + 1).as_("a"), ((col("b") + 1).as_("b"))).sort("a", "b")
     assert (
         df4.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT ("A" + 1 :: bigint) AS "A", ("B" + 1 :: bigint) AS "B" FROM {simplifier_table}) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+        == f'SELECT  *  FROM ( SELECT ("A" + 1 :: INT) AS "A", ("B" + 1 :: INT) AS "B" FROM {simplifier_table}) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
 
@@ -385,14 +385,14 @@ def test_filter(session, simplifier_table):
     df1 = df.filter((col("a") > 1) & (col("b") > 2))
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT  *  FROM {simplifier_table} WHERE (("A" > 1 :: bigint) AND ("B" > 2 :: bigint))'
+        == f'SELECT  *  FROM {simplifier_table} WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT))'
     )
 
     # flatten
     df2 = df.select("a", "b").filter((col("a") > 1) & (col("b") > 2))
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1 :: bigint) AND ("B" > 2 :: bigint))'
+        == f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT))'
     )
 
     # no flatten because c is a new column
@@ -401,7 +401,7 @@ def test_filter(session, simplifier_table):
     )
     assert (
         df3.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table}) WHERE ((("A" > 1 :: bigint) AND ("B" > 2 :: bigint)) AND ("C" < 1 :: bigint))'
+        == f'SELECT  *  FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table}) WHERE ((("A" > 1 :: INT) AND ("B" > 2 :: INT)) AND ("C" < 1 :: INT))'
     )
 
     # no flatten because a and be are changed
@@ -410,7 +410,7 @@ def test_filter(session, simplifier_table):
     )
     assert (
         df4.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT ("A" + 1 :: bigint) AS "A", ("B" + 1 :: bigint) AS "B" FROM {simplifier_table}) WHERE (("A" > 1 :: bigint) AND ("B" > 2 :: bigint))'
+        == f'SELECT  *  FROM ( SELECT ("A" + 1 :: INT) AS "A", ("B" + 1 :: INT) AS "B" FROM {simplifier_table}) WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT))'
     )
 
     df5 = df4.select("a")
@@ -437,13 +437,13 @@ def test_filter_order_limit_together(session, simplifier_table):
     df1 = df.select("a", "b").filter(col("b") > 1).sort("a").limit(5)
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1 :: bigint) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
+        == f'SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1 :: INT) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
     )
 
     df2 = df1.select("a")
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1 :: bigint) ORDER BY "A" ASC NULLS FIRST LIMIT 5)'
+        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1 :: INT) ORDER BY "A" ASC NULLS FIRST LIMIT 5)'
     )
 
 
