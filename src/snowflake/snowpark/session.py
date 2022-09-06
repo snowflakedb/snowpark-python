@@ -28,6 +28,11 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql, to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSnowflakePlan,
+    SelectSQL,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Range,
@@ -936,6 +941,17 @@ class Session:
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
         """
+
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            return DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectSQL(query, analyzer=self._analyzer),
+                    analyzer=self._analyzer,
+                ),
+            )
         return DataFrame(
             self,
             self._plan_builder.query(
@@ -1356,9 +1372,24 @@ class Session:
             else:
                 project_columns.append(column(name))
 
-        df = DataFrame(self, SnowflakeValues(attrs, converted)).select(project_columns)
-        # Get rid of the select statement api call here
-        set_api_call_source(df, "Session.create_dataframe[values]")
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            df = DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        SnowflakeValues(attrs, converted), analyzer=self._analyzer
+                    ),
+                    analyzer=self._analyzer,
+                ),
+            ).select(project_columns)
+        else:
+            df = DataFrame(self, SnowflakeValues(attrs, converted)).select(
+                project_columns
+            )
+            # Get rid of the select statement api call here
+            set_api_call_source(df, "Session.create_dataframe[values]")
         return df
 
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:

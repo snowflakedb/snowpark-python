@@ -4,7 +4,10 @@
 #
 
 import logging
+import os
 from pathlib import Path
+
+from snowflake.snowpark import context
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
@@ -28,3 +31,8 @@ def pytest_collection_modifyitems(items) -> None:
                 item.add_marker("doctest")
             else:
                 raise e
+
+
+use_sql_simplifier = os.environ.get("USE_SQL_SIMPLIFIER")
+if use_sql_simplifier == "0":
+    context._use_sql_simplifier = False

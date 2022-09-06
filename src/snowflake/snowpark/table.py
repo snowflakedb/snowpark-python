@@ -6,6 +6,10 @@ from typing import Dict, Iterable, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectableEntity,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
@@ -255,6 +259,13 @@ class Table(DataFrame):
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
         self.table_name: str = table_name  #: The table name
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            self._select_statement = SelectStatement(
+                from_=SelectableEntity(table_name, analyzer=session._analyzer),
+                analyzer=session._analyzer,
+            )
         # By default, the set the initial API call to say 'Table.__init__' since
         # people could instantiate a table directly. This value is overwritten when
         # created from Session object
