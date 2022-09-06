@@ -139,7 +139,7 @@ UNION_ALL = " UNION ALL "
 INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
 
-TEMPORARY_STRING_SET = ("temporary", "temp")
+TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
 
 def result_scan_statement(uuid_place_holder: str) -> str:

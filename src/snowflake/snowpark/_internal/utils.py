@@ -528,9 +528,9 @@ def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
     return deprecate_wrapper
 
 
-def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool):
+def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) -> str:
     return (
-        TEMPORARY_STRING
-        if not use_scoped_temp_objects
-        else (SCOPED_TEMPORARY_STRING if is_generated else TEMPORARY_STRING)
+        SCOPED_TEMPORARY_STRING
+        if use_scoped_temp_objects and is_generated
+        else TEMPORARY_STRING
     )

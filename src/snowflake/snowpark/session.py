@@ -258,14 +258,10 @@ class Session:
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
         self._last_canceled_id = 0
-        self._use_scoped_temp_objects = bool(
+        self._use_scoped_temp_objects = (
             _use_scoped_temp_objects
-            and (
-                conn._conn._session_parameters.get(
-                    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
-                )
-                if conn._conn._session_parameters
-                else True
+            and conn._conn._session_parameters.get(
+                _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
 
