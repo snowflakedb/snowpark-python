@@ -142,11 +142,14 @@ def test_join_with_multiple_conditions(session):
     assert res == []
 
 
-@pytest.mark.skipif(
-    _use_sql_simplifier,
-    reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
-)
+# @pytest.mark.skipif(
+#     _use_sql_simplifier,
+#     reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
+# )
 def test_join_with_ambiguous_column_in_condidtion(session):
+    from snowflake.snowpark import context
+
+    context._use_sql_simplifier = False
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
         ["a", "b"]

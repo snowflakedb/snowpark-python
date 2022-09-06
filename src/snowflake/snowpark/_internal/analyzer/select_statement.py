@@ -117,7 +117,7 @@ class ColumnStateDict(UserDict):
     def has_dropped_columns(self) -> bool:
         return bool(self.dropped_columns)
 
-    def __setitem__(self, col_name: str, col_state: ColumnState):
+    def __setitem__(self, col_name: str, col_state: ColumnState) -> None:
         super().__setitem__(col_name, col_state)
         if col_state.change_state == ColumnChangeState.DROPPED:
             if self.dropped_columns is None:
@@ -169,9 +169,8 @@ class Selectable(LogicalPlan, ABC):
     def snowflake_plan(self):
         """Convert to a SnowflakePlan"""
         if self._snowflake_plan is None:
-            queries = [Query(self.sql_query)]
-            if self.pre_actions:
-                queries = self.pre_actions + queries
+            query = Query(self.sql_query)
+            queries = [*self.pre_actions, query] if self.pre_actions else [query]
             self._snowflake_plan = SnowflakePlan(
                 queries,
                 self.schema_query,
@@ -746,7 +745,7 @@ def populate_column_dependency(
     quoted_c_name: str,
     column_states: ColumnStateDict,
     subquery_column_states: ColumnStateDict,
-):
+) -> None:
     dependent_column_names = derive_dependent_columns(exp)
     column_states[quoted_c_name].dependent_columns = dependent_column_names
     if dependent_column_names == COLUMN_DEPENDENCY_DOLLAR:
