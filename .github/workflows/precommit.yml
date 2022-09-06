@@ -158,15 +158,15 @@ jobs:
             coverage.xml
 
   test-no-sql-simplifier: # Will be removed after sql simplifier is stable and no option to opt out.
-    name: Test ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-no-sql-simplifier
+    name: Test No SQL Simplifier ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
       fail-fast: false
       matrix:
         os:
-          - image_name: ubuntu-latest
-            download_name: linux
+          - image_name: macos-latest
+            download_name: macos  # it includes doctest
         python-version: [3.8]
         cloud-provider: [aws]
     steps:
