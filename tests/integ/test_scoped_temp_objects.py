@@ -43,7 +43,7 @@ def test_create_scoped_temp_objects_syntax(session):
     assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
     with pytest.raises(ProgrammingError) as exc:
         session._run_query(
-            "create scoped temporary view temp_view as select * from {temp_table_name}"
+            f"create scoped temporary view temp_view as select * from {temp_table_name}"
         )
     assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
     with pytest.raises(ProgrammingError) as exc:
