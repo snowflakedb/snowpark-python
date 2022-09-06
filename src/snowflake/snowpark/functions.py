@@ -169,6 +169,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
     <BLANKLINE>
 """
 import functools
+import typing
 from random import randint
 from types import ModuleType
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union, overload
@@ -221,10 +222,11 @@ def column(col_name: str) -> Column:
 def lit(literal: LiteralType) -> Column:
     """
     Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
-    It only supports basic Python data types, such as: ``int``, ``float``, ``str``,
+    It supports basic Python data types, including ``int``, ``float``, ``str``,
     ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
-    ``datetime.datetime``, ``decimal.Decimal``. Structured data types,
-    such as: ``list``, ``tuple``, ``dict`` are not supported.
+    ``datetime.datetime`` and ``decimal.Decimal``. Also, it supports Python structured data types,
+    including ``list``, ``tuple`` and ``dict``, but this container must
+    be JSON serializable.
     """
     return literal if isinstance(literal, Column) else Column(Literal(literal))
 
@@ -2917,6 +2919,7 @@ def udf(
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
     statement_params: Optional[Dict[str, str]] = None,
+    source_code_display: bool = True,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -2979,6 +2982,10 @@ def udf(
             guarantee that Snowflake will encode batches with the specified number of rows. It will
             be ignored when registering a non-vectorized UDF.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
+        source_code_display: Display the source code of the UDF `func` as comments in the generated script.
+            The source code is dynamically generated therefore it may not be identical to how the
+            `func` is originally defined. The default is ``True``.
+            If it is ``False``, source code will not be generated or displayed.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3036,6 +3043,7 @@ def udf(
             parallel=parallel,
             max_batch_size=max_batch_size,
             statement_params=statement_params,
+            source_code_display=source_code_display,
         )
     else:
         return session.udf.register(
@@ -3051,6 +3059,7 @@ def udf(
             parallel=parallel,
             max_batch_size=max_batch_size,
             statement_params=statement_params,
+            source_code_display=source_code_display,
         )
 
 
@@ -3197,6 +3206,7 @@ def pandas_udf(
     parallel: int = 4,
     max_batch_size: Optional[int] = None,
     statement_params: Optional[Dict[str, str]] = None,
+    source_code_display: bool = True,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -3224,6 +3234,7 @@ def pandas_udf(
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
             statement_params=statement_params,
+            source_code_display=source_code_display,
         )
     else:
         return session.udf.register(
@@ -3240,6 +3251,7 @@ def pandas_udf(
             max_batch_size=max_batch_size,
             _from_pandas_udf_function=True,
             statement_params=statement_params,
+            source_code_display=source_code_display,
         )
 
 
@@ -3389,6 +3401,7 @@ def sproc(
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
+    execute_as: typing.Literal["caller", "owner"] = "owner",
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -3444,6 +3457,9 @@ def sproc(
             command. The default value is 4 and supported values are from 1 to 99.
             Increasing the number of threads can improve performance when uploading
             large stored procedure files.
+        execute_as: What permissions should the procedure have while executing. This
+            supports caller, or owner for now. See `owner and caller rights <https://docs.snowflake.com/en/sql-reference/stored-procedures-rights.html>`_
+            for more information.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
 
     Returns:
@@ -3488,6 +3504,7 @@ def sproc(
             replace=replace,
             parallel=parallel,
             statement_params=statement_params,
+            execute_as=execute_as,
         )
     else:
         return session.sproc.register(
@@ -3502,4 +3519,5 @@ def sproc(
             replace=replace,
             parallel=parallel,
             statement_params=statement_params,
+            execute_as=execute_as,
         )

@@ -171,7 +171,7 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
-    ):
+    ) -> None:
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data
@@ -236,6 +236,17 @@ class Utils:
     def is_active_transaction(session: Session) -> bool:
         # `SELECT CURRENT_TRANSACTION()` returns a valid txn ID if there is active txn or NULL otherwise
         return session.sql("SELECT CURRENT_TRANSACTION()").collect()[0][0] is not None
+
+    @staticmethod
+    def assert_table_type(session: Session, table_name: str, table_type: str) -> None:
+        table_info = session.sql(f"show tables like '{table_name}'").collect()
+        if not table_type:
+            expected_table_kind = "TABLE"
+        elif table_type == "temp":
+            expected_table_kind = "TEMPORARY"
+        else:
+            expected_table_kind = table_type.upper()
+        assert table_info[0]["kind"] == expected_table_kind
 
 
 class TestData:
@@ -744,6 +755,14 @@ class TestFiles:
     @property
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
+
+    @functools.cached_property
+    def test_file_csv_special_format(self):
+        return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
+
+    @functools.cached_property
+    def test_file_json_special_format(self):
+        return os.path.join(self.resources_path, "testJSONspecialFormat.json.gz")
 
     @property
     def test_file_json(self):

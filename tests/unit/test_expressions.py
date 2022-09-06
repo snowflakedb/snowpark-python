@@ -8,12 +8,12 @@ import decimal
 import pytest
 
 from snowflake.snowpark._internal.analyzer.expression import Literal
-from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
+from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark.exceptions import SnowparkPlanException
 
 
 def test_literal():
-    basic_data = [
+    valid_data = [
         1,
         "one",
         1.0,
@@ -24,14 +24,17 @@ def test_literal():
         bytearray("a", "utf-8"),
         bytes("a", "utf-8"),
         decimal.Decimal(0.5),
+        (1, 1),
+        [2, 2],
+        {"1": 2},
     ]
 
-    structured_data = [(1, 1), [2, 2], {"1": 2}]
+    invalid_data = [pytest]
 
-    for d in basic_data:
-        assert isinstance(Literal(d).datatype, PYTHON_TO_SNOW_TYPE_MAPPINGS[type(d)])
+    for d in valid_data:
+        assert isinstance(Literal(d).datatype, infer_type(d).__class__)
 
-    for d in structured_data:
+    for d in invalid_data:
         with pytest.raises(SnowparkPlanException) as ex_info:
             Literal(d)
         assert "Cannot create a Literal" in str(ex_info)

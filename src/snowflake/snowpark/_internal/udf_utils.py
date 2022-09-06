@@ -5,6 +5,7 @@
 import io
 import os
 import pickle
+import typing
 import zipfile
 from logging import getLogger
 from types import ModuleType
@@ -23,6 +24,7 @@ from typing import (
 import cloudpickle
 
 import snowflake.snowpark
+from snowflake.snowpark._internal import code_generation
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
     python_type_to_snow_type,
@@ -351,6 +353,7 @@ def generate_python_code(
     is_pandas_udf: bool,
     is_dataframe_input: bool,
     max_batch_size: Optional[int] = None,
+    source_code_display: bool = False,
 ) -> str:
     # if func is a method object, we need to extract the target function first to check
     # annotations. However, we still serialize the original method because the extracted
@@ -376,11 +379,26 @@ def generate_python_code(
         pickled_func = pickle_function(func)
     args = ",".join(arg_names)
 
+    try:
+        source_code_comment = (
+            code_generation.generate_source_code(func) if source_code_display else ""
+        )
+    except Exception as exc:
+        error_msg = (
+            f"Source code comment could not be generated for {func} due to error {exc}."
+        )
+        logger.debug(error_msg)
+        # We shall also have telemetry for the code generation
+        # check https://snowflakecomputing.atlassian.net/browse/SNOW-651381
+        source_code_comment = code_generation.comment_source_code(error_msg)
+
     deserialization_code = f"""
 import pickle
 
 func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
+{source_code_comment}
 """.rstrip()
+
     if object_type == TempObjectType.PROCEDURE:
         func_code = f"""
 def {_DEFAULT_HANDLER_NAME}({args}):
@@ -486,6 +504,7 @@ def resolve_imports_and_packages(
     max_batch_size: Optional[int] = None,
     *,
     statement_params: Optional[Dict[str, str]] = None,
+    source_code_display: bool = False,
 ) -> Tuple[str, str, str, str, str]:
     upload_stage = (
         unwrap_stage_location_single_quote(stage_location)
@@ -543,6 +562,7 @@ def resolve_imports_and_packages(
             is_pandas_udf,
             is_dataframe_input,
             max_batch_size,
+            source_code_display=source_code_display,
         )
         if len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
             dest_prefix = get_udf_upload_prefix(udf_name)
@@ -618,6 +638,7 @@ def create_python_udf_or_sp(
     is_temporary: bool,
     replace: bool,
     inline_python_code: Optional[str] = None,
+    execute_as: Optional[typing.Literal["caller", "owner"]] = None,
 ) -> None:
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
@@ -629,6 +650,16 @@ def create_python_udf_or_sp(
     )
     imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
     packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
+    # Since this function is called for UDFs and Stored Procedures we need to
+    #  make execute_as_sql a multi-line string for cases when we need it.
+    #  This makes sure that when we don't need it we don't end up inserting
+    #  totally empty lines.
+    if execute_as is None:
+        execute_as_sql = ""
+    else:
+        execute_as_sql = f"""
+EXECUTE AS {execute_as.upper()}
+"""
     inline_python_code_in_sql = (
         f"""
 AS $$
@@ -640,14 +671,14 @@ $$
     )
 
     create_query = f"""
-CREATE {"OR REPLACE " if replace else ""}
+CREATE{" OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} {object_type.value} {object_name}({sql_func_args})
 {return_sql}
 LANGUAGE PYTHON
 RUNTIME_VERSION=3.8
 {imports_in_sql}
 {packages_in_sql}
-HANDLER='{handler}'
+HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
     session._run_query(create_query, is_ddl_on_temp_object=is_temporary)

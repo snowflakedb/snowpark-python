@@ -9,6 +9,7 @@ from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
+from typing import Iterable, Tuple
 
 import pandas as pd
 import pytest
@@ -20,7 +21,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_sta
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
-from snowflake.snowpark.functions import col, concat, lit, when
+from snowflake.snowpark.functions import col, concat, lit, table_function, udtf, when
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -263,6 +264,315 @@ def test_select_star(session):
     res = df.select("*").collect()
     expected = [Row(3, 3), Row(4, 4), Row(5, 5), Row(6, 6), Row(7, 7)]
     assert res == expected
+
+
+def test_select_table_function(session):
+    df = session.create_dataframe(
+        [(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)]
+    ).to_df(["a", "b", "c"])
+
+    # test single output column udtf
+    class TwoXUDTF:
+        def process(self, n: int) -> int:
+            yield (2 * n,)
+
+    table_func = udtf(
+        TwoXUDTF,
+        output_schema=StructType([StructField("two_x", IntegerType())]),
+        input_types=[IntegerType()],
+    )
+
+    # test single column selection
+    expected_result = [Row(TWO_X=2), Row(TWO_X=4), Row(TWO_X=6)]
+    Utils.check_answer(df.select(table_func("a")), expected_result)
+    Utils.check_answer(df.select(table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(table_func(df.a)), expected_result)
+
+    # test multiple column selection
+    expected_result = [Row(A=1, TWO_X=2), Row(A=2, TWO_X=4), Row(A=3, TWO_X=6)]
+    Utils.check_answer(df.select("a", table_func("a")), expected_result)
+    Utils.check_answer(df.select(col("a"), table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(df.a, table_func(df.a)), expected_result)
+
+    # test multiple column selection with order preservation
+    expected_result = [
+        Row(A=1, TWO_X=2, C=10),
+        Row(A=2, TWO_X=4, C=20),
+        Row(A=3, TWO_X=6, C=30),
+    ]
+    Utils.check_answer(df.select("a", table_func("a"), "c"), expected_result)
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("a")), col("c")), expected_result
+    )
+    Utils.check_answer(df.select(df.a, table_func(df.a), df.c), expected_result)
+
+    # test multiple output column udtf
+    class TwoXSixXUDTF:
+        def process(self, n: int) -> int:
+            yield (2 * n, 6 * n)
+
+    table_func = udtf(
+        TwoXSixXUDTF,
+        output_schema=StructType(
+            [StructField("two_x", IntegerType()), StructField("six_x", IntegerType())]
+        ),
+        input_types=[IntegerType()],
+    )
+
+    # test single column selection
+    expected_result = [
+        Row(TWO_X=2, SIX_X=6),
+        Row(TWO_X=4, SIX_X=12),
+        Row(TWO_X=6, SIX_X=18),
+    ]
+    Utils.check_answer(df.select(table_func("a")), expected_result)
+    Utils.check_answer(df.select(table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(table_func(df.a)), expected_result)
+
+    # test multiple column selection
+    expected_result = [
+        Row(A=1, TWO_X=2, SIX_X=6),
+        Row(A=2, TWO_X=4, SIX_X=12),
+        Row(A=3, TWO_X=6, SIX_X=18),
+    ]
+    Utils.check_answer(df.select("a", table_func("a")), expected_result)
+    Utils.check_answer(df.select(col("a"), table_func(col("a"))), expected_result)
+    Utils.check_answer(df.select(df.a, table_func(df.a)), expected_result)
+
+    # test multiple column selection with order preservation
+    expected_result = [
+        Row(A=1, TWO_X=2, SIX_X=6, C=10),
+        Row(A=2, TWO_X=4, SIX_X=12, C=20),
+        Row(A=3, TWO_X=6, SIX_X=18, C=30),
+    ]
+    Utils.check_answer(df.select("a", table_func("a"), "c"), expected_result)
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("a")), col("c")), expected_result
+    )
+    Utils.check_answer(df.select(df.a, table_func(df.a), df.c), expected_result)
+
+    # test with aliases
+    expected_result = [
+        Row(A=1, DOUBLE=2, SIX_X=6, C=10),
+        Row(A=2, DOUBLE=4, SIX_X=12, C=20),
+        Row(A=3, DOUBLE=6, SIX_X=18, C=30),
+    ]
+    Utils.check_answer(
+        df.select("a", table_func("a").alias("double", "six_x"), "c"), expected_result
+    )
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("a")).alias("double", "six_x"), col("c")),
+        expected_result,
+    )
+    Utils.check_answer(
+        df.select(df.a, table_func(df.a).alias("double", "six_x"), df.c),
+        expected_result,
+    )
+
+    # testing in-built table functions
+    table_func = table_function("split_to_table")
+    expected_result = [
+        Row(A=1, SEQ=1, INDEX=1, VALUE="one"),
+        Row(A=1, SEQ=1, INDEX=2, VALUE="o"),
+        Row(A=1, SEQ=1, INDEX=3, VALUE="one"),
+        Row(A=2, SEQ=2, INDEX=1, VALUE="twenty"),
+        Row(A=2, SEQ=2, INDEX=2, VALUE="two"),
+        Row(A=3, SEQ=3, INDEX=1, VALUE="thirty"),
+        Row(A=3, SEQ=3, INDEX=2, VALUE="three"),
+    ]
+    Utils.check_answer(df.select("a", table_func("b", lit(" "))), expected_result)
+    Utils.check_answer(
+        df.select(col("a"), table_func(col("b"), lit(" "))), expected_result
+    )
+    Utils.check_answer(df.select(df.a, table_func(df.b, lit(" "))), expected_result)
+
+
+def test_select_table_function_negative(session):
+    df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
+        ["a", "b", "c"]
+    )
+
+    class TwoXUDTF:
+        def process(self, n: int) -> int:
+            yield (2 * n,)
+
+    two_x_udtf = udtf(
+        TwoXUDTF,
+        output_schema=StructType([StructField("two_x", IntegerType())]),
+        input_types=[IntegerType()],
+    )
+
+    with pytest.raises(ValueError) as ex_info:
+        df.select(two_x_udtf("a"), "b", two_x_udtf("c"))
+    assert "At most one table function can be called" in str(ex_info)
+
+    @udtf(output_schema=["two_x", "three_x"])
+    class multiplier_udtf:
+        def process(self, n: int) -> Iterable[Tuple[int, int]]:
+            yield (2 * n, 3 * n)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.select(multiplier_udtf(df.a).alias("double", "double"))
+    assert "All output column names after aliasing must be unique" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.select(multiplier_udtf(df.a).alias("double"))
+    assert (
+        "The number of aliases should be same as the number of cols added by table function"
+        in str(ex_info)
+    )
+
+
+def test_with_column(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    expected = [Row(A=1, B=2, MEAN=1.5), Row(A=3, B=4, MEAN=3.5)]
+    Utils.check_answer(df.with_column("mean", (df["a"] + df["b"]) / 2), expected)
+
+    @udtf(output_schema=["number"])
+    class sum_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            yield (a + b,)
+
+    expected = [Row(A=1, B=2, TOTAL=3), Row(A=3, B=4, TOTAL=7)]
+    Utils.check_answer(df.with_column("total", sum_udtf(df.a, df.b)), expected)
+
+
+def test_with_column_negative(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+    # raise error when table function returns multiple columns
+    @udtf(output_schema=["sum", "diff"])
+    class sum_diff_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:
+            yield (a + b, a - b)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.with_column("total", sum_diff_udtf(df.a, df.b))
+    assert (
+        "The number of aliases should be same as the number of cols added by table function"
+        in str(ex_info)
+    )
+
+
+def test_with_columns(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+    @udtf(output_schema=["number"])
+    class sum_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            yield (a + b,)
+
+    expected = [Row(A=1, B=2, MEAN=1.5, TOTAL=3), Row(A=3, B=4, MEAN=3.5, TOTAL=7)]
+    Utils.check_answer(
+        df.with_columns(
+            ["mean", "total"], [(df["a"] + df["b"]) / 2, sum_udtf(df.a, df.b)]
+        ),
+        expected,
+    )
+
+    # test with a udtf sandwitched between names
+    @udtf(output_schema=["sum", "diff"])
+    class sum_diff_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:
+            yield (a + b, a - b)
+
+    expected = [
+        Row(A=1, B=2, MEAN=1.5, ADD=3, SUB=-1, TWO_A=2),
+        Row(A=3, B=4, MEAN=3.5, ADD=7, SUB=-1, TWO_A=6),
+    ]
+    Utils.check_answer(
+        df.with_columns(
+            ["mean", "add", "sub", "two_a"],
+            [(df["a"] + df["b"]) / 2, sum_diff_udtf(df.a, df.b), df.a + df.a],
+        ),
+        expected,
+    )
+
+    # test with built-in table function
+    split_to_table = table_function("split_to_table")
+    df = session.sql(
+        "select 'James' as name, 'address1 address2 address3' as addresses"
+    )
+    expected = [
+        Row(
+            NAME="James",
+            ADDRESSES="address1 address2 address3",
+            SEQ=1,
+            IDX=1,
+            VAL="address1",
+        ),
+        Row(
+            NAME="James",
+            ADDRESSES="address1 address2 address3",
+            SEQ=1,
+            IDX=2,
+            VAL="address2",
+        ),
+        Row(
+            NAME="James",
+            ADDRESSES="address1 address2 address3",
+            SEQ=1,
+            IDX=3,
+            VAL="address3",
+        ),
+    ]
+    Utils.check_answer(
+        df.with_columns(
+            ["seq", "idx", "val"], [split_to_table(df.addresses, lit(" "))]
+        ),
+        expected,
+    )
+
+
+def test_with_columns_negative(session):
+    df = session.create_dataframe(
+        [[1, 2, "one o one"], [3, 4, "two o two"]], schema=["a", "b", "c"]
+    )
+
+    # raise error when more column names are added than cols
+    with pytest.raises(ValueError) as ex_info:
+        df.with_columns(["sum", "diff"], [(df["a"] + df["b"]) / 2])
+    assert (
+        "The size of column names (2) is not equal to the size of columns (1)"
+        in str(ex_info)
+    )
+
+    # raise when more than one table function is called
+    split_to_table = table_function("split_to_table")
+
+    @udtf(output_schema=["number"])
+    class sum_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            yield (a + b,)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.with_columns(
+            ["total", "sum", "diff"], [sum_udtf(df.a, df.b), split_to_table(df.c)]
+        )
+    assert (
+        "Only one table function call accepted inside with_columns call, (2) provided"
+        in str(ex_info)
+    )
+
+    # raise when len(cols) < len(values)
+    with pytest.raises(ValueError) as ex_info:
+        df.with_columns(["total"], [sum_udtf(df.a, df.b), (df.a + df.b) / 2])
+    assert "Fewer columns provided." in str(ex_info)
+
+    # raise when col names don't match output cols
+    @udtf(output_schema=["sum", "diff"])
+    class sum_diff_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int, int]]:
+            yield (a + b, a - b)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.with_columns(
+            ["mean", "total"], [(df["a"] + df["b"]) / 2, split_to_table(df.c, lit(" "))]
+        )
+    assert (
+        "The number of aliases should be same as the number of cols added by table function"
+        in str(ex_info)
+    )
 
 
 def test_df_subscriptable(session):
@@ -1336,22 +1646,21 @@ def test_fillna(session):
         [Row(1, 1.1), Row(None, 1)],
     )
 
-    # negative case
     df = session.create_dataframe(
         [[[1, 2], (1, 3)], [None, None]], schema=["col1", "col2"]
     )
+    Utils.check_answer(
+        df.fillna([1, 3]),
+        [
+            Row("[\n  1,\n  2\n]", "[\n  1,\n  3\n]"),
+            Row("[\n  1,\n  3\n]", "[\n  1,\n  3\n]"),
+        ],
+    )
+
+    # negative case
     with pytest.raises(TypeError) as ex_info:
         df.fillna(1, subset={1: "a"})
     assert "subset should be a list or tuple of column names" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.fillna([1, 3])
-    assert "All values in value should be in one of" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.fillna((1, 3))
-    assert "All values in value should be in one of" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.fillna({1: 3})
-    assert "All keys in value should be column names (str)" in str(ex_info)
 
 
 def test_replace(session):
@@ -1402,6 +1711,12 @@ def test_replace(session):
         [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
     )
 
+    df = session.create_dataframe([[[1, 2], (1, 3)]], schema=["col1", "col2"])
+    Utils.check_answer(
+        df.replace([(1, 3)], [[2, 3]]),
+        [Row("[\n  1,\n  2\n]", "[\n  2,\n  3\n]")],
+    )
+
     # negative case
     with pytest.raises(SnowparkColumnException) as ex_info:
         df.replace({1: 3}, subset=["d"])
@@ -1412,15 +1727,6 @@ def test_replace(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.replace(1, [2, 3])
-    assert "All keys and values in value should be in one of" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.replace([1, (1, 2)], [2, 3])
-    assert "All keys and values in value should be in one of" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.replace(1, {1: 2})
-    assert "All keys and values in value should be in one of" in str(ex_info)
 
 
 def test_select_case_expr(session):
@@ -1530,7 +1836,7 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
-@pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
@@ -1540,27 +1846,28 @@ def test_table_types_in_save_as_table(session, save_mode, table_type):
     try:
         df.write.save_as_table(table_name, mode=save_mode, table_type=table_type)
         Utils.check_answer(session.table(table_name), df, True)
-        table_info = session.sql(f"show tables like '{table_name}'").collect()
-        expected_table_kind = (
-            "TEMPORARY" if table_type == "temp" else table_type.upper()
-        )
-        assert table_info[0]["kind"] == expected_table_kind
+        Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_write_temp_table_no_breaking_change(session, save_mode):
+def test_write_temp_table_no_breaking_change(session, save_mode, table_type):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
     try:
         with pytest.deprecated_call(match="create_temp_table is deprecated"):
-            df.write.save_as_table(table_name, mode=save_mode, create_temp_table=True)
+            df.write.save_as_table(
+                table_name,
+                mode=save_mode,
+                create_temp_table=True,
+                table_type=table_type,
+            )
         Utils.check_answer(session.table(table_name), df, True)
-        table_info = session.sql(f"show tables like '{table_name}'").collect()
-        assert table_info[0]["kind"] == "TEMPORARY"
+        Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
 

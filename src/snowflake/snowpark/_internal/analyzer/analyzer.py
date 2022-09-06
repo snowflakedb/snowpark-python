@@ -613,6 +613,13 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
+            if logical_plan.format_type_options is None:
+                format_type_options = dict()
+            else:
+                format_type_options = logical_plan.format_type_options.copy()
+            format_name = logical_plan.cur_options.get("FORMAT_NAME")
+            if format_name is not None:
+                format_type_options["FORMAT_NAME"] = format_name
             if logical_plan.table_name:
                 return self.plan_builder.copy_into_table(
                     path=logical_plan.file_path,
@@ -620,7 +627,7 @@ class Analyzer:
                     files=logical_plan.files,
                     pattern=logical_plan.pattern,
                     file_format=logical_plan.file_format,
-                    format_type_options=logical_plan.format_type_options,
+                    format_type_options=format_type_options,
                     copy_options=logical_plan.copy_options,
                     validation_mode=logical_plan.validation_mode,
                     column_names=logical_plan.column_names,

@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
@@ -27,10 +27,12 @@ class TableFunctionExpression(Expression):
         self,
         func_name: str,
         partition_spec: Optional[TableFunctionPartitionSpecDefinition] = None,
+        aliases: Optional[Iterable[str]] = None,
     ) -> None:
         super().__init__()
         self.func_name = func_name
         self.partition_spec = partition_spec
+        self.aliases = aliases
 
 
 class FlattenFunction(TableFunctionExpression):

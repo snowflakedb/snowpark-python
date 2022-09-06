@@ -239,22 +239,35 @@ class FileOperation:
         Returns:
             An object of :class:`PutResult` which represents the results of an uploaded file.
         """
-        if is_in_stored_procedure():
-            raise NotImplementedError(
-                "Stream uploads for stored procedure are not supported yet"
+        stage_location = stage_location.strip()
+        if not stage_location:
+            raise ValueError(
+                "stage_location cannot be empty. It must be a full stage path with prefix and file name like @mystage/stage/prefix/filename"
             )
+        if stage_location[-1] == "/":
+            raise ValueError(
+                "stage_location should end with target filename like @mystage/prefix/stage/filename"
+            )
+
+        cursor = self._session._conn._cursor
+        if is_in_stored_procedure():
+            try:
+                options = {
+                    "parallel": parallel,
+                    "source_compression": source_compression,
+                    "auto_compress": auto_compress,
+                    "overwrite": overwrite,
+                }
+                cursor._upload_stream(input_stream, stage_location, options)
+                result_data = cursor.fetchall()
+            except ProgrammingError as pe:
+                tb = sys.exc_info()[2]
+                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    pe
+                )
+                raise ne.with_traceback(tb) from None
         else:
-
-            def parse_stage_file_location(stage_location: str):
-                stage_location = stage_location.strip()
-                if not stage_location:
-                    raise ValueError("stage_location cannot be empty")
-                elif stage_location[-1] == "/":
-                    raise ValueError("stage_location should end with target filename")
-                else:
-                    return stage_location.rsplit("/", maxsplit=1)
-
-            stage_with_prefix, dest_filename = parse_stage_file_location(stage_location)
+            stage_with_prefix, dest_filename = stage_location.rsplit("/", maxsplit=1)
             put_result = self._session._conn.upload_stream(
                 input_stream=input_stream,
                 stage_location=stage_with_prefix,
@@ -264,4 +277,8 @@ class FileOperation:
                 source_compression=source_compression,
                 overwrite=overwrite,
             )
-            return PutResult(*put_result["data"][0])
+            result_data = put_result["data"]
+
+        result_meta = cursor.description
+        put_result = result_set_to_rows(result_data, result_meta)[0]
+        return PutResult(**put_result.asDict())

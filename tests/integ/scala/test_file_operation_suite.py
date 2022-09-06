@@ -62,6 +62,19 @@ def path3(temp_source_directory):
 
 
 @pytest.fixture(scope="module")
+def path4(temp_source_directory):
+    import gzip
+
+    file = temp_source_directory.join(
+        f"file_4_{Utils.random_alphanumeric_str(10)}.csv.gz"
+    )
+    filename = str(file)
+    with gzip.open(filename, "wb") as f:
+        f.write(b"abc, 123,\n")
+    yield filename
+
+
+@pytest.fixture(scope="module")
 def temp_stage(session, resources_path):
     tmp_stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)
@@ -222,11 +235,7 @@ def test_put_negative(session, temp_stage, temp_source_directory, path1):
     assert "does not exist or not authorized." in str(stage_not_exist_info)
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Stream uploads for stored procedure are not supported yet.",
-)
-def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3):
+def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3, path4):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
     file_name = os.path.basename(path1)
@@ -270,11 +279,20 @@ def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3):
     assert third_result.status == "UPLOADED"
     assert third_result.message == ""
 
+    # test auto_detect to gzip
+    file_name = os.path.basename(path4)
+    with open(path4, "rb") as fd:
+        fourth_result = session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+    assert fourth_result.source == file_name
+    assert fourth_result.target == file_name
+    assert fourth_result.source_size is not None
+    assert fourth_result.target_size is not None
+    assert fourth_result.source_compression == "GZIP"
+    assert fourth_result.target_compression == "GZIP"
+    assert fourth_result.status == "UPLOADED"
+    assert fourth_result.message == ""
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Stream uploads for stored procedure are not supported yet.",
-)
+
 def test_put_stream_with_one_file_twice(session, temp_stage, path1):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
@@ -286,8 +304,10 @@ def test_put_stream_with_one_file_twice(session, temp_stage, path1):
     second_result = session.file.put_stream(
         fd, f"{stage_with_prefix}/{file_name}", overwrite=False
     )
+    fd.close()
     assert second_result.source == os.path.basename(path1)
     assert second_result.target == os.path.basename(path1) + ".gz"
+    # On GCP, the files are not skipped if target file already exists
     assert second_result.source_size in (10, 11)
     assert second_result.target_size in (0, 32)
     assert second_result.source_compression == "NONE"
@@ -296,10 +316,6 @@ def test_put_stream_with_one_file_twice(session, temp_stage, path1):
     assert second_result.message == ""
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="Stream uploads for stored procedure are not supported yet.",
-)
 def test_put_stream_negative(session, temp_stage, path1):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
@@ -315,9 +331,14 @@ def test_put_stream_negative(session, temp_stage, path1):
     assert "stage_location should end with target filename" in str(ex_info)
 
     fd.close()
-    with pytest.raises(SnowparkUploadFileException) as ex_info:
-        session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
-    assert ex_info.value.error_code == "1408"
+    if is_in_stored_procedure():
+        with pytest.raises(ValueError) as ex_info:
+            session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+        assert "seek of closed file" in str(ex_info)
+    else:
+        with pytest.raises(SnowparkUploadFileException) as ex_info:
+            session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+        assert ex_info.value.error_code == "1408"
 
 
 @pytest.mark.parametrize("with_file_prefix", [True, False])

@@ -4,6 +4,7 @@
 #
 """Stored procedures in Snowpark."""
 import sys
+import typing
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
@@ -22,6 +23,8 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import DataType
+
+EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
 
 
 class StoredProcedure:
@@ -45,6 +48,7 @@ class StoredProcedure:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
+        execute_as: typing.Literal["caller", "owner"] = "owner",
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -53,6 +57,7 @@ class StoredProcedure:
 
         self._return_type = return_type
         self._input_types = input_types
+        self._execute_as = execute_as
 
     def __call__(
         self,
@@ -311,6 +316,7 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        execute_as: typing.Literal["caller", "owner"] = "owner",
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
@@ -362,6 +368,8 @@ class StoredProcedureRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
+            execute_as: What permissions should the procedure have while executing. This
+                supports caller, or owner for now.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
@@ -372,6 +380,14 @@ class StoredProcedureRegistration:
             raise TypeError(
                 "Invalid function: not a function or callable "
                 f"(__call__ is not defined): {type(func)}"
+            )
+        if (
+            not isinstance(execute_as, str)
+            or execute_as.lower() not in EXECUTE_AS_WHITELIST
+        ):
+            raise TypeError(
+                f"'execute_as' value '{execute_as}' is invalid, choose from "
+                f"{', '.join(EXECUTE_AS_WHITELIST, )}"
             )
 
         check_register_args(
@@ -390,6 +406,7 @@ class StoredProcedureRegistration:
             replace,
             parallel,
             statement_params=statement_params,
+            execute_as=execute_as,
         )
 
     def register_from_file(
@@ -506,6 +523,7 @@ class StoredProcedureRegistration:
         parallel: int,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        execute_as: typing.Literal["caller", "owner"] = "owner",
     ) -> StoredProcedure:
         (
             udf_name,
@@ -563,6 +581,7 @@ class StoredProcedureRegistration:
                 is_temporary=stage_location is None,
                 replace=replace,
                 inline_python_code=code,
+                execute_as=execute_as,
             )
         # an exception might happen during registering a stored procedure
         # (e.g., a dependency might not be found on the stage),
@@ -584,4 +603,10 @@ class StoredProcedureRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return StoredProcedure(func, return_type, input_types, udf_name)
+        return StoredProcedure(
+            func,
+            return_type,
+            input_types,
+            udf_name,
+            execute_as=execute_as,
+        )

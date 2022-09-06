@@ -1,4 +1,36 @@
 # Release History
+## 0.10.0 (Unreleased)
+
+### New Features:
+- Added support for `table_type` in `session.write_pandas()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
+
+### Deprecations:
+- Keyword Argument `create_temp_table` in `session.write_pandas()`.
+
+### Dependency updates
+- Updated ``snowflake-connector-python`` to 2.7.12.
+
+## 0.9.0 (2022-08-30)
+
+### New Features:
+- Added support for displaying source code as comments in the generated scripts when registering UDFs.
+This feature is turned on by default. To turn it off, pass the new keyword argument `source_code_display` as `False` when calling `register()` or `@udf()`.
+- Added support for calling table functions from `DataFrame.select()`, `DataFrame.with_column()` and `DataFrame.with_columns()` which now take parameters of type `table_function.TableFunctionCall` for columns.
+- Added keyword argument `overwrite` to `session.write_pandas()` to allow overwriting contents of a Snowflake table with that of a Pandas DataFrame.
+- Added keyword argument `column_order` to `df.write.save_as_table()` to specify the matching rules when inserting data into table in append mode.
+- Added method `FileOperation.put_stream()` to upload local files to a stage via file stream.
+- Added methods `TableFunctionCall.alias()` and `TableFunctionCall.as_()` to allow aliasing the names of columns that come from the output of table function joins.
+- Added function `get_active_session()` in module `snowflake.snowpark.context` to get the current active Snowpark session.
+
+### Bug Fixes:
+- Fixed a bug in which batch insert should not raise an error when `statement_params` is not passed to the function.
+- Fixed a bug in which column names should be quoted when `session.create_dataframe()` is called with dicts and a given schema.
+- Fixed a bug in which creation of table should be skipped if the table already exists and is in append mode when calling `df.write.save_as_table()`.
+- Fixed a bug in which third-party packages with underscores cannot be added when registering UDFs.
+
+### Improvements:
+- Improved function `function.uniform()` to infer the types of inputs `max_` and `min_` and cast the limits to `IntegerType` or `FloatType` correspondingly.
+
 ## 0.8.0 (2022-07-22)
 
 ### New Features:

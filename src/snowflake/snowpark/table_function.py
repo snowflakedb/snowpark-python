@@ -3,8 +3,9 @@
 #
 
 """Contains table function related classes."""
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
     NamedArgumentsTableFunction,
@@ -15,6 +16,8 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import validate_object_name
 from snowflake.snowpark.column import Column, _to_col_if_str
+
+from ._internal.analyzer.snowflake_plan import SnowflakePlan
 
 
 class TableFunctionCall:
@@ -45,6 +48,7 @@ class TableFunctionCall:
         self._over = False
         self._partition_by = None
         self._order_by = None
+        self._aliases: Optional[Iterable[str]] = None
 
     def over(
         self,
@@ -104,6 +108,24 @@ class TableFunctionCall:
             new_table_function._order_by = order_spec
         return new_table_function
 
+    def alias(self, *aliases: str) -> "TableFunctionCall":
+        """Alias the output columns from the output of this table function call.
+
+        Args:
+            aliases: An iterable of unique column names that do not collide with column names after join with the main table.
+
+        Raises:
+            ValueError: Raises error when the aliases are not unique after being canonicalized.
+        """
+        canon_aliases = [quote_name(col) for col in aliases]
+        if len(set(canon_aliases)) != len(aliases):
+            raise ValueError("All output column names after aliasing must be unique.")
+
+        self._aliases = canon_aliases
+        return self
+
+    as_ = alias
+
 
 def _create_order_by_expression(e: Union[str, Column]) -> SortOrder:
     if isinstance(e, str):
@@ -127,6 +149,7 @@ def _create_table_function_expression(
     over = None
     partition_by = None
     order_by = None
+    aliases = None
     if args and named_args:
         raise ValueError("A table function shouldn't have both args and named args.")
     if isinstance(func, str):
@@ -146,6 +169,7 @@ def _create_table_function_expression(
         over = func._over
         partition_by = func._partition_by
         order_by = func._order_by
+        aliases = func._aliases
     else:
         raise TypeError(
             "'func' should be a function name in str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
@@ -168,4 +192,37 @@ def _create_table_function_expression(
         if over
         else None
     )
+    table_function_expression.aliases = aliases
     return table_function_expression
+
+
+def _get_cols_after_join_table(
+    func_expr: TableFunctionExpression,
+    current_plan: SnowflakePlan,
+    join_plan: SnowflakePlan,
+) -> Tuple[List, List]:
+    def get_column_names_from_plan(plan: SnowflakePlan) -> List[str]:
+        return [attr.name for attr in plan.output]
+
+    # we ensure that all columns coming after the join should be unique
+    cols_before_join = get_column_names_from_plan(current_plan)
+    cols_after_join = get_column_names_from_plan(join_plan)
+    aliases = func_expr.aliases
+
+    new_cols = [col for col in cols_after_join if col not in cols_before_join]
+    old_cols = [Column(col)._named() for col in cols_before_join]
+
+    if aliases:
+        if len(new_cols) != len(aliases):
+            raise ValueError(
+                f"The number of aliases should be same as the number of cols added by table function. "
+                f"Columns added by table function are {new_cols} and aliases given are {aliases}"
+            )
+        new_cols = [
+            Column(col).alias(alias_col)._named()
+            for col, alias_col in zip(new_cols, aliases)
+        ]
+    else:
+        new_cols = [Column(col)._named() for col in new_cols]
+
+    return old_cols, new_cols

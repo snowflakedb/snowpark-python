@@ -16,23 +16,19 @@ from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
     BooleanType,
-    ByteType,
     DataType,
     DateType,
     DecimalType,
-    DoubleType,
-    FloatType,
     GeographyType,
-    IntegerType,
-    LongType,
     MapType,
     NullType,
-    ShortType,
     StringType,
     StructType,
     TimestampType,
     TimeType,
     VariantType,
+    _FractionalType,
+    _IntegralType,
     _NumericType,
 )
 
@@ -57,31 +53,19 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             return "NULL"
     if isinstance(datatype, BinaryType):
         if value is None:
-            return "NULL :: binary"
-    if isinstance(datatype, IntegerType):
+            return "NULL :: BINARY"
+    if isinstance(datatype, _IntegralType):
         if value is None:
-            return "NULL :: int"
-    if isinstance(datatype, ShortType):
+            return "NULL :: INT"
+    if isinstance(datatype, _FractionalType):
         if value is None:
-            return "NULL :: smallint"
-    if isinstance(datatype, ByteType):
-        if value is None:
-            return "NULL :: tinyint"
-    if isinstance(datatype, LongType):
-        if value is None:
-            return "NULL :: bigint"
-    if isinstance(datatype, FloatType):
-        if value is None:
-            return "NULL :: float"
+            return "NULL :: FLOAT"
     if isinstance(datatype, StringType):
         if value is None:
-            return "NULL :: string"
-    if isinstance(datatype, DoubleType):
-        if value is None:
-            return "NULL :: double"
+            return "NULL :: STRING"
     if isinstance(datatype, BooleanType):
         if value is None:
-            return "NULL :: boolean"
+            return "NULL :: BOOLEAN"
     if value is None:
         return "NULL"
 
@@ -91,40 +75,27 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         # the sql value has to be casted to make sure the varchar length
         # will not be limited.
         return (
-            f"{str_to_sql(value)} :: string"
+            f"{str_to_sql(value)} :: STRING"
             if from_values_statement
             else str_to_sql(value)
         )
-    if isinstance(datatype, ByteType):
-        return f"{value} :: tinyint"
-    if isinstance(datatype, ShortType):
-        return f"{value} :: smallint"
-    if isinstance(datatype, IntegerType):
-        return f"{value} :: int"
-    if isinstance(datatype, LongType):
-        return f"{value} :: bigint"
-    if isinstance(datatype, BooleanType):
-        return f"{value} :: boolean"
 
-    if isinstance(value, float) and isinstance(datatype, FloatType):
+    if isinstance(datatype, _IntegralType):
+        return f"{value} :: INT"
+
+    if isinstance(datatype, BooleanType):
+        return f"{value} :: BOOLEAN"
+
+    if isinstance(value, float) and isinstance(datatype, _FractionalType):
         if math.isnan(value):
-            cast_value = "'Nan'"
+            cast_value = "'NaN'"
         elif math.isinf(value) and value > 0:
-            cast_value = "'Infinity'"
+            cast_value = "'inf'"
         elif math.isinf(value) and value < 0:
-            cast_value = "'-Infinity'"
+            cast_value = "'-inf'"
         else:
             cast_value = f"'{value}'"
         return f"{cast_value} :: FLOAT"
-
-    if isinstance(datatype, DoubleType):
-        if math.isnan(float(value)):
-            return "'Nan' :: DOUBLE"
-        elif math.isinf(value) and value > 0:
-            return "'Infinity' :: DOUBLE"
-        elif math.isinf(value) and value < 0:
-            return "'-Infinity' :: DOUBLE"
-        return f"'{value}' :: DOUBLE"
 
     if isinstance(value, Decimal) and isinstance(datatype, DecimalType):
         return f"{value} :: {analyzer_utils.number(datatype.precision, datatype.scale)}"
@@ -155,13 +126,13 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             return f"TIME('{trimmed_ms}')"
 
     if isinstance(value, (list, bytes, bytearray)) and isinstance(datatype, BinaryType):
-        return f"'{binascii.hexlify(value).decode()}' :: binary"
+        return f"'{binascii.hexlify(value).decode()}' :: BINARY"
 
     if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
-        return f"parse_json({str_to_sql(json.dumps(value))})"
+        return f"PARSE_JSON({str_to_sql(json.dumps(value))}) :: ARRAY"
 
     if isinstance(value, dict) and isinstance(datatype, MapType):
-        return f"parse_json({str_to_sql(json.dumps(value))})"
+        return f"PARSE_JSON({str_to_sql(json.dumps(value))}) :: OBJECT"
 
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
