@@ -1658,11 +1658,12 @@ class Session:
         return query_listener
 
     def _table_exists(self, table_name: str):
+        # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
+        validate_object_name(table_name)
         try:
-            # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
             qualified_table_name = table_name.split(".")
             if len(qualified_table_name) == 1:
-                # name in the form "table"
+                # name in the form of "table"
                 tables = self._run_query(f"show tables like '{table_name}'")
             elif len(qualified_table_name) == 2:
                 # name in the form of "schema.table" omitting database
@@ -1671,7 +1672,7 @@ class Session:
                 tables = self._run_query(
                     f"show tables like '{qualified_table_name[1]}' in schema {qualified_table_name[0]}"
                 )
-            elif len(qualified_table_name) == 3:
+            else:  # len(qualified_table_name) == 3, there will no other cases, validate_object_name validated for us
                 # name in the form of "database.schema.table"
                 # database: qualified_table_name[0]
                 # schema: qualified_table_name[1]
@@ -1694,10 +1695,6 @@ class Session:
                             if table[3].lower() == qualified_table_name[1].lower()
                         ]
                     )
-            else:
-                raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
-                    table_name
-                )
 
             return tables is not None and len(tables) > 0
         except ProgrammingError as exc:
