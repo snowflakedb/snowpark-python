@@ -114,10 +114,10 @@ class ColumnStateDict(UserDict):
         self.columns_referencing_all_columns: Set[str] = set()
 
     @property
-    def has_dropped_columns(self):
+    def has_dropped_columns(self) -> bool:
         return bool(self.dropped_columns)
 
-    def __setitem__(self, col_name, col_state: ColumnState):
+    def __setitem__(self, col_name: str, col_state: ColumnState):
         super().__setitem__(col_name, col_state)
         if col_state.change_state == ColumnChangeState.DROPPED:
             if self.dropped_columns is None:
@@ -198,7 +198,7 @@ class SelectableEntity(Selectable):
     Mainly used by session.table().
     """
 
-    def __init__(self, entity_name, *, analyzer=None) -> None:
+    def __init__(self, entity_name: str, *, analyzer: "Analyzer") -> None:
         super().__init__(analyzer)
         self.entity_name = entity_name
 
@@ -219,7 +219,7 @@ class SelectSQL(Selectable):
     """Query from a SQL. Mainly used by session.sql()"""
 
     def __init__(
-        self, sql: str, *, convert_to_select: bool = False, analyzer: "Analyzer" = None
+        self, sql: str, *, convert_to_select: bool = False, analyzer: "Analyzer"
     ) -> None:
         """
         convert_to_select: If true the passed-in ``sql`` is not a select SQL, convert it to two SQLs in the logical plan.
@@ -232,17 +232,19 @@ class SelectSQL(Selectable):
         is_select = sql.strip().lower().startswith("select")
         if not is_select and convert_to_select:
             self.pre_actions = [Query(sql)]
-            self.sql = result_scan_statement(self.pre_actions[0].query_id_place_holder)
+            self._sql_query = result_scan_statement(
+                self.pre_actions[0].query_id_place_holder
+            )
             self._schema_query = analyzer_utils.schema_value_statement(
                 analyze_attributes(sql, self.analyzer.session)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
         else:
-            self.sql = sql
+            self._sql_query = sql
             self._schema_query = sql
 
     @property
     def sql_query(self) -> str:
-        return self.sql
+        return self._sql_query
 
     @property
     def schema_query(self) -> str:
@@ -252,7 +254,7 @@ class SelectSQL(Selectable):
         """Convert this SelectSQL to a new one that can be used as a subquery. Refer to __init__."""
         if self.convert_to_select:
             return self
-        new = SelectSQL(self.sql, convert_to_select=True, analyzer=self.analyzer)
+        new = SelectSQL(self._sql_query, convert_to_select=True, analyzer=self.analyzer)
         new._column_states = self.column_states
         return new
 
@@ -260,7 +262,7 @@ class SelectSQL(Selectable):
 class SelectSnowflakePlan(Selectable):
     """Wrap a SnowflakePlan to a subclass of Selectable."""
 
-    def __init__(self, snowflake_plan: LogicalPlan, *, analyzer=None) -> None:
+    def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
         super().__init__(analyzer)
         self._snowflake_plan = (
             snowflake_plan
@@ -296,7 +298,7 @@ class SelectStatement(Selectable):
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
-        analyzer=None,
+        analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
@@ -322,11 +324,13 @@ class SelectStatement(Selectable):
             offset=self.offset,
             analyzer=self.analyzer,
         )
+        # The following values will change if they're None in the newly copied one so reset their values here
+        # to avoid problems.
         new._projection_in_str = None
         new._schema_query = None
         new._column_states = None
         new._snowflake_plan = None
-        new.flatten_disabled = False
+        new.flatten_disabled = False  # by default a SelectStatment can be flattened.
         return new
 
     @property
@@ -370,11 +374,11 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.projection:
             self._sql_query = self.from_.sql_query
             return self._sql_query
-        from_clause = f"{self.from_.sql_in_subquery}"
+        from_clause = self.from_.sql_in_subquery
         where_clause = (
             f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where)}"
             if self.where is not None
-            else ""
+            else analyzer_utils.EMPTY_STRING
         )
         order_by_clause = (
             f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x) for x in self.order_by)}"
@@ -454,7 +458,7 @@ class SelectStatement(Selectable):
                     ColumnChangeState.CHANGED_EXP,
                     ColumnChangeState.NEW,
                 ):
-                    can_be_flattened = can_projection_dependent_columns_flatten(
+                    can_be_flattened = can_projection_dependent_columns_be_flattened(
                         dependent_columns, subquery_column_states
                     )
                     if not can_be_flattened:
@@ -554,16 +558,20 @@ class SelectStatement(Selectable):
                 # In Snowflake SQL, intersect has higher precedence than other set operators.
                 # So we need to put all operands before intersect into a single operand.
                 existing_set_operands = (
-                    SetOperand(SetStatement(*self.from_.set_operands)),
+                    SetOperand(
+                        SetStatement(*self.from_.set_operands, analyzer=self.analyzer)
+                    ),
                 )
                 sub_statement = SetStatement(
-                    *(SetOperand(x.to_subqueryable(), operator) for x in selectables)
+                    *(SetOperand(x.to_subqueryable(), operator) for x in selectables),
+                    analyzer=self.analyzer,
                 )
                 set_operands = (SetOperand(sub_statement.to_subqueryable(), operator),)
             else:
                 existing_set_operands = self.from_.set_operands
                 sub_statement = SetStatement(
-                    *(SetOperand(x.to_subqueryable(), operator) for x in selectables)
+                    *(SetOperand(x.to_subqueryable(), operator) for x in selectables),
+                    analyzer=self.analyzer,
                 )
                 set_operands = (SetOperand(sub_statement.to_subqueryable(), operator),)
             set_statement = SetStatement(
@@ -599,7 +607,9 @@ class SetOperand:
 
 
 class SetStatement(Selectable):
-    def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer" = None) -> None:
+    def __init__(
+        self, *set_operands: SetOperand, analyzer: Optional["Analyzer"]
+    ) -> None:
         super().__init__(analyzer=analyzer)
         self.set_operands = set_operands
         for operand in set_operands:
@@ -657,7 +667,7 @@ def parse_column_name(
     return None
 
 
-def can_projection_dependent_columns_flatten(
+def can_projection_dependent_columns_be_flattened(
     dependent_columns: Optional[Set[str]], subquery_column_states: ColumnStateDict
 ) -> bool:
     can_be_flattened = True

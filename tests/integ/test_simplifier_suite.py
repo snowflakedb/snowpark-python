@@ -4,7 +4,7 @@
 
 import pytest
 
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, context
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
@@ -161,11 +161,11 @@ def test_select_change_columns_reference_unchanged(session, simplifier_table):
 def test_select_change_columns_reference_a_changed_column(session, simplifier_table):
     df = session.table(simplifier_table)
     df1 = df.select((col("a") + 1).as_("a"), "b")
-    #
-    # # b depends on a, which is changed in the subquery, so no flatten
-    # df2 = df1.select("a", (col("a") + 1).as_("b"))
-    # Utils.check_answer(df2, [Row(2, 3)])
-    # assert df2.queries["queries"][-1].count("SELECT") == 2
+
+    # b depends on a, which is changed in the subquery, so no flatten
+    df2 = df1.select("a", (col("a") + 1).as_("b"))
+    Utils.check_answer(df2, [Row(2, 3)])
+    assert df2.queries["queries"][-1].count("SELECT") == 2
 
     # b doesn't depend on a or any other changed column. flatten.
     df3 = df1.select("a", lit(1).as_("b"))
@@ -448,8 +448,6 @@ def test_filter_order_limit_together(session, simplifier_table):
 
 
 def test_use_sql_simplifier(session, simplifier_table):
-    from snowflake.snowpark import context
-
     try:
         context._use_sql_simplifier = False
         df1 = (
