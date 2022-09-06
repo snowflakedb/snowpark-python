@@ -239,8 +239,8 @@ def test_table_exists(session):
         # invalid qualified name
         session._table_exists("a.b.c.d")
 
-    random_database = Utils.random_alphanumeric_str(5)
-    random_schema = Utils.random_temp_schema()
+    random_database = Utils.random_temp_database()
+    random_schema = Utils.random_temp_database()
     assert (
         session._table_exists(f"{random_database}.{random_schema}.{table_name}")
         is False
