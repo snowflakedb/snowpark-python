@@ -13,7 +13,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 )
 from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, sql_expr
+from snowflake.snowpark.functions import col, lit, sql_expr, table_function
 from tests.utils import Utils
 
 if not _use_sql_simplifier:
@@ -251,7 +251,7 @@ def test_select_expr(session, simplifier_table):
     Utils.check_answer(df3, [Row(2, 3)])
     assert df3.queries["queries"][-1].count("SELECT") == 3
 
-    """ query has no new columns. subquery has new, chnged or dropped columns."""
+    """ query has no new columns. subquery has new, changed or dropped columns."""
     # a new column in the subquery. sql text column doesn't know the dependency, to be safe, no flatten
     df4 = df.select("a", "b", (col("a") + col("b")).as_("c"))
     df5 = df4.select_expr("a + 1 as a", "b + 1 as b", "c + 1 as c")
@@ -275,7 +275,7 @@ def test_select_expr(session, simplifier_table):
     Utils.check_answer(df11, [Row(2)])
     assert df11.queries["queries"][-1].count("SELECT") == 2
 
-    """ query has new columns. subquery has new, chnged or dropped columns."""
+    """ query has new columns. subquery has new, changed or dropped columns."""
     # a new column in the subquery. sql text column doesn't know the dependency, to be safe, no flatten
     df4 = df.select("a", "b", (col("a") + col("b")).as_("c"))
     df5 = df4.select_expr("a + b as d")
@@ -307,6 +307,25 @@ def test_with_column(session, simplifier_table):
         new_df = new_df.with_column(f"c{i}", lit(i))
 
     assert new_df._plan.queries[-1].sql.count("SELECT") == 1
+
+
+def test_table_function(session):
+    split_to_table = table_function("split_to_table")
+    df = session.table_function(split_to_table(lit("one two three four"), lit(" ")))
+
+    # flatten when possible
+    df1 = (
+        df.select("seq", "index").select("index").select((col("index") - 1).as_("IDX"))
+    )
+    Utils.check_answer(df1, [Row(0), Row(1), Row(2), Row(3)])
+    assert df1.queries["queries"][-1].count("SELECT") == 2
+
+    # cases when flatten is not possible
+    df2 = df.select((col("seq") + 1).as_("a"), (col("index") - 1).as_("b")).select(
+        col("a") + 1, col("b") + 7
+    )
+    Utils.check_answer(df2, [Row(3, 7), Row(3, 8), Row(3, 9), Row(3, 10)])
+    assert df2.queries["queries"][-1].count("SELECT") == 3
 
 
 def test_drop_columns(session, simplifier_table):

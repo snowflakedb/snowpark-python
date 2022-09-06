@@ -917,10 +917,25 @@ class Session:
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
-        d = DataFrame(
-            self,
-            TableFunctionRelation(func_expr),
-        )
+
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            d = DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        snowflake_plan=TableFunctionRelation(func_expr),
+                        analyzer=self._analyzer,
+                    ),
+                    analyzer=self._analyzer,
+                ),
+            )
+        else:
+            d = DataFrame(
+                self,
+                TableFunctionRelation(func_expr),
+            )
         set_api_call_source(d, f"Session.table_function[{func_expr.func_name}]")
         return d
 
@@ -1036,7 +1051,7 @@ class Session:
                 that to avoid breaking changes, currently when this is set to True, it overrides ``table_type``.
             overwrite: Default value is ``False`` and the Pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
                 then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
-                then it trunctates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
+                then it truncates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
                 contents of the table with that of the passed in Pandas DataFrame.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                         and ``transient``. An empty string means to create a permanent table. Learn more about table
