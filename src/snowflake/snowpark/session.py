@@ -1672,7 +1672,7 @@ class Session:
                 tables = self._run_query(
                     f"show tables like '{qualified_table_name[1]}' in schema {qualified_table_name[0]}"
                 )
-            else:  # len(qualified_table_name) == 3, there will no other cases, validate_object_name validated for us
+            else:  # len(qualified_table_name) == 3, there is no other case, validate_object_name checked for us
                 # name in the form of "database.schema.table"
                 # database: qualified_table_name[0]
                 # schema: qualified_table_name[1]
