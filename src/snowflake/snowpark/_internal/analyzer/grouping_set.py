@@ -1,9 +1,12 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import List
+from typing import List, Optional, Set
 
-from snowflake.snowpark._internal.analyzer.expression import Expression
+from snowflake.snowpark._internal.analyzer.expression import (
+    Expression,
+    derive_dependent_columns,
+)
 
 
 class GroupingSet(Expression):
@@ -11,6 +14,9 @@ class GroupingSet(Expression):
         super().__init__()
         self.group_by_exprs = group_by_exprs
         self.children = group_by_exprs
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(*self.group_by_exprs)
 
 
 class Cube(GroupingSet):
@@ -25,3 +31,7 @@ class GroupingSetsExpression(Expression):
     def __init__(self, args: List[List[Expression]]) -> None:
         super().__init__()
         self.args = args
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        flattened_args = [exp for sublist in self.args for exp in sublist]
+        return derive_dependent_columns(*flattened_args)
