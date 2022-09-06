@@ -11,9 +11,16 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_UNION,
     SET_UNION_ALL,
 )
+from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, sql_expr
 from tests.utils import Utils
+
+if not _use_sql_simplifier:
+    pytest.skip(
+        "Disable sql simplifier test when simplifier is disabled",
+        allow_module_level=True,
+    )
 
 
 @pytest.fixture(scope="module")

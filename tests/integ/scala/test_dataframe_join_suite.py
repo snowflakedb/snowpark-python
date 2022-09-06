@@ -144,7 +144,7 @@ def test_join_with_multiple_conditions(session):
 
 @pytest.mark.skipif(
     _use_sql_simplifier,
-    "SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
+    reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
 )
 def test_join_with_ambiguous_column_in_condidtion(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
@@ -297,7 +297,7 @@ def test_join_ambiguous_columns_with_specified_sources(session):
 
 @pytest.mark.skipif(
     _use_sql_simplifier,
-    "SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
+    reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
 )
 def test_join_ambiguous_columns_without_specified_sources(session):
     df = session.create_dataframe([[1, "one"], [2, "two"]]).to_df(
@@ -430,7 +430,7 @@ def test_semi_join_with_columns_from_LHS(session):
 
 @pytest.mark.skipif(
     _use_sql_simplifier,
-    "SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
+    reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
 )
 def test_using_joins(session):
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
@@ -469,7 +469,7 @@ def test_using_joins(session):
 
 @pytest.mark.skipif(
     _use_sql_simplifier,
-    "SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
+    reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
 )
 def test_columns_with_and_without_quotes(session):
     lhs = session.create_dataframe([[1, 1.0]]).to_df(["intcol", "doublecol"])
