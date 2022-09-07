@@ -1660,6 +1660,9 @@ class Session:
     def _table_exists(self, table_name: str):
         # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
         validate_object_name(table_name)
+        # note: object name could have dots, e.g, a table could be created via: create table "abc.abc" (id int)
+        # currently validate_object_name does not allow it, but if in the future we want to support the case, we need to
+        # update the implementation accordingly in this method
         try:
             qualified_table_name = table_name.split(".")
             if len(qualified_table_name) == 1:
@@ -1672,7 +1675,7 @@ class Session:
                 tables = self._run_query(
                     f"show tables like '{qualified_table_name[1]}' in schema {qualified_table_name[0]}"
                 )
-            else:  # len(qualified_table_name) == 3, there is no other case, validate_object_name checked for us
+            elif len(qualified_table_name) == 3:
                 # name in the form of "database.schema.table"
                 # database: qualified_table_name[0]
                 # schema: qualified_table_name[1]
@@ -1695,6 +1698,11 @@ class Session:
                             if table[3].lower() == qualified_table_name[1].lower()
                         ]
                     )
+            else:
+                # we do not support len(qualified_table_name) > 3 for now
+                raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                    table_name
+                )
 
             return tables is not None and len(tables) > 0
         except ProgrammingError as exc:
