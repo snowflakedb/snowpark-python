@@ -268,6 +268,7 @@ class SelectSnowflakePlan(Selectable):
             if isinstance(snowflake_plan, SnowflakePlan)
             else analyzer.resolve(snowflake_plan)
         )
+        self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
 
@@ -430,6 +431,7 @@ class SelectStatement(Selectable):
             len(cols) == 1
             and isinstance(cols[0], UnresolvedAlias)
             and isinstance(cols[0].child, Star)
+            and not cols[0].child.expressions
         ):
             return self
         final_projection = []
@@ -442,6 +444,7 @@ class SelectStatement(Selectable):
             # There must be duplicate columns in the projection.
             # We don't flatten when there are duplicate columns.
             can_be_flattened = False
+            disable_next_level_flatten = True
         elif self.flatten_disabled or self.has_clause_using_columns:
             can_be_flattened = False
         else:
@@ -737,6 +740,7 @@ def initiate_column_states(column_names: List[str]) -> ColumnStateDict:
             referenced_by_same_level_columns=COLUMN_DEPENDENCY_EMPTY,
             state_dict=column_states,
         )
+    column_states.projection = column_names
     return column_states
 
 
@@ -772,14 +776,14 @@ def derive_column_states_from_subquery(
     column_states = ColumnStateDict()
     for c in cols:
         if isinstance(c, UnresolvedAlias) and isinstance(c.child, Star):
-            column_states.projection.extend(from_.column_states.projection)
+            if c.child.expressions:
+                columns_from_star = map(analyzer.analyze, c.child.expressions)
+            else:
+                columns_from_star = from_.column_states.projection
             column_states.update(
-                initiate_column_states(
-                    c_state
-                    for c_state in column_states
-                    if c_state.change_state != ColumnChangeState.DROPPED
-                )
-            )  # use column_states instead of column_states.active_columns, which is a set, not ordered. column_states is a dict so it's ordered.
+                initiate_column_states(c_state for c_state in columns_from_star)
+            )
+            column_states.projection.extend(columns_from_star)
             continue
         c_name = parse_column_name(c, analyzer)
         if c_name is None:

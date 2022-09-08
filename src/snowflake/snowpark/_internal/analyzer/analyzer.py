@@ -416,22 +416,26 @@ class Analyzer:
         for c in logical_plan.children:
             resolved_children[c] = self.resolve(c)
 
-        use_maps = {}
-        # get counts of expr_to_alias keys
-        counts = Counter()
-        for v in resolved_children.values():
-            if v.expr_to_alias:
-                counts.update(list(v.expr_to_alias.keys()))
+        if isinstance(logical_plan, Selectable):
+            # Selectable doesn't have children. It already has the expr_to_alias dict.
+            self.alias_maps_to_use = logical_plan.expr_to_alias
+        else:
+            use_maps = {}
+            # get counts of expr_to_alias keys
+            counts = Counter()
+            for v in resolved_children.values():
+                if v.expr_to_alias:
+                    counts.update(list(v.expr_to_alias.keys()))
 
-        # Keep only non-shared expr_to_alias keys
-        # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
-        for v in resolved_children.values():
-            if v.expr_to_alias:
-                use_maps.update(
-                    {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
-                )
+            # Keep only non-shared expr_to_alias keys
+            # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
+            for v in resolved_children.values():
+                if v.expr_to_alias:
+                    use_maps.update(
+                        {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
+                    )
 
-        self.alias_maps_to_use = use_maps
+            self.alias_maps_to_use = use_maps
         return self.do_resolve_with_resolved_children(logical_plan, resolved_children)
 
     def do_resolve_with_resolved_children(

@@ -1932,28 +1932,44 @@ class DataFrame:
             return self._join_dataframes_internal(right, join_type, join_cond)
         else:
             lhs, rhs = _disambiguate(self, right, join_type, using_columns)
-            return self._with_plan(
-                Join(
-                    lhs._plan,
-                    rhs._plan,
-                    UsingJoin(join_type, using_columns),
-                    None,
-                )
+            join_logical_plan = Join(
+                lhs._plan,
+                rhs._plan,
+                UsingJoin(join_type, using_columns),
+                None,
             )
+            if self._select_statement:
+                return self._with_plan(
+                    SelectStatement(
+                        from_=SelectSnowflakePlan(
+                            join_logical_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    )
+                )
+            return self._with_plan(join_logical_plan)
 
     def _join_dataframes_internal(
         self, right: "DataFrame", join_type: JoinType, join_exprs: Optional[Column]
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(self, right, join_type, [])
         expression = join_exprs._expression if join_exprs is not None else None
-        return self._with_plan(
-            Join(
-                lhs._plan,
-                rhs._plan,
-                join_type,
-                expression,
-            )
+        join_logical_plan = Join(
+            lhs._plan,
+            rhs._plan,
+            join_type,
+            expression,
         )
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        join_logical_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(join_logical_plan)
 
     @df_api_usage
     def with_column(
