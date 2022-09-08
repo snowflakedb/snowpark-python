@@ -90,22 +90,33 @@ def test_limit_on_order_by(session, is_sample_data_available):
         assert int(e1[0]) < int(e2[0])
 
 
-def test_create_dataframe_for_large_values_check_plan(session):
+@pytest.mark.parametrize("use_scoped_temp_objects", [True, False])
+def test_create_dataframe_for_large_values_check_plan(session, use_scoped_temp_objects):
+    origin_use_scoped_temp_objects_setting = session._use_scoped_temp_objects
+
     def check_plan(df, data):
         assert (
-            df._plan.queries[0].sql.strip().startswith("CREATE  OR  REPLACE  TEMPORARY")
+            df._plan.queries[0]
+            .sql.strip()
+            .startswith(
+                f"CREATE  OR  REPLACE  {'SCOPED TEMPORARY' if use_scoped_temp_objects else 'TEMPORARY'}"
+            )
         )
         assert df._plan.queries[1].sql.strip().startswith("INSERT  INTO")
         assert df._plan.queries[2].sql.strip().startswith("SELECT")
         assert len(df._plan.post_actions) == 1
         assert df.sort("id").collect() == data
 
-    large_data = [Row(i) for i in range(1025)]
-    schema = StructType([StructField("ID", LongType())])
-    df1 = session.create_dataframe(large_data, schema)
-    df2 = session.create_dataframe(large_data).to_df("id")
-    check_plan(df1, large_data)
-    check_plan(df2, large_data)
+    try:
+        large_data = [Row(i) for i in range(1025)]
+        schema = StructType([StructField("ID", LongType())])
+        session._use_scoped_temp_objects = use_scoped_temp_objects
+        df1 = session.create_dataframe(large_data, schema)
+        df2 = session.create_dataframe(large_data).to_df("id")
+        check_plan(df1, large_data)
+        check_plan(df2, large_data)
+    finally:
+        session._use_scoped_temp_objects = origin_use_scoped_temp_objects_setting
 
 
 def test_create_dataframe_for_large_values_basic_types(session):
