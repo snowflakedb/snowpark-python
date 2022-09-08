@@ -63,6 +63,7 @@ from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
     get_stage_file_prefix_length,
+    get_temp_type_for_object,
     get_version,
     is_in_stored_procedure,
     normalize_remote_file_or_dir,
@@ -74,6 +75,7 @@ from snowflake.snowpark._internal.utils import (
     zip_file_or_directory_to_stream,
 )
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.context import _use_scoped_temp_objects
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
@@ -118,6 +120,9 @@ _logger = getLogger(__name__)
 
 _session_management_lock = RLock()
 _active_sessions: Set["Session"] = set()
+_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
+    "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
+)
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -253,6 +258,12 @@ class Session:
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
         self._last_canceled_id = 0
+        self._use_scoped_temp_objects = (
+            _use_scoped_temp_objects
+            and conn._conn._session_parameters.get(
+                _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
+            )
+        )
 
         self._file = FileOperation(self)
 
@@ -985,7 +996,8 @@ class Session:
         )
         if not self._stage_created:
             self._run_query(
-                f"create temporary stage if not exists {qualified_stage_name}",
+                f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
+                stage if not exists {qualified_stage_name}",
                 is_ddl_on_temp_object=True,
             )
             self._stage_created = True
