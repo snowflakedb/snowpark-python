@@ -4,6 +4,8 @@
 
 from unittest import mock
 
+import pytest
+
 from snowflake.connector import SnowflakeConnection
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.server_connection import ServerConnection
@@ -13,19 +15,27 @@ def test_aliases():
     assert Session.createDataFrame == Session.create_dataframe
 
 
-def test_repr():
+@pytest.mark.parametrize(
+    "account, role,database,schema,warehouse",
+    [("ACCOUNT", "ADMIN", "DB", "SCHEMA", "WH"), (None, None, None, None, None)],
+)
+def test_str(account, role, database, schema, warehouse):
     mock_sf_connection = mock.create_autospec(
         SnowflakeConnection,
-        account="ACCOUNT",
-        role="ROLE",
-        database="DB",
-        schema="SCHEMA",
-        warehouse="WH",
+        account=account,
+        role=role,
+        database=database,
+        schema=schema,
+        warehouse=warehouse,
+        _telemetry=None,
     )
-    mock_server_connection = mock.create_autospec(
-        ServerConnection, _conn=mock_sf_connection
-    )
+    mock_sf_connection.is_closed.return_value = False
+    mock_server_connection = ServerConnection({}, mock_sf_connection)
+
+    def quoted(s):
+        return f'"{s}"' if s else s
+
     assert (
-        repr(Session(mock_server_connection))
-        == "<snowflake.snowpark.session.Session: account='ACCOUNT', role='ROLE', database='DB', schema='SCHEMA', warehouse='WH'>"
+        str(Session(mock_server_connection))
+        == f"<snowflake.snowpark.session.Session: account={quoted(account)}, role={quoted(role)}, database={quoted(database)}, schema={quoted(schema)}, warehouse={quoted(warehouse)}>"
     )
