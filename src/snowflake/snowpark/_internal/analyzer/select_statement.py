@@ -610,9 +610,9 @@ class SelectTableFunction(Selectable):
     def __init__(
         self,
         func_expr: TableFunctionExpression,
-        analyzer: "Analyzer",
         *,
         other_plan: Optional[LogicalPlan] = None,
+        analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
         self.func_expr = func_expr
