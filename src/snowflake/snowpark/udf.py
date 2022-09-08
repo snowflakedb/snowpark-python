@@ -21,10 +21,7 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import (
-    TempObjectType,
-    parse_positional_args_to_list,
-)
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType
 
@@ -62,19 +59,16 @@ class UserDefinedFunction:
         self._input_types = input_types
         self._is_return_nullable = is_return_nullable
 
-    def __call__(
-        self,
-        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
-    ) -> Column:
+    def __call__(self, *cols: ColumnOrName) -> Column:
         exprs = []
-        for c in parse_positional_args_to_list(*cols):
+        for c in cols:
             if isinstance(c, Column):
                 exprs.append(c._expression)
             elif isinstance(c, str):
                 exprs.append(Column(c)._expression)
             else:
                 raise TypeError(
-                    f"The input of UDF {self.name} must be Column, column name, or a list of them"
+                    f"The input of UDF {self.name} must be a Column object or a column name"
                 )
 
         return Column(self._create_udf_expression(exprs))
