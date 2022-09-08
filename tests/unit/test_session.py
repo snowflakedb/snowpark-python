@@ -15,12 +15,17 @@ def test_aliases():
 
 def test_repr():
     mock_sf_connection = mock.create_autospec(
-        SnowflakeConnection, role="ROLE", database="DB", schema="SCHEMA", warehouse="WH"
+        SnowflakeConnection,
+        account="ACCOUNT",
+        role="ROLE",
+        database="DB",
+        schema="SCHEMA",
+        warehouse="WH",
     )
     mock_server_connection = mock.create_autospec(
         ServerConnection, _conn=mock_sf_connection
     )
     assert (
         repr(Session(mock_server_connection))
-        == "<snowflake.snowpark.session.Session: role='ROLE', database='DB', schema='SCHEMA', warehouse='WH'>"
+        == "<snowflake.snowpark.session.Session: account='ACCOUNT', role='ROLE', database='DB', schema='SCHEMA', warehouse='WH'>"
     )

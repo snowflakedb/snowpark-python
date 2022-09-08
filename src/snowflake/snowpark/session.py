@@ -266,7 +266,7 @@ class Session:
         self.close()
 
     def __repr__(self):
-        return f"<{self.__class__.__module__}.{self.__class__.__name__}: role={repr(self._conn._conn.role)}, database={repr(self._conn._conn.database)}, schema={repr(self._conn._conn.schema)}, warehouse={repr(self._conn._conn.warehouse)}>"
+        return f"<{self.__class__.__module__}.{self.__class__.__name__}: account={repr(self._conn._conn.account)}, role={repr(self._conn._conn.role)}, database={repr(self._conn._conn.database)}, schema={repr(self._conn._conn.schema)}, warehouse={repr(self._conn._conn.warehouse)}>"
 
     def _generate_new_action_id(self) -> int:
         self._last_action_id += 1
