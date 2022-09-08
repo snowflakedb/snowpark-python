@@ -1679,24 +1679,14 @@ class Session:
             # database: qualified_table_name[0]
             # schema: qualified_table_name[1]
             # table: qualified_table_name[2]
-            if qualified_table_name[1] == "":
-                # Double-Dot Notation: "database..table" in which the schema is empty
-                tables = self._run_query(
-                    f"show tables like '{qualified_table_name[2]}' in database {qualified_table_name[0]}"
-                )
-            else:
-                # "database.schema.table", schema is not empty
-                tables = self._run_query(
-                    f"show tables like '{qualified_table_name[2]}' in schema {qualified_table_name[0]}.{qualified_table_name[1]}"
-                )
-                # table is a tuple and the 3rd col(0 based idx) is schema_name
-                return any(
-                    [
-                        table
-                        for table in tables
-                        if table[3].lower() == qualified_table_name[1].lower()
-                    ]
-                )
+            condition = (
+                f"database {qualified_table_name[0]}"
+                if qualified_table_name[1] == ""
+                else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+            )
+            tables = self._run_query(
+                f"show tables like '{qualified_table_name[2]}' in {condition}"
+            )
         else:
             # we do not support len(qualified_table_name) > 3 for now
             raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
