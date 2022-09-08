@@ -618,7 +618,7 @@ class SelectTableFunction(Selectable):
         self.func_expr = func_expr
         if other_plan:
             self._snowflake_plan = analyzer.resolve(
-                TableFunctionJoin(func_expr, other_plan)
+                TableFunctionJoin(other_plan, func_expr)
             )
         else:
             self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
