@@ -1663,56 +1663,47 @@ class Session:
         # note: object name could have dots, e.g, a table could be created via: create table "abc.abc" (id int)
         # currently validate_object_name does not allow it, but if in the future we want to support the case, we need to
         # update the implementation accordingly in this method
-        try:
-            qualified_table_name = table_name.split(".")
-            if len(qualified_table_name) == 1:
-                # name in the form of "table"
-                tables = self._run_query(f"show tables like '{table_name}'")
-            elif len(qualified_table_name) == 2:
-                # name in the form of "schema.table" omitting database
-                # schema: qualified_table_name[0]
-                # table: qualified_table_name[1]
-                tables = self._run_query(
-                    f"show tables like '{qualified_table_name[1]}' in schema {qualified_table_name[0]}"
-                )
-            elif len(qualified_table_name) == 3:
-                # name in the form of "database.schema.table"
-                # database: qualified_table_name[0]
-                # schema: qualified_table_name[1]
-                # table: qualified_table_name[2]
-                if qualified_table_name[1] == "":
-                    # Double-Dot Notation: "database..table" in which the schema is empty
-                    tables = self._run_query(
-                        f"show tables like '{qualified_table_name[2]}' in database {qualified_table_name[0]}"
-                    )
-                else:
-                    # "database.schema.table", schema is not empty
-                    tables = self._run_query(
-                        f"show tables like '{qualified_table_name[2]}' in database {qualified_table_name[0]}"
-                    )
-                    # table is a tuple and the 3rd col(0 based idx) is schema_name
-                    return any(
-                        [
-                            table
-                            for table in tables
-                            if table[3].lower() == qualified_table_name[1].lower()
-                        ]
-                    )
-            else:
-                # we do not support len(qualified_table_name) > 3 for now
-                raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
-                    table_name
-                )
-
-            return tables is not None and len(tables) > 0
-        except ProgrammingError as exc:
-            if exc.errno == 2043:
-                # SQL compilation error: Object does not exist, or operation cannot be performed
-                return False
-            _logger.debug(
-                f"Error occurred when checking table existence for {table_name}, error: {exc!r}"
+        qualified_table_name = table_name.split(".")
+        if len(qualified_table_name) == 1:
+            # name in the form of "table"
+            tables = self._run_query(f"show tables like '{table_name}'")
+        elif len(qualified_table_name) == 2:
+            # name in the form of "schema.table" omitting database
+            # schema: qualified_table_name[0]
+            # table: qualified_table_name[1]
+            tables = self._run_query(
+                f"show tables like '{qualified_table_name[1]}' in schema {qualified_table_name[0]}"
             )
-            raise
+        elif len(qualified_table_name) == 3:
+            # name in the form of "database.schema.table"
+            # database: qualified_table_name[0]
+            # schema: qualified_table_name[1]
+            # table: qualified_table_name[2]
+            if qualified_table_name[1] == "":
+                # Double-Dot Notation: "database..table" in which the schema is empty
+                tables = self._run_query(
+                    f"show tables like '{qualified_table_name[2]}' in database {qualified_table_name[0]}"
+                )
+            else:
+                # "database.schema.table", schema is not empty
+                tables = self._run_query(
+                    f"show tables like '{qualified_table_name[2]}' in schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+                )
+                # table is a tuple and the 3rd col(0 based idx) is schema_name
+                return any(
+                    [
+                        table
+                        for table in tables
+                        if table[3].lower() == qualified_table_name[1].lower()
+                    ]
+                )
+        else:
+            # we do not support len(qualified_table_name) > 3 for now
+            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                table_name
+            )
+
+        return tables is not None and len(tables) > 0
 
     def _explain_query(self, query: str) -> Optional[str]:
         try:

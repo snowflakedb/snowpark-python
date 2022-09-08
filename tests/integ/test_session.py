@@ -8,6 +8,7 @@ import os
 import pytest
 
 import snowflake.connector
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
@@ -241,12 +242,12 @@ def test_table_exists(session):
 
     random_database = Utils.random_temp_database()
     random_schema = Utils.random_temp_schema()
-    assert (
+    with pytest.raises(ProgrammingError):
         session._table_exists(f"{random_database}.{random_schema}.{table_name}")
-        is False
-    )
-    assert session._table_exists(f"{random_database}..{table_name}") is False
-    assert session._table_exists(f"{random_schema}.{table_name}") is False
+    with pytest.raises(ProgrammingError):
+        session._table_exists(f"{random_database}..{table_name}")
+    with pytest.raises(ProgrammingError):
+        session._table_exists(f"{random_schema}.{table_name}")
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
