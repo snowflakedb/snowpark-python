@@ -32,6 +32,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SelectSQL,
     SelectStatement,
+    SelectTableFunction,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -924,10 +925,7 @@ class Session:
             d = DataFrame(
                 self,
                 SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        snowflake_plan=TableFunctionRelation(func_expr),
-                        analyzer=self._analyzer,
-                    ),
+                    from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
             )
