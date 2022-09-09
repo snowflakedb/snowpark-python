@@ -32,6 +32,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SelectSQL,
     SelectStatement,
+    SelectTableFunction,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -63,6 +64,7 @@ from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
     get_stage_file_prefix_length,
+    get_temp_type_for_object,
     get_version,
     is_in_stored_procedure,
     normalize_remote_file_or_dir,
@@ -74,6 +76,7 @@ from snowflake.snowpark._internal.utils import (
     zip_file_or_directory_to_stream,
 )
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.context import _use_scoped_temp_objects
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
@@ -118,6 +121,9 @@ _logger = getLogger(__name__)
 
 _session_management_lock = RLock()
 _active_sessions: Set["Session"] = set()
+_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
+    "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
+)
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -253,6 +259,12 @@ class Session:
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
         self._last_canceled_id = 0
+        self._use_scoped_temp_objects = (
+            _use_scoped_temp_objects
+            and conn._conn._session_parameters.get(
+                _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
+            )
+        )
 
         self._file = FileOperation(self)
 
@@ -264,6 +276,13 @@ class Session:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    def __str__(self):
+        return (
+            f"<{self.__class__.__module__}.{self.__class__.__name__}: account={self.get_current_account()}, "
+            f"role={self.get_current_role()}, database={self.get_current_database()}, "
+            f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
+        )
 
     def _generate_new_action_id(self) -> int:
         self._last_action_id += 1
@@ -917,10 +936,22 @@ class Session:
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
-        d = DataFrame(
-            self,
-            TableFunctionRelation(func_expr),
-        )
+
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            d = DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
+                    analyzer=self._analyzer,
+                ),
+            )
+        else:
+            d = DataFrame(
+                self,
+                TableFunctionRelation(func_expr),
+            )
         set_api_call_source(d, f"Session.table_function[{func_expr.func_name}]")
         return d
 
@@ -985,7 +1016,8 @@ class Session:
         )
         if not self._stage_created:
             self._run_query(
-                f"create temporary stage if not exists {qualified_stage_name}",
+                f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
+                stage if not exists {qualified_stage_name}",
                 is_ddl_on_temp_object=True,
             )
             self._stage_created = True
@@ -1036,7 +1068,7 @@ class Session:
                 that to avoid breaking changes, currently when this is set to True, it overrides ``table_type``.
             overwrite: Default value is ``False`` and the Pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
                 then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
-                then it trunctates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
+                then it truncates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
                 contents of the table with that of the passed in Pandas DataFrame.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
                         and ``transient``. An empty string means to create a permanent table. Learn more about table
@@ -1418,6 +1450,13 @@ class Session:
         set_api_call_source(df, "Session.range")
         return df
 
+    def get_current_account(self) -> Optional[str]:
+        """
+        Returns the name of the current account for the Python connector session attached
+        to this session.
+        """
+        return self._conn._get_current_parameter("account")
+
     def get_current_database(self) -> Optional[str]:
         """
         Returns the name of the current database for the Python connector session attached
@@ -1689,8 +1728,41 @@ class Session:
         return query_listener
 
     def _table_exists(self, table_name: str):
-        # TODO: Support qualified table names
-        tables = self._run_query(f"show tables like '{table_name}'")
+        # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
+        validate_object_name(table_name)
+        # note: object name could have dots, e.g, a table could be created via: create table "abc.abc" (id int)
+        # currently validate_object_name does not allow it, but if in the future we want to support the case, we need to
+        # update the implementation accordingly in this method
+        qualified_table_name = table_name.split(".")
+        if len(qualified_table_name) == 1:
+            # name in the form of "table"
+            tables = self._run_query(f"show tables like '{table_name}'")
+        elif len(qualified_table_name) == 2:
+            # name in the form of "schema.table" omitting database
+            # schema: qualified_table_name[0]
+            # table: qualified_table_name[1]
+            tables = self._run_query(
+                f"show tables like '{qualified_table_name[1]}' in schema {qualified_table_name[0]}"
+            )
+        elif len(qualified_table_name) == 3:
+            # name in the form of "database.schema.table"
+            # database: qualified_table_name[0]
+            # schema: qualified_table_name[1]
+            # table: qualified_table_name[2]
+            condition = (
+                f"database {qualified_table_name[0]}"
+                if qualified_table_name[1] == ""
+                else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+            )
+            tables = self._run_query(
+                f"show tables like '{qualified_table_name[2]}' in {condition}"
+            )
+        else:
+            # we do not support len(qualified_table_name) > 3 for now
+            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                table_name
+            )
+
         return tables is not None and len(tables) > 0
 
     def _explain_query(self, query: str) -> Optional[str]:
