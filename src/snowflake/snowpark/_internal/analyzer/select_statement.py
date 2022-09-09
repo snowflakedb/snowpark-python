@@ -8,6 +8,12 @@ from copy import copy
 from enum import Enum
 from typing import TYPE_CHECKING, Iterable, List, Optional, Set, Union
 
+from snowflake.snowpark._internal.analyzer.table_function import (
+    TableFunctionExpression,
+    TableFunctionJoin,
+    TableFunctionRelation,
+)
+
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 
@@ -596,6 +602,38 @@ class SelectStatement(Selectable):
         new.offset = (self.offset + offset) if self.offset else offset
         new._column_states = self._column_states
         return new
+
+
+class SelectTableFunction(Selectable):
+    """Wrap table function related plan to a subclass of Selectable."""
+
+    def __init__(
+        self,
+        func_expr: TableFunctionExpression,
+        *,
+        other_plan: Optional[LogicalPlan] = None,
+        analyzer: "Analyzer",
+    ) -> None:
+        super().__init__(analyzer)
+        self.func_expr = func_expr
+        if other_plan:
+            self._snowflake_plan = analyzer.resolve(
+                TableFunctionJoin(other_plan, func_expr)
+            )
+        else:
+            self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
+
+    @property
+    def snowflake_plan(self):
+        return self._snowflake_plan
+
+    @property
+    def sql_query(self) -> str:
+        return self._snowflake_plan.queries[-1].sql
+
+    @property
+    def schema_query(self) -> str:
+        return self._snowflake_plan.schema_query
 
 
 class SetOperand:

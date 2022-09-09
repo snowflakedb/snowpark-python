@@ -413,6 +413,8 @@ class DataFrameReader:
                             format_type_options,
                             temp=True,
                             if_not_exist=True,
+                            use_scoped_temp_objects=self._session._use_scoped_temp_objects,
+                            is_generated=True,
                         ),
                         is_ddl_on_temp_object=True,
                     )

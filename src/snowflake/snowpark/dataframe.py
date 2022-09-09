@@ -279,13 +279,12 @@ class DataFrame:
 
     Broadly, the operations on DataFrame can be divided into two types:
 
-    - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that tranformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
+    - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that transformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
     - **Actions** cause the DataFrame to be evaluated. When you call a method that performs an action, Snowpark sends the SQL query for the DataFrame to the server for evaluation.
 
     **Transforming a DataFrame**
 
-    The following exam
-    ples demonstrate how you can transform a DataFrame.
+    The following examples demonstrate how you can transform a DataFrame.
 
     Example 5
         Using the :func:`select()` method to select the columns that should be in the
@@ -1519,11 +1518,27 @@ class DataFrame:
             rattr for rattr in right_output_attrs if rattr not in right_project_list
         ]
 
-        right_child = self._with_plan(
-            Project(right_project_list + not_found_attrs, other._plan)
-        )
+        from snowflake.snowpark import context
 
-        return self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
+        names = right_project_list + not_found_attrs
+        if context._use_sql_simplifier and other._select_statement:
+            right_child = self._with_plan(other._select_statement.select(names))
+        else:
+            right_child = self._with_plan(Project(names, other._plan))
+
+        union_plan = UnionPlan(self._plan, right_child._plan, is_all)
+        if context._use_sql_simplifier:
+            df = self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        snowflake_plan=union_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        else:
+            df = self._with_plan(union_plan)
+        return df
 
     @df_api_usage
     def intersect(self, other: "DataFrame") -> "DataFrame":
@@ -2836,7 +2851,10 @@ class DataFrame:
         """
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         create_temp_table = self._session._plan_builder.create_temp_table(
-            temp_table_name, self._plan
+            temp_table_name,
+            self._plan,
+            use_scoped_temp_objects=self._session._use_scoped_temp_objects,
+            is_generated=True,
         )
         self._session._conn.execute(
             create_temp_table,

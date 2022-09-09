@@ -68,21 +68,33 @@ def test_query_history_no_actions(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-533647: Support statement level parameters"
 )
-def test_query_history_executemany(session):
+@pytest.mark.parametrize("use_scoped_temp_objects", [True, False])
+def test_query_history_executemany(session, use_scoped_temp_objects):
     """Large local data frame uses ServerConnection.run_batch_insert instead of ServerConnection.run_query.
     run_batch_insert create a temp table and use parameter binding to insert values, then select from the temp table.
     Finally it drops the temp table.
     """
-    with session.query_history() as query_listener:
-        session.create_dataframe(
-            [[1]] * (ARRAY_BIND_THRESHOLD + 1), schema=["a"]
-        ).collect()
+    origin_use_scoped_temp_objects_setting = session._use_scoped_temp_objects
+    try:
+        session._use_scoped_temp_objects = use_scoped_temp_objects
+        with session.query_history() as query_listener:
+            session.create_dataframe(
+                [[1]] * (ARRAY_BIND_THRESHOLD + 1), schema=["a"]
+            ).collect()
 
-    queries = query_listener.queries
-    assert all(query.query_id is not None for query in queries)
-    assert "CREATE  OR  REPLACE  TEMPORARY" in queries[0].sql_text
-    assert "alter session set query_tag" in queries[1].sql_text
-    assert "INSERT  INTO" in queries[2].sql_text and "VALUES (?)" in queries[2].sql_text
-    assert "alter session unset query_tag" in queries[3].sql_text
-    assert 'SELECT "A" FROM' in queries[4].sql_text
-    assert "DROP  TABLE  If  EXISTS" in queries[5].sql_text  # post action
+        queries = query_listener.queries
+        assert all(query.query_id is not None for query in queries)
+        assert (
+            f"CREATE  OR  REPLACE  {'SCOPED TEMPORARY' if use_scoped_temp_objects else 'TEMPORARY'}"
+            in queries[0].sql_text
+        )
+        assert "alter session set query_tag" in queries[1].sql_text
+        assert (
+            "INSERT  INTO" in queries[2].sql_text
+            and "VALUES (?)" in queries[2].sql_text
+        )
+        assert "alter session unset query_tag" in queries[3].sql_text
+        assert 'SELECT "A" FROM' in queries[4].sql_text
+        assert "DROP  TABLE  If  EXISTS" in queries[5].sql_text  # post action
+    finally:
+        session._use_scoped_temp_objects = origin_use_scoped_temp_objects_setting
