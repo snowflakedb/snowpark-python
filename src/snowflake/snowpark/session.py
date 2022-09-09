@@ -266,7 +266,11 @@ class Session:
         self.close()
 
     def __str__(self):
-        return f"<{self.__class__.__module__}.{self.__class__.__name__}: account={self.get_current_account()}, role={self.get_current_role()}, database={self.get_current_database()}, schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
+        return (
+            f"<{self.__class__.__module__}.{self.__class__.__name__}: account={self.get_current_account()}, "
+            f"role={self.get_current_role()}, database={self.get_current_database()}, "
+            f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
+        )
 
     def _generate_new_action_id(self) -> int:
         self._last_action_id += 1
