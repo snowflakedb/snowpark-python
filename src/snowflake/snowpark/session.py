@@ -277,6 +277,13 @@ class Session:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def __str__(self):
+        return (
+            f"<{self.__class__.__module__}.{self.__class__.__name__}: account={self.get_current_account()}, "
+            f"role={self.get_current_role()}, database={self.get_current_database()}, "
+            f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
+        )
+
     def _generate_new_action_id(self) -> int:
         self._last_action_id += 1
         return self._last_action_id
@@ -1442,6 +1449,13 @@ class Session:
         df = DataFrame(self, range_plan)
         set_api_call_source(df, "Session.range")
         return df
+
+    def get_current_account(self) -> Optional[str]:
+        """
+        Returns the name of the current account for the Python connector session attached
+        to this session.
+        """
+        return self._conn._get_current_parameter("account")
 
     def get_current_database(self) -> Optional[str]:
         """
