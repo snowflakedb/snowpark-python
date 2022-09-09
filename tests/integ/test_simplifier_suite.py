@@ -106,6 +106,37 @@ def test_union_and_other_operators(session, set_operator):
         )
 
 
+def test_union_by_name(session):
+    df1 = session.create_dataframe([[1, 2, 11], [3, 4, 33]], schema=["a", "b", "c"])
+    df2 = session.create_dataframe([[5, 6, 55], [3, 4, 33]], schema=["a", "b", "c"])
+
+    # test flattening union_by_name works with basic example
+    df = df1.union_by_name(df2)
+    Utils.check_answer(df, [Row(1, 2, 11), Row(3, 4, 33), Row(5, 6, 55)])
+    assert df.queries["queries"][-1].count("SELECT") == 4
+
+    # test two layer select result is same as one layer select result
+    df_l1 = df.select(df.a, df.b)
+    df_l2 = df.select(df.a, df.b).select(df.a, df.b)
+    Utils.check_answer(df_l1, [Row(1, 2), Row(3, 4), Row(5, 6)])
+    assert df_l1.queries["queries"][-1].count("SELECT") == df_l2.queries["queries"][
+        -1
+    ].count("SELECT")
+
+    # test we don't flatten in case of selecting dropped columns
+    df3 = df.select((col("a") + 1).as_("d"))
+    df4 = df3.select(df.b)
+    assert df3.queries["queries"][-1].count("SELECT") + 1 == df4.queries["queries"][
+        -1
+    ].count("SELECT")
+
+    # test we don't flatten when it is not possible to flatten (expression eval)
+    df5 = df3.select((col("d") + 1).as_("a"))
+    assert df3.queries["queries"][-1].count("SELECT") + 1 == df5.queries["queries"][
+        -1
+    ].count("SELECT")
+
+
 def test_select_new_columns(session, simplifier_table):
     """The query adds columns that reference columns unchanged in the subquery."""
     df = session.table(simplifier_table)
