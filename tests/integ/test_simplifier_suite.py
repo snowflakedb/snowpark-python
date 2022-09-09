@@ -15,7 +15,15 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 )
 from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import avg, col, lit, sql_expr, sum as sum_, table_function, udtf
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    lit,
+    sql_expr,
+    sum as sum_,
+    table_function,
+    udtf,
+)
 from tests.utils import TestData, Utils
 
 if not _use_sql_simplifier:
@@ -675,7 +683,7 @@ def test_pivot(session):
     df = (
         TestData.monthly_sales(session)
         .pivot("month", ["JAN", "FEB", "MAR", "APR"])
-        .agg(sum(col("amount")))
+        .agg(sum_(col("amount")))
         .select("EMPID")
         .select("EMPID")
         .select("EMPID")
@@ -686,7 +694,7 @@ def test_pivot(session):
         .select("EMPID", "month", "amount")
         .select("EMPID", "month", "amount")
         .pivot("month", ["JAN", "FEB", "MAR", "APR"])
-        .agg(sum(col("amount")))
+        .agg(sum_(col("amount")))
         .select("EMPID")
         .select("EMPID")
         .select("EMPID")
