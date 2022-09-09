@@ -9,6 +9,7 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
@@ -850,3 +851,40 @@ def test_read_staged_file_no_commit(session):
     assert Utils.is_active_transaction(session)
     session.sql("commit").collect()
     assert not Utils.is_active_transaction(session)
+
+
+@pytest.mark.skipif(
+    _use_sql_simplifier is False,
+    reason="Applicable only when sql simplifier is enabled",
+)
+def test_read_csv_with_sql_simplifier(session):
+    reader = get_reader(session, "select")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = reader.schema(user_schema).csv(test_file_on_stage)
+    df1 = df.select("a").select("a").select("a")
+    assert df1.queries["queries"][-1].count("SELECT") == 2
+
+    df2 = (
+        df.select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+    )
+    assert df2.queries["queries"][-1].count("SELECT") == 4
+
+
+@pytest.mark.skipif(
+    _use_sql_simplifier is False,
+    reason="Applicable only when sql simplifier is enabled",
+)
+def test_read_parquet_with_sql_simplifier(session):
+    path = f"@{tmp_stage_name1}/{test_file_parquet}"
+    df = get_reader(session, "select").parquet(path)
+    df1 = df.select("str").select("str").select("str")
+    assert df1.queries["queries"][-1].count("SELECT") == 3
+
+    df2 = (
+        df.select((col("num") + 1).as_("num"))
+        .select((col("num") + 1).as_("num"))
+        .select((col("num") + 1).as_("num"))
+    )
+    assert df2.queries["queries"][-1].count("SELECT") == 4

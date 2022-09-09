@@ -12,6 +12,10 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSnowflakePlan,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
@@ -273,16 +277,36 @@ class DataFrameReader:
 
         self._file_path = path
         self._file_type = "csv"
-        df = DataFrame(
-            self._session,
-            self._session._plan_builder.read_file(
-                path,
-                self._file_type,
-                self._cur_options,
-                self._session.get_fully_qualified_current_schema(),
-                self._user_schema._to_attributes(),
-            ),
-        )
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            df = DataFrame(
+                self._session,
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        self._session._plan_builder.read_file(
+                            path,
+                            self._file_type,
+                            self._cur_options,
+                            self._session.get_fully_qualified_current_schema(),
+                            self._user_schema._to_attributes(),
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    analyzer=self._session._analyzer,
+                ),
+            )
+        else:
+            df = DataFrame(
+                self._session,
+                self._session._plan_builder.read_file(
+                    path,
+                    self._file_type,
+                    self._cur_options,
+                    self._session.get_fully_qualified_current_schema(),
+                    self._user_schema._to_attributes(),
+                ),
+            )
         df._reader = self
         set_api_call_source(df, "DataFrameReader.csv")
         return df
@@ -463,18 +487,40 @@ class DataFrameReader:
                         drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                     )
 
-        df = DataFrame(
-            self._session,
-            self._session._plan_builder.read_file(
-                path,
-                format,
-                self._cur_options,
-                self._session.get_fully_qualified_current_schema(),
-                schema,
-                schema_to_cast=schema_to_cast,
-                transformations=read_file_transformations,
-            ),
-        )
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            df = DataFrame(
+                self._session,
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        self._session._plan_builder.read_file(
+                            path,
+                            format,
+                            self._cur_options,
+                            self._session.get_fully_qualified_current_schema(),
+                            schema,
+                            schema_to_cast=schema_to_cast,
+                            transformations=read_file_transformations,
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    analyzer=self._session._analyzer,
+                ),
+            )
+        else:
+            df = DataFrame(
+                self._session,
+                self._session._plan_builder.read_file(
+                    path,
+                    format,
+                    self._cur_options,
+                    self._session.get_fully_qualified_current_schema(),
+                    schema,
+                    schema_to_cast=schema_to_cast,
+                    transformations=read_file_transformations,
+                ),
+            )
         df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
