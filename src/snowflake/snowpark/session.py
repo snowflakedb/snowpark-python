@@ -259,6 +259,7 @@ class Session:
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
         self._last_canceled_id = 0
+        # consider making _session_parameters check a helpful function
         self._use_scoped_temp_objects = bool(
             _use_scoped_temp_objects
             and (
