@@ -786,9 +786,8 @@ class DataFrame:
                         from_=SelectSnowflakePlan(
                             join_plan, analyzer=self._session._analyzer
                         ),
-                        projection=names,
                         analyzer=self._session._analyzer,
-                    )
+                    ).select(names)
                 )
             return self._with_plan(self._select_statement.select(names))
         else:
@@ -1893,7 +1892,7 @@ class DataFrame:
             old_cols, new_cols = _get_cols_after_join_table(
                 func_expr, self._plan, join_plan
             )
-            projection = [*old_cols, *new_cols]
+            names = [*old_cols, *new_cols]
             if context._use_sql_simplifier:
                 return self._with_plan(
                     SelectStatement(
@@ -1902,16 +1901,13 @@ class DataFrame:
                             other_plan=self._plan,
                             analyzer=self._session._analyzer,
                         ),
-                        projection=projection,
                         analyzer=self._session._analyzer,
-                    )
+                    ).select(names)
                 )
-            else:
-                return self._with_plan(Project(projection, join_plan))
+            return self._with_plan(Project(names, join_plan))
 
         if context._use_sql_simplifier:
-            df = DataFrame(
-                self._session,
+            return self._with_plan(
                 SelectStatement(
                     from_=SelectTableFunction(
                         func_expr,
@@ -1919,11 +1915,9 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ),
                     analyzer=self._session._analyzer,
-                ),
+                )
             )
-        else:
-            df = DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
-        return df
+        return self._with_plan(TableFunctionJoin(self._plan, func_expr))
 
     @df_api_usage
     def cross_join(self, right: "DataFrame") -> "DataFrame":
