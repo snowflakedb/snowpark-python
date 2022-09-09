@@ -16,7 +16,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, sql_expr, table_function, udtf
-from tests.utils import Utils
+from tests.utils import TestData, Utils
 
 if not _use_sql_simplifier:
     pytest.skip(
@@ -106,6 +106,37 @@ def test_union_and_other_operators(session, set_operator):
             result2._plan.queries[-1].sql
             == f"(SELECT 1 as a) UNION ((SELECT 2 as a){set_operator}(SELECT 3 as a))"
         )
+
+
+def test_union_by_name(session):
+    df1 = session.create_dataframe([[1, 2, 11], [3, 4, 33]], schema=["a", "b", "c"])
+    df2 = session.create_dataframe([[5, 6, 55], [3, 4, 33]], schema=["a", "b", "c"])
+
+    # test flattening union_by_name works with basic example
+    df = df1.union_by_name(df2)
+    Utils.check_answer(df, [Row(1, 2, 11), Row(3, 4, 33), Row(5, 6, 55)])
+    assert df.queries["queries"][-1].count("SELECT") == 4
+
+    # test two layer select result is same as one layer select result
+    df_l1 = df.select(df.a, df.b)
+    df_l2 = df.select(df.a, df.b).select(df.a, df.b)
+    Utils.check_answer(df_l1, [Row(1, 2), Row(3, 4), Row(5, 6)])
+    assert df_l1.queries["queries"][-1].count("SELECT") == df_l2.queries["queries"][
+        -1
+    ].count("SELECT")
+
+    # test we don't flatten in case of selecting dropped columns
+    df3 = df.select((col("a") + 1).as_("d"))
+    df4 = df3.select(df.b)
+    assert df3.queries["queries"][-1].count("SELECT") + 1 == df4.queries["queries"][
+        -1
+    ].count("SELECT")
+
+    # test we don't flatten when it is not possible to flatten (expression eval)
+    df5 = df3.select((col("d") + 1).as_("a"))
+    assert df3.queries["queries"][-1].count("SELECT") + 1 == df5.queries["queries"][
+        -1
+    ].count("SELECT")
 
 
 def test_select_new_columns(session, simplifier_table):
@@ -666,3 +697,45 @@ def test_use_sql_simplifier(session, simplifier_table):
         Utils.check_answer(df3, df4, sort=True)
     finally:
         context._use_sql_simplifier = True
+
+
+def test_sample(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df_table_sample = df.sample(
+        0.5, sampling_method="BERNOULLI", seed=1
+    )  # SQL is generated from Table's sample method.
+    df1 = df_table_sample.select("a").select("a").select("a")
+    assert df1.queries["queries"][-1].count("SELECT") == 2
+    df2 = (
+        df_table_sample.select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+    )
+    assert df2.queries["queries"][-1].count("SELECT") == 4
+
+    df_query_sample = df.sample(
+        0.5
+    )  # SQL is generated from DataFrame's sample method..
+    df3 = df_query_sample.select("a").select("a").select("a")
+    assert df3.queries["queries"][-1].count("SELECT") == 3
+
+    df4 = (
+        df_query_sample.select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+    )
+    assert df4.queries["queries"][-1].count("SELECT") == 5
+
+
+def test_unpivot(session, simplifier_table):
+    column_list = ["jan", "feb", "mar", "apr"]
+    df = TestData.monthly_sales_flat(session).unpivot("sales", "month", column_list)
+    df1 = df.select("sales").select("sales").select("sales")
+    assert df1.queries["queries"][-1].count("SELECT") == 4
+
+    df2 = (
+        df.select((col("sales") + 1).as_("sales"))
+        .select((col("sales") + 1).as_("sales"))
+        .select((col("sales") + 1).as_("sales"))
+    )
+    assert df2.queries["queries"][-1].count("SELECT") == 6
