@@ -14,7 +14,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, sql_expr, table_function
-from tests.utils import Utils
+from tests.utils import TestData, Utils
 
 if not _use_sql_simplifier:
     pytest.skip(
@@ -520,3 +520,45 @@ def test_use_sql_simplifier(session, simplifier_table):
         Utils.check_answer(df3, df4, sort=True)
     finally:
         context._use_sql_simplifier = True
+
+
+def test_sample(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df_table_sample = df.sample(
+        0.5, sampling_method="BERNOULLI", seed=1
+    )  # SQL is generated from Table's sample method.
+    df1 = df_table_sample.select("a").select("a").select("a")
+    assert df1.queries["queries"][-1].count("SELECT") == 2
+    df2 = (
+        df_table_sample.select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+    )
+    assert df2.queries["queries"][-1].count("SELECT") == 4
+
+    df_query_sample = df.sample(
+        0.5
+    )  # SQL is generated from DataFrame's sample method..
+    df3 = df_query_sample.select("a").select("a").select("a")
+    assert df3.queries["queries"][-1].count("SELECT") == 3
+
+    df4 = (
+        df_query_sample.select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+    )
+    assert df4.queries["queries"][-1].count("SELECT") == 5
+
+
+def test_unpivot(session, simplifier_table):
+    column_list = ["jan", "feb", "mar", "apr"]
+    df = TestData.monthly_sales_flat(session).unpivot("sales", "month", column_list)
+    df1 = df.select("sales").select("sales").select("sales")
+    assert df1.queries["queries"][-1].count("SELECT") == 4
+
+    df2 = (
+        df.select((col("sales") + 1).as_("sales"))
+        .select((col("sales") + 1).as_("sales"))
+        .select((col("sales") + 1).as_("sales"))
+    )
+    assert df2.queries["queries"][-1].count("SELECT") == 6

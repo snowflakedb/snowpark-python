@@ -1352,9 +1352,18 @@ class DataFrame:
             <BLANKLINE>
         """
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
-        return self._with_plan(
-            Unpivot(value_column, name_column, column_exprs, self._plan)
-        )
+        unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
+
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        unpivot_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(unpivot_plan)
 
     @df_api_usage
     def limit(self, n: int) -> "DataFrame":
@@ -2616,9 +2625,17 @@ class DataFrame:
             a :class:`DataFrame` containing the sample of rows.
         """
         DataFrame._validate_sample_input(frac, n)
-        return self._with_plan(
-            Sample(self._plan, probability_fraction=frac, row_count=n)
-        )
+        sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        sample_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(sample_plan)
 
     @staticmethod
     def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
