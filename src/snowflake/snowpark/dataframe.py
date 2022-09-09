@@ -280,13 +280,12 @@ class DataFrame:
 
     Broadly, the operations on DataFrame can be divided into two types:
 
-    - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that tranformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
+    - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that transformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
     - **Actions** cause the DataFrame to be evaluated. When you call a method that performs an action, Snowpark sends the SQL query for the DataFrame to the server for evaluation.
 
     **Transforming a DataFrame**
 
-    The following exam
-    ples demonstrate how you can transform a DataFrame.
+    The following examples demonstrate how you can transform a DataFrame.
 
     Example 5
         Using the :func:`select()` method to select the columns that should be in the
@@ -1360,9 +1359,18 @@ class DataFrame:
             <BLANKLINE>
         """
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
-        return self._with_plan(
-            Unpivot(value_column, name_column, column_exprs, self._plan)
-        )
+        unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
+
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        unpivot_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(unpivot_plan)
 
     @df_api_usage
     def limit(self, n: int) -> "DataFrame":
@@ -1527,11 +1535,27 @@ class DataFrame:
             rattr for rattr in right_output_attrs if rattr not in right_project_list
         ]
 
-        right_child = self._with_plan(
-            Project(right_project_list + not_found_attrs, other._plan)
-        )
+        from snowflake.snowpark import context
 
-        return self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
+        names = right_project_list + not_found_attrs
+        if context._use_sql_simplifier and other._select_statement:
+            right_child = self._with_plan(other._select_statement.select(names))
+        else:
+            right_child = self._with_plan(Project(names, other._plan))
+
+        union_plan = UnionPlan(self._plan, right_child._plan, is_all)
+        if context._use_sql_simplifier:
+            df = self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        snowflake_plan=union_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        else:
+            df = self._with_plan(union_plan)
+        return df
 
     @df_api_usage
     def intersect(self, other: "DataFrame") -> "DataFrame":
@@ -2644,9 +2668,17 @@ class DataFrame:
             a :class:`DataFrame` containing the sample of rows.
         """
         DataFrame._validate_sample_input(frac, n)
-        return self._with_plan(
-            Sample(self._plan, probability_fraction=frac, row_count=n)
-        )
+        sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        sample_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(sample_plan)
 
     @staticmethod
     def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
