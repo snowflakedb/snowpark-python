@@ -538,7 +538,7 @@ def test_select_star(session, simplifier_table):
     with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
         df4.select("a").collect()
 
-    # tests/integ/scala/test_dataframe_join_suite.py has tests of join and select *. We don't repeat those tests here.aframe_join_suite.py has tests of join and select *. We don't repeat those tests here.
+    # tests/integ/scala/test_dataframe_join_suite.py has tests of join and select *. We don't repeat those tests here.
 
 
 def test_join_dataframes(session, simplifier_table):
