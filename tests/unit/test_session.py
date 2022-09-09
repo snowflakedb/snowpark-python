@@ -3,7 +3,10 @@
 #
 from unittest import mock
 
+import pytest
+
 import snowflake.snowpark.session
+from snowflake.connector import SnowflakeConnection
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
@@ -11,6 +14,33 @@ from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_
 
 def test_aliases():
     assert Session.createDataFrame == Session.create_dataframe
+
+
+@pytest.mark.parametrize(
+    "account, role,database,schema,warehouse",
+    [("ACCOUNT", "ADMIN", "DB", "SCHEMA", "WH"), (None, None, None, None, None)],
+)
+def test_str(account, role, database, schema, warehouse):
+    mock_sf_connection = mock.create_autospec(
+        SnowflakeConnection,
+        account=account,
+        role=role,
+        database=database,
+        schema=schema,
+        warehouse=warehouse,
+        _telemetry=None,
+        _session_parameters={},
+    )
+    mock_sf_connection.is_closed.return_value = False
+    mock_server_connection = ServerConnection({}, mock_sf_connection)
+
+    def quoted(s):
+        return f'"{s}"' if s else s
+
+    assert (
+        str(Session(mock_server_connection))
+        == f"<snowflake.snowpark.session.Session: account={quoted(account)}, role={quoted(role)}, database={quoted(database)}, schema={quoted(schema)}, warehouse={quoted(warehouse)}>"
+    )
 
 
 def test_used_scoped_temp_object():
