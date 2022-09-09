@@ -135,6 +135,10 @@ class Utils:
         return f"SCHEMA_{cls.random_alphanumeric_str(10)}"
 
     @classmethod
+    def random_temp_database(cls):
+        return f"DATABASE_{cls.random_alphanumeric_str(10)}"
+
+    @classmethod
     def get_fully_qualified_temp_schema(cls, session: Session):
         return f"{session.get_current_database()}.{cls.random_temp_schema()}"
 
