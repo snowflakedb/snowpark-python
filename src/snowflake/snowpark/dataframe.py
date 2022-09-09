@@ -790,10 +790,8 @@ class DataFrame:
                     ).select(names)
                 )
             return self._with_plan(self._select_statement.select(names))
-        else:
-            if join_plan:
-                return self._with_plan(Project(names, join_plan))
-            return self._with_plan(Project(names, self._plan))
+
+        return self._with_plan(Project(names, join_plan or self._plan))
 
     @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
@@ -1885,6 +1883,7 @@ class DataFrame:
 
         from snowflake.snowpark import context
 
+        names = None
         if func_expr.aliases:
             join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(self._plan, func_expr)
@@ -1893,30 +1892,22 @@ class DataFrame:
                 func_expr, self._plan, join_plan
             )
             names = [*old_cols, *new_cols]
-            if context._use_sql_simplifier:
-                return self._with_plan(
-                    SelectStatement(
-                        from_=SelectTableFunction(
-                            func_expr,
-                            other_plan=self._plan,
-                            analyzer=self._session._analyzer,
-                        ),
-                        analyzer=self._session._analyzer,
-                    ).select(names)
-                )
-            return self._with_plan(Project(names, join_plan))
 
         if context._use_sql_simplifier:
-            return self._with_plan(
-                SelectStatement(
-                    from_=SelectTableFunction(
-                        func_expr,
-                        other_plan=self._plan,
-                        analyzer=self._session._analyzer,
-                    ),
+            select_plan = SelectStatement(
+                from_=SelectTableFunction(
+                    func_expr,
+                    other_plan=self._plan,
                     analyzer=self._session._analyzer,
-                )
+                ),
+                analyzer=self._session._analyzer,
             )
+            if names:
+                select_plan = select_plan.select(names)
+            return self._with_plan(select_plan)
+        if names:
+            return self._with_plan(Project(names, join_plan))
+
         return self._with_plan(TableFunctionJoin(self._plan, func_expr))
 
     @df_api_usage
