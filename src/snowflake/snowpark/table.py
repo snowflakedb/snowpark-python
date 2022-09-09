@@ -319,9 +319,9 @@ class Table(DataFrame):
 
         # The analyzer will generate a sql with subquery. So we build the sql directly without using the analyzer.
         sampling_method_text = sampling_method or ""
-        frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} rows"
-        seed_text = f" seed ({seed})" if seed is not None else ""
-        sql_text = f"select * from {self.table_name} sample {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
+        frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} ROWS"
+        seed_text = f" SEED ({seed})" if seed is not None else ""
+        sql_text = f"SELECT * FROM {self.table_name} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         return self._session.sql(sql_text)
 
     def update(
