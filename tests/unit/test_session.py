@@ -48,6 +48,8 @@ def test_used_scoped_temp_object():
     fake_connection._conn = mock.Mock()
 
     # by default module level config is on
+    fake_connection._conn._session_parameters = None
+    assert Session(fake_connection)._use_scoped_temp_objects is True
 
     fake_connection._conn._session_parameters = {}
     assert Session(fake_connection)._use_scoped_temp_objects is True
