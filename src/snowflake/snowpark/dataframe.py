@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_UNION_ALL,
     SelectSnowflakePlan,
     SelectStatement,
+    SelectTableFunction,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
@@ -777,12 +778,19 @@ class DataFrame:
                 raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
-        if join_plan:
-            return self._with_plan(Project(names, join_plan))
         if self._select_statement:
+            if join_plan:
+                return self._with_plan(
+                    SelectStatement(
+                        from_=SelectSnowflakePlan(
+                            join_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ).select(names)
+                )
             return self._with_plan(self._select_statement.select(names))
-        else:
-            return self._with_plan(Project(names, self._plan))
+
+        return self._with_plan(Project(names, join_plan or self._plan))
 
     @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
@@ -1896,6 +1904,10 @@ class DataFrame:
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
         )
+
+        from snowflake.snowpark import context
+
+        names = None
         if func_expr.aliases:
             join_plan = self._session._analyzer.resolve(
                 TableFunctionJoin(self._plan, func_expr)
@@ -1903,8 +1915,24 @@ class DataFrame:
             old_cols, new_cols = _get_cols_after_join_table(
                 func_expr, self._plan, join_plan
             )
-            return self._with_plan(Project([*old_cols, *new_cols], join_plan))
-        return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
+            names = [*old_cols, *new_cols]
+
+        if context._use_sql_simplifier:
+            select_plan = SelectStatement(
+                from_=SelectTableFunction(
+                    func_expr,
+                    other_plan=self._plan,
+                    analyzer=self._session._analyzer,
+                ),
+                analyzer=self._session._analyzer,
+            )
+            if names:
+                select_plan = select_plan.select(names)
+            return self._with_plan(select_plan)
+        if names:
+            return self._with_plan(Project(names, join_plan))
+
+        return self._with_plan(TableFunctionJoin(self._plan, func_expr))
 
     @df_api_usage
     def cross_join(self, right: "DataFrame") -> "DataFrame":
