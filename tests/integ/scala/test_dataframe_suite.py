@@ -109,6 +109,7 @@ def test_project_null_values(session):
     assert df2.collect() == [Row(None), Row(None)]
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_bulk_insert_from_collected_result(session):
     """Tests columnless bulk insert into a new table from a collected result of 'SELECT *'"""
     table_name_source = Utils.random_name_for_temp_object(TempObjectType.TABLE)
