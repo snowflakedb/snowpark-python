@@ -770,6 +770,12 @@ def test_select_star(session, simplifier_table):
         == f'SELECT "B" FROM ( SELECT *, "A" FROM ( SELECT  *  FROM {simplifier_table}))'
     )
 
+    df6 = df4.select("b")
+    assert (
+        df6.queries["queries"][0]
+        == f'SELECT "B" FROM ( SELECT "A","B", "A" FROM ( SELECT  *  FROM {simplifier_table}))'
+    )
+
     with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
         df3.select("a").collect()
 
