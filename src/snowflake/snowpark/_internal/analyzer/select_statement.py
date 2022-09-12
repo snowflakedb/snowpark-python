@@ -336,7 +336,7 @@ class SelectStatement(Selectable):
         new._schema_query = None
         new._column_states = None
         new._snowflake_plan = None
-        new.flatten_disabled = False  # by default a SelectStatment can be flattened.
+        new.flatten_disabled = False  # by default a SelectStatement can be flattened.
         return new
 
     @property
