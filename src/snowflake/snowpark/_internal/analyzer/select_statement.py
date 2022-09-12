@@ -817,6 +817,7 @@ def derive_column_states_from_subquery(
     for c in cols:
         if isinstance(c, UnresolvedAlias) and isinstance(c.child, Star):
             if c.child.expressions:
+                # df.select(df["*"]) will have child expressions. df.select("*") doesn't.
                 columns_from_star = map(analyzer.analyze, c.child.expressions)
             else:
                 columns_from_star = from_.column_states.projection
