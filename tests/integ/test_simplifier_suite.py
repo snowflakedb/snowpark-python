@@ -15,7 +15,15 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
 )
 from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, sql_expr, table_function, udtf
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    lit,
+    sql_expr,
+    sum as sum_,
+    table_function,
+    udtf,
+)
 from tests.utils import TestData, Utils
 
 if not _use_sql_simplifier:
@@ -648,6 +656,87 @@ def test_filter_order_limit_together(session, simplifier_table):
         df2.queries["queries"][-1]
         == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1 :: INT) ORDER BY "A" ASC NULLS FIRST LIMIT 5)'
     )
+
+
+def test_agg(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.agg([avg("a")]).select("AVG(A)").select("AVG(A)").select("AVG(A)")
+    Utils.check_answer(df1, [Row(1)])
+    assert df1.queries["queries"][0].count("SELECT") == 3
+    df1 = (
+        df.select("a")
+        .select("a")
+        .select("a")
+        .agg([avg("a")])
+        .select("AVG(A)")
+        .select("AVG(A)")
+        .select("AVG(A)")
+    )
+    Utils.check_answer(df1, [Row(1)])
+    assert df1.queries["queries"][0].count("SELECT") == 3
+    df1 = df.group_by("a", "b").agg([avg("a")]).select("a").select("a").select("a")
+    Utils.check_answer(df1, [Row(1)])
+    assert df1.queries["queries"][0].count("SELECT") == 3
+
+
+def test_pivot(session):
+    df = (
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount")))
+        .select("EMPID")
+        .select("EMPID")
+        .select("EMPID")
+    )
+    assert df.queries["queries"][0].count("SELECT") == 4
+    df = (
+        TestData.monthly_sales(session)
+        .select("EMPID", "month", "amount")
+        .select("EMPID", "month", "amount")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount")))
+        .select("EMPID")
+        .select("EMPID")
+        .select("EMPID")
+    )
+    assert df.queries["queries"][0].count("SELECT") == 4
+
+
+@pytest.mark.parametrize("func_name", ["cube", "rollup"])
+def test_cube_rollup(session, func_name):
+    df = session.create_dataframe(
+        [
+            ("country A", "state A", 50),
+            ("country A", "state A", 50),
+            ("country A", "state B", 5),
+            ("country A", "state B", 5),
+            ("country B", "state A", 100),
+            ("country B", "state A", 100),
+            ("country B", "state B", 10),
+            ("country B", "state B", 10),
+        ]
+    ).to_df(["country", "state", "value"])
+    func = getattr(df, func_name)
+    df1 = (
+        func("country")
+        .agg(sum_(col("value")))
+        .select("country")
+        .select("country")
+        .select("country")
+    )
+    assert df1.queries["queries"][0].count("SELECT") == 4
+    func = getattr(
+        df.select("country", "state", "value").select("country", "state", "value"),
+        func_name,
+    )
+    df1 = (
+        func("country")
+        .agg(sum_(col("value")))
+        .select("country")
+        .select("country")
+        .select("country")
+    )
+    assert df1.queries["queries"][0].count("SELECT") == 4
 
 
 def test_use_sql_simplifier(session, simplifier_table):
