@@ -699,44 +699,6 @@ def test_use_sql_simplifier(session, simplifier_table):
         context._use_sql_simplifier = True
 
 
-def test_select_star(session, simplifier_table):
-    df = session.table(simplifier_table)
-    df1 = df.select("*")
-    assert df1.queries["queries"][0] == f"SELECT  *  FROM {simplifier_table}"
-
-    df2 = df.select(df["*"])  # no flatten
-    assert (
-        df2.queries["queries"][0]
-        == f'SELECT "A","B" FROM ( SELECT  *  FROM {simplifier_table})'
-    )
-
-    df3 = df.select("*", "a")
-    assert (
-        df3.queries["queries"][0]
-        == f'SELECT *, "A" FROM ( SELECT  *  FROM {simplifier_table})'
-    )
-
-    df4 = df.select(df["*"], "a")
-    assert (
-        df4.queries["queries"][0]
-        == f'SELECT "A","B", "A" FROM ( SELECT  *  FROM {simplifier_table})'
-    )
-
-    df5 = df3.select("b")
-    assert (
-        df5.queries["queries"][0]
-        == f'SELECT "B" FROM ( SELECT *, "A" FROM ( SELECT  *  FROM {simplifier_table}))'
-    )
-
-    with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
-        df3.select("a").collect()
-
-    with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
-        df4.select("a").collect()
-
-    # tests/integ/scala/test_dataframe_join_suite.py has tests of join and select *. We don't repeat those tests here.
-
-
 def test_join_dataframes(session, simplifier_table):
     df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
@@ -793,3 +755,45 @@ def test_unpivot(session, simplifier_table):
         .select((col("sales") + 1).as_("sales"))
     )
     assert df2.queries["queries"][-1].count("SELECT") == 6
+
+
+def test_select_star(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.select("*")
+    assert df1.queries["queries"][0] == f"SELECT  *  FROM {simplifier_table}"
+
+    df2 = df.select(df["*"])  # no flatten
+    assert (
+        df2.queries["queries"][0]
+        == f'SELECT "A","B" FROM ( SELECT  *  FROM {simplifier_table})'
+    )
+
+    df3 = df.select("*", "a")
+    assert (
+        df3.queries["queries"][0]
+        == f'SELECT *, "A" FROM ( SELECT  *  FROM {simplifier_table})'
+    )
+
+    df4 = df.select(df["*"], "a")
+    assert (
+        df4.queries["queries"][0]
+        == f'SELECT "A","B", "A" FROM ( SELECT  *  FROM {simplifier_table})'
+    )
+
+    df5 = df3.select("b")
+    assert (
+        df5.queries["queries"][0]
+        == f'SELECT "B" FROM ( SELECT *, "A" FROM ( SELECT  *  FROM {simplifier_table}))'
+    )
+
+    df6 = df4.select("b")
+    assert (
+        df6.queries["queries"][0]
+        == f'SELECT "B" FROM ( SELECT "A","B", "A" FROM ( SELECT  *  FROM {simplifier_table}))'
+    )
+
+    with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
+        df3.select("a").collect()
+
+    with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
+        df4.select("a").collect()
