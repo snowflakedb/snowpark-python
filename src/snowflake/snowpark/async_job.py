@@ -48,7 +48,9 @@ class AsyncJob:
             >>> async_job.result()
             [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
 
+
         You can also do::
+
             >>> async_job = df.collect(block=False)
             >>> async_job.result()
             [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
@@ -142,9 +144,9 @@ class AsyncJob:
         **kwargs,
     ) -> None:
         #: The query ID of the executed query
-        self.query_id = query_id
+        self.query_id: str = query_id
         #: The SQL text of of the executed query
-        self.query = query
+        self.query: str = query
         self._conn = server_connection._conn
         self._cursor = self._conn.cursor()
         self._data_type = data_type
@@ -157,9 +159,9 @@ class AsyncJob:
         self._plan = None
 
     def is_done(self) -> bool:
-        """Checks the status of the query associated with this instance and returns a bool value indicating whether the query has
-        finished.
-
+        """
+        Checks the status of the query associated with this instance and returns a bool value
+        indicating whether the query has finished.
         """
         status = self._conn.get_query_status(self.query_id)
         is_running = self._conn.is_still_running(status)
@@ -200,7 +202,8 @@ class AsyncJob:
             )
 
     def result(self) -> Union[List[Row], "pandas.DataFrame", Iterator[Row], int, None]:
-        """Blocks and waits until the query associated with this instance finishes, then returns query results, this
+        """
+        Blocks and waits until the query associated with this instance finishes, then returns query results, this
         functions acts like execute query in a synchronous way. The data type of returned results is determined by how
         you create this :class:`AsyncJob` instance. For example, if this instance is returned by
         :meth:`DataFrame.collect_nowait`, you will get a list of :class:`Row` s from this method.

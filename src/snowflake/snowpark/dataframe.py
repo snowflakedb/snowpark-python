@@ -481,7 +481,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
 
         See also:
             :meth:`collect_nowait()`
@@ -496,7 +496,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> AsyncJob:
-        """Executes the query representing this DataFrame asynchronously and returns: class:'AsyncJob'.
+        """Executes the query representing this DataFrame asynchronously and returns: class:`AsyncJob`.
         It is equivalent to ``collect(block=False)``.
 
         Args:
@@ -564,7 +564,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
         """
         return self._session._conn.execute(
             self._plan,
@@ -595,7 +595,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -2209,7 +2209,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
         """
         df = self.agg(("*", "count"))
         add_api_call(df, "DataFrame.count")
@@ -2691,7 +2691,7 @@ class DataFrame:
         Args:
             n: The number of rows to return.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
 
         Returns:
              A list of the first ``n`` :class:`Row` objects if ``n`` is not ``None``. If ``n`` is negative or

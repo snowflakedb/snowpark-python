@@ -104,7 +104,7 @@ class DataFrameWriter:
                         and ``transient``. An empty string means to create a permanent table. Learn more about table
                         types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
 
         Examples::
 
@@ -188,7 +188,7 @@ class DataFrameWriter:
             header: Specifies whether to include the table column headings in the output files.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns a :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
 
         Returns:
             A list of :class:`Row` objects containing unloading results.
