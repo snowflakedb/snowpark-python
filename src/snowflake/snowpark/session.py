@@ -1425,8 +1425,7 @@ class Session:
             df = DataFrame(self, SnowflakeValues(attrs, converted)).select(
                 project_columns
             )
-            # Get rid of the select statement api call here
-            set_api_call_source(df, "Session.create_dataframe[values]")
+        set_api_call_source(df, "Session.create_dataframe[values]")
         return df
 
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:

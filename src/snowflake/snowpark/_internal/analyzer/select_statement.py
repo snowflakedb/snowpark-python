@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict
 from copy import copy
 from enum import Enum
-from typing import TYPE_CHECKING, Iterable, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -140,7 +140,11 @@ class ColumnStateDict(UserDict):
 class Selectable(LogicalPlan, ABC):
     """The parent abstract class of a DataFrame's logical plan. It can be converted to and from a SnowflakePlan."""
 
-    def __init__(self, analyzer: "Analyzer") -> None:
+    def __init__(
+        self,
+        analyzer: "Analyzer",
+        api_calls: Optional[List[Dict]] = None,
+    ) -> None:
         super().__init__()
         self.analyzer = analyzer
         self.pre_actions: Optional[List["Query"]] = None
@@ -149,6 +153,7 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
+        self._api_calls = api_calls
 
     @property
     @abstractmethod
@@ -172,6 +177,16 @@ class Selectable(LogicalPlan, ABC):
         return self
 
     @property
+    def api_calls(self):
+        return self._api_calls if self._api_calls is not None else []
+
+    @api_calls.setter
+    def api_calls(self, value) -> None:
+        self._api_calls = value
+        if self._snowflake_plan:
+            self._snowflake_plan.api_calls = value
+
+    @property
     def snowflake_plan(self):
         """Convert to a SnowflakePlan"""
         if self._snowflake_plan is None:
@@ -183,6 +198,7 @@ class Selectable(LogicalPlan, ABC):
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
+                api_calls=self.api_calls,
             )
         return self._snowflake_plan
 
@@ -277,6 +293,7 @@ class SelectSnowflakePlan(Selectable):
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
+        self._api_calls = self._snowflake_plan.api_calls
 
     @property
     def snowflake_plan(self):
@@ -319,6 +336,7 @@ class SelectStatement(Selectable):
         self._schema_query = None
         self._projection_in_str = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
+        self._api_calls = self.from_.api_calls.copy()
 
     def __copy__(self):
         new = SelectStatement(
@@ -337,6 +355,7 @@ class SelectStatement(Selectable):
         new._column_states = None
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
+        new.api_calls = self.api_calls.copy()
         return new
 
     @property
