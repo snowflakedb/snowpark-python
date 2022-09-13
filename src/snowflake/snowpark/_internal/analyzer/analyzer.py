@@ -75,6 +75,7 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
 )
+from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
     SnowflakePlanBuilder,
@@ -415,22 +416,26 @@ class Analyzer:
         for c in logical_plan.children:
             resolved_children[c] = self.resolve(c)
 
-        use_maps = {}
-        # get counts of expr_to_alias keys
-        counts = Counter()
-        for v in resolved_children.values():
-            if v.expr_to_alias:
-                counts.update(list(v.expr_to_alias.keys()))
+        if isinstance(logical_plan, Selectable):
+            # Selectable doesn't have children. It already has the expr_to_alias dict.
+            self.alias_maps_to_use = logical_plan.expr_to_alias
+        else:
+            use_maps = {}
+            # get counts of expr_to_alias keys
+            counts = Counter()
+            for v in resolved_children.values():
+                if v.expr_to_alias:
+                    counts.update(list(v.expr_to_alias.keys()))
 
-        # Keep only non-shared expr_to_alias keys
-        # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
-        for v in resolved_children.values():
-            if v.expr_to_alias:
-                use_maps.update(
-                    {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
-                )
+            # Keep only non-shared expr_to_alias keys
+            # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
+            for v in resolved_children.values():
+                if v.expr_to_alias:
+                    use_maps.update(
+                        {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
+                    )
 
-        self.alias_maps_to_use = use_maps
+            self.alias_maps_to_use = use_maps
         return self.do_resolve_with_resolved_children(logical_plan, resolved_children)
 
     def do_resolve_with_resolved_children(
@@ -552,6 +557,7 @@ class Analyzer:
         if isinstance(logical_plan, SnowflakeCreateTable):
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
+                logical_plan.column_names,
                 logical_plan.mode,
                 logical_plan.table_type,
                 resolved_children[logical_plan.children[0]],
@@ -611,6 +617,13 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
+            if logical_plan.format_type_options is None:
+                format_type_options = dict()
+            else:
+                format_type_options = logical_plan.format_type_options.copy()
+            format_name = logical_plan.cur_options.get("FORMAT_NAME")
+            if format_name is not None:
+                format_type_options["FORMAT_NAME"] = format_name
             if logical_plan.table_name:
                 return self.plan_builder.copy_into_table(
                     path=logical_plan.file_path,
@@ -618,7 +631,7 @@ class Analyzer:
                     files=logical_plan.files,
                     pattern=logical_plan.pattern,
                     file_format=logical_plan.file_format,
-                    format_type_options=logical_plan.format_type_options,
+                    format_type_options=format_type_options,
                     copy_options=logical_plan.copy_options,
                     validation_mode=logical_plan.validation_mode,
                     column_names=logical_plan.column_names,
@@ -698,3 +711,6 @@ class Analyzer:
                 self.analyze(logical_plan.join_expr),
                 [self.analyze(c) for c in logical_plan.clauses],
             )
+
+        if isinstance(logical_plan, Selectable):
+            return self.plan_builder.select_statement(logical_plan)

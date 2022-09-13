@@ -6,8 +6,14 @@
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.functions import col, lit, max as max_, mean
 from tests.utils import TestData
+
+if _use_sql_simplifier:
+    pytest.skip(
+        "SQL Simplifier:  add telemetry into SelectStatement", allow_module_level=True
+    )
 
 
 def test_basic_api_calls(session):

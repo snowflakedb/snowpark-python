@@ -8,8 +8,11 @@ import zipfile
 import pytest
 
 from snowflake.snowpark._internal.utils import (
+    SCOPED_TEMPORARY_STRING,
+    TEMPORARY_STRING,
     calculate_checksum,
     get_stage_file_prefix_length,
+    get_temp_type_for_object,
     get_udf_upload_prefix,
     normalize_path,
     unwrap_stage_location_single_quote,
@@ -232,6 +235,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/testCSV.csv",
                 "resources/testCSVcolon.csv",
                 "resources/testCSVquotes.csv",
+                "resources/testCSVspecialFormat.csv",
+                "resources/testJSONspecialFormat.json.gz",
                 "resources/testJson.json",
                 "resources/test_all_data_types.parquet",
                 "resources/test_file_with_special_characters.parquet",
@@ -351,3 +356,22 @@ def test_get_stage_file_prefix_length():
 
     tableStage = "db.schema.%table/dir"  # dir/
     assert get_stage_file_prefix_length(tableStage) == 4
+
+
+def test_use_scoped_temporary():
+    assert (
+        get_temp_type_for_object(use_scoped_temp_objects=True, is_generated=False)
+        == TEMPORARY_STRING
+    )
+    assert (
+        get_temp_type_for_object(use_scoped_temp_objects=True, is_generated=True)
+        == SCOPED_TEMPORARY_STRING
+    )
+    assert (
+        get_temp_type_for_object(use_scoped_temp_objects=False, is_generated=True)
+        == TEMPORARY_STRING
+    )
+    assert (
+        get_temp_type_for_object(use_scoped_temp_objects=False, is_generated=False)
+        == TEMPORARY_STRING
+    )

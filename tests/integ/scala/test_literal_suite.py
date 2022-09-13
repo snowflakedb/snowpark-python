@@ -5,10 +5,11 @@
 import datetime
 from decimal import Decimal
 
-from snowflake.snowpark import Column
+from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import DecimalType
+from tests.utils import Utils
 
 
 def test_literal_basic_types(session):
@@ -157,4 +158,48 @@ def test_special_decimal_literals(session):
 |0.100000000000000000       |0.00001                      |
 -----------------------------------------------------------
 """
+    )
+
+
+def test_array_object(session):
+    df = (
+        session.range(1)
+        .with_column("list1", lit([1, 2, 3]))
+        .with_column("list2", lit([]))
+        .with_column("list3", lit([1, "1", 2.5, None]))
+        .with_column("tuple1", lit((1, 2, 3)))
+        .with_column("tuple2", lit(()))
+        .with_column("tuple3", lit((1, "1", 2.5, None)))
+        .with_column("dict1", lit({"1": 2.5, "'": "null", '"': None}))
+        .with_column("dict2", lit({}))
+        .with_column("dict3", lit({"a": [1, "'"], "b": {1: None}}))
+    )
+
+    field_str = str(df.schema.fields)
+    assert (
+        field_str == "[StructField('ID', LongType(), nullable=False), "
+        "StructField('LIST1', ArrayType(StringType()), nullable=True), "
+        "StructField('LIST2', ArrayType(StringType()), nullable=True), "
+        "StructField('LIST3', ArrayType(StringType()), nullable=True), "
+        "StructField('TUPLE1', ArrayType(StringType()), nullable=True), "
+        "StructField('TUPLE2', ArrayType(StringType()), nullable=True), "
+        "StructField('TUPLE3', ArrayType(StringType()), nullable=True), "
+        "StructField('DICT1', MapType(StringType(), StringType()), nullable=True), "
+        "StructField('DICT2', MapType(StringType(), StringType()), nullable=True), "
+        "StructField('DICT3', MapType(StringType(), StringType()), nullable=True)]"
+    )
+    Utils.check_answer(
+        df,
+        Row(
+            ID=0,
+            LIST1="[\n  1,\n  2,\n  3\n]",
+            LIST2="[]",
+            LIST3='[\n  1,\n  "1",\n  2.5,\n  null\n]',
+            TUPLE1="[\n  1,\n  2,\n  3\n]",
+            TUPLE2="[]",
+            TUPLE3='[\n  1,\n  "1",\n  2.5,\n  null\n]',
+            DICT1='{\n  "\\"": null,\n  "\'": "null",\n  "1": 2.5\n}',
+            DICT2="{}",
+            DICT3='{\n  "a": [\n    1,\n    "\'"\n  ],\n  "b": {\n    "1": null\n  }\n}',
+        ),
     )

@@ -10,7 +10,10 @@ import string
 import pytest
 
 from snowflake.snowpark._internal.utils import is_in_stored_procedure
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.exceptions import (
+    SnowparkSQLException,
+    SnowparkUploadFileException,
+)
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 
@@ -56,6 +59,19 @@ def path3(temp_source_directory):
     file = temp_source_directory.join(f"file_3_{Utils.random_alphanumeric_str(10)}.csv")
     file.write_text("abc, 123,\n", encoding="UTF-8")
     yield str(file)
+
+
+@pytest.fixture(scope="module")
+def path4(temp_source_directory):
+    import gzip
+
+    file = temp_source_directory.join(
+        f"file_4_{Utils.random_alphanumeric_str(10)}.csv.gz"
+    )
+    filename = str(file)
+    with gzip.open(filename, "wb") as f:
+        f.write(b"abc, 123,\n")
+    yield filename
 
 
 @pytest.fixture(scope="module")
@@ -217,6 +233,112 @@ def test_put_negative(session, temp_stage, temp_source_directory, path1):
     with pytest.raises(SnowparkSQLException) as stage_not_exist_info:
         session.file.put(f"file://{path1}", "@NOT_EXIST_STAGE_NAME_TEST")
     assert "does not exist or not authorized." in str(stage_not_exist_info)
+
+
+def test_put_stream_with_one_file(session, temp_stage, path1, path2, path3, path4):
+    stage_prefix = f"prefix_{random_alphanumeric_name()}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
+    file_name = os.path.basename(path1)
+    with open(path1, "rb") as fd:
+        first_result = session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+    assert first_result.source == file_name
+    assert first_result.target == file_name + ".gz"
+    assert first_result.source_size is not None
+    assert first_result.target_size is not None
+    assert first_result.source_compression == "NONE"
+    assert first_result.target_compression == "GZIP"
+    assert first_result.status == "UPLOADED"
+    assert first_result.message == ""
+
+    file_name = os.path.basename(path2)
+    with open(path2, "rb") as fd:
+        second_result = session.file.put_stream(
+            fd, f"{stage_with_prefix}/{file_name}", auto_compress=False
+        )
+    assert second_result.source == file_name
+    assert second_result.target == file_name
+    assert second_result.source_size is not None
+    assert second_result.target_size is not None
+    assert second_result.source_compression == "NONE"
+    assert second_result.target_compression == "NONE"
+    assert second_result.status == "UPLOADED"
+    assert second_result.message == ""
+
+    # PUT file at path3 without "@" in stageLocation
+    file_name = os.path.basename(path3)
+    with open(path3, "rb") as fd:
+        third_result = session.file.put_stream(
+            fd, f"{temp_stage}/{stage_prefix}/{file_name}"
+        )
+    assert third_result.source == file_name
+    assert third_result.target == file_name + ".gz"
+    assert third_result.source_size is not None
+    assert third_result.target_size is not None
+    assert third_result.source_compression == "NONE"
+    assert third_result.target_compression == "GZIP"
+    assert third_result.status == "UPLOADED"
+    assert third_result.message == ""
+
+    # test auto_detect to gzip
+    file_name = os.path.basename(path4)
+    with open(path4, "rb") as fd:
+        fourth_result = session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+    assert fourth_result.source == file_name
+    assert fourth_result.target == file_name
+    assert fourth_result.source_size is not None
+    assert fourth_result.target_size is not None
+    assert fourth_result.source_compression == "GZIP"
+    assert fourth_result.target_compression == "GZIP"
+    assert fourth_result.status == "UPLOADED"
+    assert fourth_result.message == ""
+
+
+def test_put_stream_with_one_file_twice(session, temp_stage, path1):
+    stage_prefix = f"prefix_{random_alphanumeric_name()}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
+    file_name = os.path.basename(path1)
+    fd = open(path1, "rb")
+    session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+
+    # put same file again
+    second_result = session.file.put_stream(
+        fd, f"{stage_with_prefix}/{file_name}", overwrite=False
+    )
+    fd.close()
+    assert second_result.source == os.path.basename(path1)
+    assert second_result.target == os.path.basename(path1) + ".gz"
+    # On GCP, the files are not skipped if target file already exists
+    assert second_result.source_size in (10, 11)
+    assert second_result.target_size in (0, 32)
+    assert second_result.source_compression == "NONE"
+    assert second_result.target_compression == "GZIP"
+    assert second_result.status in ("SKIPPED", "UPLOADED")
+    assert second_result.message == ""
+
+
+def test_put_stream_negative(session, temp_stage, path1):
+    stage_prefix = f"prefix_{random_alphanumeric_name()}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
+    file_name = os.path.basename(path1)
+    fd = open(path1, "rb")
+
+    with pytest.raises(ValueError) as ex_info:
+        session.file.put_stream(fd, "")
+    assert "stage_location cannot be empty" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        session.file.put_stream(fd, stage_with_prefix + "/")
+    assert "stage_location should end with target filename" in str(ex_info)
+
+    fd.close()
+    if is_in_stored_procedure():
+        with pytest.raises(ValueError) as ex_info:
+            session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+        assert "seek of closed file" in str(ex_info)
+    else:
+        with pytest.raises(SnowparkUploadFileException) as ex_info:
+            session.file.put_stream(fd, f"{stage_with_prefix}/{file_name}")
+        assert ex_info.value.error_code == "1408"
 
 
 @pytest.mark.parametrize("with_file_prefix", [True, False])

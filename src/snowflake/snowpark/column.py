@@ -710,7 +710,7 @@ class Column:
 
     @classmethod
     def _expr(cls, e: str) -> "Column":
-        return cls(UnresolvedAttribute(e))
+        return cls(UnresolvedAttribute(e, is_sql_text=True))
 
     # Add these alias for user code migration
     isin = in_

@@ -109,6 +109,30 @@ def test_project_null_values(session):
     assert df2.collect() == [Row(None), Row(None)]
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
+def test_bulk_insert_from_collected_result(session):
+    """Tests columnless bulk insert into a new table from a collected result of 'SELECT *'"""
+    table_name_source = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name_copied = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    source_df = session.create_dataframe(
+        [
+            [Utils.random_alphanumeric_str(230), Utils.random_alphanumeric_str(230)]
+            for _ in range(1000)
+        ],
+        schema=["a", "b"],
+    )
+    try:
+        source_df.write.save_as_table(table_name_source)
+        results = session.sql(f"select * from {table_name_source}").collect()
+        new_df = session.create_dataframe(results)
+        new_df.write.save_as_table(table_name_copied)
+        Utils.check_answer(session.table(table_name_source), source_df, True)
+        Utils.check_answer(session.table(table_name_copied), source_df, True)
+    finally:
+        Utils.drop_table(session, table_name_source)
+        Utils.drop_table(session, table_name_copied)
+
+
 def test_write_null_data_to_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, None), (2, None), (3, None)]).to_df("a", "b")

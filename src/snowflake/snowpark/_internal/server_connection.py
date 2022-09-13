@@ -122,6 +122,7 @@ class ServerConnection:
                             func.__name__, duration, sfqid
                         )
                     logger.debug(f"Finished in {duration:.4f} secs")
+                    return result
 
                 return wrap
 
@@ -256,6 +257,7 @@ class ServerConnection:
         compress_data: bool = True,
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
+        is_in_udf: bool = False,
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
@@ -290,9 +292,14 @@ class ServerConnection:
         # https://docs.python.org/3/library/io.html#io.IOBase.close
         except ValueError as ex:
             if input_stream.closed:
-                raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
-                    dest_filename
-                )
+                if is_in_udf:
+                    raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
+                        dest_filename
+                    )
+                else:
+                    raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
+                        dest_filename
+                    )
             else:
                 raise ex
 
@@ -452,10 +459,11 @@ class ServerConnection:
         # with qmark, Python data type will be dynamically mapped to Snowflake data type
         # https://docs.snowflake.com/en/user-guide/python-connector-api.html#data-type-mappings-for-qmark-and-numeric-bindings
         params = [list(row) for row in rows]
+        statement_params = kwargs.get("_statement_params")
         query_tag = (
-            kwargs["_statement_params"]["QUERY_TAG"]
-            if "_statement_params" in kwargs
-            and "QUERY_TAG" in kwargs["_statement_params"]
+            statement_params["QUERY_TAG"]
+            if statement_params is not None
+            and "QUERY_TAG" in statement_params
             and not is_in_stored_procedure()
             else None
         )

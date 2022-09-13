@@ -7,12 +7,13 @@ import decimal
 import json
 import logging
 import os
+import warnings
 from array import array
 from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Literal, Optional, Set, Tuple, Union
 
 import cloudpickle
 import pkg_resources
@@ -27,6 +28,12 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql, to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSnowflakePlan,
+    SelectSQL,
+    SelectStatement,
+    SelectTableFunction,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Range,
@@ -48,6 +55,7 @@ from snowflake.snowpark._internal.type_utils import (
 from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
+    SUPPORTED_TABLE_TYPES,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -56,6 +64,7 @@ from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
     get_stage_file_prefix_length,
+    get_temp_type_for_object,
     get_version,
     is_in_stored_procedure,
     normalize_remote_file_or_dir,
@@ -67,6 +76,7 @@ from snowflake.snowpark._internal.utils import (
     zip_file_or_directory_to_stream,
 )
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.context import _use_scoped_temp_objects
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
@@ -112,6 +122,9 @@ _logger = getLogger(__name__)
 
 _session_management_lock = RLock()
 _active_sessions: Set["Session"] = set()
+_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
+    "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
+)
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -247,6 +260,17 @@ class Session:
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
         self._last_canceled_id = 0
+        # consider making _session_parameters check a helpful function
+        self._use_scoped_temp_objects = bool(
+            _use_scoped_temp_objects
+            and (
+                conn._conn._session_parameters.get(
+                    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
+                )
+                if conn._conn._session_parameters
+                else True
+            )
+        )
 
         self._file = FileOperation(self)
 
@@ -258,6 +282,13 @@ class Session:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    def __str__(self):
+        return (
+            f"<{self.__class__.__module__}.{self.__class__.__name__}: account={self.get_current_account()}, "
+            f"role={self.get_current_role()}, database={self.get_current_database()}, "
+            f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
+        )
 
     def _generate_new_action_id(self) -> int:
         self._last_action_id += 1
@@ -500,6 +531,7 @@ class Session:
                                 source_compression="DEFLATE",
                                 compress_data=False,
                                 overwrite=True,
+                                is_in_udf=True,
                             )
                     # local file
                     else:
@@ -696,7 +728,6 @@ class Session:
     ) -> List[str]:
         package_dict = dict()
         for package in packages:
-            use_local_version = False
             if isinstance(package, ModuleType):
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
@@ -705,8 +736,13 @@ class Session:
                 use_local_version = True
             else:
                 package = package.strip().lower()
-            # get the standard package name
-            package_name = pkg_resources.Requirement.parse(package).key
+                use_local_version = False
+            # get the standard package name if there is no underscore
+            # underscores are discouraged in package names, but are still used in Anaconda channel
+            # pkg_resources.Requirement.parse will convert all underscores to dashes
+            package_name = (
+                package if not use_local_version and "_" in package else package_req.key
+            )
             package_dict[package] = (package_name, use_local_version)
 
         valid_packages = (
@@ -925,10 +961,22 @@ class Session:
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
-        d = DataFrame(
-            self,
-            TableFunctionRelation(func_expr),
-        )
+
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            d = DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
+                    analyzer=self._analyzer,
+                ),
+            )
+        else:
+            d = DataFrame(
+                self,
+                TableFunctionRelation(func_expr),
+            )
         set_api_call_source(d, f"Session.table_function[{func_expr.func_name}]")
         return d
 
@@ -949,6 +997,17 @@ class Session:
             >>> df.collect()
             [Row(1/2=Decimal('0.500000'))]
         """
+
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            return DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectSQL(query, analyzer=self._analyzer),
+                    analyzer=self._analyzer,
+                ),
+            )
         return DataFrame(
             self,
             self._plan_builder.query(
@@ -982,7 +1041,8 @@ class Session:
         )
         if not self._stage_created:
             self._run_query(
-                f"create temporary stage if not exists {qualified_stage_name}",
+                f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
+                stage if not exists {qualified_stage_name}",
                 is_ddl_on_temp_object=True,
             )
             self._stage_created = True
@@ -1002,6 +1062,8 @@ class Session:
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
         create_temp_table: bool = False,
+        overwrite: bool = False,
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> Table:
         """Writes a pandas DataFrame to a table in Snowflake and returns a
         Snowpark :class:`DataFrame` object referring to the table where the
@@ -1027,17 +1089,45 @@ class Session:
                 would allow you to upload a particular pandas DataFrame successfully. If you don't like the auto created
                 table, you can always create your own table before calling this function. For example, auto-created
                 tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
-            create_temp_table: The to-be-created table will be temporary if this is set to ``True``.
+            create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``. Note
+                that to avoid breaking changes, currently when this is set to True, it overrides ``table_type``.
+            overwrite: Default value is ``False`` and the Pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
+                then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
+                then it truncates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
+                contents of the table with that of the passed in Pandas DataFrame.
+            table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
+                        and ``transient``. An empty string means to create a permanent table. Learn more about table
+                        types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
 
         Example::
 
             >>> import pandas as pd
             >>> pandas_df = pd.DataFrame([(1, "Steve"), (2, "Bob")], columns=["id", "name"])
-            >>> snowpark_df = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=True, create_temp_table=True)
+            >>> snowpark_df = session.write_pandas(pandas_df, "write_pandas_table", auto_create_table=True, table_type="temp")
             >>> snowpark_df.to_pandas()
                id   name
             0   1  Steve
             1   2    Bob
+
+            >>> pandas_df2 = pd.DataFrame([(3, "John")], columns=["id", "name"])
+            >>> snowpark_df2 = session.write_pandas(pandas_df2, "write_pandas_table", auto_create_table=False)
+            >>> snowpark_df2.to_pandas()
+               id   name
+            0   1  Steve
+            1   2    Bob
+            2   3   John
+
+            >>> pandas_df3 = pd.DataFrame([(1, "Jane")], columns=["id", "name"])
+            >>> snowpark_df3 = session.write_pandas(pandas_df3, "write_pandas_table", auto_create_table=False, overwrite=True)
+            >>> snowpark_df3.to_pandas()
+               id  name
+            0   1  Jane
+
+            >>> pandas_df4 = pd.DataFrame([(1, "Jane")], columns=["id", "name"])
+            >>> snowpark_df4 = session.write_pandas(pandas_df4, "write_pandas_transient_table", auto_create_table=True, table_type="transient")
+            >>> snowpark_df4.to_pandas()
+               id  name
+            0   1  Jane
 
         Note:
             Unless ``auto_create_table`` is ``True``, you must first create a table in
@@ -1045,6 +1135,21 @@ class Session:
             your pandas DataFrame cannot be written to the specified table, an
             exception will be raised.
         """
+        if create_temp_table:
+            warnings.warn(
+                "create_temp_table is deprecated. We still respect this parameter when it is True but "
+                'please consider using `table_type="temporary"` instead.',
+                DeprecationWarning,
+                # warnings.warn -> write_pandas
+                stacklevel=2,
+            )
+            table_type = "temporary"
+
+        if table_type and table_type.lower() not in SUPPORTED_TABLE_TYPES:
+            raise ValueError(
+                f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
+            )
+
         success = None  # forward declaration
         try:
             if quote_identifiers:
@@ -1071,7 +1176,8 @@ class Session:
                 parallel=parallel,
                 quote_identifiers=quote_identifiers,
                 auto_create_table=auto_create_table,
-                create_temp_table=create_temp_table,
+                overwrite=overwrite,
+                table_type=table_type,
             )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
@@ -1133,7 +1239,7 @@ class Session:
             [Row(A=1, B=2), Row(A=3, B=4)]
             >>> session.create_dataframe([Row(a=1, b=2, c=3, d=4)]).collect()
             [Row(A=1, B=2, C=3, D=4)]
-            >>> session.createDataFrame([{"a": 1}, {"b": 2}]).collect()
+            >>> session.create_dataframe([{"a": 1}, {"b": 2}]).collect()
             [Row(A=1, B=None), Row(A=None, B=2)]
 
             >>> # create a dataframe from a pandas Dataframe
@@ -1205,7 +1311,7 @@ class Session:
                 if not row:
                     row = [None]
                 elif getattr(row, "_fields", None):  # Row or namedtuple
-                    row_dict = row.asDict() if isinstance(row, Row) else row._asdict()
+                    row_dict = row.as_dict() if isinstance(row, Row) else row._asdict()
             elif isinstance(row, dict):
                 row_dict = row.copy()
             else:
@@ -1213,6 +1319,7 @@ class Session:
 
             if row_dict:
                 # fill None if the key doesn't exist
+                row_dict = {quote_name(k): v for k, v in row_dict.items()}
                 return [row_dict.get(name) for name in names]
             else:
                 # check the length of every row, which should be same across data
@@ -1226,16 +1333,14 @@ class Session:
                 return list(row)
 
         # always overwrite the column names if they are provided via schema
-        if names:
-            for i, name in enumerate(names):
-                new_schema.fields[i].name = name
-        else:
+        if not names:
             names = [f.name for f in new_schema.fields]
-        rows = [convert_row_to_list(row, names) for row in data]
+        quoted_names = [quote_name(name) for name in names]
+        rows = [convert_row_to_list(row, quoted_names) for row in data]
 
         # get attributes and data types
         attrs, data_types = [], []
-        for field in new_schema.fields:
+        for field, quoted_name in zip(new_schema.fields, quoted_names):
             sf_type = (
                 StringType()
                 if isinstance(
@@ -1252,7 +1357,7 @@ class Session:
                 )
                 else field.datatype
             )
-            attrs.append(Attribute(quote_name(field.name), sf_type, field.nullable))
+            attrs.append(Attribute(quoted_name, sf_type, field.nullable))
             data_types.append(field.datatype)
 
         # convert all variant/time/geography/array/map data to string
@@ -1298,41 +1403,50 @@ class Session:
 
         # construct a project statement to convert string value back to variant
         project_columns = []
-        for field in new_schema.fields:
+        for field, name in zip(new_schema.fields, names):
             if isinstance(field.datatype, DecimalType):
                 project_columns.append(
                     to_decimal(
-                        column(field.name),
+                        column(name),
                         field.datatype.precision,
                         field.datatype.scale,
-                    ).as_(field.name)
+                    ).as_(name)
                 )
             elif isinstance(field.datatype, TimestampType):
-                project_columns.append(to_timestamp(column(field.name)).as_(field.name))
+                project_columns.append(to_timestamp(column(name)).as_(name))
             elif isinstance(field.datatype, TimeType):
-                project_columns.append(to_time(column(field.name)).as_(field.name))
+                project_columns.append(to_time(column(name)).as_(name))
             elif isinstance(field.datatype, DateType):
-                project_columns.append(to_date(column(field.name)).as_(field.name))
+                project_columns.append(to_date(column(name)).as_(name))
             elif isinstance(field.datatype, VariantType):
-                project_columns.append(
-                    to_variant(parse_json(column(field.name))).as_(field.name)
-                )
+                project_columns.append(to_variant(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, GeographyType):
-                project_columns.append(to_geography(column(field.name)).as_(field.name))
+                project_columns.append(to_geography(column(name)).as_(name))
             elif isinstance(field.datatype, ArrayType):
-                project_columns.append(
-                    to_array(parse_json(column(field.name))).as_(field.name)
-                )
+                project_columns.append(to_array(parse_json(column(name))).as_(name))
             elif isinstance(field.datatype, MapType):
-                project_columns.append(
-                    to_object(parse_json(column(field.name))).as_(field.name)
-                )
+                project_columns.append(to_object(parse_json(column(name))).as_(name))
             else:
-                project_columns.append(column(field.name))
+                project_columns.append(column(name))
 
-        df = DataFrame(self, SnowflakeValues(attrs, converted)).select(project_columns)
-        # Get rid of the select statement api call here
-        set_api_call_source(df, "Session.create_dataframe[values]")
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            df = DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        SnowflakeValues(attrs, converted), analyzer=self._analyzer
+                    ),
+                    analyzer=self._analyzer,
+                ),
+            ).select(project_columns)
+        else:
+            df = DataFrame(self, SnowflakeValues(attrs, converted)).select(
+                project_columns
+            )
+            # Get rid of the select statement api call here
+            set_api_call_source(df, "Session.create_dataframe[values]")
         return df
 
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
@@ -1360,6 +1474,13 @@ class Session:
         df = DataFrame(self, range_plan)
         set_api_call_source(df, "Session.range")
         return df
+
+    def get_current_account(self) -> Optional[str]:
+        """
+        Returns the name of the current account for the Python connector session attached
+        to this session.
+        """
+        return self._conn._get_current_parameter("account")
 
     def get_current_database(self) -> Optional[str]:
         """
@@ -1485,8 +1606,8 @@ class Session:
     @property
     def udtf(self) -> UDTFRegistration:
         """
-        Returns a :class:`udf.UDTFRegistration` object that you can use to register UDFs.
-        See details of how to use this object in :class:`udf.UDFRegistration`.
+        Returns a :class:`udtf.UDTFRegistration` object that you can use to register UDTFs.
+        See details of how to use this object in :class:`udtf.UDTFRegistration`.
         """
         return self._udtf_registration
 
@@ -1632,7 +1753,41 @@ class Session:
         return query_listener
 
     def _table_exists(self, table_name: str):
-        tables = self._run_query(f"show tables like '{table_name}'")
+        # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
+        validate_object_name(table_name)
+        # note: object name could have dots, e.g, a table could be created via: create table "abc.abc" (id int)
+        # currently validate_object_name does not allow it, but if in the future we want to support the case, we need to
+        # update the implementation accordingly in this method
+        qualified_table_name = table_name.split(".")
+        if len(qualified_table_name) == 1:
+            # name in the form of "table"
+            tables = self._run_query(f"show tables like '{table_name}'")
+        elif len(qualified_table_name) == 2:
+            # name in the form of "schema.table" omitting database
+            # schema: qualified_table_name[0]
+            # table: qualified_table_name[1]
+            tables = self._run_query(
+                f"show tables like '{qualified_table_name[1]}' in schema {qualified_table_name[0]}"
+            )
+        elif len(qualified_table_name) == 3:
+            # name in the form of "database.schema.table"
+            # database: qualified_table_name[0]
+            # schema: qualified_table_name[1]
+            # table: qualified_table_name[2]
+            condition = (
+                f"database {qualified_table_name[0]}"
+                if qualified_table_name[1] == ""
+                else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+            )
+            tables = self._run_query(
+                f"show tables like '{qualified_table_name[2]}' in {condition}"
+            )
+        else:
+            # we do not support len(qualified_table_name) > 3 for now
+            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                table_name
+            )
+
         return tables is not None and len(tables) > 0
 
     def _explain_query(self, query: str) -> Optional[str]:

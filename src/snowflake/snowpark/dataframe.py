@@ -33,6 +33,15 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     Star,
 )
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SET_EXCEPT,
+    SET_INTERSECT,
+    SET_UNION,
+    SET_UNION_ALL,
+    SelectSnowflakePlan,
+    SelectStatement,
+    SelectTableFunction,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
     Limit,
@@ -108,6 +117,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
     _create_table_function_expression,
+    _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
@@ -270,13 +280,12 @@ class DataFrame:
 
     Broadly, the operations on DataFrame can be divided into two types:
 
-    - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that tranformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
+    - **Transformations** produce a new DataFrame from one or more existing DataFrames. Note that transformations are lazy and don't cause the DataFrame to be evaluated. If the API does not provide a method to express the SQL that you want to use, you can use :func:`functions.sqlExpr` as a workaround.
     - **Actions** cause the DataFrame to be evaluated. When you call a method that performs an action, Snowpark sends the SQL query for the DataFrame to the server for evaluation.
 
     **Transforming a DataFrame**
 
-    The following exam
-    ples demonstrate how you can transform a DataFrame.
+    The following examples demonstrate how you can transform a DataFrame.
 
     Example 5
         Using the :func:`select()` method to select the columns that should be in the
@@ -415,7 +424,12 @@ class DataFrame:
         is_cached: bool = False,
     ) -> None:
         self._session = session
-        self._plan = session._analyzer.resolve(plan)
+        self._plan = self._session._analyzer.resolve(plan)
+        if isinstance(plan, SelectStatement):
+            self._select_statement = plan
+            plan.expr_to_alias.update(self._plan.expr_to_alias)
+        else:
+            self._select_statement = None
         self.is_cached: bool = is_cached  #: Whether it is a cached dataframe
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
@@ -683,7 +697,10 @@ class DataFrame:
     @df_api_usage
     def select(
         self,
-        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        *cols: Union[
+            Union[ColumnOrName, TableFunctionCall],
+            Iterable[Union[ColumnOrName, TableFunctionCall]],
+        ],
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -707,25 +724,73 @@ class DataFrame:
 
             >>> df_selected = df.select(df["col1"], df.col2, df.col("col3"))
 
+        Example 5::
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df_selected = df.select(df.col1, split_to_table(df.col2, lit(" ")), df.col("col3")).show()
+            -----------------------------------------------
+            |"COL1"  |"SEQ"  |"INDEX"  |"VALUE"  |"COL3"  |
+            -----------------------------------------------
+            |1       |1      |1        |some     |3       |
+            |1       |1      |2        |string   |3       |
+            |1       |1      |3        |value    |3       |
+            -----------------------------------------------
+            <BLANKLINE>
+
+        Note:
+            A `TableFunctionCall` can be added in `select` when the dataframe results from another join. This is possible because we know
+            the hierarchy in which the joins are applied.
+
         Args:
-            *cols: A :class:`Column`, :class:`str`, or a list of those.
+            *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
+                   :class:`table_function.TableFunctionCall` object is supported within a select call.
         """
         exprs = parse_positional_args_to_list(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
 
         names = []
+        table_func = None
+        join_plan = None
+
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
             elif isinstance(e, str):
                 names.append(Column(e)._named())
+            elif isinstance(e, TableFunctionCall):
+                if table_func:
+                    raise ValueError(
+                        f"At most one table function can be called inside a select(). "
+                        f"Called '{table_func.name}' and '{e.name}'."
+                    )
+                table_func = e
+                func_expr = _create_table_function_expression(func=table_func)
+                join_plan = self._session._analyzer.resolve(
+                    TableFunctionJoin(self._plan, func_expr)
+                )
+                _, new_cols = _get_cols_after_join_table(
+                    func_expr, self._plan, join_plan
+                )
+                names.extend(new_cols)
             else:
                 raise TypeError(
-                    "The input of select() must be Column, column name, or a list of them"
+                    "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
+        if self._select_statement:
+            if join_plan:
+                return self._with_plan(
+                    SelectStatement(
+                        from_=SelectSnowflakePlan(
+                            join_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ).select(names)
+                )
+            return self._with_plan(self._select_statement.select(names))
 
-        return self._with_plan(Project(names, self._plan))
+        return self._with_plan(Project(names, join_plan or self._plan))
 
     @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
@@ -839,6 +904,12 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.filter(
+                    _to_col_if_sql_expr(expr, "filter/where")._expression
+                )
+            )
         return self._with_plan(
             Filter(
                 _to_col_if_sql_expr(expr, "filter/where")._expression,
@@ -935,6 +1006,8 @@ class DataFrame:
                     SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
+        if self._select_statement:
+            return self._with_plan(self._select_statement.sort(sort_exprs))
         return self._with_plan(Sort(sort_exprs, True, self._plan))
 
     @df_api_usage
@@ -1286,9 +1359,18 @@ class DataFrame:
             <BLANKLINE>
         """
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
-        return self._with_plan(
-            Unpivot(value_column, name_column, column_exprs, self._plan)
-        )
+        unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
+
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        unpivot_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(unpivot_plan)
 
     @df_api_usage
     def limit(self, n: int) -> "DataFrame":
@@ -1300,6 +1382,8 @@ class DataFrame:
         Args:
             n: Number of rows to return.
         """
+        if self._select_statement:
+            return self._with_plan(self._select_statement.limit(n))
         return self._with_plan(Limit(Literal(n), self._plan))
 
     @df_api_usage
@@ -1324,6 +1408,16 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operator(
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
+                    operator=SET_UNION,
+                )
+            )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
     @df_api_usage
@@ -1350,6 +1444,16 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operator(
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
+                    operator=SET_UNION_ALL,
+                )
+            )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
     @df_api_usage
@@ -1431,11 +1535,27 @@ class DataFrame:
             rattr for rattr in right_output_attrs if rattr not in right_project_list
         ]
 
-        right_child = self._with_plan(
-            Project(right_project_list + not_found_attrs, other._plan)
-        )
+        from snowflake.snowpark import context
 
-        return self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
+        names = right_project_list + not_found_attrs
+        if context._use_sql_simplifier and other._select_statement:
+            right_child = self._with_plan(other._select_statement.select(names))
+        else:
+            right_child = self._with_plan(Project(names, other._plan))
+
+        union_plan = UnionPlan(self._plan, right_child._plan, is_all)
+        if context._use_sql_simplifier:
+            df = self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        snowflake_plan=union_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        else:
+            df = self._with_plan(union_plan)
+        return df
 
     @df_api_usage
     def intersect(self, other: "DataFrame") -> "DataFrame":
@@ -1459,6 +1579,13 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operator(
+                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    operator=SET_INTERSECT,
+                )
+            )
         return self._with_plan(Intersect(self._plan, other._plan))
 
     @df_api_usage
@@ -1483,6 +1610,13 @@ class DataFrame:
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
+        if self._select_statement:
+            return self._with_plan(
+                self._select_statement.set_operator(
+                    other._select_statement or SelectSnowflakePlan(other._plan),
+                    operator=SET_EXCEPT,
+                )
+            )
         return self._with_plan(Except(self._plan, other._plan))
 
     @df_api_usage
@@ -1600,7 +1734,14 @@ class DataFrame:
             right: The other :class:`Dataframe` to join.
             using_columns: A list of names of the columns, or the column objects, to
                 use for the join.
-            join_type: The type of join ("inner", "full", "left", "right").
+            join_type: We support the following join types:
+              - Inner join: "inner"
+              - Left outer join: "left", "leftouter"
+              - Right outer join: "right", "rightouter"
+              - Full outer join: "full", "outer", "fullouter"
+              - Left semi join: "semi", "leftsemi"
+              - Left anti join: "anti", "leftanti"
+              - Cross join: "cross"
 
         Note:
             When performing chained operations, this method will not work if there are
@@ -1731,6 +1872,22 @@ class DataFrame:
             ----------------------------------------------------------------------------------------
             <BLANKLINE>
 
+        Example 4
+            Lateral join a table function with aliasing the output column names:
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
+            >>> df.join_table_function(split_to_table(col("addresses"), lit(" ")).alias("seq", "idx", "val")).show()
+            ------------------------------------------------------------------
+            |"NAME"  |"ADDRESSES"                 |"SEQ"  |"IDX"  |"VAL"     |
+            ------------------------------------------------------------------
+            |James   |address1 address2 address3  |1      |1      |address1  |
+            |James   |address1 address2 address3  |1      |2      |address2  |
+            |James   |address1 address2 address3  |1      |3      |address3  |
+            ------------------------------------------------------------------
+            <BLANKLINE>
+
         Args:
 
             func_name: The SQL function name.
@@ -1747,7 +1904,35 @@ class DataFrame:
         func_expr = _create_table_function_expression(
             func, *func_arguments, **func_named_arguments
         )
-        return DataFrame(self._session, TableFunctionJoin(self._plan, func_expr))
+
+        from snowflake.snowpark import context
+
+        names = None
+        if func_expr.aliases:
+            join_plan = self._session._analyzer.resolve(
+                TableFunctionJoin(self._plan, func_expr)
+            )
+            old_cols, new_cols = _get_cols_after_join_table(
+                func_expr, self._plan, join_plan
+            )
+            names = [*old_cols, *new_cols]
+
+        if context._use_sql_simplifier:
+            select_plan = SelectStatement(
+                from_=SelectTableFunction(
+                    func_expr,
+                    other_plan=self._plan,
+                    analyzer=self._session._analyzer,
+                ),
+                analyzer=self._session._analyzer,
+            )
+            if names:
+                select_plan = select_plan.select(names)
+            return self._with_plan(select_plan)
+        if names:
+            return self._with_plan(Project(names, join_plan))
+
+        return self._with_plan(TableFunctionJoin(self._plan, func_expr))
 
     @df_api_usage
     def cross_join(self, right: "DataFrame") -> "DataFrame":
@@ -1823,7 +2008,9 @@ class DataFrame:
         )
 
     @df_api_usage
-    def with_column(self, col_name: str, col: Column) -> "DataFrame":
+    def with_column(
+        self, col_name: str, col: Union[Column, TableFunctionCall]
+    ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
         ``col_name``. The column is computed by using the specified expression ``col``.
@@ -1831,7 +2018,7 @@ class DataFrame:
         If a column with the same name already exists in the DataFrame, that column is
         replaced by the new column.
 
-        Example::
+        Example 1::
 
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> df.with_column("mean", (df["a"] + df["b"]) / 2).show()
@@ -1843,14 +2030,33 @@ class DataFrame:
             ------------------------
             <BLANKLINE>
 
+        Example 2::
+
+            >>> from snowflake.snowpark.functions import udtf
+            >>> @udtf(output_schema=["number"])
+            ... class sum_udtf:
+            ...     def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            ...         yield (a + b, )
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df.with_column("total", sum_udtf(df.a, df.b)).sort(df.a).show()
+            -----------------------
+            |"A"  |"B"  |"TOTAL"  |
+            -----------------------
+            |1    |2    |3        |
+            |3    |4    |7        |
+            -----------------------
+            <BLANKLINE>
+
         Args:
             col_name: The name of the column to add or replace.
-            col: The :class:`Column` to add or replace.
+            col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
         """
         return self.with_columns([col_name], [col])
 
     @df_api_usage
-    def with_columns(self, col_names: List[str], values: List[Column]) -> "DataFrame":
+    def with_columns(
+        self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]
+    ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
         ``values``.
@@ -1858,10 +2064,15 @@ class DataFrame:
         If columns with the same names already exist in the DataFrame, those columns
         are removed and appended at the end by new columns.
 
-        Example::
+        Example 1::
 
+            >>> from snowflake.snowpark.functions import udtf
+            >>> @udtf(output_schema=["number"])
+            ... class sum_udtf:
+            ...     def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            ...         yield (a + b, )
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df.with_columns(["mean", "total"], [(df["a"] + df["b"]) / 2, df["a"] + df["b"]]).show()
+            >>> df.with_columns(["mean", "total"], [(df["a"] + df["b"]) / 2, sum_udtf(df.a, df.b)]).sort(df.a).show()
             ----------------------------------
             |"A"  |"B"  |"MEAN"    |"TOTAL"  |
             ----------------------------------
@@ -1870,16 +2081,26 @@ class DataFrame:
             ----------------------------------
             <BLANKLINE>
 
+        Example 2::
+
+            >>> from snowflake.snowpark.functions import table_function
+            >>> split_to_table = table_function("split_to_table")
+            >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
+            >>> df.with_columns(["seq", "idx", "val"], [split_to_table(df.addresses, lit(" "))]).show()
+            ------------------------------------------------------------------
+            |"NAME"  |"ADDRESSES"                 |"SEQ"  |"IDX"  |"VAL"     |
+            ------------------------------------------------------------------
+            |James   |address1 address2 address3  |1      |1      |address1  |
+            |James   |address1 address2 address3  |1      |2      |address2  |
+            |James   |address1 address2 address3  |1      |3      |address3  |
+            ------------------------------------------------------------------
+            <BLANKLINE>
+
         Args:
             col_names: A list of the names of the columns to add or replace.
-            values: A list of the :class:`Column` objects to
-                    add or replace.
+            values: A list of the :class:`Column` objects or :class:`table_function.TableFunctionCall` object
+                    to add or replace.
         """
-        if len(col_names) != len(values):
-            raise ValueError(
-                f"The size of column names ({len(col_names)}) is not equal to the size of columns ({len(values)})"
-            )
-
         # Get a list of the new columns and their dedupped values
         qualified_names = [quote_name(n) for n in col_names]
         new_column_names = set(qualified_names)
@@ -1889,7 +2110,35 @@ class DataFrame:
                 "The same column name is used multiple times in the col_names parameter."
             )
 
-        new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
+        num_table_func_calls = sum(
+            1 if isinstance(col, TableFunctionCall) else 0 for col in values
+        )
+        if num_table_func_calls == 0:
+            if len(col_names) != len(values):
+                raise ValueError(
+                    f"The size of column names ({len(col_names)}) is not equal to the size of columns ({len(values)})"
+                )
+            new_cols = [col.as_(name) for name, col in zip(qualified_names, values)]
+        elif num_table_func_calls > 1:
+            raise ValueError(
+                f"Only one table function call accepted inside with_columns call, ({num_table_func_calls}) provided"
+            )
+        else:
+            if len(col_names) < len(values):
+                raise ValueError(
+                    "The size of column names must be equal to the size of the output columns. Fewer columns provided."
+                )
+            new_cols = []
+            offset = 0
+            for i in range(len(values)):
+                col = values[i]
+                if isinstance(col, Column):
+                    name = col_names[i + offset]
+                    new_cols.append(col.as_(name))
+                else:
+                    offset = len(col_names) - len(values)
+                    names = col_names[i : i + offset + 1]
+                    new_cols.append(col.as_(*names))
 
         # Get a list of existing column names that are not being replaced
         old_cols = [
@@ -2419,9 +2668,17 @@ class DataFrame:
             a :class:`DataFrame` containing the sample of rows.
         """
         DataFrame._validate_sample_input(frac, n)
-        return self._with_plan(
-            Sample(self._plan, probability_fraction=frac, row_count=n)
-        )
+        sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        sample_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(sample_plan)
 
     @staticmethod
     def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
@@ -2462,8 +2719,8 @@ class DataFrame:
             -------------------------------------------------------
             |count      |2.0                 |2.0                 |
             |mean       |2.0                 |3.0                 |
-            |min        |1.0                 |2.0                 |
             |stddev     |1.4142135623730951  |1.4142135623730951  |
+            |min        |1.0                 |2.0                 |
             |max        |3.0                 |4.0                 |
             -------------------------------------------------------
             <BLANKLINE>
@@ -2639,7 +2896,10 @@ class DataFrame:
         """
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         create_temp_table = self._session._plan_builder.create_temp_table(
-            temp_table_name, self._plan
+            temp_table_name,
+            self._plan,
+            use_scoped_temp_objects=self._session._use_scoped_temp_objects,
+            is_generated=True,
         )
         self._session._conn.execute(
             create_temp_table,

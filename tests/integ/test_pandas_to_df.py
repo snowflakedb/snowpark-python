@@ -8,6 +8,7 @@ import pytest
 from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
+from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
@@ -44,6 +45,94 @@ def tmp_table_complex(session):
     )
     try:
         yield table_name
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize("quote_identifiers", [True, False])
+@pytest.mark.parametrize("auto_create_table", [True, False])
+@pytest.mark.parametrize("overwrite", [True, False])
+def test_write_pandas_with_overwrite(
+    session,
+    quote_identifiers: bool,
+    auto_create_table: bool,
+    overwrite: bool,
+):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        pd1 = PandasDF(
+            [
+                (1, 4.5, "Nike"),
+                (2, 7.5, "Adidas"),
+                (3, 10.5, "Puma"),
+            ],
+            columns=["id".upper(), "foot_size".upper(), "shoe_make".upper()],
+        )
+
+        pd2 = PandasDF(
+            [(1, 8.0, "Dia Dora")],
+            columns=["id".upper(), "foot_size".upper(), "shoe_make".upper()],
+        )
+
+        pd3 = PandasDF(
+            [(1, "dash", 1000, 32)],
+            columns=["id".upper(), "name".upper(), "points".upper(), "age".upper()],
+        )
+
+        # Create initial table and insert 3 rows
+        df1 = session.write_pandas(
+            pd1, table_name, quote_identifiers=quote_identifiers, auto_create_table=True
+        )
+        results = df1.to_pandas()
+        assert_frame_equal(results, pd1, check_dtype=False)
+
+        # Insert 1 row
+        df2 = session.write_pandas(
+            pd2,
+            table_name,
+            quote_identifiers=quote_identifiers,
+            overwrite=overwrite,
+            auto_create_table=auto_create_table,
+        )
+        results = df2.to_pandas()
+        if overwrite:
+            # Results should match pd2
+            assert_frame_equal(results, pd2, check_dtype=False)
+        else:
+            # Results count should match pd1 + pd2
+            assert results.shape[0] == 4
+
+        # Insert 1 row with new schema
+        if auto_create_table:
+            if overwrite:
+                # In this case, the table is first dropped and since there's a new schema, the results should now match pd3
+                df3 = session.write_pandas(
+                    pd3,
+                    table_name,
+                    quote_identifiers=quote_identifiers,
+                    overwrite=overwrite,
+                    auto_create_table=auto_create_table,
+                )
+                results = df3.to_pandas()
+                assert_frame_equal(results, pd3, check_dtype=False)
+            else:
+                # In this case, the table is truncated but since there's a new schema, it should fail
+                with pytest.raises(ProgrammingError) as ex_info:
+                    session.write_pandas(
+                        pd3,
+                        table_name,
+                        quote_identifiers=quote_identifiers,
+                        overwrite=overwrite,
+                        auto_create_table=auto_create_table,
+                    )
+                assert "invalid identifier 'NAME'" in str(ex_info)
+
+        with pytest.raises(SnowparkPandasException) as ex_info:
+            session.write_pandas(pd1, "tmp_table")
+        assert (
+            'Cannot write pandas DataFrame to table "tmp_table" because it does not exist. '
+            "Create table before trying to write a pandas DataFrame" in str(ex_info)
+        )
     finally:
         Utils.drop_table(session, table_name)
 
@@ -109,6 +198,61 @@ def test_write_pandas(session, tmp_table_basic):
     session._run_query('drop table if exists "tmp_table_complex"')
 
 
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+def test_write_pandas_with_table_type(session, table_type: str):
+    pd = PandasDF(
+        [
+            (1, 4.5, "t1"),
+            (2, 7.5, "t2"),
+            (3, 10.5, "t3"),
+        ],
+        columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
+    )
+
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        df = session.write_pandas(
+            pd,
+            table_name,
+            table_type=table_type,
+            auto_create_table=True,
+        )
+        results = df.to_pandas()
+        assert_frame_equal(results, pd, check_dtype=False)
+        Utils.assert_table_type(session, table_name, table_type)
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+def test_write_temp_table_no_breaking_change(session, table_type):
+    pd = PandasDF(
+        [
+            (1, 4.5, "t1"),
+            (2, 7.5, "t2"),
+            (3, 10.5, "t3"),
+        ],
+        columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
+    )
+
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        with pytest.deprecated_call(match="create_temp_table is deprecated"):
+            df = session.write_pandas(
+                pd,
+                table_name,
+                create_temp_table=True,
+                auto_create_table=True,
+                table_type=table_type,
+            )
+
+        results = df.to_pandas()
+        assert_frame_equal(results, pd, check_dtype=False)
+        Utils.assert_table_type(session, table_name, "temp")
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 def test_create_dataframe_from_pandas(session):
     pd = PandasDF(
         [
@@ -148,7 +292,8 @@ def test_create_dataframe_from_pandas(session):
     # assert_frame_equal(results, pd, check_dtype=False)
 
 
-def test_write_pandas_temp_table_and_irregular_column_names(session):
+@pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
+def test_write_pandas_temp_table_and_irregular_column_names(session, table_type):
     pd = PandasDF(
         [
             (1, 4.5, "t1"),
@@ -160,10 +305,9 @@ def test_write_pandas_temp_table_and_irregular_column_names(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.write_pandas(
-            pd, table_name, auto_create_table=True, create_temp_table=True
+            pd, table_name, auto_create_table=True, table_type=table_type
         )
-        table_info = session.sql(f"show tables like '{table_name}'").collect()
-        assert table_info[0]["kind"] == "TEMPORARY"
+        Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
 
@@ -181,9 +325,7 @@ def test_write_pandas_with_timestamps(session):
     )
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        session.write_pandas(
-            pd, table_name, auto_create_table=True, create_temp_table=True
-        )
+        session.write_pandas(pd, table_name, auto_create_table=True, table_type="temp")
         data = session.sql(f'select * from "{table_name}"').collect()
         assert data[0]["tm_tz"] is not None
         assert data[0]["tm_ntz"] is not None

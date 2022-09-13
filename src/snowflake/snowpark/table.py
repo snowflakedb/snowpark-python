@@ -6,6 +6,10 @@ from typing import Dict, Iterable, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectableEntity,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
@@ -255,6 +259,13 @@ class Table(DataFrame):
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
         self.table_name: str = table_name  #: The table name
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            self._select_statement = SelectStatement(
+                from_=SelectableEntity(table_name, analyzer=session._analyzer),
+                analyzer=session._analyzer,
+            )
         # By default, the set the initial API call to say 'Table.__init__' since
         # people could instantiate a table directly. This value is overwritten when
         # created from Session object
@@ -308,9 +319,9 @@ class Table(DataFrame):
 
         # The analyzer will generate a sql with subquery. So we build the sql directly without using the analyzer.
         sampling_method_text = sampling_method or ""
-        frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} rows"
-        seed_text = f" seed ({seed})" if seed is not None else ""
-        sql_text = f"select * from {self.table_name} sample {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
+        frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} ROWS"
+        seed_text = f" SEED ({seed})" if seed is not None else ""
+        sql_text = f"SELECT * FROM {self.table_name} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         return self._session.sql(sql_text)
 
     def update(
