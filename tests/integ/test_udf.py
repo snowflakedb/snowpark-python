@@ -1654,13 +1654,14 @@ def test_comment_in_udf_description(session):
             break
 
 
-def test_deprecate_call_udf_with_list(session):
+def test_deprecate_call_udf_with_list(session, caplog):
     add_udf = session.udf.register(
         lambda x, y: x + y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
     )
-    with pytest.deprecated_call(
-        match="Passing arguments to a UDF with a list or tuple is deprecated"
-    ):
+    with caplog.at_level(logging.WARNING):
         add_udf(["a", "b"])
+    assert (
+        "Passing arguments to a UDF with a list or tuple is deprecated" in caplog.text
+    )

@@ -3,8 +3,8 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 """User-defined functions (UDFs) in Snowpark."""
+import logging
 import sys
-import warnings
 from types import ModuleType
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
@@ -68,11 +68,9 @@ class UserDefinedFunction:
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> Column:
         if len(cols) >= 1 and isinstance(cols[0], (list, tuple)):
-            warnings.warn(
+            logging.warning(
                 "Passing arguments to a UDF with a list or tuple is deprecated. We still respect this "
-                "invocation but please consider passing variable-length arguments without a list or tuple. ",
-                DeprecationWarning,
-                stacklevel=2,
+                "invocation but please consider passing variable-length arguments without a list or tuple.",
             )
 
         exprs = []
