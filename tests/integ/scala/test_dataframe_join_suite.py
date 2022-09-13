@@ -9,7 +9,6 @@ import pytest
 
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import (
     SnowparkJoinException,
     SnowparkSQLAmbiguousJoinException,
@@ -142,10 +141,6 @@ def test_join_with_multiple_conditions(session):
     assert res == []
 
 
-@pytest.mark.skipif(
-    _use_sql_simplifier,
-    reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
-)
 def test_join_with_ambiguous_column_in_condidtion(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 3)]).to_df(
@@ -295,10 +290,6 @@ def test_join_ambiguous_columns_with_specified_sources(session):
     assert sorted(res, key=lambda x: x[0]) == [Row(1, "test1"), Row(4, "test2")]
 
 
-@pytest.mark.skipif(
-    _use_sql_simplifier,
-    reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
-)
 def test_join_ambiguous_columns_without_specified_sources(session):
     df = session.create_dataframe([[1, "one"], [2, "two"]]).to_df(
         ["intcol", " stringcol"]
@@ -428,10 +419,6 @@ def test_semi_join_with_columns_from_LHS(session):
     assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
 
 
-@pytest.mark.skipif(
-    _use_sql_simplifier,
-    reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
-)
 def test_using_joins(session):
     lhs = session.create_dataframe([[1, -1, "one"], [2, -2, "two"]]).to_df(
         ["intcol", "negcol", "lhscol"]
@@ -467,10 +454,6 @@ def test_using_joins(session):
         assert sorted(res, key=lambda x: -x[0]) == [Row(-1, -10), Row(-2, -20)]
 
 
-@pytest.mark.skipif(
-    _use_sql_simplifier,
-    reason="SQL Simplifier:  Ambiguous columns will be fixed together with join simplifier",
-)
 def test_columns_with_and_without_quotes(session):
     lhs = session.create_dataframe([[1, 1.0]]).to_df(["intcol", "doublecol"])
     rhs = session.create_dataframe([[1, 2.0]]).to_df(['"INTCOL"', '"DoubleCol"'])
