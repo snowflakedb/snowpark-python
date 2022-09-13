@@ -443,6 +443,7 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
+        cached_temp_table_name: str = None,
     ) -> None:
         self._session = session
         self._plan = self._session._analyzer.resolve(plan)
@@ -452,6 +453,7 @@ class DataFrame:
         else:
             self._select_statement = None
         self.is_cached: bool = is_cached  #: Whether it is a cached dataframe
+        self._temp_table_name: str = cached_temp_table_name  # For explicitly dropping temp table at garbage collection
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
         self._writer = DataFrameWriter(self)
@@ -467,6 +469,11 @@ class DataFrame:
         self.dropna = self._na.drop
         self.fillna = self._na.fill
         self.replace = self._na.replace
+
+    def __del__(self):
+        """Clean up step that explicitly drops the temporary table if DataFrame is cached"""
+        if self.is_cached:
+            self._session.sql(f"DROP TABLE IF EXISTS  {self._temp_table_name}").collect()
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -2993,7 +3000,7 @@ class DataFrame:
             ),
         )
         new_plan = self._session.table(temp_table_name)._plan
-        return DataFrame(session=self._session, plan=new_plan, is_cached=True)
+        return DataFrame(session=self._session, plan=new_plan, is_cached=True, cached_temp_table_name=temp_table_name)
 
     @df_collect_api_telemetry
     def random_split(
