@@ -507,11 +507,11 @@ logger = logging.getLogger("snowflake.snowpark")
 
 class WarningHelper:
     def __init__(self, warning_times: int) -> None:
-        self.waring_times = warning_times
+        self.warning_times = warning_times
         self.count = 0
 
     def warning(self, text: str) -> None:
-        if self.count < self.waring_times:
+        if self.count < self.warning_times:
             logger.warning(text)
         self.count += 1
 

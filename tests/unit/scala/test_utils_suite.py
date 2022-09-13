@@ -387,7 +387,6 @@ def test_warning(caplog):
             warning("aaa", "bbb", 2)
             warning("aaa", "bbb", 2)
             warning("aaa", "bbb", 2)
-        print(caplog.text)
         assert caplog.text.count("bbb") == 2
     finally:
         warning_dict.clear()
