@@ -737,13 +737,14 @@ class Session:
             else:
                 package = package.strip().lower()
                 use_local_version = False
+            package_req = pkg_resources.Requirement.parse(package)
             # get the standard package name if there is no underscore
             # underscores are discouraged in package names, but are still used in Anaconda channel
             # pkg_resources.Requirement.parse will convert all underscores to dashes
             package_name = (
                 package if not use_local_version and "_" in package else package_req.key
             )
-            package_dict[package] = (package_name, use_local_version)
+            package_dict[package] = (package_name, use_local_version, package_req)
 
         valid_packages = (
             {
@@ -765,8 +766,7 @@ class Session:
             existing_packages_dict if existing_packages_dict is not None else {}
         )
         for package, package_info in package_dict.items():
-            package_req = pkg_resources.Requirement.parse(package)
-            package_name, use_local_version = package_info
+            package_name, use_local_version, package_req = package_info
             package_version_req = package_req.specs[0][1] if package_req.specs else None
 
             if validate_package:
