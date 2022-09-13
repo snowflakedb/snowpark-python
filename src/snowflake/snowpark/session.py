@@ -1450,7 +1450,18 @@ class Session:
             [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
-        df = DataFrame(self, range_plan)
+        from snowflake.snowpark import context
+
+        if context._use_sql_simplifier:
+            df = DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectSnowflakePlan(range_plan, analyzer=self._analyzer),
+                    analyzer=self._analyzer,
+                ),
+            )
+        else:
+            df = DataFrame(self, range_plan)
         set_api_call_source(df, "Session.range")
         return df
 

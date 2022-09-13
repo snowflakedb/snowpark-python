@@ -886,3 +886,16 @@ def test_select_star(session, simplifier_table):
 
     with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
         df4.select("a").collect()
+
+
+def test_session_range(session, simplifier_table):
+    df = session.range(0, 5, 1)
+    df1 = df.select("id").select("id").select("id")
+    assert df1.queries["queries"][0].count("SELECT") == 2
+
+    df2 = (
+        df.select((col("id") + 1).as_("id"))
+        .select((col("id") + 1).as_("id"))
+        .select((col("id") + 1).as_("id"))
+    )
+    assert df2.queries["queries"][0].count("SELECT") == 4
