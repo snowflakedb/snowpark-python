@@ -160,7 +160,7 @@ class AsyncJob:
         self._deleted = False
         self._plan = None
 
-    @experimental(version="0.10.0", extra_warning_text="Do not use it in production.")
+    @experimental(version="0.10.0")
     def is_done(self) -> bool:
         """
         Checks the status of the query associated with this instance and returns a bool value
@@ -171,7 +171,7 @@ class AsyncJob:
 
         return not is_running
 
-    @experimental(version="0.10.0", extra_warning_text="Do not use it in production.")
+    @experimental(version="0.10.0")
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
@@ -205,7 +205,7 @@ class AsyncJob:
                 rows_inserted, rows_updated, rows_deleted
             )
 
-    @experimental(version="0.10.0", extra_warning_text="Do not use it in production.")
+    @experimental(version="0.10.0")
     def result(self) -> Union[List[Row], "pandas.DataFrame", Iterator[Row], int, None]:
         """
         Blocks and waits until the query associated with this instance finishes, then returns query results, this

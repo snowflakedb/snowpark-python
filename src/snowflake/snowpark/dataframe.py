@@ -493,7 +493,7 @@ class DataFrame:
             statement_params=statement_params, block=block
         )
 
-    @experimental(version="0.10.0", extra_warning_text="Do not use it in production.")
+    @experimental(version="0.10.0")
     @df_collect_api_telemetry
     def collect_nowait(
         self,

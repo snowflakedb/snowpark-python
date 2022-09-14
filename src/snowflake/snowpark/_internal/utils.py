@@ -20,7 +20,7 @@ import zipfile
 from enum import Enum
 from json import JSONEncoder
 from random import choice
-from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Type
+from typing import IO, Any, Callable, Dict, Iterator, List, Literal, Optional, Type
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -526,11 +526,16 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
 
 
 def func_decorator(
-    decorator_type: str, *, version: str, extra_warning_text: str, extra_doc_string: str
+    decorator_type: Literal["deprecated", "experimental"],
+    *,
+    version: str,
+    extra_warning_text: str,
+    extra_doc_string: str,
 ) -> Callable:
     def wrapper(func):
         warning_text = (
             f"{func.__qualname__}() is {decorator_type} since {version}. "
+            f"{'Do not use in production. ' if decorator_type == 'experimental' else ''}"
             f"{extra_warning_text}"
         )
         doc_string_text = f"This function or method is {decorator_type} since {version}. {extra_doc_string} \n\n"
