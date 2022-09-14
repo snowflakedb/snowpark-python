@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict
 from copy import copy
 from enum import Enum
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -143,7 +143,9 @@ class Selectable(LogicalPlan, ABC):
     def __init__(
         self,
         analyzer: "Analyzer",
-        api_calls: Optional[List[Dict]] = None,
+        api_calls: Optional[
+            List[Dict[str, Any]]
+        ] = None,  # Use Any because it's recursive.
     ) -> None:
         super().__init__()
         self.analyzer = analyzer
@@ -177,12 +179,12 @@ class Selectable(LogicalPlan, ABC):
         return self
 
     @property
-    def api_calls(self):
+    def api_calls(self) -> Dict[str, Any]:
         self._api_calls = self._api_calls if self._api_calls is not None else []
         return self._api_calls
 
     @api_calls.setter
-    def api_calls(self, value) -> None:
+    def api_calls(self, value: Dict[str, Any]) -> None:
         self._api_calls = value
         if self._snowflake_plan:
             self._snowflake_plan.api_calls = value
@@ -361,6 +363,7 @@ class SelectStatement(Selectable):
         new._column_states = None
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
+        new._api_calls = self._api_calls
         return new
 
     @property
