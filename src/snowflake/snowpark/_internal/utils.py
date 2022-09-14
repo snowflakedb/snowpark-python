@@ -535,7 +535,7 @@ def func_decorator(
     def wrapper(func):
         warning_text = (
             f"{func.__qualname__}() is {decorator_type} since {version}. "
-            f"{'Do not use in production. ' if decorator_type == 'experimental' else ''}"
+            f"{'Do not use it in production. ' if decorator_type == 'experimental' else ''}"
             f"{extra_warning_text}"
         )
         doc_string_text = f"This function or method is {decorator_type} since {version}. {extra_doc_string} \n\n"
