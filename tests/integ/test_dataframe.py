@@ -4,6 +4,7 @@
 #
 import datetime
 import json
+import logging
 import math
 from array import array
 from collections import namedtuple
@@ -19,7 +20,7 @@ from pandas.testing import assert_frame_equal
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
 from snowflake.snowpark.functions import col, concat, lit, table_function, udtf, when
 from snowflake.snowpark.types import (
@@ -1855,21 +1856,24 @@ def test_table_types_in_save_as_table(session, save_mode, table_type):
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
 )
-def test_write_temp_table_no_breaking_change(session, save_mode, table_type):
+def test_write_temp_table_no_breaking_change(session, save_mode, table_type, caplog):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
     try:
-        with pytest.deprecated_call(match="create_temp_table is deprecated"):
+        with caplog.at_level(logging.WARNING):
             df.write.save_as_table(
                 table_name,
                 mode=save_mode,
                 create_temp_table=True,
                 table_type=table_type,
             )
+        assert "create_temp_table is deprecated" in caplog.text
         Utils.check_answer(session.table(table_name), df, True)
         Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
+        # clear the warning dict otherwise it will affect the future tests
+        warning_dict.clear()
 
 
 def test_write_invalid_table_type(session):
