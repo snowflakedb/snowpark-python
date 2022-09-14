@@ -35,7 +35,10 @@ except ImportError:
 from typing import Dict, List, Optional, Union
 
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
+from snowflake.snowpark._internal.utils import (
+    unwrap_stage_location_single_quote,
+    warning_dict,
+)
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
@@ -1652,3 +1655,20 @@ def test_comment_in_udf_description(session):
                 not in row[1]
             )
             break
+
+
+def test_deprecate_call_udf_with_list(session, caplog):
+    add_udf = session.udf.register(
+        lambda x, y: x + y,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    try:
+        with caplog.at_level(logging.WARNING):
+            add_udf(["a", "b"])
+        assert (
+            "Passing arguments to a UDF with a list or tuple is deprecated"
+            in caplog.text
+        )
+    finally:
+        warning_dict.clear()

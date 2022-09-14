@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     parse_positional_args_to_list,
+    warning,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType
@@ -66,6 +67,13 @@ class UserDefinedFunction:
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
     ) -> Column:
+        if len(cols) >= 1 and isinstance(cols[0], (list, tuple)):
+            warning(
+                "udf.__call__",
+                "Passing arguments to a UDF with a list or tuple is deprecated. We still respect this "
+                "invocation but please consider passing variable-length arguments without a list or tuple.",
+            )
+
         exprs = []
         for c in parse_positional_args_to_list(*cols):
             if isinstance(c, Column):
