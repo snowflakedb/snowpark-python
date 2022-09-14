@@ -20,7 +20,7 @@ import zipfile
 from enum import Enum
 from json import JSONEncoder
 from random import choice
-from typing import IO, Any, Dict, Iterator, List, Optional, Type
+from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Type
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -505,7 +505,29 @@ class PythonObjJSONEncoder(JSONEncoder):
 logger = logging.getLogger("snowflake.snowpark")
 
 
-def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
+class WarningHelper:
+    def __init__(self, warning_times: int) -> None:
+        self.warning_times = warning_times
+        self.count = 0
+
+    def warning(self, text: str) -> None:
+        if self.count < self.warning_times:
+            logger.warning(text)
+        self.count += 1
+
+
+warning_dict: Dict[str, WarningHelper] = {}
+
+
+def warning(name: str, text: str, warning_times: int = 1) -> None:
+    if name not in warning_dict:
+        warning_dict[name] = WarningHelper(warning_times)
+    warning_dict[name].warning(text)
+
+
+def deprecated(
+    *, deprecate_version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+) -> Callable:
     def deprecate_wrapper(func):
         warning_text = (
             f"{func.__name__} is deprecated since {deprecate_version}. "
@@ -518,10 +540,7 @@ def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
 
         @functools.wraps(func)
         def func_call_wrapper(*args, **kwargs):
-            deprecate_warning_times = getattr(func, "deprecate_warning_times", 0)
-            if getattr(func, "deprecate_warning_times", 0) < 1:
-                logger.warning(warning_text)
-                func.deprecate_warning_times = deprecate_warning_times + 1
+            warning(func.__name__, warning_text)
             return func(*args, **kwargs)
 
         return func_call_wrapper
