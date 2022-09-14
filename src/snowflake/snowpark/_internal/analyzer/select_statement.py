@@ -178,7 +178,8 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     def api_calls(self):
-        return self._api_calls if self._api_calls is not None else []
+        self._api_calls = self._api_calls if self._api_calls is not None else []
+        return self._api_calls
 
     @api_calls.setter
     def api_calls(self, value) -> None:
@@ -198,8 +199,11 @@ class Selectable(LogicalPlan, ABC):
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
-                api_calls=self.api_calls,
             )
+            # set api_calls to self._snowflake_plan outside of the above constructor
+            # because the constructor copy api_calls.
+            # We want Selectable and SnowflakePlan to share the same api_calls.
+            self._snowflake_plan.api_calls = self.api_calls
         return self._snowflake_plan
 
     @property
@@ -336,7 +340,9 @@ class SelectStatement(Selectable):
         self._schema_query = None
         self._projection_in_str = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
-        self._api_calls = self.from_.api_calls.copy()
+        self.api_calls = (
+            self.from_.api_calls
+        )  # will be replaced by new api calls if any operation.
 
     def __copy__(self):
         new = SelectStatement(
@@ -355,7 +361,6 @@ class SelectStatement(Selectable):
         new._column_states = None
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
-        new.api_calls = self.api_calls.copy()
         return new
 
     @property
@@ -526,6 +531,8 @@ class SelectStatement(Selectable):
         )
         # If new._column_states is None, when property `column_states` is called later,
         # a query will be described and an error like "invalid identifier" will be thrown.
+
+        new.api_calls = self.api_calls.copy()
         return new
 
     def filter(self, col: Expression) -> "SelectStatement":
@@ -543,10 +550,12 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.where = And(self.where, col) if self.where is not None else col
             new._column_states = self._column_states
-            return new
-        return SelectStatement(
-            from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
-        )
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
+            )
+        new.api_calls = self.api_calls.copy()
+        return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
         if self.flatten_disabled:
@@ -563,10 +572,12 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.order_by = cols
             new._column_states = self._column_states
-            return new
-        return SelectStatement(
-            from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
-        )
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
+            )
+        new.api_calls = self.api_calls.copy()
+        return new
 
     def set_operator(
         self,
@@ -617,6 +628,11 @@ class SelectStatement(Selectable):
             )
         new = SelectStatement(analyzer=self.analyzer, from_=set_statement)
         new._column_states = set_statement.column_states
+        api_calls = self.api_calls.copy()
+        for s in selectables:
+            if s.api_calls:
+                api_calls.extend(s.api_calls)
+        new.api_calls = api_calls
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
@@ -625,6 +641,7 @@ class SelectStatement(Selectable):
         new.limit_ = min(self.limit_, n) if self.limit_ else n
         new.offset = (self.offset + offset) if self.offset else offset
         new._column_states = self._column_states
+        new.api_calls = self.api_calls.copy()
         return new
 
 
@@ -646,6 +663,7 @@ class SelectTableFunction(Selectable):
             )
         else:
             self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
+        self._api_calls = self._snowflake_plan.api_calls
 
     @property
     def snowflake_plan(self):

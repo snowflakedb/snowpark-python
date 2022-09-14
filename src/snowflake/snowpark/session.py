@@ -45,7 +45,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.telemetry import TelemetryField, set_api_call_source
+from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     infer_schema,
@@ -981,19 +981,20 @@ class Session:
         from snowflake.snowpark import context
 
         if context._use_sql_simplifier:
-            return DataFrame(
+            d = DataFrame(
                 self,
                 SelectStatement(
                     from_=SelectSQL(query, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
             )
-        return DataFrame(
-            self,
-            self._plan_builder.query(
-                query, None, api_calls=[{TelemetryField.NAME.value: "Session.sql"}]
-            ),
-        )
+        else:
+            d = DataFrame(
+                self,
+                self._plan_builder.query(query, None),
+            )
+        set_api_call_source(d, "Session.sql")
+        return d
 
     @property
     def read(self) -> "DataFrameReader":
