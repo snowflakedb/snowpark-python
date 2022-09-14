@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -9,7 +10,7 @@ from pandas import DataFrame as PandasDF
 from pandas.testing import assert_frame_equal
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
 
@@ -225,7 +226,7 @@ def test_write_pandas_with_table_type(session, table_type: str):
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
-def test_write_temp_table_no_breaking_change(session, table_type):
+def test_write_temp_table_no_breaking_change(session, table_type, caplog):
     pd = PandasDF(
         [
             (1, 4.5, "t1"),
@@ -237,7 +238,7 @@ def test_write_temp_table_no_breaking_change(session, table_type):
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        with pytest.deprecated_call(match="create_temp_table is deprecated"):
+        with caplog.at_level(logging.WARNING):
             df = session.write_pandas(
                 pd,
                 table_name,
@@ -245,12 +246,14 @@ def test_write_temp_table_no_breaking_change(session, table_type):
                 auto_create_table=True,
                 table_type=table_type,
             )
-
+        assert "create_temp_table is deprecated" in caplog.text
         results = df.to_pandas()
         assert_frame_equal(results, pd, check_dtype=False)
         Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
+        # clear the warning dict otherwise it will affect the future tests
+        warning_dict.clear()
 
 
 def test_create_dataframe_from_pandas(session):

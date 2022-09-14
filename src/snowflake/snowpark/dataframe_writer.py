@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-import warnings
 from typing import Dict, Iterable, List, Literal, Optional, Union
 
 import snowflake.snowpark  # for forward references of type hints
@@ -20,6 +19,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     str_to_enum,
     validate_object_name,
+    warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
 from snowflake.snowpark.column import Column
@@ -133,12 +133,10 @@ class DataFrameWriter:
         )
 
         if create_temp_table:
-            warnings.warn(
+            warning(
+                "save_as_table.create_temp_table",
                 "create_temp_table is deprecated. We still respect this parameter when it is True but "
                 'please consider using `table_type="temporary"` instead.',
-                DeprecationWarning,
-                # warnings.warn -> @dfw_collect_api_telemetry -> save_as_table
-                stacklevel=3,
             )
             table_type = "temporary"
 
