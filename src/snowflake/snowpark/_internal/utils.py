@@ -525,27 +525,47 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     warning_dict[name].warning(text)
 
 
-def deprecated(
-    *, deprecate_version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+def func_decorator(
+    decorator_type: str, *, version: str, extra_warning_text: str, extra_doc_string: str
 ) -> Callable:
-    def deprecate_wrapper(func):
+    def wrapper(func):
         warning_text = (
-            f"{func.__name__} is deprecated since {deprecate_version}. "
+            f"{func.__qualname__}() is {decorator_type} since {version}. "
             f"{extra_warning_text}"
         )
-        doc_string_text = (
-            f"Deprecated since {deprecate_version}. {extra_doc_string} \n\n"
-        )
+        doc_string_text = f"This function or method is {decorator_type} since {version}. {extra_doc_string} \n\n"
         func.__doc__ = f"{func.__doc__ or ''}\n\n{' '*8}{doc_string_text}\n"
 
         @functools.wraps(func)
         def func_call_wrapper(*args, **kwargs):
-            warning(func.__name__, warning_text)
+            warning(func.__qualname__, warning_text)
             return func(*args, **kwargs)
 
         return func_call_wrapper
 
-    return deprecate_wrapper
+    return wrapper
+
+
+def deprecated(
+    *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+) -> Callable:
+    return func_decorator(
+        "deprecated",
+        version=version,
+        extra_warning_text=extra_warning_text,
+        extra_doc_string=extra_doc_string,
+    )
+
+
+def experimental(
+    *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+) -> Callable:
+    return func_decorator(
+        "experimental",
+        version=version,
+        extra_warning_text=extra_warning_text,
+        extra_doc_string=extra_doc_string,
+    )
 
 
 def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) -> str:

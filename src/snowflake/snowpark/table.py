@@ -347,7 +347,9 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
 
         Examples::
 
@@ -422,7 +424,9 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
 
         Examples::
 
@@ -502,7 +506,9 @@ class Table(DataFrame):
                 of :class:`WhenMatchedClause` and :class:`WhenNotMatchedClause`, and will
                 be performed sequentially in this list.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: A bool value indicating whether this function will wait until the result is available. When it is ``False``,  this function executes the underlying queries of the dataframe asynchronously and returns an :class:`AsyncJob`.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
 
         Example::
 
