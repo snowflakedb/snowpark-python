@@ -89,7 +89,7 @@ from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
-    deprecate,
+    deprecated,
     generate_random_alphanumeric,
     parse_positional_args_to_list,
     random_name_for_temp_object,
@@ -2431,7 +2431,7 @@ class DataFrame:
             )
         )
 
-    @deprecate(
+    @deprecated(
         deprecate_version="0.7.0",
         extra_warning_text="`DataFrame.flatten()` is deprecated. Use `DataFrame.join_table_function()` instead.",
         extra_doc_string="This method is deprecated. Use :meth:`join_table_function` instead.",
