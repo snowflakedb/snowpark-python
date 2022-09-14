@@ -349,7 +349,7 @@ class Table(DataFrame):
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental since 0.10.0.
 
         Examples::
 
@@ -426,7 +426,7 @@ class Table(DataFrame):
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental since 0.10.0.
 
         Examples::
 
@@ -508,7 +508,7 @@ class Table(DataFrame):
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental since 0.10.0.
 
         Example::
 

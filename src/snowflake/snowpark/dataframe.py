@@ -484,7 +484,7 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental since 0.10.0.
 
         See also:
             :meth:`collect_nowait()`
@@ -570,7 +570,7 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental since 0.10.0.
         """
         return self._session._conn.execute(
             self._plan,
@@ -603,7 +603,7 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental since 0.10.0.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -2235,7 +2235,7 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental since 0.10.0.
         """
         df = self.agg(("*", "count"))
         add_api_call(df, "DataFrame.count")
@@ -2719,7 +2719,7 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
-                asynchronously and returns an :class:`AsyncJob`. This argument is experimental.
+                asynchronously and returns an :class:`AsyncJob`. This argument is experimental since 0.10.0.
 
         Returns:
              A list of the first ``n`` :class:`Row` objects if ``n`` is not ``None``. If ``n`` is negative or
