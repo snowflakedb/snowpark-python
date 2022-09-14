@@ -1,11 +1,29 @@
 # Release History
-## 0.10.0 (Unreleased)
+## 0.10.0 (2022-09-16)
 
 ### New Features:
+- Added support for evaluating Snowpark dataframes asynchronously :
+  - Added keyword argument `block` to most action APIs on Snowpark dataframes (which executes queries) to allow asynchronous evaluations.
+  - Added method `df.collect_nowait()` to asynchronous evaluations.
+  - Added class `AsyncJob` to retrieve results from asynchronously executed queries and check their statuses.
+  - This feature is experimental and APIs are subject to change.
 - Added support for `table_type` in `session.write_pandas()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
+- Added support for using Python structured data (`list`, `tuple` and `dict`) as literal values in Snowpark.
+- Added keyword argument `execute_as` to `functions.sproc()` and `session.sproc.register()` to allow registering a stored procedure as a caller or owner.
+- Added support for specifying a pre-configured file format when reading a stage file from Snowflake.
+
+### Breaking Changes:
+- When adding a package with a specific version for UDFs or stored procedures, if it is not supported by Snowflake, an exception will be raised immediately instead of when registering  or stored procedures.
+
+### Improvements:
+- Added support for displaying details of a Snowpark session when printing it out.
+
+### Bug Fixes:
+- Fixed a bug in which `df.copy_into_table()` and `df.write.save_as_table()` mistakenly created a new table if the table name is full-qualified and the table already exists.
 
 ### Deprecations:
-- Keyword Argument `create_temp_table` in `session.write_pandas()`.
+- Deprecated keyword argument `create_temp_table` in `session.write_pandas()`.
+- Deprecated the way of UDF invocation with arguments wrapped by a Python list or tuple.
 
 ### Dependency updates
 - Updated ``snowflake-connector-python`` to 2.7.12.
@@ -59,6 +77,9 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - Fixed a bug in which calling `session.create_dataframe()` using a large local dataset sometimes created a temp table twice.
 - Aligned the definition of `function.trim()` with the SQL function definition.
 - Fixed an issue where snowpark-python would hang when using the Python system-defined (built-in function) `sum` vs. the Snowpark `function.sum()`.
+
+### Deprecations:
+- Deprecated keyword argument `create_temp_table` in `df.write.save_as_table()`.
 
 
 ## 0.7.0 (2022-05-25)
