@@ -957,7 +957,7 @@ class Session:
                 self,
                 TableFunctionRelation(func_expr),
             )
-        set_api_call_source(d, f"Session.table_function[{func_expr.func_name}]")
+        set_api_call_source(d, "Session.table_function")
         return d
 
     def sql(self, query: str) -> DataFrame:
@@ -1642,7 +1642,7 @@ class Session:
             else:
                 sql_args.append(to_sql(arg, infer_type(arg)))
         df = self.sql(f"CALL {sproc_name}({', '.join(sql_args)})")
-        set_api_call_source(df, f"Session.call[{sproc_name}]")
+        set_api_call_source(df, "Session.call")
         return df.collect()[0][0]
 
     @deprecated(
