@@ -6,7 +6,6 @@
   - Added keyword argument `block` to most action APIs on Snowpark dataframes (which execute queries) to allow asynchronous evaluations.
   - Added method `df.collect_nowait()` to allow asynchronous evaluations.
   - Added class `AsyncJob` to retrieve results from asynchronously executed queries and check their status.
-  - This feature is experimental and APIs are subject to change.
 - Added support for `table_type` in `session.write_pandas()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
 - Added support for using Python structured data (`list`, `tuple` and `dict`) as literal values in Snowpark.
 - Added keyword argument `execute_as` to `functions.sproc()` and `session.sproc.register()` to allow registering a stored procedure as a caller or owner.
