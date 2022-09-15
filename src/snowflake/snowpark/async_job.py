@@ -8,6 +8,7 @@ import snowflake.snowpark
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
+    experimental,
     result_set_to_iter,
     result_set_to_rows,
 )
@@ -129,6 +130,7 @@ class AsyncJob:
             True
 
     Note:
+        - This feature is experimental since 0.10.0. Methods in this class are subject to change in future releases.
         - If a dataframe is associated with multiple queries,
             + if you use :meth:`Session.create_dataframe` to create a dataframe from a large amount of local data and evaluate this dataframe asynchronously, data will still be loaded into Snowflake synchronously, and only fetching data from Snowflake again will be performed asynchronously.
             + otherwise, multiple queries will be wrapped into a `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_ and executed asynchronously as one query.
@@ -158,6 +160,7 @@ class AsyncJob:
         self._deleted = False
         self._plan = None
 
+    @experimental(version="0.10.0")
     def is_done(self) -> bool:
         """
         Checks the status of the query associated with this instance and returns a bool value
@@ -168,6 +171,7 @@ class AsyncJob:
 
         return not is_running
 
+    @experimental(version="0.10.0")
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
@@ -201,6 +205,7 @@ class AsyncJob:
                 rows_inserted, rows_updated, rows_deleted
             )
 
+    @experimental(version="0.10.0")
     def result(self) -> Union[List[Row], "pandas.DataFrame", Iterator[Row], int, None]:
         """
         Blocks and waits until the query associated with this instance finishes, then returns query results, this
