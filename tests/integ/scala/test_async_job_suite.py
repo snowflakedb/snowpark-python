@@ -307,6 +307,8 @@ def test_async_place_holder(session):
 
 
 def test_async_experimental(session, caplog):
+    caplog.clear()
+    warning_dict.clear()
     try:
         with caplog.at_level(logging.WARNING):
             session.sql("select 1").collect(block=False)
