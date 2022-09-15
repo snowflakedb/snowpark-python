@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import os
 import zipfile
 
@@ -11,12 +12,15 @@ from snowflake.snowpark._internal.utils import (
     SCOPED_TEMPORARY_STRING,
     TEMPORARY_STRING,
     calculate_checksum,
+    deprecated,
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_udf_upload_prefix,
     normalize_path,
     unwrap_stage_location_single_quote,
     validate_object_name,
+    warning,
+    warning_dict,
     zip_file_or_directory_to_stream,
 )
 from tests.utils import IS_WINDOWS, TestFiles
@@ -375,3 +379,36 @@ def test_use_scoped_temporary():
         get_temp_type_for_object(use_scoped_temp_objects=False, is_generated=False)
         == TEMPORARY_STRING
     )
+
+
+def test_warning(caplog):
+    try:
+        with caplog.at_level(logging.WARNING):
+            warning("aaa", "bbb", 2)
+            warning("aaa", "bbb", 2)
+            warning("aaa", "bbb", 2)
+        assert caplog.text.count("bbb") == 2
+    finally:
+        warning_dict.clear()
+
+
+def test_deprecated_decorator(caplog):
+    try:
+
+        @deprecated(
+            deprecate_version="1.0.0",
+            extra_warning_text="extra_warning_text",
+            extra_doc_string="extra_doc_string",
+        )
+        def f():
+            return 1
+
+        assert "extra_doc_string" in f.__doc__
+        with caplog.at_level(logging.WARNING):
+            f()
+            f()
+
+        assert caplog.text.count("1.0.0") == 1
+        assert caplog.text.count("extra_warning_text") == 1
+    finally:
+        warning_dict.clear()

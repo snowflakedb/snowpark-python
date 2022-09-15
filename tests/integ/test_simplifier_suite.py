@@ -788,6 +788,22 @@ def test_use_sql_simplifier(session, simplifier_table):
         context._use_sql_simplifier = True
 
 
+def test_join_dataframes(session, simplifier_table):
+    df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
+    df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
+
+    df = df_left.join(df_right)
+    df1 = df.select("a").select("a").select("a")
+    assert df1.queries["queries"][0].count("SELECT") == 8
+
+    df2 = (
+        df.select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+    )
+    assert df2.queries["queries"][0].count("SELECT") == 10
+
+
 def test_sample(session, simplifier_table):
     df = session.table(simplifier_table)
     df_table_sample = df.sample(
@@ -870,3 +886,16 @@ def test_select_star(session, simplifier_table):
 
     with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
         df4.select("a").collect()
+
+
+def test_session_range(session, simplifier_table):
+    df = session.range(0, 5, 1)
+    df1 = df.select("id").select("id").select("id")
+    assert df1.queries["queries"][0].count("SELECT") == 2
+
+    df2 = (
+        df.select((col("id") + 1).as_("id"))
+        .select((col("id") + 1).as_("id"))
+        .select((col("id") + 1).as_("id"))
+    )
+    assert df2.queries["queries"][0].count("SELECT") == 4

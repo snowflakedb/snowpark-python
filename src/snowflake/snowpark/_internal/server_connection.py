@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.utils import (
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
+from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
@@ -314,19 +315,30 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         is_ddl_on_temp_object: bool = False,
+        block: bool = True,
+        data_type: _AsyncDataType = _AsyncDataType.ROW,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> Union[Dict[str, Any], AsyncJob]:
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
                 if not kwargs.get("_statement_params"):
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
-            results_cursor = self._cursor.execute(query, **kwargs)
-            self.notify_query_listeners(
-                QueryRecord(results_cursor.sfqid, results_cursor.query)
-            )
-            logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
+            if block:
+                results_cursor = self._cursor.execute(query, **kwargs)
+                self.notify_query_listeners(
+                    QueryRecord(results_cursor.sfqid, results_cursor.query)
+                )
+                logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
+            else:
+                results_cursor = self._cursor.execute_async(query, **kwargs)
+                self.notify_query_listeners(
+                    QueryRecord(results_cursor["queryId"], query)
+                )
+                logger.debug(
+                    f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
+                )
         except Exception as ex:
             query_id_log = f" [queryID: {ex.sfqid}]" if hasattr(ex, "sfqid") else ""
             logger.error(f"Failed to execute query{query_id_log} {query}\n{ex}")
@@ -337,15 +349,38 @@ class ServerConnection:
         # because when the query plan has multiple queries, it will
         # have non-select statements, and it shouldn't fail if the user
         # calls to_pandas() to execute the query.
+        if block:
+            return self._to_data_or_iter(
+                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+            )
+        else:
+            return AsyncJob(
+                results_cursor["queryId"],
+                query,
+                self,
+                data_type,
+                **kwargs,
+            )
+
+    def _to_data_or_iter(
+        self,
+        results_cursor: SnowflakeCursor,
+        to_pandas: bool = False,
+        to_iter: bool = False,
+    ) -> Dict[str, Any]:
         if to_pandas:
             try:
                 data_or_iter = (
                     map(
-                        self._fix_pandas_df_integer,
+                        functools.partial(
+                            _fix_pandas_df_integer, results_cursor=results_cursor
+                        ),
                         results_cursor.fetch_pandas_batches(),
                     )
                     if to_iter
-                    else self._fix_pandas_df_integer(results_cursor.fetch_pandas_all())
+                    else _fix_pandas_df_integer(
+                        results_cursor.fetch_pandas_all(), results_cursor
+                    )
                 )
             except NotSupportedError:
                 data_or_iter = (
@@ -369,14 +404,22 @@ class ServerConnection:
         plan: SnowflakePlan,
         to_pandas: bool = False,
         to_iter: bool = False,
+        block: bool = True,
+        data_type: _AsyncDataType = _AsyncDataType.ROW,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        if is_in_stored_procedure() and not block:
+            raise NotImplementedError(
+                "Async query is not supported in stored procedure yet"
+            )
         result_set, result_meta = self.get_result_set(
-            plan, to_pandas, to_iter, **kwargs
+            plan, to_pandas, to_iter, **kwargs, block=block, data_type=data_type
         )
-        if to_pandas:
+        if not block:
+            return result_set
+        elif to_pandas:
             return result_set["data"]
         else:
             if to_iter:
@@ -390,6 +433,8 @@ class ServerConnection:
         plan: SnowflakePlan,
         to_pandas: bool = False,
         to_iter: bool = False,
+        block: bool = True,
+        data_type: _AsyncDataType = _AsyncDataType.ROW,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -409,32 +454,82 @@ class ServerConnection:
         result, result_meta = None, None
         try:
             placeholders = {}
-            for i, query in enumerate(plan.queries):
-                if isinstance(query, BatchInsertQuery):
-                    self.run_batch_insert(query.sql, query.rows, **kwargs)
-                else:
-                    final_query = query.sql
-                    for holder, id_ in placeholders.items():
-                        final_query = final_query.replace(holder, id_)
-                    result = self.run_query(
-                        final_query,
-                        to_pandas,
-                        to_iter and (i == len(plan.queries) - 1),
-                        is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                        **kwargs,
+            is_batch_insert = False
+            for q in plan.queries:
+                if isinstance(q, BatchInsertQuery):
+                    is_batch_insert = True
+                    break
+            # since batch insert does not support async execution (? in the query), we handle it separately here
+            if len(plan.queries) > 1 and not block and not is_batch_insert:
+                final_query = f"""EXECUTE IMMEDIATE $$
+DECLARE
+    res resultset;
+BEGIN
+    {";".join(q.sql for q in plan.queries[:-1])};
+    res := ({plan.queries[-1].sql});
+    return table(res);
+END;
+$$"""
+                # In multiple queries scenario, we are unable to get the query id of former query, so we replace
+                # place holder with fucntion last_query_id() here
+                for q in plan.queries:
+                    final_query = final_query.replace(
+                        f"'{q.query_id_place_holder}'", "LAST_QUERY_ID()"
                     )
-                    placeholders[query.query_id_place_holder] = result["sfqid"]
-                    result_meta = self._cursor.description
-                if action_id < plan.session._last_canceled_id:
-                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-        finally:
-            # delete created tmp object
-            for action in plan.post_actions:
-                self.run_query(
-                    action.sql,
-                    is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+
+                result = self.run_query(
+                    final_query,
+                    to_pandas,
+                    to_iter,
+                    is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
+                    block=block,
+                    data_type=data_type,
                     **kwargs,
                 )
+                result.query = final_query
+
+                # since we will return a AsyncJob instance, result_meta is not needed, we will create reuslt_meta in
+                # AsyncJob instance when needed
+                result_meta = None
+                if action_id < plan.session._last_canceled_id:
+                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+            else:
+                for i, query in enumerate(plan.queries):
+                    if isinstance(query, BatchInsertQuery):
+                        self.run_batch_insert(query.sql, query.rows, **kwargs)
+                    else:
+                        is_last = i == len(plan.queries) - 1 and not block
+                        final_query = query.sql
+                        for holder, id_ in placeholders.items():
+                            final_query = final_query.replace(holder, id_)
+                        result = self.run_query(
+                            final_query,
+                            to_pandas,
+                            to_iter and (i == len(plan.queries) - 1),
+                            is_ddl_on_temp_object=query.is_ddl_on_temp_object,
+                            block=not is_last,
+                            data_type=data_type,
+                            **kwargs,
+                        )
+                        placeholders[query.query_id_place_holder] = (
+                            result["sfqid"] if not is_last else result.query_id
+                        )
+                        result_meta = self._cursor.description
+                    if action_id < plan.session._last_canceled_id:
+                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+        finally:
+            # delete created tmp object
+            if block:
+                for action in plan.post_actions:
+                    self.run_query(
+                        action.sql,
+                        is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+                        block=block,
+                        **kwargs,
+                    )
+
+            else:
+                result._plan = plan
 
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
@@ -487,17 +582,20 @@ class ServerConnection:
             )
         logger.debug("Execute batch insertion query %s", query)
 
-    def _fix_pandas_df_integer(self, pd_df: "pandas.DataFrame") -> "pandas.DataFrame":
-        for column_metadata, pandas_dtype, pandas_col_name in zip(
-            self._cursor.description, pd_df.dtypes, pd_df.columns
+
+def _fix_pandas_df_integer(
+    pd_df: "pandas.DataFrame", results_cursor: SnowflakeCursor
+) -> "pandas.DataFrame":
+    for column_metadata, pandas_dtype, pandas_col_name in zip(
+        results_cursor.description, pd_df.dtypes, pd_df.columns
+    ):
+        if (
+            FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
+            and column_metadata.precision is not None
+            and column_metadata.scale == 0
+            and not str(pandas_dtype).startswith("int")
         ):
-            if (
-                FIELD_ID_TO_NAME.get(column_metadata.type_code) == "FIXED"
-                and column_metadata.precision is not None
-                and column_metadata.scale == 0
-                and not str(pandas_dtype).startswith("int")
-            ):
-                pd_df[pandas_col_name] = pandas.to_numeric(
-                    pd_df[pandas_col_name], downcast="integer"
-                )
-        return pd_df
+            pd_df[pandas_col_name] = pandas.to_numeric(
+                pd_df[pandas_col_name], downcast="integer"
+            )
+    return pd_df
