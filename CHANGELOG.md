@@ -2,7 +2,7 @@
 ## 0.10.0 (2022-09-16)
 
 ### New Features:
-- Added support for evaluating Snowpark dataframes with asynchronous queries:
+- Added experimental APIs for evaluating Snowpark dataframes with asynchronous queries:
   - Added keyword argument `block` to most action APIs on Snowpark dataframes (which execute queries) to allow asynchronous evaluations.
   - Added method `df.collect_nowait()` to allow asynchronous evaluations.
   - Added class `AsyncJob` to retrieve results from asynchronously executed queries and check their status.
@@ -11,9 +11,6 @@
 - Added support for using Python structured data (`list`, `tuple` and `dict`) as literal values in Snowpark.
 - Added keyword argument `execute_as` to `functions.sproc()` and `session.sproc.register()` to allow registering a stored procedure as a caller or owner.
 - Added support for specifying a pre-configured file format when reading files from a stage in Snowflake.
-
-### Breaking Changes:
-- When adding a package using `session.add_packages()` with a specific version to UDFs or stored procedures, if the version is not supported by Snowflake, an exception will be raised immediately instead of when registering the UDF or stored procedure.
 
 ### Improvements:
 - Added support for displaying details of a Snowpark session.
