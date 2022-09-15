@@ -1646,9 +1646,9 @@ class Session:
         return df.collect()[0][0]
 
     @deprecated(
-        deprecate_version="0.7.0",
-        extra_warning_text="`Session.flatten()` is deprecated. Use `Session.table_function()` instead.",
-        extra_doc_string="This method is deprecated. Use :meth:`table_function` instead.",
+        version="0.7.0",
+        extra_warning_text="Use `Session.table_function()` instead.",
+        extra_doc_string="Use :meth:`table_function` instead.",
     )
     def flatten(
         self,
