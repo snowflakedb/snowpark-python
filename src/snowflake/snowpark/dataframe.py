@@ -654,6 +654,7 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         **kwargs: Dict[str, Any],
     ) -> Iterator["pandas.DataFrame"]:
         """
@@ -675,6 +676,9 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -682,10 +686,18 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        yield from self._session._conn.execute(
+        if not block:
+            warning(
+                "to_pandas_batches.block",
+                "block argument is experimental. Do not use it in production.",
+            )
+
+        return self._session._conn.execute(
             self._plan,
             to_pandas=True,
             to_iter=True,
+            block=block,
+            data_type=_AsyncDataType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
