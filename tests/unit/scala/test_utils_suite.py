@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.utils import (
     TEMPORARY_STRING,
     calculate_checksum,
     deprecated,
+    experimental,
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_udf_upload_prefix,
@@ -382,21 +383,30 @@ def test_use_scoped_temporary():
 
 
 def test_warning(caplog):
+    def f():
+        return 1
+
     try:
         with caplog.at_level(logging.WARNING):
             warning("aaa", "bbb", 2)
             warning("aaa", "bbb", 2)
             warning("aaa", "bbb", 2)
         assert caplog.text.count("bbb") == 2
+        with caplog.at_level(logging.WARNING):
+            warning(f.__qualname__, "ccc", 2)
+            warning(f.__qualname__, "ccc", 2)
+            warning(f.__qualname__, "ccc", 2)
+        assert caplog.text.count("ccc") == 2
     finally:
         warning_dict.clear()
 
 
-def test_deprecated_decorator(caplog):
+@pytest.mark.parametrize("decorator", [deprecated, experimental])
+def test_func_decorator(caplog, decorator):
     try:
 
-        @deprecated(
-            deprecate_version="1.0.0",
+        @decorator(
+            version="1.0.0",
             extra_warning_text="extra_warning_text",
             extra_doc_string="extra_doc_string",
         )
@@ -408,6 +418,7 @@ def test_deprecated_decorator(caplog):
             f()
             f()
 
+        assert decorator.__name__ in caplog.text
         assert caplog.text.count("1.0.0") == 1
         assert caplog.text.count("extra_warning_text") == 1
     finally:
