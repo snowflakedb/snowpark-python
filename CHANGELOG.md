@@ -3,7 +3,10 @@
 
 ### New Features:
 - Added experimental APIs for evaluating Snowpark dataframes with asynchronous queries:
-  - Added keyword argument `block` to most action APIs on Snowpark dataframes (which execute queries) to allow asynchronous evaluations.
+  - Added keyword argument `block` to the following action APIs on Snowpark dataframes (which execute queries) to allow asynchronous evaluations:
+    - `df.collect()`, `df.to_local_iterator()`, `df.to_pandas()`, `df.count()`, `df.first()`.
+    - `df.write.save_as_table()`, `df.write.copy_into_location()`.
+    - `table.delete()`, `table.update()`, `table.merge()`.
   - Added method `df.collect_nowait()` to allow asynchronous evaluations.
   - Added class `AsyncJob` to retrieve results from asynchronously executed queries and check their status.
 - Added support for `table_type` in `session.write_pandas()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
