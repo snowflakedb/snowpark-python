@@ -1657,6 +1657,9 @@ def test_comment_in_udf_description(session):
             break
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
 def test_deprecate_call_udf_with_list(session, caplog):
     add_udf = session.udf.register(
         lambda x, y: x + y,
