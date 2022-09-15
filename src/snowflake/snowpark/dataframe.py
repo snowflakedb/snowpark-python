@@ -1375,12 +1375,31 @@ class DataFrame:
     @df_api_usage
     def limit(self, n: int, offset: Optional[int] = 0) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
-        DataFrame (similar to LIMIT in SQL).
+        DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
 
         Note that this is a transformation method and not an action method.
 
         Args:
             n: Number of rows to return.
+            offset: Number of rows to skip before the start of the result set. The default value is 0.
+
+        Example::
+
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df.limit(1).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+            >>> df.limit(1, offset=1).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |3    |4    |
+            -------------
+            <BLANKLINE>
         """
         if self._select_statement:
             return self._with_plan(self._select_statement.limit(n, offset=offset))

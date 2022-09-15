@@ -2259,3 +2259,9 @@ def test_call_with_statement_params(session):
     assert len(copied_files) == 1
     assert ".csv" in copied_files[0][0]
     Utils.drop_stage(session, temp_stage)
+
+
+def test_limit_offset(session):
+    df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["a", "b", "c"])
+    assert df.limit(1).collect() == [Row(A=1, B=2, C=3)]
+    assert df.limit(1, offset=1).collect() == [Row(A=4, B=5, C=6)]
