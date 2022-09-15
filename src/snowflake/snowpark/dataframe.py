@@ -1373,7 +1373,7 @@ class DataFrame:
         return self._with_plan(unpivot_plan)
 
     @df_api_usage
-    def limit(self, n: int, offset: Optional[int] = 0) -> "DataFrame":
+    def limit(self, n: int, offset: int = 0) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
 
