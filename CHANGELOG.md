@@ -4,12 +4,12 @@
 ### New Features:
 - Added experimental APIs for evaluating Snowpark dataframes with asynchronous queries:
   - Added keyword argument `block` to the following action APIs on Snowpark dataframes (which execute queries) to allow asynchronous evaluations:
-    - `df.collect()`, `df.to_local_iterator()`, `df.to_pandas()`, `df.count()`, `df.first()`.
-    - `df.write.save_as_table()`, `df.write.copy_into_location()`.
-    - `table.delete()`, `table.update()`, `table.merge()`.
-  - Added method `df.collect_nowait()` to allow asynchronous evaluations.
+    - `DataFrame.collect()`, `DataFrame.to_local_iterator()`, `DataFrame.to_pandas()`, `DataFrame.count()`, `DataFrame.first()`.
+    - `DataFrameWriter.save_as_table()`, `DataFrameWriter.copy_into_location()`.
+    - `Table.delete()`, `Table.update()`, `Table.merge()`.
+  - Added method `DataFrame.collect_nowait()` to allow asynchronous evaluations.
   - Added class `AsyncJob` to retrieve results from asynchronously executed queries and check their status.
-- Added support for `table_type` in `session.write_pandas()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
+- Added support for `table_type` in `Session.write_pandas()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
 - Added support for using Python structured data (`list`, `tuple` and `dict`) as literal values in Snowpark.
 - Added keyword argument `execute_as` to `functions.sproc()` and `session.sproc.register()` to allow registering a stored procedure as a caller or owner.
 - Added support for specifying a pre-configured file format when reading files from a stage in Snowflake.
@@ -18,10 +18,10 @@
 - Added support for displaying details of a Snowpark session.
 
 ### Bug Fixes:
-- Fixed a bug in which `df.copy_into_table()` and `df.write.save_as_table()` mistakenly created a new table if the table name is fully qualified, and the table already exists.
+- Fixed a bug in which `DataFrame.copy_into_table()` and `DataFrameWriter.save_as_table()` mistakenly created a new table if the table name is fully qualified, and the table already exists.
 
 ### Deprecations:
-- Deprecated keyword argument `create_temp_table` in `session.write_pandas()`.
+- Deprecated keyword argument `create_temp_table` in `Session.write_pandas()`.
 - Deprecated invoking UDFs using arguments wrapped in a Python list or tuple. You can use variable-length arguments without a list or tuple.
 
 ### Dependency updates
