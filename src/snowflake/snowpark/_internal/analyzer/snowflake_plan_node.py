@@ -70,9 +70,12 @@ class SnowflakeCreateTable(LogicalPlan):
 
 
 class Limit(LogicalPlan):
-    def __init__(self, limit_expr: Expression, child: LogicalPlan) -> None:
+    def __init__(
+        self, limit_expr: Expression, offset_expr: Expression, child: LogicalPlan
+    ) -> None:
         super().__init__()
         self.limit_expr = limit_expr
+        self.offset_expr = offset_expr
         self.child = child
         self.children.append(child)
 
