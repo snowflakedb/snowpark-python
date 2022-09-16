@@ -629,11 +629,15 @@ def create_table_as_select_statement(
     )
 
 
-def limit_statement(row_count: str, child: str, on_top_of_order_by: bool) -> str:
+def limit_statement(
+    row_count: str, offset: str, child: str, on_top_of_order_by: bool
+) -> str:
     return (
         f"{child if on_top_of_order_by else project_statement([], child)}"
         + LIMIT
         + row_count
+        + OFFSET
+        + offset
     )
 
 

@@ -576,6 +576,7 @@ class Analyzer:
 
             return self.plan_builder.limit(
                 self.to_sql_avoid_offset(logical_plan.limit_expr),
+                self.to_sql_avoid_offset(logical_plan.offset_expr),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
                 logical_plan,

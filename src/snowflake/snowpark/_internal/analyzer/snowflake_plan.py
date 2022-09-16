@@ -569,12 +569,13 @@ class SnowflakePlanBuilder:
     def limit(
         self,
         limit_expr: str,
+        offset_expr: str,
         child: SnowflakePlan,
         on_top_of_oder_by: bool,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: limit_statement(limit_expr, x, on_top_of_oder_by),
+            lambda x: limit_statement(limit_expr, offset_expr, x, on_top_of_oder_by),
             child,
             source_plan,
         )
