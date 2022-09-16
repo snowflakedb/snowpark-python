@@ -5,6 +5,7 @@ import logging
 from time import sleep, time
 
 import pytest
+from pandas.util.testing import assert_frame_equal
 
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row
@@ -94,6 +95,18 @@ def test_async_to_pandas_common(session):
     Utils.check_answer(
         session.create_dataframe(res), session.create_dataframe(expected_res)
     )
+
+
+def test_async_to_pandas_batches(session):
+    df = session.range(100000).cache_result()
+    async_job = df.to_pandas_batches(block=False)
+    res = list(async_job.result())
+    expected_res = list(df.to_pandas_batches())
+    assert len(res) > 0
+    assert len(expected_res) > 0
+    for r, er in zip(res, expected_res):
+        assert_frame_equal(r, er)
+        break
 
 
 def test_async_to_pandas_empty_result(session):
