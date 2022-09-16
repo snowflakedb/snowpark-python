@@ -832,6 +832,7 @@ def test_sample_on_join(session):
     )
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_sample_on_union(session):
     """Tests running sample on union statements"""
     row_count = 10000
