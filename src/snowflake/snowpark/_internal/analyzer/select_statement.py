@@ -155,7 +155,7 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
-        self._api_calls = api_calls
+        self._api_calls = api_calls.copy() if api_calls is not None else None
 
     @property
     @abstractmethod
@@ -184,7 +184,7 @@ class Selectable(LogicalPlan, ABC):
         return self._api_calls
 
     @api_calls.setter
-    def api_calls(self, value: Dict[str, Any]) -> None:
+    def api_calls(self, value: List[Dict[str, Any]]) -> None:
         self._api_calls = value
         if self._snowflake_plan:
             self._snowflake_plan.api_calls = value
@@ -283,6 +283,7 @@ class SelectSQL(Selectable):
             return self
         new = SelectSQL(self._sql_query, convert_to_select=True, analyzer=self.analyzer)
         new._column_states = self.column_states
+        new._api_calls = self._api_calls
         return new
 
 
@@ -343,7 +344,7 @@ class SelectStatement(Selectable):
         self._projection_in_str = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
         self.api_calls = (
-            self.from_.api_calls
+            self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
 
     def __copy__(self):
@@ -363,7 +364,7 @@ class SelectStatement(Selectable):
         new._column_states = None
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
-        new._api_calls = self._api_calls
+        new._api_calls = self._api_calls.copy() if self._api_calls is not None else None
         return new
 
     @property
@@ -468,7 +469,13 @@ class SelectStatement(Selectable):
             # df.select("*") doesn't have the child.expressions
             # df.select(df["*"]) has the child.expressions
         ):
-            return self
+            new = copy(self)  # it copies the api_calls
+            new._projection_in_str = self._projection_in_str
+            new._schema_query = self._schema_query
+            new._column_states = self._column_states
+            new._snowflake_plan = self._snowflake_plan
+            new.flatten_disabled = self.flatten_disabled
+            return new
         final_projection = []
         disable_next_level_flatten = False
         new_column_states = derive_column_states_from_subquery(cols, self)
@@ -535,7 +542,6 @@ class SelectStatement(Selectable):
         # If new._column_states is None, when property `column_states` is called later,
         # a query will be described and an error like "invalid identifier" will be thrown.
 
-        new.api_calls = self.api_calls.copy()
         return new
 
     def filter(self, col: Expression) -> "SelectStatement":
@@ -557,7 +563,6 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
-        new.api_calls = self.api_calls.copy()
         return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
@@ -579,7 +584,6 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
             )
-        new.api_calls = self.api_calls.copy()
         return new
 
     def set_operator(
@@ -629,13 +633,13 @@ class SelectStatement(Selectable):
                 *set_operands,
                 analyzer=self.analyzer,
             )
-        new = SelectStatement(analyzer=self.analyzer, from_=set_statement)
-        new._column_states = set_statement.column_states
         api_calls = self.api_calls.copy()
         for s in selectables:
             if s.api_calls:
                 api_calls.extend(s.api_calls)
-        new.api_calls = api_calls
+        set_statement.api_calls = api_calls
+        new = SelectStatement(analyzer=self.analyzer, from_=set_statement)
+        new._column_states = set_statement.column_states
         return new
 
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
@@ -644,7 +648,6 @@ class SelectStatement(Selectable):
         new.limit_ = min(self.limit_, n) if self.limit_ else n
         new.offset = (self.offset + offset) if self.offset else offset
         new._column_states = self._column_states
-        new.api_calls = self.api_calls.copy()
         return new
 
 
