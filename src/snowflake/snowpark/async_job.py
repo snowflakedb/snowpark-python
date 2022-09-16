@@ -223,7 +223,6 @@ class AsyncJob:
             )["data"]
             check_is_pandas_dataframe_in_to_pandas(result)
         elif self._data_type == _AsyncDataType.PANDAS_BATCH:
-            # TODO: SNOW-642562 support to_pandas_batches once the connector side bug gets fixed
             result = self._server_connection._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True
             )["data"]
