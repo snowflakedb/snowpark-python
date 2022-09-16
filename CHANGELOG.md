@@ -1,11 +1,28 @@
 # Release History
-## 0.10.0 (Unreleased)
+## 0.10.0 (2022-09-16)
 
 ### New Features:
-- Added support for `table_type` in `session.write_pandas()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
+- Added experimental APIs for evaluating Snowpark dataframes with asynchronous queries:
+  - Added keyword argument `block` to the following action APIs on Snowpark dataframes (which execute queries) to allow asynchronous evaluations:
+    - `DataFrame.collect()`, `DataFrame.to_local_iterator()`, `DataFrame.to_pandas()`, `DataFrame.to_pandas_batches()`, `DataFrame.count()`, `DataFrame.first()`.
+    - `DataFrameWriter.save_as_table()`, `DataFrameWriter.copy_into_location()`.
+    - `Table.delete()`, `Table.update()`, `Table.merge()`.
+  - Added method `DataFrame.collect_nowait()` to allow asynchronous evaluations.
+  - Added class `AsyncJob` to retrieve results from asynchronously executed queries and check their status.
+- Added support for `table_type` in `Session.write_pandas()`. You can now choose from these `table_type` options: `"temporary"`, `"temp"`, and `"transient"`.
+- Added support for using Python structured data (`list`, `tuple` and `dict`) as literal values in Snowpark.
+- Added keyword argument `execute_as` to `functions.sproc()` and `session.sproc.register()` to allow registering a stored procedure as a caller or owner.
+- Added support for specifying a pre-configured file format when reading files from a stage in Snowflake.
+
+### Improvements:
+- Added support for displaying details of a Snowpark session.
+
+### Bug Fixes:
+- Fixed a bug in which `DataFrame.copy_into_table()` and `DataFrameWriter.save_as_table()` mistakenly created a new table if the table name is fully qualified, and the table already exists.
 
 ### Deprecations:
-- Keyword Argument `create_temp_table` in `session.write_pandas()`.
+- Deprecated keyword argument `create_temp_table` in `Session.write_pandas()`.
+- Deprecated invoking UDFs using arguments wrapped in a Python list or tuple. You can use variable-length arguments without a list or tuple.
 
 ### Dependency updates
 - Updated ``snowflake-connector-python`` to 2.7.12.
@@ -59,6 +76,9 @@ This feature is turned on by default. To turn it off, pass the new keyword argum
 - Fixed a bug in which calling `session.create_dataframe()` using a large local dataset sometimes created a temp table twice.
 - Aligned the definition of `function.trim()` with the SQL function definition.
 - Fixed an issue where snowpark-python would hang when using the Python system-defined (built-in function) `sum` vs. the Snowpark `function.sum()`.
+
+### Deprecations:
+- Deprecated keyword argument `create_temp_table` in `df.write.save_as_table()`.
 
 
 ## 0.7.0 (2022-05-25)
