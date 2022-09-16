@@ -4,7 +4,7 @@
 ### New Features:
 - Added experimental APIs for evaluating Snowpark dataframes with asynchronous queries:
   - Added keyword argument `block` to the following action APIs on Snowpark dataframes (which execute queries) to allow asynchronous evaluations:
-    - `DataFrame.collect()`, `DataFrame.to_local_iterator()`, `DataFrame.to_pandas()`, `DataFrame.count()`, `DataFrame.first()`.
+    - `DataFrame.collect()`, `DataFrame.to_local_iterator()`, `DataFrame.to_pandas()`, `DataFrame.to_pandas_batches()`, `DataFrame.count()`, `DataFrame.first()`.
     - `DataFrameWriter.save_as_table()`, `DataFrameWriter.copy_into_location()`.
     - `Table.delete()`, `Table.update()`, `Table.merge()`.
   - Added method `DataFrame.collect_nowait()` to allow asynchronous evaluations.
