@@ -408,3 +408,83 @@ def test_match_clause_negative(session):
     assert "insert has been specified for WhenNotMatchedClause to merge table" in str(
         ex_info
     )
+
+
+def test_update_with_large_dataframe(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    TestData.upper_case_data(session).write.save_as_table(
+        table_name2, mode="overwrite", table_type="temporary"
+    )
+    t2 = session.table(table_name2)
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        sd = session.createDataFrame(["A", "B", "D", "E"], schema=["c"])
+        assert t2.update({"n": 0}, t2.L == sd.c, sd) == UpdateResult(4, 0)
+        Utils.check_answer(
+            t2,
+            [
+                Row(0, "A"),
+                Row(0, "B"),
+                Row(0, "D"),
+                Row(0, "E"),
+                Row(3, "C"),
+                Row(6, "F"),
+            ],
+        )
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+
+def test_delete_with_large_dataframe(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    TestData.upper_case_data(session).write.save_as_table(
+        table_name2, mode="overwrite", table_type="temporary"
+    )
+    t2 = session.table(table_name2)
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        sd = session.createDataFrame(["A", "B", "D", "E"], schema=["c"])
+        assert t2.delete(t2.L == sd.c, sd) == DeleteResult(4)
+        Utils.check_answer(t2, [Row(3, "C"), Row(6, "F")])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+
+def test_merge_with_large_dataframe(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    target_df = session.createDataFrame(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
+    )
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        source = session.createDataFrame(
+            [(10, "new"), (12, "new"), (13, "old")], schema=["id", "desc"]
+        )
+        assert target.merge(
+            source,
+            target["id"] == source["id"],
+            [
+                when_matched(target["desc"] == "too_old").delete(),
+                when_matched().update({"desc": source["desc"]}),
+                when_not_matched(source["desc"] == "old").insert(
+                    {"id": source["id"], "desc": "new"}
+                ),
+                when_not_matched().insert({"id": source["id"], "desc": source["desc"]}),
+            ],
+        ) == MergeResult(2, 1, 1)
+        Utils.check_answer(
+            target, [Row(10, "new"), Row(11, "old"), Row(12, "new"), Row(13, "new")]
+        )
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
