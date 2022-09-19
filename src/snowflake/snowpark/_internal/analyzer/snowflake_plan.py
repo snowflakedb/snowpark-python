@@ -64,6 +64,7 @@ from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
     generate_random_alphanumeric,
+    is_sql_select_statement,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
@@ -991,7 +992,7 @@ class SnowflakePlanBuilder:
     def add_result_scan_if_not_select(self, plan: SnowflakePlan) -> SnowflakePlan:
         if isinstance(plan.source_plan, SetOperation):
             return plan
-        elif plan.queries[-1].sql.strip().lower().startswith("select"):
+        elif is_sql_select_statement(plan.queries[-1].sql):
             return plan
         else:
             new_queries = plan.queries + [
