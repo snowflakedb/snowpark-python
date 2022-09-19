@@ -82,18 +82,17 @@ def adjust_api_subcalls(
     precalls: Optional[List[Dict]] = None,
     subcalls: Optional[List[Dict]] = None,
 ) -> None:
+    plan = df._select_statement or df._plan
     if len_subcalls:
-        df._plan.api_calls = [
-            *df._plan.api_calls[:-len_subcalls],
+        plan.api_calls = [
+            *plan.api_calls[:-len_subcalls],
             {
                 TelemetryField.NAME.value: func_name,
-                TelemetryField.KEY_SUBCALLS.value: [
-                    *df._plan.api_calls[-len_subcalls:]
-                ],
+                TelemetryField.KEY_SUBCALLS.value: [*plan.api_calls[-len_subcalls:]],
             },
         ]
     elif precalls is not None and subcalls is not None:
-        df._plan.api_calls = [
+        plan.api_calls = [
             *precalls,
             {
                 TelemetryField.NAME.value: func_name,
@@ -103,11 +102,13 @@ def adjust_api_subcalls(
 
 
 def add_api_call(df, func_name: str) -> None:
-    df._plan.api_calls.append({TelemetryField.NAME.value: func_name})
+    plan = df._select_statement or df._plan
+    plan.api_calls.append({TelemetryField.NAME.value: func_name})
 
 
 def set_api_call_source(df, func_name: str) -> None:
-    df._plan.api_calls = [{TelemetryField.NAME.value: func_name}]
+    plan = df._select_statement or df._plan
+    plan.api_calls = [{TelemetryField.NAME.value: func_name}]
 
 
 # A decorator to use in the Telemetry client to make sure operations
@@ -130,8 +131,9 @@ def df_collect_api_telemetry(func):
     def wrap(*args, **kwargs):
         with args[0]._session.query_history() as query_history:
             result = func(*args, **kwargs)
+        plan = args[0]._select_statement or args[0]._plan
         api_calls = [
-            *args[0]._plan.api_calls,
+            *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
         ]
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
@@ -163,8 +165,9 @@ def dfw_collect_api_telemetry(func):
     def wrap(*args, **kwargs):
         with args[0]._dataframe._session.query_history() as query_history:
             result = func(*args, **kwargs)
+        plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
         api_calls = [
-            *args[0]._dataframe._plan.api_calls,
+            *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}"},
         ]
         args[
@@ -211,24 +214,25 @@ def df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         r = func(*args, **kwargs)
+        plan = r._select_statement or r._plan
         # Some DataFrame APIs call other DataFrame APIs, so we need to remove the extra call
         if (
             func.__name__ in APIS_WITH_MULTIPLE_CALLS
-            and len(r._plan.api_calls) >= API_CALLS_TO_ADJUST[func.__name__]
+            and len(plan.api_calls) >= API_CALLS_TO_ADJUST[func.__name__]
         ):
             len_api_calls_to_adjust = API_CALLS_TO_ADJUST[func.__name__]
-            subcalls = r._plan.api_calls[-len_api_calls_to_adjust:]
+            subcalls = plan.api_calls[-len_api_calls_to_adjust:]
             # remove inner calls
-            r._plan.api_calls = r._plan.api_calls[:-len_api_calls_to_adjust]
+            plan.api_calls = plan.api_calls[:-len_api_calls_to_adjust]
             # Add in new API call and subcalls
-            r._plan.api_calls.append(
+            plan.api_calls.append(
                 {
                     TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
                     TelemetryField.KEY_SUBCALLS.value: subcalls,
                 }
             )
         else:
-            r._plan.api_calls.append(
+            plan.api_calls.append(
                 {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
             )
         return r
@@ -251,9 +255,10 @@ def relational_group_df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         r = func(*args, **kwargs)
+        plan = r._select_statement or r._plan
         if args[0]._df_api_call:
-            r._plan.api_calls.append(args[0]._df_api_call)
-        r._plan.api_calls.append(
+            plan.api_calls.append(args[0]._df_api_call)
+        plan.api_calls.append(
             {TelemetryField.NAME.value: f"RelationalGroupedDataFrame.{func.__name__}"}
         )
         return r
