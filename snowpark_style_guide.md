@@ -13,6 +13,7 @@ Beyond Snowpark specifics, the general practices of clean code are important in 
 1. [DataFrame Operations](#dataframe-operations)
    1. [Column Selection](#column-selection)
    2. [Aliasing Column Name](#aliasing-column-name)
+   3. [Performant SQL Generation](#performant-sql-generation)
 2. [Expressions](#expressions)
    1. [Multiple-Lines](#multiple-lines)
 3. [Explicitness](#explicitness)
@@ -22,7 +23,6 @@ Beyond Snowpark specifics, the general practices of clean code are important in 
    2. [Type Hints](#type-hints)
 5. [User Defined Table Functions (UDTFs)](#user-defined-table-functions-udfts)
 6. [Stored Procedures](#stored-procedures)
-5. [SQL Generation for DataFrame](#sql-generation-for-dataframe)
 6. [Miscellaneous](#miscellaneous)
 
 # DataFrame Operations
@@ -95,6 +95,15 @@ order = order.select(
     col('time').alias('order_time')
 )
 ```
+
+## Performant SQL Generation
+
+Operations upon `DataFrame` will ultimately get turned into SQL statements and send to Snowflake for execution.
+Non-optimized SQL statements would take longer time to process and execute and sometimes the service even times out.
+Snowpark has implemented a SQL simplifier which is turned on by default, and it is build upon certain rules.
+To maximize the effectiveness of the simplifier, we propose the following guidelines based on our practices:
+
+<TO BE FILLED>
 
 # Expressions
 
@@ -304,14 +313,13 @@ def typed_add(session_, x: int, y: int) -> int:
     return session_.sql(f"select {x} + {y}").collect()[0][0]
 ```
 
-# SQL Generation for `DataFrame`
-
-<TO BE FILLED>
-
 # Miscellaneous
+- Test your code thoroughly through units and integration tests. There are numerous [test cases in Snowpark][snowpark-tests] which you
+could get inspiration from, feel free to copy and modify accommodating your scenarios.
 
 
 [pep-8]: https://peps.python.org/pep-0008/
 [udf-service-doc]: https://docs.snowflake.com/en/sql-reference/user-defined-functions.html
 [udtf-service-doc]: https://docs.snowflake.com/en/developer-guide/udf/sql/udf-sql-tabular-functions.html
 [sproc-service-doc]: https://docs.snowflake.com/en/sql-reference/stored-procedures-overview.html
+[snowpark-tests]: https://github.com/snowflakedb/snowpark-python/tree/main/tests
