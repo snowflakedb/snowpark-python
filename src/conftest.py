@@ -22,13 +22,14 @@ TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 # session is important to certain UDF tests to pass , since they
 # use the @udf decorator
 @pytest.fixture(autouse=True, scope="module")
-def add_snowpark_session(doctest_namespace):
+def add_snowpark_session(doctest_namespace, sql_simplifier_enabled):
     sys.path.append("tests/")
     with open("tests/parameters.py", encoding="utf-8") as f:
         exec(f.read(), globals())
     with Session.builder.configs(
         globals()["CONNECTION_PARAMETERS"]
     ).create() as session:
+        session.sql_simplifier_enabled = sql_simplifier_enabled
         if RUNNING_ON_GH:
             session.sql(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}").collect()
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
