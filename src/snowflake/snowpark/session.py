@@ -274,7 +274,9 @@ class Session:
         self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
-        self.sql_simplifier_enabled = False
+        self.sql_simplifier_enabled: bool = (
+            False  #: Whether the generated SQL is flattened or not.
+        )
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
