@@ -1644,16 +1644,14 @@ class DataFrame:
             rattr for rattr in right_output_attrs if rattr not in right_project_list
         ]
 
-        from snowflake.snowpark import context
-
         names = right_project_list + not_found_attrs
-        if context._use_sql_simplifier and other._select_statement:
+        if self._session.sql_simplifier_enabled and other._select_statement:
             right_child = self._with_plan(other._select_statement.select(names))
         else:
             right_child = self._with_plan(Project(names, other._plan))
 
         union_plan = UnionPlan(self._plan, right_child._plan, is_all)
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             df = self._with_plan(
                 SelectStatement(
                     from_=SelectSnowflakePlan(
@@ -2014,8 +2012,6 @@ class DataFrame:
             func, *func_arguments, **func_named_arguments
         )
 
-        from snowflake.snowpark import context
-
         names = None
         if func_expr.aliases:
             join_plan = self._session._analyzer.resolve(
@@ -2026,7 +2022,7 @@ class DataFrame:
             )
             names = [*old_cols, *new_cols]
 
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             select_plan = SelectStatement(
                 from_=SelectTableFunction(
                     func_expr,
