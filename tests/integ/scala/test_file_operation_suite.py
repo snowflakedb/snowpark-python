@@ -9,6 +9,7 @@ import string
 
 import pytest
 
+from snowflake.connector.errors import OperationalError
 from snowflake.snowpark._internal.utils import is_in_stored_procedure
 from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
@@ -484,6 +485,44 @@ def test_get_negative_test_file_name_collision(
     finally:
         if not is_in_stored_procedure():
             shutil.rmtree(target_directory)
+
+
+@pytest.mark.parametrize("auto_compress", [True, False])
+@pytest.mark.parametrize("with_file_prefix", [True, False])
+def test_get_stream(session, temp_stage, with_file_prefix, auto_compress, path1):
+    stage_prefix = f"prefix_{random_alphanumeric_name()}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
+
+    put_result = session.file.put(
+        f"{'file://' if with_file_prefix else ''}{path1}",
+        stage_with_prefix,
+        auto_compress=auto_compress,
+    )
+    with open(path1, "rb") as fd:
+        file_content = fd.read()
+
+    fd = session.file.get_stream(
+        f"{stage_with_prefix}{put_result[0].target}", decompress=auto_compress
+    )
+    assert fd.read() == file_content
+    fd.close()
+
+
+def test_get_stream_negative(session, temp_stage):
+    stage_prefix = f"prefix_{random_alphanumeric_name()}"
+    stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
+
+    with pytest.raises(ValueError) as ex_info:
+        session.file.get_stream("   ")
+    assert "stage_location cannot be empty" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        session.file.get_stream(stage_with_prefix)
+    assert "stage_location should end with target file name"
+
+    with pytest.raises(OperationalError) as ex_info:
+        session.file.get_stream(f"{stage_with_prefix}non_existing_file")
+    assert "the file does not exist" in str(ex_info)
 
 
 def test_quoted_local_file_name(session, temp_stage, tmp_path_factory):
