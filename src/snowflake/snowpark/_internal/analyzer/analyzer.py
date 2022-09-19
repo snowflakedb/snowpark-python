@@ -694,6 +694,7 @@ class Analyzer:
                 if logical_plan.condition
                 else None,
                 resolved_children.get(logical_plan.source_data, None),
+                logical_plan,
             )
 
         if isinstance(logical_plan, TableDelete):
@@ -703,6 +704,7 @@ class Analyzer:
                 if logical_plan.condition
                 else None,
                 resolved_children.get(logical_plan.source_data, None),
+                logical_plan,
             )
 
         if isinstance(logical_plan, TableMerge):
@@ -711,6 +713,7 @@ class Analyzer:
                 resolved_children.get(logical_plan.source),
                 self.analyze(logical_plan.join_expr),
                 [self.analyze(c) for c in logical_plan.clauses],
+                logical_plan,
             )
 
         if isinstance(logical_plan, Selectable):
