@@ -159,6 +159,7 @@ def test_call_named_udf(session, temp_schema, db_parameters):
     new_session = (
         Session.builder.configs(db_parameters)._remove_config("schema").create()
     )
+    new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
     try:
         assert not new_session.get_current_schema()
         add_udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -783,6 +784,7 @@ def test_permanent_udf(session, db_parameters):
     stage_name = Utils.random_stage_name()
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     with Session.builder.configs(db_parameters).create() as new_session:
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)
             udf(

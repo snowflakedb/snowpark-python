@@ -277,9 +277,8 @@ class DataFrameReader:
 
         self._file_path = path
         self._file_type = "csv"
-        from snowflake.snowpark import context
 
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
                 SelectStatement(
@@ -487,9 +486,7 @@ class DataFrameReader:
                         drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                     )
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
                 SelectStatement(
