@@ -5,9 +5,7 @@
 """Context module for Snowpark."""
 import snowflake.snowpark
 
-_use_sql_simplifier = True
 _use_scoped_temp_objects = True
-# TODO: consider moving it to __init__.py
 
 
 def get_active_session() -> "snowflake.snowpark.Session":

@@ -1,19 +1,18 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
+import os
 from typing import Iterable, Tuple
 
 import pytest
 
-from snowflake.snowpark import Row, context
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
     SET_UNION,
     SET_UNION_ALL,
 )
-from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     avg,
@@ -26,7 +25,7 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import TestData, Utils
 
-if not _use_sql_simplifier:
+if not os.environ.get("USE_SQL_SIMPLIFIER") == "1":
     pytest.skip(
         "Disable sql simplifier test when simplifier is disabled",
         allow_module_level=True,
@@ -740,8 +739,9 @@ def test_cube_rollup(session, func_name):
 
 
 def test_use_sql_simplifier(session, simplifier_table):
+    sql_simplifier_enabled_original = session.sql_simplifier_enabled
     try:
-        context._use_sql_simplifier = False
+        session.sql_simplifier_enabled = False
         df1 = (
             session.sql(f"SELECT * from {simplifier_table}")
             .select("*")
@@ -750,7 +750,7 @@ def test_use_sql_simplifier(session, simplifier_table):
             .filter(col("a") == 1)
             .sort("a")
         )
-        context._use_sql_simplifier = True
+        session.sql_simplifier_enabled = True
         df2 = (
             session.sql(f"SELECT * from {simplifier_table}")
             .select("*")
@@ -763,7 +763,7 @@ def test_use_sql_simplifier(session, simplifier_table):
         assert df2.queries["queries"][0].count("SELECT") == 2
         Utils.check_answer(df1, df2, sort=True)
 
-        context._use_sql_simplifier = False
+        session.sql_simplifier_enabled = False
         df3 = (
             session.table(simplifier_table)
             .select("*")
@@ -772,7 +772,8 @@ def test_use_sql_simplifier(session, simplifier_table):
             .filter(col("a") == 1)
             .sort("a")
         )
-        context._use_sql_simplifier = True
+
+        session.sql_simplifier_enabled = True
         df4 = (
             session.table(simplifier_table)
             .select("*")
@@ -785,7 +786,7 @@ def test_use_sql_simplifier(session, simplifier_table):
         assert df4.queries["queries"][0].count("SELECT") == 1
         Utils.check_answer(df3, df4, sort=True)
     finally:
-        context._use_sql_simplifier = True
+        session.sql_simplifier_enabled = sql_simplifier_enabled_original
 
 
 def test_join_dataframes(session, simplifier_table):

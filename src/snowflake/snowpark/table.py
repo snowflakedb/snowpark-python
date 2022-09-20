@@ -260,9 +260,8 @@ class Table(DataFrame):
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
         self.table_name: str = table_name  #: The table name
-        from snowflake.snowpark import context
 
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             self._select_statement = SelectStatement(
                 from_=SelectableEntity(table_name, analyzer=session._analyzer),
                 analyzer=session._analyzer,

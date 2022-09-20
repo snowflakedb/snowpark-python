@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path
 
-from snowflake.snowpark import context
+import pytest
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
@@ -33,6 +33,6 @@ def pytest_collection_modifyitems(items) -> None:
                 raise e
 
 
-use_sql_simplifier = os.environ.get("USE_SQL_SIMPLIFIER")
-if use_sql_simplifier == "0":
-    context._use_sql_simplifier = False
+@pytest.fixture(scope="session")
+def sql_simplifier_enabled():
+    return os.environ.get("USE_SQL_SIMPLIFIER") == "1"
