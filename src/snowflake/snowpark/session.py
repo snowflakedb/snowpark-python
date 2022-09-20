@@ -274,6 +274,9 @@ class Session:
         self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
+        self.sql_simplifier_enabled: bool = (
+            False  #: Whether the generated SQL is flattened or not.
+        )
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -942,9 +945,7 @@ class Session:
             func_name, *func_arguments, **func_named_arguments
         )
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
                 SelectStatement(
@@ -978,9 +979,7 @@ class Session:
             [Row(1/2=Decimal('0.500000'))]
         """
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
                 SelectStatement(
@@ -1408,9 +1407,7 @@ class Session:
             else:
                 project_columns.append(column(name))
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
                 SelectStatement(
@@ -1449,9 +1446,8 @@ class Session:
             [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
-        from snowflake.snowpark import context
 
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
                 SelectStatement(

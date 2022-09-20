@@ -89,8 +89,9 @@ def test_schema(connection) -> None:
 
 
 @pytest.fixture(scope="module")
-def session(db_parameters, resources_path):
+def session(db_parameters, resources_path, sql_simplifier_enabled):
     session = Session.builder.configs(db_parameters).create()
+    session.sql_simplifier_enabled = sql_simplifier_enabled
     yield session
     session.close()
 

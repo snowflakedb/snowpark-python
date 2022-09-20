@@ -24,6 +24,7 @@ pytestmark = pytest.mark.udf
 @pytest.fixture(scope="module")
 def new_session(session, db_parameters) -> Session:
     new_session = Session.builder.configs(db_parameters).create()
+    new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
     yield new_session
     new_session.close()
 

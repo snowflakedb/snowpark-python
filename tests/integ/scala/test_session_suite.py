@@ -37,6 +37,7 @@ def test_invalid_configs(session, db_parameters):
             .config("login_timeout", 5)
             .create()
         )
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         with new_session:
             assert "Incorrect username or password was specified" in str(ex_info)
 
@@ -114,10 +115,13 @@ def test_get_schema_database_works_after_use_role(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
-def test_negative_test_for_missing_required_parameter_schema(db_parameters):
+def test_negative_test_for_missing_required_parameter_schema(
+    db_parameters, sql_simplifier_enabled
+):
     new_session = (
         Session.builder.configs(db_parameters)._remove_config("schema").create()
     )
+    new_session.sql_simplifier_enabled = sql_simplifier_enabled
     with new_session:
         with pytest.raises(SnowparkMissingDbOrSchemaException) as ex_info:
             new_session.get_fully_qualified_current_schema()
@@ -169,10 +173,10 @@ def test_create_dataframe_from_array(session):
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_dataframe_created_before_session_close_are_not_usable_after_closing_session(
-    session,
-    db_parameters,
+    session, db_parameters
 ):
     new_session = Session.builder.configs(db_parameters).create()
+    new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
     with new_session:
         df = new_session.range(10)
         read = new_session.read
@@ -208,11 +212,9 @@ def test_session_info(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
-def test_dataframe_close_session(
-    session,
-    db_parameters,
-):
+def test_dataframe_close_session(session, db_parameters):
     new_session = Session.builder.configs(db_parameters).create()
+    new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
     try:
         with pytest.raises(SnowparkSessionException) as ex_info:
             _get_active_session()

@@ -1630,6 +1630,7 @@ def test_create_or_replace_temporary_view(session, db_parameters):
 
         # Get a second session object
         session2 = Session.builder.configs(db_parameters).create()
+        session2.sql_simplifier_enabled = session.sql_simplifier_enabled
         with session2:
             assert session is not session2
             with pytest.raises(SnowparkSQLException) as ex_info:
