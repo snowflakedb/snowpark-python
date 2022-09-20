@@ -441,6 +441,8 @@ def test_is_sql_select_statement():
         "   with t as (select 1) select * from t",
         "( ( ( with t as (select 1) select * from t",
         "select*fromdual",  # don't care if the sql is valid.
+        "SELECT 1" "SeLeCt 1" "WITH t as (select 1) select * from t",
+        "WiTh t as (select 1) select * from t",
     ]
     for s in select_sqls:
         assert is_sql_select_statement(s)

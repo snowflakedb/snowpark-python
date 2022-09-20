@@ -61,7 +61,7 @@ ALPHANUMERIC = string.digits + string.ascii_lowercase
 
 # select and CTE (https://docs.snowflake.com/en/sql-reference/constructs/with.html) are select statements in Snowflake.
 SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN = re.compile(
-    r"^(\s|\()*((select)|(with))", re.IGNORECASE
+    r"^(\s|\()*(select|with)", re.IGNORECASE
 )
 
 # A set of widely-used packages,
