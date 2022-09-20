@@ -59,6 +59,10 @@ SNOWFLAKE_STAGE_NAME_PATTERN = f"(%?{SNOWFLAKE_ID_PATTERN})"
 TEMP_OBJECT_NAME_PREFIX = "SNOWPARK_TEMP_"
 ALPHANUMERIC = string.digits + string.ascii_lowercase
 
+# select and CTE (https://docs.snowflake.com/en/sql-reference/constructs/with.html) are select statements in Snowflake.
+SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN = re.compile(
+    r"^(\s|\()*(select|with)", re.IGNORECASE
+)
 
 # A set of widely-used packages,
 # whose names in pypi are different from their package name
@@ -171,6 +175,10 @@ def unwrap_single_quote(name: str) -> str:
         new_name = new_name[1:-1]
     new_name = new_name.replace("\\'", "'")
     return new_name
+
+
+def is_sql_select_statement(sql: str) -> bool:
+    return SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
 
 
 def normalize_path(path: str, is_local: bool) -> str:

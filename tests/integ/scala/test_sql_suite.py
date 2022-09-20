@@ -187,3 +187,24 @@ def test_show(session):
     session.sql("SHOW TABLE")
     with pytest.raises(SnowparkSQLException):
         session.sql("SHOW TABLE").collect()
+
+
+def test_sql_start(session):
+    sqls = [
+        "select 1 as A",
+        "(  (select 1 as A) )",
+        "(with t as (select 1 as A) select * from t)",
+        "wItH t as (select 1 as A) select * from t",
+    ]
+    for sql in sqls:
+        df = session.sql(sql).select(
+            "A"
+        )  # not convert to result_scan because sql is select.
+        assert len(df.queries["queries"]) == 1  # no result_scan
+        assert "RESULT_SCAN" not in df.queries["queries"][0]
+
+    df2 = session.sql("show tables").select('"name"')
+    assert (
+        len(df2.queries["queries"]) == 2
+    )  # convert to result_scan because sql is non-select
+    assert "RESULT_SCAN" in df2.queries["queries"][1]

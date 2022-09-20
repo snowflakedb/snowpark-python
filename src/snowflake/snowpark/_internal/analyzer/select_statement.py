@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
 )
+from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
@@ -201,6 +202,7 @@ class Selectable(LogicalPlan, ABC):
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
+                source_plan=self,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -256,7 +258,7 @@ class SelectSQL(Selectable):
         super().__init__(analyzer)
         self.convert_to_select = convert_to_select
         self.original_sql = sql
-        is_select = sql.strip().lower().startswith("select")
+        is_select = is_sql_select_statement(sql)
         if not is_select and convert_to_select:
             self.pre_actions = [Query(sql)]
             self._sql_query = result_scan_statement(
