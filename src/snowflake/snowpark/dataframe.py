@@ -1654,8 +1654,11 @@ class DataFrame:
         if self._session.sql_simplifier_enabled:
             df = self._with_plan(
                 self._select_statement.set_operator(
-                    other._select_statement or SelectSnowflakePlan(other._plan, analyzer=self._session._analyzer),
-                    operator=SET_UNION
+                    other._select_statement
+                    or SelectSnowflakePlan(
+                        other._plan, analyzer=self._session._analyzer
+                    ),
+                    operator=SET_UNION,
                 )
             )
         else:
