@@ -1653,11 +1653,9 @@ class DataFrame:
         union_plan = UnionPlan(self._plan, right_child._plan, is_all)
         if self._session.sql_simplifier_enabled:
             df = self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        snowflake_plan=union_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
+                self._select_statement.set_operator(
+                    other._select_statement or SelectSnowflakePlan(other._plan, analyzer=self._session._analyzer),
+                    operator=SET_UNION
                 )
             )
         else:
