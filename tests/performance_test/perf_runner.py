@@ -10,8 +10,6 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-import memory_profiler
-
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.session import Session
 
@@ -105,6 +103,8 @@ if __name__ == "__main__":
         api = args.api
         func = eval(api)
         if args.memory:
+            import memory_profiler
+
             func = memory_profiler.profile(func)
         t0 = time.time()
         dataframe = func(session, args.ncalls)
