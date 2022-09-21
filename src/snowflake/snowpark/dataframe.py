@@ -1650,11 +1650,10 @@ class DataFrame:
         else:
             right_child = self._with_plan(Project(names, other._plan))
 
-        union_plan = UnionPlan(self._plan, right_child._plan, is_all)
         if self._session.sql_simplifier_enabled:
             df = self._with_plan(
                 self._select_statement.set_operator(
-                    other._select_statement
+                    right_child._select_statement
                     or SelectSnowflakePlan(
                         other._plan, analyzer=self._session._analyzer
                     ),
@@ -1662,7 +1661,7 @@ class DataFrame:
                 )
             )
         else:
-            df = self._with_plan(union_plan)
+            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
         return df
 
     @df_api_usage
