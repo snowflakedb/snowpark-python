@@ -8,6 +8,7 @@ import random
 import sys
 import time
 from pathlib import Path
+from typing import Iterable
 
 import memory_profiler
 
@@ -27,7 +28,7 @@ def generate_columns(n: int):
     return [f'{i} as {"a" * 50}{i}' for i in range(n)]
 
 
-def to_projection(columns):
+def to_projection(columns: Iterable[str]):
     return ",".join(columns)
 
 
@@ -35,14 +36,14 @@ def generate_projection(n: int):
     return to_projection(generate_columns(n))
 
 
-def with_column(session, ncalls):
+def with_column(session: Session, ncalls: int):
     df = session.sql("select 1 as a")
     for i in range(ncalls):
         df = df.with_column(f"{'a' * 50}{i}", (col("a") + 1))
     return df
 
 
-def drop(session, ncalls):
+def drop(session: Session, ncalls: int):
     projection = generate_projection(ncalls)
     df = session.sql(f"select 1 as a, {projection}")
     for i in range(ncalls):
@@ -50,7 +51,7 @@ def drop(session, ncalls):
     return df
 
 
-def union(session, ncalls):
+def union(session: Session, ncalls: int):
     projection = generate_projection(ncalls)
     df = session.sql(f"select {projection}")
     for _ in range(1, ncalls):
@@ -58,7 +59,7 @@ def union(session, ncalls):
     return df
 
 
-def union_by_name(session, ncalls):
+def union_by_name(session: Session, ncalls: int):
     columns = generate_columns(ncalls)
     projection = to_projection(columns)
     df = session.sql(f"select {projection}")
@@ -69,7 +70,7 @@ def union_by_name(session, ncalls):
     return df
 
 
-def join(session, ncalls):
+def join(session: Session, ncalls: int):
     columns = ",".join(f'{i} as {"a" * 50}{i}' for i in range(ncalls))
     df = session.sql(f"select {columns}")
     for _ in range(1, ncalls):
