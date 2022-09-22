@@ -16,6 +16,8 @@ from tests.utils import Utils
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 
+print("sqlsimplifier3: ", repr(os.environ.get("USE_SQL_SIMPLIFIER")))
+
 
 def running_on_public_ci() -> bool:
     """Whether or not tests are currently running on one of our public CIs."""
@@ -90,6 +92,7 @@ def test_schema(connection) -> None:
 
 @pytest.fixture(scope="module")
 def session(db_parameters, resources_path, sql_simplifier_enabled):
+    print("sqlsimplifier4: ", repr(os.environ.get("USE_SQL_SIMPLIFIER")))
     session = Session.builder.configs(db_parameters).create()
     session.sql_simplifier_enabled = sql_simplifier_enabled
     yield session
