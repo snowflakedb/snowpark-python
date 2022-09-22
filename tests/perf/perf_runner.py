@@ -8,8 +8,9 @@ import random
 import sys
 import time
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, List
 
+from snowflake.snowpark import DataFrame
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.session import Session
 
@@ -22,26 +23,26 @@ logger.setLevel(logging.ERROR)
 logger.addHandler(logging.StreamHandler())
 
 
-def generate_columns(n: int):
+def generate_columns(n: int) -> List[str]:
     return [f'{i} as {"a" * 50}{i}' for i in range(n)]
 
 
-def to_projection(columns: Iterable[str]):
+def to_projection(columns: Iterable[str]) -> str:
     return ",".join(columns)
 
 
-def generate_projection(n: int):
+def generate_projection(n: int) -> str:
     return to_projection(generate_columns(n))
 
 
-def with_column(session: Session, ncalls: int):
+def with_column(session: Session, ncalls: int) -> DataFrame:
     df = session.sql("select 1 as a")
     for i in range(ncalls):
         df = df.with_column(f"{'a' * 50}{i}", (col("a") + 1))
     return df
 
 
-def drop(session: Session, ncalls: int):
+def drop(session: Session, ncalls: int) -> DataFrame:
     projection = generate_projection(ncalls)
     df = session.sql(f"select 1 as a, {projection}")
     for i in range(ncalls):
@@ -49,16 +50,16 @@ def drop(session: Session, ncalls: int):
     return df
 
 
-def union(session: Session, ncalls: int):
-    projection = generate_projection(ncalls)
+def union(session: Session, ncalls: int, num_of_cols: int) -> DataFrame:
+    projection = generate_projection(num_of_cols)
     df = session.sql(f"select {projection}")
     for _ in range(1, ncalls):
         df = df.union(session.sql(f"select {projection}"))
     return df
 
 
-def union_by_name(session: Session, ncalls: int):
-    columns = generate_columns(ncalls)
+def union_by_name(session: Session, ncalls: int, num_of_cols: int) -> DataFrame:
+    columns = generate_columns(num_of_cols)
     projection = to_projection(columns)
     df = session.sql(f"select {projection}")
     for _ in range(ncalls):
@@ -68,8 +69,8 @@ def union_by_name(session: Session, ncalls: int):
     return df
 
 
-def join(session: Session, ncalls: int):
-    columns = ",".join(f'{i} as {"a" * 50}{i}' for i in range(ncalls))
+def join(session: Session, ncalls: int, num_of_cols: int) -> DataFrame:
+    columns = generate_projection(num_of_cols)
     df = session.sql(f"select {columns}")
     for _ in range(1, ncalls):
         temp_df = session.sql(f"select {columns}")
@@ -80,9 +81,16 @@ def join(session: Session, ncalls: int):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Snowpark Python API performance test")
     parser.add_argument(
-        "api", help="the API to test: with_column, drop, union, union_by_name, join"
+        "api", help="the API to test: with_column, drop, union, union_by_name, join."
     )
-    parser.add_argument("ncalls", type=int, help="number of calls")
+    parser.add_argument("ncalls", type=int, help="number of calls.")
+    parser.add_argument(
+        "-c",
+        "--columns",
+        type=int,
+        default=50,
+        help="number of columns, default ncalls.",
+    )
     parser.add_argument(
         "-s",
         "--simplify",
@@ -107,11 +115,16 @@ if __name__ == "__main__":
 
             func = memory_profiler.profile(func)
         t0 = time.time()
-        dataframe = func(session, args.ncalls)
+        if api in ("with_column", "drop"):
+            dataframe = func(session, args.ncalls)
+        else:
+            dataframe = func(session, args.ncalls, args.columns)
         t1 = time.time()
         print("Client side time elapsed: ", t1 - t0)
+        print("Time elapsed per API call: ", (t1 - t0) / args.ncalls)
         dataframe.collect()
         t2 = time.time()
         print("SQL execution time elapsed: ", t2 - t1)
+        print("Total execution time elapsed: ", t2 - t0)
     finally:
         session.close()

@@ -143,5 +143,5 @@ docs/source/_autosummary/
 *.code-workspace
 
 # performance test result
-tests/performance_test/results/
-tests/performance_test/*.dat
+tests/perf/results/
+tests/perf/*.dat

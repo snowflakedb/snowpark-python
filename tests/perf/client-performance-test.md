@@ -32,10 +32,10 @@ Change directory to `<Snowflake Python Project Dir>/tests/performance_test`
 
 ### Use script to take a glance at the running time and memory used
 1. Run `python perf_runner.py <api> <ncalls> -m -s`
-    - `api` is a function define in `perf_runner.py`.
+    - `api` is a function defined in `perf_runner.py`.
     - `ncalls` is number of calls, which tells the test how many calls will be made to the tested DataFrame API.
-    - `-m`, includes memory profiler
-    - `-s`, enable sql simplifier
+    - `-m`, includes memory profiler.
+    - `-s`, enables sql simplifier.
 For instance, `python perf_runner.py with_column 10 -m -s`
 
 ### Use cProfile and snakeviz to view time spent in every function call.
