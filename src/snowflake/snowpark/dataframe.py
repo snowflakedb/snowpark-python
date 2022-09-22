@@ -1655,7 +1655,7 @@ class DataFrame:
                 self._select_statement.set_operator(
                     right_child._select_statement
                     or SelectSnowflakePlan(
-                        other._plan, analyzer=self._session._analyzer
+                        right_child._plan, analyzer=self._session._analyzer
                     ),
                     operator=SET_UNION,
                 )
