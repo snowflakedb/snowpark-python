@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import os
 import zipfile
 
@@ -11,12 +12,17 @@ from snowflake.snowpark._internal.utils import (
     SCOPED_TEMPORARY_STRING,
     TEMPORARY_STRING,
     calculate_checksum,
+    deprecated,
+    experimental,
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_udf_upload_prefix,
+    is_sql_select_statement,
     normalize_path,
     unwrap_stage_location_single_quote,
     validate_object_name,
+    warning,
+    warning_dict,
     zip_file_or_directory_to_stream,
 )
 from tests.utils import IS_WINDOWS, TestFiles
@@ -375,3 +381,82 @@ def test_use_scoped_temporary():
         get_temp_type_for_object(use_scoped_temp_objects=False, is_generated=False)
         == TEMPORARY_STRING
     )
+
+
+def test_warning(caplog):
+    def f():
+        return 1
+
+    try:
+        with caplog.at_level(logging.WARNING):
+            warning("aaa", "bbb", 2)
+            warning("aaa", "bbb", 2)
+            warning("aaa", "bbb", 2)
+        assert caplog.text.count("bbb") == 2
+        with caplog.at_level(logging.WARNING):
+            warning(f.__qualname__, "ccc", 2)
+            warning(f.__qualname__, "ccc", 2)
+            warning(f.__qualname__, "ccc", 2)
+        assert caplog.text.count("ccc") == 2
+    finally:
+        warning_dict.clear()
+
+
+@pytest.mark.parametrize("decorator", [deprecated, experimental])
+def test_func_decorator(caplog, decorator):
+    try:
+
+        @decorator(
+            version="1.0.0",
+            extra_warning_text="extra_warning_text",
+            extra_doc_string="extra_doc_string",
+        )
+        def f():
+            return 1
+
+        assert "extra_doc_string" in f.__doc__
+        with caplog.at_level(logging.WARNING):
+            f()
+            f()
+
+        assert decorator.__name__ in caplog.text
+        assert caplog.text.count("1.0.0") == 1
+        assert caplog.text.count("extra_warning_text") == 1
+    finally:
+        warning_dict.clear()
+
+
+def test_is_sql_select_statement():
+    select_sqls = [
+        "select * from dual",
+        "(select * from dual)",
+        "(((select * from dual)))",
+        " select * from dual",
+        "   select * from dual",
+        "( ( ( select * from dual",
+        "with t as (select 1) select * from t",
+        "(with t as (select 1) select * from t",
+        "(((with t as (select 1) select * from t",
+        " with t as (select 1) select * from t",
+        "   with t as (select 1) select * from t",
+        "( ( ( with t as (select 1) select * from t",
+        "select*fromdual",  # don't care if the sql is valid.
+        "SELECT 1",
+        "SeLeCt 1",
+        "WITH t as (select 1) select * from t",
+        "WiTh t as (select 1) select * from t",
+    ]
+    for s in select_sqls:
+        assert is_sql_select_statement(s)
+
+    non_select_sqls = [
+        "selec * from tables",
+        "wit t as (select 1) select * from t",
+        "()select * from tables",
+        "()with t as (select 1) select * from t",
+        "show tables",
+        "lkdfadsk select",
+        "ljkfdshdf with",
+    ]
+    for ns in non_select_sqls:
+        assert is_sql_select_statement(ns) is False

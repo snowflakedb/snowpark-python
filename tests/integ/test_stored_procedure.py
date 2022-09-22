@@ -153,6 +153,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     new_session = (
         Session.builder.configs(db_parameters)._remove_config("schema").create()
     )
+    new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
     new_session.add_packages("snowflake-snowpark-python")
     try:
         assert not new_session.get_current_schema()
@@ -533,6 +534,7 @@ def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()
     sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     with Session.builder.configs(db_parameters).create() as new_session:
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
         new_session.add_packages("snowflake-snowpark-python")
         try:
             Utils.create_stage(session, stage_name, is_temporary=False)

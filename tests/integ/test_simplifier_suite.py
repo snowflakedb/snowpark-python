@@ -1,24 +1,31 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
+import os
 from typing import Iterable, Tuple
 
 import pytest
 
-from snowflake.snowpark import Row, context
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
     SET_UNION,
     SET_UNION_ALL,
 )
-from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, sql_expr, table_function, udtf
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    lit,
+    sql_expr,
+    sum as sum_,
+    table_function,
+    udtf,
+)
 from tests.utils import TestData, Utils
 
-if not _use_sql_simplifier:
+if not os.environ.get("USE_SQL_SIMPLIFIER") == "1":
     pytest.skip(
         "Disable sql simplifier test when simplifier is disabled",
         allow_module_level=True,
@@ -650,9 +657,91 @@ def test_filter_order_limit_together(session, simplifier_table):
     )
 
 
+def test_agg(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.agg([avg("a")]).select("AVG(A)").select("AVG(A)").select("AVG(A)")
+    Utils.check_answer(df1, [Row(1)])
+    assert df1.queries["queries"][0].count("SELECT") == 3
+    df1 = (
+        df.select("a")
+        .select("a")
+        .select("a")
+        .agg([avg("a")])
+        .select("AVG(A)")
+        .select("AVG(A)")
+        .select("AVG(A)")
+    )
+    Utils.check_answer(df1, [Row(1)])
+    assert df1.queries["queries"][0].count("SELECT") == 3
+    df1 = df.group_by("a", "b").agg([avg("a")]).select("a").select("a").select("a")
+    Utils.check_answer(df1, [Row(1)])
+    assert df1.queries["queries"][0].count("SELECT") == 3
+
+
+def test_pivot(session):
+    df = (
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount")))
+        .select("EMPID")
+        .select("EMPID")
+        .select("EMPID")
+    )
+    assert df.queries["queries"][0].count("SELECT") == 4
+    df = (
+        TestData.monthly_sales(session)
+        .select("EMPID", "month", "amount")
+        .select("EMPID", "month", "amount")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount")))
+        .select("EMPID")
+        .select("EMPID")
+        .select("EMPID")
+    )
+    assert df.queries["queries"][0].count("SELECT") == 4
+
+
+@pytest.mark.parametrize("func_name", ["cube", "rollup"])
+def test_cube_rollup(session, func_name):
+    df = session.create_dataframe(
+        [
+            ("country A", "state A", 50),
+            ("country A", "state A", 50),
+            ("country A", "state B", 5),
+            ("country A", "state B", 5),
+            ("country B", "state A", 100),
+            ("country B", "state A", 100),
+            ("country B", "state B", 10),
+            ("country B", "state B", 10),
+        ]
+    ).to_df(["country", "state", "value"])
+    func = getattr(df, func_name)
+    df1 = (
+        func("country")
+        .agg(sum_(col("value")))
+        .select("country")
+        .select("country")
+        .select("country")
+    )
+    assert df1.queries["queries"][0].count("SELECT") == 4
+    func = getattr(
+        df.select("country", "state", "value").select("country", "state", "value"),
+        func_name,
+    )
+    df1 = (
+        func("country")
+        .agg(sum_(col("value")))
+        .select("country")
+        .select("country")
+        .select("country")
+    )
+    assert df1.queries["queries"][0].count("SELECT") == 4
+
+
 def test_use_sql_simplifier(session, simplifier_table):
+    sql_simplifier_enabled_original = session.sql_simplifier_enabled
     try:
-        context._use_sql_simplifier = False
+        session.sql_simplifier_enabled = False
         df1 = (
             session.sql(f"SELECT * from {simplifier_table}")
             .select("*")
@@ -661,7 +750,7 @@ def test_use_sql_simplifier(session, simplifier_table):
             .filter(col("a") == 1)
             .sort("a")
         )
-        context._use_sql_simplifier = True
+        session.sql_simplifier_enabled = True
         df2 = (
             session.sql(f"SELECT * from {simplifier_table}")
             .select("*")
@@ -674,7 +763,7 @@ def test_use_sql_simplifier(session, simplifier_table):
         assert df2.queries["queries"][0].count("SELECT") == 2
         Utils.check_answer(df1, df2, sort=True)
 
-        context._use_sql_simplifier = False
+        session.sql_simplifier_enabled = False
         df3 = (
             session.table(simplifier_table)
             .select("*")
@@ -683,7 +772,8 @@ def test_use_sql_simplifier(session, simplifier_table):
             .filter(col("a") == 1)
             .sort("a")
         )
-        context._use_sql_simplifier = True
+
+        session.sql_simplifier_enabled = True
         df4 = (
             session.table(simplifier_table)
             .select("*")
@@ -696,7 +786,23 @@ def test_use_sql_simplifier(session, simplifier_table):
         assert df4.queries["queries"][0].count("SELECT") == 1
         Utils.check_answer(df3, df4, sort=True)
     finally:
-        context._use_sql_simplifier = True
+        session.sql_simplifier_enabled = sql_simplifier_enabled_original
+
+
+def test_join_dataframes(session, simplifier_table):
+    df_left = session.create_dataframe([[1, 2]]).to_df("a", "b")
+    df_right = session.create_dataframe([[3, 4]]).to_df("c", "d")
+
+    df = df_left.join(df_right)
+    df1 = df.select("a").select("a").select("a")
+    assert df1.queries["queries"][0].count("SELECT") == 8
+
+    df2 = (
+        df.select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+        .select((col("a") + 1).as_("a"))
+    )
+    assert df2.queries["queries"][0].count("SELECT") == 10
 
 
 def test_sample(session, simplifier_table):
@@ -781,3 +887,16 @@ def test_select_star(session, simplifier_table):
 
     with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
         df4.select("a").collect()
+
+
+def test_session_range(session, simplifier_table):
+    df = session.range(0, 5, 1)
+    df1 = df.select("id").select("id").select("id")
+    assert df1.queries["queries"][0].count("SELECT") == 2
+
+    df2 = (
+        df.select((col("id") + 1).as_("id"))
+        .select((col("id") + 1).as_("id"))
+        .select((col("id") + 1).as_("id"))
+    )
+    assert df2.queries["queries"][0].count("SELECT") == 4

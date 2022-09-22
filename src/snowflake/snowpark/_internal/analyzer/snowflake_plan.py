@@ -64,6 +64,7 @@ from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
     generate_random_alphanumeric,
+    is_sql_select_statement,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
@@ -569,12 +570,13 @@ class SnowflakePlanBuilder:
     def limit(
         self,
         limit_expr: str,
+        offset_expr: str,
         child: SnowflakePlan,
         on_top_of_oder_by: bool,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: limit_statement(limit_expr, x, on_top_of_oder_by),
+            lambda x: limit_statement(limit_expr, offset_expr, x, on_top_of_oder_by),
             child,
             source_plan,
         )
@@ -922,42 +924,69 @@ class SnowflakePlanBuilder:
         assignments: Dict[str, str],
         condition: Optional[str],
         source_data: Optional[SnowflakePlan],
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        return self.query(
-            update_statement(
-                table_name,
-                assignments,
-                condition,
-                source_data.queries[-1].sql
-                if source_data and source_data.queries
-                else None,
-            ),
-            None,
-        )
+        if source_data:
+            return self.build(
+                lambda x: update_statement(
+                    table_name,
+                    assignments,
+                    condition,
+                    x,
+                ),
+                source_data,
+                source_plan,
+            )
+        else:
+            return self.query(
+                update_statement(
+                    table_name,
+                    assignments,
+                    condition,
+                    None,
+                ),
+                source_plan,
+            )
 
     def delete(
         self,
         table_name: str,
         condition: Optional[str],
         source_data: Optional[SnowflakePlan],
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        return self.query(
-            delete_statement(
-                table_name,
-                condition,
-                source_data.queries[-1].sql
-                if source_data and source_data.queries
-                else None,
-            ),
-            None,
-        )
+        if source_data:
+            return self.build(
+                lambda x: delete_statement(
+                    table_name,
+                    condition,
+                    x,
+                ),
+                source_data,
+                source_plan,
+            )
+        else:
+            return self.query(
+                delete_statement(
+                    table_name,
+                    condition,
+                    None,
+                ),
+                source_plan,
+            )
 
     def merge(
-        self, table_name: str, source: SnowflakePlan, join_expr: str, clauses: List[str]
+        self,
+        table_name: str,
+        source_data: SnowflakePlan,
+        join_expr: str,
+        clauses: List[str],
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        return self.query(
-            merge_statement(table_name, source.queries[-1].sql, join_expr, clauses),
-            None,
+        return self.build(
+            lambda x: merge_statement(table_name, x, join_expr, clauses),
+            source_data,
+            source_plan,
         )
 
     def lateral(
@@ -990,7 +1019,7 @@ class SnowflakePlanBuilder:
     def add_result_scan_if_not_select(self, plan: SnowflakePlan) -> SnowflakePlan:
         if isinstance(plan.source_plan, SetOperation):
             return plan
-        elif plan.queries[-1].sql.strip().lower().startswith("select"):
+        elif is_sql_select_statement(plan.queries[-1].sql):
             return plan
         else:
             new_queries = plan.queries + [

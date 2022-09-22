@@ -91,6 +91,9 @@ class ScalarSubquery(Expression):
         super().__init__()
         self.plan = plan
 
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return COLUMN_DEPENDENCY_DOLLAR
+
 
 class MultipleExpression(Expression):
     def __init__(self, expressions: List[Expression]) -> None:

@@ -20,11 +20,12 @@ import zipfile
 from enum import Enum
 from json import JSONEncoder
 from random import choice
-from typing import IO, Any, Dict, Iterator, List, Optional, Type
+from typing import IO, Any, Callable, Dict, Iterator, List, Literal, Optional, Type
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
+from snowflake.connector.options import pandas
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
@@ -58,6 +59,10 @@ SNOWFLAKE_STAGE_NAME_PATTERN = f"(%?{SNOWFLAKE_ID_PATTERN})"
 TEMP_OBJECT_NAME_PREFIX = "SNOWPARK_TEMP_"
 ALPHANUMERIC = string.digits + string.ascii_lowercase
 
+# select and CTE (https://docs.snowflake.com/en/sql-reference/constructs/with.html) are select statements in Snowflake.
+SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN = re.compile(
+    r"^(\s|\()*(select|with)", re.IGNORECASE
+)
 
 # A set of widely-used packages,
 # whose names in pypi are different from their package name
@@ -170,6 +175,10 @@ def unwrap_single_quote(name: str) -> str:
         new_name = new_name[1:-1]
     new_name = new_name.replace("\\'", "'")
     return new_name
+
+
+def is_sql_select_statement(sql: str) -> bool:
+    return SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
 
 
 def normalize_path(path: str, is_local: bool) -> str:
@@ -504,28 +513,72 @@ class PythonObjJSONEncoder(JSONEncoder):
 logger = logging.getLogger("snowflake.snowpark")
 
 
-def deprecate(*, deprecate_version, extra_warning_text="", extra_doc_string=""):
-    def deprecate_wrapper(func):
+class WarningHelper:
+    def __init__(self, warning_times: int) -> None:
+        self.warning_times = warning_times
+        self.count = 0
+
+    def warning(self, text: str) -> None:
+        if self.count < self.warning_times:
+            logger.warning(text)
+        self.count += 1
+
+
+warning_dict: Dict[str, WarningHelper] = {}
+
+
+def warning(name: str, text: str, warning_times: int = 1) -> None:
+    if name not in warning_dict:
+        warning_dict[name] = WarningHelper(warning_times)
+    warning_dict[name].warning(text)
+
+
+def func_decorator(
+    decorator_type: Literal["deprecated", "experimental"],
+    *,
+    version: str,
+    extra_warning_text: str,
+    extra_doc_string: str,
+) -> Callable:
+    def wrapper(func):
         warning_text = (
-            f"{func.__name__} is deprecated since {deprecate_version}. "
+            f"{func.__qualname__}() is {decorator_type} since {version}. "
+            f"{'Do not use it in production. ' if decorator_type == 'experimental' else ''}"
             f"{extra_warning_text}"
         )
-        doc_string_text = (
-            f"Deprecated since {deprecate_version}. {extra_doc_string} \n\n"
-        )
+        doc_string_text = f"This function or method is {decorator_type} since {version}. {extra_doc_string} \n\n"
         func.__doc__ = f"{func.__doc__ or ''}\n\n{' '*8}{doc_string_text}\n"
 
         @functools.wraps(func)
         def func_call_wrapper(*args, **kwargs):
-            deprecate_warning_times = getattr(func, "deprecate_warning_times", 0)
-            if getattr(func, "deprecate_warning_times", 0) < 1:
-                logger.warning(warning_text)
-                func.deprecate_warning_times = deprecate_warning_times + 1
+            warning(func.__qualname__, warning_text)
             return func(*args, **kwargs)
 
         return func_call_wrapper
 
-    return deprecate_wrapper
+    return wrapper
+
+
+def deprecated(
+    *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+) -> Callable:
+    return func_decorator(
+        "deprecated",
+        version=version,
+        extra_warning_text=extra_warning_text,
+        extra_doc_string=extra_doc_string,
+    )
+
+
+def experimental(
+    *, version: str, extra_warning_text: str = "", extra_doc_string: str = ""
+) -> Callable:
+    return func_decorator(
+        "experimental",
+        version=version,
+        extra_warning_text=extra_warning_text,
+        extra_doc_string=extra_doc_string,
+    )
 
 
 def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) -> str:
@@ -534,3 +587,14 @@ def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) 
         if use_scoped_temp_objects and is_generated
         else TEMPORARY_STRING
     )
+
+
+def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
+    if not isinstance(result, pandas.DataFrame):
+        raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
+            "to_pandas() did not return a Pandas DataFrame. "
+            "If you use session.sql(...).to_pandas(), the input query can only be a "
+            "SELECT statement. Or you can use session.sql(...).collect() to get a "
+            "list of Row objects for a non-SELECT statement, then convert it to a "
+            "Pandas DataFrame."
+        )

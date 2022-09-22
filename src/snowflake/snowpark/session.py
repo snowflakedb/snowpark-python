@@ -7,7 +7,6 @@ import decimal
 import json
 import logging
 import os
-import warnings
 from array import array
 from functools import reduce
 from logging import getLogger
@@ -45,7 +44,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.telemetry import TelemetryField, set_api_call_source
+from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     infer_schema,
@@ -59,7 +58,7 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
-    deprecate,
+    deprecated,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -73,6 +72,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
+    warning,
     zip_file_or_directory_to_stream,
 )
 from snowflake.snowpark.column import Column
@@ -274,6 +274,9 @@ class Session:
         self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
+        self.sql_simplifier_enabled: bool = (
+            False  #: Whether the generated SQL is flattened or not.
+        )
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -786,7 +789,7 @@ class Session:
                             package_name
                         ).version
                         if package_client_version not in package_req:
-                            logging.warning(
+                            _logger.warning(
                                 "The version of package %s in the local environment is %s, "
                                 "which does not fit the criteria for the requirement %s. "
                                 "Your UDF might not work when the package version is different "
@@ -796,7 +799,7 @@ class Session:
                                 package,
                             )
                     except pkg_resources.DistributionNotFound:
-                        logging.warning(
+                        _logger.warning(
                             "package %s is not installed in the local environment"
                             "Your UDF might not work when the package is installed "
                             "on the server but not on your local environment.",
@@ -942,9 +945,7 @@ class Session:
             func_name, *func_arguments, **func_named_arguments
         )
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
                 SelectStatement(
@@ -957,7 +958,7 @@ class Session:
                 self,
                 TableFunctionRelation(func_expr),
             )
-        set_api_call_source(d, f"Session.table_function[{func_expr.func_name}]")
+        set_api_call_source(d, "Session.table_function")
         return d
 
     def sql(self, query: str) -> DataFrame:
@@ -978,22 +979,21 @@ class Session:
             [Row(1/2=Decimal('0.500000'))]
         """
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
-            return DataFrame(
+        if self.sql_simplifier_enabled:
+            d = DataFrame(
                 self,
                 SelectStatement(
                     from_=SelectSQL(query, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
             )
-        return DataFrame(
-            self,
-            self._plan_builder.query(
-                query, None, api_calls=[{TelemetryField.NAME.value: "Session.sql"}]
-            ),
-        )
+        else:
+            d = DataFrame(
+                self,
+                self._plan_builder.query(query, None),
+            )
+        set_api_call_source(d, "Session.sql")
+        return d
 
     @property
     def read(self) -> "DataFrameReader":
@@ -1116,12 +1116,10 @@ class Session:
             exception will be raised.
         """
         if create_temp_table:
-            warnings.warn(
+            warning(
+                "write_pandas.create_temp_table",
                 "create_temp_table is deprecated. We still respect this parameter when it is True but "
                 'please consider using `table_type="temporary"` instead.',
-                DeprecationWarning,
-                # warnings.warn -> write_pandas
-                stacklevel=2,
             )
             table_type = "temporary"
 
@@ -1409,9 +1407,7 @@ class Session:
             else:
                 project_columns.append(column(name))
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
                 SelectStatement(
@@ -1425,8 +1421,7 @@ class Session:
             df = DataFrame(self, SnowflakeValues(attrs, converted)).select(
                 project_columns
             )
-            # Get rid of the select statement api call here
-            set_api_call_source(df, "Session.create_dataframe[values]")
+        set_api_call_source(df, "Session.create_dataframe[values]")
         return df
 
     def range(self, start: int, end: Optional[int] = None, step: int = 1) -> DataFrame:
@@ -1451,7 +1446,17 @@ class Session:
             [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
-        df = DataFrame(self, range_plan)
+
+        if self.sql_simplifier_enabled:
+            df = DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectSnowflakePlan(range_plan, analyzer=self._analyzer),
+                    analyzer=self._analyzer,
+                ),
+            )
+        else:
+            df = DataFrame(self, range_plan)
         set_api_call_source(df, "Session.range")
         return df
 
@@ -1633,13 +1638,13 @@ class Session:
             else:
                 sql_args.append(to_sql(arg, infer_type(arg)))
         df = self.sql(f"CALL {sproc_name}({', '.join(sql_args)})")
-        set_api_call_source(df, f"Session.call[{sproc_name}]")
+        set_api_call_source(df, "Session.call")
         return df.collect()[0][0]
 
-    @deprecate(
-        deprecate_version="0.7.0",
-        extra_warning_text="`Session.flatten()` is deprecated. Use `Session.table_function()` instead.",
-        extra_doc_string="This method is deprecated. Use :meth:`table_function` instead.",
+    @deprecated(
+        version="0.7.0",
+        extra_warning_text="Use `Session.table_function()` instead.",
+        extra_doc_string="Use :meth:`table_function` instead.",
     )
     def flatten(
         self,

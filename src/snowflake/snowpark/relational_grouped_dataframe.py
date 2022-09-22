@@ -17,6 +17,10 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSetsExpression,
     Rollup,
 )
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSnowflakePlan,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
@@ -152,36 +156,44 @@ class RelationalGroupedDataFrame:
         aliased_agg = [_alias(a) for a in unique]
 
         if isinstance(self._group_type, _GroupByType):
-            return DataFrame(
-                self._df._session,
-                Aggregate(self._grouping_exprs, aliased_agg, self._df._plan),
+            group_plan = Aggregate(
+                self._grouping_exprs,
+                aliased_agg,
+                self._df._select_statement or self._df._plan,
             )
-        if isinstance(self._group_type, _RollupType):
-            return DataFrame(
-                self._df._session,
-                Aggregate(
-                    [Rollup(self._grouping_exprs)],
-                    aliased_agg,
-                    self._df._plan,
-                ),
+        elif isinstance(self._group_type, _RollupType):
+            group_plan = Aggregate(
+                [Rollup(self._grouping_exprs)],
+                aliased_agg,
+                self._df._select_statement or self._df._plan,
             )
-        if isinstance(self._group_type, _CubeType):
-            return DataFrame(
-                self._df._session,
-                Aggregate([Cube(self._grouping_exprs)], aliased_agg, self._df._plan),
+        elif isinstance(self._group_type, _CubeType):
+            group_plan = Aggregate(
+                [Cube(self._grouping_exprs)],
+                aliased_agg,
+                self._df._select_statement or self._df._plan,
             )
-        if isinstance(self._group_type, _PivotType):
+        elif isinstance(self._group_type, _PivotType):
             if len(agg_exprs) != 1:
                 raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
-            return DataFrame(
-                self._df._session,
-                Pivot(
-                    self._group_type.pivot_col,
-                    self._group_type.values,
-                    agg_exprs,
-                    self._df._plan,
-                ),
+            group_plan = Pivot(
+                self._group_type.pivot_col,
+                self._group_type.values,
+                agg_exprs,
+                self._df._select_statement or self._df._plan,
             )
+        else:
+            raise TypeError(f"Wrong group by type {self._group_type}")
+
+        if self._df._select_statement:
+            group_plan = SelectStatement(
+                from_=SelectSnowflakePlan(
+                    snowflake_plan=group_plan, analyzer=self._df._session._analyzer
+                ),
+                analyzer=self._df._session._analyzer,
+            )
+
+        return DataFrame(self._df._session, group_plan)
 
     @relational_group_df_api_usage
     def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> DataFrame:

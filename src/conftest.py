@@ -29,6 +29,7 @@ def add_snowpark_session(doctest_namespace):
     with Session.builder.configs(
         globals()["CONNECTION_PARAMETERS"]
     ).create() as session:
+        session.sql_simplifier_enabled = os.environ.get("USE_SQL_SIMPLIFIER") == "1"
         if RUNNING_ON_GH:
             session.sql(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}").collect()
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite

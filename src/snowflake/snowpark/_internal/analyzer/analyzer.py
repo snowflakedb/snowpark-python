@@ -576,6 +576,7 @@ class Analyzer:
 
             return self.plan_builder.limit(
                 self.to_sql_avoid_offset(logical_plan.limit_expr),
+                self.to_sql_avoid_offset(logical_plan.offset_expr),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
                 logical_plan,
@@ -693,6 +694,7 @@ class Analyzer:
                 if logical_plan.condition
                 else None,
                 resolved_children.get(logical_plan.source_data, None),
+                logical_plan,
             )
 
         if isinstance(logical_plan, TableDelete):
@@ -702,6 +704,7 @@ class Analyzer:
                 if logical_plan.condition
                 else None,
                 resolved_children.get(logical_plan.source_data, None),
+                logical_plan,
             )
 
         if isinstance(logical_plan, TableMerge):
@@ -710,6 +713,7 @@ class Analyzer:
                 resolved_children.get(logical_plan.source),
                 self.analyze(logical_plan.join_expr),
                 [self.analyze(c) for c in logical_plan.clauses],
+                logical_plan,
             )
 
         if isinstance(logical_plan, Selectable):

@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-import warnings
 from typing import Dict, Iterable, List, Literal, Optional, Union
 
 import snowflake.snowpark  # for forward references of type hints
@@ -20,7 +19,9 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     str_to_enum,
     validate_object_name,
+    warning,
 )
+from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.row import Row
@@ -75,7 +76,8 @@ class DataFrameWriter:
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> None:
+        block: bool = True,
+    ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
         Args:
@@ -102,6 +104,9 @@ class DataFrameWriter:
                         and ``transient``. An empty string means to create a permanent table. Learn more about table
                         types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
 
         Examples::
 
@@ -116,6 +121,12 @@ class DataFrameWriter:
             >>> session.table("my_transient_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
+        if not block:
+            warning(
+                "save_as_table.block",
+                "block argument is experimental. Do not use it in production.",
+            )
+
         save_mode = (
             str_to_enum(mode.lower(), SaveMode, "'mode'") if mode else self._save_mode
         )
@@ -130,12 +141,10 @@ class DataFrameWriter:
         )
 
         if create_temp_table:
-            warnings.warn(
+            warning(
+                "save_as_table.create_temp_table",
                 "create_temp_table is deprecated. We still respect this parameter when it is True but "
                 'please consider using `table_type="temporary"` instead.',
-                DeprecationWarning,
-                # warnings.warn -> @dfw_collect_api_telemetry -> save_as_table
-                stacklevel=3,
             )
             table_type = "temporary"
 
@@ -153,7 +162,13 @@ class DataFrameWriter:
         )
         session = self._dataframe._session
         snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
-        session._conn.execute(snowflake_plan, _statement_params=statement_params)
+        result = session._conn.execute(
+            snowflake_plan,
+            _statement_params=statement_params,
+            block=block,
+            data_type=_AsyncDataType.NONE_TYPE,
+        )
+        return result if not block else None
 
     def copy_into_location(
         self,
@@ -165,6 +180,7 @@ class DataFrameWriter:
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         **copy_options: Optional[str],
     ) -> List[Row]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
@@ -178,6 +194,9 @@ class DataFrameWriter:
             header: Specifies whether to include the table column headings in the output files.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
+            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
 
         Returns:
             A list of :class:`Row` objects containing unloading results.
@@ -205,6 +224,12 @@ class DataFrameWriter:
             FIRST_NAME: [["John","Rick","Anthony"]]
             LAST_NAME: [["Berry","Berry","Davis"]]
         """
+        if not block:
+            warning(
+                "copy_into_location.block",
+                "block argument is experimental. Do not use it in production.",
+            )
+
         stage_location = normalize_remote_file_or_dir(location)
         if isinstance(partition_by, str):
             partition_by = sql_expr(partition_by)._expression
@@ -227,6 +252,8 @@ class DataFrameWriter:
             )
         )
         add_api_call(df, "DataFrameWriter.copy_into_location")
-        return df._internal_collect_with_tag(statement_params=statement_params)
+        return df._internal_collect_with_tag(
+            statement_params=statement_params, block=block
+        )
 
     saveAsTable = save_as_table

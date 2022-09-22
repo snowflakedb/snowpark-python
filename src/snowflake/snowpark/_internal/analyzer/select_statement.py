@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict
 from copy import copy
 from enum import Enum
-from typing import TYPE_CHECKING, Iterable, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
 )
+from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
@@ -140,7 +141,13 @@ class ColumnStateDict(UserDict):
 class Selectable(LogicalPlan, ABC):
     """The parent abstract class of a DataFrame's logical plan. It can be converted to and from a SnowflakePlan."""
 
-    def __init__(self, analyzer: "Analyzer") -> None:
+    def __init__(
+        self,
+        analyzer: "Analyzer",
+        api_calls: Optional[
+            List[Dict[str, Any]]
+        ] = None,  # Use Any because it's recursive.
+    ) -> None:
         super().__init__()
         self.analyzer = analyzer
         self.pre_actions: Optional[List["Query"]] = None
@@ -149,6 +156,7 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
+        self._api_calls = api_calls.copy() if api_calls is not None else None
 
     @property
     @abstractmethod
@@ -172,6 +180,17 @@ class Selectable(LogicalPlan, ABC):
         return self
 
     @property
+    def api_calls(self) -> Dict[str, Any]:
+        self._api_calls = self._api_calls if self._api_calls is not None else []
+        return self._api_calls
+
+    @api_calls.setter
+    def api_calls(self, value: List[Dict[str, Any]]) -> None:
+        self._api_calls = value
+        if self._snowflake_plan:
+            self._snowflake_plan.api_calls = value
+
+    @property
     def snowflake_plan(self):
         """Convert to a SnowflakePlan"""
         if self._snowflake_plan is None:
@@ -183,7 +202,12 @@ class Selectable(LogicalPlan, ABC):
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
+                source_plan=self,
             )
+            # set api_calls to self._snowflake_plan outside of the above constructor
+            # because the constructor copy api_calls.
+            # We want Selectable and SnowflakePlan to share the same api_calls.
+            self._snowflake_plan.api_calls = self.api_calls
         return self._snowflake_plan
 
     @property
@@ -234,7 +258,7 @@ class SelectSQL(Selectable):
         super().__init__(analyzer)
         self.convert_to_select = convert_to_select
         self.original_sql = sql
-        is_select = sql.strip().lower().startswith("select")
+        is_select = is_sql_select_statement(sql)
         if not is_select and convert_to_select:
             self.pre_actions = [Query(sql)]
             self._sql_query = result_scan_statement(
@@ -261,6 +285,7 @@ class SelectSQL(Selectable):
             return self
         new = SelectSQL(self._sql_query, convert_to_select=True, analyzer=self.analyzer)
         new._column_states = self.column_states
+        new._api_calls = self._api_calls
         return new
 
 
@@ -277,6 +302,7 @@ class SelectSnowflakePlan(Selectable):
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
+        self._api_calls = self._snowflake_plan.api_calls
 
     @property
     def snowflake_plan(self):
@@ -319,6 +345,9 @@ class SelectStatement(Selectable):
         self._schema_query = None
         self._projection_in_str = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
+        self.api_calls = (
+            self.from_.api_calls.copy() if self.from_.api_calls is not None else None
+        )  # will be replaced by new api calls if any operation.
 
     def __copy__(self):
         new = SelectStatement(
@@ -337,6 +366,7 @@ class SelectStatement(Selectable):
         new._column_states = None
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
+        new._api_calls = self._api_calls.copy() if self._api_calls is not None else None
         return new
 
     @property
@@ -441,7 +471,13 @@ class SelectStatement(Selectable):
             # df.select("*") doesn't have the child.expressions
             # df.select(df["*"]) has the child.expressions
         ):
-            return self
+            new = copy(self)  # it copies the api_calls
+            new._projection_in_str = self._projection_in_str
+            new._schema_query = self._schema_query
+            new._column_states = self._column_states
+            new._snowflake_plan = self._snowflake_plan
+            new.flatten_disabled = self.flatten_disabled
+            return new
         final_projection = []
         disable_next_level_flatten = False
         new_column_states = derive_column_states_from_subquery(cols, self)
@@ -507,6 +543,7 @@ class SelectStatement(Selectable):
         )
         # If new._column_states is None, when property `column_states` is called later,
         # a query will be described and an error like "invalid identifier" will be thrown.
+
         return new
 
     def filter(self, col: Expression) -> "SelectStatement":
@@ -524,10 +561,11 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.where = And(self.where, col) if self.where is not None else col
             new._column_states = self._column_states
-            return new
-        return SelectStatement(
-            from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
-        )
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
+            )
+        return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
         if self.flatten_disabled:
@@ -544,10 +582,11 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new.order_by = cols
             new._column_states = self._column_states
-            return new
-        return SelectStatement(
-            from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
-        )
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
+            )
+        return new
 
     def set_operator(
         self,
@@ -596,6 +635,11 @@ class SelectStatement(Selectable):
                 *set_operands,
                 analyzer=self.analyzer,
             )
+        api_calls = self.api_calls.copy()
+        for s in selectables:
+            if s.api_calls:
+                api_calls.extend(s.api_calls)
+        set_statement.api_calls = api_calls
         new = SelectStatement(analyzer=self.analyzer, from_=set_statement)
         new._column_states = set_statement.column_states
         return new
@@ -627,6 +671,7 @@ class SelectTableFunction(Selectable):
             )
         else:
             self._snowflake_plan = analyzer.resolve(TableFunctionRelation(func_expr))
+        self._api_calls = self._snowflake_plan.api_calls
 
     @property
     def snowflake_plan(self):

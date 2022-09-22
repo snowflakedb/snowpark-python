@@ -158,9 +158,10 @@ def test_list_files_in_stage(session, resources_path):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_create_session_from_parameters(db_parameters):
+def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
     session_builder = Session.builder.configs(db_parameters)
     new_session = session_builder.create()
+    new_session.sql_simplifier_enabled = sql_simplifier_enabled
     try:
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
@@ -172,10 +173,11 @@ def test_create_session_from_parameters(db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_create_session_from_connection(db_parameters):
+def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
     connection = snowflake.connector.connect(**db_parameters)
     session_builder = Session.builder.configs({"connection": connection})
     new_session = session_builder.create()
+    new_session.sql_simplifier_enabled = sql_simplifier_enabled
     try:
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
@@ -187,12 +189,15 @@ def test_create_session_from_connection(db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_create_session_from_connection_with_noise_parameters(db_parameters):
+def test_create_session_from_connection_with_noise_parameters(
+    db_parameters, sql_simplifier_enabled
+):
     connection = snowflake.connector.connect(**db_parameters)
     session_builder = Session.builder.configs(
         {**db_parameters, "connection": connection}
     )
     new_session = session_builder.create()
+    new_session.sql_simplifier_enabled = sql_simplifier_enabled
     try:
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
@@ -251,44 +256,48 @@ def test_table_exists(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_use_database(db_parameters):
+def test_use_database(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
     del parameters["database"]
     del parameters["schema"]
     del parameters["warehouse"]
     with Session.builder.configs(parameters).create() as session:
+        session.sql_simplifier_enabled = sql_simplifier_enabled
         db_name = db_parameters["database"]
         session.use_database(db_name)
         assert session.get_current_database() == f'"{db_name.upper()}"'
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_use_schema(db_parameters):
+def test_use_schema(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
     del parameters["schema"]
     del parameters["warehouse"]
     with Session.builder.configs(parameters).create() as session:
+        session.sql_simplifier_enabled = sql_simplifier_enabled
         schema_name = db_parameters["schema"]
         session.use_schema(schema_name)
         assert session.get_current_schema() == f'"{schema_name.upper()}"'
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_use_warehouse(db_parameters):
+def test_use_warehouse(db_parameters, sql_simplifier_enabled):
     parameters = db_parameters.copy()
     del parameters["database"]
     del parameters["schema"]
     del parameters["warehouse"]
     with Session.builder.configs(db_parameters).create() as session:
+        session.sql_simplifier_enabled = sql_simplifier_enabled
         warehouse_name = db_parameters["warehouse"]
         session.use_warehouse(warehouse_name)
         assert session.get_current_warehouse() == f'"{warehouse_name.upper()}"'
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_use_role(db_parameters):
+def test_use_role(db_parameters, sql_simplifier_enabled):
     role_name = "PUBLIC"
     with Session.builder.configs(db_parameters).create() as session:
+        session.sql_simplifier_enabled = sql_simplifier_enabled
         session.use_role(role_name)
         assert session.get_current_role() == f'"{role_name}"'
 

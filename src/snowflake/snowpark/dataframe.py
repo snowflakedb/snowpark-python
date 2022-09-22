@@ -86,14 +86,18 @@ from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
     SKIP_LEVELS_TWO,
     TempObjectType,
+    check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
-    deprecate,
+    deprecated,
+    experimental,
     generate_random_alphanumeric,
     parse_positional_args_to_list,
     random_name_for_temp_object,
     validate_object_name,
+    warning,
 )
+from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -415,6 +419,25 @@ class DataFrame:
             >>> df = session.create_dataframe([[1, 2], [3, 4], [5, -1]], schema=["a", "b"])
             >>> df.stat.corr("a", "b")
             -0.5960395606792697
+
+    Example 16
+        Performing a query asynchronously and returning a list of :class:`Row` objects::
+
+            >>> df = session.create_dataframe([[float(4), 3, 5], [2.0, -4, 7], [3.0, 5, 6], [4.0, 6, 8]], schema=["a", "b", "c"])
+            >>> async_job = df.collect_nowait()
+            >>> async_job.result()
+            [Row(A=4.0, B=3, C=5), Row(A=2.0, B=-4, C=7), Row(A=3.0, B=5, C=6), Row(A=4.0, B=6, C=8)]
+
+    Example 17
+        Performing a query and transforming it into :class:`pandas.DataFrame` asynchronously::
+
+            >>> async_job = df.to_pandas(block=False)
+            >>> async_job.result()
+                 A  B  C
+            0  4.0  3  5
+            1  2.0 -4  7
+            2  3.0  5  6
+            3  4.0  6  8
     """
 
     def __init__(
@@ -453,26 +476,64 @@ class DataFrame:
 
     @df_collect_api_telemetry
     def collect(
-        self, *, statement_params: Optional[Dict[str, str]] = None
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> List["Row"]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+
+        See also:
+            :meth:`collect_nowait()`
+        """
+        if not block:
+            warning(
+                "collect.block",
+                "block argument is experimental. Do not use it in production.",
+            )
+
+        return self._internal_collect_with_tag_no_telemetry(
+            statement_params=statement_params, block=block
+        )
+
+    @experimental(version="0.10.0")
+    @df_collect_api_telemetry
+    def collect_nowait(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> AsyncJob:
+        """Executes the query representing this DataFrame asynchronously and returns: class:`AsyncJob`.
+        It is equivalent to ``collect(block=False)``.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        See also:
+            :meth:`collect()`
         """
         return self._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params
+            statement_params=statement_params, block=False, data_type=_AsyncDataType.ROW
         )
 
     def _internal_collect_with_tag_no_telemetry(
-        self, *, statement_params: Optional[Dict[str, str]] = None
-    ) -> List["Row"]:
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        data_type: _AsyncDataType = _AsyncDataType.ROW,
+    ) -> Union[List["Row"], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
         return self._session._conn.execute(
             self._plan,
+            block=block,
+            data_type=data_type,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
@@ -496,8 +557,8 @@ class DataFrame:
 
     @df_collect_api_telemetry
     def to_local_iterator(
-        self, *, statement_params: Optional[Dict[str, str]] = None
-    ) -> Iterator[Row]:
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> Union[Iterator[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
 
@@ -514,10 +575,21 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
         """
-        yield from self._session._conn.execute(
+        if not block:
+            warning(
+                "to_local_iterator.block",
+                "block argument is experimental. Do not use it in production.",
+            )
+
+        return self._session._conn.execute(
             self._plan,
             to_iter=True,
+            block=block,
+            data_type=_AsyncDataType.ITERATOR,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
@@ -531,8 +603,9 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         **kwargs: Dict[str, Any],
-    ) -> "pandas.DataFrame":
+    ) -> Union["pandas.DataFrame", AsyncJob]:
         """
         Executes the query representing this DataFrame and returns the result as a
         `Pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
@@ -541,6 +614,9 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -548,9 +624,17 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
+        if not block:
+            warning(
+                "to_pandas.block",
+                "block argument is experimental. Do not use it in production.",
+            )
+
         result = self._session._conn.execute(
             self._plan,
             to_pandas=True,
+            block=block,
+            data_type=_AsyncDataType.PANDAS,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -560,14 +644,8 @@ class DataFrame:
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
-        if not isinstance(result, pandas.DataFrame):
-            raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-                "to_pandas() did not return a Pandas DataFrame. "
-                "If you use session.sql(...).to_pandas(), the input query can only be a "
-                "SELECT statement. Or you can use session.sql(...).collect() to get a "
-                "list of Row objects for a non-SELECT statement, then convert it to a "
-                "Pandas DataFrame."
-            )
+        if block:
+            check_is_pandas_dataframe_in_to_pandas(result)
 
         return result
 
@@ -576,6 +654,7 @@ class DataFrame:
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         **kwargs: Dict[str, Any],
     ) -> Iterator["pandas.DataFrame"]:
         """
@@ -597,6 +676,9 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
 
         Note:
             1. This method is only available if Pandas is installed and available.
@@ -604,10 +686,18 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        yield from self._session._conn.execute(
+        if not block:
+            warning(
+                "to_pandas_batches.block",
+                "block argument is experimental. Do not use it in production.",
+            )
+
+        return self._session._conn.execute(
             self._plan,
             to_pandas=True,
             to_iter=True,
+            block=block,
+            data_type=_AsyncDataType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -1373,18 +1463,37 @@ class DataFrame:
         return self._with_plan(unpivot_plan)
 
     @df_api_usage
-    def limit(self, n: int) -> "DataFrame":
+    def limit(self, n: int, offset: int = 0) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
-        DataFrame (similar to LIMIT in SQL).
+        DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
 
         Note that this is a transformation method and not an action method.
 
         Args:
             n: Number of rows to return.
+            offset: Number of rows to skip before the start of the result set. The default value is 0.
+
+        Example::
+
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df.limit(1).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+            >>> df.limit(1, offset=1).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |3    |4    |
+            -------------
+            <BLANKLINE>
         """
         if self._select_statement:
-            return self._with_plan(self._select_statement.limit(n))
-        return self._with_plan(Limit(Literal(n), self._plan))
+            return self._with_plan(self._select_statement.limit(n, offset=offset))
+        return self._with_plan(Limit(Literal(n), Literal(offset), self._plan))
 
     @df_api_usage
     def union(self, other: "DataFrame") -> "DataFrame":
@@ -1535,16 +1644,14 @@ class DataFrame:
             rattr for rattr in right_output_attrs if rattr not in right_project_list
         ]
 
-        from snowflake.snowpark import context
-
         names = right_project_list + not_found_attrs
-        if context._use_sql_simplifier and other._select_statement:
+        if self._session.sql_simplifier_enabled and other._select_statement:
             right_child = self._with_plan(other._select_statement.select(names))
         else:
             right_child = self._with_plan(Project(names, other._plan))
 
         union_plan = UnionPlan(self._plan, right_child._plan, is_all)
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             df = self._with_plan(
                 SelectStatement(
                     from_=SelectSnowflakePlan(
@@ -1905,8 +2012,6 @@ class DataFrame:
             func, *func_arguments, **func_named_arguments
         )
 
-        from snowflake.snowpark import context
-
         names = None
         if func_expr.aliases:
             join_plan = self._session._analyzer.resolve(
@@ -1917,7 +2022,7 @@ class DataFrame:
             )
             names = [*old_cols, *new_cols]
 
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             select_plan = SelectStatement(
                 from_=SelectTableFunction(
                     func_expr,
@@ -1984,28 +2089,44 @@ class DataFrame:
             return self._join_dataframes_internal(right, join_type, join_cond)
         else:
             lhs, rhs = _disambiguate(self, right, join_type, using_columns)
-            return self._with_plan(
-                Join(
-                    lhs._plan,
-                    rhs._plan,
-                    UsingJoin(join_type, using_columns),
-                    None,
-                )
+            join_logical_plan = Join(
+                lhs._plan,
+                rhs._plan,
+                UsingJoin(join_type, using_columns),
+                None,
             )
+            if self._select_statement:
+                return self._with_plan(
+                    SelectStatement(
+                        from_=SelectSnowflakePlan(
+                            join_logical_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    )
+                )
+            return self._with_plan(join_logical_plan)
 
     def _join_dataframes_internal(
         self, right: "DataFrame", join_type: JoinType, join_exprs: Optional[Column]
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(self, right, join_type, [])
         expression = join_exprs._expression if join_exprs is not None else None
-        return self._with_plan(
-            Join(
-                lhs._plan,
-                rhs._plan,
-                join_type,
-                expression,
-            )
+        join_logical_plan = Join(
+            lhs._plan,
+            rhs._plan,
+            join_type,
+            expression,
         )
+        if self._select_statement:
+            return self._with_plan(
+                SelectStatement(
+                    from_=SelectSnowflakePlan(
+                        join_logical_plan, analyzer=self._session._analyzer
+                    ),
+                    analyzer=self._session._analyzer,
+                )
+            )
+        return self._with_plan(join_logical_plan)
 
     @df_api_usage
     def with_column(
@@ -2150,16 +2271,32 @@ class DataFrame:
         # Put it all together
         return self.select([*old_cols, *new_cols])
 
-    def count(self, *, statement_params: Optional[Dict[str, str]] = None) -> int:
+    def count(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> int:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
         """
+        if not block:
+            warning(
+                "count.block",
+                "block argument is experimental. Do not use it in production.",
+            )
+
         df = self.agg(("*", "count"))
         add_api_call(df, "DataFrame.count")
-        return df._internal_collect_with_tag(statement_params=statement_params)[0][0]
+        result = df._internal_collect_with_tag(
+            statement_params=statement_params,
+            block=block,
+            data_type=_AsyncDataType.COUNT,
+        )
+        return result[0][0] if block else result
 
     @property
     def write(self) -> DataFrameWriter:
@@ -2356,10 +2493,10 @@ class DataFrame:
             )
         )
 
-    @deprecate(
-        deprecate_version="0.7.0",
-        extra_warning_text="`DataFrame.flatten()` is deprecated. Use `DataFrame.join_table_function()` instead.",
-        extra_doc_string="This method is deprecated. Use :meth:`join_table_function` instead.",
+    @deprecated(
+        version="0.7.0",
+        extra_warning_text="Use `DataFrame.join_table_function()` instead.",
+        extra_doc_string="Use :meth:`join_table_function` instead.",
     )
     @df_api_usage
     def flatten(
@@ -2624,13 +2761,17 @@ class DataFrame:
         n: Optional[int] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> Union[Optional[Row], List[Row]]:
+        block: bool = True,
+    ) -> Union[Optional[Row], List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
 
         Args:
             n: The number of rows to return.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
 
         Returns:
              A list of the first ``n`` :class:`Row` objects if ``n`` is not ``None``. If ``n`` is negative or
@@ -2638,19 +2779,33 @@ class DataFrame:
              results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
+        if not block:
+            warning(
+                "first.block",
+                "block argument is experimental. Do not use it in production.",
+            )
+
         if n is None:
             df = self.limit(1)
             add_api_call(df, "DataFrame.first")
-            result = df._internal_collect_with_tag(statement_params=statement_params)
+            result = df._internal_collect_with_tag(
+                statement_params=statement_params, block=block
+            )
+            if not block:
+                return result
             return result[0] if result else None
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
-            return self._internal_collect_with_tag(statement_params=statement_params)
+            return self._internal_collect_with_tag(
+                statement_params=statement_params, block=block
+            )
         else:
             df = self.limit(n)
             add_api_call(df, "DataFrame.first")
-            return df._internal_collect_with_tag(statement_params=statement_params)
+            return df._internal_collect_with_tag(
+                statement_params=statement_params, block=block
+            )
 
     take = first
 
@@ -2713,15 +2868,15 @@ class DataFrame:
 
         Example::
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df.describe().show()
+            >>> desc_result = df.describe().sort("SUMMARY").show()
             -------------------------------------------------------
             |"SUMMARY"  |"A"                 |"B"                 |
             -------------------------------------------------------
             |count      |2.0                 |2.0                 |
+            |max        |3.0                 |4.0                 |
             |mean       |2.0                 |3.0                 |
             |min        |1.0                 |2.0                 |
             |stddev     |1.4142135623730951  |1.4142135623730951  |
-            |max        |3.0                 |4.0                 |
             -------------------------------------------------------
             <BLANKLINE>
 
