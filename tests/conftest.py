@@ -33,6 +33,10 @@ def pytest_collection_modifyitems(items) -> None:
                 raise e
 
 
+print("sqlsimplifier1: ", os.environ.get("USE_SQL_SIMPLIFIER"))
+
+
 @pytest.fixture(scope="session")
 def sql_simplifier_enabled():
+    print("sqlsimplifier2: ", os.environ.get("USE_SQL_SIMPLIFIER"))
     return os.environ.get("USE_SQL_SIMPLIFIER") == "1"
