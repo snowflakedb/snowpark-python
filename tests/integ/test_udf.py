@@ -1459,7 +1459,9 @@ def test_pandas_udf_type_hints(session):
 @pytest.mark.parametrize(
     "_type, data, expected_type",
     [
-        (IntegerType, [[1]], "int16"),
+        (IntegerType, [[4096]], "int16"),
+        (IntegerType, [[1048576]], "int32"),
+        (IntegerType, [[8589934592]], "int64"),
         (FloatType, [[1.0]], "float64"),
         (StringType, [["1"]], "string"),
         (BooleanType, [[True]], "boolean"),
@@ -1507,6 +1509,8 @@ def test_pandas_udf_input_types(session, _type, data, expected_type):
     "_type, data, expected_type",
     [
         (IntegerType, [[4096]], "int16"),
+        (IntegerType, [[1048576]], "int32"),
+        (IntegerType, [[8589934592]], "int64"),
         (FloatType, [[1.0]], "float64"),
         (StringType, [["1"]], "object"),  # TODO: string
         (BooleanType, [[True]], "bool"),
