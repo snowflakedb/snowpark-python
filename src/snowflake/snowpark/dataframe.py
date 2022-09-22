@@ -780,7 +780,7 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
-            return Column(Star(self._plan.output))
+            return Column(Star(self._output))
         else:
             return Column(self._resolve(col_name))
 
