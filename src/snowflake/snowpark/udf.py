@@ -53,6 +53,7 @@ class UserDefinedFunction:
         input_types: List[DataType],
         name: str,
         is_return_nullable: bool = False,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -62,6 +63,9 @@ class UserDefinedFunction:
         self._return_type = return_type
         self._input_types = input_types
         self._is_return_nullable = is_return_nullable
+
+        session = session or snowflake.snowpark.session._get_active_session()
+        session._conn._telemetry_client.send_udf_created_telemetry(name)
 
     def __call__(
         self,
@@ -85,6 +89,8 @@ class UserDefinedFunction:
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
                 )
 
+        session = snowflake.snowpark.context.get_active_session()
+        session._conn._telemetry_client.send_udf_usage_telemetry(self.name)
         return Column(self._create_udf_expression(exprs))
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
@@ -765,4 +771,4 @@ class UDFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedFunction(func, return_type, input_types, udf_name)
+        return UserDefinedFunction(func, return_type, input_types, udf_name, self._session)

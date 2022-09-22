@@ -66,6 +66,7 @@ class UserDefinedTableFunction:
         output_schema: StructType,
         input_types: List[DataType],
         name: str,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -75,11 +76,16 @@ class UserDefinedTableFunction:
         self._output_schema = output_schema
         self._input_types = input_types
 
+        session = session or snowflake.snowpark.session._get_active_session()
+        session._conn._telemetry_client.send_udtf_created_telemetry(name)
+
     def __call__(
         self,
         *arguments: Union[ColumnOrName, Iterable[ColumnOrName]],
         **named_arguments,
     ) -> TableFunctionCall:
+        session = snowflake.snowpark.context.get_active_session()
+        session._conn._telemetry_client.send_udtf_usage_telemetry(self.name)
         return TableFunctionCall(self.name, *arguments, **named_arguments)
 
 
@@ -216,7 +222,7 @@ class UDTFRegistration:
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
     Example 8
-        Createing a UDTF with the constructor and ``end_partition`` method.
+        Creating a UDTF with the constructor and ``end_partition`` method.
 
             >>> from collections import Counter
             >>> from typing import Iterable, Tuple
@@ -504,7 +510,7 @@ class UDTFRegistration:
     def _do_register_udtf(
         self,
         handler: Union[Callable, Tuple[str, str]],
-        output_schema: [Union[StructType], Iterable[str]],
+        output_schema: Union[StructType, Iterable[str]],
         input_types: Optional[List[DataType]],
         name: Optional[str],
         stage_location: Optional[str] = None,
@@ -657,7 +663,7 @@ class UDTFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name)
+        return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name, self._session)
 
 
 def _validate_output_schema_names(names: Iterable[str]) -> None:

@@ -54,6 +54,7 @@ class TelemetryField(Enum):
     FUNC_CAT_USAGE = "usage"
     FUNC_CAT_JOIN = "join"
     FUNC_CAT_COPY = "copy"
+    FUNC_CAT_CREATE = "create"
     # performance categories
     PERF_CAT_UPLOAD_FILE = "upload_file"
 
@@ -357,4 +358,34 @@ class TelemetryClient:
     def send_copy_pattern_telemetry(self):
         self.send_function_usage_telemetry(
             "copy_pattern", TelemetryField.FUNC_CAT_COPY.value
+        )
+
+    def send_stored_proc_usage_telemetry(self, name):
+        self.send_function_usage_telemetry(
+            f"sp_invoke_{name}", TelemetryField.FUNC_CAT_USAGE.value
+        )
+
+    def send_stored_proc_created_telemetry(self, name):
+        self.send_function_usage_telemetry(
+            f"sp_create_{name}", TelemetryField.FUNC_CAT_CREATE.value
+        )
+
+    def send_udf_usage_telemetry(self, name):
+        self.send_function_usage_telemetry(
+            f"udf_invoke_{name}", TelemetryField.FUNC_CAT_USAGE.value
+        )
+
+    def send_udf_created_telemetry(self, name):
+        self.send_function_usage_telemetry(
+            f"udf_create_{name}", TelemetryField.FUNC_CAT_CREATE.value
+        )
+
+    def send_udtf_usage_telemetry(self, name):
+        self.send_function_usage_telemetry(
+            f"udtf_invoke_{name}", TelemetryField.FUNC_CAT_USAGE.value
+        )
+
+    def send_udtf_created_telemetry(self, name):
+        self.send_function_usage_telemetry(
+            f"udtf_create_{name}", TelemetryField.FUNC_CAT_CREATE.value
         )

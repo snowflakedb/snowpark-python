@@ -49,6 +49,7 @@ class StoredProcedure:
         input_types: List[DataType],
         name: str,
         execute_as: typing.Literal["caller", "owner"] = "owner",
+        session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -58,6 +59,9 @@ class StoredProcedure:
         self._return_type = return_type
         self._input_types = input_types
         self._execute_as = execute_as
+
+        session = session or snowflake.snowpark.session._get_active_session()
+        session._conn._telemetry_client.send_stored_proc_created_telemetry(name)
 
     def __call__(
         self,
@@ -69,6 +73,8 @@ class StoredProcedure:
             raise ValueError(
                 f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
             )
+
+        session._conn._telemetry_client.send_stored_proc_usage_telemetry(self.name)
         return session.call(self.name, *args)
 
 
@@ -609,4 +615,5 @@ class StoredProcedureRegistration:
             input_types,
             udf_name,
             execute_as=execute_as,
+            session=self._session
         )
