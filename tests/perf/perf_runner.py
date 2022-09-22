@@ -3,7 +3,6 @@
 #
 
 import argparse
-import logging
 import random
 import sys
 import time
@@ -17,10 +16,6 @@ from snowflake.snowpark.session import Session
 connection_parameters_path = str(Path(__file__).absolute().parent.parent)
 sys.path.append(connection_parameters_path)
 from parameters import CONNECTION_PARAMETERS  # noqa: E402
-
-logger = logging.getLogger("snowflake.snowpark")
-logger.setLevel(logging.ERROR)
-logger.addHandler(logging.StreamHandler())
 
 
 def generate_columns(n: int) -> List[str]:
