@@ -18,10 +18,7 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name,
-    result_scan_statement,
-)
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_ALL,
@@ -216,7 +213,9 @@ class Selectable(LogicalPlan, ABC):
         Refer to class ColumnStateDict.
         """
         if self._column_states is None:
-            self._column_states = initiate_column_states(self.snowflake_plan.attributes)
+            self._column_states = initiate_column_states(
+                self.snowflake_plan.attributes, self.analyzer
+            )
         return self._column_states
 
 
@@ -510,7 +509,10 @@ class SelectStatement(Selectable):
                     final_projection.append(state.expression)
                 elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
                     # query may change sequence of columns. If subquery has same-level reference, flattened sql may not work.
-                    if subquery_column_states[col].depend_on_same_level:
+                    if (
+                        col not in subquery_column_states
+                        or subquery_column_states[col].depend_on_same_level
+                    ):
                         can_be_flattened = False
                         break
                     final_projection.append(
@@ -724,7 +726,7 @@ class SetStatement(Selectable):
     def column_states(self) -> Optional[ColumnStateDict]:
         if not self._column_states:
             self._column_states = initiate_column_states(
-                self.set_operands[0].selectable.column_states.projection
+                self.set_operands[0].selectable.column_states.projection, self.analyzer
             )
         return self._column_states
 
@@ -809,13 +811,16 @@ def can_clause_dependent_columns_flatten(
     return can_be_flattened
 
 
-def initiate_column_states(column_attrs: List[Attribute]) -> ColumnStateDict:
+def initiate_column_states(
+    column_attrs: List[Attribute], analyzer: "Analyzer"
+) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:
-        column_states[attr.name] = ColumnState(
-            attr.name,
+        name = analyzer.analyze(attr)
+        column_states[name] = ColumnState(
+            name,
             change_state=ColumnChangeState.UNCHANGED_EXP,
-            expression=UnresolvedAttribute(quote_name(attr.name)),
+            expression=attr,
             dependent_columns=COLUMN_DEPENDENCY_EMPTY,
             depend_on_same_level=False,
             referenced_by_same_level_columns=COLUMN_DEPENDENCY_EMPTY,
@@ -862,7 +867,7 @@ def derive_column_states_from_subquery(
                 columns_from_star = c.child.expressions
             else:
                 columns_from_star = from_.column_states.projection
-            column_states.update(initiate_column_states(columns_from_star))
+            column_states.update(initiate_column_states(columns_from_star, analyzer))
             column_states.projection.extend(columns_from_star)
             continue
         c_name = parse_column_name(c, analyzer)
