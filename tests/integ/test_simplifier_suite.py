@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-import os
 from typing import Iterable, Tuple
 
 import pytest
@@ -25,11 +24,14 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import TestData, Utils
 
-if not os.environ.get("USE_SQL_SIMPLIFIER") == "1":
-    pytest.skip(
-        "Disable sql simplifier test when simplifier is disabled",
-        allow_module_level=True,
-    )
+
+@pytest.fixture(scope="module", autouse=True)
+def skip(pytestconfig):
+    if not pytestconfig.getoption("use_sql_simplifier"):
+        pytest.skip(
+            "Disable sql simplifier test when simplifier is disabled",
+            allow_module_level=True,
+        )
 
 
 @pytest.fixture(scope="module")

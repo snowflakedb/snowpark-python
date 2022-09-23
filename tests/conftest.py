@@ -4,12 +4,15 @@
 #
 
 import logging
-import os
 from pathlib import Path
 
 import pytest
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
+
+
+def pytest_addoption(parser):
+    parser.addoption("--use_sql_simplifier", action="store", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -34,5 +37,6 @@ def pytest_collection_modifyitems(items) -> None:
 
 
 @pytest.fixture(scope="session")
-def sql_simplifier_enabled():
-    return os.environ.get("USE_SQL_SIMPLIFIER") == "1"
+def sql_simplifier_enabled(pytestconfig):
+    use_sql_simplifier = pytestconfig.getoption("use_sql_simplifier")
+    return use_sql_simplifier
