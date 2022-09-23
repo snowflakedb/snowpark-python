@@ -793,7 +793,7 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
-            return Column(Star(self._plan.output))
+            return Column(Star(self._output))
         else:
             return Column(self._resolve(col_name))
 
@@ -3198,7 +3198,11 @@ Query List:
 
     @cached_property
     def _output(self) -> List[Attribute]:
-        return self._plan.output
+        return (
+            self._select_statement.column_states.projection
+            if self._select_statement
+            else self._plan.output
+        )
 
     @cached_property
     def schema(self) -> StructType:

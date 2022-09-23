@@ -509,7 +509,14 @@ def test_with_column(session, simplifier_table):
     new_df = df
     for i in range(10):
         new_df = new_df.with_column(f"c{i}", lit(i))
+    assert new_df._plan.queries[-1].sql.count("SELECT") == 1
 
+    new_df = df
+    for i in range(10):
+        new_df = new_df.with_column(f"c{i}", col("a"))
+    assert new_df._plan.queries[-1].sql.count("SELECT") == 1
+
+    new_df = df.with_column("x", df["a"]).with_column("y", df["b"])
     assert new_df._plan.queries[-1].sql.count("SELECT") == 1
 
 
@@ -824,6 +831,17 @@ def test_join_dataframes(session, simplifier_table):
     )
     assert df2.queries["queries"][0].count("SELECT") == 10
 
+    df3 = df.with_column("x", df_left.a).with_column("y", df_right.d)
+    assert '"A" AS "X", "D" AS "Y"' in df3.queries["queries"][0]
+    Utils.check_answer(df3, [Row(1, 2, 3, 4, 1, 4)])
+
+    # the following can't be flattened
+    df4 = df_right.to_df("e", "f")
+    df5 = df_left.join(df4)
+    df6 = df5.with_column("x", df_right.c).with_column("y", df4.f)
+    assert df6.queries["queries"][0].count("SELECT") == 10
+    Utils.check_answer(df6, [Row(1, 2, 3, 4, 3, 4)])
+
 
 def test_sample(session, simplifier_table):
     df = session.table(simplifier_table)
@@ -872,11 +890,8 @@ def test_select_star(session, simplifier_table):
     df1 = df.select("*")
     assert df1.queries["queries"][0] == f"SELECT  *  FROM {simplifier_table}"
 
-    df2 = df.select(df["*"])  # no flatten
-    assert (
-        df2.queries["queries"][0]
-        == f'SELECT "A","B" FROM ( SELECT  *  FROM {simplifier_table})'
-    )
+    df2 = df.select(df["*"])
+    assert df2.queries["queries"][0] == f'SELECT "A", "B" FROM {simplifier_table}'
 
     df3 = df.select("*", "a")
     assert (
