@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.connector import ProgrammingError
+from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateViewException,
@@ -270,6 +270,12 @@ class SnowparkClientExceptionMessages:
         pe: ProgrammingError,
     ) -> SnowparkSQLException:
         return SnowparkSQLException(pe.msg, "1304", pe.sfqid)
+
+    @staticmethod
+    def SQL_EXCEPTION_FROM_OPERATIONAL_ERROR(
+        oe: OperationalError,
+    ) -> SnowparkSQLException:
+        return SnowparkSQLException(oe.msg, "1305", oe.sfqid)
 
     # Server Error Messages 04XX
 
