@@ -1651,14 +1651,13 @@ class DataFrame:
             right_child = self._with_plan(Project(names, other._plan))
 
         if self._session.sql_simplifier_enabled:
-            operator = SET_UNION_ALL if is_all else SET_UNION
             df = self._with_plan(
                 self._select_statement.set_operator(
                     right_child._select_statement
                     or SelectSnowflakePlan(
                         right_child._plan, analyzer=self._session._analyzer
                     ),
-                    operator=operator,
+                    operator=SET_UNION_ALL if is_all else SET_UNION,
                 )
             )
         else:
