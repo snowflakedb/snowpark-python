@@ -202,9 +202,8 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short --use_sql_simplifier=True
           TOX_PARALLEL_NO_SPINNER: 1
-          USE_SQL_SIMPLIFIER: 1
         shell: bash
       - if: ${{ false == contains('macos', matrix.os.download_name) }}
         name: Run tests (excluding doctest Tests)
