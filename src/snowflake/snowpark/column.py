@@ -146,7 +146,7 @@ class Column:
         [Row(NAME='John'), Row(NAME='Mike')]
 
         Snowflake object identifiers, including column names, may or may not be case sensitive depending on a set of rules.
-        Refer to `Snowflake Object Identifer Requirements <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_ for details.
+        Refer to `Snowflake Object Identifier Requirements <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_ for details.
         When you use column names with a DataFrame, you should follow these rules.
 
         The returned column names after a DataFrame is evaluated follow the case-sensitivity rules too.
@@ -179,7 +179,7 @@ class Column:
         The following examples demonstrate how to use Column objects in expressions:
 
             >>> df = session.create_dataframe([[20, 5], [1, 2]], schema=["a", "b"])
-            >>> df.filter((col("a") == 20) | (col("b") <= 10)).collect()  # use parenthesises before and after the | operator.
+            >>> df.filter((col("a") == 20) | (col("b") <= 10)).collect()  # use parenthesis before and after the | operator.
             [Row(A=20, B=5), Row(A=1, B=2)]
             >>> df.filter((df["a"] + df.b) < 10).collect()
             [Row(A=1, B=2)]
@@ -187,7 +187,7 @@ class Column:
             [Row(C=50), Row(C=20)]
 
         When you use ``|``, ``&``, and ``~`` as logical operators on columns, you must always enclose column expressions
-        with parenthesises as illustrated in the above example, because their order precedence is higher than ``==``, ``<``, etc.
+        with parenthesis as illustrated in the above example, because their order precedence is higher than ``==``, ``<``, etc.
 
         Do not use ``and``, ``or``, and ``not`` logical operators on column objects, for instance, ``(df.col1 > 1) and (df.col2 > 2)`` is wrong.
         The reason is Python doesn't have a magic method, or dunder method for them.
@@ -310,7 +310,7 @@ class Column:
 
     def __round__(self, n=None):
         raise TypeError(
-            "Column cannot be rounded. This error can occur when you use the Python built-in round. Please make sure you use the snowflake.snowpark.functions.round function intead."
+            "Column cannot be rounded. This error can occur when you use the Python built-in round. Please make sure you use the snowflake.snowpark.functions.round function instead."
         )
 
     def in_(
