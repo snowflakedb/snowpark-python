@@ -141,3 +141,7 @@ docs/source/_autosummary/
 .idea/
 .vscode/
 *.code-workspace
+
+# performance test result
+tests/perf/results/
+tests/perf/*.dat
