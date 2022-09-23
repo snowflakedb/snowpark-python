@@ -320,7 +320,7 @@ class FileOperation:
             >>> fd.close()
 
         Returns:
-            An `BytesIO` object which points to the downloaded file.
+            An ``BytesIO`` object which points to the downloaded file.
         """
         # check stage location has a file name
         stage_location = _validate_stage_location(stage_location)
