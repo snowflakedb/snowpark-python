@@ -8,7 +8,17 @@ import re
 from collections import Counter
 from functools import cached_property
 from logging import getLogger
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
@@ -124,6 +134,9 @@ from snowflake.snowpark.table_function import (
     _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
+
+if TYPE_CHECKING:
+    from table import Table
 
 _logger = getLogger(__name__)
 
@@ -3004,8 +3017,8 @@ class DataFrame:
     @df_collect_api_telemetry
     def cache_result(
         self, *, statement_params: Optional[Dict[str, str]] = None
-    ) -> "DataFrame":
-        """Caches the content of this DataFrame to create a new cached DataFrame.
+    ) -> "Table":
+        """Caches the content of this DataFrame to create a new cached Table DataFrame.
 
         All subsequent operations on the returned cached DataFrame are performed on the cached data
         and have no effect on the original DataFrame.
@@ -3046,7 +3059,7 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
-             A :class:`DataFrame` object that holds the cached result in a temporary table.
+             A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
@@ -3062,8 +3075,9 @@ class DataFrame:
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
         )
-        new_plan = self._session.table(temp_table_name)._plan
-        return DataFrame(session=self._session, plan=new_plan, is_cached=True)
+        cached_df = self._session.table(temp_table_name)
+        cached_df.is_cached = True
+        return cached_df
 
     @df_collect_api_telemetry
     def random_split(
