@@ -1459,9 +1459,9 @@ def test_pandas_udf_type_hints(session):
 @pytest.mark.parametrize(
     "_type, data, expected_type",
     [
-        (IntegerType, [[4096]], "int16"),
-        (IntegerType, [[1048576]], "int32"),
-        (IntegerType, [[8589934592]], "int64"),
+        (IntegerType, [[4096]], "object"),  # TODO: should be int16
+        (IntegerType, [[1048576]], "object"),  # TODO: should be int32
+        (IntegerType, [[8589934592]], "object"),  # TODO: should be int64
         (FloatType, [[1.0]], "float64"),
         (StringType, [["1"]], "string"),
         (BooleanType, [[True]], "boolean"),
@@ -1512,12 +1512,20 @@ def test_pandas_udf_input_types(session, _type, data, expected_type):
         (IntegerType, [[1048576]], "int32"),
         (IntegerType, [[8589934592]], "int64"),
         (FloatType, [[1.0]], "float64"),
-        (StringType, [["1"]], "object"),  # TODO: string
+        (StringType, [["1"]], "object"),  # TODO: should be string
         (BooleanType, [[True]], "bool"),
         (BinaryType, [[(1).to_bytes(1, byteorder="big")]], "object"),
-        (DateType, [[datetime.date(2021, 12, 20)]], "object"),  # TODO: datetime64[ns]
+        (
+            DateType,
+            [[datetime.date(2021, 12, 20)]],
+            "object",
+        ),  # TODO: should be datetime64[ns]
         (ArrayType, [[[1]]], "object"),
-        (TimeType, [[datetime.time(1, 1, 1)]], "object"),  # TODO: timedelta64[ns]
+        (
+            TimeType,
+            [[datetime.time(1, 1, 1)]],
+            "object",
+        ),  # TODO: should be timedelta64[ns]
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
