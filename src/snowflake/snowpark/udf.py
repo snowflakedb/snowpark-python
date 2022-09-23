@@ -65,7 +65,7 @@ class UserDefinedFunction:
         self._is_return_nullable = is_return_nullable
 
         session = session or snowflake.snowpark.session._get_active_session()
-        session._conn._telemetry_client.send_udf_created_telemetry(name)
+        session._conn._telemetry_client.send_udf_created_telemetry()
 
     def __call__(
         self,
@@ -90,7 +90,7 @@ class UserDefinedFunction:
                 )
 
         session = snowflake.snowpark.context.get_active_session()
-        session._conn._telemetry_client.send_udf_usage_telemetry(self.name)
+        session._conn._telemetry_client.send_udf_usage_telemetry()
         return Column(self._create_udf_expression(exprs))
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:

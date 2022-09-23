@@ -77,7 +77,7 @@ class UserDefinedTableFunction:
         self._input_types = input_types
 
         session = session or snowflake.snowpark.session._get_active_session()
-        session._conn._telemetry_client.send_udtf_created_telemetry(name)
+        session._conn._telemetry_client.send_udtf_created_telemetry()
 
     def __call__(
         self,
@@ -85,7 +85,7 @@ class UserDefinedTableFunction:
         **named_arguments,
     ) -> TableFunctionCall:
         session = snowflake.snowpark.context.get_active_session()
-        session._conn._telemetry_client.send_udtf_usage_telemetry(self.name)
+        session._conn._telemetry_client.send_udtf_usage_telemetry()
         return TableFunctionCall(self.name, *arguments, **named_arguments)
 
 
