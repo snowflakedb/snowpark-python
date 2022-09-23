@@ -147,6 +147,24 @@ def test_union_by_name(session):
         -1
     ].count("SELECT")
 
+    def get_max_nesting_depth(query):
+        max_depth, curr_depth = 0, 0
+        for char in query:
+            if char == "(":
+                curr_depth += 1
+            elif char == ")":
+                curr_depth -= 1
+            max_depth = max(max_depth, curr_depth)
+        return max_depth
+
+    # multiple unions
+    df6 = session.create_dataframe([[7, 8, 88], [8, 9, 99]], schema=["a", "b", "c"])
+    df_n1 = df1.union_by_name(df2)
+    df_n2 = df1.union_by_name(df2).union_by_name(df6)
+    assert get_max_nesting_depth(df_n1.queries["queries"][-1]) == get_max_nesting_depth(
+        df_n2.queries["queries"][-1]
+    )
+
 
 def test_select_new_columns(session, simplifier_table):
     """The query adds columns that reference columns unchanged in the subquery."""
