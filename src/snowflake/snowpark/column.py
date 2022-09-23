@@ -179,7 +179,7 @@ class Column:
         The following examples demonstrate how to use Column objects in expressions:
 
             >>> df = session.create_dataframe([[20, 5], [1, 2]], schema=["a", "b"])
-            >>> df.filter((col("a") == 20) | (col("b") <= 10)).collect()  # use parenthesis before and after the | operator.
+            >>> df.filter((col("a") == 20) | (col("b") <= 10)).collect()  # use parentheses before and after the | operator.
             [Row(A=20, B=5), Row(A=1, B=2)]
             >>> df.filter((df["a"] + df.b) < 10).collect()
             [Row(A=1, B=2)]
@@ -187,7 +187,7 @@ class Column:
             [Row(C=50), Row(C=20)]
 
         When you use ``|``, ``&``, and ``~`` as logical operators on columns, you must always enclose column expressions
-        with parenthesis as illustrated in the above example, because their order precedence is higher than ``==``, ``<``, etc.
+        with parentheses as illustrated in the above example, because their order precedence is higher than ``==``, ``<``, etc.
 
         Do not use ``and``, ``or``, and ``not`` logical operators on column objects, for instance, ``(df.col1 > 1) and (df.col2 > 2)`` is wrong.
         The reason is Python doesn't have a magic method, or dunder method for them.
