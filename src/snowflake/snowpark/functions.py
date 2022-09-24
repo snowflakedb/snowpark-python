@@ -9,7 +9,7 @@ These utility functions generate references to columns, literals, and SQL expres
 
   - Use :func:`col()` to convert a column name to a :class:`Column` object. Refer to the API docs of :class:`Column` to know more ways of referencing a column.
   - Use :func:`lit()` to convert a Python value to a :class:`Column` object that represents a constant value in Snowflake SQL.
-  - Use :func:`sql_expr()` to convert a Snowfalke SQL expression to a :class:`Column`.
+  - Use :func:`sql_expr()` to convert a Snowflake SQL expression to a :class:`Column`.
 
     >>> df = session.create_dataframe([[1, 'a', True, '2022-03-16'], [3, 'b', False, '2023-04-17']], schema=["a", "b", "c", "d"])
     >>> res1 = df.filter(col("a") == 1).collect()
@@ -2477,7 +2477,7 @@ def _as_decimal_or_number(
     precision: Optional[int] = None,
     scale: Optional[int] = None,
 ) -> Column:
-    """Helper funtion that casts a VARIANT value to a decimal or number."""
+    """Helper function that casts a VARIANT value to a decimal or number."""
     c = _to_col_if_str(variant, cast_type)
     if scale and not precision:
         raise ValueError("Cannot define scale without precision")
@@ -3137,7 +3137,7 @@ def udtf(
         1. When type hints are provided and are complete for a function,
         ``return_type`` and ``input_types`` are optional and will be ignored.
         See details of supported data types for UDTFs in
-        :class:`~snowflake.snowpark.udtf.UDTFTRegistration`.
+        :class:`~snowflake.snowpark.udtf.UDTFRegistration`.
 
             - You can use use :attr:`~snowflake.snowpark.types.Variant` to
               annotate a variant, and use :attr:`~snowflake.snowpark.types.Geography`
