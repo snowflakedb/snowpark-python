@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+from copy import copy
 from typing import Iterable, Tuple
 
 import pytest
@@ -935,3 +936,17 @@ def test_session_range(session, simplifier_table):
         .select((col("id") + 1).as_("id"))
     )
     assert df2.queries["queries"][0].count("SELECT") == 4
+
+
+def test_dataframe_copy(session, simplifier_table):
+    df = session.table(simplifier_table)
+    df1 = df.select("a").select("a")
+    df1 = copy(df)
+    df1 = df.select("a").select("a")
+    assert df1.queries["queries"][0].count("SELECT") == 1
+
+    df2 = df.select("*", "b")
+    df2 = df2.select("a")
+    assert df2.queries["queries"][0].count("SELECT") == 3
+    df3 = df2.select("a")
+    assert df3.queries["queries"][0].count("SELECT") == 3
