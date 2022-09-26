@@ -1464,11 +1464,11 @@ def test_pandas_udf_type_hints(session):
         (
             IntegerType,
             [[4096]],
-            numpy.int16,
+            int,
             "object",
         ),  # TODO: should be int16, see SNOW-668745
-        (IntegerType, [[1048576]], numpy.int32, "object"),
-        (IntegerType, [[8589934592]], numpy.int64, "object"),
+        (IntegerType, [[1048576]], int, "object"),
+        (IntegerType, [[8589934592]], int, "object"),
         (FloatType, [[1.0]], numpy.float64, "float64"),
         (StringType, [["1"]], str, "string"),
         (BooleanType, [[True]], numpy.bool_, "boolean"),
@@ -1591,7 +1591,7 @@ def test_pandas_udf_input_variant(session):
             DateType,
             [[datetime.date(2021, 12, 20)]],
             datetime.date,
-            "object",  # TODO: should be datetime64[ns]
+            "object",
         ),
         (ArrayType, [[[1]]], list, "object"),
         (
@@ -1611,6 +1611,10 @@ def test_pandas_udf_input_variant(session):
     ],
 )
 def test_pandas_udf_return_types(session, _type, data, expected_type, expected_dtype):
+    """
+    Note: See https://docs.snowflake.com/en/user-guide/python-connector-pandas.html#snowflake-to-pandas-data-mapping for
+    some special cases, e.g. `Date` is mapped to `object`, `Variant` is mapped to `str`.
+    """
     schema = StructType([StructField("a", _type())])
     df = session.create_dataframe(data, schema=schema)
     series_udf = udf(
