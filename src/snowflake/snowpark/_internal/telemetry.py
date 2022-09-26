@@ -360,32 +360,32 @@ class TelemetryClient:
             "copy_pattern", TelemetryField.FUNC_CAT_COPY.value
         )
 
-    def send_stored_proc_usage_telemetry(self):
+    def send_sproc_usage_telemetry(self):
         self.send_function_usage_telemetry(
-            f"sp_invoke", TelemetryField.FUNC_CAT_USAGE.value
+            "sproc_invoke", TelemetryField.FUNC_CAT_USAGE.value
         )
 
-    def send_stored_proc_created_telemetry(self):
+    def send_sproc_created_telemetry(self):
         self.send_function_usage_telemetry(
-            f"sp_create", TelemetryField.FUNC_CAT_CREATE.value
+            "sproc_create", TelemetryField.FUNC_CAT_CREATE.value
         )
 
     def send_udf_usage_telemetry(self):
         self.send_function_usage_telemetry(
-            f"udf_invoke", TelemetryField.FUNC_CAT_USAGE.value
+            "udf_invoke", TelemetryField.FUNC_CAT_USAGE.value
         )
 
     def send_udf_created_telemetry(self):
         self.send_function_usage_telemetry(
-            f"udf_create", TelemetryField.FUNC_CAT_CREATE.value
+            "udf_create", TelemetryField.FUNC_CAT_CREATE.value
         )
 
     def send_udtf_usage_telemetry(self):
         self.send_function_usage_telemetry(
-            f"udtf_invoke", TelemetryField.FUNC_CAT_USAGE.value
+            "udtf_invoke", TelemetryField.FUNC_CAT_USAGE.value
         )
 
     def send_udtf_created_telemetry(self):
         self.send_function_usage_telemetry(
-            f"udtf_create", TelemetryField.FUNC_CAT_CREATE.value
+            "udtf_create", TelemetryField.FUNC_CAT_CREATE.value
         )

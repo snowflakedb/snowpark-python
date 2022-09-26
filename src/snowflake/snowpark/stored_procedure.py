@@ -61,7 +61,7 @@ class StoredProcedure:
         self._execute_as = execute_as
 
         session = session or snowflake.snowpark.session._get_active_session()
-        session._conn._telemetry_client.send_stored_proc_created_telemetry()
+        session._conn._telemetry_client.send_sproc_created_telemetry()
 
     def __call__(
         self,
@@ -74,7 +74,7 @@ class StoredProcedure:
                 f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
             )
 
-        session._conn._telemetry_client.send_stored_proc_usage_telemetry()
+        session._conn._telemetry_client.send_sproc_usage_telemetry()
         return session.call(self.name, *args)
 
 
@@ -615,5 +615,5 @@ class StoredProcedureRegistration:
             input_types,
             udf_name,
             execute_as=execute_as,
-            session=self._session
+            session=self._session,
         )
