@@ -941,8 +941,8 @@ def test_session_range(session, simplifier_table):
 def test_dataframe_copy(session, simplifier_table):
     df = session.table(simplifier_table)
     df1 = df.select("a").select("a")
-    df1 = copy(df)
-    df1 = df.select("a").select("a")
+    df1 = copy(df1)
+    df1 = df1.select("a").select("a")
     assert df1.queries["queries"][0].count("SELECT") == 1
 
     df2 = df.select("*", "b")
