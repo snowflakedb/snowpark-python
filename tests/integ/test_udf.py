@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import json
 import logging
 import math
 import os
@@ -54,6 +55,7 @@ from snowflake.snowpark.types import (
     Geography,
     GeographyType,
     IntegerType,
+    MapType,
     PandasDataFrame,
     PandasDataFrameType,
     PandasSeries,
@@ -1457,84 +1459,158 @@ def test_pandas_udf_type_hints(session):
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
 @pytest.mark.parametrize(
-    "_type, data, expected_type",
+    "_type, data, expected_type, expected_dtype",
     [
-        (IntegerType, [[4096]], "object"),  # TODO: should be int16
-        (IntegerType, [[1048576]], "object"),  # TODO: should be int32
-        (IntegerType, [[8589934592]], "object"),  # TODO: should be int64
-        (FloatType, [[1.0]], "float64"),
-        (StringType, [["1"]], "string"),
-        (BooleanType, [[True]], "boolean"),
-        (BinaryType, [[(1).to_bytes(1, byteorder="big")]], "object"),
-        (DateType, [[datetime.date(2021, 12, 20)]], "datetime64[ns]"),
-        (ArrayType, [[[1]]], "object"),
-        (TimeType, [[datetime.time(1, 1, 1)]], "timedelta64[ns]"),
+        (
+            IntegerType,
+            [[4096]],
+            numpy.int16,
+            "object",
+        ),  # TODO: should be int16, see SNOW-668745
+        (IntegerType, [[1048576]], numpy.int32, "object"),
+        (IntegerType, [[8589934592]], numpy.int64, "object"),
+        (FloatType, [[1.0]], numpy.float64, "float64"),
+        (StringType, [["1"]], str, "string"),
+        (BooleanType, [[True]], numpy.bool_, "boolean"),
+        (BinaryType, [[(1).to_bytes(1, byteorder="big")]], bytes, "object"),
+        (
+            DateType,
+            [[datetime.date(2021, 12, 20)]],
+            pandas._libs.tslibs.timestamps.Timestamp,
+            "datetime64[ns]",
+        ),
+        (ArrayType, [[[1]]], list, "object"),
+        (
+            TimeType,
+            [[datetime.time(1, 1, 1)]],
+            pandas._libs.tslibs.timedeltas.Timedelta,
+            "timedelta64[ns]",
+        ),
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
+            pandas._libs.tslibs.timestamps.Timestamp,
             "datetime64[ns]",
         ),
-        (GeographyType, [["POINT(30 10)"]], "object"),
+        (GeographyType, [["POINT(30 10)"]], dict, "object"),
+        (MapType, [[{1: 2}]], dict, "object"),
     ],
 )
-def test_pandas_udf_input_types(session, _type, data, expected_type):
+def test_pandas_udf_input_types(session, _type, data, expected_type, expected_dtype):
     schema = StructType([StructField("a", _type())])
     df = session.create_dataframe(data, schema=schema)
 
     def return_type_in_series(x):
         import pandas as pd
 
-        return pd.Series([x.dtype])
+        return pd.Series([f"{type(x[0])}/{x.dtype}"])
 
     series_udf = udf(
         return_type_in_series,
         return_type=PandasSeriesType(StringType()),
         input_types=[PandasSeriesType(_type())],
     )
-    assert df.select(series_udf("a")).to_df("col1").collect() == [Row(expected_type)]
+    assert df.select(series_udf("a")).to_df("col1").collect() == [
+        Row(f"{expected_type}/{expected_dtype}")
+    ]
 
     def return_type_in_dataframe(x):
-        return x.dtypes
+        import pandas as pd
+
+        return pd.Series([f"{str(type(x.iloc[0][0]))}/{x.dtypes[0]}"])
 
     dataframe_udf = udf(
         return_type_in_dataframe,
         return_type=PandasSeriesType(StringType()),
         input_types=[PandasDataFrameType([_type()])],
     )
-    assert df.select(dataframe_udf("a")).to_df("col2").collect() == [Row(expected_type)]
+    assert df.select(dataframe_udf("a")).to_df("col2").collect() == [
+        Row(f"{expected_type}/{expected_dtype}")
+    ]
+
+
+@pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
+def test_pandas_udf_input_variant(session):
+    data = [
+        [4096],
+        [1.234],
+        ["abc"],
+        [True],
+        [(1).to_bytes(1, byteorder="big")],
+        [datetime.date(2021, 12, 20)],
+        [[1]],
+        [datetime.time(1, 1, 1)],
+        [datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)],
+        ["POINT(30 10)"],
+        [{1: 2}],
+    ]
+    expected_types = [int, float, str, bool, str, str, list, str, str, str, dict]
+    schema = StructType([StructField("a", VariantType())])
+    df = session.create_dataframe(data, schema=schema)
+
+    def return_type_in_series(x):
+        import pandas as pd
+
+        return pd.Series([f"{type(x[0])}/{x.dtype}"])
+
+    series_udf = udf(
+        return_type_in_series,
+        return_type=PandasSeriesType(StringType()),
+        input_types=[PandasSeriesType(VariantType())],
+    )
+    rows = df.select(series_udf("a")).to_df("col1").collect()
+    assert rows == [Row(f"{str(_type)}/object") for _type in expected_types]
+
+    def return_type_in_dataframe(x):
+        import pandas as pd
+
+        return pd.Series([f"{str(type(x.iloc[0][0]))}/{x.dtypes[0]}"])
+
+    dataframe_udf = udf(
+        return_type_in_dataframe,
+        return_type=PandasSeriesType(StringType()),
+        input_types=[PandasDataFrameType([VariantType()])],
+    )
+
+    rows = df.select(dataframe_udf("a")).to_df("col2").collect()
+    assert rows == [Row(f"{str(_type)}/object") for _type in expected_types]
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
 @pytest.mark.parametrize(
-    "_type, data, expected_type",
+    "_type, data, expected_type, expected_dtype",
     [
-        (IntegerType, [[4096]], "int16"),
-        (IntegerType, [[1048576]], "int32"),
-        (IntegerType, [[8589934592]], "int64"),
-        (FloatType, [[1.0]], "float64"),
-        (StringType, [["1"]], "object"),  # TODO: should be string
-        (BooleanType, [[True]], "bool"),
-        (BinaryType, [[(1).to_bytes(1, byteorder="big")]], "object"),
+        (IntegerType, [[4096]], numpy.int16, "int16"),
+        (IntegerType, [[1048576]], numpy.int32, "int32"),
+        (IntegerType, [[8589934592]], numpy.int64, "int64"),
+        (FloatType, [[1.0]], numpy.float64, "float64"),
+        (StringType, [["1"]], str, "object"),
+        (BooleanType, [[True]], numpy.bool_, "bool"),
+        (BinaryType, [[(1).to_bytes(1, byteorder="big")]], bytes, "object"),
         (
             DateType,
             [[datetime.date(2021, 12, 20)]],
-            "object",
-        ),  # TODO: should be datetime64[ns]
-        (ArrayType, [[[1]]], "object"),
+            datetime.date,
+            "object",  # TODO: should be datetime64[ns]
+        ),
+        (ArrayType, [[[1]]], list, "object"),
         (
             TimeType,
             [[datetime.time(1, 1, 1)]],
-            "object",
-        ),  # TODO: should be timedelta64[ns]
+            datetime.time,
+            "object",  # TODO: should be timedelta64[ns]
+        ),
         (
             TimestampType,
             [[datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)]],
+            pandas._libs.tslibs.timestamps.Timestamp,
             "datetime64[ns]",
         ),
-        (GeographyType, [["POINT(30 10)"]], "object"),
+        (GeographyType, [["POINT(30 10)"]], dict, "object"),
+        (MapType, [[{1: 2}]], dict, "object"),
     ],
 )
-def test_pandas_udf_return_types(session, _type, data, expected_type):
+def test_pandas_udf_return_types(session, _type, data, expected_type, expected_dtype):
     schema = StructType([StructField("a", _type())])
     df = session.create_dataframe(data, schema=schema)
     series_udf = udf(
@@ -1543,7 +1619,51 @@ def test_pandas_udf_return_types(session, _type, data, expected_type):
         input_types=[PandasSeriesType(_type())],
     )
     temp = df.select(series_udf("a")).to_pandas()
-    assert str(temp.dtypes[0]) == expected_type
+    if _type in (ArrayType, MapType, GeographyType):  # TODO: SNOW-573478
+        assert isinstance(json.loads(temp.iloc[0][0]), expected_type)
+    else:
+        assert isinstance(temp.iloc[0][0], expected_type)
+    assert temp.dtypes[0] == expected_dtype
+
+
+def test_pandas_udf_return_variant(session):
+    schema = StructType([StructField("a", VariantType())])
+    data = [
+        [4096],
+        [1.234],
+        ["abc"],
+        [True],
+        [(1).to_bytes(1, byteorder="big")],
+        [datetime.date(2021, 12, 20)],
+        [[1]],
+        [datetime.time(1, 1, 1)],
+        [datetime.datetime(2016, 3, 13, 5, tzinfo=datetime.timezone.utc)],
+        ["POINT(30 10)"],
+        [{1: 2}],
+    ]
+    expected_types = [
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+    ]  # TODO: SNOW-573478
+    df = session.create_dataframe(data, schema=schema)
+    series_udf = udf(
+        lambda x: x,
+        return_type=PandasSeriesType(VariantType()),
+        input_types=[PandasSeriesType(VariantType())],
+    )
+    temp = df.select(series_udf("a")).to_pandas()
+    assert temp.dtypes[0] == object
+    for i, row in temp.iterrows():
+        assert isinstance(row[0], expected_types[i])
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
