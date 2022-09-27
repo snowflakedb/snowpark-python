@@ -64,13 +64,12 @@ class StoredProcedure:
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> any:
-        if session and args and isinstance(args[0], snowflake.snowpark.session.Session):
-            raise ValueError(
-                "Two sessions specified in arguments. Session should either be the first argument or as "
-                "a named argument at the end, but not both"
-            )
-
         if args and isinstance(args[0], snowflake.snowpark.session.Session):
+            if session:
+                raise ValueError(
+                    "Two sessions specified in arguments. Session should either be the first argument or as "
+                    "a named argument at the end, but not both"
+                )
             session = args[0]
             args = args[1:]
         else:
