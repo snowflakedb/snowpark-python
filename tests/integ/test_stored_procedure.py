@@ -874,3 +874,24 @@ def test_execute_as_options(session, execute_as):
 
     return1_sp = sproc(return1, **sproc_kwargs)
     assert return1_sp() == 1
+
+
+def test_call_sproc_with_session_as_first_argument(session):
+    @sproc
+    def return1(_: Session) -> int:
+        return 1
+
+    @sproc
+    def plus1(_: Session, x: int) -> int:
+        return x + 1
+
+    assert return1(session) == 1
+    assert plus1(session, 1) == 2
+
+    with pytest.raises(ValueError) as ex_info:
+        return1(session, session=session)
+    assert "Two sessions specified in arguments" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        plus1(session, 1, session=session)
+    assert "Two sessions specified in arguments" in str(ex_info)
