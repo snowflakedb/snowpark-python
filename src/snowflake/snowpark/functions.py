@@ -2814,12 +2814,15 @@ def lead(
     )
 
 
-def ntile(e: ColumnOrName) -> Column:
+def ntile(e: Union[int, ColumnOrName]) -> Column:
     """
     Divides an ordered data set equally into the number of buckets specified by n.
     Buckets are sequentially numbered 1 through n.
+
+    Args:
+        e: The desired number of buckets; must be a positive integer value.
     """
-    c = _to_col_if_str(e, "ntile")
+    c = _to_col_if_str_or_int(e, "ntile")
     return builtin("ntile")(c)
 
 
