@@ -80,7 +80,7 @@ class StoredProcedure:
             )
 
         session._conn._telemetry_client.send_function_usage_telemetry(
-            "sproc_invoke", TelemetryField.FUNC_CAT_USAGE.value.value
+            "sproc_invoke", TelemetryField.FUNC_CAT_USAGE.value
         )
         return session.call(self.name, *args)
 
