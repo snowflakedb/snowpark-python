@@ -18,10 +18,11 @@ from typing import (
     Optional,
     Tuple,
     Union,
+    overload,
 )
 
 import snowflake.snowpark
-from snowflake.connector.options import pandas
+from snowflake.connector.options import installed_pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Cross,
@@ -487,10 +488,22 @@ class DataFrame:
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
 
+    @overload
+    def collect(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> List[Row]:
+        ...
+
+    @overload
+    def collect(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+    ) -> AsyncJob:
+        ...
+
     @df_collect_api_telemetry
     def collect(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
-    ) -> List["Row"]:
+    ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
 
@@ -539,7 +552,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         data_type: _AsyncDataType = _AsyncDataType.ROW,
-    ) -> Union[List["Row"], AsyncJob]:
+    ) -> Union[List[Row], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
@@ -567,6 +580,18 @@ class DataFrame:
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
         )
+
+    @overload
+    def to_local_iterator(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> Iterator[Row]:
+        ...
+
+    @overload
+    def to_local_iterator(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+    ) -> AsyncJob:
+        ...
 
     @df_collect_api_telemetry
     def to_local_iterator(
@@ -610,6 +635,29 @@ class DataFrame:
 
     def __copy__(self) -> "DataFrame":
         return DataFrame(self._session, copy.copy(self._plan))
+
+    if installed_pandas:
+        import pandas
+
+        @overload
+        def to_pandas(
+            self,
+            *,
+            statement_params: Optional[Dict[str, str]] = None,
+            block: bool = True,
+            **kwargs: Dict[str, Any],
+        ) -> pandas.DataFrame:
+            ...
+
+    @overload
+    def to_pandas(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> AsyncJob:
+        ...
 
     @df_collect_api_telemetry
     def to_pandas(
@@ -662,6 +710,29 @@ class DataFrame:
 
         return result
 
+    if installed_pandas:
+        import pandas
+
+        @overload
+        def to_pandas_batches(
+            self,
+            *,
+            statement_params: Optional[Dict[str, str]] = None,
+            block: bool = True,
+            **kwargs: Dict[str, Any],
+        ) -> Iterator[pandas.DataFrame]:
+            ...
+
+    @overload
+    def to_pandas_batches(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> AsyncJob:
+        ...
+
     @df_collect_api_telemetry
     def to_pandas_batches(
         self,
@@ -669,7 +740,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         **kwargs: Dict[str, Any],
-    ) -> Iterator["pandas.DataFrame"]:
+    ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         """
         Executes the query representing this DataFrame and returns an iterator of
         Pandas dataframes (containing a subset of rows) that you can use to
@@ -2289,9 +2360,21 @@ class DataFrame:
         # Put it all together
         return self.select([*old_cols, *new_cols])
 
+    @overload
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> int:
+        ...
+
+    @overload
+    def count(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+    ) -> AsyncJob:
+        ...
+
+    def count(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> Union[int, AsyncJob]:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
 
@@ -2773,6 +2856,26 @@ class DataFrame:
         return self._session._conn.execute(
             self._session._analyzer.resolve(cmd), **kwargs
         )
+
+    @overload
+    def first(
+        self,
+        n: Optional[int] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+    ) -> Union[Optional[Row], List[Row]]:
+        ...
+
+    @overload
+    def first(
+        self,
+        n: Optional[int] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+    ) -> AsyncJob:
+        ...
 
     def first(
         self,
