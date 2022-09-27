@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.utils import (
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_udf_upload_prefix,
+    is_sql_select_statement,
     normalize_path,
     unwrap_stage_location_single_quote,
     validate_object_name,
@@ -423,3 +424,39 @@ def test_func_decorator(caplog, decorator):
         assert caplog.text.count("extra_warning_text") == 1
     finally:
         warning_dict.clear()
+
+
+def test_is_sql_select_statement():
+    select_sqls = [
+        "select * from dual",
+        "(select * from dual)",
+        "(((select * from dual)))",
+        " select * from dual",
+        "   select * from dual",
+        "( ( ( select * from dual",
+        "with t as (select 1) select * from t",
+        "(with t as (select 1) select * from t",
+        "(((with t as (select 1) select * from t",
+        " with t as (select 1) select * from t",
+        "   with t as (select 1) select * from t",
+        "( ( ( with t as (select 1) select * from t",
+        "select*fromdual",  # don't care if the sql is valid.
+        "SELECT 1",
+        "SeLeCt 1",
+        "WITH t as (select 1) select * from t",
+        "WiTh t as (select 1) select * from t",
+    ]
+    for s in select_sqls:
+        assert is_sql_select_statement(s)
+
+    non_select_sqls = [
+        "selec * from tables",
+        "wit t as (select 1) select * from t",
+        "()select * from tables",
+        "()with t as (select 1) select * from t",
+        "show tables",
+        "lkdfadsk select",
+        "ljkfdshdf with",
+    ]
+    for ns in non_select_sqls:
+        assert is_sql_select_statement(ns) is False

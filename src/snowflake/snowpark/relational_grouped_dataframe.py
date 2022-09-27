@@ -185,9 +185,7 @@ class RelationalGroupedDataFrame:
         else:
             raise TypeError(f"Wrong group by type {self._group_type}")
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self._df._select_statement:
             group_plan = SelectStatement(
                 from_=SelectSnowflakePlan(
                     snowflake_plan=group_plan, analyzer=self._df._session._analyzer

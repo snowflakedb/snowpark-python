@@ -114,17 +114,10 @@ class InExpression(Expression):
         return derive_dependent_columns(self.columns, *self.values)
 
 
-class Star(Expression):
-    def __init__(self, expressions: List[NamedExpression]) -> None:
-        super().__init__()
-        self.expressions = expressions
-
-    def dependent_column_names(self) -> Optional[Set[str]]:
-        return derive_dependent_columns(*self.expressions)
-
-
 class Attribute(Expression, NamedExpression):
-    def __init__(self, name: str, datatype: DataType, nullable: bool = True) -> None:
+    def __init__(
+        self, name: str, datatype: Optional[DataType] = None, nullable: bool = True
+    ) -> None:
         super().__init__()
         self.name = name
         self.datatype = datatype
@@ -149,6 +142,15 @@ class Attribute(Expression, NamedExpression):
 
     def dependent_column_names(self) -> Optional[Set[str]]:
         return {self.name}
+
+
+class Star(Expression):
+    def __init__(self, expressions: List[Attribute]) -> None:
+        super().__init__()
+        self.expressions = expressions
+
+    def dependent_column_names(self) -> Optional[Set[str]]:
+        return derive_dependent_columns(*self.expressions)
 
 
 class UnresolvedAttribute(Expression, NamedExpression):

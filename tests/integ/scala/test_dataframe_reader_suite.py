@@ -9,7 +9,6 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkPlanException,
@@ -853,11 +852,9 @@ def test_read_staged_file_no_commit(session):
     assert not Utils.is_active_transaction(session)
 
 
-@pytest.mark.skipif(
-    _use_sql_simplifier is False,
-    reason="Applicable only when sql simplifier is enabled",
-)
 def test_read_csv_with_sql_simplifier(session):
+    if session.sql_simplifier_enabled is False:
+        pytest.skip("Applicable only when sql simplifier is enabled")
     reader = get_reader(session, "select")
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     df = reader.schema(user_schema).csv(test_file_on_stage)
@@ -872,11 +869,9 @@ def test_read_csv_with_sql_simplifier(session):
     assert df2.queries["queries"][-1].count("SELECT") == 4
 
 
-@pytest.mark.skipif(
-    _use_sql_simplifier is False,
-    reason="Applicable only when sql simplifier is enabled",
-)
 def test_read_parquet_with_sql_simplifier(session):
+    if session.sql_simplifier_enabled is False:
+        pytest.skip("Applicable only when sql simplifier is enabled")
     path = f"@{tmp_stage_name1}/{test_file_parquet}"
     df = get_reader(session, "select").parquet(path)
     df1 = df.select("str").select("str").select("str")

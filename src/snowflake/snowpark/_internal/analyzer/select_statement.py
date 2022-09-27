@@ -18,10 +18,7 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name,
-    result_scan_statement,
-)
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
     COLUMN_DEPENDENCY_ALL,
@@ -40,6 +37,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
 )
+from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 SET_UNION = analyzer_utils.UNION
 SET_UNION_ALL = analyzer_utils.UNION_ALL
@@ -111,7 +109,7 @@ class ColumnStateDict(UserDict):
 
     def __init__(self) -> None:
         super().__init__(dict())
-        self.projection: List[str] = []
+        self.projection: List[Attribute] = []
         # The following are useful aggregate information of all columns. Used to quickly rule if a query can be flattened.
         self.has_changed_columns: bool = False
         self.has_new_columns: bool = False
@@ -201,6 +199,7 @@ class Selectable(LogicalPlan, ABC):
                 post_actions=self.post_actions,
                 session=self.analyzer.session,
                 expr_to_alias=self.expr_to_alias,
+                source_plan=self,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -215,7 +214,7 @@ class Selectable(LogicalPlan, ABC):
         """
         if self._column_states is None:
             self._column_states = initiate_column_states(
-                [attr.name for attr in self.snowflake_plan.attributes]
+                self.snowflake_plan.attributes, self.analyzer
             )
         return self._column_states
 
@@ -256,7 +255,7 @@ class SelectSQL(Selectable):
         super().__init__(analyzer)
         self.convert_to_select = convert_to_select
         self.original_sql = sql
-        is_select = sql.strip().lower().startswith("select")
+        is_select = is_sql_select_statement(sql)
         if not is_select and convert_to_select:
             self.pre_actions = [Query(sql)]
             self._sql_query = result_scan_statement(
@@ -510,7 +509,10 @@ class SelectStatement(Selectable):
                     final_projection.append(state.expression)
                 elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
                     # query may change sequence of columns. If subquery has same-level reference, flattened sql may not work.
-                    if subquery_column_states[col].depend_on_same_level:
+                    if (
+                        col not in subquery_column_states
+                        or subquery_column_states[col].depend_on_same_level
+                    ):
                         can_be_flattened = False
                         break
                     final_projection.append(
@@ -724,7 +726,7 @@ class SetStatement(Selectable):
     def column_states(self) -> Optional[ColumnStateDict]:
         if not self._column_states:
             self._column_states = initiate_column_states(
-                [k for k in self.set_operands[0].selectable.column_states.keys()]
+                self.set_operands[0].selectable.column_states.projection, self.analyzer
             )
         return self._column_states
 
@@ -733,9 +735,7 @@ class DeriveColumnDependencyError(Exception):
     """When deriving column dependencies from the subquery."""
 
 
-def parse_column_name(
-    column: Union[str, Expression], analyzer: "Analyzer"
-) -> Optional[str]:
+def parse_column_name(column: Expression, analyzer: "Analyzer") -> Optional[str]:
     if isinstance(column, Expression):
         if isinstance(column, Attribute):
             return column.name
@@ -811,19 +811,22 @@ def can_clause_dependent_columns_flatten(
     return can_be_flattened
 
 
-def initiate_column_states(column_names: List[str]) -> ColumnStateDict:
+def initiate_column_states(
+    column_attrs: List[Attribute], analyzer: "Analyzer"
+) -> ColumnStateDict:
     column_states = ColumnStateDict()
-    for name in column_names:
+    for attr in column_attrs:
+        name = analyzer.analyze(attr)
         column_states[name] = ColumnState(
             name,
             change_state=ColumnChangeState.UNCHANGED_EXP,
-            expression=UnresolvedAttribute(quote_name(name)),
+            expression=attr,
             dependent_columns=COLUMN_DEPENDENCY_EMPTY,
             depend_on_same_level=False,
             referenced_by_same_level_columns=COLUMN_DEPENDENCY_EMPTY,
             state_dict=column_states,
         )
-    column_states.projection = column_names
+    column_states.projection = column_attrs
     return column_states
 
 
@@ -854,29 +857,31 @@ def populate_column_dependency(
 
 def derive_column_states_from_subquery(
     cols: Iterable[Expression], from_: Selectable
-) -> ColumnStateDict:
+) -> Optional[ColumnStateDict]:
     analyzer = from_.analyzer
     column_states = ColumnStateDict()
     for c in cols:
         if isinstance(c, UnresolvedAlias) and isinstance(c.child, Star):
             if c.child.expressions:
                 # df.select(df["*"]) will have child expressions. df.select("*") doesn't.
-                columns_from_star = map(analyzer.analyze, c.child.expressions)
+                columns_from_star = c.child.expressions
             else:
                 columns_from_star = from_.column_states.projection
-            column_states.update(
-                initiate_column_states(c_state for c_state in columns_from_star)
-            )
+            column_states.update(initiate_column_states(columns_from_star, analyzer))
             column_states.projection.extend(columns_from_star)
             continue
         c_name = parse_column_name(c, analyzer)
         if c_name is None:
             return None
-        column_states.projection.append(c_name)
         quoted_c_name = analyzer_utils.quote_name(c_name)
+        # if c is not an Attribute object, we will only care about the column name,
+        # so we can build a dummy Attribute with the column name
+        column_states.projection.append(
+            c if isinstance(c, Attribute) else Attribute(quoted_c_name)
+        )
         from_c_state = from_.column_states.get(quoted_c_name)
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
-            if c_name != from_.analyzer.analyze(c):
+            if c_name != analyzer.analyze(c):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,
                     ColumnChangeState.CHANGED_EXP,

@@ -1,12 +1,14 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import gzip
 import os
 import sys
+import tempfile
 from typing import IO, Dict, List, NamedTuple, Optional
 
 import snowflake.snowpark
-from snowflake.connector import ProgrammingError
+from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     get_local_file_path,
@@ -16,6 +18,19 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     result_set_to_rows,
 )
+
+
+def _validate_stage_location(stage_location: str) -> str:
+    stage_location = stage_location.strip()
+    if not stage_location:
+        raise ValueError(
+            "stage_location cannot be empty. It must be a full stage path with prefix and file name like @mystage/stage/prefix/filename"
+        )
+    if stage_location[-1] == "/":
+        raise ValueError(
+            "stage_location should end with target filename like @mystage/prefix/stage/filename"
+        )
+    return stage_location
 
 
 class PutResult(NamedTuple):
@@ -239,16 +254,7 @@ class FileOperation:
         Returns:
             An object of :class:`PutResult` which represents the results of an uploaded file.
         """
-        stage_location = stage_location.strip()
-        if not stage_location:
-            raise ValueError(
-                "stage_location cannot be empty. It must be a full stage path with prefix and file name like @mystage/stage/prefix/filename"
-            )
-        if stage_location[-1] == "/":
-            raise ValueError(
-                "stage_location should end with target filename like @mystage/prefix/stage/filename"
-            )
-
+        stage_location = _validate_stage_location(stage_location)
         cursor = self._session._conn._cursor
         if is_in_stored_procedure():
             try:
@@ -282,3 +288,77 @@ class FileOperation:
         result_meta = cursor.description
         put_result = result_set_to_rows(result_data, result_meta)[0]
         return PutResult(**put_result.asDict())
+
+    def get_stream(
+        self,
+        stage_location: str,
+        *,
+        parallel: int = 10,
+        decompress: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> IO[bytes]:
+        """Downloads the specified files from a path in a stage and expose it through a stream.
+
+        Args:
+            stage_location: The full stage path with prefix and file name, from which you want to download the file.
+            parallel: Specifies the number of threads to use for downloading the files.
+                The granularity unit for downloading is one file.
+                Increasing the number of threads might improve performance when downloading large files.
+                Supported values: Any integer value from 1 (no parallelism) to 99 (use 99 threads for downloading files). Defaults to 10.
+            statement_params: Dictionary of statement level parameters to be set while executing this action. Defaults to None.
+            decompress: Specifies whether to use gzip to decompress file after download. Defaults to False.
+
+        Examples:
+
+            >>> # Create a temp stage.
+            >>> _ = session.sql("create or replace temp stage mystage").collect()
+            >>> # Upload a file to a stage.
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@mystage/prefix1")
+            >>> # Download one file from a stage.
+            >>> fd = session.file.get_stream("@myStage/prefix1/testCSV.csv.gz", decompress=True)
+            >>> assert fd.read(5) == b"1,one"
+            >>> fd.close()
+
+        Returns:
+            An ``BytesIO`` object which points to the downloaded file.
+        """
+        # check stage location has a file name
+        stage_location = _validate_stage_location(stage_location)
+        if is_in_stored_procedure():
+            try:
+                return self._session._conn._cursor._download_stream(
+                    stage_location, decompress
+                )
+            except ProgrammingError as pe:
+                tb = sys.exc_info()[2]
+                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    pe
+                )
+                raise ne.with_traceback(tb) from None
+        else:
+            options = {"parallel": parallel}
+            tmp_dir = tempfile.gettempdir()
+            src_file_name = stage_location.rsplit("/", maxsplit=1)[1]
+            local_file_name = os.path.join(tmp_dir, src_file_name)
+            plan = self._session._plan_builder.file_operation_plan(
+                "get",
+                normalize_local_file(tmp_dir),
+                normalize_remote_file_or_dir(stage_location),
+                options=options,
+            )
+            try:
+                snowflake.snowpark.dataframe.DataFrame(
+                    self._session, plan
+                )._internal_collect_with_tag(statement_params=statement_params)
+            except OperationalError as oe:
+                tb = sys.exc_info()[2]
+                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_OPERATIONAL_ERROR(
+                    oe
+                )
+                raise ne.with_traceback(tb) from None
+
+            return (
+                gzip.open(local_file_name, "rb")
+                if decompress
+                else open(local_file_name, "rb")
+            )

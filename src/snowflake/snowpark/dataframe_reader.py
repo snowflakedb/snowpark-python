@@ -114,7 +114,7 @@ class DataFrameReader:
             >>> csv_df.collect()
             [Row(A=1, B='one', C=1.2), Row(A=2, B='two', C=2.2), Row(A=3, B='three', C=3.3), Row(A=4, B='four', C=4.4)]
 
-    To load Parquet, ORC and AVRO files, no schema is accepted becasue the schema will be automatically inferred.
+    To load Parquet, ORC and AVRO files, no schema is accepted because the schema will be automatically inferred.
     Inferring the schema can be disabled by setting option "infer_schema" to ``False``. Then you can use ``$1`` to access
     the column data as an OBJECT.
 
@@ -277,9 +277,8 @@ class DataFrameReader:
 
         self._file_path = path
         self._file_type = "csv"
-        from snowflake.snowpark import context
 
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
                 SelectStatement(
@@ -487,9 +486,7 @@ class DataFrameReader:
                         drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                     )
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
                 SelectStatement(

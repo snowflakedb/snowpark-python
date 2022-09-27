@@ -81,6 +81,7 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
+    array_agg,
     col,
     column,
     parse_json,
@@ -274,6 +275,9 @@ class Session:
         self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
+        self.sql_simplifier_enabled: bool = (
+            False  #: Whether the generated SQL is flattened or not.
+        )
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -725,28 +729,13 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
     ) -> List[str]:
-        valid_packages = (
-            {
-                p[0]: p[1]
-                for p in self._run_query(
-                    "select package_name, version from information_schema.packages where language='python'"
-                )
-            }
-            if validate_package
-            else None
-        )
-
-        result_dict = (
-            existing_packages_dict if existing_packages_dict is not None else {}
-        )
+        package_dict = dict()
         for package in packages:
             if isinstance(package, ModuleType):
-                package = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
+                package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = (
-                    f"{package}=={pkg_resources.get_distribution(package).version}"
-                )
+                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
                 use_local_version = True
             else:
                 package = package.strip().lower()
@@ -758,34 +747,68 @@ class Session:
             package_name = (
                 package if not use_local_version and "_" in package else package_req.key
             )
+            package_dict[package] = (package_name, use_local_version, package_req)
+
+        valid_packages = (
+            {
+                p[0]: json.loads(p[1])
+                for p in self.table("information_schema.packages")
+                .filter(
+                    (col("language") == "python")
+                    & (col("package_name").in_([v[0] for v in package_dict.values()]))
+                )
+                .group_by("package_name")
+                .agg(array_agg("version"))
+                ._internal_collect_with_tag()
+            }
+            if validate_package and package_dict
+            else None
+        )
+
+        result_dict = (
+            existing_packages_dict if existing_packages_dict is not None else {}
+        )
+        for package, package_info in package_dict.items():
+            package_name, use_local_version, package_req = package_info
+            package_version_req = package_req.specs[0][1] if package_req.specs else None
+
             if validate_package:
+                unavailable_pkg_err_msg = (
+                    "it is not available in Snowflake. Check information_schema.packages "
+                    "to see available packages for UDFs. If this package is a "
+                    '"pure-Python" package, you can find the directory of this package '
+                    "and add it via session.add_import(). See details at "
+                    "https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
+                )
+
                 if package_name not in valid_packages:
                     is_anaconda_terms_acknowledged = self._run_query(
                         "select system$are_anaconda_terms_acknowledged()"
                     )[0][0]
                     if is_anaconda_terms_acknowledged:
-                        detailed_err_msg = (
-                            "it is not available in Snowflake. Check information_schema.packages "
-                            "to see available packages for UDFs. If this package is a "
-                            '"pure-Python" package, you can find the directory of this package '
-                            "and add it via session.add_import(). See details at "
-                            "https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs.html#using-third-party-packages-from-anaconda-in-a-udf."
-                        )
+                        detailed_err_msg = unavailable_pkg_err_msg
                     else:
                         detailed_err_msg = (
                             "Anaconda terms must be accepted by ORGADMIN to use "
                             "Anaconda 3rd party packages. Please follow the instructions at "
                             "https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-packages.html#using-third-party-packages-from-anaconda."
                         )
+
                     raise ValueError(
                         f"Cannot add package {package_name} because {detailed_err_msg}"
+                    )
+                elif package_version_req and not any(
+                    v in package_req for v in valid_packages[package_name]
+                ):
+                    raise ValueError(
+                        f"Cannot add package {package_name}=={package_version_req} because {unavailable_pkg_err_msg}"
                     )
                 elif not use_local_version:
                     try:
                         package_client_version = pkg_resources.get_distribution(
                             package_name
                         ).version
-                        if package_client_version not in package_req:
+                        if package_client_version not in valid_packages[package_name]:
                             _logger.warning(
                                 "The version of package %s in the local environment is %s, "
                                 "which does not fit the criteria for the requirement %s. "
@@ -942,9 +965,7 @@ class Session:
             func_name, *func_arguments, **func_named_arguments
         )
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
                 SelectStatement(
@@ -978,9 +999,7 @@ class Session:
             [Row(1/2=Decimal('0.500000'))]
         """
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
                 SelectStatement(
@@ -1408,9 +1427,7 @@ class Session:
             else:
                 project_columns.append(column(name))
 
-        from snowflake.snowpark import context
-
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
                 SelectStatement(
@@ -1449,9 +1466,8 @@ class Session:
             [Row(ID=1), Row(ID=3), Row(ID=5), Row(ID=7), Row(ID=9)]
         """
         range_plan = Range(0, start, step) if end is None else Range(start, end, step)
-        from snowflake.snowpark import context
 
-        if context._use_sql_simplifier:
+        if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
                 SelectStatement(

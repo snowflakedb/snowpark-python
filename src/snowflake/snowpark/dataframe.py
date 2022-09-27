@@ -8,7 +8,17 @@ import re
 from collections import Counter
 from functools import cached_property
 from logging import getLogger
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
@@ -124,6 +134,9 @@ from snowflake.snowpark.table_function import (
     _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import StringType, StructType, _NumericType
+
+if TYPE_CHECKING:
+    from table import Table
 
 _logger = getLogger(__name__)
 
@@ -780,7 +793,7 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         if col_name == "*":
-            return Column(Star(self._plan.output))
+            return Column(Star(self._output))
         else:
             return Column(self._resolve(col_name))
 
@@ -1644,26 +1657,24 @@ class DataFrame:
             rattr for rattr in right_output_attrs if rattr not in right_project_list
         ]
 
-        from snowflake.snowpark import context
-
         names = right_project_list + not_found_attrs
-        if context._use_sql_simplifier and other._select_statement:
+        if self._session.sql_simplifier_enabled and other._select_statement:
             right_child = self._with_plan(other._select_statement.select(names))
         else:
             right_child = self._with_plan(Project(names, other._plan))
 
-        union_plan = UnionPlan(self._plan, right_child._plan, is_all)
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             df = self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        snowflake_plan=union_plan, analyzer=self._session._analyzer
+                self._select_statement.set_operator(
+                    right_child._select_statement
+                    or SelectSnowflakePlan(
+                        right_child._plan, analyzer=self._session._analyzer
                     ),
-                    analyzer=self._session._analyzer,
+                    operator=SET_UNION_ALL if is_all else SET_UNION,
                 )
             )
         else:
-            df = self._with_plan(union_plan)
+            df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
         return df
 
     @df_api_usage
@@ -2014,8 +2025,6 @@ class DataFrame:
             func, *func_arguments, **func_named_arguments
         )
 
-        from snowflake.snowpark import context
-
         names = None
         if func_expr.aliases:
             join_plan = self._session._analyzer.resolve(
@@ -2026,7 +2035,7 @@ class DataFrame:
             )
             names = [*old_cols, *new_cols]
 
-        if context._use_sql_simplifier:
+        if self._session.sql_simplifier_enabled:
             select_plan = SelectStatement(
                 from_=SelectTableFunction(
                     func_expr,
@@ -2872,15 +2881,15 @@ class DataFrame:
 
         Example::
             >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-            >>> df.describe().show()
+            >>> desc_result = df.describe().sort("SUMMARY").show()
             -------------------------------------------------------
             |"SUMMARY"  |"A"                 |"B"                 |
             -------------------------------------------------------
             |count      |2.0                 |2.0                 |
-            |mean       |2.0                 |3.0                 |
-            |stddev     |1.4142135623730951  |1.4142135623730951  |
-            |min        |1.0                 |2.0                 |
             |max        |3.0                 |4.0                 |
+            |mean       |2.0                 |3.0                 |
+            |min        |1.0                 |2.0                 |
+            |stddev     |1.4142135623730951  |1.4142135623730951  |
             -------------------------------------------------------
             <BLANKLINE>
 
@@ -3008,8 +3017,8 @@ class DataFrame:
     @df_collect_api_telemetry
     def cache_result(
         self, *, statement_params: Optional[Dict[str, str]] = None
-    ) -> "DataFrame":
-        """Caches the content of this DataFrame to create a new cached DataFrame.
+    ) -> "Table":
+        """Caches the content of this DataFrame to create a new cached Table DataFrame.
 
         All subsequent operations on the returned cached DataFrame are performed on the cached data
         and have no effect on the original DataFrame.
@@ -3050,7 +3059,7 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Returns:
-             A :class:`DataFrame` object that holds the cached result in a temporary table.
+             A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
@@ -3066,8 +3075,9 @@ class DataFrame:
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
         )
-        new_plan = self._session.table(temp_table_name)._plan
-        return DataFrame(session=self._session, plan=new_plan, is_cached=True)
+        cached_df = self._session.table(temp_table_name)
+        cached_df.is_cached = True
+        return cached_df
 
     @df_collect_api_telemetry
     def random_split(
@@ -3188,7 +3198,11 @@ Query List:
 
     @cached_property
     def _output(self) -> List[Attribute]:
-        return self._plan.output
+        return (
+            self._select_statement.column_states.projection
+            if self._select_statement
+            else self._plan.output
+        )
 
     @cached_property
     def schema(self) -> StructType:

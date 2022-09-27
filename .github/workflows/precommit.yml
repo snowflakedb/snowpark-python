@@ -157,8 +157,8 @@ jobs:
             .coverage
             coverage.xml
 
-  test-no-sql-simplifier: # Will be removed after sql simplifier is stable and no option to opt out.
-    name: Test No SQL Simplifier ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+  test-sql-simplifier: # Will be removed after sql simplifier is stable and no option to opt out.
+    name: Test SQL Simplifier ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -202,7 +202,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short --use_sql_simplifier=True
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - if: ${{ false == contains('macos', matrix.os.download_name) }}
@@ -213,7 +213,6 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
-          USE_SQL_SIMPLIFIER: 0
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false

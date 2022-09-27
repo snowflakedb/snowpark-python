@@ -1,19 +1,17 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
 from typing import Iterable, Tuple
 
 import pytest
 
-from snowflake.snowpark import Row, context
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
     SET_UNION,
     SET_UNION_ALL,
 )
-from snowflake.snowpark.context import _use_sql_simplifier
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     avg,
@@ -26,11 +24,14 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import TestData, Utils
 
-if not _use_sql_simplifier:
-    pytest.skip(
-        "Disable sql simplifier test when simplifier is disabled",
-        allow_module_level=True,
-    )
+
+@pytest.fixture(scope="module", autouse=True)
+def skip(pytestconfig):
+    if not pytestconfig.getoption("use_sql_simplifier"):
+        pytest.skip(
+            "Disable sql simplifier test when simplifier is disabled",
+            allow_module_level=True,
+        )
 
 
 @pytest.fixture(scope="module")
@@ -145,6 +146,24 @@ def test_union_by_name(session):
     assert df3.queries["queries"][-1].count("SELECT") + 1 == df5.queries["queries"][
         -1
     ].count("SELECT")
+
+    def get_max_nesting_depth(query):
+        max_depth, curr_depth = 0, 0
+        for char in query:
+            if char == "(":
+                curr_depth += 1
+            elif char == ")":
+                curr_depth -= 1
+            max_depth = max(max_depth, curr_depth)
+        return max_depth
+
+    # multiple unions
+    df6 = session.create_dataframe([[7, 8, 88], [8, 9, 99]], schema=["a", "b", "c"])
+    df_n1 = df1.union_by_name(df2)
+    df_n2 = df1.union_by_name(df2).union_by_name(df6)
+    assert get_max_nesting_depth(df_n1.queries["queries"][-1]) == get_max_nesting_depth(
+        df_n2.queries["queries"][-1]
+    )
 
 
 def test_select_new_columns(session, simplifier_table):
@@ -490,7 +509,14 @@ def test_with_column(session, simplifier_table):
     new_df = df
     for i in range(10):
         new_df = new_df.with_column(f"c{i}", lit(i))
+    assert new_df._plan.queries[-1].sql.count("SELECT") == 1
 
+    new_df = df
+    for i in range(10):
+        new_df = new_df.with_column(f"c{i}", col("a"))
+    assert new_df._plan.queries[-1].sql.count("SELECT") == 1
+
+    new_df = df.with_column("x", df["a"]).with_column("y", df["b"])
     assert new_df._plan.queries[-1].sql.count("SELECT") == 1
 
 
@@ -740,8 +766,9 @@ def test_cube_rollup(session, func_name):
 
 
 def test_use_sql_simplifier(session, simplifier_table):
+    sql_simplifier_enabled_original = session.sql_simplifier_enabled
     try:
-        context._use_sql_simplifier = False
+        session.sql_simplifier_enabled = False
         df1 = (
             session.sql(f"SELECT * from {simplifier_table}")
             .select("*")
@@ -750,7 +777,7 @@ def test_use_sql_simplifier(session, simplifier_table):
             .filter(col("a") == 1)
             .sort("a")
         )
-        context._use_sql_simplifier = True
+        session.sql_simplifier_enabled = True
         df2 = (
             session.sql(f"SELECT * from {simplifier_table}")
             .select("*")
@@ -763,7 +790,7 @@ def test_use_sql_simplifier(session, simplifier_table):
         assert df2.queries["queries"][0].count("SELECT") == 2
         Utils.check_answer(df1, df2, sort=True)
 
-        context._use_sql_simplifier = False
+        session.sql_simplifier_enabled = False
         df3 = (
             session.table(simplifier_table)
             .select("*")
@@ -772,7 +799,8 @@ def test_use_sql_simplifier(session, simplifier_table):
             .filter(col("a") == 1)
             .sort("a")
         )
-        context._use_sql_simplifier = True
+
+        session.sql_simplifier_enabled = True
         df4 = (
             session.table(simplifier_table)
             .select("*")
@@ -785,7 +813,7 @@ def test_use_sql_simplifier(session, simplifier_table):
         assert df4.queries["queries"][0].count("SELECT") == 1
         Utils.check_answer(df3, df4, sort=True)
     finally:
-        context._use_sql_simplifier = True
+        session.sql_simplifier_enabled = sql_simplifier_enabled_original
 
 
 def test_join_dataframes(session, simplifier_table):
@@ -802,6 +830,17 @@ def test_join_dataframes(session, simplifier_table):
         .select((col("a") + 1).as_("a"))
     )
     assert df2.queries["queries"][0].count("SELECT") == 10
+
+    df3 = df.with_column("x", df_left.a).with_column("y", df_right.d)
+    assert '"A" AS "X", "D" AS "Y"' in df3.queries["queries"][0]
+    Utils.check_answer(df3, [Row(1, 2, 3, 4, 1, 4)])
+
+    # the following can't be flattened
+    df4 = df_right.to_df("e", "f")
+    df5 = df_left.join(df4)
+    df6 = df5.with_column("x", df_right.c).with_column("y", df4.f)
+    assert df6.queries["queries"][0].count("SELECT") == 10
+    Utils.check_answer(df6, [Row(1, 2, 3, 4, 3, 4)])
 
 
 def test_sample(session, simplifier_table):
@@ -851,11 +890,8 @@ def test_select_star(session, simplifier_table):
     df1 = df.select("*")
     assert df1.queries["queries"][0] == f"SELECT  *  FROM {simplifier_table}"
 
-    df2 = df.select(df["*"])  # no flatten
-    assert (
-        df2.queries["queries"][0]
-        == f'SELECT "A","B" FROM ( SELECT  *  FROM {simplifier_table})'
-    )
+    df2 = df.select(df["*"])
+    assert df2.queries["queries"][0] == f'SELECT "A", "B" FROM {simplifier_table}'
 
     df3 = df.select("*", "a")
     assert (

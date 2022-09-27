@@ -156,7 +156,7 @@ def test_when_accept_sql_expr(session):
 def test_column_with_builtins_that_shadow_functions(session):
     conversion_error_msg_text = "Cannot convert a Column object into bool"
     iter_error_msg_text = "Column is not iterable. This error can occur when you use the Python built-ins for sum, min and max. Please make sure you use the corresponding function from snowflake.snowpark.functions."
-    round_error_msg_text = "Column cannot be rounded. This error can occur when you use the Python built-in round. Please make sure you use the snowflake.snowpark.functions.round function intead."
+    round_error_msg_text = "Column cannot be rounded. This error can occur when you use the Python built-in round. Please make sure you use the snowflake.snowpark.functions.round function instead."
 
     with pytest.raises(TypeError) as ex_info:
         TestData.double1(session).select(max(col("a"), 25)).collect()
