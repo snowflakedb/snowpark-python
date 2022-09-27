@@ -9,6 +9,7 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     abs,
     acos,
@@ -2732,14 +2733,26 @@ def test_lead(session, col_z):
     )
 
 
-@pytest.mark.parametrize("col_n", ["n", col("n")])
+@pytest.mark.parametrize("col_n", ["n", col("n"), 4, 0])
 def test_ntile(session, col_n):
-    df = TestData.xyz(session).with_column("n", lit(4))
-    Utils.check_answer(
-        df.select(ntile(col_n).over(Window.partition_by(col("X")).order_by(col("Y")))),
-        [Row(1), Row(2), Row(3), Row(1), Row(2)],
-        sort=False,
-    )
+    df = TestData.xyz(session)
+    if not isinstance(col_n, int):
+        df = df.with_column("n", lit(4))
+    if isinstance(col_n, int) and col_n == 0:
+        with pytest.raises(
+            SnowparkSQLException, match="NTILE argument must be at least 1"
+        ):
+            df.select(
+                ntile(col_n).over(Window.partition_by(col("X")).order_by(col("Y")))
+            ).collect()
+    else:
+        Utils.check_answer(
+            df.select(
+                ntile(col_n).over(Window.partition_by(col("X")).order_by(col("Y")))
+            ),
+            [Row(1), Row(2), Row(3), Row(1), Row(2)],
+            sort=False,
+        )
 
 
 def test_percent_rank(session):
