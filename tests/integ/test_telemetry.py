@@ -709,19 +709,13 @@ def test_udf_call_and_invoke(session, resources_path):
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UDFRegistration.register"
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
-    )
+    assert data == {"func_name": "UDFRegistration.register", "category": "create"}
 
     df.select(df.a, minus_one_udf(df.b))
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedFunction.__call__"
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
-    )
+    assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
 
     # udf register from file
     test_files = TestFiles(resources_path)
@@ -735,21 +729,16 @@ def test_udf_call_and_invoke(session, resources_path):
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert (
-        data[TelemetryField.KEY_FUNC_NAME.value] == "UDFRegistration.register_from_file"
-    )
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
-    )
+    assert data == {
+        "func_name": "UDFRegistration.register_from_file",
+        "category": "create",
+    }
 
     df.select(mod5_udf(df.a))
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedFunction.__call__"
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
-    )
+    assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
 
     # pandas udf register
     @pandas_udf(
@@ -762,21 +751,16 @@ def test_udf_call_and_invoke(session, resources_path):
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert (
-        data[TelemetryField.KEY_FUNC_NAME.value] == "UDFRegistration.register[pandas]"
-    )
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
-    )
+    assert data == {
+        "func_name": "UDFRegistration.register[pandas]",
+        "category": "create",
+    }
 
     df.select(add_one_df_pandas_udf("a", "b"))
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedFunction.__call__"
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
-    )
+    assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
 
 
 def test_sproc_call_and_invoke(session, resources_path):
@@ -796,13 +780,10 @@ def test_sproc_call_and_invoke(session, resources_path):
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert (
-        data[TelemetryField.KEY_FUNC_NAME.value]
-        == "StoredProcedureRegistration.register"
-    )
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
-    )
+    assert data == {
+        "func_name": "StoredProcedureRegistration.register",
+        "category": "create",
+    }
 
     add_one_sp(7)
     # the 3 messages after sproc_invoke are client_time_consume_first_result, client_time_consume_last_result, and action_collect
@@ -810,10 +791,7 @@ def test_sproc_call_and_invoke(session, resources_path):
     data = telemetry_obj._log_batch[-4].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert data[TelemetryField.KEY_FUNC_NAME.value] == "StoredProcedure.__call__"
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
-    )
+    assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
 
     # sproc register from file
     test_files = TestFiles(resources_path)
@@ -827,22 +805,16 @@ def test_sproc_call_and_invoke(session, resources_path):
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert (
-        data[TelemetryField.KEY_FUNC_NAME.value]
-        == "StoredProcedureRegistration.register_from_file"
-    )
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
-    )
+    assert data == {
+        "func_name": "StoredProcedureRegistration.register_from_file",
+        "category": "create",
+    }
 
     mod5_sp(3)
     data = telemetry_obj._log_batch[-4].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert data[TelemetryField.KEY_FUNC_NAME.value] == "StoredProcedure.__call__"
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
-    )
+    assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
 
 
 def test_udtf_call_and_invoke(session, resources_path):
@@ -858,21 +830,16 @@ def test_udtf_call_and_invoke(session, resources_path):
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UDTFRegistration.register"
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
-    )
+    assert data == {"func_name": "UDTFRegistration.register", "category": "create"}
 
     df.select(sum_udtf(df.a, df.b))
     data = telemetry_obj._log_batch[-2].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert (
-        data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedTableFunction.__call__"
-    )
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
-    )
+    assert data == {
+        "func_name": "UserDefinedTableFunction.__call__",
+        "category": "usage",
+    }
 
     # udtf register from file
     test_files = TestFiles(resources_path)
@@ -886,13 +853,10 @@ def test_udtf_call_and_invoke(session, resources_path):
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert (
-        data[TelemetryField.KEY_FUNC_NAME.value]
-        == "UDTFRegistration.register_from_file"
-    )
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
-    )
+    assert data == {
+        "func_name": "UDTFRegistration.register_from_file",
+        "category": "create",
+    }
 
     df = session.table_function(
         my_udtf(
@@ -909,9 +873,7 @@ def test_udtf_call_and_invoke(session, resources_path):
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
         TelemetryField.KEY_DATA.value
     ]
-    assert (
-        data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedTableFunction.__call__"
-    )
-    assert (
-        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
-    )
+    assert data == {
+        "func_name": "UserDefinedTableFunction.__call__",
+        "category": "usage",
+    }
