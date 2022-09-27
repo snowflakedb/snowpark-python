@@ -11,6 +11,7 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -54,6 +55,7 @@ class UserDefinedFunction:
         name: str,
         is_return_nullable: bool = False,
         session: Optional["snowflake.snowpark.session.Session"] = None,
+        api_call_source: Optional[str] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -64,12 +66,16 @@ class UserDefinedFunction:
         self._input_types = input_types
         self._is_return_nullable = is_return_nullable
 
+        api_call_source = api_call_source or "udf_create"
         session = session or snowflake.snowpark.session._get_active_session()
-        session._conn._telemetry_client.send_udf_created_telemetry()
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            api_call_source, TelemetryField.FUNC_CAT_CREATE.value
+        )
 
     def __call__(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        api_call_source: Optional[str] = None,
     ) -> Column:
         if len(cols) >= 1 and isinstance(cols[0], (list, tuple)):
             warning(
@@ -89,8 +95,11 @@ class UserDefinedFunction:
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
                 )
 
+        api_call_source = api_call_source or "udf_invoke"
         session = snowflake.snowpark.context.get_active_session()
-        session._conn._telemetry_client.send_udf_usage_telemetry()
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            api_call_source, TelemetryField.FUNC_CAT_USAGE.value
+        )
         return Column(self._create_udf_expression(exprs))
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
@@ -544,6 +553,8 @@ class UDFRegistration:
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
+        _from_pandas = kwargs.get("_from_pandas_udf_function", False)
+
         # register udf
         return self._do_register_udf(
             func,
@@ -556,9 +567,12 @@ class UDFRegistration:
             replace,
             parallel,
             max_batch_size,
-            kwargs.get("_from_pandas_udf_function", False),
+            _from_pandas,
             statement_params=statement_params,
             source_code_display=source_code_display,
+            api_call_source="UDFRegistration.register" + "[pandas]"
+            if _from_pandas
+            else "",
         )
 
     def register_from_file(
@@ -670,6 +684,7 @@ class UDFRegistration:
             parallel,
             statement_params=statement_params,
             source_code_display=source_code_display,
+            api_call_source="UDFRegistration.register_from_file",
         )
 
     def _do_register_udf(
@@ -688,6 +703,7 @@ class UDFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        api_call_source: str,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -772,5 +788,10 @@ class UDFRegistration:
                 )
 
         return UserDefinedFunction(
-            func, return_type, input_types, udf_name, session=self._session
+            func,
+            return_type,
+            input_types,
+            udf_name,
+            session=self._session,
+            api_call_source=api_call_source,
         )

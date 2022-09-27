@@ -359,33 +359,3 @@ class TelemetryClient:
         self.send_function_usage_telemetry(
             "copy_pattern", TelemetryField.FUNC_CAT_COPY.value
         )
-
-    def send_sproc_usage_telemetry(self):
-        self.send_function_usage_telemetry(
-            "sproc_invoke", TelemetryField.FUNC_CAT_USAGE.value
-        )
-
-    def send_sproc_created_telemetry(self):
-        self.send_function_usage_telemetry(
-            "sproc_create", TelemetryField.FUNC_CAT_CREATE.value
-        )
-
-    def send_udf_usage_telemetry(self):
-        self.send_function_usage_telemetry(
-            "udf_invoke", TelemetryField.FUNC_CAT_USAGE.value
-        )
-
-    def send_udf_created_telemetry(self):
-        self.send_function_usage_telemetry(
-            "udf_create", TelemetryField.FUNC_CAT_CREATE.value
-        )
-
-    def send_udtf_usage_telemetry(self):
-        self.send_function_usage_telemetry(
-            "udtf_invoke", TelemetryField.FUNC_CAT_USAGE.value
-        )
-
-    def send_udtf_created_telemetry(self):
-        self.send_function_usage_telemetry(
-            "udtf_create", TelemetryField.FUNC_CAT_CREATE.value
-        )

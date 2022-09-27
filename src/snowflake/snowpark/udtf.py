@@ -24,6 +24,7 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     python_type_str_to_object,
@@ -67,6 +68,7 @@ class UserDefinedTableFunction:
         input_types: List[DataType],
         name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
+        api_call_source: Optional[str] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -76,8 +78,11 @@ class UserDefinedTableFunction:
         self._output_schema = output_schema
         self._input_types = input_types
 
+        api_call_source = api_call_source or "udtf_create"
         session = session or snowflake.snowpark.session._get_active_session()
-        session._conn._telemetry_client.send_udtf_created_telemetry()
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            api_call_source, TelemetryField.FUNC_CAT_CREATE.value
+        )
 
     def __call__(
         self,
@@ -85,7 +90,9 @@ class UserDefinedTableFunction:
         **named_arguments,
     ) -> TableFunctionCall:
         session = snowflake.snowpark.context.get_active_session()
-        session._conn._telemetry_client.send_udtf_usage_telemetry()
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            "udtf_invoke", TelemetryField.FUNC_CAT_USAGE.value
+        )
         return TableFunctionCall(self.name, *arguments, **named_arguments)
 
 
@@ -404,6 +411,7 @@ class UDTFRegistration:
             replace,
             parallel,
             statement_params=statement_params,
+            api_call_source="UDTFRegistration.register",
         )
 
     def register_from_file(
@@ -505,6 +513,7 @@ class UDTFRegistration:
             replace,
             parallel,
             statement_params=statement_params,
+            api_call_source="UDTFRegistration.register_from_file",
         )
 
     def _do_register_udtf(
@@ -520,6 +529,7 @@ class UDTFRegistration:
         parallel: int = 4,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        api_call_source: str,
     ) -> UserDefinedTableFunction:
         if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
@@ -663,7 +673,14 @@ class UDTFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name, self._session)
+        return UserDefinedTableFunction(
+            handler,
+            output_schema,
+            input_types,
+            udtf_name,
+            self._session,
+            api_call_source,
+        )
 
 
 def _validate_output_schema_names(names: Iterable[str]) -> None:

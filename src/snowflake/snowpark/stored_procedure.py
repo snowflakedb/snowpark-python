@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -50,6 +51,7 @@ class StoredProcedure:
         name: str,
         execute_as: typing.Literal["caller", "owner"] = "owner",
         session: Optional["snowflake.snowpark.session.Session"] = None,
+        api_call_source: Optional[str] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -60,8 +62,11 @@ class StoredProcedure:
         self._input_types = input_types
         self._execute_as = execute_as
 
+        api_call_source = api_call_source or "sproc_create"
         session = session or snowflake.snowpark.session._get_active_session()
-        session._conn._telemetry_client.send_sproc_created_telemetry()
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            api_call_source, TelemetryField.FUNC_CAT_CREATE.value
+        )
 
     def __call__(
         self,
@@ -74,7 +79,9 @@ class StoredProcedure:
                 f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
             )
 
-        session._conn._telemetry_client.send_sproc_usage_telemetry()
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            "sproc_invoke", TelemetryField.FUNC_CAT_USAGE.value.value
+        )
         return session.call(self.name, *args)
 
 
@@ -413,6 +420,7 @@ class StoredProcedureRegistration:
             parallel,
             statement_params=statement_params,
             execute_as=execute_as,
+            api_call_source="StoredProcedureRegistration.register",
         )
 
     def register_from_file(
@@ -514,6 +522,7 @@ class StoredProcedureRegistration:
             replace,
             parallel,
             statement_params=statement_params,
+            api_call_source="StoredProcedureRegistration.register_from_file",
         )
 
     def _do_register_sp(
@@ -530,6 +539,7 @@ class StoredProcedureRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         execute_as: typing.Literal["caller", "owner"] = "owner",
+        api_call_source: str,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -616,4 +626,5 @@ class StoredProcedureRegistration:
             udf_name,
             execute_as=execute_as,
             session=self._session,
+            api_call_source=api_call_source,
         )
