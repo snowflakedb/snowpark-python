@@ -62,7 +62,7 @@ class StoredProcedure:
         self._input_types = input_types
         self._execute_as = execute_as
 
-        api_call_source = api_call_source or "sproc_create"
+        api_call_source = api_call_source or "StoredProcedure.__init__"
         session = session or snowflake.snowpark.session._get_active_session()
         session._conn._telemetry_client.send_function_usage_telemetry(
             api_call_source, TelemetryField.FUNC_CAT_CREATE.value
@@ -80,7 +80,7 @@ class StoredProcedure:
             )
 
         session._conn._telemetry_client.send_function_usage_telemetry(
-            "sproc_invoke", TelemetryField.FUNC_CAT_USAGE.value
+            "StoredProcedure.__call__", TelemetryField.FUNC_CAT_USAGE.value
         )
         return session.call(self.name, *args)
 

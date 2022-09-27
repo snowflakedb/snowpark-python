@@ -3,11 +3,25 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 
+import decimal
+from typing import Iterable, Tuple
+
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark.functions import col, lit, max as max_, mean
-from tests.utils import TestData
+from snowflake.snowpark._internal.telemetry import TelemetryField
+from snowflake.snowpark.functions import (
+    col,
+    lit,
+    max as max_,
+    mean,
+    pandas_udf,
+    sproc,
+    udf,
+    udtf,
+)
+from snowflake.snowpark.types import IntegerType, PandasDataFrameType, PandasSeriesType
+from tests.utils import TestData, TestFiles
 
 
 def test_basic_api_calls(session):
@@ -678,3 +692,226 @@ def test_dataframe_na_functions_api_calls(session):
     ]
     # check to make sure that the original DF is unchanged
     assert df2._plan.api_calls == [{"name": "Session.sql"}]
+
+
+def test_udf_call_and_invoke(session, resources_path):
+    telemetry_obj = session._conn._telemetry_client.telemetry
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+
+    # udf register
+    def minus_one(x):
+        return x - 1
+
+    minus_one_udf = udf(
+        minus_one, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UDFRegistration.register"
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
+    )
+
+    df.select(df.a, minus_one_udf(df.b))
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedFunction.__call__"
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
+    )
+
+    # udf register from file
+    test_files = TestFiles(resources_path)
+    mod5_udf = session.udf.register_from_file(
+        test_files.test_udf_py_file,
+        "mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert (
+        data[TelemetryField.KEY_FUNC_NAME.value] == "UDFRegistration.register_from_file"
+    )
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
+    )
+
+    df.select(mod5_udf(df.a))
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedFunction.__call__"
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
+    )
+
+    # pandas udf register
+    @pandas_udf(
+        return_type=PandasSeriesType(IntegerType()),
+        input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
+    )
+    def add_one_df_pandas_udf(df):
+        return df[0] + df[1] + 1
+
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert (
+        data[TelemetryField.KEY_FUNC_NAME.value] == "UDFRegistration.register[pandas]"
+    )
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
+    )
+
+    df.select(add_one_df_pandas_udf("a", "b"))
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedFunction.__call__"
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
+    )
+
+
+def test_sproc_call_and_invoke(session, resources_path):
+    telemetry_obj = session._conn._telemetry_client.telemetry
+
+    # sproc register
+    def add_one(session_, x):
+        return session_.sql(f"select {x} + 1").collect()[0][0]
+
+    add_one_sp = sproc(
+        add_one,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        packages=["snowflake-snowpark-python"],
+    )
+
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert (
+        data[TelemetryField.KEY_FUNC_NAME.value]
+        == "StoredProcedureRegistration.register"
+    )
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
+    )
+
+    add_one_sp(7)
+    # the 3 messages after sproc_invoke are client_time_consume_first_result, client_time_consume_last_result, and action_collect
+    print(telemetry_obj._log_batch)
+    data = telemetry_obj._log_batch[-4].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert data[TelemetryField.KEY_FUNC_NAME.value] == "StoredProcedure.__call__"
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
+    )
+
+    # sproc register from file
+    test_files = TestFiles(resources_path)
+    mod5_sp = session.sproc.register_from_file(
+        test_files.test_sp_py_file,
+        "mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        packages=["snowflake-snowpark-python"],
+    )
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert (
+        data[TelemetryField.KEY_FUNC_NAME.value]
+        == "StoredProcedureRegistration.register_from_file"
+    )
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
+    )
+
+    mod5_sp(3)
+    data = telemetry_obj._log_batch[-4].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert data[TelemetryField.KEY_FUNC_NAME.value] == "StoredProcedure.__call__"
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
+    )
+
+
+def test_udtf_call_and_invoke(session, resources_path):
+    telemetry_obj = session._conn._telemetry_client.telemetry
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+
+    # udtf register
+    @udtf(output_schema=["sum"])
+    class sum_udtf:
+        def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+            return (a + b,)
+
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert data[TelemetryField.KEY_FUNC_NAME.value] == "UDTFRegistration.register"
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
+    )
+
+    df.select(sum_udtf(df.a, df.b))
+    data = telemetry_obj._log_batch[-2].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert (
+        data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedTableFunction.__call__"
+    )
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
+    )
+
+    # udtf register from file
+    test_files = TestFiles(resources_path)
+    schema = ["int_", "float_", "bool_", "decimal_", "str_", "bytes_", "bytearray_"]
+    my_udtf = session.udtf.register_from_file(
+        test_files.test_udtf_py_file,
+        "MyUDTFWithTypeHints",
+        output_schema=schema,
+    )
+
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert (
+        data[TelemetryField.KEY_FUNC_NAME.value]
+        == "UDTFRegistration.register_from_file"
+    )
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_CREATE.value
+    )
+
+    df = session.table_function(
+        my_udtf(
+            lit(1),
+            lit(2.2),
+            lit(True),
+            lit(decimal.Decimal("3.33")),
+            lit("python"),
+            lit(b"bytes"),
+            lit(bytearray("bytearray", "utf-8")),
+        )
+    )
+
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert (
+        data[TelemetryField.KEY_FUNC_NAME.value] == "UserDefinedTableFunction.__call__"
+    )
+    assert (
+        data[TelemetryField.KEY_CATEGORY.value] == TelemetryField.FUNC_CAT_USAGE.value
+    )

@@ -66,7 +66,7 @@ class UserDefinedFunction:
         self._input_types = input_types
         self._is_return_nullable = is_return_nullable
 
-        api_call_source = api_call_source or "udf_create"
+        api_call_source = api_call_source or "UserDefinedFunction.__init__"
         session = session or snowflake.snowpark.session._get_active_session()
         session._conn._telemetry_client.send_function_usage_telemetry(
             api_call_source, TelemetryField.FUNC_CAT_CREATE.value
@@ -75,7 +75,6 @@ class UserDefinedFunction:
     def __call__(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
-        api_call_source: Optional[str] = None,
     ) -> Column:
         if len(cols) >= 1 and isinstance(cols[0], (list, tuple)):
             warning(
@@ -95,10 +94,9 @@ class UserDefinedFunction:
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
                 )
 
-        api_call_source = api_call_source or "udf_invoke"
         session = snowflake.snowpark.context.get_active_session()
         session._conn._telemetry_client.send_function_usage_telemetry(
-            api_call_source, TelemetryField.FUNC_CAT_USAGE.value
+            "UserDefinedFunction.__call__", TelemetryField.FUNC_CAT_USAGE.value
         )
         return Column(self._create_udf_expression(exprs))
 
@@ -570,9 +568,8 @@ class UDFRegistration:
             _from_pandas,
             statement_params=statement_params,
             source_code_display=source_code_display,
-            api_call_source="UDFRegistration.register" + "[pandas]"
-            if _from_pandas
-            else "",
+            api_call_source="UDFRegistration.register"
+            + ("[pandas]" if _from_pandas else ""),
         )
 
     def register_from_file(
