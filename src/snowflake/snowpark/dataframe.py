@@ -609,6 +609,11 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
+        if self._select_statement:
+            new_ss = copy.copy(self._select_statement)
+            new_ss._column_states = self._select_statement.column_states
+            new_ss.flatten_disabled = self._select_statement.flatten_disabled
+            return DataFrame(self._session, new_ss)
         return DataFrame(self._session, copy.copy(self._plan))
 
     @df_collect_api_telemetry
