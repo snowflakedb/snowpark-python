@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Dict, Iterable, List, NamedTuple, Optional, Union
+from typing import Dict, Iterable, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
@@ -324,6 +324,30 @@ class Table(DataFrame):
         sql_text = f"SELECT * FROM {self.table_name} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
         return self._session.sql(sql_text)
 
+    @overload
+    def update(
+        self,
+        assignments: Dict[str, ColumnOrLiteral],
+        condition: Optional[Column] = None,
+        source: Optional[DataFrame] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+    ) -> UpdateResult:
+        ...
+
+    @overload
+    def update(
+        self,
+        assignments: Dict[str, ColumnOrLiteral],
+        condition: Optional[Column] = None,
+        source: Optional[DataFrame] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+    ) -> "snowflake.snowpark.AsyncJob":
+        ...
+
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
@@ -412,6 +436,28 @@ class Table(DataFrame):
         )
         return _get_update_result(result) if block else result
 
+    @overload
+    def delete(
+        self,
+        condition: Optional[Column] = None,
+        source: Optional[DataFrame] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+    ) -> DeleteResult:
+        ...
+
+    @overload
+    def delete(
+        self,
+        condition: Optional[Column] = None,
+        source: Optional[DataFrame] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+    ) -> "snowflake.snowpark.AsyncJob":
+        ...
+
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -489,6 +535,30 @@ class Table(DataFrame):
             data_type=snowflake.snowpark.async_job._AsyncDataType.DELETE,
         )
         return _get_delete_result(result) if block else result
+
+    @overload
+    def merge(
+        self,
+        source: DataFrame,
+        join_expr: Column,
+        clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+    ) -> MergeResult:
+        ...
+
+    @overload
+    def merge(
+        self,
+        source: DataFrame,
+        join_expr: Column,
+        clauses: Iterable[Union[WhenMatchedClause, WhenNotMatchedClause]],
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+    ) -> "snowflake.snowpark.AsyncJob":
+        ...
 
     def merge(
         self,

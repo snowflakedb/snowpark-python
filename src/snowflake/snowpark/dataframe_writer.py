@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Dict, Iterable, List, Literal, Optional, Union
+from typing import Dict, Iterable, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -65,6 +65,34 @@ class DataFrameWriter:
         """
         self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
         return self
+
+    @overload
+    def save_as_table(
+        self,
+        table_name: Union[str, Iterable[str]],
+        *,
+        mode: Optional[str] = None,
+        column_order: str = "index",
+        create_temp_table: bool = False,
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+    ) -> None:
+        ...
+
+    @overload
+    def save_as_table(
+        self,
+        table_name: Union[str, Iterable[str]],
+        *,
+        mode: Optional[str] = None,
+        column_order: str = "index",
+        create_temp_table: bool = False,
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+    ) -> AsyncJob:
+        ...
 
     @dfw_collect_api_telemetry
     def save_as_table(
@@ -170,6 +198,7 @@ class DataFrameWriter:
         )
         return result if not block else None
 
+    @overload
     def copy_into_location(
         self,
         location: str,
@@ -183,6 +212,37 @@ class DataFrameWriter:
         block: bool = True,
         **copy_options: Optional[str],
     ) -> List[Row]:
+        ...
+
+    @overload
+    def copy_into_location(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+        **copy_options: Optional[str],
+    ) -> AsyncJob:
+        ...
+
+    def copy_into_location(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        **copy_options: Optional[str],
+    ) -> Union[List[Row], AsyncJob]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
 
         Args:
