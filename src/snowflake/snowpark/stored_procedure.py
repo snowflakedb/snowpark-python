@@ -64,7 +64,18 @@ class StoredProcedure:
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> any:
-        session = session or snowflake.snowpark.session._get_active_session()
+        if session and args and isinstance(args[0], snowflake.snowpark.session.Session):
+            raise ValueError(
+                "Two sessions specified in arguments. Session should either be the first argument or as "
+                "a named argument at the end, but not both"
+            )
+
+        if args and isinstance(args[0], snowflake.snowpark.session.Session):
+            session = args[0]
+            args = args[1:]
+        else:
+            session = session or snowflake.snowpark.session._get_active_session()
+
         if len(self._input_types) != len(args):
             raise ValueError(
                 f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
