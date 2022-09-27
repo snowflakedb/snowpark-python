@@ -519,6 +519,8 @@ def test_get_stream_negative(session, temp_stage):
         session.file.get_stream(stage_with_prefix)
     assert "stage_location should end with target file name"
 
+    if is_in_stored_procedure():
+        pytest.skip("Skip in stored-proc to prevent XP failing whole test")
     with pytest.raises(SnowparkSQLException) as ex_info:
         session.file.get_stream(f"{stage_with_prefix}non_existing_file")
     assert "the file does not exist" in str(ex_info)
