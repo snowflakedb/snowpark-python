@@ -1775,14 +1775,19 @@ class DataFrame:
             join_type: The type of join ("inner", "full", "left", "right"). The default value is "left".
         """
         join_type = join_type or "inner"
-        return self._with_plan(
-            Join(
-                self._plan,
-                right._plan,
-                NaturalJoin(create_join_type(join_type)),
-                None,
-            )
+        join_plan = Join(
+            self._plan,
+            right._plan,
+            NaturalJoin(create_join_type(join_type)),
+            None,
         )
+        if self._select_statement:
+            select_plan = SelectStatement(
+                from_=SelectSnowflakePlan(join_plan, analyzer=self._session._analyzer),
+                analyzer=self._session._analyzer,
+            )
+            return self._with_plan(select_plan)
+        return self._with_plan(join_plan)
 
     @df_api_usage
     def join(
