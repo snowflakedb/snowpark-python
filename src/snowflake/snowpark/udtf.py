@@ -666,12 +666,7 @@ class UDTFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedTableFunction(
-            handler,
-            output_schema,
-            input_types,
-            udtf_name,
-        )
+        return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name)
 
 
 def _validate_output_schema_names(names: Iterable[str]) -> None:

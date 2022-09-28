@@ -777,9 +777,4 @@ class UDFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedFunction(
-            func,
-            return_type,
-            input_types,
-            udf_name,
-        )
+        return UserDefinedFunction(func, return_type, input_types, udf_name)
