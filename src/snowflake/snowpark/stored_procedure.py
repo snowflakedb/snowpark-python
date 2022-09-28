@@ -50,8 +50,6 @@ class StoredProcedure:
         input_types: List[DataType],
         name: str,
         execute_as: typing.Literal["caller", "owner"] = "owner",
-        session: Optional["snowflake.snowpark.session.Session"] = None,
-        api_call_source: Optional[str] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -61,12 +59,6 @@ class StoredProcedure:
         self._return_type = return_type
         self._input_types = input_types
         self._execute_as = execute_as
-
-        api_call_source = api_call_source or "StoredProcedure.__init__"
-        session = session or snowflake.snowpark.session._get_active_session()
-        session._conn._telemetry_client.send_function_usage_telemetry(
-            api_call_source, TelemetryField.FUNC_CAT_CREATE.value
-        )
 
     def __call__(
         self,
@@ -598,6 +590,7 @@ class StoredProcedureRegistration:
                 replace=replace,
                 inline_python_code=code,
                 execute_as=execute_as,
+                api_call_source=api_call_source,
             )
         # an exception might happen during registering a stored procedure
         # (e.g., a dependency might not be found on the stage),
@@ -625,6 +618,4 @@ class StoredProcedureRegistration:
             input_types,
             udf_name,
             execute_as=execute_as,
-            session=self._session,
-            api_call_source=api_call_source,
         )

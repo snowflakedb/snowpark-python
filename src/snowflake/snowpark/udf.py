@@ -54,8 +54,6 @@ class UserDefinedFunction:
         input_types: List[DataType],
         name: str,
         is_return_nullable: bool = False,
-        session: Optional["snowflake.snowpark.session.Session"] = None,
-        api_call_source: Optional[str] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -65,12 +63,6 @@ class UserDefinedFunction:
         self._return_type = return_type
         self._input_types = input_types
         self._is_return_nullable = is_return_nullable
-
-        api_call_source = api_call_source or "UserDefinedFunction.__init__"
-        session = session or snowflake.snowpark.session._get_active_session()
-        session._conn._telemetry_client.send_function_usage_telemetry(
-            api_call_source, TelemetryField.FUNC_CAT_CREATE.value
-        )
 
     def __call__(
         self,
@@ -763,6 +755,7 @@ class UDFRegistration:
                 is_temporary=stage_location is None,
                 replace=replace,
                 inline_python_code=code,
+                api_call_source=api_call_source,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
@@ -789,6 +782,4 @@ class UDFRegistration:
             return_type,
             input_types,
             udf_name,
-            session=self._session,
-            api_call_source=api_call_source,
         )

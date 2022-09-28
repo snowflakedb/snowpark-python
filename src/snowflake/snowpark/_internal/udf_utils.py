@@ -25,6 +25,7 @@ import cloudpickle
 
 import snowflake.snowpark
 from snowflake.snowpark._internal import code_generation
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
     python_type_to_snow_type,
@@ -639,6 +640,7 @@ def create_python_udf_or_sp(
     replace: bool,
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+    api_call_source: Optional[str] = None,
 ) -> None:
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
@@ -682,3 +684,10 @@ HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
     session._run_query(create_query, is_ddl_on_temp_object=is_temporary)
+
+    # fire telemetry after _run_query is successful
+    api_call_source = api_call_source or "_internal.create_python_udf_or_sp"
+    telemetry_client = session._conn._telemetry_client
+    telemetry_client.send_function_usage_telemetry(
+        api_call_source, TelemetryField.FUNC_CAT_CREATE.value
+    )

@@ -67,8 +67,6 @@ class UserDefinedTableFunction:
         output_schema: StructType,
         input_types: List[DataType],
         name: str,
-        session: Optional["snowflake.snowpark.session.Session"] = None,
-        api_call_source: Optional[str] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -77,12 +75,6 @@ class UserDefinedTableFunction:
 
         self._output_schema = output_schema
         self._input_types = input_types
-
-        api_call_source = api_call_source or "UserDefinedTableFunction.__init__"
-        session = session or snowflake.snowpark.session._get_active_session()
-        session._conn._telemetry_client.send_function_usage_telemetry(
-            api_call_source, TelemetryField.FUNC_CAT_CREATE.value
-        )
 
     def __call__(
         self,
@@ -652,6 +644,7 @@ class UDTFRegistration:
                 is_temporary=stage_location is None,
                 replace=replace,
                 inline_python_code=code,
+                api_call_source=api_call_source,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),
@@ -678,8 +671,6 @@ class UDTFRegistration:
             output_schema,
             input_types,
             udtf_name,
-            self._session,
-            api_call_source,
         )
 
 
