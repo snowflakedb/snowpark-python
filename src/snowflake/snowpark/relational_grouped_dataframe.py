@@ -61,7 +61,7 @@ def _expr_to_func(expr: str, input_expr: Expression) -> Expression:
     elif lowered in ["count", "size"]:
         return functions.count(Column(input_expr))._expression
     else:
-        return functions.builtin(lowered)(input_expr)._expression
+        return functions.function(lowered)(input_expr)._expression
 
 
 def _str_to_expr(expr: str) -> Callable:
@@ -267,14 +267,16 @@ class RelationalGroupedDataFrame:
             ]
         )
 
-    def builtin(self, agg_name: str) -> Callable:
+    def function(self, agg_name: str) -> Callable:
         """Computes the builtin aggregate ``agg_name`` over the specified columns. Use
         this function to invoke any aggregates not explicitly listed in this class.
         See examples in :meth:`DataFrame.group_by`.
         """
-        return lambda *cols: self._builtin_internal(agg_name, *cols)
+        return lambda *cols: self._function(agg_name, *cols)
 
-    def _builtin_internal(self, agg_name: str, *cols: ColumnOrName) -> DataFrame:
+    builtin = function
+
+    def _function(self, agg_name: str, *cols: ColumnOrName) -> DataFrame:
         agg_exprs = []
         for c in cols:
             c_expr = Column(c)._expression if isinstance(c, str) else c._expression
