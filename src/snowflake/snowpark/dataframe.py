@@ -3372,6 +3372,8 @@ Query List:
     withColumnRenamed = with_column_renamed
     toLocalIterator = to_local_iterator
     randomSplit = random_split
+    order_by = sort
+    orderBy = order_by
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets
