@@ -1513,7 +1513,12 @@ def test_pandas_udf_input_types(session, _type, data, expected_types, expected_d
     returned_type, returned_dtype = (
         df.select(series_udf("a")).to_df("col1").collect()[0][0].split("/")
     )
-    assert returned_type in expected_types and returned_dtype in expected_dtypes
+    assert (
+        returned_type in expected_types
+    ), f"returned type is {returned_type} instead of {expected_types}"
+    assert (
+        returned_dtype in expected_dtypes
+    ), f"returned dtype is {returned_dtype} instead of {expected_dtypes}"
 
     def return_type_in_dataframe(x):
         return x[0].apply(lambda val: f"{type(val)}/{x.dtypes[0]}")
@@ -1526,7 +1531,12 @@ def test_pandas_udf_input_types(session, _type, data, expected_types, expected_d
     returned_type, returned_dtype = (
         df.select(dataframe_udf("a")).to_df("col2").collect()[0][0].split("/")
     )
-    assert returned_type in expected_types and returned_dtype in expected_dtypes
+    assert (
+        returned_type in expected_types
+    ), f"returned type is {returned_type} instead of {expected_types}"
+    assert (
+        returned_dtype in expected_dtypes
+    ), f"returned dtype is {returned_dtype} instead of {expected_dtypes}"
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
@@ -1557,7 +1567,14 @@ def test_pandas_udf_input_variant(session):
         input_types=[PandasSeriesType(VariantType())],
     )
     rows = df.select(series_udf("a")).to_df("col1").collect()
-    assert rows == [Row(f"{str(_type)}/object") for _type in expected_types]
+    for i, row in enumerate(rows):
+        returned_type, returned_dtype = row[0].split("/")
+        assert (
+            returned_dtype == "object"
+        ), f"returned dtype is {returned_dtype} instead of object"
+        assert returned_type == str(
+            expected_types[i]
+        ), f"returned type is {returned_type} instead of {expected_types[i]}"
 
     def return_type_in_dataframe(x):
         return x[0].apply(lambda val: f"{str(type(val))}/{x.dtypes[0]}")
@@ -1569,16 +1586,28 @@ def test_pandas_udf_input_variant(session):
     )
 
     rows = df.select(dataframe_udf("a")).to_df("col2").collect()
-    assert rows == [Row(f"{str(_type)}/object") for _type in expected_types]
+    for i, row in enumerate(rows):
+        returned_type, returned_dtype = row[0].split("/")
+        assert (
+            returned_dtype == "object"
+        ), f"returned dtype is {returned_dtype} instead of object"
+        assert returned_type == str(
+            expected_types[i]
+        ), f"returned type is {returned_type} instead of {expected_types[i]}"
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
 @pytest.mark.parametrize(
-    "_type, data, expected_type, expected_dtype",
+    "_type, data, expected_types, expected_dtypes",
     [
         (IntegerType, [[4096]], (numpy.int16, int), ("int16", "object")),
-        (IntegerType, [[1048576]], (numpy.int32, int), ("int32", object)),
-        (IntegerType, [[8589934592]], (numpy.int64, int), ("int64", object)),
+        (
+            IntegerType,
+            [[1048576]],
+            (numpy.int32, int),
+            ("int32", "object"),
+        ),  # Trying to pass merge gate
+        (IntegerType, [[8589934592]], (numpy.int64, int), ("int64", "object")),
         (FloatType, [[1.0]], (numpy.float64, float), ("float64",)),
         (StringType, [["1"]], (str,), ("object",)),
         (BooleanType, [[True]], (numpy.bool_, bool), ("bool",)),
@@ -1606,7 +1635,7 @@ def test_pandas_udf_input_variant(session):
         (MapType, [[{1: 2}]], (dict,), ("object",)),
     ],
 )
-def test_pandas_udf_return_types(session, _type, data, expected_type, expected_dtype):
+def test_pandas_udf_return_types(session, _type, data, expected_types, expected_dtypes):
     """
     Note: See https://docs.snowflake.com/en/user-guide/python-connector-pandas.html#snowflake-to-pandas-data-mapping for
     some special cases, e.g. `Date` is mapped to `object`, `Variant` is mapped to `str`.
@@ -1618,12 +1647,16 @@ def test_pandas_udf_return_types(session, _type, data, expected_type, expected_d
         return_type=PandasSeriesType(_type()),
         input_types=[PandasSeriesType(_type())],
     )
-    temp = df.select(series_udf("a")).to_pandas()
+    result_df = df.select(series_udf("a")).to_pandas()
+    result_val = result_df.iloc[0][0]
     if _type in (ArrayType, MapType, GeographyType):  # TODO: SNOW-573478
-        assert isinstance(json.loads(temp.iloc[0][0]), expected_type)
-    else:
-        assert isinstance(temp.iloc[0][0], expected_type)
-    assert temp.dtypes[0] in expected_dtype
+        result_val = json.loads(result_val)
+    assert isinstance(
+        result_val, expected_types
+    ), f"returned type is {type(result_val)} instead of {expected_types}"
+    assert (
+        result_df.dtypes[0] in expected_dtypes
+    ), f"returned dtype is {result_df.dtypes[0]} instead of {expected_dtypes}"
 
 
 def test_pandas_udf_return_variant(session):
@@ -1661,9 +1694,13 @@ def test_pandas_udf_return_variant(session):
         input_types=[PandasSeriesType(VariantType())],
     )
     temp = df.select(series_udf("a")).to_pandas()
-    assert temp.dtypes[0] == object
+    assert (
+        temp.dtypes[0] == object
+    ), f"returned dtype is {temp.dtypes[0]} instead of object"
     for i, row in temp.iterrows():
-        assert isinstance(row[0], expected_types[i])
+        assert isinstance(
+            row[0], expected_types[i]
+        ), f"returned type is {type(row[0])} instead of {expected_types[i]}"
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
