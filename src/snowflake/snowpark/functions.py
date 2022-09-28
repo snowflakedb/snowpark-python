@@ -55,10 +55,10 @@ The following examples demonstrate the use of some of these functions:
     ---------------------------------------
     <BLANKLINE>
 
-If you want to use a SQL function but can't find the corresponding Python function here,
-you can create your own Python function:
+If you want to use a SQL function in Snowflake but can't find the corresponding Python function here,
+you can create your own Python function with :func:`function`:
 
-    >>> my_radians = builtin("radians")  # "radians" is the SQL function name.
+    >>> my_radians = function("radians")  # "radians" is the SQL function name.
     >>> df.select(my_radians(col("a")).alias("my_radians")).show()
     ------------------------
     |"MY_RADIANS"          |
@@ -70,16 +70,16 @@ you can create your own Python function:
 
 or call the SQL function directly:
 
-    >>> df.select(call_builtin("radians", col("a")).as_("call_builtin_radians")).show()
-    --------------------------
-    |"CALL_BUILTIN_RADIANS"  |
-    --------------------------
-    |0.017453292519943295    |
-    |0.05235987755982988     |
-    --------------------------
+    >>> df.select(call_function("radians", col("a")).as_("call_function_radians")).show()
+    ---------------------------
+    |"CALL_FUNCTION_RADIANS"  |
+    ---------------------------
+    |0.017453292519943295     |
+    |0.05235987755982988      |
+    ---------------------------
     <BLANKLINE>
 
-A user-defined function (UDF) can be called by its name with ``call_udf``:
+A user-defined function (UDF) can be called by its name with :func:`call_udf`:
 
     >>> # Call a user-defined function (UDF) by name.
     >>> from snowflake.snowpark.types import IntegerType
@@ -3325,7 +3325,7 @@ def table_function(function_name: str) -> Callable:
     return lambda *args, **kwargs: call_table_function(function_name, *args, **kwargs)
 
 
-def call_builtin(function_name: str, *args: ColumnOrLiteral) -> Column:
+def call_function(function_name: str, *args: ColumnOrLiteral) -> Column:
     """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
     and arguments.
 
@@ -3338,7 +3338,7 @@ def call_builtin(function_name: str, *args: ColumnOrLiteral) -> Column:
 
     Example::
         >>> df = session.create_dataframe([1, 2, 3, 4], schema=["a"])  # a single column with 4 rows
-        >>> df.select(call_builtin("avg", col("a"))).show()
+        >>> df.select(call_function("avg", col("a"))).show()
         ----------------
         |"AVG(""A"")"  |
         ----------------
@@ -3351,7 +3351,7 @@ def call_builtin(function_name: str, *args: ColumnOrLiteral) -> Column:
     return _call_function(function_name, False, *args)
 
 
-def builtin(function_name: str) -> Callable:
+def function(function_name: str) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
     any built-in functions not explicitly listed in this object.
@@ -3364,14 +3364,14 @@ def builtin(function_name: str) -> Callable:
 
     Example::
         >>> df = session.create_dataframe([1, 2, 3, 4], schema=["a"])  # a single column with 4 rows
-        >>> df.select(call_builtin("avg", col("a"))).show()
+        >>> df.select(call_function("avg", col("a"))).show()
         ----------------
         |"AVG(""A"")"  |
         ----------------
         |2.500000      |
         ----------------
         <BLANKLINE>
-        >>> my_avg = builtin('avg')
+        >>> my_avg = function('avg')
         >>> df.select(my_avg(col("a"))).show()
         ----------------
         |"AVG(""A"")"  |
@@ -3380,7 +3380,11 @@ def builtin(function_name: str) -> Callable:
         ----------------
         <BLANKLINE>
     """
-    return lambda *args: call_builtin(function_name, *args)
+    return lambda *args: call_function(function_name, *args)
+
+
+call_builtin = call_function
+builtin = function
 
 
 def _call_function(

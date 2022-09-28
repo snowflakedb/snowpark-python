@@ -1331,7 +1331,7 @@ class DataFrame:
             [Row(A=1, COUNT(LITERAL())=2, MAX(B)=2), Row(A=2, COUNT(LITERAL())=2, MAX(B)=2), Row(A=3, COUNT(LITERAL())=2, MAX(B)=2)]
             >>> df.group_by("a").median("b").collect()
             [Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500')), Row(A=1, MEDIAN(B)=Decimal('1.500'))]
-            >>> df.group_by("a").builtin("avg")("b").collect()
+            >>> df.group_by("a").function("avg")("b").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
