@@ -561,7 +561,7 @@ class UDFRegistration:
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
-            + ("[pandas]" if _from_pandas else ""),
+            + ("[pandas_udf]" if _from_pandas else ""),
         )
 
     def register_from_file(
