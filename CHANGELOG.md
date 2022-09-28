@@ -5,18 +5,21 @@
 - When adding a package using `session.add_packages()` with a specific version to UDFs or stored procedures, if the version is not supported by Snowflake, an exception will be raised immediately instead of when registering the UDF or stored procedure.
 
 ### New Features:
-- Added method FileOperation.get_stream() to support downloading stage files as stream.
+- Added method `FileOperation.get_stream()` to support downloading stage files as stream.
+- Added support in `functions.ntiles()` to accept int argument.
+- Added aliases `call_function()` and `function()` for `call_builtin()` and `builtin()`.
+- Improved `DataFrame.cache_result()` to return a more accurate `Table` class instead of a `DataFrame` class.
+- Added support to allow `session` as the first argument when calling `StoredProcedure`.
 
 ### Improvements
 - Improved nested query generation by flattening queries when applicable.
+  - This improvement could be enabled by setting `Session.sql_simplifier_enabled = True`.
+  - `DataFrame.select()`, `DataFrame.with_column()`, `DataFrame.drop()` and other select-related APIs have more flattened SQLs.
+  - `DataFrame.union()`, `DataFrame.union_all()`, `DataFrame.except_()`, `DataFrame.intersect()`, `DataFrame.union_by_name()` have flattened SQLs generated when multiple set operators are chained.
 - Improved type annotations for async job APIs.
-- Improved `functions.ntiles()` to accept int argument.
-- Added `call_function()` and `function()` as aliases for `call_builtin()` and `builtin()`.
-- Improved `DataFrame.cache_result()` to return a more accurate `Table` class instead of a `DataFrame` class.
-- Improved stored procedure calling by allowing `session` as the first argument.
 
 ### Bug Fixes
-- Fixed a bug in which `table.merge()` tries to reference a temp table that does not exist.
+- Fixed a bug in which `Table.update()`, `Table.delete()`, `Table.merge()` try to reference a temp table that does not exist.
 
 ## 0.10.0 (2022-09-16)
 
