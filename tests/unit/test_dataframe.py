@@ -75,6 +75,8 @@ def test_dataframe_method_alias():
     assert DataFrame.unionByName == DataFrame.union_by_name
     assert DataFrame.withColumn == DataFrame.with_column
     assert DataFrame.withColumnRenamed == DataFrame.with_column_renamed
+    assert DataFrame.order_by == DataFrame.sort
+    assert DataFrame.orderBy == DataFrame.order_by
 
     # assert DataFrame.groupByGroupingSets == DataFrame. group_by_grouping_sets
     # assert DataFrame.joinTableFunction == DataFrame.join_table_function
