@@ -309,7 +309,8 @@ def test_async_is_running_and_cancel(session):
     while not async_job2.is_done():
         sleep(1.0)
     # If query is canceled, it takes less time than originally needed
-    assert (time() - start) < 10
+    # set 20s to avoid flakiness
+    assert (time() - start) < 20
     assert async_job2.is_done()
 
 
