@@ -752,7 +752,7 @@ def test_udf_call_and_invoke(session, resources_path):
         TelemetryField.KEY_DATA.value
     ]
     assert data == {
-        "func_name": "UDFRegistration.register[pandas]",
+        "func_name": "UDFRegistration.register[pandas_udf]",
         "category": "create",
     }
 
