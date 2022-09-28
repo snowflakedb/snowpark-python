@@ -1,4 +1,23 @@
 # Release History
+## 0.11.0 (2022-09-28)
+
+### Behavior Changes
+- When adding a package using `session.add_packages()` with a specific version to UDFs or stored procedures, if the version is not supported by Snowflake, an exception will be raised immediately instead of when registering the UDF or stored procedure.
+
+### New Features:
+- Added method FileOperation.get_stream() to support downloading stage files as stream.
+
+### Improvements
+- Improved nested query generation by flattening queries when applicable.
+- Improved type annotations for async job APIs.
+- Improved `functions.ntiles()` to accept int argument.
+- Added `call_function()` and `function()` as aliases for `call_builtin()` and `builtin()`.
+- Improved `DataFrame.cache_result()` to return a more accurate `Table` class instead of a `DataFrame` class.
+- Improved stored procedure calling by allowing `session` as the first argument.
+
+### Bug Fixes
+- Fixed a bug in which `table.merge()` tries to reference a temp table that does not exist.
+
 ## 0.10.0 (2022-09-16)
 
 ### New Features:
