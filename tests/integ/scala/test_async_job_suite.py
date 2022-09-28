@@ -302,14 +302,14 @@ def test_async_is_running_and_cancel(session):
         sleep(1.0)
     assert async_job.is_done()
 
-    async_job2 = session.sql("select SYSTEM$WAIT(10)").collect_nowait()
+    # set 20s to avoid flakiness
+    async_job2 = session.sql("select SYSTEM$WAIT(20)").collect_nowait()
     assert not async_job2.is_done()
     async_job2.cancel()
     start = time()
     while not async_job2.is_done():
         sleep(1.0)
     # If query is canceled, it takes less time than originally needed
-    # set 20s to avoid flakiness
     assert (time() - start) < 20
     assert async_job2.is_done()
 
