@@ -1556,6 +1556,19 @@ class Session:
         """
         self._use_object(role, "role")
 
+    def use_secondary_roles(self, roles: Literal["all", "none"]) -> None:
+        """
+        Specifies the active/current secondary roles for the session.
+        The currently-active secondary roles set the context that determines whether
+        the current user has the necessary privileges to perform SQL actions.
+
+        Args:
+            roles: "all" or "none".
+
+        References: `Snowflake command USE SECONDARY ROLES <https://docs.snowflake.com/en/sql-reference/sql/use-secondary-roles.html>`_.
+        """
+        self._run_query(f"use secondary roles {roles.lower()}")
+
     def _use_object(self, object_name: str, object_type: str) -> None:
         if object_name:
             validate_object_name(object_name)
