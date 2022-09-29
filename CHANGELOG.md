@@ -2,7 +2,7 @@
 ## 0.11.0 (2022-09-28)
 
 ### Behavior Changes
-- When adding a package using `session.add_packages()` with a specific version to UDFs or stored procedures, if the version is not supported by Snowflake, an exception will be raised immediately instead of when registering the UDF or stored procedure.
+- `Session.add_packages()` now raises `ValueError` when the version of a package cannot be found in Snowflake Anaconda channel. Previously, `Session.add_packages()` succeeded, and a `SnowparkSQLException` exception was raised later in the UDF/SP registration step.
 
 ### New Features:
 - Added method `FileOperation.get_stream()` to support downloading stage files as stream.
