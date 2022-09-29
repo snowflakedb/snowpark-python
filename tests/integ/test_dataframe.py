@@ -101,6 +101,34 @@ def test_read_stage_file_show(session, resources_path):
         Utils.drop_stage(session, tmp_stage_name)
 
 
+def test_show_using_with_select_statement(session):
+    df = session.sql(
+        "with t1 as (select 1 as a union all select 2 union all select 3 "
+        "   union all select 4 union all select 5 union all select 6 "
+        "   union all select 7 union all select 8 union all select 9 "
+        "   union all select 10 union all select 11 union all select 12) "
+        "select * from t1"
+    )
+    assert (
+        df._show_string()
+        == """
+-------
+|"A"  |
+-------
+|1    |
+|2    |
+|3    |
+|4    |
+|5    |
+|6    |
+|7    |
+|8    |
+|9    |
+|10   |
+-------\n""".lstrip()
+    )
+
+
 def test_distinct(session):
     """Tests df.distinct()."""
 

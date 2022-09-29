@@ -103,6 +103,7 @@ from snowflake.snowpark._internal.utils import (
     deprecated,
     experimental,
     generate_random_alphanumeric,
+    is_sql_select_statement,
     parse_positional_args_to_list,
     random_name_for_temp_object,
     validate_object_name,
@@ -2694,7 +2695,7 @@ class DataFrame:
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
-        if query.startswith("select"):
+        if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
                 self.limit(n)._plan, **kwargs
             )
