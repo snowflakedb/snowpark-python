@@ -7,7 +7,11 @@
 ### New Features:
 - Added method `FileOperation.get_stream()` to support downloading stage files as stream.
 - Added support in `functions.ntiles()` to accept int argument.
-- Added aliases `call_function()` and `function()` for `call_builtin()` and `builtin()`.
+- Added the following aliases:
+  - `functions.call_function()` for `functions.call_builtin()`.
+  - `functions.function()` for `functions.builtin()`.
+  - `DataFrame.order_by()` for `DataFrame.sort()`
+  - `DataFrame.orderBy()` for `DataFrame.sort()`
 - Improved `DataFrame.cache_result()` to return a more accurate `Table` class instead of a `DataFrame` class.
 - Added support to allow `session` as the first argument when calling `StoredProcedure`.
 
