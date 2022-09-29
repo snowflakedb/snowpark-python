@@ -726,6 +726,12 @@ class TestData:
         return session.create_dataframe([[1, 2], [3, 4]]).to_df(['"col %"', '"col *"'])
 
     @classmethod
+    def sql_using_with_select_statement(cls, session: "Session") -> DataFrame:
+        return session.sql(
+            "with t1 as (select 1 as a), t2 as (select 2 as b) select a, b from t1, t2"
+        )
+
+    @classmethod
     def nurse(cls, session: "Session") -> DataFrame:
         return session.create_dataframe(
             [

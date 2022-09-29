@@ -49,6 +49,19 @@ def test_view_name_with_special_character(session):
         Utils.drop_view(session, view_name)
 
 
+def test_view_with_with_sql_statement(session):
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    try:
+        TestData.sql_using_with_select_statement(session).create_or_replace_view(
+            view_name
+        )
+
+        res = session.sql(f"select * from {quote_name(view_name)}").collect()
+        assert res == [Row(1, 2)]
+    finally:
+        Utils.drop_view(session, view_name)
+
+
 def test_only_works_on_select(session):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     with pytest.raises(SnowparkCreateViewException):
