@@ -1464,11 +1464,16 @@ def test_pandas_udf_type_hints(session):
         (
             IntegerType,
             [[4096]],
-            (numpy.int16, int),
+            (numpy.int16, int, numpy.short),
             ("int16", "object"),
         ),
-        (IntegerType, [[1048576]], (numpy.int32, int), ("int32", "object")),
-        (IntegerType, [[8589934592]], (numpy.int64, int), ("int64", "object")),
+        (IntegerType, [[1048576]], (numpy.int32, int, numpy.intc), ("int32", "object")),
+        (
+            IntegerType,
+            [[8589934592]],
+            (numpy.int64, int, numpy.int_, numpy.intp),
+            ("int64", "object"),
+        ),
         (FloatType, [[1.0]], (numpy.float64, float), ("float64",)),
         (StringType, [["1"]], (str,), ("string", "object")),
         (BooleanType, [[True]], (numpy.bool_, bool), ("boolean",)),
@@ -1555,29 +1560,23 @@ def test_pandas_udf_input_variant(session):
         [{1: 2}],
     ]
     expected_types = [int, float, str, bool, str, str, list, str, str, str, dict]
+    expected_results = [Row(f"{_type}/object") for _type in expected_types]
     schema = StructType([StructField("a", VariantType())])
     df = session.create_dataframe(data, schema=schema)
 
     def return_type_in_series(x):
-        return x.apply(lambda val: f"{type(x[0])}/{x.dtype}")
+        return x.apply(lambda val: f"{type(val)}/{x.dtype}")
 
     series_udf = udf(
         return_type_in_series,
         return_type=PandasSeriesType(StringType()),
         input_types=[PandasSeriesType(VariantType())],
     )
-    rows = df.select(series_udf("a")).to_df("col1").collect()
-    for i, row in enumerate(rows):
-        returned_type, returned_dtype = row[0].split("/")
-        assert (
-            returned_dtype == "object"
-        ), f"returned dtype is {returned_dtype} instead of object"
-        assert returned_type == str(
-            expected_types[i]
-        ), f"returned type is {returned_type} instead of {expected_types[i]}"
+    rows = df.select(series_udf("a")).to_df("a").collect()
+    Utils.check_answer(rows, expected_results)
 
     def return_type_in_dataframe(x):
-        return x[0].apply(lambda val: f"{str(type(val))}/{x.dtypes[0]}")
+        return x[0].apply(lambda val: f"{type(val)}/{x.dtypes[0]}")
 
     dataframe_udf = udf(
         return_type_in_dataframe,
@@ -1585,29 +1584,27 @@ def test_pandas_udf_input_variant(session):
         input_types=[PandasDataFrameType([VariantType()])],
     )
 
-    rows = df.select(dataframe_udf("a")).to_df("col2").collect()
-    for i, row in enumerate(rows):
-        returned_type, returned_dtype = row[0].split("/")
-        assert (
-            returned_dtype == "object"
-        ), f"returned dtype is {returned_dtype} instead of object"
-        assert returned_type == str(
-            expected_types[i]
-        ), f"returned type is {returned_type} instead of {expected_types[i]}"
+    rows = df.select(dataframe_udf("a")).to_df("a").collect()
+    Utils.check_answer(rows, expected_results)
 
 
 @pytest.mark.skipif(not is_pandas_and_numpy_available, reason="pandas is required")
 @pytest.mark.parametrize(
     "_type, data, expected_types, expected_dtypes",
     [
-        (IntegerType, [[4096]], (numpy.int16, int), ("int16", "object")),
+        (IntegerType, [[4096]], (numpy.int16, int, numpy.short), ("int16", "object")),
         (
             IntegerType,
             [[1048576]],
-            (numpy.int32, int),
+            (numpy.int32, int, numpy.intc),
             ("int32", "object"),
-        ),  # Trying to pass merge gate
-        (IntegerType, [[8589934592]], (numpy.int64, int), ("int64", "object")),
+        ),
+        (
+            IntegerType,
+            [[8589934592]],
+            (numpy.int64, int, numpy.int_, numpy.intp),
+            ("int64", "object"),
+        ),
         (FloatType, [[1.0]], (numpy.float64, float), ("float64",)),
         (StringType, [["1"]], (str,), ("object",)),
         (BooleanType, [[True]], (numpy.bool_, bool), ("bool",)),
