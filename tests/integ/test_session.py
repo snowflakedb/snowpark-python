@@ -351,6 +351,13 @@ def test_use_secondary_roles(session):
     session.use_secondary_roles("none")
     session.use_secondary_roles("ALL")
     session.use_secondary_roles("NONE")
+    session.use_secondary_roles(None)
+
+    with pytest.raises(
+        ProgrammingError,
+        match="unexpected '<EOF>'",
+    ):
+        session.use_secondary_roles("")
 
     current_role = session.get_current_role()
     with pytest.raises(
