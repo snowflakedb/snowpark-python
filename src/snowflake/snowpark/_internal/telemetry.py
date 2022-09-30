@@ -54,6 +54,7 @@ class TelemetryField(Enum):
     FUNC_CAT_USAGE = "usage"
     FUNC_CAT_JOIN = "join"
     FUNC_CAT_COPY = "copy"
+    FUNC_CAT_CREATE = "create"
     # performance categories
     PERF_CAT_UPLOAD_FILE = "upload_file"
 

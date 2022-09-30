@@ -24,6 +24,7 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     python_type_str_to_object,
@@ -80,6 +81,10 @@ class UserDefinedTableFunction:
         *arguments: Union[ColumnOrName, Iterable[ColumnOrName]],
         **named_arguments,
     ) -> TableFunctionCall:
+        session = snowflake.snowpark.context.get_active_session()
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            "UserDefinedTableFunction.__call__", TelemetryField.FUNC_CAT_USAGE.value
+        )
         return TableFunctionCall(self.name, *arguments, **named_arguments)
 
 
@@ -216,7 +221,7 @@ class UDTFRegistration:
             [Row(NUMBER=0), Row(NUMBER=1), Row(NUMBER=2)]
 
     Example 8
-        Createing a UDTF with the constructor and ``end_partition`` method.
+        Creating a UDTF with the constructor and ``end_partition`` method.
 
             >>> from collections import Counter
             >>> from typing import Iterable, Tuple
@@ -398,6 +403,7 @@ class UDTFRegistration:
             replace,
             parallel,
             statement_params=statement_params,
+            api_call_source="UDTFRegistration.register",
         )
 
     def register_from_file(
@@ -499,12 +505,13 @@ class UDTFRegistration:
             replace,
             parallel,
             statement_params=statement_params,
+            api_call_source="UDTFRegistration.register_from_file",
         )
 
     def _do_register_udtf(
         self,
         handler: Union[Callable, Tuple[str, str]],
-        output_schema: [Union[StructType], Iterable[str]],
+        output_schema: Union[StructType, Iterable[str]],
         input_types: Optional[List[DataType]],
         name: Optional[str],
         stage_location: Optional[str] = None,
@@ -514,6 +521,7 @@ class UDTFRegistration:
         parallel: int = 4,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        api_call_source: str,
     ) -> UserDefinedTableFunction:
         if not isinstance(output_schema, (Iterable, StructType)):
             raise ValueError(
@@ -636,6 +644,7 @@ class UDTFRegistration:
                 is_temporary=stage_location is None,
                 replace=replace,
                 inline_python_code=code,
+                api_call_source=api_call_source,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

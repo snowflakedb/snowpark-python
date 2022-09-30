@@ -11,6 +11,7 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -85,6 +86,10 @@ class UserDefinedFunction:
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
                 )
 
+        session = snowflake.snowpark.context.get_active_session()
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            "UserDefinedFunction.__call__", TelemetryField.FUNC_CAT_USAGE.value
+        )
         return Column(self._create_udf_expression(exprs))
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
@@ -171,7 +176,7 @@ class UDFRegistration:
           Python source code` and the target function name, Snowpark uploads this file to a stage
           (which can also be customized), and load the corresponding function from this file to
           the Python runtime on the Snowflake server during UDF creation. Then this function will be
-          executed and applied to every row of your dataframe or table when exeucting this UDF.
+          executed and applied to every row of your dataframe or table when executing this UDF.
           This approach can address the deficiency of the previous approach that uses cloudpickle,
           because the source code in this file other than the target function will be loaded
           during UDF creation, and will not be executed on every row during UDF execution.
@@ -355,7 +360,7 @@ class UDFRegistration:
             >>> session.clear_imports()
 
         In this example, the file will only be read once during UDF creation, and will not
-        be read again during UDF execution. This is acheived with a third-party library
+        be read again during UDF execution. This is achieved with a third-party library
         `cachetools <https://pypi.org/project/cachetools/>`_. You can also use ``LRUCache``
         and ``TTLCache`` in this package to avoid the cache growing too large. Note that Python
         built-in `cache decorators <https://docs.python.org/3/library/functools.html#functools.cache>`_
@@ -538,6 +543,8 @@ class UDFRegistration:
             TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
         )
 
+        _from_pandas = kwargs.get("_from_pandas_udf_function", False)
+
         # register udf
         return self._do_register_udf(
             func,
@@ -550,9 +557,11 @@ class UDFRegistration:
             replace,
             parallel,
             max_batch_size,
-            kwargs.get("_from_pandas_udf_function", False),
+            _from_pandas,
             statement_params=statement_params,
             source_code_display=source_code_display,
+            api_call_source="UDFRegistration.register"
+            + ("[pandas_udf]" if _from_pandas else ""),
         )
 
     def register_from_file(
@@ -664,6 +673,7 @@ class UDFRegistration:
             parallel,
             statement_params=statement_params,
             source_code_display=source_code_display,
+            api_call_source="UDFRegistration.register_from_file",
         )
 
     def _do_register_udf(
@@ -682,6 +692,7 @@ class UDFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        api_call_source: str,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -744,6 +755,7 @@ class UDFRegistration:
                 is_temporary=stage_location is None,
                 replace=replace,
                 inline_python_code=code,
+                api_call_source=api_call_source,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
