@@ -1563,7 +1563,7 @@ class Session:
         the current user has the necessary privileges to perform SQL actions.
 
         Args:
-            roles: "all" or "none".
+            roles: "all" or "none". ``None`` means "none".
 
         References: `Snowflake command USE SECONDARY ROLES <https://docs.snowflake.com/en/sql-reference/sql/use-secondary-roles.html>`_.
         """
