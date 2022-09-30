@@ -1813,10 +1813,23 @@ class DataFrame:
 
     @df_api_usage
     def natural_join(
-        self, right: "DataFrame", join_type: Optional[str] = None
+        self, right: "DataFrame", how: Optional[str] = None, **kwargs
     ) -> "DataFrame":
-        """Performs a natural join of the specified type (``joinType``) with the
+        """Performs a natural join of the specified type (``how``) with the
         current DataFrame and another DataFrame (``right``).
+
+        Args:
+            right: The other :class:`DataFrame` to join.
+            how: We support the following join types:
+
+                - Inner join: "inner" (the default value)
+                - Left outer join: "left", "leftouter"
+                - Right outer join: "right", "rightouter"
+                - Full outer join: "full", "outer", "fullouter"
+
+                You can also use ``join_type`` keyword to specify this condition.
+                Note that to avoid breaking changes, currently when ``join_type`` is specified,
+                it overrides ``how``.
 
         Examples::
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
@@ -1841,16 +1854,12 @@ class DataFrame:
             |5    |6    |NULL  |
             --------------------
             <BLANKLINE>
-
-        Args:
-            right: the other :class:`DataFrame` to join
-            join_type: The type of join ("inner", "full", "left", "right"). The default value is "left".
         """
-        join_type = join_type or "inner"
+        join_type = kwargs.get("join_type") or how
         join_plan = Join(
             self._plan,
             right._plan,
-            NaturalJoin(create_join_type(join_type)),
+            NaturalJoin(create_join_type(join_type or "inner")),
             None,
         )
         if self._select_statement:
@@ -1865,15 +1874,36 @@ class DataFrame:
     def join(
         self,
         right: "DataFrame",
-        using_columns: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
-        join_type: Optional[str] = None,
+        on: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
+        how: Optional[str] = None,
+        **kwargs,
     ) -> "DataFrame":
-        """Performs a join of the specified type (``join_type``) with the current
+        """Performs a join of the specified type (``how``) with the current
         DataFrame and another DataFrame (``right``) on a list of columns
-        (``using_columns``).
+        (``on``).
 
-        The method assumes that the columns in ``using_columns`` have the same meaning
+        The method assumes that the columns in ``how`` have the same meaning
         in the left and right DataFrames.
+
+        Args:
+            right: The other :class:`DataFrame` to join.
+            on: A column name or a :class:`Column` object or a list of them to be
+                used for the join. You can also use ``using_columns`` keyword to specify
+                this condition. Note that to avoid breaking changes, currently when
+                ``using_columns`` is specified, it overrides ``on``.
+            how: We support the following join types:
+
+                - Inner join: "inner" (the default value)
+                - Left outer join: "left", "leftouter"
+                - Right outer join: "right", "rightouter"
+                - Full outer join: "full", "outer", "fullouter"
+                - Left semi join: "semi", "leftsemi"
+                - Left anti join: "anti", "leftanti"
+                - Cross join: "cross"
+
+                You can also use ``join_type`` keyword to specify this condition.
+                Note that to avoid breaking changes, currently when ``join_type`` is specified,
+                it overrides ``how``.
 
         Examples::
             >>> from snowflake.snowpark.functions import col
@@ -1927,19 +1957,6 @@ class DataFrame:
             ---------------------
             <BLANKLINE>
 
-        Args:
-            right: The other :class:`Dataframe` to join.
-            using_columns: A list of names of the columns, or the column objects, to
-                use for the join.
-            join_type: We support the following join types:
-              - Inner join: "inner"
-              - Left outer join: "left", "leftouter"
-              - Right outer join: "right", "rightouter"
-              - Full outer join: "full", "outer", "fullouter"
-              - Left semi join: "semi", "leftsemi"
-              - Left anti join: "anti", "leftanti"
-              - Cross join: "cross"
-
         Note:
             When performing chained operations, this method will not work if there are
             ambiguous column names. For example,
@@ -1968,6 +1985,8 @@ class DataFrame:
             -------------------
             <BLANKLINE>
         """
+        using_columns = kwargs.get("using_columns") or on
+        join_type = kwargs.get("join_type") or how
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
@@ -1978,12 +1997,6 @@ class DataFrame:
             ):
                 if column_to_bool(using_columns):
                     raise Exception("Cross joins cannot take columns as input.")
-
-            sp_join_type = (
-                create_join_type("inner")
-                if not join_type
-                else create_join_type(join_type)
-            )
 
             # Parse using_columns arg
             if column_to_bool(using_columns) is False:
@@ -1997,7 +2010,9 @@ class DataFrame:
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
 
-            return self._join_dataframes(right, using_columns, sp_join_type)
+            return self._join_dataframes(
+                right, using_columns, create_join_type(join_type or "inner")
+            )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
 

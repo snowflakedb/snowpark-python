@@ -2297,3 +2297,18 @@ def test_limit_offset(session):
     df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["a", "b", "c"])
     assert df.limit(1).collect() == [Row(A=1, B=2, C=3)]
     assert df.limit(1, offset=1).collect() == [Row(A=4, B=5, C=6)]
+
+
+def test_df_join_how_on_overwrite(session):
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
+        ["int", "int2", "str"]
+    )
+    df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(
+        ["int", "int2", "str"]
+    )
+    # using_columns will overwrite on, and join_type will overwrite how
+    df = df1.join(df2, on="int", using_columns="int2", how="outer", join_type="inner")
+    Utils.check_answer(df, [Row(1, 1, "1", 1, "1")])
+
+    df = df1.natural_join(df2, how="left", join_type="right")
+    Utils.check_answer(df, [Row(1, 1, "1"), Row(2, 3, "5")])
