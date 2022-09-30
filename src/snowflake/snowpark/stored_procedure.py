@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -79,6 +80,10 @@ class StoredProcedure:
             raise ValueError(
                 f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
             )
+
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            "StoredProcedure.__call__", TelemetryField.FUNC_CAT_USAGE.value
+        )
         return session.call(self.name, *args)
 
 
@@ -417,6 +422,7 @@ class StoredProcedureRegistration:
             parallel,
             statement_params=statement_params,
             execute_as=execute_as,
+            api_call_source="StoredProcedureRegistration.register",
         )
 
     def register_from_file(
@@ -518,6 +524,7 @@ class StoredProcedureRegistration:
             replace,
             parallel,
             statement_params=statement_params,
+            api_call_source="StoredProcedureRegistration.register_from_file",
         )
 
     def _do_register_sp(
@@ -534,6 +541,7 @@ class StoredProcedureRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         execute_as: typing.Literal["caller", "owner"] = "owner",
+        api_call_source: str,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -592,6 +600,7 @@ class StoredProcedureRegistration:
                 replace=replace,
                 inline_python_code=code,
                 execute_as=execute_as,
+                api_call_source=api_call_source,
             )
         # an exception might happen during registering a stored procedure
         # (e.g., a dependency might not be found on the stage),
