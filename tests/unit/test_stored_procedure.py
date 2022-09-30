@@ -10,6 +10,7 @@ from snowflake.snowpark import Session
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.types import IntegerType
@@ -26,6 +27,7 @@ def test_stored_procedure_execute_as(execute_as):
     """Make sure that EXECUTE AS option is rendered into SQL correctly."""
     fake_session = mock.create_autospec(Session)
     fake_session._conn = mock.create_autospec(ServerConnection)
+    fake_session._conn._telemetry_client = mock.create_autospec(TelemetryClient)
     fake_session.sproc = StoredProcedureRegistration(fake_session)
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
