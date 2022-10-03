@@ -344,3 +344,27 @@ def test_get_current_schema(session):
     check("A", '"A"')
     check('"a b"', '"a b"')
     check('"a""b"', '"a""b"')
+
+
+def test_use_secondary_roles(session):
+    session.use_secondary_roles("all")
+    session.use_secondary_roles("none")
+    session.use_secondary_roles("ALL")
+    session.use_secondary_roles("NONE")
+    session.use_secondary_roles(None)
+
+    with pytest.raises(
+        ProgrammingError,
+        match="unexpected '<EOF>'",
+    ):
+        session.use_secondary_roles("")
+
+    current_role = session.get_current_role()
+    with pytest.raises(
+        ProgrammingError,
+        match="Object does not exist, or operation cannot be performed",
+    ):
+        session.use_secondary_roles(current_role)
+
+    # after stripping the quotes actually it works - but it's not documented in Snowflake
+    session.use_secondary_roles(current_role[1:-1])
