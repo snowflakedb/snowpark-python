@@ -347,7 +347,7 @@ def test_get_current_schema(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
+    IS_IN_STORED_PROC, reason="use secondary role is not allowed in stored proc (owner mode)"
 )
 def test_use_secondary_roles(session):
     session.use_secondary_roles("all")
