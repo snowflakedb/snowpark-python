@@ -2312,3 +2312,108 @@ def test_df_join_how_on_overwrite(session):
 
     df = df1.natural_join(df2, how="left", join_type="right")
     Utils.check_answer(df, [Row(1, 1, "1"), Row(2, 3, "5")])
+
+
+def test_df_join_suffix(session):
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "c"])
+    df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(["a", "b", "c"])
+    df3 = df1.join(
+        df2, (df1["a"] == df2["a"]) & (df1["b"] == df2["b"]), lsuffix="_l", rsuffix="_r"
+    )
+    assert df3.columns == ["A_L", "B_L", "C_L", "A_R", "B_R", "C_R"]
+    Utils.check_answer(df3, Row(A_L=1, B_L=1, C_L="1", A_R=1, B_R=1, C_R="1"))
+
+    df4 = df1.join(df2, (df1["a"] == df2["a"]) & (df1["b"] == df2["b"]), lsuffix="_l")
+    assert df4.columns == ["A_L", "B_L", "C_L", "A", "B", "C"]
+    Utils.check_answer(df4, Row(A_L=1, B_L=1, C_L="1", A=1, B=1, C="1"))
+
+    df5 = df1.join(df2, (df1["a"] == df2["a"]) & (df1["b"] == df2["b"]), rsuffix="_r")
+    assert df5.columns == ["A", "B", "C", "A_R", "B_R", "C_R"]
+    Utils.check_answer(df3, Row(A=1, B=1, C="1", A_R=1, B_R=1, C_R="1"))
+
+    df6 = df1.join(df2, (df1["a"] == df2["a"]) & (df1["b"] == df2["b"]))
+    for i in range(0, 3):
+        assert df6.columns[i].startswith('"l_')
+    for j in range(3, 6):
+        assert df6.columns[j].startswith('"r_')
+    Utils.check_answer(df3, Row(A=1, B=1, C="1", A_R=1, B_R=1, C_R="1"))
+
+    df7 = df1.join(
+        df2,
+        (df1["a"] == df2["a"]) & (df1["b"] == df2["b"]),
+        lsuffix='"_l"',
+        rsuffix='"_r"',
+    )
+    assert df7.columns == ['"A_l"', '"B_l"', '"C_l"', '"A_r"', '"B_r"', '"C_r"']
+
+    df8 = df1.join(
+        df2,
+        (df1["a"] == df2["a"]) & (df1["b"] == df2["b"]),
+        lsuffix='"_L"',
+        rsuffix='"_R"',
+    )
+    assert df8.columns == ["A_L", "B_L", "C_L", "A_R", "B_R", "C_R"]
+
+    df9 = df1.join(
+        df2, (df1["a"] == df2["a"]) & (df1["b"] == df2["b"]), lsuffix="8l", rsuffix="9r"
+    )
+    assert df9.columns == ["A8L", "B8L", "C8L", "A9R", "B9R", "C9R"]
+
+    df10 = df1.join(
+        df2,
+        (df1["a"] == df2["a"]) & (df1["b"] == df2["b"]),
+        lsuffix="8 l",
+        rsuffix="9 r",
+    )
+    assert df10.columns == ['"A8 l"', '"B8 l"', '"C8 l"', '"A9 r"', '"B9 r"', '"C9 r"']
+
+    df11 = session.create_dataframe([[1]]).to_df(['"a"'])
+    df12 = session.create_dataframe([[1]]).to_df(['"a"'])
+    df13 = df11.join(df12, df11['"a"'] == df12['"a"'], lsuffix="_l", rsuffix="_r")
+    assert df13.columns == ['"a_l"', '"a_r"']
+
+    df14 = df11.join(df12, df11['"a"'] == df12['"a"'], lsuffix='"_l"', rsuffix='"_r"')
+    assert df14.columns == ['"a_l"', '"a_r"']
+
+
+def test_df_cross_join_suffix(session):
+    df1 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
+    df2 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
+    df3 = df1.cross_join(df2, lsuffix="_l", rsuffix="_r")
+    assert df3.columns == ["A_L", "B_L", "C_L", "A_R", "B_R", "C_R"]
+    Utils.check_answer(df3, Row(A_L=1, B_L=1, C_L="1", A_R=1, B_R=1, C_R="1"))
+
+    df4 = df1.cross_join(df2, lsuffix="_l")
+    assert df4.columns == ["A_L", "B_L", "C_L", "A", "B", "C"]
+    Utils.check_answer(df4, Row(A_L=1, B_L=1, C_L="1", A=1, B=1, C="1"))
+
+    df5 = df1.cross_join(df2, rsuffix="_r")
+    assert df5.columns == ["A", "B", "C", "A_R", "B_R", "C_R"]
+    Utils.check_answer(df3, Row(A=1, B=1, C="1", A_R=1, B_R=1, C_R="1"))
+
+    df6 = df1.cross_join(df2)
+    for i in range(0, 3):
+        assert df6.columns[i].startswith('"l_')
+    for j in range(3, 6):
+        assert df6.columns[j].startswith('"r_')
+    Utils.check_answer(df3, Row(A=1, B=1, C="1", A_R=1, B_R=1, C_R="1"))
+
+    df7 = df1.cross_join(df2, lsuffix='"_l"', rsuffix='"_r"')
+    assert df7.columns == ['"A_l"', '"B_l"', '"C_l"', '"A_r"', '"B_r"', '"C_r"']
+
+    df8 = df1.cross_join(df2, lsuffix='"_L"', rsuffix='"_R"')
+    assert df8.columns == ["A_L", "B_L", "C_L", "A_R", "B_R", "C_R"]
+
+    df9 = df1.cross_join(df2, lsuffix="8l", rsuffix="9r")
+    assert df9.columns == ["A8L", "B8L", "C8L", "A9R", "B9R", "C9R"]
+
+    df10 = df1.cross_join(df2, lsuffix="8 l", rsuffix="9 r")
+    assert df10.columns == ['"A8 l"', '"B8 l"', '"C8 l"', '"A9 r"', '"B9 r"', '"C9 r"']
+
+    df11 = session.create_dataframe([[1]]).to_df(['"a"'])
+    df12 = session.create_dataframe([[1]]).to_df(['"a"'])
+    df13 = df11.cross_join(df12, lsuffix="_l", rsuffix="_r")
+    assert df13.columns == ['"a_l"', '"a_r"']
+
+    df14 = df11.cross_join(df12, lsuffix='"_l"', rsuffix='"_r"')
+    assert df14.columns == ['"a_l"', '"a_r"']

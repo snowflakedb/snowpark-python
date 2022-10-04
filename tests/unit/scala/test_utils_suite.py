@@ -17,6 +17,8 @@ from snowflake.snowpark._internal.utils import (
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_udf_upload_prefix,
+    is_snowflake_quoted_id_case_insensitive,
+    is_snowflake_unquoted_id_case_insensitive,
     is_sql_select_statement,
     normalize_path,
     unwrap_stage_location_single_quote,
@@ -460,3 +462,26 @@ def test_is_sql_select_statement():
     ]
     for ns in non_select_sqls:
         assert is_sql_select_statement(ns) is False
+
+
+def test_is_snowflake_quoted_id_case_insensitive():
+    assert is_snowflake_quoted_id_case_insensitive('"ABC"')
+    assert is_snowflake_quoted_id_case_insensitive('"AB_C"')
+    assert is_snowflake_quoted_id_case_insensitive('"_AB0C_9"')
+    # negative
+    assert is_snowflake_quoted_id_case_insensitive('"aBC"') is False
+    assert is_snowflake_quoted_id_case_insensitive('"AbC"') is False
+    assert is_snowflake_quoted_id_case_insensitive('"ab c"') is False
+    assert is_snowflake_quoted_id_case_insensitive('"A BC"') is False
+
+
+def test_is_snowflake_unquoted_id_case_insensitive():
+    assert is_snowflake_unquoted_id_case_insensitive("ABC")
+    assert is_snowflake_unquoted_id_case_insensitive("AbC")
+    assert is_snowflake_unquoted_id_case_insensitive("abc")
+    assert is_snowflake_unquoted_id_case_insensitive("ab_c")
+    assert is_snowflake_unquoted_id_case_insensitive("_ab0c_9")
+    # negative
+    assert is_snowflake_unquoted_id_case_insensitive("ab c") is False
+    assert is_snowflake_unquoted_id_case_insensitive("A BC") is False
+    assert is_snowflake_unquoted_id_case_insensitive("0ABC") is False
