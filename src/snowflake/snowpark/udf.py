@@ -11,6 +11,7 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -85,6 +86,10 @@ class UserDefinedFunction:
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
                 )
 
+        session = snowflake.snowpark.context.get_active_session()
+        session._conn._telemetry_client.send_function_usage_telemetry(
+            "UserDefinedFunction.__call__", TelemetryField.FUNC_CAT_USAGE.value
+        )
         return Column(self._create_udf_expression(exprs))
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:

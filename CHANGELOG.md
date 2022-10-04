@@ -1,4 +1,30 @@
 # Release History
+## 0.11.0 (2022-09-28)
+
+### Behavior Changes
+- `Session.add_packages()` now raises `ValueError` when the version of a package cannot be found in Snowflake Anaconda channel. Previously, `Session.add_packages()` succeeded, and a `SnowparkSQLException` exception was raised later in the UDF/SP registration step.
+
+### New Features:
+- Added method `FileOperation.get_stream()` to support downloading stage files as stream.
+- Added support in `functions.ntiles()` to accept int argument.
+- Added the following aliases:
+  - `functions.call_function()` for `functions.call_builtin()`.
+  - `functions.function()` for `functions.builtin()`.
+  - `DataFrame.order_by()` for `DataFrame.sort()`
+  - `DataFrame.orderBy()` for `DataFrame.sort()`
+- Improved `DataFrame.cache_result()` to return a more accurate `Table` class instead of a `DataFrame` class.
+- Added support to allow `session` as the first argument when calling `StoredProcedure`.
+
+### Improvements
+- Improved nested query generation by flattening queries when applicable.
+  - This improvement could be enabled by setting `Session.sql_simplifier_enabled = True`.
+  - `DataFrame.select()`, `DataFrame.with_column()`, `DataFrame.drop()` and other select-related APIs have more flattened SQLs.
+  - `DataFrame.union()`, `DataFrame.union_all()`, `DataFrame.except_()`, `DataFrame.intersect()`, `DataFrame.union_by_name()` have flattened SQLs generated when multiple set operators are chained.
+- Improved type annotations for async job APIs.
+
+### Bug Fixes
+- Fixed a bug in which `Table.update()`, `Table.delete()`, `Table.merge()` try to reference a temp table that does not exist.
+
 ## 0.10.0 (2022-09-16)
 
 ### New Features:

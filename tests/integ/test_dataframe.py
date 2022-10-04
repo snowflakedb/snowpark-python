@@ -101,6 +101,34 @@ def test_read_stage_file_show(session, resources_path):
         Utils.drop_stage(session, tmp_stage_name)
 
 
+def test_show_using_with_select_statement(session):
+    df = session.sql(
+        "with t1 as (select 1 as a union all select 2 union all select 3 "
+        "   union all select 4 union all select 5 union all select 6 "
+        "   union all select 7 union all select 8 union all select 9 "
+        "   union all select 10 union all select 11 union all select 12) "
+        "select * from t1"
+    )
+    assert (
+        df._show_string()
+        == """
+-------
+|"A"  |
+-------
+|1    |
+|2    |
+|3    |
+|4    |
+|5    |
+|6    |
+|7    |
+|8    |
+|9    |
+|10   |
+-------\n""".lstrip()
+    )
+
+
 def test_distinct(session):
     """Tests df.distinct()."""
 
@@ -2269,3 +2297,18 @@ def test_limit_offset(session):
     df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["a", "b", "c"])
     assert df.limit(1).collect() == [Row(A=1, B=2, C=3)]
     assert df.limit(1, offset=1).collect() == [Row(A=4, B=5, C=6)]
+
+
+def test_df_join_how_on_overwrite(session):
+    df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
+        ["int", "int2", "str"]
+    )
+    df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(
+        ["int", "int2", "str"]
+    )
+    # using_columns will overwrite on, and join_type will overwrite how
+    df = df1.join(df2, on="int", using_columns="int2", how="outer", join_type="inner")
+    Utils.check_answer(df, [Row(1, 1, "1", 1, "1")])
+
+    df = df1.natural_join(df2, how="left", join_type="right")
+    Utils.check_answer(df, [Row(1, 1, "1"), Row(2, 3, "5")])

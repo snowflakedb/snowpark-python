@@ -615,7 +615,7 @@ class SnowflakePlanBuilder:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
 
-        if not child.queries[0].sql.lower().strip().startswith("select"):
+        if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         return self.build(
