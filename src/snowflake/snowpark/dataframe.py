@@ -2813,7 +2813,13 @@ class DataFrame:
         prefix = _generate_prefix("a")
         child = self.select(
             [
-                _alias_if_needed(self, attr.name, prefix, common_col_names)
+                _alias_if_needed(
+                    self,
+                    attr.name,
+                    prefix,
+                    suffix=None,
+                    common_col_names=common_col_names,
+                )
                 for attr in self._output
             ]
         )
