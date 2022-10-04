@@ -24,7 +24,6 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     python_type_str_to_object,
@@ -81,11 +80,11 @@ class UserDefinedTableFunction:
         *arguments: Union[ColumnOrName, Iterable[ColumnOrName]],
         **named_arguments,
     ) -> TableFunctionCall:
-        session = snowflake.snowpark.context.get_active_session()
-        session._conn._telemetry_client.send_function_usage_telemetry(
-            "UserDefinedTableFunction.__call__", TelemetryField.FUNC_CAT_USAGE.value
+        table_function_call = TableFunctionCall(
+            self.name, *arguments, **named_arguments
         )
-        return TableFunctionCall(self.name, *arguments, **named_arguments)
+        table_function_call._set_api_call_source("UserDefinedTableFunction.__call__")
+        return table_function_call
 
 
 class UDTFRegistration:

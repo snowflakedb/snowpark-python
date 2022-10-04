@@ -10,7 +10,9 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.telemetry import TelemetryField
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.functions import (
+    call_udf,
     col,
     lit,
     max as max_,
@@ -702,8 +704,13 @@ def test_udf_call_and_invoke(session, resources_path):
     def minus_one(x):
         return x - 1
 
+    minus_one_name = f"minus_one_{generate_random_alphanumeric()}"
     minus_one_udf = udf(
-        minus_one, return_type=IntegerType(), input_types=[IntegerType()]
+        minus_one,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        name=minus_one_name,
+        replace=True,
     )
 
     data = telemetry_obj._log_batch[-1].to_dict()["message"][
@@ -761,6 +768,13 @@ def test_udf_call_and_invoke(session, resources_path):
         TelemetryField.KEY_DATA.value
     ]
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
+
+    # call using call_udf
+    df.select(call_udf(minus_one_name, df.a))
+    data = telemetry_obj._log_batch[-1].to_dict()["message"][
+        TelemetryField.KEY_DATA.value
+    ]
+    assert data == {"func_name": "functions.call_udf", "category": "usage"}
 
 
 def test_sproc_call_and_invoke(session, resources_path):

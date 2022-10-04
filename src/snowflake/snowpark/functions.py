@@ -3282,7 +3282,7 @@ def call_udf(
     """
 
     validate_object_name(udf_name)
-    return _call_function(udf_name, False, *args)
+    return _call_function(udf_name, False, *args, api_call_source="functions.call_udf")
 
 
 def call_table_function(
@@ -3381,10 +3381,17 @@ def builtin(function_name: str) -> Callable:
 
 
 def _call_function(
-    name: str, is_distinct: bool = False, *args: ColumnOrLiteral
+    name: str,
+    is_distinct: bool = False,
+    *args: ColumnOrLiteral,
+    api_call_source: Optional[str] = None,
 ) -> Column:
     expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
-    return Column(FunctionExpression(name, expressions, is_distinct=is_distinct))
+    return Column(
+        FunctionExpression(
+            name, expressions, is_distinct=is_distinct, api_call_source=api_call_source
+        )
+    )
 
 
 def sproc(
