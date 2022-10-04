@@ -595,7 +595,7 @@ def test_copy_json_negative_test_with_column_names(session, tmp_stage_name1):
         with pytest.raises(SnowparkSQLException) as exec_info:
             df.copy_into_table(table_name, target_columns=["c1", "c2"])
         assert (
-            "JSON file format can produce one and only one column of type variant or object or array. Use CSV file format if you want to load more than one column."
+            "JSON file format can produce one and only one column of type"
             in exec_info.value.message
         )
     finally:
