@@ -24,6 +24,7 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     python_type_str_to_object,

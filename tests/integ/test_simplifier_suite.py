@@ -935,3 +935,12 @@ def test_session_range(session, simplifier_table):
         .select((col("id") + 1).as_("id"))
     )
     assert df2.queries["queries"][0].count("SELECT") == 4
+
+
+def test_natural_join(session, simplifier_table):
+    df1 = session.table(simplifier_table)
+    df2 = session.table(simplifier_table)
+    df = df1.natural_join(df2)
+    df = df.select("a").select("a").select("a")
+    df.collect()
+    assert df.queries["queries"][0].count('SELECT "A"') == 1

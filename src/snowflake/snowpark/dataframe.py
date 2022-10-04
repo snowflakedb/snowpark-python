@@ -18,10 +18,11 @@ from typing import (
     Optional,
     Tuple,
     Union,
+    overload,
 )
 
 import snowflake.snowpark
-from snowflake.connector.options import pandas
+from snowflake.connector.options import installed_pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Cross,
@@ -102,6 +103,7 @@ from snowflake.snowpark._internal.utils import (
     deprecated,
     experimental,
     generate_random_alphanumeric,
+    is_sql_select_statement,
     parse_positional_args_to_list,
     random_name_for_temp_object,
     validate_object_name,
@@ -487,10 +489,22 @@ class DataFrame:
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
 
+    @overload
+    def collect(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> List[Row]:
+        ...
+
+    @overload
+    def collect(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+    ) -> AsyncJob:
+        ...
+
     @df_collect_api_telemetry
     def collect(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
-    ) -> List["Row"]:
+    ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
 
@@ -539,7 +553,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         data_type: _AsyncDataType = _AsyncDataType.ROW,
-    ) -> Union[List["Row"], AsyncJob]:
+    ) -> Union[List[Row], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
@@ -567,6 +581,18 @@ class DataFrame:
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
         )
+
+    @overload
+    def to_local_iterator(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> Iterator[Row]:
+        ...
+
+    @overload
+    def to_local_iterator(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+    ) -> AsyncJob:
+        ...
 
     @df_collect_api_telemetry
     def to_local_iterator(
@@ -610,6 +636,29 @@ class DataFrame:
 
     def __copy__(self) -> "DataFrame":
         return DataFrame(self._session, copy.copy(self._plan))
+
+    if installed_pandas:
+        import pandas
+
+        @overload
+        def to_pandas(
+            self,
+            *,
+            statement_params: Optional[Dict[str, str]] = None,
+            block: bool = True,
+            **kwargs: Dict[str, Any],
+        ) -> pandas.DataFrame:
+            ...
+
+    @overload
+    def to_pandas(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> AsyncJob:
+        ...
 
     @df_collect_api_telemetry
     def to_pandas(
@@ -662,6 +711,29 @@ class DataFrame:
 
         return result
 
+    if installed_pandas:
+        import pandas
+
+        @overload
+        def to_pandas_batches(
+            self,
+            *,
+            statement_params: Optional[Dict[str, str]] = None,
+            block: bool = True,
+            **kwargs: Dict[str, Any],
+        ) -> Iterator[pandas.DataFrame]:
+            ...
+
+    @overload
+    def to_pandas_batches(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> AsyncJob:
+        ...
+
     @df_collect_api_telemetry
     def to_pandas_batches(
         self,
@@ -669,7 +741,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         **kwargs: Dict[str, Any],
-    ) -> Iterator["pandas.DataFrame"]:
+    ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         """
         Executes the query representing this DataFrame and returns an iterator of
         Pandas dataframes (containing a subset of rows) that you can use to
@@ -1260,7 +1332,7 @@ class DataFrame:
             [Row(A=1, COUNT(LITERAL())=2, MAX(B)=2), Row(A=2, COUNT(LITERAL())=2, MAX(B)=2), Row(A=3, COUNT(LITERAL())=2, MAX(B)=2)]
             >>> df.group_by("a").median("b").collect()
             [Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500')), Row(A=1, MEDIAN(B)=Decimal('1.500'))]
-            >>> df.group_by("a").builtin("avg")("b").collect()
+            >>> df.group_by("a").function("avg")("b").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
@@ -1741,10 +1813,23 @@ class DataFrame:
 
     @df_api_usage
     def natural_join(
-        self, right: "DataFrame", join_type: Optional[str] = None
+        self, right: "DataFrame", how: Optional[str] = None, **kwargs
     ) -> "DataFrame":
-        """Performs a natural join of the specified type (``joinType``) with the
+        """Performs a natural join of the specified type (``how``) with the
         current DataFrame and another DataFrame (``right``).
+
+        Args:
+            right: The other :class:`DataFrame` to join.
+            how: We support the following join types:
+
+                - Inner join: "inner" (the default value)
+                - Left outer join: "left", "leftouter"
+                - Right outer join: "right", "rightouter"
+                - Full outer join: "full", "outer", "fullouter"
+
+                You can also use ``join_type`` keyword to specify this condition.
+                Note that to avoid breaking changes, currently when ``join_type`` is specified,
+                it overrides ``how``.
 
         Examples::
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
@@ -1769,34 +1854,56 @@ class DataFrame:
             |5    |6    |NULL  |
             --------------------
             <BLANKLINE>
-
-        Args:
-            right: the other :class:`DataFrame` to join
-            join_type: The type of join ("inner", "full", "left", "right"). The default value is "left".
         """
-        join_type = join_type or "inner"
-        return self._with_plan(
-            Join(
-                self._plan,
-                right._plan,
-                NaturalJoin(create_join_type(join_type)),
-                None,
-            )
+        join_type = kwargs.get("join_type") or how
+        join_plan = Join(
+            self._plan,
+            right._plan,
+            NaturalJoin(create_join_type(join_type or "inner")),
+            None,
         )
+        if self._select_statement:
+            select_plan = SelectStatement(
+                from_=SelectSnowflakePlan(join_plan, analyzer=self._session._analyzer),
+                analyzer=self._session._analyzer,
+            )
+            return self._with_plan(select_plan)
+        return self._with_plan(join_plan)
 
     @df_api_usage
     def join(
         self,
         right: "DataFrame",
-        using_columns: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
-        join_type: Optional[str] = None,
+        on: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
+        how: Optional[str] = None,
+        **kwargs,
     ) -> "DataFrame":
-        """Performs a join of the specified type (``join_type``) with the current
+        """Performs a join of the specified type (``how``) with the current
         DataFrame and another DataFrame (``right``) on a list of columns
-        (``using_columns``).
+        (``on``).
 
-        The method assumes that the columns in ``using_columns`` have the same meaning
+        The method assumes that the columns in ``how`` have the same meaning
         in the left and right DataFrames.
+
+        Args:
+            right: The other :class:`DataFrame` to join.
+            on: A column name or a :class:`Column` object or a list of them to be
+                used for the join. You can also use ``using_columns`` keyword to specify
+                this condition. Note that to avoid breaking changes, currently when
+                ``using_columns`` is specified, it overrides ``on``.
+            how: We support the following join types:
+
+                - Inner join: "inner" (the default value)
+                - Left outer join: "left", "leftouter"
+                - Right outer join: "right", "rightouter"
+                - Full outer join: "full", "outer", "fullouter"
+                - Left semi join: "semi", "leftsemi"
+                - Left anti join: "anti", "leftanti"
+                - Cross join: "cross"
+
+                You can also use ``join_type`` keyword to specify this condition.
+                Note that to avoid breaking changes, currently when ``join_type`` is specified,
+                it overrides ``how``.
 
         Examples::
             >>> from snowflake.snowpark.functions import col
@@ -1850,19 +1957,6 @@ class DataFrame:
             ---------------------
             <BLANKLINE>
 
-        Args:
-            right: The other :class:`Dataframe` to join.
-            using_columns: A list of names of the columns, or the column objects, to
-                use for the join.
-            join_type: We support the following join types:
-              - Inner join: "inner"
-              - Left outer join: "left", "leftouter"
-              - Right outer join: "right", "rightouter"
-              - Full outer join: "full", "outer", "fullouter"
-              - Left semi join: "semi", "leftsemi"
-              - Left anti join: "anti", "leftanti"
-              - Cross join: "cross"
-
         Note:
             When performing chained operations, this method will not work if there are
             ambiguous column names. For example,
@@ -1891,6 +1985,8 @@ class DataFrame:
             -------------------
             <BLANKLINE>
         """
+        using_columns = kwargs.get("using_columns") or on
+        join_type = kwargs.get("join_type") or how
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
@@ -1901,12 +1997,6 @@ class DataFrame:
             ):
                 if column_to_bool(using_columns):
                     raise Exception("Cross joins cannot take columns as input.")
-
-            sp_join_type = (
-                create_join_type("inner")
-                if not join_type
-                else create_join_type(join_type)
-            )
 
             # Parse using_columns arg
             if column_to_bool(using_columns) is False:
@@ -1920,7 +2010,9 @@ class DataFrame:
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
 
-            return self._join_dataframes(right, using_columns, sp_join_type)
+            return self._join_dataframes(
+                right, using_columns, create_join_type(join_type or "inner")
+            )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
 
@@ -2284,9 +2376,21 @@ class DataFrame:
         # Put it all together
         return self.select([*old_cols, *new_cols])
 
+    @overload
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> int:
+        ...
+
+    @overload
+    def count(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
+    ) -> AsyncJob:
+        ...
+
+    def count(
+        self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
+    ) -> Union[int, AsyncJob]:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
 
@@ -2606,7 +2710,7 @@ class DataFrame:
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
-        if query.startswith("select"):
+        if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
                 self.limit(n)._plan, **kwargs
             )
@@ -2768,6 +2872,26 @@ class DataFrame:
         return self._session._conn.execute(
             self._session._analyzer.resolve(cmd), **kwargs
         )
+
+    @overload
+    def first(
+        self,
+        n: Optional[int] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+    ) -> Union[Optional[Row], List[Row]]:
+        ...
+
+    @overload
+    def first(
+        self,
+        n: Optional[int] = None,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = False,
+    ) -> AsyncJob:
+        ...
 
     def first(
         self,
@@ -3264,6 +3388,8 @@ Query List:
     withColumnRenamed = with_column_renamed
     toLocalIterator = to_local_iterator
     randomSplit = random_split
+    order_by = sort
+    orderBy = order_by
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets
