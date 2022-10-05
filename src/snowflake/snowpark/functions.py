@@ -2687,9 +2687,7 @@ def iff(
 
 def in_(
     cols: List[ColumnOrName],
-    *vals: Union[
-        "snowflake.snowpark.DataFrame", ColumnOrLiteral, List[ColumnOrLiteral]
-    ],
+    *vals: Union["snowflake.snowpark.DataFrame", LiteralType, Iterable[LiteralType]],
 ) -> Column:
     """Returns a conditional expression that you can pass to the filter or where methods to
     perform the equivalent of a WHERE ... IN query that matches rows containing a sequence of
