@@ -49,6 +49,10 @@ class TableFunctionCall:
         self._partition_by = None
         self._order_by = None
         self._aliases: Optional[Iterable[str]] = None
+        self._api_call_source = None
+
+    def _set_api_call_source(self, api_call_source):
+        self._api_call_source = api_call_source
 
     def over(
         self,
@@ -150,6 +154,7 @@ def _create_table_function_expression(
     partition_by = None
     order_by = None
     aliases = None
+    api_call_source = None
     if args and named_args:
         raise ValueError("A table function shouldn't have both args and named args.")
     if isinstance(func, str):
@@ -170,6 +175,7 @@ def _create_table_function_expression(
         partition_by = func._partition_by
         order_by = func._order_by
         aliases = func._aliases
+        api_call_source = func._api_call_source
     else:
         raise TypeError(
             "'func' should be a function name in str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
@@ -193,6 +199,7 @@ def _create_table_function_expression(
         else None
     )
     table_function_expression.aliases = aliases
+    table_function_expression.api_call_source = api_call_source
     return table_function_expression
 
 

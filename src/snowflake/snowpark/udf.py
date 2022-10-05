@@ -103,6 +103,7 @@ class UserDefinedFunction:
             exprs,
             self._return_type,
             nullable=self._is_return_nullable,
+            api_call_source="UserDefinedFunction.__call__",
         )
 
 
