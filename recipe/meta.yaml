@@ -25,8 +25,6 @@ requirements:
     - cloudpickle >=1.6.0,<=2.0.0
     - snowflake-connector-python
     - typing-extensions >=4.1.0
-  run_constrained:
-    - pandas >1,<1.4
 
 test:
   imports:
