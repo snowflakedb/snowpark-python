@@ -32,14 +32,14 @@ class TelemetryDataTracker:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def get_data_from_index(self, index, partial_func) -> Tuple[Dict, Any]:
+    def extract_telemetry_log_data(self, index, partial_func) -> Tuple[Dict, Any]:
         telemetry_obj = self.session._conn._telemetry_client.telemetry
 
         result = partial_func()
         message_log = telemetry_obj._log_batch
 
         if len(message_log) < abs(index):
-            # is current message_log is smaller than requested index, this means that we just
+            # if current message_log is smaller than requested index, this means that we just
             # send a batch of messages and reset message log. We will re-run our function to
             # refill our message log and extract the message. This assumes that the requested
             # index is appropriate and will be fill once the function is called again.
@@ -738,13 +738,13 @@ def test_udf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, minus_one_udf = telemetry_tracker.get_data_from_index(
+    data, minus_one_udf = telemetry_tracker.extract_telemetry_log_data(
         -1, minus_one_udf_partial
     )
     assert data == {"func_name": "UDFRegistration.register", "category": "create"}
 
     select_partial = partial(df.select, df.a, minus_one_udf(df.b))
-    data, _ = telemetry_tracker.get_data_from_index(-1, select_partial)
+    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
 
     # udf register from file
@@ -758,14 +758,14 @@ def test_udf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, mod5_udf = telemetry_tracker.get_data_from_index(-1, mod5_udf_partial)
+    data, mod5_udf = telemetry_tracker.extract_telemetry_log_data(-1, mod5_udf_partial)
     assert data == {
         "func_name": "UDFRegistration.register_from_file",
         "category": "create",
     }
 
     select_partial = partial(df.select, mod5_udf(df.a))
-    data, _ = telemetry_tracker.get_data_from_index(-1, select_partial)
+    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
 
     # pandas udf register
@@ -779,7 +779,7 @@ def test_udf_call_and_invoke(session, resources_path):
         input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
         replace=True,
     )
-    data, add_one_df_pandas_udf = telemetry_tracker.get_data_from_index(
+    data, add_one_df_pandas_udf = telemetry_tracker.extract_telemetry_log_data(
         -1, pandas_udf_partial
     )
     assert data == {
@@ -788,12 +788,12 @@ def test_udf_call_and_invoke(session, resources_path):
     }
 
     select_partial = partial(df.select, add_one_df_pandas_udf("a", "b"))
-    data, _ = telemetry_tracker.get_data_from_index(-1, select_partial)
+    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
 
     # call using call_udf
     select_partial = partial(df.select, call_udf(minus_one_name, df.a))
-    data, _ = telemetry_tracker.get_data_from_index(-1, select_partial)
+    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "functions.call_udf", "category": "usage"}
 
 
@@ -813,7 +813,7 @@ def test_sproc_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, add_one_sp = telemetry_tracker.get_data_from_index(-1, add_one_partial)
+    data, add_one_sp = telemetry_tracker.extract_telemetry_log_data(-1, add_one_partial)
     assert data == {
         "func_name": "StoredProcedureRegistration.register",
         "category": "create",
@@ -822,7 +822,7 @@ def test_sproc_call_and_invoke(session, resources_path):
     invoke_partial = partial(add_one_sp, 7)
     print(type(add_one_sp))
     # the 3 messages after sproc_invoke are client_time_consume_first_result, client_time_consume_last_result, and action_collect
-    data, _ = telemetry_tracker.get_data_from_index(-4, invoke_partial)
+    data, _ = telemetry_tracker.extract_telemetry_log_data(-4, invoke_partial)
     assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
 
     # sproc register from file
@@ -836,14 +836,14 @@ def test_sproc_call_and_invoke(session, resources_path):
         packages=["snowflake-snowpark-python"],
         replace=True,
     )
-    data, mod5_sp = telemetry_tracker.get_data_from_index(-1, mod5_sp_partial)
+    data, mod5_sp = telemetry_tracker.extract_telemetry_log_data(-1, mod5_sp_partial)
     assert data == {
         "func_name": "StoredProcedureRegistration.register_from_file",
         "category": "create",
     }
 
     invoke_partial = partial(mod5_sp, 3)
-    data, _ = telemetry_tracker.get_data_from_index(-4, invoke_partial)
+    data, _ = telemetry_tracker.extract_telemetry_log_data(-4, invoke_partial)
     assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
 
 
@@ -864,11 +864,11 @@ def test_udtf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, sum_udtf = telemetry_tracker.get_data_from_index(-1, sum_udtf_partial)
+    data, sum_udtf = telemetry_tracker.extract_telemetry_log_data(-1, sum_udtf_partial)
     assert data == {"func_name": "UDTFRegistration.register", "category": "create"}
 
     select_partial = partial(df.select, sum_udtf(df.a, df.b))
-    data, _ = telemetry_tracker.get_data_from_index(-2, select_partial)
+    data, _ = telemetry_tracker.extract_telemetry_log_data(-2, select_partial)
     assert data == {
         "func_name": "UserDefinedTableFunction.__call__",
         "category": "usage",
@@ -885,7 +885,7 @@ def test_udtf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, my_udtf = telemetry_tracker.get_data_from_index(-1, my_udtf_partial)
+    data, my_udtf = telemetry_tracker.extract_telemetry_log_data(-1, my_udtf_partial)
     assert data == {
         "func_name": "UDTFRegistration.register_from_file",
         "category": "create",
@@ -904,7 +904,7 @@ def test_udtf_call_and_invoke(session, resources_path):
         ),
     )
 
-    data, _ = telemetry_tracker.get_data_from_index(-1, invoke_partial)
+    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, invoke_partial)
     assert data == {
         "func_name": "UserDefinedTableFunction.__call__",
         "category": "usage",
