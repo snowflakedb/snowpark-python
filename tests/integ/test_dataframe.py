@@ -2312,3 +2312,16 @@ def test_df_join_how_on_overwrite(session):
 
     df = df1.natural_join(df2, how="left", join_type="right")
     Utils.check_answer(df, [Row(1, 1, "1"), Row(2, 3, "5")])
+
+
+def test_create_dataframe_special_char_column_name(session):
+    df1 = session.create_dataframe(
+        [[1, 2, 3], [1, 2, 3]], schema=["a b", '"abc"', "@%!^@&#"]
+    )
+    expected_columns = ['"a b"', '"abc"', '"@%!^@&#"']
+    assert df1.columns == expected_columns
+    Utils.check_answer(df1, [Row(1, 2, 3), Row(1, 2, 3)])
+
+    df2 = session.create_dataframe([[1, 2, 3], [1, 2, 3]], schema=expected_columns)
+    assert df2.columns == expected_columns
+    Utils.check_answer(df2, [Row(1, 2, 3), Row(1, 2, 3)])
