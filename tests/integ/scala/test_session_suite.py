@@ -96,6 +96,12 @@ def test_create_dataframe_namedtuple(session):
     assert [field.name for field in df.schema.fields] == ["A", "B", "C"]
 
 
+def test_create_dataframe_special_char_column_name(session):
+    df = session.create_dataframe([1], schema=["a b"])
+    assert df.columns == ['"a b"']
+    Utils.check_answer(df, Row(1))
+
+
 # this test requires the parameters used for connection has `public role`,
 # and the public role has the privilege to access the current database and
 # schema of the current role
