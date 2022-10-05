@@ -13,7 +13,9 @@ from snowflake.snowpark.functions import (
     avg,
     col,
     count,
+    first_value,
     lag,
+    last_value,
     lead,
     min as min_,
     sum as sum_,
@@ -111,6 +113,32 @@ def test_lead_lag_with_ignore_or_respect_nulls(session):
             Row(5, None, 2, 6, 2),
             Row(6, 6, None, 6, 2),
             Row(7, None, None, None, 2),
+        ],
+    )
+
+
+def test_first_last_value_with_ignore_or_respect_nulls(session):
+    df = session.create_dataframe(
+        [(1, None), (2, 4), (3, None), (4, 2), (5, None), (6, 6), (7, None)],
+        schema=["key", "value"],
+    )
+    window = Window.order_by("key")
+    Utils.check_answer(
+        df.select(
+            "key",
+            first_value("value").over(window),
+            last_value("value").over(window),
+            first_value("value", ignore_nulls=True).over(window),
+            last_value("value", ignore_nulls=True).over(window),
+        ).sort("key"),
+        [
+            Row(1, None, None, 4, 6),
+            Row(2, None, None, 4, 6),
+            Row(3, None, None, 4, 6),
+            Row(4, None, None, 4, 6),
+            Row(5, None, None, 4, 6),
+            Row(6, None, None, 4, 6),
+            Row(7, None, None, 4, 6),
         ],
     )
 
