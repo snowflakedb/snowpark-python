@@ -258,12 +258,17 @@ class SubfieldInt(Expression):
 
 class FunctionExpression(Expression):
     def __init__(
-        self, name: str, arguments: List[Expression], is_distinct: bool
+        self,
+        name: str,
+        arguments: List[Expression],
+        is_distinct: bool,
+        api_call_source: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.name = name
         self.children = arguments
         self.is_distinct = is_distinct
+        self.api_call_source = api_call_source
 
     @property
     def pretty_name(self) -> str:
@@ -317,12 +322,14 @@ class SnowflakeUDF(Expression):
         children: List[Expression],
         datatype: DataType,
         nullable: bool = True,
+        api_call_source: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.udf_name = udf_name
         self.children = children
         self.datatype = datatype
         self.nullable = nullable
+        self.api_call_source = api_call_source
 
     def dependent_column_names(self) -> Optional[Set[str]]:
         return derive_dependent_columns(*self.children)
