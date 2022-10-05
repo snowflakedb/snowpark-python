@@ -184,7 +184,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     Star,
 )
-from snowflake.snowpark._internal.analyzer.window_expression import Lag, Lead
+from snowflake.snowpark._internal.analyzer.window_expression import FirstValue, Lag, LastValue, Lead
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrLiteralStr,
@@ -2811,6 +2811,32 @@ def lead(
     c = _to_col_if_str(e, "lead")
     return Column(
         Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls)
+    )
+
+
+def last_value(
+    e: ColumnOrName,
+    ignore_nulls: bool = False,
+) -> Column:
+    """
+    Returns the last value within an ordered group of values.
+    """
+    c = _to_col_if_str(e, "last_value")
+    return Column(
+        LastValue(c._expression, None, None, ignore_nulls)
+    )
+
+
+def first_value(
+    e: ColumnOrName,
+    ignore_nulls: bool = False,
+) -> Column:
+    """
+    Returns the first value within an ordered group of values.
+    """
+    c = _to_col_if_str(e, "last_value")
+    return Column(
+        FirstValue(c._expression, None, None, ignore_nulls)
     )
 
 

@@ -312,7 +312,7 @@ class Analyzer:
                 expr.sql,
                 self.analyze(expr.expr),
                 expr.offset,
-                self.analyze(expr.default),
+                self.analyze(expr.default) if expr.default else None,
                 expr.ignore_nulls,
             )
 

@@ -115,3 +115,11 @@ class Lag(RankRelatedFunctionExpression):
 
 class Lead(RankRelatedFunctionExpression):
     sql = "LEAD"
+
+
+class LastValue(RankRelatedFunctionExpression):
+    sql = "LAST_VALUE"
+
+
+class FirstValue(RankRelatedFunctionExpression):
+    sql = "FIRST_VALUE"
