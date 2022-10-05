@@ -97,9 +97,9 @@ def test_create_dataframe_namedtuple(session):
 
 
 def test_create_dataframe_special_char_column_name(session):
-    df = session.create_dataframe([1], schema=["a b"])
-    assert df.columns == ['"a b"']
-    Utils.check_answer(df, Row(1))
+    df = session.create_dataframe([[1, 2], [1, 2]], schema=["a b", "c"])
+    assert df.columns == ['"a b"', "C"]
+    Utils.check_answer(df, [Row(1, 2), Row(1, 2)])
 
 
 # this test requires the parameters used for connection has `public role`,

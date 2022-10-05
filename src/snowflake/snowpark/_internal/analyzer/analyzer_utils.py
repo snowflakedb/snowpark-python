@@ -452,10 +452,8 @@ def values_statement(output: List[Attribute], data: List[Row]) -> str:
         SELECT
         + COMMA.join([f"{DOLLAR}{i+1}{AS}{c}" for i, c in enumerate(names)])
         + FROM
-        + LEFT_PARENTHESIS
         + VALUES
         + COMMA.join(rows)
-        + RIGHT_PARENTHESIS
     )
     return query
 
