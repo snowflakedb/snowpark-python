@@ -204,6 +204,10 @@ def _disambiguate(
     lsuffix: str = "",
     rsuffix: str = "",
 ) -> Tuple["DataFrame", "DataFrame"]:
+    if lsuffix == rsuffix and lsuffix:
+        raise ValueError(
+            f"'lsuffix' and 'rsuffix' must be different if they're not empty. You set {lsuffix!r} to both."
+        )
     # Normalize the using columns.
     normalized_using_columns = {quote_name(c) for c in using_columns}
     #  Check if the LHS and RHS have columns in common. If they don't just return them as-is. If

@@ -54,10 +54,10 @@ SNOWFLAKE_OBJECT_RE_PATTERN = re.compile(
     f"^(({SNOWFLAKE_ID_PATTERN}\\.){{0,2}}|({SNOWFLAKE_ID_PATTERN}\\.\\.)){SNOWFLAKE_ID_PATTERN}$"
 )
 
-SNOWFLAKE_CASE_INSENSITIVE_QUOTED_ID_PATTERN_RE = re.compile(
+SNOWFLAKE_CASE_INSENSITIVE_QUOTED_ID_RE_PATTERN = re.compile(
     SNOWFLAKE_CASE_INSENSITIVE_QUOTED_ID_PATTERN
 )
-SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_PATTERN_RE = re.compile(
+SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_RE_PATTERN = re.compile(
     SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_PATTERN
 )
 
@@ -179,12 +179,12 @@ def is_single_quoted(name: str) -> bool:
 
 
 def is_snowflake_quoted_id_case_insensitive(name: str) -> bool:
-    return SNOWFLAKE_CASE_INSENSITIVE_QUOTED_ID_PATTERN_RE.fullmatch(name) is not None
+    return SNOWFLAKE_CASE_INSENSITIVE_QUOTED_ID_RE_PATTERN.fullmatch(name) is not None
 
 
 def is_snowflake_unquoted_suffix_case_insensitive(name: str) -> bool:
     return (
-        SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_PATTERN_RE.fullmatch(name)
+        SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_RE_PATTERN.fullmatch(name)
         is not None
     )
 

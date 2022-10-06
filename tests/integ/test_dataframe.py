@@ -2417,3 +2417,18 @@ def test_df_cross_join_suffix(session):
 
     df14 = df11.cross_join(df12, lsuffix='"_l"', rsuffix='"_r"')
     assert df14.columns == ['"a_l"', '"a_r"']
+
+
+def test_suffix_negative(session):
+    df1 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
+    df2 = session.create_dataframe([[1, 1, "1"]]).to_df(["a", "b", "c"])
+    with pytest.raises(
+        ValueError,
+        match="'lsuffix' and 'rsuffix' must be different if they're not empty. You set 'suffix' to both.",
+    ):
+        df1.cross_join(df2, lsuffix="suffix", rsuffix="suffix")
+    with pytest.raises(
+        ValueError,
+        match="'lsuffix' and 'rsuffix' must be different if they're not empty. You set 'suffix' to both.",
+    ):
+        df1.join(df2, lsuffix="suffix", rsuffix="suffix")
