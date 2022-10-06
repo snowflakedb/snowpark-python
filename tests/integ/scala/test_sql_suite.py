@@ -14,7 +14,8 @@ from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="SNOW-533647: Support statement level parameter"
+    IS_IN_STORED_PROC,
+    reason="alter session is not supported in owner's right stored proc",
 )
 def test_non_select_queries(session):
     try:

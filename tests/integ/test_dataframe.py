@@ -2432,3 +2432,15 @@ def test_suffix_negative(session):
         match="'lsuffix' and 'rsuffix' must be different if they're not empty. You set 'suffix' to both.",
     ):
         df1.join(df2, lsuffix="suffix", rsuffix="suffix")
+
+def test_create_dataframe_special_char_column_name(session):
+    df1 = session.create_dataframe(
+        [[1, 2, 3], [1, 2, 3]], schema=["a b", '"abc"', "@%!^@&#"]
+    )
+    expected_columns = ['"a b"', '"abc"', '"@%!^@&#"']
+    assert df1.columns == expected_columns
+    Utils.check_answer(df1, [Row(1, 2, 3), Row(1, 2, 3)])
+
+    df2 = session.create_dataframe([[1, 2, 3], [1, 2, 3]], schema=expected_columns)
+    assert df2.columns == expected_columns
+    Utils.check_answer(df2, [Row(1, 2, 3), Row(1, 2, 3)])

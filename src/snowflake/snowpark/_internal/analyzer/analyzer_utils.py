@@ -438,7 +438,6 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
 
 
 def values_statement(output: List[Attribute], data: List[Row]) -> str:
-    table_name = random_name_for_temp_object(TempObjectType.TABLE)
     data_types = [attr.datatype for attr in output]
     names = [quote_name(attr.name) for attr in output]
     rows = []
@@ -448,16 +447,15 @@ def values_statement(output: List[Attribute], data: List[Row]) -> str:
             for value, data_type in zip(row, data_types)
         ]
         rows.append(LEFT_PARENTHESIS + COMMA.join(cells) + RIGHT_PARENTHESIS)
-    query_source = (
-        VALUES
+
+    query = (
+        SELECT
+        + COMMA.join([f"{DOLLAR}{i+1}{AS}{c}" for i, c in enumerate(names)])
+        + FROM
+        + VALUES
         + COMMA.join(rows)
-        + AS
-        + table_name
-        + LEFT_PARENTHESIS
-        + COMMA.join(names)
-        + RIGHT_PARENTHESIS
     )
-    return project_statement([], query_source)
+    return query
 
 
 def empty_values_statement(output: List[Attribute]) -> str:
@@ -802,10 +800,8 @@ def rank_related_function_expression(
         func_name
         + LEFT_PARENTHESIS
         + expr
-        + COMMA
-        + str(offset)
-        + COMMA
-        + default
+        + (COMMA + str(offset) if offset else EMPTY_STRING)
+        + (COMMA + default if default else EMPTY_STRING)
         + RIGHT_PARENTHESIS
         + (IGNORE_NULLS if ignore_nulls else EMPTY_STRING)
     )

@@ -66,6 +66,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteralStr,
     ColumnOrName,
     ColumnOrSqlExpr,
+    LiteralType,
     type_string_to_type_object,
 )
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
@@ -316,8 +317,8 @@ class Column:
     def in_(
         self,
         *vals: Union[
-            ColumnOrLiteral,
-            Iterable[ColumnOrLiteral],
+            LiteralType,
+            Iterable[LiteralType],
             "snowflake.snowpark.DataFrame",
         ],
     ) -> "Column":
