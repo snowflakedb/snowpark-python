@@ -274,6 +274,12 @@ class Table(DataFrame):
     def __copy__(self) -> "Table":
         return Table(self.table_name, self._session)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.drop_table()
+
     def sample(
         self,
         frac: Optional[float] = None,
@@ -655,3 +661,11 @@ class Table(DataFrame):
             if block
             else result
         )
+
+    def drop_table(self):
+        """Drops the table from the Snowflake database.
+
+        Note that subsequent API such as ``select()``, ``collect()`` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
+        table in the Snowflake database no longer exists.
+        """
+        self._session.sql(f"drop table {self.table_name}").collect()

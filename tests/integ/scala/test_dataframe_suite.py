@@ -309,6 +309,43 @@ def test_cache_result_with_show(session):
         session._run_query(f"drop table {table_name1}")
 
 
+def test_drop_cache_result_try_finally(session):
+    df = session.sql("select 1 as a, 2 as b")
+    cached = df.cache_result()
+    try:
+        df_after_cached = cached.select("a")
+        df_after_cached.collect()
+    finally:
+        cached.drop_table()
+    with pytest.raises(
+        SnowparkSQLException,
+        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+    ):
+        cached.collect()
+    with pytest.raises(
+        SnowparkSQLException,
+        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+    ):
+        df_after_cached.collect()
+
+
+def test_drop_cache_result_context_manager(session):
+    df = session.sql("select 1 as a, 2 as b")
+    with df.cache_result() as cached:
+        df_after_cached = cached.select("a")
+        df_after_cached.collect()
+    with pytest.raises(
+        SnowparkSQLException,
+        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+    ):
+        cached.collect()
+    with pytest.raises(
+        SnowparkSQLException,
+        match=f"Object '{cached.table_name}' does not exist or not authorized.",
+    ):
+        df_after_cached.collect()
+
+
 def test_non_select_query_composition(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
