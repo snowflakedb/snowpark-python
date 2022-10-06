@@ -892,6 +892,11 @@ class Session:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
 
+            Note:
+                If your table name has special chars, please double quote them like ``session.table('"my table"')``.
+                For fully qualified names, you need to double quote them separately like ``session.table('"my db"."my schema"."my table"')``.
+                Refer to `Idenfier Requirements <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
         Examples::
 
             >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
