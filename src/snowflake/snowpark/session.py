@@ -894,7 +894,7 @@ class Session:
 
             Note:
                 If your table name has special characters, please use double quotes to mark it like ``session.table('"my table"')``.
-                For fully qualified names, you need to use double quote separately like ``session.table('"my db"."my schema"."my.table"')``.
+                For fully qualified names, you need to use double quotes separately like ``session.table('"my db"."my schema"."my.table"')``.
                 Refer to `Identifier Requirements <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
 
         Examples::
