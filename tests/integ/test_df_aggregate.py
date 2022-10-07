@@ -196,22 +196,22 @@ def test_df_agg_dict_arg(session):
     with pytest.raises(TypeError) as ex_info:
         df.agg({"second": 1, "first": "sum"})
     assert (
-        "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'str'>, <class 'int'>)"
-        in str(ex_info)
+        "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should contain only strings: "
+        "got key-value pair with types (<class 'str'>, <class 'int'>)" in str(ex_info)
     )
 
     with pytest.raises(TypeError) as ex_info:
         df.agg({"second": "sum", 1: "sum"})
     assert (
-        "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'str'>)"
-        in str(ex_info)
+        "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should contain only strings: "
+        "got key-value pair with types (<class 'int'>, <class 'str'>)" in str(ex_info)
     )
 
     with pytest.raises(TypeError) as ex_info:
         df.agg({"second": "sum", 1: 1})
     assert (
-        "Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types (<class 'int'>, <class 'int'>)"
-        in str(ex_info)
+        "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should contain only strings: "
+        "got key-value pair with types (<class 'int'>, <class 'int'>)" in str(ex_info)
     )
 
 
@@ -227,25 +227,40 @@ def test_df_agg_invalid_args_in_list(session):
     # invalid type
     with pytest.raises(TypeError) as ex_info:
         df.agg([int])
-    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    assert (
+        "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should contain only"
+        in str(ex_info)
+    )
 
     with pytest.raises(TypeError) as ex_info:
         df.agg(["first"])
-    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    assert (
+        "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should contain only"
+        in str(ex_info)
+    )
 
     # not a pair
     with pytest.raises(TypeError) as ex_info:
         df.agg([("first", "count", "invalid_arg")])
-    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    assert (
+        "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should contain only"
+        in str(ex_info)
+    )
 
     # pairs with invalid type
     with pytest.raises(TypeError) as ex_info:
         df.agg([("first", 123)])
-    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    assert (
+        "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should contain only"
+        in str(ex_info)
+    )
 
     with pytest.raises(TypeError) as ex_info:
         df.agg([(123, "sum")])
-    assert "Lists passed to DataFrame.agg() should only contain" in str(ex_info)
+    assert (
+        "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should contain only"
+        in str(ex_info)
+    )
 
 
 def test_df_agg_empty_args(session):

@@ -346,7 +346,7 @@ class DataFrame:
             >>> df_prices.agg(f.sum("amount")).collect()
             [Row(SUM(AMOUNT)=Decimal('30.00'))]
             >>> # rename the aggregation column name
-            >>> df_prices.agg([f.sum("amount").alias("total_amount"), f.max("amount").alias("max_amount")]).collect()
+            >>> df_prices.agg(f.sum("amount").alias("total_amount"), f.max("amount").alias("max_amount")).collect()
             [Row(TOTAL_AMOUNT=Decimal('30.00'), MAX_AMOUNT=Decimal('20.00'))]
 
     Example 10
@@ -369,7 +369,7 @@ class DataFrame:
         >>> df_total_price_per_category = df_prices.group_by(col("product_id")).sum(col("amount"))
         >>> # Have multiple aggregation values with the group by
         >>> import snowflake.snowpark.functions as f
-        >>> df_summary = df_prices.group_by(col("product_id")).agg([f.sum(col("amount")).alias("total_amount"), f.avg("amount")])
+        >>> df_summary = df_prices.group_by(col("product_id")).agg(f.sum(col("amount")).alias("total_amount"), f.avg("amount"))
         >>> df_summary.show()
         -------------------------------------------------
         |"PRODUCT_ID"  |"TOTAL_AMOUNT"  |"AVG(AMOUNT)"  |
@@ -1188,22 +1188,19 @@ class DataFrame:
     @df_api_usage
     def agg(
         self,
-        exprs: Union[
-            Column, Tuple[str, str], List[Column], List[Tuple[str, str]], Dict[str, str]
-        ],
+        *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
         group the data (:func:`group_by`).
 
-        For the input value, pass in a list of expressions that apply aggregation
-        functions to columns (functions that are defined in the
-        :mod:`snowflake.snowpark.functions` module).
+        Args:
+            exprs: A variable length arguments list where every element is
 
-        Alternatively, pass in a list of pairs, or a dictionary with key-value pairs,
-        that specify the column names and aggregation functions. For each pair:
+                - A Column object
+                - A tuple where the first element is a column object or a column name and the second element is the name of the aggregate function
+                - A list of the above
 
-            - Set the key of the key-value pair to the name of the column to aggregate.
-            - Set the value of the key-value pair to the name of the aggregation function to use on that column.
+                or a ``dict`` maps column names to aggregate function names.
 
         Examples::
 
@@ -1218,7 +1215,7 @@ class DataFrame:
             ----------------------
             <BLANKLINE>
 
-            >>> df.agg([stddev(col("a")), stddev_pop(col("a"))]).show()
+            >>> df.agg(stddev(col("a")), stddev_pop(col("a"))).show()
             -------------------------------------------
             |"STDDEV(A)"         |"STDDEV_POP(A)"     |
             -------------------------------------------
@@ -1226,7 +1223,7 @@ class DataFrame:
             -------------------------------------------
             <BLANKLINE>
 
-            >>> df.agg([("a", "min"), ("b", "max")]).show()
+            >>> df.agg(("a", "min"), ("b", "max")).show()
             -----------------------
             |"MIN(A)"  |"MAX(B)"  |
             -----------------------
@@ -1241,43 +1238,16 @@ class DataFrame:
             |3           |10        |
             -------------------------
             <BLANKLINE>
+
+        Note:
+            The name of the aggregate function to compute must be a valid Snowflake `aggregate function
+            <https://docs.snowflake.com/en/sql-reference/functions-aggregation.html>`_.
+
+        See also:
+            - :meth:`RelationalGroupedDataFrame.agg`
+            - :meth:`DataFrame.group_by`
         """
-        grouping_exprs = None
-        if isinstance(exprs, Column):
-            grouping_exprs = [exprs]
-        elif isinstance(exprs, (list, tuple)):
-            # the first if-statement also handles the case of empty list
-            if all(isinstance(e, Column) for e in exprs):
-                grouping_exprs = [e for e in exprs]
-            elif all(
-                isinstance(e, (list, tuple))
-                and len(e) == 2
-                and isinstance(e[0], str)
-                and isinstance(e[1], str)
-                for e in exprs
-            ):
-                grouping_exprs = [(self.col(e[0]), e[1]) for e in exprs]
-            # case for just a single pair passed as input
-            elif len(exprs) == 2:
-                if isinstance(exprs[0], str) and isinstance(exprs[1], str):
-                    grouping_exprs = [(self.col(exprs[0]), exprs[1])]
-            else:
-                raise TypeError(
-                    "Lists passed to DataFrame.agg() should only contain Column-objects, or pairs of strings."
-                )
-        elif isinstance(exprs, dict):
-            grouping_exprs = []
-            for k, v in exprs.items():
-                if not (isinstance(k, str) and isinstance(v, str)):
-                    raise TypeError(
-                        f"Dictionary passed to DataFrame.agg() should contain only strings: got key-value pair with types {type(k), type(v)}"
-                    )
-                grouping_exprs.append((self.col(k), v))
-
-        if grouping_exprs is None:
-            raise TypeError(f"Invalid type passed to agg(): {type(exprs)}")
-
-        return self.group_by().agg(grouping_exprs)
+        return self.group_by().agg(*exprs)
 
     @df_to_relational_group_df_api_usage
     def rollup(
@@ -1328,7 +1298,7 @@ class DataFrame:
             [Row(A=1, SUM(B)=3), Row(A=2, SUM(B)=3), Row(A=3, SUM(B)=3)]
             >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).collect()
             [Row(A=1, LITERAL()='snow', SUM(B)=3), Row(A=2, LITERAL()='snow', SUM(B)=3), Row(A=3, LITERAL()='snow', SUM(B)=3)]
-            >>> df.group_by("a").agg([(col("*"), "count"), max_("b")]).collect()
+            >>> df.group_by("a").agg((col("*"), "count"), max_("b")).collect()
             [Row(A=1, COUNT(LITERAL())=2, MAX(B)=2), Row(A=2, COUNT(LITERAL())=2, MAX(B)=2), Row(A=3, COUNT(LITERAL())=2, MAX(B)=2)]
             >>> df.group_by("a").median("b").collect()
             [Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500')), Row(A=1, MEDIAN(B)=Decimal('1.500'))]
@@ -1413,7 +1383,7 @@ class DataFrame:
         """
         return self.group_by(
             [self.col(quote_name(f.name)) for f in self.schema.fields]
-        ).agg([])
+        ).agg()
 
     def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.

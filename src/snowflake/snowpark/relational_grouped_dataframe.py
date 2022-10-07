@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import re
-from typing import Callable, List, Tuple, Union
+from typing import Callable, Dict, List, Tuple, Union
 
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -196,35 +196,59 @@ class RelationalGroupedDataFrame:
         return DataFrame(self._df._session, group_plan)
 
     @relational_group_df_api_usage
-    def agg(self, exprs: List[Union[Column, Tuple[Column, str]]]) -> DataFrame:
-        """Returns a :class:`DataFrame` with computed aggregates. The first element of
-        the ``exprs`` pair is the column to aggregate and the second element is the
-        aggregate function to compute. The name of the aggregate
-        function to compute must be a valid Snowflake `aggregate function
-        <https://docs.snowflake.com/en/sql-reference/functions-aggregation.html>`_.
-        See examples in :meth:`DataFrame.group_by`.
+    def agg(
+        self, *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]]
+    ) -> DataFrame:
+        """Returns a :class:`DataFrame` with computed aggregates. See examples in :meth:`DataFrame.group_by`.
 
-        Valid input:
+        Args:
+            exprs: A variable length arguments list where every element is
 
-            - A Column object
-            - A tuple where the first element is a column and the second element is a name (str) of the aggregate function
-            - A list of the above
+                - A Column object
+                - A tuple where the first element is a column object or a column name and the second element is the name of the aggregate function
+                - A list of the above
+
+                or a ``dict`` maps column names to aggregate function names.
+
+        Note:
+            The name of the aggregate function to compute must be a valid Snowflake `aggregate function
+            <https://docs.snowflake.com/en/sql-reference/functions-aggregation.html>`_.
+
+        See also:
+            - :meth:`DataFrame.agg`
+            - :meth:`DataFrame.group_by`
         """
-        if not isinstance(exprs, (list, tuple)):
-            exprs = [exprs]
-
+        exprs = parse_positional_args_to_list(*exprs)
         agg_exprs = []
-        for e in exprs:
-            if isinstance(e, Column):
-                agg_exprs.append(e._expression)
-            elif (
-                isinstance(e, tuple)
-                and isinstance(e[0], Column)
-                and isinstance(e[1], str)
-            ):
-                agg_exprs.append(_str_to_expr(e[1])(e[0]._expression))
-            else:
-                raise TypeError("Invalid input types for agg()")
+        if len(exprs) > 0 and isinstance(exprs[0], dict):
+            for k, v in exprs[0].items():
+                if not (isinstance(k, str) and isinstance(v, str)):
+                    raise TypeError(
+                        "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() "
+                        f"should contain only strings: got key-value pair with types {type(k), type(v)}"
+                    )
+                agg_exprs.append(_str_to_expr(v)(Column(k)._expression))
+        else:
+            for e in exprs:
+                if isinstance(e, Column):
+                    agg_exprs.append(e._expression)
+                elif (
+                    isinstance(e, (list, tuple))
+                    and len(e) == 2
+                    and isinstance(e[0], (Column, str))
+                    and isinstance(e[1], str)
+                ):
+                    col_expr = (
+                        e[0]._expression
+                        if isinstance(e[0], Column)
+                        else Column(e[0])._expression
+                    )
+                    agg_exprs.append(_str_to_expr(e[1])(col_expr))
+                else:
+                    raise TypeError(
+                        "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should "
+                        "contain only Column objects, or pairs of Column object (or column name) and strings."
+                    )
 
         return self._to_df(agg_exprs)
 
