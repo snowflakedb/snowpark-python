@@ -483,5 +483,6 @@ def test_is_snowflake_unquoted_suffix_case_insensitive():
     assert is_snowflake_unquoted_suffix_case_insensitive("_ab0c_9")
     assert is_snowflake_unquoted_suffix_case_insensitive("0ABC")
     # negative
+    assert is_snowflake_unquoted_suffix_case_insensitive('"ABC"') is False
     assert is_snowflake_unquoted_suffix_case_insensitive("ab c") is False
     assert is_snowflake_unquoted_suffix_case_insensitive("A BC") is False
