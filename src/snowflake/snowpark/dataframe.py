@@ -1940,6 +1940,7 @@ class DataFrame:
             lsuffix: suffix the overlapping columns of the left DataFrame in the result DataFrame when the left and right DataFrames have overlapping column names.
             rsuffix: suffix the overlapping columns of the right DataFrame in the result DataFrame when the left and right DataFrames have overlapping column names.
 
+        Note:
             If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
             If either one is not empty, the overlapping columns won't have random names.
 
@@ -2251,6 +2252,7 @@ class DataFrame:
             lsuffix: suffix the overlapping columns of the left DataFrame in the result DataFrame when the left and right DataFrames have overlapping column names.
             rsuffix: suffix the overlapping columns of the right DataFrame in the result DataFrame when the left and right DataFrames have overlapping column names.
 
+        Note:
             If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
             If either one is not empty, the overlapping columns won't have random names.
         """
