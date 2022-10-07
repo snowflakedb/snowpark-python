@@ -178,7 +178,7 @@ def _alias_if_needed(
     common_col_names: List[str],
 ):
     col = df.col(c)
-    unquoted = c.strip('"')
+    unquoted_column_name = c.strip('"')
     if c in common_col_names:
         if suffix:
             column_case_insensitive = is_snowflake_quoted_id_case_insensitive(c)
@@ -186,13 +186,13 @@ def _alias_if_needed(
                 is_snowflake_unquoted_suffix_case_insensitive(suffix)
             )
             return col.alias(
-                f'"{unquoted}{suffix.upper()}"'
+                f'"{unquoted_column_name}{suffix.upper()}"'
                 if column_case_insensitive and suffix_unqouted_case_insensitive
-                else f'''"{unquoted}{escape_quotes(suffix.strip('"'))}"'''
+                else f'''"{unquoted_column_name}{escape_quotes(suffix.strip('"'))}"'''
             )
-        return col.alias(f'"{prefix}{unquoted}"')
+        return col.alias(f'"{prefix}{unquoted_column_name}"')
     else:
-        return col.alias(f'"{unquoted}"')
+        return col.alias(f'"{unquoted_column_name}"')
 
 
 def _disambiguate(
