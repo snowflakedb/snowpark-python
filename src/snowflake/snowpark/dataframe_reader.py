@@ -401,10 +401,6 @@ class DataFrameReader:
         self._file_path = path
         self._file_type = format
 
-        # format_type_options = {}
-        # for k, v in self._cur_options.items():
-        #     if k not in ("PATTERN", "INFER_SCHEMA") and k not in COPY_OPTIONS:
-        #         format_type_options[k] = v
         format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
         self._infer_schema = (
