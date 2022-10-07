@@ -317,6 +317,7 @@ def test_drop_cache_result_try_finally(session):
         df_after_cached.collect()
     finally:
         cached.drop_table()
+        cached.drop_table()  # Noop. No exception is thrown if the table doesn't exist.
     with pytest.raises(
         SnowparkSQLException,
         match=f"Object '{cached.table_name}' does not exist or not authorized.",
