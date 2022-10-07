@@ -303,12 +303,11 @@ def zip_file_or_directory_to_stream(
     input_stream.close()
 
 
-def parse_positional_args_to_list(*inputs) -> List:
+def parse_positional_args_to_list(*inputs: Any, consider_tuple: bool = True) -> List:
     """Convert the positional arguments to a list."""
+    iter_types = (list, tuple, set) if consider_tuple else (list, set)
     if len(inputs) == 1:
-        return (
-            [*inputs[0]] if isinstance(inputs[0], (list, tuple, set)) else [inputs[0]]
-        )
+        return [*inputs[0]] if isinstance(inputs[0], iter_types) else [inputs[0]]
     else:
         return [*inputs]
 

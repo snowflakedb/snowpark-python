@@ -218,7 +218,7 @@ class RelationalGroupedDataFrame:
             - :meth:`DataFrame.agg`
             - :meth:`DataFrame.group_by`
         """
-        exprs = parse_positional_args_to_list(*exprs)
+        exprs = parse_positional_args_to_list(*exprs, consider_tuple=False)
         agg_exprs = []
         if len(exprs) > 0 and isinstance(exprs[0], dict):
             for k, v in exprs[0].items():
