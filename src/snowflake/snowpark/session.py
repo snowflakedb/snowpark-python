@@ -893,8 +893,8 @@ class Session:
                 fully-qualified object identifier (database name, schema name, and table name).
 
             Note:
-                If your table name has special characters, please use double quotes to mark it like ``session.table('"my table"')``.
-                For fully qualified names, you need to use double quotes separately like ``session.table('"my db"."my schema"."my.table"')``.
+                If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
+                For fully qualified names, you need to use double quotes separately like this, ``session.table('"my db"."my schema"."my.table"')``.
                 Refer to `Identifier Requirements <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
 
         Examples::
