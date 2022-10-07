@@ -147,6 +147,7 @@ def test_convert_value_to_sql_option():
     assert convert_value_to_sql_option("'hello world'") == "'hello world'"
     assert convert_value_to_sql_option("hello'world") == "'hello''world'"
     assert convert_value_to_sql_option("''") == "''"
+    assert convert_value_to_sql_option("'") == "''''"
     assert convert_value_to_sql_option("") == "''"
     assert convert_value_to_sql_option(1) == "1"
     assert convert_value_to_sql_option(None) == "None"
