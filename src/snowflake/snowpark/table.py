@@ -662,10 +662,10 @@ class Table(DataFrame):
             else result
         )
 
-    def drop_table(self):
+    def drop_table(self) -> None:
         """Drops the table from the Snowflake database.
 
-        Note that subsequent API such as ``select()``, ``collect()`` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
+        Note that subsequent operations such as :meth:`DataFrame.select`, :meth:`DataFrame.collect` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
         table in the Snowflake database no longer exists.
         """
         self._session.sql(f"drop table {self.table_name}").collect()
