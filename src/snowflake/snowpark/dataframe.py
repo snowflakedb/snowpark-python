@@ -3178,6 +3178,12 @@ class DataFrame:
             [Row(NUM=1), Row(NUM=2)]
             >>> df3.collect()
             [Row(NUM=1), Row(NUM=2), Row(NUM=3)]
+            >>> # Clean up the cached result
+            >>> df3.drop_table()
+            >>> # use context manager to clean up the cached result after it's use.
+            >>> with df2.cache_result() as df4:
+            ...     df4.collect()
+            [Row(NUM=1), Row(NUM=2)]
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
