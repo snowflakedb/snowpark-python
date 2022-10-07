@@ -126,7 +126,7 @@ COPY_OPTIONS = {
     "LOAD_UNCERTAIN_FILES",
 }
 
-OTHER_NON_FORMAT_TYPE_OPTIONS = {
+NON_FORMAT_TYPE_OPTIONS = {
     "PATTERN",
     "VALIDATION_MODE",
     "FILE_FORMAT",
@@ -633,6 +633,6 @@ def get_copy_into_table_options(
     for k, v in options.items():
         if k in COPY_OPTIONS:
             copy_options[k] = v
-        elif k not in OTHER_NON_FORMAT_TYPE_OPTIONS:
+        elif k not in NON_FORMAT_TYPE_OPTIONS:
             file_format_type_options[k] = v
     return file_format_type_options, copy_options
