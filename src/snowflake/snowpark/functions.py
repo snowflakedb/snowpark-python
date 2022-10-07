@@ -184,7 +184,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     Star,
 )
-from snowflake.snowpark._internal.analyzer.window_expression import Lag, Lead
+from snowflake.snowpark._internal.analyzer.window_expression import FirstValue, Lag, LastValue, Lead
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrLiteralStr,
@@ -2687,9 +2687,7 @@ def iff(
 
 def in_(
     cols: List[ColumnOrName],
-    *vals: Union[
-        "snowflake.snowpark.DataFrame", ColumnOrLiteral, List[ColumnOrLiteral]
-    ],
+    *vals: Union["snowflake.snowpark.DataFrame", LiteralType, Iterable[LiteralType]],
 ) -> Column:
     """Returns a conditional expression that you can pass to the filter or where methods to
     perform the equivalent of a WHERE ... IN query that matches rows containing a sequence of
@@ -2811,6 +2809,32 @@ def lead(
     c = _to_col_if_str(e, "lead")
     return Column(
         Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls)
+    )
+
+
+def last_value(
+    e: ColumnOrName,
+    ignore_nulls: bool = False,
+) -> Column:
+    """
+    Returns the last value within an ordered group of values.
+    """
+    c = _to_col_if_str(e, "last_value")
+    return Column(
+        LastValue(c._expression, None, None, ignore_nulls)
+    )
+
+
+def first_value(
+    e: ColumnOrName,
+    ignore_nulls: bool = False,
+) -> Column:
+    """
+    Returns the first value within an ordered group of values.
+    """
+    c = _to_col_if_str(e, "last_value")
+    return Column(
+        FirstValue(c._expression, None, None, ignore_nulls)
     )
 
 
@@ -3285,7 +3309,7 @@ def call_udf(
     """
 
     validate_object_name(udf_name)
-    return _call_function(udf_name, False, *args)
+    return _call_function(udf_name, False, *args, api_call_source="functions.call_udf")
 
 
 def call_table_function(
@@ -3388,10 +3412,17 @@ builtin = function
 
 
 def _call_function(
-    name: str, is_distinct: bool = False, *args: ColumnOrLiteral
+    name: str,
+    is_distinct: bool = False,
+    *args: ColumnOrLiteral,
+    api_call_source: Optional[str] = None,
 ) -> Column:
     expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
-    return Column(FunctionExpression(name, expressions, is_distinct=is_distinct))
+    return Column(
+        FunctionExpression(
+            name, expressions, is_distinct=is_distinct, api_call_source=api_call_source
+        )
+    )
 
 
 def sproc(

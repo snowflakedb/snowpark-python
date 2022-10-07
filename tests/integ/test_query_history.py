@@ -66,7 +66,8 @@ def test_query_history_no_actions(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="SNOW-533647: Support statement level parameters"
+    IS_IN_STORED_PROC,
+    reason="alter session is not supported in owner's right stored proc",
 )
 @pytest.mark.parametrize("use_scoped_temp_objects", [True, False])
 def test_query_history_executemany(session, use_scoped_temp_objects):

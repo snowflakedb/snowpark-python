@@ -81,6 +81,7 @@ from snowflake.snowpark.functions import (
     equal_nan,
     exp,
     factorial,
+    first_value,
     floor,
     get,
     get_ignore_case,
@@ -109,6 +110,7 @@ from snowflake.snowpark.functions import (
     json_extract_path_text,
     kurtosis,
     lag,
+    last_value,
     lead,
     left,
     length,
@@ -2729,6 +2731,28 @@ def test_lead(session, col_z):
             lead(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_z", ["Z", col("Z")])
+def test_last_value(session, col_z):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            last_value(col_z).over(Window.partition_by(col("X")).order_by(col("Z")))
+        ),
+        [Row(3), Row(3), Row(10), Row(10), Row(10)],
+        sort=False,
+    )
+
+
+@pytest.mark.parametrize("col_z", ["Z", col("Z")])
+def test_first_value(session, col_z):
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            first_value(col_z).over(Window.partition_by(col("X")).order_by(col("Z")))
+        ),
+        [Row(1), Row(1), Row(1), Row(1), Row(1)],
         sort=False,
     )
 

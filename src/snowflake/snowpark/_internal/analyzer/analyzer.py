@@ -136,6 +136,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowSpecDefinition,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark.types import VariantType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
@@ -233,6 +234,10 @@ class Analyzer:
             return alias_expression(self.analyze(expr.child), quoted_name)
 
         if isinstance(expr, FunctionExpression):
+            if expr.api_call_source is not None:
+                self.session._conn._telemetry_client.send_function_usage_telemetry(
+                    expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
+                )
             return function_expression(
                 expr.name,
                 [self.to_sql_avoid_offset(c) for c in expr.children],
@@ -246,11 +251,19 @@ class Analyzer:
                 return ",".join(list(map(self.analyze, expr.expressions)))
 
         if isinstance(expr, SnowflakeUDF):
+            if expr.api_call_source is not None:
+                self.session._conn._telemetry_client.send_function_usage_telemetry(
+                    expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
+                )
             return function_expression(
                 expr.udf_name, list(map(self.analyze, expr.children)), False
             )
 
         if isinstance(expr, TableFunctionExpression):
+            if expr.api_call_source is not None:
+                self.session._conn._telemetry_client.send_function_usage_telemetry(
+                    expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
+                )
             return self.table_function_expression_extractor(expr)
 
         if isinstance(expr, TableFunctionPartitionSpecDefinition):
@@ -312,7 +325,7 @@ class Analyzer:
                 expr.sql,
                 self.analyze(expr.expr),
                 expr.offset,
-                self.analyze(expr.default),
+                self.analyze(expr.default) if expr.default else None,
                 expr.ignore_nulls,
             )
 

@@ -2314,6 +2314,19 @@ def test_df_join_how_on_overwrite(session):
     Utils.check_answer(df, [Row(1, 1, "1"), Row(2, 3, "5")])
 
 
+def test_create_dataframe_special_char_column_name(session):
+    df1 = session.create_dataframe(
+        [[1, 2, 3], [1, 2, 3]], schema=["a b", '"abc"', "@%!^@&#"]
+    )
+    expected_columns = ['"a b"', '"abc"', '"@%!^@&#"']
+    assert df1.columns == expected_columns
+    Utils.check_answer(df1, [Row(1, 2, 3), Row(1, 2, 3)])
+
+    df2 = session.create_dataframe([[1, 2, 3], [1, 2, 3]], schema=expected_columns)
+    assert df2.columns == expected_columns
+    Utils.check_answer(df2, [Row(1, 2, 3), Row(1, 2, 3)])
+
+
 def test_df_join_suffix(session):
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "c"])
     df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(["a", "b", "c"])
