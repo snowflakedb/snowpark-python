@@ -2,6 +2,9 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 from snowflake.snowpark._internal.analyzer import analyzer_utils
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    convert_value_to_sql_option,
+)
 
 
 def test_generate_scoped_temp_objects():
@@ -136,3 +139,15 @@ def test_generate_scoped_temp_objects():
         )
         == f" CREATE    TABLE {temp_table_name}({temp_schema_name})"
     )
+
+
+def test_convert_value_to_sql_option():
+    assert convert_value_to_sql_option(True) == "True"
+    assert convert_value_to_sql_option("hello world") == "'hello world'"
+    assert convert_value_to_sql_option("'hello world'") == "'hello world'"
+    assert convert_value_to_sql_option("hello'world") == "'hello''world'"
+    assert convert_value_to_sql_option("''") == "''"
+    assert convert_value_to_sql_option("'") == "''''"
+    assert convert_value_to_sql_option("") == "''"
+    assert convert_value_to_sql_option(1) == "1"
+    assert convert_value_to_sql_option(None) == "None"
