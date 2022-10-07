@@ -130,6 +130,7 @@ OTHER_NON_FORMAT_TYPE_OPTIONS = {
     "PATTERN",
     "VALIDATION_MODE",
     "FILE_FORMAT",
+    "FORMAT_NAME",
     "FILES",
     # The following are not copy into command options but client side options.
     "INFER_SCHEMA",

@@ -309,11 +309,11 @@ def test_copy_csv_transformation(session, tmp_stage_name1, trans_columns):
             session.table(table_name),
             [
                 Row("1", "one", "1.2"),
-                Row("2", "two", "2.2"),
                 Row("1.2", "one", "1"),
+                Row("2", "two", "2.2"),
                 Row("2.2", "two", "2"),
             ],
-            sort=False,
+            sort=True,
         )
         # Copy data in order of $2, $3, $1 with FORCE = TRUE and skip_header = 1
         df.copy_into_table(
@@ -326,12 +326,12 @@ def test_copy_csv_transformation(session, tmp_stage_name1, trans_columns):
             session.table(table_name),
             [
                 Row("1", "one", "1.2"),
-                Row("2", "two", "2.2"),
                 Row("1.2", "one", "1"),
+                Row("2", "two", "2.2"),
                 Row("2.2", "two", "2"),
                 Row("two", "2.2", "2"),
             ],
-            sort=False,
+            sort=True,
         )
     finally:
         Utils.drop_table(session, table_name)
@@ -1134,3 +1134,97 @@ def test_copy_into_new_table_no_commit(session, tmp_stage_name1):
         assert not Utils.is_active_transaction(session)
     finally:
         Utils.drop_table(session, new_table_name)
+
+
+@pytest.mark.parametrize(
+    "trans_columns", [([col("$1"), col("$2"), col("$3")]), (["$1", "$2", "$3"])]
+)
+def test_copy_into_table_csv_using_options(session, trans_columns, tmp_stage_name1):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, table_name, "c1 String, c2 String, c3 String")
+    try:
+        assert session.table(table_name).count() == 0
+        df = session.read.schema(user_schema)
+        # copy data with $1, $2, $3
+        df.csv(test_file_on_stage).copy_into_table(
+            table_name, transformations=trans_columns
+        )
+        Utils.check_answer(
+            session.table(table_name),
+            [Row("1", "one", "1.2"), Row("2", "two", "2.2")],
+            sort=True,
+        )
+        # Copy data in order of $3, $2, $1 with FORCE = TRUE
+        df.option("transformations", trans_columns[::-1]).option("force", True).csv(
+            test_file_on_stage
+        ).copy_into_table(
+            table_name,
+        )
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row("1", "one", "1.2"),
+                Row("1.2", "one", "1"),
+                Row("2", "two", "2.2"),
+                Row("2.2", "two", "2"),
+            ],
+            sort=True,
+        )
+        # Copy data in order of $2, $3, $1 with FORCE = TRUE and skip_header = 1
+        df.option(
+            "transformations", [trans_columns[1], trans_columns[2], trans_columns[0]]
+        ).option("force", True).option("skip_header", 1).csv(
+            test_file_on_stage
+        ).copy_into_table(
+            table_name,
+        )
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row("1", "one", "1.2"),
+                Row("1.2", "one", "1"),
+                Row("2", "two", "2.2"),
+                Row("2.2", "two", "2"),
+                Row("two", "2.2", "2"),
+            ],
+            sort=True,
+        )
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+def test_copy_into_table_non_csv_using_options(session, tmp_stage_name1):
+    file_name = test_file_json
+    test_file_on_stage = f"@{tmp_stage_name1}/{file_name}"
+    assert_data = [
+        Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
+    ]
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, table_name, "c1 Variant")
+    try:
+        reader = session.read.option("transformations", [col("$1").as_("A")]).json(
+            test_file_on_stage
+        )
+        #  copy file in table
+        reader.copy_into_table(table_name)
+        Utils.check_answer(session.table(table_name), assert_data, sort=False)
+        # Copy again. Loaded file is skipped.
+        reader = session.read.option("transformations", [col("$1").as_("A")]).json(
+            test_file_on_stage
+        )
+        reader.copy_into_table(table_name, transformations=[col("$1").as_("A")])
+        Utils.check_answer(session.table(table_name), assert_data, sort=False)
+
+        # Copy again with force
+        reader = (
+            session.read.option("transformations", [col("$1").as_("A")])
+            .option("force", True)
+            .json(test_file_on_stage)
+        )
+        reader.copy_into_table(
+            table_name, transformations=[col("$1").as_("A")], force=True
+        )
+        Utils.check_answer(session.table(table_name), assert_data * 2, sort=False)
+    finally:
+        Utils.drop_table(session, table_name)
