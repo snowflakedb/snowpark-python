@@ -3147,6 +3147,13 @@ class DataFrame:
         All subsequent operations on the returned cached DataFrame are performed on the cached data
         and have no effect on the original DataFrame.
 
+        You can use :meth:`Table.drop_table` or the ``with`` statement to clean up the cached result when it's not needed.
+        Refer to the example code below.
+
+        Note:
+            An error will be thrown if a cached result is cleaned up and it's used again,
+            or any other DataFrames derived from the cached result are used again.
+
         Examples::
             >>> create_result = session.sql("create temp table RESULT (NUM int)").collect()
             >>> insert_result = session.sql("insert into RESULT values(1),(2)").collect()
@@ -3178,6 +3185,12 @@ class DataFrame:
             [Row(NUM=1), Row(NUM=2)]
             >>> df3.collect()
             [Row(NUM=1), Row(NUM=2), Row(NUM=3)]
+            >>> # Clean up the cached result
+            >>> df3.drop_table()
+            >>> # use context manager to clean up the cached result after it's use.
+            >>> with df2.cache_result() as df4:
+            ...     df4.collect()
+            [Row(NUM=1), Row(NUM=2)]
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
