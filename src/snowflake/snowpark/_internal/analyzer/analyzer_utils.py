@@ -717,16 +717,24 @@ def file_operation_statement(
     raise ValueError(f"Unsupported file operation type {command}")
 
 
+def convert_value_to_sql_option(value: Optional[Union[str, bool, int, float]]) -> str:
+    if isinstance(value, str):
+        if len(value) > 1 and is_single_quoted(value):
+            return value
+        else:
+            value = value.replace(
+                "'", "''"
+            )  # escape single quotes before adding a pair of quotes
+            return f"'{value}'"
+    else:
+        return str(value)
+
+
 def get_options_statement(options: Dict[str, Any]) -> str:
     return (
         SPACE
         + SPACE.join(
-            # TODO: this next line adds single quotes around the option values, this is
-            #  incorrect to do unless we escape single quotes in the middle of the string
-            # TODO: I can't find documentation that string's repr is guaranteed to be
-            #  surrounded by single quotes, if this ever changes we'll be broken
-            # repr("a") return "'a'" instead of "a". This is what we need for str values. For bool, int, float, repr(v) and str(v) return the same.
-            f"{k}{EQUALS}{v if (isinstance(v, str) and is_single_quoted(v)) else repr(v)}"
+            f"{k}{EQUALS}{convert_value_to_sql_option(v)}"
             for k, v in options.items()
             if v is not None
         )

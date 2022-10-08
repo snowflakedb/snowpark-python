@@ -108,6 +108,7 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     is_snowflake_quoted_id_case_insensitive,
     is_snowflake_unquoted_suffix_case_insensitive,
+    get_copy_into_table_options,
     is_sql_select_statement,
     parse_positional_args_to_list,
     random_name_for_temp_object,
@@ -2642,9 +2643,10 @@ class DataFrame:
         )
         validate_object_name(full_table_name)
         pattern = pattern or self._reader._cur_options.get("PATTERN")
-        format_type_options = format_type_options or self._reader._cur_options.get(
-            "FORMAT_TYPE_OPTIONS"
+        reader_format_type_options, reader_copy_options = get_copy_into_table_options(
+            self._reader._cur_options
         )
+        format_type_options = format_type_options or reader_format_type_options
         target_columns = target_columns or self._reader._cur_options.get(
             "TARGET_COLUMNS"
         )
@@ -2664,7 +2666,7 @@ class DataFrame:
             if transformations
             else None
         )
-        copy_options = copy_options or self._reader._cur_options.get("COPY_OPTIONS")
+        copy_options = copy_options or reader_copy_options
         validation_mode = validation_mode or self._reader._cur_options.get(
             "VALIDATION_MODE"
         )
@@ -3271,6 +3273,13 @@ class DataFrame:
         All subsequent operations on the returned cached DataFrame are performed on the cached data
         and have no effect on the original DataFrame.
 
+        You can use :meth:`Table.drop_table` or the ``with`` statement to clean up the cached result when it's not needed.
+        Refer to the example code below.
+
+        Note:
+            An error will be thrown if a cached result is cleaned up and it's used again,
+            or any other DataFrames derived from the cached result are used again.
+
         Examples::
             >>> create_result = session.sql("create temp table RESULT (NUM int)").collect()
             >>> insert_result = session.sql("insert into RESULT values(1),(2)").collect()
@@ -3302,6 +3311,12 @@ class DataFrame:
             [Row(NUM=1), Row(NUM=2)]
             >>> df3.collect()
             [Row(NUM=1), Row(NUM=2), Row(NUM=3)]
+            >>> # Clean up the cached result
+            >>> df3.drop_table()
+            >>> # use context manager to clean up the cached result after it's use.
+            >>> with df2.cache_result() as df4:
+            ...     df4.collect()
+            [Row(NUM=1), Row(NUM=2)]
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
