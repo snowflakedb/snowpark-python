@@ -103,6 +103,7 @@ from snowflake.snowpark._internal.utils import (
     deprecated,
     experimental,
     generate_random_alphanumeric,
+    get_copy_into_table_options,
     is_sql_select_statement,
     parse_positional_args_to_list,
     random_name_for_temp_object,
@@ -2524,9 +2525,10 @@ class DataFrame:
         )
         validate_object_name(full_table_name)
         pattern = pattern or self._reader._cur_options.get("PATTERN")
-        format_type_options = format_type_options or self._reader._cur_options.get(
-            "FORMAT_TYPE_OPTIONS"
+        reader_format_type_options, reader_copy_options = get_copy_into_table_options(
+            self._reader._cur_options
         )
+        format_type_options = format_type_options or reader_format_type_options
         target_columns = target_columns or self._reader._cur_options.get(
             "TARGET_COLUMNS"
         )
@@ -2546,7 +2548,7 @@ class DataFrame:
             if transformations
             else None
         )
-        copy_options = copy_options or self._reader._cur_options.get("COPY_OPTIONS")
+        copy_options = copy_options or reader_copy_options
         validation_mode = validation_mode or self._reader._cur_options.get(
             "VALIDATION_MODE"
         )
