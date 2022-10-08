@@ -60,10 +60,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
-    COPY_OPTIONS,
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
     generate_random_alphanumeric,
+    get_copy_into_table_options,
     is_sql_select_statement,
     random_name_for_temp_object,
 )
@@ -681,16 +681,7 @@ class SnowflakePlanBuilder:
         schema_to_cast: Optional[List[Tuple[str, str]]] = None,
         transformations: Optional[List[str]] = None,
     ):
-        copy_options = {}
-        format_type_options = {}
-
-        for k, v in options.items():
-            if k not in ("PATTERN", "INFER_SCHEMA"):
-                if k in COPY_OPTIONS:
-                    copy_options[k] = v
-                else:
-                    format_type_options[k] = v
-
+        format_type_options, copy_options = get_copy_into_table_options(options)
         pattern = options.get("PATTERN", None)
         # Can only infer the schema for parquet, orc and avro
         infer_schema = (
@@ -756,7 +747,7 @@ class SnowflakePlanBuilder:
                 None,
             )
         else:  # otherwise use COPY
-            if "FORCE" in copy_options and copy_options["FORCE"].lower() != "true":
+            if "FORCE" in copy_options and str(copy_options["FORCE"]).lower() != "true":
                 raise SnowparkClientExceptionMessages.PLAN_COPY_DONT_SUPPORT_SKIP_LOADED_FILES(
                     copy_options["FORCE"]
                 )

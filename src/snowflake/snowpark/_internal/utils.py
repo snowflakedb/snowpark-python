@@ -20,7 +20,18 @@ import zipfile
 from enum import Enum
 from json import JSONEncoder
 from random import choice
-from typing import IO, Any, Callable, Dict, Iterator, List, Literal, Optional, Type
+from typing import (
+    IO,
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+)
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -113,6 +124,20 @@ COPY_OPTIONS = {
     "TRUNCATECOLUMNS",
     "FORCE",
     "LOAD_UNCERTAIN_FILES",
+}
+
+NON_FORMAT_TYPE_OPTIONS = {
+    "PATTERN",
+    "VALIDATION_MODE",
+    "FILE_FORMAT",
+    "FORMAT_NAME",
+    "FILES",
+    # The following are not copy into SQL command options but client side options.
+    "INFER_SCHEMA",
+    "FORMAT_TYPE_OPTIONS",
+    "TARGET_COLUMNS",
+    "TRANSFORMATIONS",
+    "COPY_OPTIONS",
 }
 
 QUERY_TAG_STRING = "QUERY_TAG"
@@ -598,3 +623,16 @@ def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
             "list of Row objects for a non-SELECT statement, then convert it to a "
             "Pandas DataFrame."
         )
+
+
+def get_copy_into_table_options(
+    options: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    file_format_type_options = options.get("FORMAT_TYPE_OPTIONS", {})
+    copy_options = options.get("COPY_OPTIONS", {})
+    for k, v in options.items():
+        if k in COPY_OPTIONS:
+            copy_options[k] = v
+        elif k not in NON_FORMAT_TYPE_OPTIONS:
+            file_format_type_options[k] = v
+    return file_format_type_options, copy_options

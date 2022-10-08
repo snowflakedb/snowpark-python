@@ -20,9 +20,9 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
-    COPY_OPTIONS,
     INFER_SCHEMA_FORMAT_TYPES,
     TempObjectType,
+    get_copy_into_table_options,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.dataframe import DataFrame
@@ -401,10 +401,7 @@ class DataFrameReader:
         self._file_path = path
         self._file_type = format
 
-        format_type_options = {}
-        for k, v in self._cur_options.items():
-            if k not in ("PATTERN", "INFER_SCHEMA") and k not in COPY_OPTIONS:
-                format_type_options[k] = v
+        format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
         self._infer_schema = (
             self._cur_options.get("INFER_SCHEMA", True)
