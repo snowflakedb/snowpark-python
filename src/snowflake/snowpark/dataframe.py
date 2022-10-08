@@ -1937,8 +1937,8 @@ class DataFrame:
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
                 it overrides ``how``.
-            lsuffix: suffix the overlapping columns of the left DataFrame in the result DataFrame when the left and right DataFrames have overlapping column names.
-            rsuffix: suffix the overlapping columns of the right DataFrame in the result DataFrame when the left and right DataFrames have overlapping column names.
+            lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
+            rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
 
         Note:
             If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
@@ -2249,8 +2249,8 @@ class DataFrame:
 
         Args:
             right: the right :class:`DataFrame` to join.
-            lsuffix: suffix the overlapping columns of the left DataFrame in the result DataFrame when the left and right DataFrames have overlapping column names.
-            rsuffix: suffix the overlapping columns of the right DataFrame in the result DataFrame when the left and right DataFrames have overlapping column names.
+            lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
+            rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
 
         Note:
             If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
