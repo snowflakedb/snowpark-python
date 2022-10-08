@@ -132,7 +132,7 @@ NON_FORMAT_TYPE_OPTIONS = {
     "FILE_FORMAT",
     "FORMAT_NAME",
     "FILES",
-    # The following are not copy into command options but client side options.
+    # The following are not copy into SQL command options but client side options.
     "INFER_SCHEMA",
     "FORMAT_TYPE_OPTIONS",
     "TARGET_COLUMNS",
