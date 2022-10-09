@@ -23,7 +23,10 @@ from typing import (
 
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas
-from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    escape_quotes,
+    quote_name,
+)
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Cross,
     Except,
@@ -103,6 +106,8 @@ from snowflake.snowpark._internal.utils import (
     deprecated,
     experimental,
     generate_random_alphanumeric,
+    is_snowflake_quoted_id_case_insensitive,
+    is_snowflake_unquoted_suffix_case_insensitive,
     get_copy_into_table_options,
     is_sql_select_statement,
     parse_positional_args_to_list,
@@ -166,13 +171,29 @@ def _get_unaliased(col_name: str) -> List[str]:
     return unaliased
 
 
-def _alias_if_needed(df: "DataFrame", c: str, prefix: str, common_col_names: List[str]):
+def _alias_if_needed(
+    df: "DataFrame",
+    c: str,
+    prefix: Optional[str],
+    suffix: Optional[str],
+    common_col_names: List[str],
+):
     col = df.col(c)
-    unquoted = c.strip('"')
+    unquoted_col_name = c.strip('"')
     if c in common_col_names:
-        return col.alias(f'"{prefix}{unquoted}"')
+        if suffix:
+            column_case_insensitive = is_snowflake_quoted_id_case_insensitive(c)
+            suffix_unqouted_case_insensitive = (
+                is_snowflake_unquoted_suffix_case_insensitive(suffix)
+            )
+            return col.alias(
+                f'"{unquoted_col_name}{suffix.upper()}"'
+                if column_case_insensitive and suffix_unqouted_case_insensitive
+                else f'''"{unquoted_col_name}{escape_quotes(suffix.strip('"'))}"'''
+            )
+        return col.alias(f'"{prefix}{unquoted_col_name}"')
     else:
-        return col.alias(f'"{unquoted}"')
+        return col.alias(f'"{unquoted_col_name}"')
 
 
 def _disambiguate(
@@ -180,7 +201,14 @@ def _disambiguate(
     rhs: "DataFrame",
     join_type: JoinType,
     using_columns: List[str],
+    *,
+    lsuffix: str = "",
+    rsuffix: str = "",
 ) -> Tuple["DataFrame", "DataFrame"]:
+    if lsuffix == rsuffix and lsuffix:
+        raise ValueError(
+            f"'lsuffix' and 'rsuffix' must be different if they're not empty. You set {lsuffix!r} to both."
+        )
     # Normalize the using columns.
     normalized_using_columns = {quote_name(c) for c in using_columns}
     #  Check if the LHS and RHS have columns in common. If they don't just return them as-is. If
@@ -199,8 +227,9 @@ def _disambiguate(
         # We use the session of the LHS DataFrame to report this telemetry
         lhs._session._conn._telemetry_client.send_alias_in_join_telemetry()
 
-    lhs_prefix = _generate_prefix("l")
-    rhs_prefix = _generate_prefix("r")
+    suffix_provided = lsuffix or rsuffix
+    lhs_prefix = _generate_prefix("l") if not suffix_provided else ""
+    rhs_prefix = _generate_prefix("r") if not suffix_provided else ""
 
     lhs_remapped = lhs.select(
         [
@@ -208,6 +237,7 @@ def _disambiguate(
                 lhs,
                 name,
                 lhs_prefix,
+                lsuffix,
                 [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
             )
             for name in lhs_names
@@ -216,7 +246,7 @@ def _disambiguate(
 
     rhs_remapped = rhs.select(
         [
-            _alias_if_needed(rhs, name, rhs_prefix, common_col_names)
+            _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
             for name in rhs_names
         ]
     )
@@ -1877,6 +1907,9 @@ class DataFrame:
         right: "DataFrame",
         on: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
         how: Optional[str] = None,
+        *,
+        lsuffix: str = "",
+        rsuffix: str = "",
         **kwargs,
     ) -> "DataFrame":
         """Performs a join of the specified type (``how``) with the current
@@ -1905,6 +1938,13 @@ class DataFrame:
                 You can also use ``join_type`` keyword to specify this condition.
                 Note that to avoid breaking changes, currently when ``join_type`` is specified,
                 it overrides ``how``.
+            lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
+            rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+
+        Note:
+            If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
+            If either one is not empty, the overlapping columns won't have random names.
+
 
         Examples::
             >>> from snowflake.snowpark.functions import col
@@ -1957,6 +1997,22 @@ class DataFrame:
             |5        |6        |
             ---------------------
             <BLANKLINE>
+            >>> # use lsuffix and rsuffix to resolve duplicating column names
+            >>> mdf1.join(mdf2, (mdf1["a"] < mdf2["a"]) & (mdf1["b"] == mdf2["b"]), lsuffix="_left", rsuffix="_right").show()
+            -----------------------------------------------
+            |"A_LEFT"  |"B_LEFT"  |"A_RIGHT"  |"B_RIGHT"  |
+            -----------------------------------------------
+            |5         |6         |7          |6          |
+            -----------------------------------------------
+            <BLANKLINE>
+            >>> mdf1.join(mdf2, (mdf1["a"] < mdf2["a"]) & (mdf1["b"] == mdf2["b"]), rsuffix="_right").show()
+            -------------------------------------
+            |"A"  |"B"  |"A_RIGHT"  |"B_RIGHT"  |
+            -------------------------------------
+            |5    |6    |7          |6          |
+            -------------------------------------
+            <BLANKLINE>
+
 
         Note:
             When performing chained operations, this method will not work if there are
@@ -2012,7 +2068,11 @@ class DataFrame:
                 )
 
             return self._join_dataframes(
-                right, using_columns, create_join_type(join_type or "inner")
+                right,
+                using_columns,
+                create_join_type(join_type or "inner"),
+                lsuffix=lsuffix,
+                rsuffix=rsuffix,
             )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
@@ -2146,7 +2206,13 @@ class DataFrame:
         return self._with_plan(TableFunctionJoin(self._plan, func_expr))
 
     @df_api_usage
-    def cross_join(self, right: "DataFrame") -> "DataFrame":
+    def cross_join(
+        self,
+        right: "DataFrame",
+        *,
+        lsuffix: str = "",
+        rsuffix: str = "",
+    ) -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
         :class:`DataFrame` and another :class:`DataFrame` (``right``).
 
@@ -2169,21 +2235,52 @@ class DataFrame:
             |3    |4    |7    |8    |
             -------------------------
             <BLANKLINE>
+            >>> df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> df4 = session.create_dataframe([[5, 6], [7, 8]], schema=["a", "b"])
+            >>> df3.cross_join(df4, lsuffix="_l", rsuffix="_r").sort("a_l", "b_l", "a_r", "b_r").show()
+            ---------------------------------
+            |"A_L"  |"B_L"  |"A_R"  |"B_R"  |
+            ---------------------------------
+            |1      |2      |5      |6      |
+            |1      |2      |7      |8      |
+            |3      |4      |5      |6      |
+            |3      |4      |7      |8      |
+            ---------------------------------
+            <BLANKLINE>
 
         Args:
             right: the right :class:`DataFrame` to join.
+            lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
+            rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+
+        Note:
+            If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
+            If either one is not empty, the overlapping columns won't have random names.
         """
-        return self._join_dataframes_internal(right, create_join_type("cross"), None)
+        return self._join_dataframes_internal(
+            right,
+            create_join_type("cross"),
+            None,
+            lsuffix=lsuffix,
+            rsuffix=rsuffix,
+        )
 
     def _join_dataframes(
         self,
         right: "DataFrame",
         using_columns: Union[Column, List[str]],
         join_type: JoinType,
+        *,
+        lsuffix: str = "",
+        rsuffix: str = "",
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self._join_dataframes_internal(
-                right, join_type, join_exprs=using_columns
+                right,
+                join_type,
+                join_exprs=using_columns,
+                lsuffix=lsuffix,
+                rsuffix=rsuffix,
             )
 
         if isinstance(join_type, (LeftSemi, LeftAnti)):
@@ -2192,9 +2289,22 @@ class DataFrame:
             for c in using_columns:
                 quoted = quote_name(c)
                 join_cond = join_cond & (self.col(quoted) == right.col(quoted))
-            return self._join_dataframes_internal(right, join_type, join_cond)
+            return self._join_dataframes_internal(
+                right,
+                join_type,
+                join_cond,
+                lsuffix=lsuffix,
+                rsuffix=rsuffix,
+            )
         else:
-            lhs, rhs = _disambiguate(self, right, join_type, using_columns)
+            lhs, rhs = _disambiguate(
+                self,
+                right,
+                join_type,
+                using_columns,
+                lsuffix=lsuffix,
+                rsuffix=rsuffix,
+            )
             join_logical_plan = Join(
                 lhs._plan,
                 rhs._plan,
@@ -2213,9 +2323,17 @@ class DataFrame:
             return self._with_plan(join_logical_plan)
 
     def _join_dataframes_internal(
-        self, right: "DataFrame", join_type: JoinType, join_exprs: Optional[Column]
+        self,
+        right: "DataFrame",
+        join_type: JoinType,
+        join_exprs: Optional[Column],
+        *,
+        lsuffix: str = "",
+        rsuffix: str = "",
     ) -> "DataFrame":
-        (lhs, rhs) = _disambiguate(self, right, join_type, [])
+        (lhs, rhs) = _disambiguate(
+            self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
+        )
         expression = join_exprs._expression if join_exprs is not None else None
         join_logical_plan = Join(
             lhs._plan,
@@ -2703,7 +2821,13 @@ class DataFrame:
         prefix = _generate_prefix("a")
         child = self.select(
             [
-                _alias_if_needed(self, attr.name, prefix, common_col_names)
+                _alias_if_needed(
+                    self,
+                    attr.name,
+                    prefix,
+                    suffix=None,
+                    common_col_names=common_col_names,
+                )
                 for attr in self._output
             ]
         )
