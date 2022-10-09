@@ -53,6 +53,8 @@ SNOWFLAKE_QUOTED_ID_PATTERN = '("([^"]|""){1,255}")'
 SNOWFLAKE_ID_PATTERN = (
     f"({SNOWFLAKE_UNQUOTED_ID_PATTERN}|{SNOWFLAKE_QUOTED_ID_PATTERN})"
 )
+SNOWFLAKE_CASE_INSENSITIVE_QUOTED_ID_PATTERN = r'("([A-Z_][A-Z0-9_\$]{0,255})")'
+SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_PATTERN = r"([a-zA-Z0-9_\$]{0,255})"
 
 # Valid name can be:
 #   identifier
@@ -61,6 +63,13 @@ SNOWFLAKE_ID_PATTERN = (
 #   identifier..identifier
 SNOWFLAKE_OBJECT_RE_PATTERN = re.compile(
     f"^(({SNOWFLAKE_ID_PATTERN}\\.){{0,2}}|({SNOWFLAKE_ID_PATTERN}\\.\\.)){SNOWFLAKE_ID_PATTERN}$"
+)
+
+SNOWFLAKE_CASE_INSENSITIVE_QUOTED_ID_RE_PATTERN = re.compile(
+    SNOWFLAKE_CASE_INSENSITIVE_QUOTED_ID_PATTERN
+)
+SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_RE_PATTERN = re.compile(
+    SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_PATTERN
 )
 
 # "%?" is for table stage
@@ -192,6 +201,17 @@ def get_application_name() -> str:
 
 def is_single_quoted(name: str) -> bool:
     return name.startswith("'") and name.endswith("'")
+
+
+def is_snowflake_quoted_id_case_insensitive(name: str) -> bool:
+    return SNOWFLAKE_CASE_INSENSITIVE_QUOTED_ID_RE_PATTERN.fullmatch(name) is not None
+
+
+def is_snowflake_unquoted_suffix_case_insensitive(name: str) -> bool:
+    return (
+        SNOWFLAKE_CASE_INSENSITIVE_UNQUOTED_SUFFIX_RE_PATTERN.fullmatch(name)
+        is not None
+    )
 
 
 def unwrap_single_quote(name: str) -> str:
