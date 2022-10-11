@@ -275,9 +275,7 @@ class Session:
         self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
-        self.sql_simplifier_enabled: bool = (
-            False  #: Whether the generated SQL is flattened or not.
-        )
+        self._sql_simplifier_enabled: bool = False
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -318,6 +316,19 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+
+    @property
+    def sql_simplifier_enabled(self) -> bool:
+        return self._sql_simplifier_enabled
+
+    @sql_simplifier_enabled.setter
+    def sql_simplifier_enabled(self, value: bool) -> None:
+        """Set to ``True`` to use the SQL simplifier.
+        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled."""
+        self._conn._telemetry_client.send_sql_simplifier_telemetry(
+            self._session_id, value
+        )
+        self._sql_simplifier_enabled = value
 
     def cancel_all(self) -> None:
         """
