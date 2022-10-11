@@ -364,7 +364,7 @@ class TelemetryClient:
             "copy_pattern", TelemetryField.FUNC_CAT_COPY.value
         )
 
-    def send_sql_simplifier_telemetry(self, session_id, sql_simplifier_enabled):
+    def send_sql_simplifier_telemetry(self, session_id: str, sql_simplifier_enabled: bool) -> None:
         message = {
             **self._create_basic_telemetry_data(
                 TelemetryField.TYPE_FUNCTION_USAGE.value
