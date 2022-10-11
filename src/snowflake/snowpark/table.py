@@ -438,7 +438,7 @@ class Table(DataFrame):
         result = new_df._internal_collect_with_tag(
             statement_params=statement_params,
             block=block,
-            data_type=snowflake.snowpark.async_job._AsyncDataType.UPDATE,
+            data_type=snowflake.snowpark.async_job._AsyncResultType.UPDATE,
         )
         return _get_update_result(result) if block else result
 
@@ -538,7 +538,7 @@ class Table(DataFrame):
         result = new_df._internal_collect_with_tag(
             statement_params=statement_params,
             block=block,
-            data_type=snowflake.snowpark.async_job._AsyncDataType.DELETE,
+            data_type=snowflake.snowpark.async_job._AsyncResultType.DELETE,
         )
         return _get_delete_result(result) if block else result
 
@@ -645,7 +645,7 @@ class Table(DataFrame):
         result = new_df._internal_collect_with_tag(
             statement_params=statement_params,
             block=block,
-            data_type=snowflake.snowpark.async_job._AsyncDataType.MERGE,
+            data_type=snowflake.snowpark.async_job._AsyncResultType.MERGE,
         )
         if not block:
             result._inserted = inserted
