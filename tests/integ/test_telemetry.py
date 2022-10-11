@@ -502,7 +502,10 @@ def test_execute_queries_api_calls(session):
     df.collect()
     # API calls don't change after query is executed
     assert df._plan.api_calls == [
-        {"name": "Session.range"},
+        {
+            "name": "Session.range",
+            "sql_simplifier_enabled": session.sql_simplifier_enabled,
+        },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
     ]
@@ -510,7 +513,10 @@ def test_execute_queries_api_calls(session):
     df._internal_collect_with_tag()
     # API calls don't change after query is executed
     assert df._plan.api_calls == [
-        {"name": "Session.range"},
+        {
+            "name": "Session.range",
+            "sql_simplifier_enabled": session.sql_simplifier_enabled,
+        },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
     ]
@@ -518,7 +524,10 @@ def test_execute_queries_api_calls(session):
     df.to_local_iterator()
     # API calls don't change after query is executed
     assert df._plan.api_calls == [
-        {"name": "Session.range"},
+        {
+            "name": "Session.range",
+            "sql_simplifier_enabled": session.sql_simplifier_enabled,
+        },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
     ]
@@ -526,7 +535,10 @@ def test_execute_queries_api_calls(session):
     df.to_pandas()
     # API calls don't change after query is executed
     assert df._plan.api_calls == [
-        {"name": "Session.range"},
+        {
+            "name": "Session.range",
+            "sql_simplifier_enabled": session.sql_simplifier_enabled,
+        },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
     ]
@@ -534,7 +546,10 @@ def test_execute_queries_api_calls(session):
     df.to_pandas_batches()
     # API calls don't change after query is executed
     assert df._plan.api_calls == [
-        {"name": "Session.range"},
+        {
+            "name": "Session.range",
+            "sql_simplifier_enabled": session.sql_simplifier_enabled,
+        },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
     ]
@@ -665,7 +680,10 @@ def test_dataframe_stat_functions_api_calls(session):
 
     crosstab = df.stat.crosstab("empid", "month")
     assert crosstab._plan.api_calls == [
-        {"name": "Session.create_dataframe[values]"},
+        {
+            "name": "Session.create_dataframe[values]",
+            "sql_simplifier_enabled": session.sql_simplifier_enabled,
+        },
         {
             "name": "DataFrameStatFunctions.crosstab",
             "subcalls": [
@@ -676,7 +694,12 @@ def test_dataframe_stat_functions_api_calls(session):
         },
     ]
     # check to make sure that the original DF is unchanged
-    assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
+    assert df._plan.api_calls == [
+        {
+            "name": "Session.create_dataframe[values]",
+            "sql_simplifier_enabled": session.sql_simplifier_enabled,
+        }
+    ]
 
 
 def test_dataframe_na_functions_api_calls(session):
@@ -908,3 +931,22 @@ def test_udtf_call_and_invoke(session, resources_path):
         "func_name": "UserDefinedTableFunction.__call__",
         "category": "usage",
     }
+
+
+def test_sql_simplifier_enabled(session):
+    telemetry_tracker = TelemetryDataTracker(session)
+    original_value = session.sql_simplifier_enabled
+    try:
+
+        def set_sql_simplifier_enabled():
+            session.sql_simplifier_enabled = True
+
+        data, _ = telemetry_tracker.extract_telemetry_log_data(
+            -1, set_sql_simplifier_enabled
+        )
+        assert data == {
+            TelemetryField.SESSION_ID.value: session._session_id,
+            TelemetryField.SQL_SIMPLIFIER_ENABLED.value: True,
+        }
+    finally:
+        session.sql_simplifier_enabled = original_value
