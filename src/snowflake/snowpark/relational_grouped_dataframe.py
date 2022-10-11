@@ -218,7 +218,19 @@ class RelationalGroupedDataFrame:
             - :meth:`DataFrame.agg`
             - :meth:`DataFrame.group_by`
         """
-        exprs = parse_positional_args_to_list(*exprs, consider_tuple=False)
+
+        def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
+            return (
+                len(e) == 2
+                and isinstance(e[0], (Column, str))
+                and isinstance(e[1], str)
+            )
+
+        exprs = parse_positional_args_to_list(*exprs)
+        # special case for single list or tuple
+        if is_valid_tuple_for_agg(exprs):
+            exprs = [exprs]
+
         agg_exprs = []
         if len(exprs) > 0 and isinstance(exprs[0], dict):
             for k, v in exprs[0].items():
@@ -232,12 +244,7 @@ class RelationalGroupedDataFrame:
             for e in exprs:
                 if isinstance(e, Column):
                     agg_exprs.append(e._expression)
-                elif (
-                    isinstance(e, (list, tuple))
-                    and len(e) == 2
-                    and isinstance(e[0], (Column, str))
-                    and isinstance(e[1], str)
-                ):
+                elif isinstance(e, (list, tuple)) and is_valid_tuple_for_agg(e):
                     col_expr = (
                         e[0]._expression
                         if isinstance(e[0], Column)

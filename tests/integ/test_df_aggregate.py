@@ -5,7 +5,7 @@
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, count, sum as sum_
 from tests.utils import Utils
 
 
@@ -247,6 +247,13 @@ def test_df_agg_invalid_args_in_list(session):
         in str(ex_info)
     )
 
+    with pytest.raises(TypeError) as ex_info:
+        df.agg(["first", "count", "invalid_arg"])
+    assert (
+        "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should contain only"
+        in str(ex_info)
+    )
+
     # pairs with invalid type
     with pytest.raises(TypeError) as ex_info:
         df.agg([("first", 123)])
@@ -271,3 +278,16 @@ def test_df_agg_empty_args(session):
     )
 
     Utils.assert_rows(df.agg({}).collect(), [Row(1, 4)])
+
+
+def test_df_agg_varargs_tuple_list(session):
+    df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
+        ["first", "second"]
+    )
+    Utils.check_answer(df.agg(count("first")), [Row(4)])
+    Utils.check_answer(df.agg(count("first"), sum_("second")), [Row(4, 19)])
+    Utils.check_answer(df.agg(("first", "count")), [Row(4)])
+    Utils.check_answer(df.agg(("first", "count"), ("second", "sum")), [Row(4, 19)])
+    Utils.check_answer(df.agg(["first", "count"]), [Row(4)])
+    Utils.check_answer(df.agg(["first", "count"], ["second", "sum"]), [Row(4, 19)])
+    Utils.check_answer(df.agg(["first", "count"], ("second", "sum")), [Row(4, 19)])
