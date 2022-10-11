@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     normalize_path,
+    private_preview,
     unwrap_stage_location_single_quote,
     validate_object_name,
     warning,
@@ -486,3 +487,29 @@ def test_is_snowflake_unquoted_suffix_case_insensitive():
     assert is_snowflake_unquoted_suffix_case_insensitive('"ABC"') is False
     assert is_snowflake_unquoted_suffix_case_insensitive("ab c") is False
     assert is_snowflake_unquoted_suffix_case_insensitive("A BC") is False
+
+
+def test_private_preview_decorator(caplog):
+    extra_warning = "Extra warning."
+    extra_doc = "Extra doc."
+    expected_warning_text = f"test_private_preview_decorator.<locals>.foo() is in private preview since 0.1. Do not use it in production. {extra_warning}"
+
+    @private_preview(
+        version="0.1", extra_warning_text=extra_warning, extra_doc_string=extra_doc
+    )
+    def foo():
+        pass
+
+    caplog.clear()
+    warning_dict.clear()
+    try:
+        with caplog.at_level(logging.WARNING):
+            foo()
+        assert extra_doc in foo.__doc__
+        assert expected_warning_text in caplog.messages
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            foo()
+        assert expected_warning_text not in caplog.text
+    finally:
+        warning_dict.clear()
