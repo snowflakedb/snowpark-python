@@ -398,6 +398,11 @@ def test_create_async_job(session, create_async_job_from_query_id):
 
     assert async_job.result("none") is None
 
+    with pytest.raises(
+        ValueError, match="'invalid_type' is not a valid _AsyncResultType"
+    ):
+        async_job.result("invalid_type")
+
 
 def test_create_async_job_negative(session):
     query_id = session.sql("select to_number('not_a_number')").collect_nowait().query_id
