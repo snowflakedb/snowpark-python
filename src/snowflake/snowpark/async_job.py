@@ -212,8 +212,6 @@ class AsyncJob:
                     _logger.debug(f"{error_message}: {ex}")
                     self._can_query_be_retrieved = False
                     return None
-                except Exception:
-                    raise
                 else:
                     if len(result) == 0:
                         _logger.debug(f"{error_message}: result is empty")
@@ -293,14 +291,14 @@ class AsyncJob:
     ]:
         """
         Blocks and waits until the query associated with this instance finishes, then returns query
-        results, this functions acts like executing query in a synchronous way. The data type of
-        returned query results is determined by how you create this :class:`AsyncJob` instance.
-        For example, if this instance is returned by :meth:`DataFrame.collect_nowait`, you will get
-        a list of :class:`Row` s from this method.
+        results. This acts like executing query in a synchronous way. The data type of returned
+        query results is determined by how you create this :class:`AsyncJob` instance. For example,
+        if this instance is returned by :meth:`DataFrame.collect_nowait`, you will get a list of
+        :class:`Row` s from this method.
 
         Args:
-            result_type: Specifies the data type of returned query results. Currently it only
-                supports the following return data types:
+            result_type: (Experimental) specifies the data type of returned query results. Currently
+                it only supports the following return data types:
 
                 - "row": returns a list of :class:`Row` objects, which is the same as the return
                   type of :meth:`DataFrame.collect`.

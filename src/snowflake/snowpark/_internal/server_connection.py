@@ -317,7 +317,7 @@ class ServerConnection:
         is_ddl_on_temp_object: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
-        plan: Optional[
+        async_job_plan: Optional[
             SnowflakePlan
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
@@ -360,9 +360,9 @@ class ServerConnection:
             return AsyncJob(
                 results_cursor["queryId"],
                 query,
-                plan.session,
+                async_job_plan.session,
                 data_type,
-                plan.post_actions,
+                async_job_plan.post_actions,
                 **kwargs,
             )
 
@@ -488,7 +488,7 @@ $$"""
                     is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
                     block=block,
                     data_type=data_type,
-                    plan=plan,
+                    async_job_plan=plan,
                     **kwargs,
                 )
 
@@ -513,7 +513,7 @@ $$"""
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,
-                            plan=plan,
+                            async_job_plan=plan,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (

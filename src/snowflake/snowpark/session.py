@@ -1490,11 +1490,15 @@ class Session:
     @experimental(version="0.12.0")
     def create_async_job(self, query_id: str) -> AsyncJob:
         """
-        Creates an :class:`AsnycJob` from a query ID.
+        Creates an :class:`AsyncJob` from a query ID.
 
         See also:
-            :class:`AsnycJob`
+            :class:`AsyncJob`
         """
+        if is_in_stored_procedure():
+            raise NotImplementedError(
+                "Async query is not supported in stored procedure yet"
+            )
         return AsyncJob(query_id, None, self)
 
     def get_current_account(self) -> Optional[str]:
