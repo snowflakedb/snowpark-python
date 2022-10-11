@@ -236,6 +236,8 @@ def test_async_save_as_table(session):
     )
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     async_job = df.write.save_as_table(table_name, create_temp_table=True, block=False)
+    while not async_job.is_done():
+        sleep(1)
     assert async_job.result() is None
     table_df = session.table(table_name)
     Utils.check_answer(table_df, df)
