@@ -432,10 +432,13 @@ def test_get_query_from_async_job(session, create_async_job_from_query_id):
     assert async_job.query == query_text
 
 
-def test_get_query_from_async_job_negative(session):
+def test_get_query_from_async_job_negative(session, caplog):
     invalid_query_id = "negative_test_invalid_query_id"
     async_job = session.create_async_job(invalid_query_id)
-    assert async_job.query is None
+
+    with caplog.at_level(logging.DEBUG):
+        assert async_job.query is None
+        assert "result is empty" in caplog.text
 
 
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
