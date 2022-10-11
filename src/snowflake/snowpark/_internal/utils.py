@@ -579,7 +579,7 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
 
 
 def func_decorator(
-    decorator_type: Literal["deprecated", "experimental"],
+    decorator_type: Literal["deprecated", "experimental", "in private preview"],
     *,
     version: str,
     extra_warning_text: str,
