@@ -57,6 +57,9 @@ class TelemetryField(Enum):
     FUNC_CAT_CREATE = "create"
     # performance categories
     PERF_CAT_UPLOAD_FILE = "upload_file"
+    # sql simplifier
+    SESSION_ID = "session_id"
+    SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -137,6 +140,7 @@ def df_collect_api_telemetry(func):
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
         ]
+        api_calls[0]["sql_simplifier_enabled"] = args[0]._session.sql_simplifier_enabled
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
@@ -359,3 +363,15 @@ class TelemetryClient:
         self.send_function_usage_telemetry(
             "copy_pattern", TelemetryField.FUNC_CAT_COPY.value
         )
+
+    def send_sql_simplifier_telemetry(self, session_id: str, sql_simplifier_enabled: bool) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_FUNCTION_USAGE.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.SQL_SIMPLIFIER_ENABLED.value: True,
+            },
+        }
+        self.send(message)
