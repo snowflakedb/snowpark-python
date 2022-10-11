@@ -206,7 +206,7 @@ class AsyncJob:
                         self._session.table_function("information_schema.query_history")
                         .where(col("query_id") == self.query_id)
                         .select("query_text")
-                        .collect()
+                        ._internal_collect_with_tag_no_telemetry()
                     )
                 except SnowparkSQLException as ex:
                     _logger.debug(f"{error_message}: {ex}")
