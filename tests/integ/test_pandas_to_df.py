@@ -12,6 +12,14 @@ from pandas.testing import assert_frame_equal
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import SnowparkPandasException
+from snowflake.snowpark.types import (
+    BooleanType,
+    FloatType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 from tests.utils import Utils
 
 # @pytest.fixture(scope="module", autouse=True)
@@ -293,6 +301,88 @@ def test_create_dataframe_from_pandas(session):
     # df = session.create_dataframe(pd)
     # results = df.to_pandas()
     # assert_frame_equal(results, pd, check_dtype=False)
+
+
+def test_create_dataframe_from_pandas_with_schema(session):
+    pd = PandasDF(
+        [
+            (1, 4.5, "t1", True),
+            (2, 7.5, "t2", False),
+            (3, 10.5, "t3", True),
+        ],
+        columns=[
+            "id".upper(),
+            "foot_size".upper(),
+            "shoe_model".upper(),
+            "received".upper(),
+        ],
+    )
+
+    schema = StructType(
+        [
+            StructField("ID", IntegerType()),
+            StructField("FOOT_SIZE", FloatType()),
+            StructField("SHOE_MODEL", StringType()),
+            StructField("RECEIVED", BooleanType()),
+        ]
+    )
+    df = session.create_dataframe(pd, schema)
+    results = df.to_pandas()
+    assert_frame_equal(results, pd, check_dtype=False)
+
+
+def test_create_dataframe_from_pandas_with_schema_negative(session):
+    pd = PandasDF(
+        [
+            (1, 4.5, "t1", True),
+            (2, 7.5, "t2", False),
+            (3, 10.5, "t3", True),
+        ],
+        columns=[
+            "id".upper(),
+            "foot_size".upper(),
+            "shoe_model".upper(),
+            "received".upper(),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="Expects StructType for schema"):
+        session.create_dataframe(pd, ["ID", "FOOT_SIZE", "SHOE_MODEL", "RECEIVED"])
+
+    # Missing columns
+    schema = StructType(
+        [
+            StructField("ID", IntegerType()),
+            StructField("FOOT_SIZE", IntegerType()),
+            StructField("SHOE_MODEL", IntegerType()),
+        ]
+    )
+    with pytest.raises(ProgrammingError, match="invalid identifier"):
+        session.create_dataframe(pd, schema)
+
+    # Mismatching names
+    schema = StructType(
+        [
+            StructField("ID", IntegerType()),
+            StructField("FOOT_SIZE", FloatType()),
+            StructField("SHOE_MODEL", StringType()),
+            StructField("WRONG_NAME", BooleanType()),
+        ]
+    )
+    with pytest.raises(ProgrammingError, match="invalid identifier"):
+        session.create_dataframe(pd, schema)
+
+    # Mismatching types
+    schema = StructType(
+        [
+            StructField("ID", IntegerType()),
+            StructField("FOOT_SIZE", IntegerType()),
+            StructField("SHOE_MODEL", IntegerType()),
+            StructField("RECEIVED", IntegerType()),
+        ]
+    )
+    with pytest.raises(ProgrammingError, match="Failed to cast"):
+        session.create_dataframe(pd, schema)
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])

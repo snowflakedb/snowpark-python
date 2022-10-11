@@ -22,6 +22,7 @@ from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    attribute_to_schema_string,
     escape_quotes,
     quote_name,
 )
@@ -1217,7 +1218,8 @@ class Session:
                 be a :class:`list`, :class:`tuple` or pandas DataFrame. Every element in
                 ``data`` will constitute a row in the DataFrame.
             schema: A :class:`~snowflake.snowpark.types.StructType` containing names and
-                data types of columns, or a list of column names, or ``None``.
+                data types of columns, or a list of column names, or ``None``. If ``data``
+                is pandas DataFrame, ``schema`` has to be ``StructType`` if specified.
                 When ``schema`` is a list of column names or ``None``, the schema of the
                 DataFrame will be inferred from the data across all rows. To improve
                 performance, provide a schema. This avoids the need to infer data types
@@ -1274,14 +1276,24 @@ class Session:
             sf_database = self._conn._get_current_parameter("database", quoted=False)
             sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
+            if schema:
+                if not isinstance(schema, StructType):
+                    raise ValueError(
+                        f"Expects StructType for schema if specified when creating snowpark dataframe from pandas dataframe. Got {type(schema)}"
+                    )
+
+                self._run_query(
+                    f"create or replace temporary table {table_name} ({attribute_to_schema_string(schema._to_attributes())})"
+                )
+
             t = self.write_pandas(
                 data,
                 table_name,
                 database=sf_database,
                 schema=sf_schema,
                 quote_identifiers=True,
-                auto_create_table=True,
-                create_temp_table=True,
+                auto_create_table=schema is None,
+                table_type="temporary",
             )
             set_api_call_source(t, "Session.create_dataframe[pandas]")
             return t
