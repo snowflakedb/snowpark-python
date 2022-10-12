@@ -1918,7 +1918,10 @@ class DataFrame:
 
         Args:
             right: The other :class:`DataFrame` to join.
-            on: A column name or a :class:`Column` object or a list of them to be used for the join. When a list of column names are specified, this method assumes the names are present in both dataframes. You can use keyword ``using_columns`` to specify this condition. Note that to avoid breaking changes, currently when `using_columns`` is specified, it overrides ``on``.
+            on: A column name or a :class:`Column` object or a list of them to be used for the join.
+                When a list of column names are specified, this method assumes the named columns are present in both dataframes.
+                You can use keyword ``using_columns`` to specify this condition. Note that to avoid breaking changes,
+                currently when `using_columns`` is specified, it overrides ``on``.
             how: We support the following join types:
 
                 - Inner join: "inner" (the default value)
