@@ -194,7 +194,7 @@ class DataFrameWriter:
             snowflake_plan,
             _statement_params=statement_params,
             block=block,
-            data_type=_AsyncResultType.NONE_TYPE,
+            data_type=_AsyncResultType.NO_RESULT,
         )
         return result if not block else None
 

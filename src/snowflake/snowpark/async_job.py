@@ -28,7 +28,7 @@ class _AsyncResultType(Enum):
     PANDAS = "pandas"
     PANDAS_BATCH = "pandas_batches"
     COUNT = "count"
-    NONE_TYPE = "none"
+    NO_RESULT = "no_result"
     UPDATE = "update"
     DELETE = "delete"
     MERGE = "merge"
@@ -161,11 +161,21 @@ class AsyncJob:
             [Row(D=1, B=2)]
 
     Note:
-        - This feature is experimental since 0.10.0. Methods in this class are subject to change in future releases.
+        - This feature is experimental since 0.10.0. Methods in this class are subject to change in
+          future releases.
         - If a dataframe is associated with multiple queries,
-            + if you use :meth:`Session.create_dataframe` to create a dataframe from a large amount of local data and evaluate this dataframe asynchronously, data will still be loaded into Snowflake synchronously, and only fetching data from Snowflake again will be performed asynchronously.
-            + otherwise, multiple queries will be wrapped into a `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_ and executed asynchronously as one query.
-        - Temporary objects (e.g., tables) might be created when evaluating dataframes and they will be dropped automatically after all queries finish when calling a synchronous API. When you evaluate dataframes asynchronously, temporary objects will only be dropped after calling :meth:`result`.
+            + if you use :meth:`Session.create_dataframe` to create a dataframe from a large amount
+              of local data and evaluate this dataframe asynchronously, data will still be loaded
+              into Snowflake synchronously, and only fetching data from Snowflake again will be
+              performed asynchronously.
+            + otherwise, multiple queries will be wrapped into a
+             `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_
+             and executed asynchronously as one query.
+        - Temporary objects (e.g., tables) might be created when evaluating dataframes and they will
+          be dropped automatically after all queries finish when calling a synchronous API. When you
+          evaluate dataframes asynchronously, temporary objects will only be dropped after calling
+          :meth:`result`.
+        - This feature is currently not supported in Snowflake Python stored procedures.
     """
 
     def __init__(
@@ -279,7 +289,7 @@ class AsyncJob:
     def result(
         self,
         result_type: Optional[
-            Literal["row", "row_iterator", "pandas", "pandas_batches", "none"]
+            Literal["row", "row_iterator", "pandas", "pandas_batches", "no_result"]
         ] = None,
     ) -> Union[
         List[Row],
@@ -287,6 +297,9 @@ class AsyncJob:
         "pandas.DataFrame",
         Iterator["pandas.DataFrame"],
         int,
+        "snowflake.snowpark.MergeResult",
+        "snowflake.snowpark.UpdateResult",
+        "snowflake.snowpark.DeleteResult",
         None,
     ]:
         """
@@ -308,23 +321,23 @@ class AsyncJob:
                   :meth:`DataFrame.to_pandas`.
                 - "pandas_batches": returns an iterator of ``pandas.DataFrame`` s, which is the same
                   as the return type of :meth:`DataFrame.to_pandas_batches`.
-                - "none": returns ``None``. You can use this option when you intend to execute the
-                  query but don't care about query results (the client will not fetch results
+                - "no_result": returns ``None``. You can use this option when you intend to execute
+                  the query but don't care about query results (the client will not fetch results
                   either).
 
                 When you create an :class:`AsyncJob` by :meth:`Session.create_async_job` and
                 retrieve results with this method, ``result_type`` should be specified to determine
-                the result data type. Otherwise, it will return a list of :class:`Row` objects.
+                the result data type. Otherwise, it will return a list of :class:`Row` objects by default.
                 When you create an :class:`AsyncJob` by action methods in :class:`DataFrame` and
                 other classes, ``result_type`` is optional and it will return results with
                 corresponding type. If you still provide a value for it, this value will overwrite
                 the original result data type.
         """
         result_type = (
-            _AsyncResultType(result_type) if result_type else self._result_type
+            _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
         self._cursor.get_results_from_sfqid(self.query_id)
-        if result_type == _AsyncResultType.NONE_TYPE:
+        if result_type == _AsyncResultType.NO_RESULT:
             result = None
         elif result_type == _AsyncResultType.PANDAS:
             result = self._session._conn._to_data_or_iter(

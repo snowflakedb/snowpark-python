@@ -398,7 +398,7 @@ def test_create_async_job(session, create_async_job_from_query_id):
     res = list(res)
     assert isinstance(res[0], pd.DataFrame)
 
-    assert async_job.result("none") is None
+    assert async_job.result("no_result") is None
 
     with pytest.raises(
         ValueError, match="'invalid_type' is not a valid _AsyncResultType"
