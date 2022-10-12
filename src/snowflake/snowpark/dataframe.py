@@ -106,9 +106,9 @@ from snowflake.snowpark._internal.utils import (
     deprecated,
     experimental,
     generate_random_alphanumeric,
+    get_copy_into_table_options,
     is_snowflake_quoted_id_case_insensitive,
     is_snowflake_unquoted_suffix_case_insensitive,
-    get_copy_into_table_options,
     is_sql_select_statement,
     parse_positional_args_to_list,
     random_name_for_temp_object,
@@ -1916,15 +1916,9 @@ class DataFrame:
         DataFrame and another DataFrame (``right``) on a list of columns
         (``on``).
 
-        The method assumes that the columns in ``how`` have the same meaning
-        in the left and right DataFrames.
-
         Args:
             right: The other :class:`DataFrame` to join.
-            on: A column name or a :class:`Column` object or a list of them to be
-                used for the join. You can also use ``using_columns`` keyword to specify
-                this condition. Note that to avoid breaking changes, currently when
-                ``using_columns`` is specified, it overrides ``on``.
+            on: A column name or a :class:`Column` object or a list of them to be used for the join. When a list of column names are specified, this method assumes the names are present in both dataframes. You can use keyword ``using_columns`` to specify this condition. Note that to avoid breaking changes, currently when `using_columns`` is specified, it overrides ``on``.
             how: We support the following join types:
 
                 - Inner join: "inner" (the default value)
@@ -1942,21 +1936,20 @@ class DataFrame:
             rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
 
         Note:
-            If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
-            If either one is not empty, the overlapping columns won't have random names.
-
+            When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
+            You can reference to these randomly named columns using Column.alias (See the first usage in Examples).
 
         Examples::
             >>> from snowflake.snowpark.functions import col
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
-            >>> df1.join(df2, df1.a == df2.a).select(df1.a.alias("a"), df1.b, df2.c).show()
-            -------------------
-            |"A"  |"B"  |"C"  |
-            -------------------
-            |1    |2    |7    |
-            |3    |4    |8    |
-            -------------------
+            >>> df1.join(df2, df1.a == df2.a).select(df1.a.alias("a_1"), df2.a.alias("a_2"), df1.b, df2.c).show()
+            -----------------------------
+            |"A_1"  |"A_2"  |"B"  |"C"  |
+            -----------------------------
+            |1      |1      |2    |7    |
+            |3      |3      |4    |8    |
+            -----------------------------
             <BLANKLINE>
             >>> # refer a single column "a"
             >>> df1.join(df2, "a").select(df1.a.alias("a"), df1.b, df2.c).show()
@@ -2089,7 +2082,7 @@ class DataFrame:
         References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
         Example 1
-            Lateral join a table function by using the name and parameters directly:
+            Lateral join a table function by usin g the name and parameters directly:
 
             >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
             >>> df.join_table_function("split_to_table", df["addresses"], lit(" ")).show()
