@@ -283,6 +283,7 @@ def test_create_dataframe_from_pandas(session):
     results = df.to_pandas()
     assert_frame_equal(results, pd, check_dtype=False)
 
+    # TODO(SNOW-677098): Uncomment this test
     # pd = PandasDF(
     #     [
     #         (1, 4.5, "t1", True, datetime.now()),
@@ -304,6 +305,8 @@ def test_create_dataframe_from_pandas(session):
 
 
 def test_create_dataframe_from_pandas_with_schema(session):
+    # TODO(SNOW-677098): Add timestamp test
+    # TODO(SNOW-677100): Add complex type test
     pd = PandasDF(
         [
             (1, 4.5, "t1", True),

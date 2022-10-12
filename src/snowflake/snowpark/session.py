@@ -1219,11 +1219,11 @@ class Session:
                 ``data`` will constitute a row in the DataFrame.
             schema: A :class:`~snowflake.snowpark.types.StructType` containing names and
                 data types of columns, or a list of column names, or ``None``. If ``data``
-                is pandas DataFrame, ``schema`` has to be ``StructType`` if specified.
-                When ``schema`` is a list of column names or ``None``, the schema of the
-                DataFrame will be inferred from the data across all rows. To improve
-                performance, provide a schema. This avoids the need to infer data types
-                with large data sets.
+                is a ``pandas.DataFrame``, ``schema`` has to be a
+                :class:`~snowflake.snowpark.types.StructType` if specified. When ``schema``
+                is a list of column names or ``None``, the schema of the DataFrame will
+                be inferred from the data across all rows. To improve performance, provide
+                a schema. This avoids the need to infer data types with large data sets.
 
         Examples::
 
@@ -1251,6 +1251,10 @@ class Session:
             >>> import pandas as pd
             >>> session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])).collect()
             [Row(a=1, b=2, c=3, d=4)]
+            >>> from snowflake.snowpark.types import IntegerType, StructField, StructType
+            >>> schema = StructType([StructField("A", IntegerType()), StructField("B", IntegerType())])
+            >>> session.create_dataframe(pd.DataFrame([(1, 2)], columns=["a", "b"])).collect()
+            [Row(a=1, b=2)]
         """
         if data is None:
             raise ValueError("data cannot be None.")
@@ -1286,15 +1290,21 @@ class Session:
                     f"create or replace temporary table {table_name} ({attribute_to_schema_string(schema._to_attributes())})"
                 )
 
-            t = self.write_pandas(
-                data,
-                table_name,
-                database=sf_database,
-                schema=sf_schema,
-                quote_identifiers=True,
-                auto_create_table=schema is None,
-                table_type="temporary",
-            )
+            try:
+                t = self.write_pandas(
+                    data,
+                    table_name,
+                    database=sf_database,
+                    schema=sf_schema,
+                    quote_identifiers=True,
+                    auto_create_table=schema is None,
+                    # auto_create_table=True,
+                    table_type="temporary",
+                )
+            except Exception as e:
+                self._run_query(f"drop table if exists {table_name}")
+                raise e
+
             set_api_call_source(t, "Session.create_dataframe[pandas]")
             return t
 
