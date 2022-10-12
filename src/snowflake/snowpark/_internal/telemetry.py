@@ -33,6 +33,7 @@ class TelemetryField(Enum):
     TYPE_PERFORMANCE_DATA = "snowpark_performance_data"
     TYPE_FUNCTION_USAGE = "snowpark_function_usage"
     TYPE_SESSION_CREATED = "snowpark_session_created"
+    TYPE_SQL_SIMPLIFIER_ENABLED = "snowpark_sql_simplifier_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -140,6 +141,7 @@ def df_collect_api_telemetry(func):
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
         ]
+        # The first api call will indicate whether sql simplifier is enabled.
         api_calls[0]["sql_simplifier_enabled"] = args[0]._session.sql_simplifier_enabled
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
@@ -364,10 +366,12 @@ class TelemetryClient:
             "copy_pattern", TelemetryField.FUNC_CAT_COPY.value
         )
 
-    def send_sql_simplifier_telemetry(self, session_id: str, sql_simplifier_enabled: bool) -> None:
+    def send_sql_simplifier_telemetry(
+        self, session_id: str, sql_simplifier_enabled: bool
+    ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                TelemetryField.TYPE_FUNCTION_USAGE.value
+                TelemetryField.TYPE_SQL_SIMPLIFIER_ENABLED.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
