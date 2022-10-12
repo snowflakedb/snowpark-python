@@ -163,14 +163,15 @@ class AsyncJob:
     Note:
         - This feature is experimental since 0.10.0. Methods in this class are subject to change in
           future releases.
-        - If a dataframe is associated with multiple queries,
+        - If a dataframe is associated with multiple queries:
+
             + if you use :meth:`Session.create_dataframe` to create a dataframe from a large amount
               of local data and evaluate this dataframe asynchronously, data will still be loaded
               into Snowflake synchronously, and only fetching data from Snowflake again will be
               performed asynchronously.
             + otherwise, multiple queries will be wrapped into a
-             `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_
-             and executed asynchronously as one query.
+              `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_
+              and executed asynchronously as one query.
         - Temporary objects (e.g., tables) might be created when evaluating dataframes and they will
           be dropped automatically after all queries finish when calling a synchronous API. When you
           evaluate dataframes asynchronously, temporary objects will only be dropped after calling
