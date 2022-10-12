@@ -33,6 +33,7 @@ class TelemetryDataTracker:
         self.session = session
 
     def extract_telemetry_log_data(self, index, partial_func) -> Tuple[Dict, Any]:
+        """TODO: this needs to return telemetry type for other test code to assert whether telemetry type is correct."""
         telemetry_obj = self.session._conn._telemetry_client.telemetry
 
         result = partial_func()
