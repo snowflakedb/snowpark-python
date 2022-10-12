@@ -10,19 +10,16 @@ from typing import Iterable
 
 from snowflake.snowpark._internal.utils import private_preview
 
-_DEFER_IMPLEMENTATION_ERR_MSG = (
-    "The file operations is implemented in Snowflake servers"
-)
+_DEFER_IMPLEMENTATION_ERR_MSG = "SnowflakeFile currently only works in UDF and Stored Procedures. It doesn't work locally yet."
 
 
 class SnowflakeFile:
     """
-    SnowflakeFile provides developers an interface to operate files as a Python IOBase-like object in UDFs.
-    SnowflakeFile supports most operations supported by Python IOBase
-    For more information about the class, please check ...(docs TBD)
+    SnowflakeFile provides an interface to operate on files as Python IOBase-like objects in UDFs and stored procedures.
+    SnowflakeFile supports most operations supported by Python IOBase objects.
+    A SnowflakeFile object can be used as a Python IOBase object.
 
-    The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create an instance of SnowflakeFile. It can be used as a python file object.
-    The input type can be a column name as a :class:`str`, or a :class:`~snowflake.snowpark.Column` object.
+    The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a SnowflakeFile object.
     """
 
     def __init__(
@@ -30,7 +27,7 @@ class SnowflakeFile:
         file_location: str,
         mode: str = "r",
     ) -> None:
-        # The URL/URI of the file to be opened and wrapped by the SnowflakeFile instance.
+        # The URL/URI of the file to be opened by the SnowflakeFile object
         self._file_location: str = file_location
         # The mode of file stream
         self._mode: str = mode
@@ -49,11 +46,11 @@ class SnowflakeFile:
         mode: str = "r",
     ) -> SnowflakeFile:
         """
-        Returns a :class:`~snowflake.snowpark.file.SnowflakeFile` that works like a Python file object(IOBase) and as a wrapper for IO stream of remote/local files.
+        Returns a :class:`~snowflake.snowpark.file.SnowflakeFile` object that works like a Python IOBase object and as a wrapper for an IO stream of remote files.
 
         Args:
-            file_location: A string of file location. It may include a remote URL/URI or a local file location.
-            mode: A string used to mark the type of IO stream.
+            file_location: A string of file location. It can be a remote URL/URI.
+            mode: A string used to mark the type of an IO stream.
         """
         return cls(file_location, mode)
 
