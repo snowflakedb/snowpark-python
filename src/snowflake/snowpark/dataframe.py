@@ -1940,7 +1940,7 @@ class DataFrame:
 
         Note:
             When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
-            You can reference to these randomly named columns using Column.alias (See the first usage in Examples).
+            You can reference to these randomly named columns using :meth:`~snowflake.snowpark.Column.alias`(See the first usage in Examples).
 
         Examples::
             >>> from snowflake.snowpark.functions import col
