@@ -348,7 +348,7 @@ def zip_file_or_directory_to_stream(
     input_stream.close()
 
 
-def parse_positional_args_to_list(*inputs) -> List:
+def parse_positional_args_to_list(*inputs: Any) -> List:
     """Convert the positional arguments to a list."""
     if len(inputs) == 1:
         return (
