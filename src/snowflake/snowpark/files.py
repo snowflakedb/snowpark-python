@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import array
+from io import RawIOBase
 from typing import Iterable
 
 from snowflake.snowpark._internal.utils import private_preview
@@ -13,7 +14,7 @@ from snowflake.snowpark._internal.utils import private_preview
 _DEFER_IMPLEMENTATION_ERR_MSG = "SnowflakeFile currently only works in UDF and Stored Procedures. It doesn't work locally yet."
 
 
-class SnowflakeFile:
+class SnowflakeFile(RawIOBase):
     """
     SnowflakeFile provides an interface to operate on files as Python IOBase-like objects in UDFs and stored procedures.
     SnowflakeFile supports most operations supported by Python IOBase objects.
@@ -27,6 +28,7 @@ class SnowflakeFile:
         file_location: str,
         mode: str = "r",
     ) -> None:
+        super().__init__()
         # The URL/URI of the file to be opened by the SnowflakeFile object
         self._file_location: str = file_location
         # The mode of file stream
@@ -34,7 +36,6 @@ class SnowflakeFile:
 
         # The attributes supported as part of IOBase
         self.buffer = None
-        self.closed = None
         self.encoding = None
         self.errors = None
 
@@ -46,7 +47,8 @@ class SnowflakeFile:
         mode: str = "r",
     ) -> SnowflakeFile:
         """
-        Returns a :class:`~snowflake.snowpark.file.SnowflakeFile` object that works like a Python IOBase object and as a wrapper for an IO stream of remote files.
+        Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
+        In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
 
         Args:
             file_location: A string of file location. It can be a remote URL/URI.
@@ -55,7 +57,10 @@ class SnowflakeFile:
         return cls(file_location, mode)
 
     def close(self) -> None:
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        """
+        In UDF and Stored Procedures, the close func closes the IO Stream included in the SnowflakeFile.
+        """
+        return
 
     def detach(self) -> None:
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
