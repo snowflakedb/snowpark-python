@@ -2085,7 +2085,7 @@ class DataFrame:
         References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
         Example 1
-            Lateral join a table function by usin g the name and parameters directly:
+            Lateral join a table function by using the name and parameters directly:
 
             >>> df = session.sql("select 'James' as name, 'address1 address2 address3' as addresses")
             >>> df.join_table_function("split_to_table", df["addresses"], lit(" ")).show()
