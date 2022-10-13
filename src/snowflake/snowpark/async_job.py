@@ -2,41 +2,55 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 from enum import Enum
-from typing import Iterator, List, Union
+from logging import getLogger
+from typing import Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
+from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
+from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
     experimental,
     result_set_to_iter,
     result_set_to_rows,
 )
+from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 
+_logger = getLogger(__name__)
 
-class _AsyncDataType(Enum):
-    PANDAS = "pandas"
+
+class _AsyncResultType(Enum):
     ROW = "row"
-    ITERATOR = "iterator"
-    PANDAS_BATCH = "pandas_batch"
+    ITERATOR = "row_iterator"
+    PANDAS = "pandas"
+    PANDAS_BATCH = "pandas_batches"
     COUNT = "count"
-    NONE_TYPE = "no_type"
+    NO_RESULT = "no_result"
     UPDATE = "update"
     DELETE = "delete"
     MERGE = "merge"
 
 
 class AsyncJob:
-    """Provides a way to track an asynchronous query in Snowflake. A :class:`DataFrame` object can be evaluated asynchronously and an :class:`AsyncJob` object will be returned. With this instance, you can:
-    - retrieve results;
-    - check the query status (still running or done);
-    - cancel the running query;
-    - retrieve the query ID and perform other operations on this query ID manually.
-    :class:`AsyncJob` is created by action methods in :class:`DataFrame`. All functions in :class:`DataFrame` with a suffix of ``_nowait`` execute
-    asynchronously and create an :class:`AsyncJob` instance. They are also equivalent to corresponding functions in :class:`DataFrame` that
-    set ``block=False``. Therefore, to use it, you need to create a dataframe first. Here we demonstrate how to do that:
+    """
+    Provides a way to track an asynchronous query in Snowflake. A :class:`DataFrame` object can be
+    evaluated asynchronously and an :class:`AsyncJob` object will be returned. With this instance,
+    you can:
 
+        - retrieve results;
+        - check the query status (still running or done);
+        - cancel the running query;
+        - retrieve the query ID and perform other operations on this query ID manually.
+
+    :class:`AsyncJob` can be created by :meth:`Session.create_async_job` or action methods in
+    :class:`DataFrame` and other classes. All methods in :class:`DataFrame` with a suffix of
+    ``_nowait`` execute asynchronously and create an :class:`AsyncJob` instance. They are also
+    equivalent to corresponding functions in :class:`DataFrame` and other classes that set
+    ``block=False``. Therefore, to use it, you need to create a dataframe first. Here we demonstrate
+    how to do that:
 
     First, we create a dataframe:
         >>> from snowflake.snowpark.functions import when_matched, when_not_matched
@@ -129,36 +143,102 @@ class AsyncJob:
             >>> time2 < time1
             True
 
+    Example 10
+        Creating an :class:`AsyncJob` from an existing query ID, retrieving results and converting it back to a :class:`DataFrame`:
+
+            >>> from snowflake.snowpark.functions import col
+            >>> query_id = session.sql("select 1 as A, 2 as B, 3 as C").collect_nowait().query_id
+            >>> async_job = session.create_async_job(query_id)
+            >>> async_job.query
+            'select 1 as A, 2 as B, 3 as C'
+            >>> async_job.result()
+            [Row(A=1, B=2, C=3)]
+            >>> async_job.result(result_type="pandas")
+               A  B  C
+            0  1  2  3
+            >>> df = async_job.to_df()
+            >>> df.select(col("A").as_("D"), "B").collect()
+            [Row(D=1, B=2)]
+
     Note:
-        - This feature is experimental since 0.10.0. Methods in this class are subject to change in future releases.
-        - If a dataframe is associated with multiple queries,
-            + if you use :meth:`Session.create_dataframe` to create a dataframe from a large amount of local data and evaluate this dataframe asynchronously, data will still be loaded into Snowflake synchronously, and only fetching data from Snowflake again will be performed asynchronously.
-            + otherwise, multiple queries will be wrapped into a `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_ and executed asynchronously as one query.
-        - Temporary objects (e.g., tables) might be created when evaluating dataframes and they will be dropped automatically after all queries finish when calling a synchronous API. When you evaluate dataframes asynchronously, temporary objects will only be dropped after calling :meth:`result`.
+        - This feature is experimental since 0.10.0. Methods in this class are subject to change in
+          future releases.
+        - If a dataframe is associated with multiple queries:
+
+            + if you use :meth:`Session.create_dataframe` to create a dataframe from a large amount
+              of local data and evaluate this dataframe asynchronously, data will still be loaded
+              into Snowflake synchronously, and only fetching data from Snowflake again will be
+              performed asynchronously.
+            + otherwise, multiple queries will be wrapped into a
+              `Snowflake Anonymous Block <https://docs.snowflake.com/en/developer-guide/snowflake-scripting/blocks.html#using-an-anonymous-block>`_
+              and executed asynchronously as one query.
+        - Temporary objects (e.g., tables) might be created when evaluating dataframes and they will
+          be dropped automatically after all queries finish when calling a synchronous API. When you
+          evaluate dataframes asynchronously, temporary objects will only be dropped after calling
+          :meth:`result`.
+        - This feature is currently not supported in Snowflake Python stored procedures.
     """
 
     def __init__(
         self,
         query_id: str,
-        query: str,
-        server_connection: "snowflake.snowpark._internal.server_connection.ServerConnection",
-        data_type: _AsyncDataType = _AsyncDataType.ROW,
+        query: Optional[str],
+        session: "snowflake.snowpark.session.Session",
+        result_type: _AsyncResultType = _AsyncResultType.ROW,
+        post_actions: Optional[List[Query]] = None,
         **kwargs,
     ) -> None:
-        #: The query ID of the executed query
-        self.query_id: str = query_id
-        #: The SQL text of of the executed query
-        self.query: str = query
-        self._conn = server_connection._conn
-        self._cursor = self._conn.cursor()
-        self._data_type = data_type
+        self.query_id: str = query_id  #: The query ID of the executed query
+        self._query = query
+        self._can_query_be_retrieved = True
+        self._session = session
+        self._cursor = session._conn._conn.cursor()
+        self._result_type = result_type
+        self._post_actions = post_actions if post_actions else []
         self._parameters = kwargs
         self._result_meta = None
-        self._server_connection = server_connection
         self._inserted = False
         self._updated = False
         self._deleted = False
-        self._plan = None
+
+    @property
+    @experimental(version="0.10.0")
+    def query(self) -> Optional[str]:
+        """
+        The SQL text of of the executed query. Returns ``None`` if it cannot be retrieved from Snowflake.
+        """
+        if not self._can_query_be_retrieved:
+            return None
+        else:
+            error_message = f"query cannot be retrieved from query ID {self.query_id}"
+            if not self._query:
+                try:
+                    result = (
+                        self._session.table_function("information_schema.query_history")
+                        .where(col("query_id") == self.query_id)
+                        .select("query_text")
+                        ._internal_collect_with_tag_no_telemetry()
+                    )
+                except SnowparkSQLException as ex:
+                    _logger.debug(f"{error_message}: {ex}")
+                    self._can_query_be_retrieved = False
+                    return None
+                else:
+                    if len(result) == 0:
+                        _logger.debug(f"{error_message}: result is empty")
+                        self._can_query_be_retrieved = False
+                        return None
+                    else:
+                        self._query = str(result[0][0])
+
+            return self._query
+
+    @experimental(version="0.12.0")
+    def to_df(self) -> "snowflake.snowpark.dataframe.DataFrame":
+        """
+        Returns a :class:`DataFrame` built from the result of this asynchronous job.
+        """
+        return self._session.sql(result_scan_statement(self.query_id))
 
     @experimental(version="0.10.0")
     def is_done(self) -> bool:
@@ -166,9 +246,8 @@ class AsyncJob:
         Checks the status of the query associated with this instance and returns a bool value
         indicating whether the query has finished.
         """
-        status = self._conn.get_query_status(self.query_id)
-        is_running = self._conn.is_still_running(status)
-
+        status = self._session._conn._conn.get_query_status(self.query_id)
+        is_running = self._session._conn._conn.is_still_running(status)
         return not is_running
 
     @experimental(version="0.10.0")
@@ -178,17 +257,19 @@ class AsyncJob:
         self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
 
     def _table_result(
-        self, result_data: Union[List[tuple], List[dict]]
+        self,
+        result_data: Union[List[tuple], List[dict]],
+        result_type: _AsyncResultType,
     ) -> Union[
         "snowflake.snowpark.MergeResult",
         "snowflake.snowpark.UpdateResult",
         "snowflake.snowpark.DeleteResult",
     ]:
-        if self._data_type == _AsyncDataType.UPDATE:
+        if result_type == _AsyncResultType.UPDATE:
             return snowflake.snowpark.UpdateResult(
                 int(result_data[0][0]), int(result_data[0][1])
             )
-        elif self._data_type == _AsyncDataType.DELETE:
+        elif result_type == _AsyncResultType.DELETE:
             return snowflake.snowpark.DeleteResult(int(result_data[0][0]))
         else:
             idx = 0
@@ -206,45 +287,87 @@ class AsyncJob:
             )
 
     @experimental(version="0.10.0")
-    def result(self) -> Union[List[Row], "pandas.DataFrame", Iterator[Row], int, None]:
+    def result(
+        self,
+        result_type: Optional[
+            Literal["row", "row_iterator", "pandas", "pandas_batches", "no_result"]
+        ] = None,
+    ) -> Union[
+        List[Row],
+        Iterator[Row],
+        "pandas.DataFrame",
+        Iterator["pandas.DataFrame"],
+        int,
+        "snowflake.snowpark.MergeResult",
+        "snowflake.snowpark.UpdateResult",
+        "snowflake.snowpark.DeleteResult",
+        None,
+    ]:
         """
-        Blocks and waits until the query associated with this instance finishes, then returns query results, this
-        functions acts like execute query in a synchronous way. The data type of returned results is determined by how
-        you create this :class:`AsyncJob` instance. For example, if this instance is returned by
-        :meth:`DataFrame.collect_nowait`, you will get a list of :class:`Row` s from this method.
+        Blocks and waits until the query associated with this instance finishes, then returns query
+        results. This acts like executing query in a synchronous way. The data type of returned
+        query results is determined by how you create this :class:`AsyncJob` instance. For example,
+        if this instance is returned by :meth:`DataFrame.collect_nowait`, you will get a list of
+        :class:`Row` s from this method.
+
+        Args:
+            result_type: (Experimental) specifies the data type of returned query results. Currently
+                it only supports the following return data types:
+
+                - "row": returns a list of :class:`Row` objects, which is the same as the return
+                  type of :meth:`DataFrame.collect`.
+                - "row_iterator": returns an iterator of :class:`Row` objects, which is the same as
+                  the return type of :meth:`DataFrame.to_local_iterator`.
+                - "row": returns a ``pandas.DataFrame``, which is the same as the return type of
+                  :meth:`DataFrame.to_pandas`.
+                - "pandas_batches": returns an iterator of ``pandas.DataFrame`` s, which is the same
+                  as the return type of :meth:`DataFrame.to_pandas_batches`.
+                - "no_result": returns ``None``. You can use this option when you intend to execute
+                  the query but don't care about query results (the client will not fetch results
+                  either).
+
+                When you create an :class:`AsyncJob` by :meth:`Session.create_async_job` and
+                retrieve results with this method, ``result_type`` should be specified to determine
+                the result data type. Otherwise, it will return a list of :class:`Row` objects by default.
+                When you create an :class:`AsyncJob` by action methods in :class:`DataFrame` and
+                other classes, ``result_type`` is optional and it will return results with
+                corresponding type. If you still provide a value for it, this value will overwrite
+                the original result data type.
         """
+        result_type = (
+            _AsyncResultType(result_type.lower()) if result_type else self._result_type
+        )
         self._cursor.get_results_from_sfqid(self.query_id)
-        if self._data_type == _AsyncDataType.NONE_TYPE:
-            self._cursor.fetchall()
+        if result_type == _AsyncResultType.NO_RESULT:
             result = None
-        elif self._data_type == _AsyncDataType.PANDAS:
-            result = self._server_connection._to_data_or_iter(
+        elif result_type == _AsyncResultType.PANDAS:
+            result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=False
             )["data"]
             check_is_pandas_dataframe_in_to_pandas(result)
-        elif self._data_type == _AsyncDataType.PANDAS_BATCH:
-            result = self._server_connection._to_data_or_iter(
+        elif result_type == _AsyncResultType.PANDAS_BATCH:
+            result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True
             )["data"]
         else:
             result_data = self._cursor.fetchall()
             self._result_meta = self._cursor.description
-            if self._data_type == _AsyncDataType.ROW:
+            if result_type == _AsyncResultType.ROW:
                 result = result_set_to_rows(result_data, self._result_meta)
-            elif self._data_type == _AsyncDataType.ITERATOR:
+            elif result_type == _AsyncResultType.ITERATOR:
                 result = result_set_to_iter(result_data, self._result_meta)
-            elif self._data_type == _AsyncDataType.COUNT:
+            elif result_type == _AsyncResultType.COUNT:
                 result = result_data[0][0]
-            elif self._data_type in [
-                _AsyncDataType.UPDATE,
-                _AsyncDataType.DELETE,
-                _AsyncDataType.MERGE,
+            elif result_type in [
+                _AsyncResultType.UPDATE,
+                _AsyncResultType.DELETE,
+                _AsyncResultType.MERGE,
             ]:
-                result = self._table_result(result_data)
+                result = self._table_result(result_data, result_type)
             else:
-                raise ValueError(f"{self._data_type} is not supported")
-        for action in self._plan.post_actions:
-            self._server_connection.run_query(
+                raise ValueError(f"{result_type} is not supported")
+        for action in self._post_actions:
+            self._session._conn.run_query(
                 action.sql,
                 is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                 **self._parameters,

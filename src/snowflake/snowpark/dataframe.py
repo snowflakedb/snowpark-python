@@ -115,7 +115,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     warning,
 )
-from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
+from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -575,7 +575,9 @@ class DataFrame:
             :meth:`collect()`
         """
         return self._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params, block=False, data_type=_AsyncDataType.ROW
+            statement_params=statement_params,
+            block=False,
+            data_type=_AsyncResultType.ROW,
         )
 
     def _internal_collect_with_tag_no_telemetry(
@@ -583,7 +585,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        data_type: _AsyncDataType = _AsyncDataType.ROW,
+        data_type: _AsyncResultType = _AsyncResultType.ROW,
     ) -> Union[List[Row], AsyncJob]:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
@@ -659,7 +661,7 @@ class DataFrame:
             self._plan,
             to_iter=True,
             block=block,
-            data_type=_AsyncDataType.ITERATOR,
+            data_type=_AsyncResultType.ITERATOR,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_THREE
             ),
@@ -727,7 +729,7 @@ class DataFrame:
             self._plan,
             to_pandas=True,
             block=block,
-            data_type=_AsyncDataType.PANDAS,
+            data_type=_AsyncResultType.PANDAS,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -813,7 +815,7 @@ class DataFrame:
             to_pandas=True,
             to_iter=True,
             block=block,
-            data_type=_AsyncDataType.PANDAS_BATCH,
+            data_type=_AsyncResultType.PANDAS_BATCH,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -2500,7 +2502,7 @@ class DataFrame:
         result = df._internal_collect_with_tag(
             statement_params=statement_params,
             block=block,
-            data_type=_AsyncDataType.COUNT,
+            data_type=_AsyncResultType.COUNT,
         )
         return result[0][0] if block else result
 
