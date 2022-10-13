@@ -673,9 +673,7 @@ $$
         else ""
     )
 
-    strict_as_sql = "\nSTRICT" if strict_as_sql else ""
-    if strict:
-        strict_as_sql = "\nSTRICT"
+    strict_as_sql = "\nSTRICT" if strict else ""
 
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
