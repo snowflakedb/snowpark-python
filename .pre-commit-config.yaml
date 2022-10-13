@@ -63,7 +63,7 @@ repos:
         args:
             - --license-filepath
             - license_header.txt
--   repo: https://gitlab.com/pycqa/flake8
+-   repo: https://gitlab.com/pycqa/flake8.git
     rev: 3.9.2
     hooks:
       - id: flake8
