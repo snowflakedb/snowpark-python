@@ -1,4 +1,23 @@
 # Release History
+## 0.12.0 (2022-10-14)
+### New Features
+- Added new APIs for async job:
+  - `Session.create_async_job()` to create an `AsyncJob` instance from a query id.
+  - `AsyncJob.result()` now accepts argument `result_type` to return the results in different formats.
+  - `AsyncJob.to_df()` returns a `DataFrame` built from the result of this asynchronous job.
+  - `AsyncJob.query()` returns the SQL text of the executed query.
+- `DataFrame.agg()` and `RelationalGroupedDataFrame.agg()` now accept variable-length arguments.
+- Added parameters `luffix` and `rsuffix` to `DataFram.join()` and `DataFrame.cross_join()` to conveniently rename overlapping columns.
+- Added `Table.drop_table()` so you can drop the temp table after `DataFrame.cache_result()`. Also made class `Table` a context manager for it.
+- Added `Session.use_secondary_roles()`.
+- Added functions `first_value()` and `last_value()`. (contributed by @chasleslr)
+- Add `on` as an alias for `using_columns` and `how` as an alias for `join_type` in `DataFrame.join()`.
+
+### Bug Fixes
+- Fixed `Session.create_dataframe()` that raised an error when `schema` names had special characters.
+- Fixed a bug in which options set in `Session.read.option()` were not passed to `DataFrame.copy_into_table()` as default values.
+- Fixed a bug in which `DataFrame.copy_into_table()` raises an error when a copy option has single quotes in the value.
+
 ## 0.11.0 (2022-09-28)
 
 ### Behavior Changes
