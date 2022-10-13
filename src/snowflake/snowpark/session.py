@@ -1290,20 +1290,27 @@ class Session:
                     f"create or replace temporary table {table_name} ({attribute_to_schema_string(schema._to_attributes())})"
                 )
 
-            try:
+                try:
+                    t = self.write_pandas(
+                        data,
+                        table_name,
+                        database=sf_database,
+                        schema=sf_schema,
+                        quote_identifiers=True,
+                    )
+                except Exception as e:
+                    self._run_query(f"drop table if exists {table_name}")
+                    raise e
+            else:
                 t = self.write_pandas(
                     data,
                     table_name,
                     database=sf_database,
                     schema=sf_schema,
                     quote_identifiers=True,
-                    auto_create_table=schema is None,
-                    # auto_create_table=True,
+                    auto_create_table=True,
                     table_type="temporary",
                 )
-            except Exception as e:
-                self._run_query(f"drop table if exists {table_name}")
-                raise e
 
             set_api_call_source(t, "Session.create_dataframe[pandas]")
             return t

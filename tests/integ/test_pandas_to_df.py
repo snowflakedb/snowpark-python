@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from snowflake.snowpark.types import (
     BooleanType,
+    DecimalType,
     FloatType,
     IntegerType,
     StringType,
@@ -309,15 +310,16 @@ def test_create_dataframe_from_pandas_with_schema(session):
     # TODO(SNOW-677100): Add complex type test
     pd = PandasDF(
         [
-            (1, 4.5, "t1", True),
-            (2, 7.5, "t2", False),
-            (3, 10.5, "t3", True),
+            (1, 4.5, "t1", True, 200),
+            (2, 7.5, "t2", False, 250),
+            (3, 10.5, "t3", True, 1000),
         ],
         columns=[
             "id".upper(),
             "foot_size".upper(),
             "shoe_model".upper(),
             "received".upper(),
+            "ship_distance".upper(),
         ],
     )
 
@@ -327,6 +329,7 @@ def test_create_dataframe_from_pandas_with_schema(session):
             StructField("FOOT_SIZE", FloatType()),
             StructField("SHOE_MODEL", StringType()),
             StructField("RECEIVED", BooleanType()),
+            StructField("SHIP_DISTANCE", DecimalType()),
         ]
     )
     df = session.create_dataframe(pd, schema)
