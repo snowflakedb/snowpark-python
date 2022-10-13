@@ -673,7 +673,7 @@ $$
         else ""
     )
 
-    strict_as_sql = ""
+    strict_as_sql = "\nSTRICT" if strict_as_sql else ""
     if strict:
         strict_as_sql = "\nSTRICT"
 
