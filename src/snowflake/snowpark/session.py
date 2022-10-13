@@ -59,6 +59,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    experimental,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -75,6 +76,7 @@ from snowflake.snowpark._internal.utils import (
     warning,
     zip_file_or_directory_to_stream,
 )
+from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import _use_scoped_temp_objects
 from snowflake.snowpark.dataframe import DataFrame
@@ -1495,6 +1497,20 @@ class Session:
             df = DataFrame(self, range_plan)
         set_api_call_source(df, "Session.range")
         return df
+
+    @experimental(version="0.12.0")
+    def create_async_job(self, query_id: str) -> AsyncJob:
+        """
+        Creates an :class:`AsyncJob` from a query ID.
+
+        See also:
+            :class:`AsyncJob`
+        """
+        if is_in_stored_procedure():
+            raise NotImplementedError(
+                "Async query is not supported in stored procedure yet"
+            )
+        return AsyncJob(query_id, None, self)
 
     def get_current_account(self) -> Optional[str]:
         """
