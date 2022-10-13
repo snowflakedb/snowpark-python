@@ -641,6 +641,7 @@ def create_python_udf_or_sp(
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner"]] = None,
     api_call_source: Optional[str] = None,
+    strict: bool = False,
 ) -> None:
     if isinstance(return_type, StructType):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
@@ -672,11 +673,15 @@ $$
         else ""
     )
 
+    strict_as_sql = ""
+    if strict:
+        strict_as_sql = "\nSTRICT"
+
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
 {"TEMPORARY" if is_temporary else ""} {object_type.value} {object_name}({sql_func_args})
 {return_sql}
-LANGUAGE PYTHON
+LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION=3.8
 {imports_in_sql}
 {packages_in_sql}

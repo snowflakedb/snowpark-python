@@ -461,6 +461,7 @@ class UDFRegistration:
         replace: bool = False,
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
+        strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -524,6 +525,9 @@ class UDFRegistration:
                 every batch by setting a smaller batch size. Note that setting a larger value does not
                 guarantee that Snowflake will encode batches with the specified number of rows. It will
                 be ignored when registering a non-vectorized UDF.
+            strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
+                null. Instead, a null value will always be returned for that row. Note that the UDF might
+                still return null for non-null inputs.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             source_code_display: Display the source code of the UDF `func` as comments in the generated script.
                 The source code is dynamically generated therefore it may not be identical to how the
@@ -559,6 +563,7 @@ class UDFRegistration:
             parallel,
             max_batch_size,
             _from_pandas,
+            strict,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -578,6 +583,7 @@ class UDFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -640,6 +646,9 @@ class UDFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDF files.
+            strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
+                null. Instead, a null value will always be returned for that row. Note that the UDF might
+                still return null for non-null inputs.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             source_code_display: Display the source code of the UDF `func` as comments in the generated script.
                 The source code is dynamically generated therefore it may not be identical to how the
@@ -672,6 +681,7 @@ class UDFRegistration:
             packages,
             replace,
             parallel,
+            strict,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
@@ -690,6 +700,7 @@ class UDFRegistration:
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         from_pandas_udf_function: bool = False,
+        strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -757,6 +768,7 @@ class UDFRegistration:
                 replace=replace,
                 inline_python_code=code,
                 api_call_source=api_call_source,
+                strict=strict,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
