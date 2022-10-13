@@ -21,7 +21,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     warning,
 )
-from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
+from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.row import Row
@@ -194,7 +194,7 @@ class DataFrameWriter:
             snowflake_plan,
             _statement_params=statement_params,
             block=block,
-            data_type=_AsyncDataType.NONE_TYPE,
+            data_type=_AsyncResultType.NO_RESULT,
         )
         return result if not block else None
 

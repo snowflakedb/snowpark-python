@@ -42,7 +42,7 @@ from snowflake.snowpark._internal.utils import (
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
-from snowflake.snowpark.async_job import AsyncJob, _AsyncDataType
+from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
 
@@ -316,7 +316,10 @@ class ServerConnection:
         to_iter: bool = False,
         is_ddl_on_temp_object: bool = False,
         block: bool = True,
-        data_type: _AsyncDataType = _AsyncDataType.ROW,
+        data_type: _AsyncResultType = _AsyncResultType.ROW,
+        async_job_plan: Optional[
+            SnowflakePlan
+        ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -357,8 +360,9 @@ class ServerConnection:
             return AsyncJob(
                 results_cursor["queryId"],
                 query,
-                self,
+                async_job_plan.session,
                 data_type,
+                async_job_plan.post_actions,
                 **kwargs,
             )
 
@@ -405,7 +409,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         block: bool = True,
-        data_type: _AsyncDataType = _AsyncDataType.ROW,
+        data_type: _AsyncResultType = _AsyncResultType.ROW,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
@@ -434,7 +438,7 @@ class ServerConnection:
         to_pandas: bool = False,
         to_iter: bool = False,
         block: bool = True,
-        data_type: _AsyncDataType = _AsyncDataType.ROW,
+        data_type: _AsyncResultType = _AsyncResultType.ROW,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -484,9 +488,9 @@ $$"""
                     is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
                     block=block,
                     data_type=data_type,
+                    async_job_plan=plan,
                     **kwargs,
                 )
-                result.query = final_query
 
                 # since we will return a AsyncJob instance, result_meta is not needed, we will create reuslt_meta in
                 # AsyncJob instance when needed
@@ -509,6 +513,7 @@ $$"""
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,
+                            async_job_plan=plan,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -527,9 +532,6 @@ $$"""
                         block=block,
                         **kwargs,
                     )
-
-            else:
-                result._plan = plan
 
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()

@@ -2,8 +2,10 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+from collections import Iterator
 from time import sleep, time
 
+import pandas as pd
 import pytest
 from pandas.util.testing import assert_frame_equal
 
@@ -14,6 +16,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     warning_dict,
 )
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, when_matched, when_not_matched
 from snowflake.snowpark.table import DeleteResult, MergeResult, UpdateResult
 from snowflake.snowpark.types import (
@@ -233,6 +236,8 @@ def test_async_save_as_table(session):
     )
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     async_job = df.write.save_as_table(table_name, create_temp_table=True, block=False)
+    while not async_job.is_done():
+        sleep(1)
     assert async_job.result() is None
     table_df = session.table(table_name)
     Utils.check_answer(table_df, df)
@@ -276,8 +281,13 @@ def test_multiple_queries(session, resources_path):
     )
     df = session.read.schema(user_schema).csv(f"@{tmp_stage_name1}/{test_file_csv}")
     assert len(df._plan.queries) > 1
-    res = df.collect_nowait()
-    Utils.check_answer(res.result(), df)
+    async_job = df.collect_nowait()
+    Utils.check_answer(async_job.result(), df)
+
+    # make sure temp object is dropped
+    temp_object = async_job._post_actions[0].sql.split(" ")[-1]
+    with pytest.raises(SnowparkSQLException, match="does not exist or not authorized"):
+        session.sql(f"drop file format {temp_object}").collect()
 
 
 def test_async_batch_insert(session):
@@ -292,6 +302,14 @@ def test_async_batch_insert(session):
         Utils.check_answer(
             async_job.result(), [Row(A=1, B=2), Row(A=4, B=4), Row(A=1, B=3)]
         )
+
+        # make sure temp object is dropped
+        temp_object = async_job._post_actions[0].sql.split(" ")[-1]
+        with pytest.raises(
+            SnowparkSQLException, match="does not exist or not authorized"
+        ):
+            session.sql(f"drop table {temp_object}").collect()
+
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
@@ -347,3 +365,98 @@ def test_async_experimental(session, caplog):
         assert "DataFrame.collect_nowait() is experimental" in caplog.text
     finally:
         warning_dict.clear()
+
+
+@pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
+def test_create_async_job(session, create_async_job_from_query_id):
+    df = session.range(3)
+    if create_async_job_from_query_id:
+        query_id = df._execute_and_get_query_id()
+        async_job = session.create_async_job(query_id)
+    else:
+        async_job = df.collect_nowait()
+
+    res = async_job.result()
+    assert isinstance(res, list)
+    assert isinstance(res[0], Row)
+    assert res == [Row(0), Row(1), Row(2)]
+
+    res = async_job.result("row")
+    assert isinstance(res, list)
+    assert isinstance(res[0], Row)
+
+    res = async_job.result("row_iterator")
+    assert isinstance(res, Iterator)
+    res = list(res)
+    assert isinstance(res[0], Row)
+
+    res = async_job.result("pandas")
+    assert isinstance(res, pd.DataFrame)
+
+    res = async_job.result("pandas_batches")
+    assert isinstance(res, Iterator)
+    res = list(res)
+    assert isinstance(res[0], pd.DataFrame)
+
+    assert async_job.result("no_result") is None
+
+    with pytest.raises(
+        ValueError, match="'invalid_type' is not a valid _AsyncResultType"
+    ):
+        async_job.result("invalid_type")
+
+
+def test_create_async_job_negative(session):
+    query_id = session.sql("select to_number('not_a_number')").collect_nowait().query_id
+    async_job = session.create_async_job(query_id)
+
+    with pytest.raises(DatabaseError) as ex_info:
+        async_job.result()
+    assert "100038: Numeric value 'not_a_number' is not recognized" in str(
+        ex_info.value
+    ) or f"Status of query '{query_id}' is FAILED_WITH_ERROR, results are unavailable" in str(
+        ex_info.value
+    )
+
+    invalid_query_id = "negative_test_invalid_query_id"
+    async_job = session.create_async_job(invalid_query_id)
+    with pytest.raises(
+        ValueError, match=f"Invalid UUID: '{invalid_query_id}'"
+    ) as ex_info:
+        async_job.result()
+
+
+@pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
+def test_get_query_from_async_job(session, create_async_job_from_query_id):
+    query_text = "select 1, 2, 3"
+    df = session.sql(query_text)
+    if create_async_job_from_query_id:
+        query_id = df._execute_and_get_query_id()
+        async_job = session.create_async_job(query_id)
+    else:
+        async_job = df.collect_nowait()
+
+    assert async_job.query == query_text
+
+
+def test_get_query_from_async_job_negative(session, caplog):
+    invalid_query_id = "negative_test_invalid_query_id"
+    async_job = session.create_async_job(invalid_query_id)
+
+    with caplog.at_level(logging.DEBUG):
+        assert async_job.query is None
+        assert "result is empty" in caplog.text
+
+
+@pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
+def test_async_job_to_df(session, create_async_job_from_query_id):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    if create_async_job_from_query_id:
+        query_id = df._execute_and_get_query_id()
+        async_job = session.create_async_job(query_id)
+    else:
+        async_job = df.collect_nowait()
+
+    new_df = async_job.to_df()
+    assert "result_scan" in new_df.queries["queries"][0].lower()
+    Utils.check_answer(df, new_df)
