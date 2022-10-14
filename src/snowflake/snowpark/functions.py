@@ -184,7 +184,12 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     Star,
 )
-from snowflake.snowpark._internal.analyzer.window_expression import FirstValue, Lag, LastValue, Lead
+from snowflake.snowpark._internal.analyzer.window_expression import (
+    FirstValue,
+    Lag,
+    LastValue,
+    Lead,
+)
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrLiteralStr,
@@ -2820,9 +2825,7 @@ def last_value(
     Returns the last value within an ordered group of values.
     """
     c = _to_col_if_str(e, "last_value")
-    return Column(
-        LastValue(c._expression, None, None, ignore_nulls)
-    )
+    return Column(LastValue(c._expression, None, None, ignore_nulls))
 
 
 def first_value(
@@ -2833,9 +2836,7 @@ def first_value(
     Returns the first value within an ordered group of values.
     """
     c = _to_col_if_str(e, "last_value")
-    return Column(
-        FirstValue(c._expression, None, None, ignore_nulls)
-    )
+    return Column(FirstValue(c._expression, None, None, ignore_nulls))
 
 
 def ntile(e: Union[int, ColumnOrName]) -> Column:
@@ -2947,6 +2948,7 @@ def udf(
     max_batch_size: Optional[int] = None,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
+    strict: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -3013,6 +3015,9 @@ def udf(
             The source code is dynamically generated therefore it may not be identical to how the
             `func` is originally defined. The default is ``True``.
             If it is ``False``, source code will not be generated or displayed.
+        strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
+            null. Instead, a null value will always be returned for that row. Note that the UDF might
+            still return null for non-null inputs.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3071,6 +3076,7 @@ def udf(
             max_batch_size=max_batch_size,
             statement_params=statement_params,
             source_code_display=source_code_display,
+            strict=strict,
         )
     else:
         return session.udf.register(
@@ -3087,6 +3093,7 @@ def udf(
             max_batch_size=max_batch_size,
             statement_params=statement_params,
             source_code_display=source_code_display,
+            strict=strict,
         )
 
 
@@ -3104,6 +3111,7 @@ def udtf(
     session: Optional["snowflake.snowpark.session.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
+    strict: bool = False,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -3156,6 +3164,9 @@ def udtf(
             Increasing the number of threads can improve performance when uploading
             large UDTF files.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
+        strict: Whether the created UDTF is strict. A strict UDTF will not invoke the UDTF if any input is
+            null. Instead, a null value will always be returned for that row. Note that the UDTF might
+            still return null for non-null inputs.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3201,6 +3212,7 @@ def udtf(
             replace=replace,
             parallel=parallel,
             statement_params=statement_params,
+            strict=strict,
         )
     else:
         return session.udtf.register(
@@ -3215,6 +3227,7 @@ def udtf(
             replace=replace,
             parallel=parallel,
             statement_params=statement_params,
+            strict=strict,
         )
 
 
@@ -3440,6 +3453,7 @@ def sproc(
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
     execute_as: typing.Literal["caller", "owner"] = "owner",
+    strict: bool = False,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
 
@@ -3499,6 +3513,9 @@ def sproc(
             supports caller, or owner for now. See `owner and caller rights <https://docs.snowflake.com/en/sql-reference/stored-procedures-rights.html>`_
             for more information.
         statement_params: Dictionary of statement level parameters to be set while executing this action.
+        strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
+            the stored procedure if any input is null. Instead, a null value will always be returned. Note
+            that the stored procedure might still return null for non-null inputs.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -3543,6 +3560,7 @@ def sproc(
             parallel=parallel,
             statement_params=statement_params,
             execute_as=execute_as,
+            strict=strict,
         )
     else:
         return session.sproc.register(
@@ -3558,4 +3576,5 @@ def sproc(
             parallel=parallel,
             statement_params=statement_params,
             execute_as=execute_as,
+            strict=strict,
         )

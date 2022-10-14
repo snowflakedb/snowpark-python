@@ -1942,3 +1942,16 @@ def test_deprecate_call_udf_with_list(session, caplog):
         )
     finally:
         warning_dict.clear()
+
+
+def test_strict_udf(session):
+    @udf(strict=True)
+    def echo(num: int) -> int:
+        if num is None:
+            raise ValueError("num should not be None")
+        return num
+
+    Utils.check_answer(
+        TestData.all_nulls(session).to_df(["a"]).select(echo("a")),
+        [Row(None), Row(None), Row(None), Row(None)],
+    )
