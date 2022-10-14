@@ -7,7 +7,7 @@
   - `AsyncJob.to_df()` returns a `DataFrame` built from the result of this asynchronous job.
   - `AsyncJob.query()` returns the SQL text of the executed query.
 - `DataFrame.agg()` and `RelationalGroupedDataFrame.agg()` now accept variable-length arguments.
-- Added parameters `luffix` and `rsuffix` to `DataFram.join()` and `DataFrame.cross_join()` to conveniently rename overlapping columns.
+- Added parameters `lsuffix` and `rsuffix` to `DataFram.join()` and `DataFrame.cross_join()` to conveniently rename overlapping columns.
 - Added `Table.drop_table()` so you can drop the temp table after `DataFrame.cache_result()`. `Table` is also a context manager so you can also use the `with` statement to drop the cache temp table after use.
 - Added `Session.use_secondary_roles()`.
 - Added functions `first_value()` and `last_value()`. (contributed by @chasleslr)
