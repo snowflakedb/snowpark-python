@@ -332,6 +332,7 @@ class StoredProcedureRegistration:
         replace: bool = False,
         parallel: int = 4,
         execute_as: typing.Literal["caller", "owner"] = "owner",
+        strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
@@ -385,6 +386,9 @@ class StoredProcedureRegistration:
                 large stored procedure files.
             execute_as: What permissions should the procedure have while executing. This
                 supports caller, or owner for now.
+            strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
+                the stored procedure if any input is null. Instead, a null value will always be returned. Note
+                that the stored procedure might still return null for non-null inputs.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
@@ -420,6 +424,7 @@ class StoredProcedureRegistration:
             packages,
             replace,
             parallel,
+            strict,
             statement_params=statement_params,
             execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register",
@@ -438,6 +443,7 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> StoredProcedure:
@@ -495,6 +501,9 @@ class StoredProcedureRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
+            strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
+                the stored procedure if any input is null. Instead, a null value will always be returned. Note
+                that the stored procedure might still return null for non-null inputs.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note::
@@ -523,6 +532,7 @@ class StoredProcedureRegistration:
             packages,
             replace,
             parallel,
+            strict,
             statement_params=statement_params,
             api_call_source="StoredProcedureRegistration.register_from_file",
         )
@@ -538,6 +548,7 @@ class StoredProcedureRegistration:
         packages: Optional[List[Union[str, ModuleType]]],
         replace: bool,
         parallel: int,
+        strict: bool,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         execute_as: typing.Literal["caller", "owner"] = "owner",
@@ -601,6 +612,7 @@ class StoredProcedureRegistration:
                 inline_python_code=code,
                 execute_as=execute_as,
                 api_call_source=api_call_source,
+                strict=strict,
             )
         # an exception might happen during registering a stored procedure
         # (e.g., a dependency might not be found on the stage),

@@ -24,7 +24,6 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal import type_utils
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     python_type_str_to_object,
@@ -324,6 +323,7 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
@@ -375,6 +375,9 @@ class UDTFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDTF files.
+            strict: Whether the created UDTF is strict. A strict UDTF will not invoke the UDTF if any input is
+                null. Instead, a null value will always be returned for that row. Note that the UDTF might
+                still return null for non-null inputs.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         See Also:
@@ -402,6 +405,7 @@ class UDTFRegistration:
             packages,
             replace,
             parallel,
+            strict,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
         )
@@ -419,6 +423,7 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
@@ -476,6 +481,9 @@ class UDTFRegistration:
                 command. The default value is 4 and supported values are from 1 to 99.
                 Increasing the number of threads can improve performance when uploading
                 large UDTF files.
+            strict: Whether the created UDTF is strict. A strict UDTF will not invoke the UDTF if any input is
+                null. Instead, a null value will always be returned for that row. Note that the UDTF might
+                still return null for non-null inputs.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Note::
@@ -504,6 +512,7 @@ class UDTFRegistration:
             packages,
             replace,
             parallel,
+            strict,
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register_from_file",
         )
@@ -519,6 +528,7 @@ class UDTFRegistration:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         replace: bool = False,
         parallel: int = 4,
+        strict: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
@@ -645,6 +655,7 @@ class UDTFRegistration:
                 replace=replace,
                 inline_python_code=code,
                 api_call_source=api_call_source,
+                strict=strict,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

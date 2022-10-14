@@ -2,9 +2,10 @@
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
 import decimal
+from typing import Iterable, Tuple
 
 from snowflake.snowpark import Row
-from snowflake.snowpark.functions import lit
+from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.types import (
     BinaryType,
     BooleanType,
@@ -139,4 +140,22 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
                 bytearray("bytearray", "utf-8"),
             )
         ],
+    )
+
+
+def test_strict_utdf(session):
+    @udtf(output_schema=["num"], strict=True)
+    class UDTFEcho:
+        def process(
+            self,
+            num: int,
+        ) -> Iterable[Tuple[int]]:
+            if num is None:
+                raise ValueError("num should not be None")
+            return [(num,)]
+
+    df = session.table_function(UDTFEcho(lit(None).cast("int")))
+    Utils.check_answer(
+        df,
+        [Row(None)],
     )

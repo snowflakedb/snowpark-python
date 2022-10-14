@@ -895,3 +895,13 @@ def test_call_sproc_with_session_as_first_argument(session):
     with pytest.raises(ValueError) as ex_info:
         plus1(session, 1, session=session)
     assert "Two sessions specified in arguments" in str(ex_info)
+
+
+def test_strict_stored_procedure(session):
+    @sproc(strict=True)
+    def echo(_: Session, num: int) -> int:
+        if num is None:
+            raise ValueError("num should not be None")
+        return num
+
+    assert echo(None) is None
