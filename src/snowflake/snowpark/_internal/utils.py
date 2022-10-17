@@ -519,7 +519,7 @@ def result_set_to_rows(
         col_names = [col.name for col in result_meta]
         rows = []
         for data in result_set:
-            row = Row(*data)
+            row = Row() if data is None else Row(*data)
             # row might have duplicated column names
             row._fields = col_names
             rows.append(row)
@@ -533,7 +533,7 @@ def result_set_to_iter(
 ) -> Iterator[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
     for data in result_set:
-        row = Row(*data)
+        row = Row() if data is None else Row(*data)
         if col_names:
             row._fields = col_names
         yield row
