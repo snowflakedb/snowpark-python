@@ -109,6 +109,18 @@ To maximize the effectiveness of the simplifier, we propose the following guidel
 function will ultimately generate which is too long to be executed. Instead of calling `DataFrame.with_column` for
 multiple times, please try using `DataFrame.with_columns` to batch your operations.
 
+```python
+# unperformant
+df = df.with_column("mean", (df["a"] + df["b"]) / 2)
+df = df.with_column("sum", df["a"] +  df["b"]).sort(df["a"]).show()
+
+# performant
+df = df.with_columns(
+   ["mean", "sum"],
+   [(df["a"] + df["b"]) / 2, df["a"] + df["b"]]
+).sort(df["a"]).show()
+```
+
 # Expressions
 
 Chaining of expressions are widely used as they represent atomic logic. Here we are give
