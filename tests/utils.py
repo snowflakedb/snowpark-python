@@ -171,6 +171,28 @@ class Utils:
                     ), f"Expected {expected_value}. Actual {actual_value}"
 
     @staticmethod
+    def get_sorted_rows(rows: List[Row]) -> List[Row]:
+        def compare_rows(row1, row2):
+            assert len(row1) == len(
+                row2
+            ), "rows1 and row2 have different length so they're not comparable."
+            for value1, value2 in zip(row1, row2):
+                if value1 == value2:
+                    continue
+                if value1 is None:
+                    return -1
+                elif value2 is None:
+                    return 1
+                elif value1 > value2:
+                    return 1
+                elif value1 < value2:
+                    return -1
+            return 0
+
+        sort_key = functools.cmp_to_key(compare_rows)
+        return sorted(rows, key=sort_key)
+
+    @staticmethod
     def check_answer(
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
@@ -192,27 +214,8 @@ class Utils:
         actual_rows = get_rows(actual)
         expected_rows = get_rows(expected)
         if sort:
-
-            def compare_rows(row1, row2):
-                assert len(row1) == len(
-                    row2
-                ), "rows1 and row2 have different length so they're not comparable."
-                for value1, value2 in zip(row1, row2):
-                    if value1 == value2:
-                        continue
-                    if value1 is None:
-                        return -1
-                    elif value2 is None:
-                        return 1
-                    elif value1 > value2:
-                        return 1
-                    elif value1 < value2:
-                        return -1
-                return 0
-
-            sort_key = functools.cmp_to_key(compare_rows)
-            sorted_expected_rows = sorted(expected_rows, key=sort_key)
-            sorted_actual_rows = sorted(actual_rows, key=sort_key)
+            sorted_expected_rows = Utils.get_sorted_rows(expected_rows)
+            sorted_actual_rows = Utils.get_sorted_rows(actual_rows)
             Utils.assert_rows(sorted_actual_rows, sorted_expected_rows)
         else:
             Utils.assert_rows(actual_rows, expected_rows)
