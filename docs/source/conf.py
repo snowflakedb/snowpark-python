@@ -95,3 +95,5 @@ html_show_sourcelink = False  # Hide "view page source" link
 
 # Disable footer message "Built with Sphinx using a theme provided by Read the Docs."
 html_show_sphinx = False
+
+add_module_names = False
