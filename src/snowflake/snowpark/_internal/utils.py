@@ -524,7 +524,7 @@ def result_set_to_rows(
             row._fields = col_names
             rows.append(row)
     else:
-        rows = [Row(*row) for row in result_set]
+        rows = [Row() if row is None else Row(*row) for row in result_set]
     return rows
 
 
