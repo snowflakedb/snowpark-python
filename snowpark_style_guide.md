@@ -21,7 +21,7 @@ Beyond Snowpark specifics, the general practices of clean code are important in 
 4. [User Defined Functions (UDFs)](#user-defined-functions-udfs)
    1. [Registration](#registration)
    2. [Type Hints](#type-hints)
-5. [User Defined Table Functions (UDTFs)](#user-defined-table-functions-udfts)
+5. [User Defined Table Functions (UDTFs)](#user-defined-table-functions-udtfs)
 6. [Stored Procedures](#stored-procedures)
 6. [Miscellaneous](#miscellaneous)
 
@@ -42,6 +42,12 @@ df = df.select("col_a", "col_b")
 # select by using snowflake.snowpark.functions.col function
 df = df.select(col("col_a"), col("col_b"))
 
+# select by using snowflake.snowpark.functions.lit function
+df = df.select(lit("col_a"), lit("col_b"))
+
+# select by using snowflake.snowpark.functions.sql_expr function
+df = df.select(sql_expr("col_a + 1"), sql_expr("col_b + 1"))
+
 # select by Dataframe indexing
 df = df.select(df["col_a"], df["col_b"])
 
@@ -53,6 +59,8 @@ df = df.select(df.col("col_a"), df.col("col_b"))
 special characters.
 - The string approach has the same benefits as the first one, but also supporting names with special characters.
 - The `col` function approach will wrap the col as a `Column` object. It's the best of usage when operations on `Column` like aliasing the column name are needed.
+- The `lit` function approach will convert the value passed in to a literal value. It could help when you are passing variables of non-string types as the column.
+- The `sql_expr` function approach will pass the value as raw SQL text. It provides assistance if you have a SQL expression to select.
 - The indexing and `DataFrame.col` approaches offer a way to disambiguate among multiple `DataFrame`.
 Suppose there are two `DataFrame` with same column name `col_a` and a `join` operation is wanted, it could be accomplished by:
     ```python
@@ -98,9 +106,9 @@ order = order.select(
 
 ## Performant SQL Generation
 
-Operations upon `DataFrame` will ultimately get turned into SQL statements and sent to Snowflake for execution.
-Non-optimized SQL statements would take longer time to process and execute and sometimes the service even times out.
-Snowpark has implemented a SQL simplifier which is turned on by default, and it is build upon certain rules.
+Operations upon `DataFrame` are lazily evaluated to SQL statements and sent to Snowflake for execution.
+Non-optimized SQL statements would take longer time to process and execute, and sometimes the service even times out.
+Snowpark has implemented a SQL simplifier which is turned on by default, and it is built upon certain rules.
 To maximize the effectiveness of the simplifier, we propose the following guidelines based on our practices:
 
 ### Calling `DataFrame.with_columns` is preferred than `DataFrame.with_column`
@@ -135,7 +143,7 @@ Wrapping the multi-lines expressions within parentheses provides a graceful way 
 
 ```python
 # all in one line
-df = df.select('col_a', 'col_b').filter('col_a' == 'value').filter('cob_b' == True).join(another_dataframe, 'col_c').drop('col_d')
+df = df.select('col_a', 'col_b').filter(df['col_a'] == 'value').filter(df['cob_b'] == True).join(right=another_dataframe, on='col_c').drop('col_d')
 
 # multiple lines wrapped in parentheses
 df = (
@@ -187,6 +195,7 @@ session to use.
 
 ```python
 from snowflake.snowpark.functions import udf
+from snowflake.snowpark.types import IntegerType
 
 def add(x, y):
      return x + y
@@ -215,6 +224,7 @@ With the decorator, it is clearer whether the function is a UDF.
 ```python
 # udf as decorator
 from snowflake.snowpark.functions import udf
+from snowflake.snowpark.types import IntegerType
 
 @udf(
    return_type=IntegerType(),
@@ -231,6 +241,8 @@ Inherently, `UDFRegistration` is bound with the `Session` object which means the
 through that session.
 
 ```python
+from snowflake.snowpark.types import IntegerType
+
 def add(x, y):
      return x + y
 
@@ -248,22 +260,39 @@ Other than inputting types as parameters, you could also provide the typing info
 It makes the code more cohesive and self-explanatory.
 
 ```python
+from snowflake.snowpark.functions import udf
+
 @udf
 def typed_add(x: int, y: int) -> int:
     return x + y
 ```
 
-# User Defined Table Functions (UDFTs)
+Apart from Python primitive types, Snowflake types (`VariantType`, `GeographyType`, `PandasSeriesType`, etc.)
+are available in the module `snowflake.snowpark.types`.
+
+```python
+import pandas
+from snowflake.snowpark.functions import udf
+from snowflake.snowpark.types import VariantType, GeographyType, PandasSeriesType
+
+@udf
+def typed_add(x: VariantType, y: GeographyType) -> PandasSeriesType():
+    return pandas.Series(["1"])
+```
+
+# User Defined Table Functions (UDTFs)
 
 Snowflake supports SQL UDFs that return a set of rows, consisting of 0, 1, or multiple rows,
 each of which has 1 or more columns. Such UDFs are called [tabular UDFs, table UDFs, or,
 most frequently, UDTFs (user-defined table functions)][udtf-service-doc].
 
-UDFTs could be registered similarly as UDFs by `snowflake.snowpark.Session.udtf.register` method
+UDTFs could be registered similarly as UDFs by `snowflake.snowpark.Session.udtf.register` method
 or `snowflake.snowpark.functions.udtf` function.
 
 ```python
 from snowflake.snowpark.functions import udtf
+from snowflake.snowpark.types import IntegerType, StructField, StructType
+
 class GeneratorUDTF:
     def process(self, n):
         for i in range(n):
@@ -287,7 +316,10 @@ session.udtf.register(
 Type hint works for UDTF as well:
 
 ```python
-@udtf
+from snowflake.snowpark.functions import udtf
+from typing import Iterable, Tuple
+
+@udtf(output_schema=["number"])
 class TypedGeneratorUDTF:
     def process(self, n: int) -> Iterable[Tuple[int]]:
         for i in range(n):
@@ -303,6 +335,8 @@ Stored procedures could be registered similarly as UDFs and UDTFs by `snowflake.
 
 ```python
 from snowflake.snowpark.functions import sproc
+from snowflake.snowpark.types import IntegerType
+
 def add(session_, x, y):
     return session_.sql(f"select {x} + {y}").collect()[0][0]
 
@@ -324,6 +358,8 @@ session.sproc.register(
 Type hint works for Stored Procedures as well:
 
 ```python
+from snowflake.snowpark.functions import sproc
+
 @sproc
 def typed_add(session_, x: int, y: int) -> int:
     return session_.sql(f"select {x} + {y}").collect()[0][0]
