@@ -13,7 +13,7 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
 .. toctree::
    :maxdepth: 2
 
-   snowpark_classes.rst
+   snowpark_classes
    functions
    table_function
    stored_procedures

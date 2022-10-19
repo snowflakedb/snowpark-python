@@ -8,7 +8,7 @@ Contains core classes of Snowpark.
 
 .. autosummary::
     :toctree: api/
-
+    
     AsyncJob
     Column
     DataFrame
