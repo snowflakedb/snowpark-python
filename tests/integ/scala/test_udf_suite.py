@@ -71,7 +71,7 @@ def test_basic_udf_function(session):
     double_udf = udf(
         lambda x: x + x, return_type=IntegerType(), input_types=[IntegerType()]
     )
-    assert df.select(double_udf("a")).collect() == [Row(2), Row(4), Row(6)]
+    Utils.check_answer(df.select(double_udf("a")).collect(), [Row(2), Row(4), Row(6)])
 
 
 def test_udf_with_arrays(session):
@@ -90,7 +90,9 @@ def test_udf_with_arrays(session):
         return_type=StringType(),
         input_types=[ArrayType(StringType())],
     )
-    assert df.select(list_udf("a1")).collect() == [Row("1,2,3"), Row("4,5,6")]
+    Utils.check_answer(
+        df.select(list_udf("a1")).collect(), [Row("1,2,3"), Row("4,5,6")]
+    )
 
 
 def test_udf_with_map_input(session):
@@ -114,10 +116,9 @@ def test_udf_with_map_input(session):
         return_type=IntegerType(),
         input_types=[ArrayType(StringType())],
     )
-    assert df.select(array_sum_udf(map_keys_udf("o1"))).collect() == [
-        Row(3),
-        Row(30),
-    ]
+    Utils.check_answer(
+        df.select(array_sum_udf(map_keys_udf("o1"))).collect(), [Row(3), Row(30)]
+    )
 
 
 def test_udf_with_map_return(session):
@@ -136,7 +137,7 @@ def test_udf_with_map_return(session):
         return_type=MapType(StringType(), StringType()),
         input_types=[ArrayType(StringType())],
     )
-    res = df.select(map_udf("a1")).collect()
+    res = Utils.get_sorted_rows(df.select(map_udf("a1")).collect())
     assert len(res) == 2
     for i in [1, 2, 3]:
         assert f"convert_to_map{i}" in res[0][0]
@@ -176,7 +177,7 @@ def test_udf_with_multiple_args_of_map_array(session):
             StringType(),
         ],
     )
-    res = df.select(map_udf("o1", "o2", "id")).collect()
+    res = Utils.get_sorted_rows(df.select(map_udf("o1", "o2", "id")).collect())
     assert len(res) == 2
     assert '"ID1": "30"' in res[0][0]
     assert '"ID2": "70"' in res[1][0]
@@ -187,7 +188,9 @@ def test_filter_on_top_of_udf(session):
     double_udf = udf(
         lambda x: x + x, return_type=IntegerType(), input_types=[IntegerType()]
     )
-    assert df.select(double_udf("a")).filter(col("$1") > 4).collect() == [Row(6)]
+    Utils.check_answer(
+        df.select(double_udf("a")).filter(col("$1") > 4).collect(), [Row(6)]
+    )
 
 
 def test_compose_on_dataframe_reader(session, resources_path):
@@ -201,10 +204,13 @@ def test_compose_on_dataframe_reader(session, resources_path):
         return_type=StringType(),
         input_types=[StringType()],
     )
-    assert df.select(replace_udf("a")).collect() == [
-        Row('{"id":1,"str":"str1"}'),
-        Row('{"id":2,"str":"str2"}'),
-    ]
+    Utils.check_answer(
+        df.select(replace_udf("a")).collect(),
+        [
+            Row('{"id":1,"str":"str1"}'),
+            Row('{"id":2,"str":"str2"}'),
+        ],
+    )
 
 
 def test_view_with_udf(session):
@@ -218,10 +224,13 @@ def test_view_with_udf(session):
     df1.with_column(
         '"col #"', udf1(col('"col %"'), col('"col *"'))
     ).create_or_replace_view(view2)
-    assert session.sql(f"select * from {view2}").collect() == [
-        Row(1, 2, 3),
-        Row(3, 4, 7),
-    ]
+    Utils.check_answer(
+        session.sql(f"select * from {view2}").collect(),
+        [
+            Row(1, 2, 3),
+            Row(3, 4, 7),
+        ],
+    )
 
 
 def test_string_return_type(session):
@@ -232,11 +241,14 @@ def test_string_return_type(session):
         return_type=StringType(),
         input_types=[IntegerType()],
     )
-    assert df.select("a", string_udf("a")).collect() == [
-        Row(1, "Hello1"),
-        Row(2, "Hello2"),
-        Row(3, "Hello3"),
-    ]
+    Utils.check_answer(
+        df.select("a", string_udf("a")).collect(),
+        [
+            Row(1, "Hello1"),
+            Row(2, "Hello2"),
+            Row(3, "Hello3"),
+        ],
+    )
 
 
 def test_large_closure(session):
@@ -259,11 +271,14 @@ def test_udf_function_with_multiple_columns(session):
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
     )
-    assert df.with_column("c", sum_udf("a", "b")).collect() == [
-        Row(1, 2, 3),
-        Row(2, 3, 5),
-        Row(3, 4, 7),
-    ]
+    Utils.check_answer(
+        df.with_column("c", sum_udf("a", "b")).collect(),
+        [
+            Row(1, 2, 3),
+            Row(2, 3, 5),
+            Row(3, 4, 7),
+        ],
+    )
 
 
 def test_incorrect_number_of_args(session):
@@ -285,43 +300,55 @@ def test_call_udf_api(session):
         input_types=[IntegerType()],
         name=function_name,
     )
-    assert df.with_column(
-        "c",
-        call_udf(
-            f"{session.get_fully_qualified_current_schema()}.{function_name}",
-            col("a"),
-        ),
-    ).collect() == [Row(1, 2), Row(2, 4), Row(3, 6)]
+    Utils.check_answer(
+        df.with_column(
+            "c",
+            call_udf(
+                f"{session.get_fully_qualified_current_schema()}.{function_name}",
+                col("a"),
+            ),
+        ).collect(),
+        [Row(1, 2), Row(2, 4), Row(3, 6)],
+    )
 
 
 def test_long_type(session):
     df = session.create_dataframe([1, 2, 3]).to_df("a")
     long_udf = udf(lambda x: x + x, return_type=LongType(), input_types=[LongType()])
-    assert df.select("a", long_udf("a")).collect() == [
-        Row(1, 2),
-        Row(2, 4),
-        Row(3, 6),
-    ]
+    Utils.check_answer(
+        df.select("a", long_udf("a")).collect(),
+        [
+            Row(1, 2),
+            Row(2, 4),
+            Row(3, 6),
+        ],
+    )
 
 
 def test_short_type(session):
     df = session.create_dataframe([1, 2, 3]).to_df("a")
     short_udf = udf(lambda x: x + x, return_type=ShortType(), input_types=[ShortType()])
-    assert df.select("a", short_udf("a")).collect() == [
-        Row(1, 2),
-        Row(2, 4),
-        Row(3, 6),
-    ]
+    Utils.check_answer(
+        df.select("a", short_udf("a")).collect(),
+        [
+            Row(1, 2),
+            Row(2, 4),
+            Row(3, 6),
+        ],
+    )
 
 
 def test_float_type(session):
     df = session.create_dataframe([1.1, 2.2, 3.3]).to_df("a")
     float_udf = udf(lambda x: x + x, return_type=FloatType(), input_types=[FloatType()])
-    assert df.select("a", float_udf("a")).collect() == [
-        Row(1.1, 2.2),
-        Row(2.2, 4.4),
-        Row(3.3, 6.6),
-    ]
+    Utils.check_answer(
+        df.select("a", float_udf("a")).collect(),
+        [
+            Row(1.1, 2.2),
+            Row(2.2, 4.4),
+            Row(3.3, 6.6),
+        ],
+    )
 
 
 def test_double_type(session):
@@ -329,11 +356,14 @@ def test_double_type(session):
     double_udf = udf(
         lambda x: x + x, return_type=DoubleType(), input_types=[DoubleType()]
     )
-    assert df.select("a", double_udf("a")).collect() == [
-        Row(1.01, 2.02),
-        Row(2.01, 4.02),
-        Row(3.01, 6.02),
-    ]
+    Utils.check_answer(
+        df.select("a", double_udf("a")).collect(),
+        [
+            Row(1.01, 2.02),
+            Row(2.01, 4.02),
+            Row(3.01, 6.02),
+        ],
+    )
 
 
 def test_boolean_type(session):
@@ -343,11 +373,14 @@ def test_boolean_type(session):
         return_type=BooleanType(),
         input_types=[IntegerType(), IntegerType()],
     )
-    assert df.select(boolean_udf("a", "b")).collect() == [
-        Row(True),
-        Row(True),
-        Row(False),
-    ]
+    Utils.check_answer(
+        df.select(boolean_udf("a", "b")).collect(),
+        [
+            Row(True),
+            Row(True),
+            Row(False),
+        ],
+    )
 
 
 def test_binary_type(session):
@@ -365,8 +398,10 @@ def test_binary_type(session):
         return_type=StringType(),
         input_types=[BinaryType()],
     )
-    assert df1.select(to_binary("a")).collect() == [Row(s) for s in bytes_data]
-    assert df2.select(from_binary("a")).collect() == [Row(s) for s in data]
+    Utils.check_answer(
+        df1.select(to_binary("a")).collect(), [Row(s) for s in bytes_data]
+    )
+    Utils.check_answer(df2.select(from_binary("a")).collect(), [Row(s) for s in data])
 
 
 def test_date_and_timestamp_type(session):
@@ -388,8 +423,8 @@ def test_date_and_timestamp_type(session):
         to_timestamp, return_type=TimestampType(), input_types=[DateType()]
     )
     to_date_udf = udf(to_date, return_type=DateType(), input_types=[TimestampType()])
-    assert (
-        df.select(to_timestamp_udf("date"), to_date_udf("timestamp")).collect() == out
+    Utils.check_answer(
+        df.select(to_timestamp_udf("date"), to_date_udf("timestamp")).collect(), out
     )
 
 
@@ -412,10 +447,12 @@ def test_time_and_timestamp_type(session):
         to_timestamp, return_type=TimestampType(), input_types=[TimeType()]
     )
     to_time_udf = udf(to_time, return_type=TimeType(), input_types=[TimestampType()])
-    res = df.select(to_timestamp_udf("time"), to_time_udf("timestamp")).collect()
-    assert str(res[0][0]) == "1970-01-01 01:02:03"
-    assert str(res[0][1]) == "01:02:03"
-    assert res[1] == Row(None, None)
+    res = Utils.get_sorted_rows(
+        df.select(to_timestamp_udf("time"), to_time_udf("timestamp")).collect()
+    )
+    assert res[0] == Row(None, None)
+    assert str(res[1][0]) == "1970-01-01 01:02:03"
+    assert str(res[1][1]) == "01:02:03"
 
 
 def test_time_date_timestamp_type_with_snowflake_timezone(session):
@@ -426,7 +463,9 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
         return_type=TimeType(),
         input_types=[TimeType()],
     )
-    assert str(df.select(add_udf("col1")).collect()[0][0]) == "00:00:05"
+    res = df.select(add_udf("col1")).collect()
+    assert len(res) == 1
+    assert str(res[0][0]) == "00:00:05"
 
     df = session.sql("select '2020-1-1' :: date as col1")
     add_udf = udf(
@@ -434,7 +473,9 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
         return_type=DateType(),
         input_types=[DateType()],
     )
-    assert str(df.select(add_udf("col1")).collect()[0][0]) == "2020-01-02"
+    res = df.select(add_udf("col1")).collect()
+    assert len(res) == 1
+    assert str(res[0][0]) == "2020-01-02"
 
     df = session.sql("select '2020-1-1 00:00:00' :: date as col1")
     add_udf = udf(
@@ -444,7 +485,9 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
         return_type=TimestampType(),
         input_types=[TimestampType()],
     )
-    assert str(df.select(add_udf("col1")).collect()[0][0]) == "2020-01-02 00:00:05"
+    res = df.select(add_udf("col1")).collect()
+    assert len(res) == 1
+    assert str(res[0][0]) == "2020-01-02 00:00:05"
 
 
 def test_geography_type(session):
@@ -484,9 +527,10 @@ def test_variant_string_input(session):
     def variant_string_input_udf(v):
         return v.lower()
 
-    assert TestData.variant1(session).select(
-        variant_string_input_udf("str1")
-    ).collect() == [Row("x")]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_string_input_udf("str1")).collect(),
+        [Row("x")],
+    )
 
 
 @pytest.mark.skip(
@@ -498,9 +542,10 @@ def test_variant_binary_input(session):
     def variant_binary_input_udf(v):
         return v
 
-    assert TestData.variant1(session).select(
-        variant_binary_input_udf("bin1")
-    ).collect() == [Row(bytes("snow", "utf8"))]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_binary_input_udf("bin1")).collect(),
+        [Row(bytes("snow", "utf8"))],
+    )
 
 
 def test_variant_boolean_input(session):
@@ -508,9 +553,10 @@ def test_variant_boolean_input(session):
     def variant_boolean_input_udf(v):
         return v
 
-    assert TestData.variant1(session).select(
-        variant_boolean_input_udf("bool1")
-    ).collect() == [Row(True)]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_boolean_input_udf("bool1")).collect(),
+        [Row(True)],
+    )
 
 
 def test_variant_number_input(session):
@@ -518,9 +564,10 @@ def test_variant_number_input(session):
     def variant_number_input_udf(v):
         return v + 20
 
-    assert TestData.variant1(session).select(
-        variant_number_input_udf("num1")
-    ).collect() == [Row(35)]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_number_input_udf("num1")).collect(),
+        [Row(35)],
+    )
 
 
 @pytest.mark.skip(
@@ -534,15 +581,18 @@ def test_variant_timestamp_input(session):
             return None
         return v + datetime.timedelta(seconds=5)
 
-    assert TestData.variant1(session).select(
-        variant_timestamp_udf("timestamp_ntz1")
-    ).collect() == [
-        Row(
-            datetime.datetime.strptime(
-                "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
+    Utils.check_answer(
+        TestData.variant1(session)
+        .select(variant_timestamp_udf("timestamp_ntz1"))
+        .collect(),
+        [
+            Row(
+                datetime.datetime.strptime(
+                    "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
+                )
             )
-        )
-    ]
+        ],
+    )
 
 
 @pytest.mark.skip(
@@ -556,9 +606,10 @@ def test_variant_time_input(session):
             return None
         return datetime.time(v.hour, v.minute, v.second + 5)
 
-    assert TestData.variant1(session).select(variant_time_udf("time1")).collect() == [
-        Row(datetime.datetime.strptime("20:57:06", "%H:%M:%S").time())
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_time_udf("time1")).collect(),
+        [Row(datetime.datetime.strptime("20:57:06", "%H:%M:%S").time())],
+    )
 
 
 @pytest.mark.skip(
@@ -572,9 +623,10 @@ def test_variant_date_input(session):
             return None
         return datetime.date(v.year, v.month, v.day + 1)
 
-    assert TestData.variant1(session).select(variant_date_udf("date1")).collect() == [
-        Row(datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date())
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_date_udf("date1")).collect(),
+        [Row(datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date())],
+    )
 
 
 def test_variant_null(session):
@@ -582,35 +634,39 @@ def test_variant_null(session):
     def variant_null_output_udf(_):
         return None
 
-    assert session.sql("select 1 as a").select(
-        variant_null_output_udf("a")
-    ).collect() == [Row(None)]
+    Utils.check_answer(
+        session.sql("select 1 as a").select(variant_null_output_udf("a")).collect(),
+        [Row(None)],
+    )
 
     # when NullType is specified, StringType is used
     @udf(return_type=NullType(), input_types=[VariantType()])
     def variant_null_output_udf1(_):
         return None
 
-    assert session.sql("select 1 as a").select(
-        variant_null_output_udf1("a")
-    ).collect() == [Row(None)]
+    Utils.check_answer(
+        session.sql("select 1 as a").select(variant_null_output_udf1("a")).collect(),
+        [Row(None)],
+    )
 
     @udf(return_type=VariantType(), input_types=[VariantType()])
     def variant_null_output_udf2(_):
         return None
 
-    assert session.sql("select 1 as a").select(
-        variant_null_output_udf2("a")
-    ).collect() == [Row("null")]
+    Utils.check_answer(
+        session.sql("select 1 as a").select(variant_null_output_udf2("a")).collect(),
+        [Row("null")],
+    )
 
     @udf(return_type=StringType(), input_types=[VariantType()])
     def variant_null_input_udf(v):
         # we need to parse sqlNullWrapper on the server side
         return None if hasattr(v, "is_sql_null") else v["a"]
 
-    assert TestData.null_json1(session).select(
-        variant_null_input_udf("v")
-    ).collect() == [Row(None), Row("foo"), Row(None)]
+    Utils.check_answer(
+        TestData.null_json1(session).select(variant_null_input_udf("v")).collect(),
+        [Row(None), Row("foo"), Row(None)],
+    )
 
 
 def test_variant_string_output(session):
@@ -618,9 +674,10 @@ def test_variant_string_output(session):
     def variant_string_output_udf(_):
         return "foo"
 
-    assert TestData.variant1(session).select(
-        variant_string_output_udf("num1")
-    ).collect() == [Row('"foo"')]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_string_output_udf("num1")).collect(),
+        [Row('"foo"')],
+    )
 
 
 # The behavior of Variant("null") in Python UDF is different from the one in Java UDF
@@ -630,9 +687,12 @@ def test_variant_null_string_output(session):
     def variant_null_string_output_udf(_):
         return "null"
 
-    assert TestData.variant1(session).select(
-        variant_null_string_output_udf("num1")
-    ).collect() == [Row('"null"')]
+    Utils.check_answer(
+        TestData.variant1(session)
+        .select(variant_null_string_output_udf("num1"))
+        .collect(),
+        [Row('"null"')],
+    )
 
 
 def test_variant_number_output(session):
@@ -640,17 +700,19 @@ def test_variant_number_output(session):
     def variant_int_output_udf(_):
         return 1
 
-    assert TestData.variant1(session).select(
-        variant_int_output_udf("num1")
-    ).collect() == [Row("1")]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_int_output_udf("num1")).collect(),
+        [Row("1")],
+    )
 
     @udf(return_type=VariantType(), input_types=[VariantType()])
     def variant_float_output_udf(_):
         return 1.1
 
-    assert TestData.variant1(session).select(
-        variant_float_output_udf("num1")
-    ).collect() == [Row("1.1")]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_float_output_udf("num1")).collect(),
+        [Row("1.1")],
+    )
 
     # @udf(
     #     return_type=VariantType(),
@@ -671,9 +733,10 @@ def test_variant_boolean_output(session):
     def variant_boolean_output_udf(_):
         return True
 
-    assert TestData.variant1(session).select(
-        variant_boolean_output_udf("num1")
-    ).collect() == [Row("true")]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_boolean_output_udf("num1")).collect(),
+        [Row("true")],
+    )
 
 
 @pytest.mark.skip(
@@ -685,9 +748,10 @@ def test_variant_binary_output(session):
     def variant_binary_output_udf(_):
         return bytes("snow", "utf8")
 
-    assert TestData.variant1(session).select(
-        variant_binary_output_udf("num1")
-    ).collect() == [Row('"736E6F77"')]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_binary_output_udf("num1")).collect(),
+        [Row('"736E6F77"')],
+    )
 
 
 def test_variant_dict_output(session):
@@ -695,9 +759,10 @@ def test_variant_dict_output(session):
     def variant_dict_output_udf(_):
         return {"a": "foo"}
 
-    assert TestData.variant1(session).select(
-        variant_dict_output_udf("num1")
-    ).collect() == [Row('{\n  "a": "foo"\n}')]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_dict_output_udf("num1")).collect(),
+        [Row('{\n  "a": "foo"\n}')],
+    )
 
 
 def test_variant_list_output(session):
@@ -705,9 +770,10 @@ def test_variant_list_output(session):
     def variant_list_output_udf(_):
         return [1, 2, 3]
 
-    assert TestData.variant1(session).select(
-        variant_list_output_udf("num1")
-    ).collect() == [Row("[\n  1,\n  2,\n  3\n]")]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_list_output_udf("num1")).collect(),
+        [Row("[\n  1,\n  2,\n  3\n]")],
+    )
 
 
 @pytest.mark.skip(
@@ -719,9 +785,12 @@ def test_variant_timestamp_output(session):
     def variant_timestamp_output_udf(_):
         return datetime.datetime.strptime("2020-10-10 01:02:03", "%Y-%m-%d %H:%M:%S")
 
-    assert TestData.variant1(session).select(
-        variant_timestamp_output_udf("num1")
-    ).collect() == [Row('"2020-10-10 01:02:03.000"')]
+    Utils.check_answer(
+        TestData.variant1(session)
+        .select(variant_timestamp_output_udf("num1"))
+        .collect(),
+        [Row('"2020-10-10 01:02:03.000"')],
+    )
 
 
 @pytest.mark.skip(
@@ -733,9 +802,10 @@ def test_variant_time_output(session):
     def variant_time_output_udf(_):
         return datetime.datetime.strptime("01:02:03", "%H:%M:%S").time()
 
-    assert TestData.variant1(session).select(
-        variant_time_output_udf("num1")
-    ).collect() == [Row('"01:02:03"')]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_time_output_udf("num1")).collect(),
+        [Row('"01:02:03"')],
+    )
 
 
 @pytest.mark.skip(
@@ -747,9 +817,10 @@ def test_variant_date_output(session):
     def variant_date_output_udf(_):
         return datetime.datetime.strptime("2020-10-10", "%Y-%m-%d").date()
 
-    assert TestData.variant1(session).select(
-        variant_date_output_udf("num1")
-    ).collect() == [Row('"2020-10-10"')]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_date_output_udf("num1")).collect(),
+        [Row('"2020-10-10"')],
+    )
 
 
 def test_array_variant(session):
@@ -757,25 +828,28 @@ def test_array_variant(session):
     def variant_udf(v):
         return v + [1]
 
-    assert TestData.variant1(session).select(variant_udf("arr1")).collect() == [
-        Row('[\n  "Example",\n  1\n]')
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("arr1")).collect(),
+        [Row('[\n  "Example",\n  1\n]')],
+    )
 
     @udf(return_type=ArrayType(VariantType()), input_types=[ArrayType(VariantType())])
     def variant_udf_none(v):
         return v + [None]
 
-    assert TestData.variant1(session).select(variant_udf_none("arr1")).collect() == [
-        Row('[\n  "Example",\n  null\n]')
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf_none("arr1")).collect(),
+        [Row('[\n  "Example",\n  null\n]')],
+    )
 
     @udf(return_type=ArrayType(VariantType()), input_types=[ArrayType(VariantType())])
     def variant_udf_none_if_true(_):
         return None if True else [1]
 
-    assert TestData.variant1(session).select(
-        variant_udf_none_if_true("arr1")
-    ).collect() == [Row(None)]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf_none_if_true("arr1")).collect(),
+        [Row(None)],
+    )
 
 
 def test_map_variant(session):
@@ -786,9 +860,10 @@ def test_map_variant(session):
     def variant_udf(v):
         return {**v, "a": 1}
 
-    assert TestData.variant1(session).select(variant_udf("obj1")).collect() == [
-        Row('{\n  "Tree": "Pine",\n  "a": 1\n}')
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf("obj1")).collect(),
+        [Row('{\n  "Tree": "Pine",\n  "a": 1\n}')],
+    )
 
     @udf(
         return_type=MapType(StringType(), VariantType()),
@@ -797,9 +872,10 @@ def test_map_variant(session):
     def variant_udf_none(v):
         return {**v, "a": None}
 
-    assert TestData.variant1(session).select(variant_udf_none("obj1")).collect() == [
-        Row('{\n  "Tree": "Pine",\n  "a": null\n}')
-    ]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf_none("obj1")).collect(),
+        [Row('{\n  "Tree": "Pine",\n  "a": null\n}')],
+    )
 
     @udf(
         return_type=MapType(StringType(), VariantType()),
@@ -808,9 +884,10 @@ def test_map_variant(session):
     def variant_udf_none_if_true(_):
         return None if True else {"a": 1}
 
-    assert TestData.variant1(session).select(
-        variant_udf_none_if_true("obj1")
-    ).collect() == [Row(None)]
+    Utils.check_answer(
+        TestData.variant1(session).select(variant_udf_none_if_true("obj1")).collect(),
+        [Row(None)],
+    )
 
 
 def test_negative_test_to_input_invalid_func_name(session):
@@ -828,7 +905,7 @@ def test_negative_test_to_input_invalid_func_name(session):
 def test_empty_argument_function(session):
     udf1 = udf(lambda: 100, return_type=IntegerType())
     df = session.create_dataframe([1]).to_df("col")
-    assert df.select(udf1()).collect() == [Row(100)]
+    Utils.check_answer(df.select(udf1()).collect(), [Row(100)])
 
 
 def test_repro_snow_415682(session, is_sample_data_available):
@@ -884,15 +961,18 @@ def test_repro_snow_415682(session, is_sample_data_available):
         .sort("NORM_WS_EXT_DISCOUNT_AMT")
     )
 
-    assert my_norms.collect() == [
-        Row(0.0),
-        Row(0.003556988004215603),
-        Row(0.005327891585434567),
-        Row(0.031172106954869112),
-        Row(0.03785634836528609),
-        Row(0.06832313005602315),
-        Row(0.1572793596020284),
-        Row(0.24924957011943236),
-        Row(0.5399685289472378),
-        Row(1.0),
-    ]
+    Utils.check_answer(
+        my_norms.collect(),
+        [
+            Row(0.0),
+            Row(0.003556988004215603),
+            Row(0.005327891585434567),
+            Row(0.031172106954869112),
+            Row(0.03785634836528609),
+            Row(0.06832313005602315),
+            Row(0.1572793596020284),
+            Row(0.24924957011943236),
+            Row(0.5399685289472378),
+            Row(1.0),
+        ],
+    )
