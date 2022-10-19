@@ -253,6 +253,43 @@ session.udf.register(
 )
 ```
 
+## Pandas(Vectorized) UDFs
+
+Pandas UDFs are functions that receive batches of input rows as Pandas DataFrame and returns
+batch of results as Pandas Series. Compared to the default row-by-row Python UDFs, your code would get better
+performance if it operates efficiently on batches of rows and there will less transformation logic required if
+you are calling into libraries that operation on Pandas DataFrames or Pandas arrays.
+
+Pandas(Vectorized) UDFs could be registered similarly as UDFs by `snowflake.snowpark.functions.pandas_udf` or
+`snowflake.snowpark.functions.udf` function.
+
+```python
+from snowflake.snowpark.functions import pandas_udf, udf
+from snowflake.snowpark.types import IntegerType, PandasSeriesType, PandasDataFrameType
+
+# using pandas_udf as decorator to register Pandas(Vectorized) UDFs
+@pandas_udf(
+  return_type=PandasSeriesType(IntegerType()),
+  input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
+)
+def add_one_df_pandas_udf(df):
+  return df[0] + df[1] + 1
+
+# using pandas_udf to register
+add_series_pandas_udf = pandas_udf(
+  lambda df: df[0] + df[1] + 1,
+  return_type=PandasSeriesType(IntegerType()),
+  input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
+)
+
+# using udf to register Pandas(Vectorized) UDFs
+add_series_pandas_udf = udf(
+  lambda df: df[0] + df[1] + 1,
+  return_type=PandasSeriesType(IntegerType()),
+  input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
+)
+```
+
 ## Type Hints
 
 As illustrated in the above [UDF Registration][#UDF Registration], the typing info needs to be provided.
@@ -267,17 +304,16 @@ def typed_add(x: int, y: int) -> int:
     return x + y
 ```
 
-Apart from Python primitive types, Snowflake types (`VariantType`, `GeographyType`, `PandasSeriesType`, etc.)
+Apart from Python primitive types, Snowflake types (`VariantType`, `GeographyType`, `MapType`, etc.)
 are available in the module `snowflake.snowpark.types`.
 
 ```python
-import pandas
 from snowflake.snowpark.functions import udf
-from snowflake.snowpark.types import VariantType, GeographyType, PandasSeriesType
+from snowflake.snowpark.types import VariantType, GeographyType, MapType
 
 @udf
-def typed_add(x: VariantType, y: GeographyType) -> PandasSeriesType():
-    return pandas.Series(["1"])
+def typed_add(x: VariantType, y: GeographyType) -> MapType():
+    return {1:None}
 ```
 
 # User Defined Table Functions (UDTFs)
