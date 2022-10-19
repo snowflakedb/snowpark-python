@@ -11,7 +11,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_sta
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
-    experimental,
     result_set_to_iter,
     result_set_to_rows,
 )
@@ -161,8 +160,6 @@ class AsyncJob:
             [Row(D=1, B=2)]
 
     Note:
-        - This feature is experimental since 0.10.0. Methods in this class are subject to change in
-          future releases.
         - If a dataframe is associated with multiple queries:
 
             + if you use :meth:`Session.create_dataframe` to create a dataframe from a large amount
@@ -202,7 +199,6 @@ class AsyncJob:
         self._deleted = False
 
     @property
-    @experimental(version="0.10.0")
     def query(self) -> Optional[str]:
         """
         The SQL text of of the executed query. Returns ``None`` if it cannot be retrieved from Snowflake.
@@ -233,14 +229,12 @@ class AsyncJob:
 
             return self._query
 
-    @experimental(version="0.12.0")
     def to_df(self) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a :class:`DataFrame` built from the result of this asynchronous job.
         """
         return self._session.sql(result_scan_statement(self.query_id))
 
-    @experimental(version="0.10.0")
     def is_done(self) -> bool:
         """
         Checks the status of the query associated with this instance and returns a bool value
@@ -250,7 +244,6 @@ class AsyncJob:
         is_running = self._session._conn._conn.is_still_running(status)
         return not is_running
 
-    @experimental(version="0.10.0")
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
@@ -286,7 +279,6 @@ class AsyncJob:
                 rows_inserted, rows_updated, rows_deleted
             )
 
-    @experimental(version="0.10.0")
     def result(
         self,
         result_type: Optional[
@@ -311,7 +303,7 @@ class AsyncJob:
         :class:`Row` s from this method.
 
         Args:
-            result_type: (Experimental) specifies the data type of returned query results. Currently
+            result_type: specifies the data type of returned query results. Currently
                 it only supports the following return data types:
 
                 - "row": returns a list of :class:`Row` objects, which is the same as the return
