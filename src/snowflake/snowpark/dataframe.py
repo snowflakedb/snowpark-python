@@ -520,6 +520,10 @@ class DataFrame:
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
 
+    @property
+    def is_cached(self) -> bool:
+        return self.is_cached
+
     @overload
     def collect(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
