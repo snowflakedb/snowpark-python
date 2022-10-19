@@ -3,19 +3,19 @@
 The Snowpark library provides intuitive APIs for querying and processing data in a data pipeline.
 Using this library, you can build applications that process data in Snowflake without having to move data to the system where your application code runs.
 
-This guide to Snowpark code style demonstrates common situations we've encountered and the associated best practices based on our experience coaching and working with our engineering teams.
+This guide to Snowpark code style demonstrates common situations we've encountered and the associated best practices based on our experience working with our engineering teams.
 
-Beyond Snowpark specifics, the general practices of clean code are important in Snowpark -- the
-[PEP 8][pep-8] is a strong starting point for learning more about these practices.
+Beyond Snowpark specifics, the general practices of clean code are important in Snowpark. The
+[PEP 8][pep-8] is a good starting point for learning more about these practices.
 
 # Table of Contents
 
 1. [DataFrame Operations](#dataframe-operations)
    1. [Column Selection](#column-selection)
-   2. [Aliasing Column Name](#aliasing-column-name)
+   2. [Aliasing Column Names](#aliasing-column-names)
    3. [Performant SQL Generation](#performant-sql-generation)
 2. [Expressions](#expressions)
-   1. [Multiple-Lines](#multiple-lines)
+   1. [Use Multiple-Lines](#use-multiple-lines)
 3. [Explicitness](#explicitness)
    1. [Calling Methods and Functions with Parameter Names](#calling-methods-and-functions-with-parameter-names)
 4. [User Defined Functions (UDFs)](#user-defined-functions-udfs)
@@ -29,10 +29,11 @@ Beyond Snowpark specifics, the general practices of clean code are important in 
 
 ## Column Selection
 
-In Snowpark, to provide the best development experience for developers coming from various background,
-multiple approaches of column selection are provided for handy
-usage as demonstrated in the following snippets:
+In Snowpark, to provide a convenient experience for developers from various backgrounds,
+different ways to do column selection are provided as shown in the following snippets:
 ```python
+from snowflake.snowpark.functions import col, lit, sql_expr
+
 # select by attribute
 df = df.select(df.col_a, df.col_b)
 
@@ -43,41 +44,41 @@ df = df.select("col_a", "col_b")
 df = df.select(col("col_a"), col("col_b"))
 
 # select by using snowflake.snowpark.functions.lit function
-df = df.select(lit("col_a"), lit("col_b"))
+df = df.select(lit(2), lit("x"), lit([1,2]))
 
 # select by using snowflake.snowpark.functions.sql_expr function
 df = df.select(sql_expr("col_a + 1"), sql_expr("col_b + 1"))
 
-# select by Dataframe indexing
+# select by DataFrame indexing
 df = df.select(df["col_a"], df["col_b"])
 
 # select by using DataFrame.col function
 df = df.select(df.col("col_a"), df.col("col_b"))
 ```
 
-- The attribute approach is shorter and simpler, however, it cannot tackle column names containing
+- The attribute approach is shorter and simpler, however, it cannot handle column names that contain
 special characters.
-- The string approach has the same benefits as the first one, but also supporting names with special characters.
-- The `col` function approach will wrap the col as a `Column` object. It's the best of usage when operations on `Column` like aliasing the column name are needed.
-- The `lit` function approach will convert the value passed in to a literal value. It could help when you are passing variables of non-string types as the column.
+- The string approach has the same benefits as the first one, but also supports names with special characters.
+- The `col` function approach will wrap the col as a `Column` object. Use it when operations on `Column` like aliasing the column name are needed.
+- The `lit` function approach is used to select constant Python values.
 - The `sql_expr` function approach will pass the value as raw SQL text. It provides assistance if you have a SQL expression to select.
-- The indexing and `DataFrame.col` approaches offer a way to disambiguate among multiple `DataFrame`.
-Suppose there are two `DataFrame` with same column name `col_a` and a `join` operation is wanted, it could be accomplished by:
+- The indexing and `DataFrame.col` approaches offer a way to disambiguate among multiple `DataFrame` objects.
+Suppose there are two `DataFrame` objects with the same column name `col_a` and you want to do a `join` operation, it could be accomplished by:
     ```python
     df = df1.join(df2, df2["col_a"] == df1["col_a"])
     ```
 
-## Aliasing Column Name
+## Aliasing Column Names
 
-Aliasing is typically useful for providing meaningful names for columns.
-Sometimes the column names in the database is either composed of long words for the purpose of
-being descriptive or too short lacking enough information. Keeping those long column names while manipulating `DataFrame`
-could somehow reduce maintainability and readability such that aliasing is wanted.
+Aliasing lets you give for providing meaningful names to columns.
+Sometimes the column names in a database are either composed of long words, for the purpose of
+being descriptive, or too short, lacking enough information. Keeping those long column names while manipulating the `DataFrame`
+might reduce maintainability and readability so aliasing is useful.
 
-There are two ways to do aliasing in Snowpark : either `DataFrame.with_column_renamed` or `Column.alias`
-suffices the purpose. `with_column_renamed` separates column selection and renaming.
+There are two ways to do aliasing in Snowpark: `DataFrame.with_column_renamed` or `Column.alias`.
+When you use `with_column_renamed` it separates column selection and renaming.
 In contrast, `Column.alias` brings the benefit
-of locality as well as makes code more compact which further improves readability and conciseness.
+of locality and makes the code more compact, which further improves readability and conciseness.
 
 ```python
 # with_column_renamed
@@ -106,16 +107,15 @@ order = order.select(
 
 ## Performant SQL Generation
 
-Operations upon `DataFrame` are lazily evaluated to SQL statements and sent to Snowflake for execution.
-Non-optimized SQL statements would take longer time to process and execute, and sometimes the service even times out.
-Snowpark has implemented a SQL simplifier which is turned on by default, and it is built upon certain rules.
-To maximize the effectiveness of the simplifier, we propose the following guidelines based on our practices:
+Operations on `DataFrame` are lazily evaluated to SQL statements and sent to Snowflake for execution.
+Non-optimized SQL statements would take a longer time to process and execute, and long-running queries might time out.
+Snowpark has implemented a SQL simplifier which is turned on by default. It is built upon certain rules.
+To maximize the effectiveness of the SQL simplifier, we propose the following guidelines:
 
-### Calling `DataFrame.with_columns` is preferred than `DataFrame.with_column`
+### Calling `DataFrame.with_columns` is preferred over `DataFrame.with_column`
 
-`with_column` will add another layer of `select` statement within the internal sql execution plan and keeps calling the
-function will ultimately generate which is too long to be executed. Instead of calling `DataFrame.with_column` for
-multiple times, please try using `DataFrame.with_columns` to batch your operations.
+Using `with_column` will add another layer of `select` statement within the internal SQL execution plan.
+Instead of calling `DataFrame.with_column` multiple times, use `DataFrame.with_columns` to batch your operations.
 
 ```python
 # unperformant
@@ -131,21 +131,21 @@ df = df.with_columns(
 
 # Expressions
 
-Chaining of expressions are widely used as they represent atomic logic. Here we are give
-some best practice based on our experiences for writing the expressions.
+Chaining of expressions is widely used because they represent atomic logic. Here are
+some best practices for writing the expressions.
 
-## Multiple-Lines
+## Use Multiple-Lines
 
-In general, it should be avoided to lay out all the expression into a single line which makes code
-difficult to read with expressions left behind getting easier to be omitted.
+In general, don't put the expression into a single line. That makes code
+difficult to read.
 
-Wrapping the multi-lines expressions within parentheses provides a graceful way to laying out the code.
+Wrapping the multi-line expressions within parentheses provides a graceful way to lay out the code.
 
 ```python
-# all in one line
+# Expressions are all in one line. Don't do this.
 df = df.select('col_a', 'col_b').filter(df['col_a'] == 'value').filter(df['cob_b'] == True).join(right=another_dataframe, on='col_c').drop('col_d')
 
-# multiple lines wrapped in parentheses
+# Multiple lines are wrapped in parentheses.
 df = (
     df
     .select('col_a', 'col_b')
@@ -161,8 +161,8 @@ df = (
 
 ## Calling Methods and Functions with Parameter Names
 
-It is a good habit to specify the names of parameters when calling methods or functions which helps understand which
-roles the parameters play instead of constantly referencing to the API doc to figure out.
+It is a good habit to specify the names of parameters when calling methods or functions. This helps you to understand which
+roles the parameters play instead of constantly referencing to the API documentation to figure out.
 
 ```python
 # without parameter name
@@ -179,19 +179,19 @@ df = df.unpivot(value_column="sales", name_column="month", column_list=["jan", "
 [User Defined Functions (UDFs)][udf-service-doc] let you extend the system to perform customized operations and Snowpark
 lets you use the Python programming language to manipulate data and return either scalar or tabular results.
 
-UDFs could be registered in several ways and each has its own advantages and limitations.
+UDFs can be registered in several ways and each way has its own advantages and limitations.
 
 
 ## Registration
 
-**calling `snowflake.snowpark.functions.udf` function**
+**Calling the `snowflake.snowpark.functions.udf` function**
 
 The `snowflake.snowpark.functions.udf` function will register the function within the most
 recently created session. If there is only one single active session in the program, it will use that session
 for registration. However, if there are multiple active sessions in your
 program and a different session is wanted, the `session` parameter has to be explicitly set.
-In this case, you may need to keep a record of all the sessions and maintain extra logic to decide on which
-session to use.
+In this case, you may need to keep a record of all the sessions and maintain extra logic to decide which
+session to use. It is recommended to explicitly specify the session parameter when registering.
 
 ```python
 from snowflake.snowpark.functions import udf
@@ -207,7 +207,7 @@ udf(
    input_types=[IntegerType(), IntegerType()]
 )
 
-# or explicitly specifying an active session
+# explicitly specify an active session
 udf(
    add,
    return_type=IntegerType(),
@@ -216,10 +216,10 @@ udf(
 )
 ```
 
-**using `snowflake.snowpark.functions.udf` as decorator**
+**Using the `snowflake.snowpark.functions.udf` as decorator**
 
-`snowflake.snowpark.functions.udf` could be also used as a decorator to annotate the function to be registered.
-With the decorator, it is clearer whether the function is a UDF.
+`snowflake.snowpark.functions.udf` can be also used as a decorator to annotate the function to be registered.
+With the decorator, it is more clear that the function is a UDF.
 
 ```python
 # udf as decorator
@@ -234,9 +234,9 @@ def add(x, y):
      return x + y
 ```
 
-**calling `snowflake.snowpark.Session.udf.register` method**
+**Calling the `snowflake.snowpark.Session.udf.register` method**
 
-The `udf` method on `Session` object returns `UDFRegistration` object which could be used for registration.
+The `udf` method on `Session` object returns `UDFRegistration` object which can be used for registration.
 Inherently, `UDFRegistration` is bound with the `Session` object which means the UDF will be registered
 through that session.
 
@@ -260,7 +260,7 @@ batch of results as Pandas Series. Compared to the default row-by-row Python UDF
 performance if it operates efficiently on batches of rows and there will less transformation logic required if
 you are calling into libraries that operation on Pandas DataFrames or Pandas arrays.
 
-Pandas(Vectorized) UDFs could be registered similarly as UDFs by `snowflake.snowpark.functions.pandas_udf` or
+Pandas(Vectorized) UDFs can be registered similarly to UDFs by using the `snowflake.snowpark.functions.pandas_udf` or the
 `snowflake.snowpark.functions.udf` function.
 
 ```python
@@ -292,8 +292,8 @@ add_series_pandas_udf = udf(
 
 ## Type Hints
 
-As illustrated in the above [UDF Registration][#UDF Registration], the typing info needs to be provided.
-Other than inputting types as parameters, you could also provide the typing information through Python type hints.
+As illustrated in the above [UDF Registration][#UDF Registration], the typing info must be provided.
+Other than inputting types as parameters, you can also provide the typing information through Python type hints.
 It makes the code more cohesive and self-explanatory.
 
 ```python
@@ -304,15 +304,15 @@ def typed_add(x: int, y: int) -> int:
     return x + y
 ```
 
-Apart from Python primitive types, Snowflake types (`VariantType`, `GeographyType`, `MapType`, etc.)
+Apart from Python primitive types, Snowflake types (`Variant`, `Geography`, `MapType`, etc.)
 are available in the module `snowflake.snowpark.types`.
 
 ```python
 from snowflake.snowpark.functions import udf
-from snowflake.snowpark.types import VariantType, GeographyType, MapType
+from snowflake.snowpark.types import Variant, Geography, MapType
 
 @udf
-def typed_add(x: VariantType, y: GeographyType) -> MapType():
+def typed_add(x: Variant, y: Geography) -> MapType():
     return {1:None}
 ```
 
@@ -322,8 +322,8 @@ Snowflake supports SQL UDFs that return a set of rows, consisting of 0, 1, or mu
 each of which has 1 or more columns. Such UDFs are called [tabular UDFs, table UDFs, or,
 most frequently, UDTFs (user-defined table functions)][udtf-service-doc].
 
-UDTFs could be registered similarly as UDFs by `snowflake.snowpark.Session.udtf.register` method
-or `snowflake.snowpark.functions.udtf` function.
+UDTFs can be registered similarly to UDFs by using the `snowflake.snowpark.Session.udtf.register` method
+or the `snowflake.snowpark.functions.udtf` function.
 
 ```python
 from snowflake.snowpark.functions import udtf
@@ -349,7 +349,7 @@ session.udtf.register(
 )
 ```
 
-Type hint works for UDTF as well:
+Type hints work for UDTFs as well:
 
 ```python
 from snowflake.snowpark.functions import udtf
@@ -367,7 +367,7 @@ class TypedGeneratorUDTF:
 [Stored procedures][sproc-service-doc] allow you to write procedural code that executes SQL.
 In a stored procedure, you can use programmatic constructs to perform branching and looping.
 
-Stored procedures could be registered similarly as UDFs and UDTFs by `snowflake.snowpark.Session.sproc.register` method
+Stored procedures can be registered similarly to UDFs and UDTFs by using the `snowflake.snowpark.Session.sproc.register` method.
 
 ```python
 from snowflake.snowpark.functions import sproc
@@ -391,7 +391,7 @@ session.sproc.register(
 )
 ```
 
-Type hint works for Stored Procedures as well:
+Type hints work for stored procedures as well:
 
 ```python
 from snowflake.snowpark.functions import sproc
@@ -402,8 +402,8 @@ def typed_add(session_, x: int, y: int) -> int:
 ```
 
 # Miscellaneous
-- Test your code thoroughly through units and integration tests. There are numerous [test cases in Snowpark][snowpark-tests] which you
-could get inspiration from, feel free to copy and modify accommodating your scenarios.
+- Test your code thoroughly with unit tests and integration tests. There are numerous [test cases in Snowpark][snowpark-tests] to
+get inspiration from.
 
 
 [pep-8]: https://peps.python.org/pep-0008/
