@@ -59,6 +59,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     deprecated,
+    experimental,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -1497,6 +1498,7 @@ class Session:
         set_api_call_source(df, "Session.range")
         return df
 
+    @experimental(version="0.12.0")
     def create_async_job(self, query_id: str) -> AsyncJob:
         """
         Creates an :class:`AsyncJob` from a query ID.

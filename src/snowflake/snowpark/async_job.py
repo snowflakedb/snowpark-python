@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_sta
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
     check_is_pandas_dataframe_in_to_pandas,
+    experimental,
     result_set_to_iter,
     result_set_to_rows,
 )
@@ -229,6 +230,7 @@ class AsyncJob:
 
             return self._query
 
+    @experimental(version="0.12.0")
     def to_df(self) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Returns a :class:`DataFrame` built from the result of this asynchronous job.
@@ -303,7 +305,7 @@ class AsyncJob:
         :class:`Row` s from this method.
 
         Args:
-            result_type: specifies the data type of returned query results. Currently
+            result_type: (Experimental) specifies the data type of returned query results. Currently
                 it only supports the following return data types:
 
                 - "row": returns a list of :class:`Row` objects, which is the same as the return
