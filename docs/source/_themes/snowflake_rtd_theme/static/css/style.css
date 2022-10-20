@@ -2242,7 +2242,7 @@ embed, iframe, object { max-width: 100%; }
             position: fixed;
             left: 0;
             padding-bottom: 2em;
-            width: 320px;
+            width: 420px;
             overflow-x: hidden;
             overflow-y: hidden;
             height: calc(100% - 20px);
@@ -2254,8 +2254,10 @@ embed, iframe, object { max-width: 100%; }
             overflow-x: hidden;
             overflow-y: hidden;
             padding-right: 0;
+            padding-left: 5px;
+            padding-top: 5px;
             position: relative;
-            width: 320px; /* Show TOC scrollbar. To hide it again, change to 340px */
+            width: 420px; /* Show TOC scrollbar. To hide it again, change to 340px */
         }
         .wy-menu-vertical-scrollbar-container {
             height: 100%;
@@ -2270,7 +2272,7 @@ embed, iframe, object { max-width: 100%; }
             visibility: visible;
         }
         .main-content {
-            margin-left: 310px;
+            margin-left: 410px;
             width: 100%;
             overflow: hidden;
         }

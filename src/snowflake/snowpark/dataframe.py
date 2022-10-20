@@ -522,7 +522,7 @@ class DataFrame:
 
     @property
     def is_cached(self) -> bool:
-        """Whether the dataframe is cached"""
+        """Whether the dataframe is cached."""
         return self._is_cached
 
     @is_cached.setter

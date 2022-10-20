@@ -50,11 +50,7 @@ autodoc_default_options = {
     "members": True,  # Include all methods.
     "member-order": "alphabetical",  # 'alphabetical', by member type ('groupwise') or source order (value 'bysource')
     "undoc-members": True,  # If set, autodoc will also generate document for the members not having docstrings
-    # "private-members": '',  # don't generate document for the private members (like _private or __private)
-    # "special-members": '',  # for example, '__init__'
-    # "inherited-members": '',
     "show-inheritance": True,
-    # "exclude-members": ''#
     # "typehints_fully_qualified": False,
 }
 
