@@ -127,6 +127,7 @@ _active_sessions: Set["Session"] = set()
 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
     "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
 )
+_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -277,7 +278,13 @@ class Session:
         self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
-        self._sql_simplifier_enabled: bool = False
+        self._sql_simplifier_enabled: bool = (
+            conn._conn._session_parameters.get(
+                _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, False
+            )
+            if conn._conn._session_parameters
+            else False
+        )
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -330,7 +337,13 @@ class Session:
         self._conn._telemetry_client.send_sql_simplifier_telemetry(
             self._session_id, value
         )
-        self._sql_simplifier_enabled = value
+        try:
+            self._conn.run_query(
+                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+            )
+        except Exception:
+            pass
+        self._sql_simplifier_enabled = False
 
     def cancel_all(self) -> None:
         """
