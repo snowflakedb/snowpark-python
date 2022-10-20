@@ -22,7 +22,6 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
-from snowflake.snowpark._internal.utils import warning
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
 from snowflake.snowpark.row import Row
@@ -377,7 +376,7 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
 
@@ -410,12 +409,6 @@ class Table(DataFrame):
             >>> t.collect()
             [Row(A=1, B=0), Row(A=1, B=0), Row(A=2, B=0), Row(A=2, B=0), Row(A=3, B=0), Row(A=3, B=0)]
         """
-        if not block:
-            warning(
-                "update.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         if source:
             assert (
                 condition is not None
@@ -482,7 +475,7 @@ class Table(DataFrame):
             source: An optional :class:`DataFrame` that is included in ``condition``.
                 It can also be another :class:`Table`.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
 
@@ -514,12 +507,6 @@ class Table(DataFrame):
             >>> t.collect()
             [Row(A=1, B=1), Row(A=1, B=2)]
         """
-        if not block:
-            warning(
-                "delete.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         if source:
             assert (
                 condition is not None
@@ -594,7 +581,7 @@ class Table(DataFrame):
                 of :class:`WhenMatchedClause` and :class:`WhenNotMatchedClause`, and will
                 be performed sequentially in this list.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
 
@@ -611,12 +598,6 @@ class Table(DataFrame):
             >>> target.collect()
             [Row(KEY=13, VALUE=None), Row(KEY=12, VALUE=None), Row(KEY=10, VALUE='new'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
         """
-        if not block:
-            warning(
-                "merge.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         inserted, updated, deleted = False, False, False
         merge_exprs = []
         for c in clauses:

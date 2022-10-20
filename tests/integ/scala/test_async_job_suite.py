@@ -14,7 +14,6 @@ from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
-    warning_dict,
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, when_matched, when_not_matched
@@ -336,35 +335,6 @@ def test_async_place_holder(session):
     exp = session.sql("show functions").where("1=1").collect()
     async_job = session.sql("show functions").where("1=1").collect_nowait()
     Utils.check_answer(async_job.result(), exp)
-
-
-def test_async_experimental(session, caplog):
-    caplog.clear()
-    warning_dict.clear()
-    try:
-        with caplog.at_level(logging.WARNING):
-            session.sql("select 1").collect(block=False)
-        assert (
-            "block argument is experimental. Do not use it in production."
-            in caplog.text
-        )
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
-            session.sql("select 1").to_pandas(block=False)
-        assert (
-            "block argument is experimental. Do not use it in production."
-            in caplog.text
-        )
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
-            session.sql("select 1").collect_nowait()
-        assert (
-            "block argument is experimental. Do not use it in production."
-            not in caplog.text
-        )
-        assert "DataFrame.collect_nowait() is experimental" in caplog.text
-    finally:
-        warning_dict.clear()
 
 
 @pytest.mark.parametrize("create_async_job_from_query_id", [True, False])
