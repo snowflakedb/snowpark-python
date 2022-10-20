@@ -104,7 +104,6 @@ from snowflake.snowpark._internal.utils import (
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecated,
-    experimental,
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_snowflake_quoted_id_case_insensitive,
@@ -113,7 +112,6 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     random_name_for_temp_object,
     validate_object_name,
-    warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -541,24 +539,17 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
 
         See also:
             :meth:`collect_nowait()`
         """
-        if not block:
-            warning(
-                "collect.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         return self._internal_collect_with_tag_no_telemetry(
             statement_params=statement_params, block=block
         )
 
-    @experimental(version="0.10.0")
     @df_collect_api_telemetry
     def collect_nowait(
         self,
@@ -647,16 +638,10 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
-        if not block:
-            warning(
-                "to_local_iterator.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         return self._session._conn.execute(
             self._plan,
             to_iter=True,
@@ -709,7 +694,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
 
@@ -719,12 +704,6 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        if not block:
-            warning(
-                "to_pandas.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         result = self._session._conn.execute(
             self._plan,
             to_pandas=True,
@@ -794,7 +773,7 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
 
@@ -804,12 +783,6 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        if not block:
-            warning(
-                "to_pandas_batches.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         return self._session._conn.execute(
             self._plan,
             to_pandas=True,
@@ -2483,16 +2456,10 @@ class DataFrame:
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
-        if not block:
-            warning(
-                "count.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         df = self.agg(("*", "count"))
         add_api_call(df, "DataFrame.count")
         result = df._internal_collect_with_tag(
@@ -3000,7 +2967,7 @@ class DataFrame:
         Args:
             n: The number of rows to return.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
-            block: (Experimental) A bool value indicating whether this function will wait until the result is available.
+            block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
 
@@ -3010,12 +2977,6 @@ class DataFrame:
              results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
-        if not block:
-            warning(
-                "first.block",
-                "block argument is experimental. Do not use it in production.",
-            )
-
         if n is None:
             df = self.limit(1)
             add_api_call(df, "DataFrame.first")

@@ -161,8 +161,6 @@ class AsyncJob:
             [Row(D=1, B=2)]
 
     Note:
-        - This feature is experimental since 0.10.0. Methods in this class are subject to change in
-          future releases.
         - If a dataframe is associated with multiple queries:
 
             + if you use :meth:`Session.create_dataframe` to create a dataframe from a large amount
@@ -202,7 +200,6 @@ class AsyncJob:
         self._deleted = False
 
     @property
-    @experimental(version="0.10.0")
     def query(self) -> Optional[str]:
         """
         The SQL text of of the executed query. Returns ``None`` if it cannot be retrieved from Snowflake.
@@ -240,7 +237,6 @@ class AsyncJob:
         """
         return self._session.sql(result_scan_statement(self.query_id))
 
-    @experimental(version="0.10.0")
     def is_done(self) -> bool:
         """
         Checks the status of the query associated with this instance and returns a bool value
@@ -250,7 +246,6 @@ class AsyncJob:
         is_running = self._session._conn._conn.is_still_running(status)
         return not is_running
 
-    @experimental(version="0.10.0")
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
@@ -286,7 +281,6 @@ class AsyncJob:
                 rows_inserted, rows_updated, rows_deleted
             )
 
-    @experimental(version="0.10.0")
     def result(
         self,
         result_type: Optional[
