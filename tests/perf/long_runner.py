@@ -44,9 +44,11 @@ def run(session: Session, number_of_columns: int):
     union
     collect
     to_pandas
-    cache_result
+    cache_result (includes save_as_table)
     to_local_iterator
     to_pandas_batch
+    collect_nowait
+    write_pandas
     """
     new_columns = generate_columns(number_of_columns)
     df = session.create_dataframe([[1]] * 100, schema=["a"])
