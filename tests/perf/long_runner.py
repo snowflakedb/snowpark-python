@@ -13,8 +13,6 @@ from pathlib import Path
 from threading import Thread
 from typing import List
 
-import psutil
-
 from snowflake.snowpark import Session, Window
 from snowflake.snowpark.functions import avg, col, random as snowflake_random
 
@@ -71,6 +69,8 @@ def run(session: Session, number_of_columns: int):
 
 
 def start_cpu_mem_daemon(interval):
+    import psutil  # put it here to avoid it's being loaded by pytest in merge gate.
+
     def gather_cpu_memory():
         process = psutil.Process(os.getpid())
         os.makedirs(log_folder, exist_ok=True)
