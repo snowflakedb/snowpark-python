@@ -14,6 +14,10 @@ from threading import Thread
 from typing import List
 
 from snowflake.snowpark import Session, Window
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.functions import avg, col, random as snowflake_random
 
 connection_parameters_path = str(Path(__file__).absolute().parent.parent)
@@ -56,6 +60,7 @@ def run(session: Session, number_of_columns: int):
     df = df.with_column(
         "window_value", avg(df[1]).over(Window.partition_by(df[2]).order_by(df[3]))
     )
+    df.collect_nowait()
     with df.cache_result() as cached_df:
         union_df = cached_df.union(df)
         join_df = union_df.join(df, union_df[1] == df[1])
@@ -64,8 +69,13 @@ def run(session: Session, number_of_columns: int):
     group_by_df.collect()
     for _ in df.to_local_iterator():
         pass
-    for _ in df.to_pandas_batches():
-        pass
+    for pandas_df in df.to_pandas_batches():
+        with session.write_pandas(
+            pandas_df,
+            table_name=random_name_for_temp_object(TempObjectType.TABLE),
+            auto_create_table=True,
+        ):
+            pass
 
 
 def start_cpu_mem_daemon(interval):
