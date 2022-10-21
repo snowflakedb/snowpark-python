@@ -21,7 +21,7 @@ Beyond Snowpark specifics, the general practices of clean code are important in 
 4. [User Defined Functions (UDFs)](#user-defined-functions-udfs)
    1. [Registration](#registration)
    2. [Type Hints](#type-hints)
-   3. [Pandas(Vectorized) UDFs](#pandasvectorized-udfs)
+   3. [Pandas (Vectorized) UDFs](#pandas-vectorized-udfs)
 5. [User Defined Table Functions (UDTFs)](#user-defined-table-functions-udtfs)
 6. [Stored Procedures](#stored-procedures)
 6. [Miscellaneous](#miscellaneous)
@@ -254,14 +254,14 @@ session.udf.register(
 )
 ```
 
-## Pandas(Vectorized) UDFs
+## Pandas (Vectorized) UDFs
 
 Pandas UDFs are functions that receive batches of input rows as Pandas DataFrames and return
 a batch of results as Pandas Series. Compared to the default row-by-row Python UDFs, your code will get better
 performance if it operates efficiently on batches of rows and there will be less transformation logic required if
 you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
 
-Pandas(Vectorized) UDFs can be registered similarly to UDFs by using the `snowflake.snowpark.functions.pandas_udf` or the
+Pandas (Vectorized) UDFs can be registered similarly to UDFs by using the `snowflake.snowpark.functions.pandas_udf` or the
 `snowflake.snowpark.functions.udf` function.
 
 ```python
