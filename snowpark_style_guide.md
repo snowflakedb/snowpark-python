@@ -15,12 +15,13 @@ Beyond Snowpark specifics, the general practices of clean code are important in 
    2. [Aliasing Column Names](#aliasing-column-names)
    3. [Performant SQL Generation](#performant-sql-generation)
 2. [Expressions](#expressions)
-   1. [Use Multiple-Lines](#use-multiple-lines)
+   1. [Use Multiple Lines](#use-multiple-lines)
 3. [Explicitness](#explicitness)
    1. [Calling Methods and Functions with Parameter Names](#calling-methods-and-functions-with-parameter-names)
 4. [User Defined Functions (UDFs)](#user-defined-functions-udfs)
    1. [Registration](#registration)
    2. [Type Hints](#type-hints)
+   3. [Pandas(Vectorized) UDFs](#pandasvectorized-udfs)
 5. [User Defined Table Functions (UDTFs)](#user-defined-table-functions-udtfs)
 6. [Stored Procedures](#stored-procedures)
 6. [Miscellaneous](#miscellaneous)
@@ -59,7 +60,7 @@ df = df.select(df.col("col_a"), df.col("col_b"))
 - The attribute approach is shorter and simpler, however, it cannot handle column names that contain
 special characters.
 - The string approach has the same benefits as the first one, but also supports names with special characters.
-- The `col` function approach will wrap the col as a `Column` object. Use it when operations on `Column` like aliasing the column name are needed.
+- The `col` function approach will wrap the col as a `Column` object. Use it when operations on a `Column` like aliasing the column name are needed.
 - The `lit` function approach is used to select constant Python values.
 - The `sql_expr` function approach will pass the value as raw SQL text. It provides assistance if you have a SQL expression to select.
 - The indexing and `DataFrame.col` approaches offer a way to disambiguate among multiple `DataFrame` objects.
@@ -70,7 +71,7 @@ Suppose there are two `DataFrame` objects with the same column name `col_a` and 
 
 ## Aliasing Column Names
 
-Aliasing lets you give for providing meaningful names to columns.
+Aliasing lets you provide meaningful names to columns.
 Sometimes the column names in a database are either composed of long words, for the purpose of
 being descriptive, or too short, lacking enough information. Keeping those long column names while manipulating the `DataFrame`
 might reduce maintainability and readability so aliasing is useful.
@@ -107,7 +108,7 @@ order = order.select(
 
 ## Performant SQL Generation
 
-Operations on `DataFrame` are lazily evaluated to SQL statements and sent to Snowflake for execution.
+Operations on a `DataFrame` are lazily evaluated to SQL statements and sent to Snowflake for execution.
 Non-optimized SQL statements would take a longer time to process and execute, and long-running queries might time out.
 Snowpark has implemented a SQL simplifier which is turned on by default. It is built upon certain rules.
 To maximize the effectiveness of the SQL simplifier, we propose the following guidelines:
@@ -134,7 +135,7 @@ df = df.with_columns(
 Chaining of expressions is widely used because they represent atomic logic. Here are
 some best practices for writing the expressions.
 
-## Use Multiple-Lines
+## Use Multiple Lines
 
 In general, don't put the expression into a single line. That makes code
 difficult to read.
@@ -162,7 +163,7 @@ df = (
 ## Calling Methods and Functions with Parameter Names
 
 It is a good habit to specify the names of parameters when calling methods or functions. This helps you to understand which
-roles the parameters play instead of constantly referencing to the API documentation to figure out.
+roles the parameters play instead of constantly referencing the API documentation.
 
 ```python
 # without parameter name
@@ -255,10 +256,10 @@ session.udf.register(
 
 ## Pandas(Vectorized) UDFs
 
-Pandas UDFs are functions that receive batches of input rows as Pandas DataFrame and returns
-batch of results as Pandas Series. Compared to the default row-by-row Python UDFs, your code would get better
-performance if it operates efficiently on batches of rows and there will less transformation logic required if
-you are calling into libraries that operation on Pandas DataFrames or Pandas arrays.
+Pandas UDFs are functions that receive batches of input rows as Pandas DataFrames and return
+a batch of results as Pandas Series. Compared to the default row-by-row Python UDFs, your code will get better
+performance if it operates efficiently on batches of rows and there will be less transformation logic required if
+you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
 
 Pandas(Vectorized) UDFs can be registered similarly to UDFs by using the `snowflake.snowpark.functions.pandas_udf` or the
 `snowflake.snowpark.functions.udf` function.
@@ -292,7 +293,7 @@ add_series_pandas_udf = udf(
 
 ## Type Hints
 
-As illustrated in the above [UDF Registration][#UDF Registration], the typing info must be provided.
+As illustrated in the section about [UDF Registration][#UDF Registration], the typing info must be provided.
 Other than inputting types as parameters, you can also provide the typing information through Python type hints.
 It makes the code more cohesive and self-explanatory.
 
@@ -402,7 +403,8 @@ def typed_add(session_, x: int, y: int) -> int:
 ```
 
 # Miscellaneous
-- Test your code thoroughly with unit tests and integration tests. There are numerous [test cases in Snowpark][snowpark-tests] to
+
+Test your code thoroughly with unit tests and integration tests. There are numerous [test cases in Snowpark][snowpark-tests] to
 get inspiration from.
 
 
