@@ -329,6 +329,9 @@ class DataFrameReader:
 
         Note:
             When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
+            This is needed because converting from AVRO to `class`:`DataFrame` does not capitalize the
+            column names from the original columns and a :meth:`DataFrame.select` without quote looks for
+            capitalized column names.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
@@ -343,6 +346,9 @@ class DataFrameReader:
 
         Note:
             When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
+            This is needed because converting from PARQUET to `class`:`DataFrame` does not capitalize the
+            column names from the original columns and a :meth:`DataFrame.select` without quote looks for
+            capitalized column names.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified PARQUET file(s) in a Snowflake stage.
@@ -357,6 +363,9 @@ class DataFrameReader:
 
         Note:
             When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
+            This is needed because converting from ORC to `class`:`DataFrame` does not capitalize the
+            column names from the original columns and a :meth:`DataFrame.select` without quote looks for
+            capitalized column names.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
