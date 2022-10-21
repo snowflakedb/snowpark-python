@@ -22,6 +22,9 @@ connection_parameters_path = str(Path(__file__).absolute().parent.parent)
 sys.path.append(connection_parameters_path)
 from parameters import CONNECTION_PARAMETERS  # noqa: E402
 
+logger = logging.getLogger("long-running")
+logger.setLevel(logging.INFO)
+
 
 def generate_columns(n: int) -> List[str]:
     return [f'{"a" * 50}{i}' for i in range(n)]
@@ -67,17 +70,10 @@ def run(session: Session, number_of_columns: int):
         pass
 
 
-def start_cpu_mem_daemon(interval, log_folder):
+def start_cpu_mem_daemon(interval):
     def gather_cpu_memory():
         process = psutil.Process(os.getpid())
         os.makedirs(log_folder, exist_ok=True)
-        output_file_path = f"{log_folder if log_folder and log_folder[-1] == '/' else log_folder + '/'}long_running_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
-        logger = logging.getLogger("long-running")
-        logger.setLevel(logging.INFO)
-        if log_folder:
-            logger.addHandler(logging.FileHandler(output_file_path))
-        else:
-            logger.addHandler(logging.StreamHandler(sys.stdout))
         start_time = time.time()
         while True:
             info = {
@@ -124,18 +120,29 @@ if __name__ == "__main__":
         help="Whether use sql simplifier",
     )
     args = parser.parse_args()
+    log_folder = args.log_folder
+    output_file_path = f"{log_folder if log_folder and log_folder[-1] == '/' else log_folder + '/'}long_running_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
+    logger = logging.getLogger("long-running")
+    logger.setLevel(logging.INFO)
+    if log_folder:
+        logger.addHandler(logging.FileHandler(output_file_path))
+    else:
+        logger.addHandler(logging.StreamHandler(sys.stdout))
+    log_header = {
+        "Test": "Snowpark Python Long Running Test",
+        "Parameters": str(args),
+    }
+    logger.info(json.dumps(log_header))
     session = Session.builder.configs(CONNECTION_PARAMETERS).create()
     session.sql_simplifier_enabled = args.simplify
-    print("Snowpark Python Long Running Test")
-    print("Parameters: ", args)
-    start_cpu_mem_daemon(args.res_interval, args.log_folder)
+    start_cpu_mem_daemon(args.res_interval)
     try:
         start_time = time.time()
         end_time = start_time + args.duration
         while time.time() < end_time:
             run(session, args.columns)
-            time.sleep(1)
+        print("Test stopped.")
     except KeyboardInterrupt:
-        print("Test Stopped!")
+        print("Test Interrupted.")
     finally:
         session.close()
