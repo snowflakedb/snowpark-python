@@ -2027,8 +2027,8 @@ embed, iframe, object { max-width: 100%; }
             -webkit-transition: opacity 200ms ease-in-out;
             transition: opacity 200ms ease-in-out;
             white-space: pre-wrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            overflow: auto;
+            overflow-wrap: break-word;
         }
         .wy-menu-vertical ul .toctree-l1 > a:hover {
             opacity: .8;
@@ -2055,7 +2055,7 @@ embed, iframe, object { max-width: 100%; }
         }
         .wy-menu-vertical ul .toctree-l1 a.current, .wy-menu-vertical ul .toctree-l1.current a.current {
             color: #29B5E8; /* snowflake blue */
-            overflow: unset;
+            overflow: auto;
             overflow-wrap: break-word;
         }
         /* h2 */
@@ -2066,8 +2066,8 @@ embed, iframe, object { max-width: 100%; }
         .wy-menu-vertical ul .toctree-l1.current .toctree-l2 a {
             border-bottom: none;
             color: #fff;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            overflow: auto;
+            overflow-wrap: break-word;
         }
 
         /* nudge expand/collapse icon left
@@ -2086,7 +2086,7 @@ embed, iframe, object { max-width: 100%; }
 
         .wy-menu-vertical ul .toctree-l1.current .toctree-l2 a.current {
             color: #29B5E8; /* snowflake blue */
-            overflow: unset;
+            overflow: auto;
             overflow-wrap: break-word;
         }
         /* h3 */
@@ -2103,8 +2103,8 @@ embed, iframe, object { max-width: 100%; }
         .wy-menu-vertical ul .toctree-l1.current .toctree-l2 .toctree-l3 a {
             color: #fff;
             white-space: pre-wrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            overflow: auto;
+            overflow-wrap: break-word;
         }
         .wy-menu-vertical ul .toctree-l1.current .toctree-l2 .toctree-l3 a:hover {
             opacity: .8;
@@ -2113,7 +2113,7 @@ embed, iframe, object { max-width: 100%; }
         }
         .wy-menu-vertical ul .toctree-l1.current .toctree-l2 .toctree-l3 a.current {
             color: #29B5E8; /* snowflake blue */
-            overflow: unset;
+            overflow: auto;
             overflow-wrap: break-word;
         }
 
@@ -2131,8 +2131,8 @@ embed, iframe, object { max-width: 100%; }
         .wy-menu-vertical ul .toctree-l1.current .toctree-l2 .toctree-l3 .toctree-l4 a {
             color: #fff;
             white-space: pre-wrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            overflow: auto;
+            overflow-wrap: break-word;
         }
         .wy-menu-vertical ul .toctree-l1.current .toctree-l2 .toctree-l3 .toctree-l4 a:hover {
             opacity: .8;
@@ -2141,7 +2141,7 @@ embed, iframe, object { max-width: 100%; }
         }
         .wy-menu-vertical ul .toctree-l1.current .toctree-l2 .toctree-l3 .toctree-l4 a.current {
             color: #29B5E8; /* snowflake blue */
-            overflow: unset;
+            overflow: auto;
             overflow-wrap: break-word;
         }
 
