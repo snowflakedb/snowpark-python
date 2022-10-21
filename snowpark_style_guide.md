@@ -150,8 +150,8 @@ df = df.select('col_a', 'col_b').filter(df['col_a'] == 'value').filter(df['cob_b
 df = (
     df
     .select('col_a', 'col_b')
-    .filter('col_a' == 'value')
-    .filter('cob_b' == True)
+    .filter(df['col_a'] == 'value')
+    .filter(df['cob_b'] == True)
     .join(another_df, 'col_c')
     .drop('col_d')
 )
@@ -305,16 +305,16 @@ def typed_add(x: int, y: int) -> int:
     return x + y
 ```
 
-Apart from Python primitive types, Snowflake types (`Variant`, `Geography`, `MapType`, etc.)
+Apart from Python primitive types, Snowflake types (`Variant`, `Geography`, `StringType`, etc.)
 are available in the module `snowflake.snowpark.types`.
 
 ```python
 from snowflake.snowpark.functions import udf
-from snowflake.snowpark.types import Variant, Geography, MapType
+from snowflake.snowpark.types import Variant, Geography, StringType
 
 @udf
-def typed_add(x: Variant, y: Geography) -> MapType():
-    return {1:None}
+def typed_add(x: Variant, y: Geography) -> StringType():
+    return "success"
 ```
 
 # User Defined Table Functions (UDTFs)
