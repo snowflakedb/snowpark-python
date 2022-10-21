@@ -60,7 +60,7 @@ def run(session: Session, number_of_columns: int):
     df = df.with_column(
         "window_value", avg(df[1]).over(Window.partition_by(df[2]).order_by(df[3]))
     )
-    df.collect_nowait()
+    df.collect_nowait().result()
     with df.cache_result() as cached_df:
         union_df = cached_df.union(df)
         join_df = union_df.join(df, union_df[1] == df[1])
