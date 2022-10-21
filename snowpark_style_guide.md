@@ -305,16 +305,16 @@ def typed_add(x: int, y: int) -> int:
     return x + y
 ```
 
-Apart from Python primitive types, Snowflake types (`Variant`, `Geography`, `StringType`, etc.)
+Apart from Python primitive types, Snowflake types (`Variant`, `Geography`, etc.)
 are available in the module `snowflake.snowpark.types`.
 
 ```python
 from snowflake.snowpark.functions import udf
-from snowflake.snowpark.types import Variant, Geography, StringType
+from snowflake.snowpark.types import Variant
 
 @udf
-def typed_add(x: Variant, y: Geography) -> StringType():
-    return "success"
+def typed_func(x: Variant) -> Variant:
+    return x
 ```
 
 # User Defined Table Functions (UDTFs)
