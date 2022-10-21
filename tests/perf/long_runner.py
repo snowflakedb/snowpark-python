@@ -29,11 +29,14 @@ def generate_columns(n: int) -> List[str]:
 
 def run(session: Session, number_of_columns: int):
     """
-    simplifier
+    These APIs are called:
+    simplifier or no simplifier
     select, sort, and filter
     with_column
     aggregate
     window
+    join
+    union
     collect
     to_pandas
     cache_result
@@ -109,14 +112,12 @@ if __name__ == "__main__":
         help="Log file path. Log to console if not set.",
     )
     parser.add_argument(
-        "-c",
         "--columns",
         type=int,
         default=50,
         help="number of columns, default ncalls.",
     )
     parser.add_argument(
-        "-s",
         "--simplify",
         action="store_true",
         default=False,
@@ -134,5 +135,7 @@ if __name__ == "__main__":
         while time.time() < end_time:
             run(session, args.columns)
             time.sleep(1)
+    except KeyboardInterrupt:
+        print("Test Stopped!")
     finally:
         session.close()
