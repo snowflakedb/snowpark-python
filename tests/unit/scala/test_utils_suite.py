@@ -8,7 +8,6 @@ import zipfile
 
 import pytest
 
-from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import (
     SCOPED_TEMPORARY_STRING,
     TEMPORARY_STRING,
@@ -521,5 +520,7 @@ def test_private_preview_decorator(caplog):
 @pytest.mark.parametrize("function", [result_set_to_iter, result_set_to_rows])
 def test_result_set_none(function):
     data = [[1], None, []]
-    res = list(function(data))
-    assert res == [Row(1), Row(), Row()]
+    with pytest.raises(
+        ValueError, match="Result returned from Python connector is None"
+    ):
+        list(function(data))
