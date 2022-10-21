@@ -21,3 +21,5 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
    udf
    udtf
    exceptions
+
+:ref:`genindex`

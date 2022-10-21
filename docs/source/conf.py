@@ -51,7 +51,6 @@ autodoc_default_options = {
     "member-order": "alphabetical",  # 'alphabetical', by member type ('groupwise') or source order (value 'bysource')
     "undoc-members": True,  # If set, autodoc will also generate document for the members not having docstrings
     "show-inheritance": True,
-    # "typehints_fully_qualified": False,
 }
 
 # Add any paths that contain templates here, relative to this directory.
