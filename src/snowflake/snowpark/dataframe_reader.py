@@ -131,9 +131,9 @@ class DataFrameReader:
     Example 5:
         Loading an ORC file and infer the schema:
             >>> from snowflake.snowpark.functions import col
-            >>> _ = session.file.put("tests/resources/test.avro", "@mystage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/test.orc", "@mystage", auto_compress=False)
             >>> # Create a DataFrame that uses a DataFrameReader to load data from a file in a stage.
-            >>> df = session.read.avro("@mystage/test.avro").where(col('"num"') == 2)
+            >>> df = session.read.orc("@mystage/test.orc").where(col('"num"') == 2)
             >>> # Load the data into the DataFrame and return an array of rows containing the results.
             >>> df.collect()
             [Row(str='str2', num=2)]
@@ -327,6 +327,12 @@ class DataFrameReader:
         Args:
             path: The stage location of an AVRO file, or a stage location that has AVRO files.
 
+        Note:
+            When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
+            This is needed because converting from AVRO to `class`:`DataFrame` does not capitalize the
+            column names from the original columns and a :meth:`DataFrame.select` without quote looks for
+            capitalized column names.
+
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
         """
@@ -338,6 +344,12 @@ class DataFrameReader:
         Args:
             path: The stage location of a PARQUET file, or a stage location that has PARQUET files.
 
+        Note:
+            When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
+            This is needed because converting from PARQUET to `class`:`DataFrame` does not capitalize the
+            column names from the original columns and a :meth:`DataFrame.select` without quote looks for
+            capitalized column names.
+
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified PARQUET file(s) in a Snowflake stage.
         """
@@ -348,6 +360,12 @@ class DataFrameReader:
 
         Args:
             path: The stage location of a ORC file, or a stage location that has ORC files.
+
+        Note:
+            When using :meth:`DataFrame.select`, quote the column names to select the desired columns.
+            This is needed because converting from ORC to `class`:`DataFrame` does not capitalize the
+            column names from the original columns and a :meth:`DataFrame.select` without quote looks for
+            capitalized column names.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
