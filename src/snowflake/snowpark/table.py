@@ -259,6 +259,7 @@ class Table(DataFrame):
         super().__init__(
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
+        self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
 
         if self._session.sql_simplifier_enabled:

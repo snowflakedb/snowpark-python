@@ -499,7 +499,7 @@ class DataFrame:
             plan.expr_to_alias.update(self._plan.expr_to_alias)
         else:
             self._select_statement = None
-        self._is_cached: bool = is_cached
+        self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
         self._writer = DataFrameWriter(self)
@@ -519,15 +519,6 @@ class DataFrame:
     @property
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
-
-    @property
-    def is_cached(self) -> bool:
-        """Whether the dataframe is cached."""
-        return self._is_cached
-
-    @is_cached.setter
-    def is_cached(self, value: bool):
-        self._is_cached = value
 
     @overload
     def collect(
