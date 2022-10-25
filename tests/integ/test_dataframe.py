@@ -1135,13 +1135,22 @@ def test_create_dataframe_with_basic_data_types(session):
 
 def test_create_dataframe_with_semi_structured_data_types(session):
     data = [
-        ["'", 2],
-        ("'", 2),
-        [[1, 2], [2, 1]],
-        array("I", [1, 2, 3]),
-        {"'": 1},
+        [
+            ["'", 2],
+            ("'", 2),
+            [[1, 2], [2, 1]],
+            array("I", [1, 2, 3]),
+            {"'": 1},
+        ],
+        [
+            ["'", 3],
+            ("'", 3),
+            [[1, 3], [3, 1]],
+            array("I", [1, 2, 3, 4]),
+            {"'": 3},
+        ],
     ]
-    df = session.create_dataframe([data])
+    df = session.create_dataframe(data)
     assert [type(field.datatype) for field in df.schema.fields] == [
         ArrayType,
         ArrayType,
@@ -1149,15 +1158,25 @@ def test_create_dataframe_with_semi_structured_data_types(session):
         ArrayType,
         MapType,
     ]
-    assert df.collect() == [
-        Row(
-            '[\n  "\'",\n  2\n]',
-            '[\n  "\'",\n  2\n]',
-            "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
-            "[\n  1,\n  2,\n  3\n]",
-            '{\n  "\'": 1\n}',
-        )
-    ]
+    Utils.check_answer(
+        df.collect(),
+        [
+            Row(
+                '[\n  "\'",\n  2\n]',
+                '[\n  "\'",\n  2\n]',
+                "[\n  [\n    1,\n    2\n  ],\n  [\n    2,\n    1\n  ]\n]",
+                "[\n  1,\n  2,\n  3\n]",
+                '{\n  "\'": 1\n}',
+            ),
+            Row(
+                '[\n  "\'",\n  3\n]',
+                '[\n  "\'",\n  3\n]',
+                "[\n  [\n    1,\n    3\n  ],\n  [\n    3,\n    1\n  ]\n]",
+                "[\n  1,\n  2,\n  3,\n  4\n]",
+                '{\n  "\'": 3\n}',
+            ),
+        ],
+    )
 
 
 def test_create_dataframe_with_dict(session):

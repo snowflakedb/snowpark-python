@@ -13,7 +13,10 @@ import pandas
 import pytest
 
 from snowflake.snowpark._internal.type_utils import (
+    convert_sf_to_sp_type,
+    convert_sp_to_sf_type,
     get_number_precision_scale,
+    infer_schema,
     infer_type,
     python_type_to_snow_type,
     retrieve_func_type_hints_from_source,
@@ -160,6 +163,9 @@ def test_py_to_type():
 
     with pytest.raises(TypeError):
         infer_type(array("Q"))
+
+    with pytest.raises(TypeError, match="not supported type"):
+        infer_type(DataType())
 
 
 def test_sf_datatype_names():
@@ -489,9 +495,13 @@ def {func_name}(x: collections.defaultdict, y: Union[datetime.date, time]) -> Op
 def {func_name}_{func_name}(x: int) -> int:
     return x
 """
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="function.*is not found in file"):
         retrieve_func_type_hints_from_source("", func_name, _source=source)
-    assert "is not found in file" in str(ex_info)
+
+    with pytest.raises(ValueError, match="class.*is not found in file"):
+        retrieve_func_type_hints_from_source(
+            "", func_name, class_name="FakeClass", _source=source
+        )
 
     source = f"""
 def {func_name}() -> 1:
@@ -500,3 +510,76 @@ def {func_name}() -> 1:
     with pytest.raises(TypeError) as ex_info:
         retrieve_func_type_hints_from_source("", func_name, _source=source)
     assert "invalid type annotation" in str(ex_info)
+
+
+def test_convert_sf_to_sp_type_basic():
+    assert type(convert_sf_to_sp_type("ARRAY", 0, 0)) == ArrayType
+    assert type(convert_sf_to_sp_type("VARIANT", 0, 0)) == VariantType
+    assert type(convert_sf_to_sp_type("OBJECT", 0, 0)) == MapType
+    assert type(convert_sf_to_sp_type("GEOGRAPHY", 0, 0)) == GeographyType
+    assert type(convert_sf_to_sp_type("BOOLEAN", 0, 0)) == BooleanType
+    assert type(convert_sf_to_sp_type("BINARY", 0, 0)) == BinaryType
+    assert type(convert_sf_to_sp_type("TEXT", 0, 0)) == StringType
+    assert type(convert_sf_to_sp_type("TIME", 0, 0)) == TimeType
+    assert type(convert_sf_to_sp_type("TIMESTAMP", 0, 0)) == TimestampType
+    assert type(convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0)) == TimestampType
+    assert type(convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0)) == TimestampType
+    assert type(convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0)) == TimestampType
+    assert type(convert_sf_to_sp_type("DATE", 0, 0)) == DateType
+    assert type(convert_sf_to_sp_type("REAL", 0, 0)) == DoubleType
+
+    with pytest.raises(NotImplementedError, match="Unsupported type"):
+        convert_sf_to_sp_type("FAKE", 0, 0)
+
+
+def test_convert_sf_to_sp_type_precision_scale():
+    def assert_type_with_precision(type_name):
+        sp_type = convert_sf_to_sp_type(type_name, DecimalType._MAX_PRECISION + 1, 20)
+        assert type(sp_type) == DecimalType
+        assert sp_type.precision == DecimalType._MAX_PRECISION
+        assert sp_type.scale == 21
+
+        sp_type = convert_sf_to_sp_type(type_name, DecimalType._MAX_PRECISION - 1, 20)
+        assert type(sp_type) == DecimalType
+        assert sp_type.precision == DecimalType._MAX_PRECISION - 1
+        assert sp_type.scale == 20
+
+    assert_type_with_precision("DECIMAL")
+    assert_type_with_precision("FIXED")
+    assert_type_with_precision("NUMBER")
+
+    snowpark_type = convert_sf_to_sp_type("DECIMAL", 0, 0)
+    assert type(snowpark_type) == DecimalType
+    assert snowpark_type.precision == 38
+    assert snowpark_type.scale == 18
+
+
+def test_convert_sp_to_sf_type():
+    assert convert_sp_to_sf_type(DecimalType(38, 0)) == "NUMBER(38, 0)"
+    assert convert_sp_to_sf_type(IntegerType()) == "INT"
+    assert convert_sp_to_sf_type(ShortType()) == "SMALLINT"
+    assert convert_sp_to_sf_type(ByteType()) == "BYTEINT"
+    assert convert_sp_to_sf_type(LongType()) == "BIGINT"
+    assert convert_sp_to_sf_type(FloatType()) == "FLOAT"
+    assert convert_sp_to_sf_type(DoubleType()) == "DOUBLE"
+    assert convert_sp_to_sf_type(StringType()) == "STRING"
+    assert convert_sp_to_sf_type(NullType()) == "STRING"
+    assert convert_sp_to_sf_type(BooleanType()) == "BOOLEAN"
+    assert convert_sp_to_sf_type(DateType()) == "DATE"
+    assert convert_sp_to_sf_type(TimeType()) == "TIME"
+    assert convert_sp_to_sf_type(TimestampType()) == "TIMESTAMP"
+    assert convert_sp_to_sf_type(BinaryType()) == "BINARY"
+    assert convert_sp_to_sf_type(ArrayType()) == "ARRAY"
+    assert convert_sp_to_sf_type(MapType()) == "OBJECT"
+    assert convert_sp_to_sf_type(VariantType()) == "VARIANT"
+    assert convert_sp_to_sf_type(GeographyType()) == "GEOGRAPHY"
+    with pytest.raises(TypeError, match="Unsupported data type"):
+        convert_sp_to_sf_type(None)
+
+
+def test_infer_schema_exceptions():
+    with pytest.raises(TypeError, match="Can not infer schema for type"):
+        infer_schema(IntegerType())
+
+    with pytest.raises(TypeError, match="Unable to infer the type of the field"):
+        infer_schema([IntegerType()])
