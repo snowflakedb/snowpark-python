@@ -189,7 +189,6 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
     Utils.check_answer(
         session.table(tmp_table_name),
         [Row(1, "one", 1.2), Row(2, "two", 2.2)],
-        sort=False,
     )
 
     # run COPY again, the loaded files will be skipped by default
@@ -197,7 +196,6 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
     Utils.check_answer(
         session.table(tmp_table_name),
         [Row(1, "one", 1.2), Row(2, "two", 2.2)],
-        sort=False,
     )
 
     # Copy again with FORCE = TRUE, loaded file are NOT skipped.
@@ -210,7 +208,6 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
             Row(1, "one", 1.2),
             Row(2, "two", 2.2),
         ],
-        sort=False,
     )
 
     # test statement params
@@ -223,7 +220,6 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
             Row(1, "one", 1.2),
             Row(2, "two", 2.2),
         ],
-        sort=False,
     )
 
 
@@ -262,7 +258,6 @@ def test_save_as_table_not_affect_copy_into(session, tmp_stage_name1):
                 Row(1, "one", 1.2),
                 Row(2, "two", 2.2),
             ],
-            sort=False,
         )
 
         # Write data with save_as_table() again, loaded file are NOT skipped.
@@ -277,13 +272,11 @@ def test_save_as_table_not_affect_copy_into(session, tmp_stage_name1):
                 Row(1, "one", 1.2),
                 Row(2, "two", 2.2),
             ],
-            sort=False,
         )
     finally:
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.xfail(reason="SNOW-632268 flaky test", strict=False)
 @pytest.mark.parametrize(
     "trans_columns", [([col("$1"), col("$2"), col("$3")]), (["$1", "$2", "$3"])]
 )
@@ -392,7 +385,6 @@ def test_copy_csv_copy_transformation_with_column_names(session, tmp_stage_name1
                 Row(None, "one", "1.2"),
                 Row(None, "two", "2.2"),
             ],
-            sort=False,
         )
 
         #     // Copy data $1 to column c3 with FORCE = TRUE and skip_header = 1
@@ -412,7 +404,6 @@ def test_copy_csv_copy_transformation_with_column_names(session, tmp_stage_name1
                 Row(None, "two", "2.2"),
                 Row(None, None, "2"),
             ],
-            sort=False,
         )
     finally:
         Utils.drop_table(session, table_name)
@@ -448,7 +439,6 @@ def test_copy_csv_copy_into_columns_without_transformation(session, tmp_stage_na
                 Row("1", "one", "1.2", None),
                 Row("2", "two", "2.2", None),
             ],
-            sort=False,
         )
     finally:
         Utils.drop_table(session, table_name)
@@ -744,14 +734,14 @@ def test_copy_non_csv_basic(
         )
         #  copy file in table
         df.copy_into_table(table_name, transformations=[col("$1").as_("A")])
-        Utils.check_answer(session.table(table_name), assert_data, sort=False)
+        Utils.check_answer(session.table(table_name), assert_data)
         # Copy again. Loaded file is skipped.
         df.copy_into_table(table_name, transformations=[col("$1").as_("A")])
-        Utils.check_answer(session.table(table_name), assert_data, sort=False)
+        Utils.check_answer(session.table(table_name), assert_data)
 
         # Copy again with force
         df.copy_into_table(table_name, transformations=[col("$1").as_("A")], force=True)
-        Utils.check_answer(session.table(table_name), assert_data * 2, sort=False)
+        Utils.check_answer(session.table(table_name), assert_data * 2)
     finally:
         Utils.drop_table(session, table_name)
 
@@ -883,7 +873,7 @@ def test_copy_non_csv_transformation(
             session, file_format, test_file_on_stage, infer_schema
         )
         df.copy_into_table(table_name, transformations=transformations)
-        Utils.check_answer(session.table(table_name), assert_data, sort=False)
+        Utils.check_answer(session.table(table_name), assert_data)
 
         df.copy_into_table(
             table_name,
@@ -898,7 +888,6 @@ def test_copy_non_csv_transformation(
         Utils.check_answer(
             session.table(table_name),
             [*assert_data, *[Row(data[2], data[1], data[0]) for data in assert_data]],
-            sort=False,
         )
     finally:
         Utils.drop_table(session, table_name)
@@ -1014,7 +1003,7 @@ def test_copy_non_csv_auto_transformation(
     try:
         df = create_df_for_file_format(session, file_format, test_file_on_stage, True)
         df.copy_into_table(table_name)
-        Utils.check_answer(session.table(table_name).limit(5), assert_data, sort=False)
+        Utils.check_answer(session.table(table_name).limit(5), assert_data)
     finally:
         Utils.drop_table(session, table_name)
 
