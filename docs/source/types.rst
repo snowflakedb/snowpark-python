@@ -4,25 +4,7 @@ This package contains all Snowpark logical types.
 
 .. currentmodule:: snowflake.snowpark.types
 
-   
-
-.. rubric:: Module Attributes
-
-.. autosummary::
-    :toctree: api/
-
-    Variant
-    Geography
-
-
-
-
-
-
-
-
-
-.. rubric:: Classes
+.. rubric:: Classes/Type Hints
 
 .. autosummary::
     :toctree: api/
@@ -37,6 +19,7 @@ This package contains all Snowpark logical types.
     DecimalType
     DoubleType
     FloatType
+    Geography
     GeographyType
     IntegerType
     LongType
@@ -52,6 +35,7 @@ This package contains all Snowpark logical types.
     StructType
     TimeType
     TimestampType
+    Variant
     VariantType
    
    
