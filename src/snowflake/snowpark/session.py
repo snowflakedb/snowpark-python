@@ -343,7 +343,7 @@ class Session:
             )
         except Exception:
             pass
-        self._sql_simplifier_enabled = False
+        self._sql_simplifier_enabled = value
 
     def cancel_all(self) -> None:
         """
