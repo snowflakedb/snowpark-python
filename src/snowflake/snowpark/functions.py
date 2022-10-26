@@ -2949,6 +2949,7 @@ def udf(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
     strict: bool = False,
+    secure: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -3018,6 +3019,8 @@ def udf(
         strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
             null. Instead, a null value will always be returned for that row. Note that the UDF might
             still return null for non-null inputs.
+        secure: Whether the created UDF is secure. For more information about secure functions,
+            see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3077,6 +3080,7 @@ def udf(
             statement_params=statement_params,
             source_code_display=source_code_display,
             strict=strict,
+            secure=secure,
         )
     else:
         return session.udf.register(
@@ -3094,6 +3098,7 @@ def udf(
             statement_params=statement_params,
             source_code_display=source_code_display,
             strict=strict,
+            secure=secure,
         )
 
 
@@ -3112,6 +3117,7 @@ def udtf(
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
     strict: bool = False,
+    secure: bool = False,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -3167,6 +3173,8 @@ def udtf(
         strict: Whether the created UDTF is strict. A strict UDTF will not invoke the UDTF if any input is
             null. Instead, a null value will always be returned for that row. Note that the UDTF might
             still return null for non-null inputs.
+        secure: Whether the created UDTF is secure. For more information about secure functions,
+            see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3213,6 +3221,7 @@ def udtf(
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
+            secure=secure,
         )
     else:
         return session.udtf.register(
@@ -3228,6 +3237,7 @@ def udtf(
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
+            secure=secure,
         )
 
 

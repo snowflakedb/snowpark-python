@@ -145,7 +145,7 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
     )
 
 
-def test_strict_utdf(session):
+def test_strict_udtf(session):
     @udtf(output_schema=["num"], strict=True)
     class UDTFEcho:
         def process(
@@ -190,3 +190,19 @@ def test_udtf_negative(session):
                 "bytearray_",
             ],
         )
+
+
+def test_secure_udtf(session):
+    @udtf(output_schema=["num"], secure=True)
+    class UDTFEcho:
+        def process(
+            self,
+            num: int,
+        ) -> Iterable[Tuple[int]]:
+            return [(num,)]
+
+    df = session.table_function(UDTFEcho(lit(1)))
+    Utils.check_answer(
+        df,
+        [Row(1)],
+    )
