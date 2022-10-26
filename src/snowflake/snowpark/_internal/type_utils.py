@@ -77,7 +77,7 @@ def convert_sf_to_sp_type(
         return VariantType()
     if column_type_name == "OBJECT":
         return MapType(StringType(), StringType())
-    if column_type_name == "GEOGRAPHY":  # not supported by python connector
+    if column_type_name == "GEOGRAPHY":
         return GeographyType()
     if column_type_name == "BOOLEAN":
         return BooleanType()
@@ -528,18 +528,16 @@ def retrieve_func_type_hints_from_source(
 
 # Get a mapping from type string to type object, for cast() function
 def get_data_type_string_object_mappings(
-    to_fill_dict: Optional[Dict[str, Type[DataType]]] = None,
+    to_fill_dict: Dict[str, Type[DataType]],
     data_type: Optional[Type[DataType]] = None,
 ) -> None:
     if data_type is None:
-        if to_fill_dict is None:
-            to_fill_dict = dict()
-        return get_data_type_string_object_mappings(to_fill_dict, DataType)
+        get_data_type_string_object_mappings(to_fill_dict, DataType)
+        return
     for child in data_type.__subclasses__():
         if not child.__name__.startswith("_") and child is not DecimalType:
             to_fill_dict[child.__name__[:-4].lower()] = child
         get_data_type_string_object_mappings(to_fill_dict, child)
-    return to_fill_dict
 
 
 DATA_TYPE_STRING_OBJECT_MAPPINGS = {}
