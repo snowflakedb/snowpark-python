@@ -513,20 +513,20 @@ def {func_name}() -> 1:
 
 
 def test_convert_sf_to_sp_type_basic():
-    assert type(convert_sf_to_sp_type("ARRAY", 0, 0)) == ArrayType
-    assert type(convert_sf_to_sp_type("VARIANT", 0, 0)) == VariantType
-    assert type(convert_sf_to_sp_type("OBJECT", 0, 0)) == MapType
-    assert type(convert_sf_to_sp_type("GEOGRAPHY", 0, 0)) == GeographyType
-    assert type(convert_sf_to_sp_type("BOOLEAN", 0, 0)) == BooleanType
-    assert type(convert_sf_to_sp_type("BINARY", 0, 0)) == BinaryType
-    assert type(convert_sf_to_sp_type("TEXT", 0, 0)) == StringType
-    assert type(convert_sf_to_sp_type("TIME", 0, 0)) == TimeType
-    assert type(convert_sf_to_sp_type("TIMESTAMP", 0, 0)) == TimestampType
-    assert type(convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0)) == TimestampType
-    assert type(convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0)) == TimestampType
-    assert type(convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0)) == TimestampType
-    assert type(convert_sf_to_sp_type("DATE", 0, 0)) == DateType
-    assert type(convert_sf_to_sp_type("REAL", 0, 0)) == DoubleType
+    assert isinstance(convert_sf_to_sp_type("ARRAY", 0, 0), ArrayType)
+    assert isinstance(convert_sf_to_sp_type("VARIANT", 0, 0), VariantType)
+    assert isinstance(convert_sf_to_sp_type("OBJECT", 0, 0), MapType)
+    assert isinstance(convert_sf_to_sp_type("GEOGRAPHY", 0, 0), GeographyType)
+    assert isinstance(convert_sf_to_sp_type("BOOLEAN", 0, 0), BooleanType)
+    assert isinstance(convert_sf_to_sp_type("BINARY", 0, 0), BinaryType)
+    assert isinstance(convert_sf_to_sp_type("TEXT", 0, 0), StringType)
+    assert isinstance(convert_sf_to_sp_type("TIME", 0, 0), TimeType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP", 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("DATE", 0, 0), DateType)
+    assert isinstance(convert_sf_to_sp_type("REAL", 0, 0), DoubleType)
 
     with pytest.raises(NotImplementedError, match="Unsupported type"):
         convert_sf_to_sp_type("FAKE", 0, 0)
@@ -535,12 +535,12 @@ def test_convert_sf_to_sp_type_basic():
 def test_convert_sf_to_sp_type_precision_scale():
     def assert_type_with_precision(type_name):
         sp_type = convert_sf_to_sp_type(type_name, DecimalType._MAX_PRECISION + 1, 20)
-        assert type(sp_type) == DecimalType
+        assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION
         assert sp_type.scale == 21
 
         sp_type = convert_sf_to_sp_type(type_name, DecimalType._MAX_PRECISION - 1, 20)
-        assert type(sp_type) == DecimalType
+        assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION - 1
         assert sp_type.scale == 20
 
@@ -549,7 +549,7 @@ def test_convert_sf_to_sp_type_precision_scale():
     assert_type_with_precision("NUMBER")
 
     snowpark_type = convert_sf_to_sp_type("DECIMAL", 0, 0)
-    assert type(snowpark_type) == DecimalType
+    assert isinstance(snowpark_type, DecimalType)
     assert snowpark_type.precision == 38
     assert snowpark_type.scale == 18
 
