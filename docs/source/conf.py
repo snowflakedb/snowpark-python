@@ -43,19 +43,15 @@ extensions = [
     # "sphinx_autodoc_typehints",
 ]
 
+# -- Options for autodoc --------------------------------------------------
+autosummary_generate = True
+autoclass_content="class"
 autodoc_default_options = {
     "members": True,  # Include all methods.
     "member-order": "alphabetical",  # 'alphabetical', by member type ('groupwise') or source order (value 'bysource')
     "undoc-members": True,  # If set, autodoc will also generate document for the members not having docstrings
-    "private-members": False,  # don't generate document for the private members (like _private or __private)
-    # 'special-members': '',  # for example, '__init__'
-    "inherited-members": False,
     "show-inheritance": True,
-    # 'exclude-members': ''   # for example,
-    # "typehints_fully_qualified": False,
 }
-
-autosummary_generate = True  # turn on sphinx.ext.autosummary
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -95,3 +91,5 @@ html_show_sourcelink = False  # Hide "view page source" link
 
 # Disable footer message "Built with Sphinx using a theme provided by Read the Docs."
 html_show_sphinx = False
+
+add_module_names = False
