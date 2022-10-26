@@ -154,19 +154,6 @@ def df_collect_api_telemetry(func):
     return wrap
 
 
-# Action telemetry decorator for DataFrame class
-def df_action_telemetry(func):
-    @functools.wraps(func)
-    def wrap(*args, **kwargs):
-        result = func(*args, **kwargs)
-        args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
-            f"action_{func.__name__}", TelemetryField.FUNC_CAT_ACTION.value
-        )
-        return result
-
-    return wrap
-
-
 def dfw_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
@@ -184,33 +171,6 @@ def dfw_collect_api_telemetry(func):
             TelemetryField.FUNC_CAT_ACTION.value,
             api_calls=api_calls,
             sfqids=[q.query_id for q in query_history.queries],
-        )
-        return result
-
-    return wrap
-
-
-# Action telemetry decorator for DataFrameWriter class
-def dfw_action_telemetry(func):
-    @functools.wraps(func)
-    def wrap(*args, **kwargs):
-        result = func(*args, **kwargs)
-        session = args[0]._dataframe._session
-        session._conn._telemetry_client.send_function_usage_telemetry(
-            f"action_{func.__name__}", TelemetryField.FUNC_CAT_ACTION.value
-        )
-        return result
-
-    return wrap
-
-
-# Usage telemetry decorator for DataFrame class
-def df_usage_telemetry(func):
-    @functools.wraps(func)
-    def wrap(*args, **kwargs):
-        result = func(*args, **kwargs)
-        args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
-            f"usage_{func.__name__}", TelemetryField.FUNC_CAT_USAGE.value
         )
         return result
 
