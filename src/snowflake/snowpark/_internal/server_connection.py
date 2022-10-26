@@ -18,7 +18,6 @@ from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
-    quote_name,
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
@@ -174,20 +173,6 @@ class ServerConnection:
     @_Decorator.wrap_exception
     def get_session_id(self) -> int:
         return self._conn.session_id
-
-    def get_default_database(self) -> Optional[str]:
-        return (
-            quote_name(self._lower_case_parameters["database"])
-            if "database" in self._lower_case_parameters
-            else None
-        )
-
-    def get_default_schema(self) -> Optional[str]:
-        return (
-            quote_name(self._lower_case_parameters["schema"])
-            if "schema" in self._lower_case_parameters
-            else None
-        )
 
     @_Decorator.wrap_exception
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
@@ -492,7 +477,7 @@ $$"""
                     **kwargs,
                 )
 
-                # since we will return a AsyncJob instance, result_meta is not needed, we will create reuslt_meta in
+                # since we will return a AsyncJob instance, result_meta is not needed, we will create result_meta in
                 # AsyncJob instance when needed
                 result_meta = None
                 if action_id < plan.session._last_canceled_id:
