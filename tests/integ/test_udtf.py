@@ -4,6 +4,8 @@
 import decimal
 from typing import Iterable, Tuple
 
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.types import (
@@ -159,3 +161,32 @@ def test_strict_utdf(session):
         df,
         [Row(None)],
     )
+
+
+def test_udtf_negative(session):
+    with pytest.raises(
+        ValueError, match="name must be specified for permanent table function"
+    ):
+
+        @udtf(output_schema=["num"], is_permanent=True)
+        class UDTFEcho:
+            def process(
+                self,
+                num: int,
+            ) -> Iterable[Tuple[int]]:
+                return [(num,)]
+
+    with pytest.raises(ValueError, match="file_path.*does not exist"):
+        session.udtf.register_from_file(
+            "fake_path",
+            "MyUDTFWithTypeHints",
+            output_schema=[
+                "int_",
+                "float_",
+                "bool_",
+                "decimal_",
+                "str_",
+                "bytes_",
+                "bytearray_",
+            ],
+        )
