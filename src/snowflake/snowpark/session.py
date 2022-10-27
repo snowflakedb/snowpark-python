@@ -1016,7 +1016,7 @@ class Session:
                 exact row count depends on the system speed. Defaults to 0.
 
         Example 1
-            >>> from snowflake.snowpark.functions import seq1, uniform
+            >>> from snowflake.snowpark.functions import seq1, seq8, uniform
             >>> df = session.generator(seq1(1).as_("sequence one"), uniform(1, 10, 2).as_("uniform"), rowcount=3)
             >>> df.show()
             ------------------------------
@@ -1029,14 +1029,14 @@ class Session:
             <BLANKLINE>
 
         Example 2
-            >>> df = session.generator(seq1(1), uniform(1, 10, 2), timelimit=1).limit(3, offset=127)
+            >>> df = session.generator(seq8(0), uniform(1, 10, 2), timelimit=1).order_by(seq8(0)).limit(3)
             >>> df.show()
             -----------------------------------
-            |"SEQ1(1)"  |"UNIFORM(1, 10, 2)"  |
+            |"SEQ8(0)"  |"UNIFORM(1, 10, 2)"  |
             -----------------------------------
-            |127        |3                    |
-            |-128       |3                    |
-            |-127       |3                    |
+            |0          |3                    |
+            |1          |3                    |
+            |2          |3                    |
             -----------------------------------
             <BLANKLINE>
 

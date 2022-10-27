@@ -426,21 +426,30 @@ def test_select_table_function(session):
 
 
 def test_generator_table_function(session):
-    expected_result = [Row(127, 3), Row(-128, 3), Row(-127, 3)]
-
-    # works with timelimit
-    df = session.generator(seq1(1), uniform(1, 10, 2), rowcount=132).limit(
-        3, offset=127
+    # works with rowcount
+    expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
+    df = (
+        session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
+        .order_by(seq1(1))
+        .limit(3, offset=20)
     )
     Utils.check_answer(df, expected_result)
 
     # works with timelimit
-    df = session.generator(seq1(1), uniform(1, 10, 2), timelimit=1).limit(3, offset=127)
+    expected_result = [Row(-128, 3), Row(-128, 3), Row(-128, 3)]
+    df = (
+        session.generator(seq1(1), uniform(1, 10, 2), timelimit=1)
+        .order_by(seq1(1))
+        .limit(3)
+    )
     Utils.check_answer(df, expected_result)
 
     # works with combination of both
-    df = session.generator(seq1(1), uniform(1, 10, 2), timelimit=1, rowcount=150).limit(
-        3, offset=127
+    expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
+    df = (
+        session.generator(seq1(1), uniform(1, 10, 2), timelimit=1, rowcount=150)
+        .order_by(seq1(1))
+        .limit(3, offset=20)
     )
     Utils.check_answer(df, expected_result)
 
@@ -449,13 +458,17 @@ def test_generator_table_function(session):
     Utils.check_answer(df, [])
 
     # aliasing works
-    df = session.generator(
-        seq1(1).as_("pixel"), uniform(1, 10, 2).as_("unicorn"), rowcount=150
-    ).limit(3, offset=127)
+    df = (
+        session.generator(
+            seq1(1).as_("pixel"), uniform(1, 10, 2).as_("unicorn"), rowcount=150
+        )
+        .order_by("pixel")
+        .limit(3, offset=20)
+    )
     expected_result = [
-        Row(pixel=127, unicorn=3),
-        Row(pixel=-128, unicorn=3),
-        Row(pixel=-127, unicorn=3),
+        Row(pixel=-108, unicorn=3),
+        Row(pixel=-107, unicorn=3),
+        Row(pixel=0, unicorn=3),
     ]
     Utils.check_answer(df, expected_result)
 
