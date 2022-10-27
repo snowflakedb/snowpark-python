@@ -107,6 +107,7 @@ DataFrame
 .. rubric:: Attributes
 
 .. autosummary::
+    :toctree: api/
 
     DataFrame.columns
     DataFrame.na

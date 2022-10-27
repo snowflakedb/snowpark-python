@@ -13,7 +13,6 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
 .. toctree::
    :maxdepth: 2
 
-   core_classes
    sql/index
    stored_procedures
    udf

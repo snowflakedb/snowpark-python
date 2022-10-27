@@ -3,12 +3,14 @@ AsyncJob
 
 .. currentmodule:: snowflake.snowpark
 
-.. autoclass:: AsyncJob
-    :noindex:
+.. rubric:: Classes
+
+.. autosummary::
+    :toctree: api/
+
+    AsyncJob
    
 .. rubric:: Methods
-
-.. currentmodule:: snowflake.snowpark
 
 .. autosummary::
     :toctree: api/

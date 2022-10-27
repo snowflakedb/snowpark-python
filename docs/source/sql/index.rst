@@ -7,6 +7,7 @@ This page gives an overview of all public Spark SQL API.
 .. toctree::
    :maxdepth: 2
 
+   core_classes
    session
    IO
    dataframe
