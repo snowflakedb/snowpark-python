@@ -1029,7 +1029,7 @@ class Session:
             <BLANKLINE>
 
         Example 2
-            >>> df = session.generator(seq1(1), uniform(1, 10, 2), timelimit=1).limit(3, offset=127).show()
+            >>> df = session.generator(seq1(1), uniform(1, 10, 2), timelimit=1).limit(3, offset=127)
             >>> df.show()
             -----------------------------------
             |"SEQ1(1)"  |"UNIFORM(1, 10, 2)"  |
