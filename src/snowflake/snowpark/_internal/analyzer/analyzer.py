@@ -345,9 +345,7 @@ class Analyzer:
             sql = function_expression(
                 expr.func_name, [self.analyze(x) for x in expr.args], False
             )
-        elif isinstance(expr, NamedArgumentsTableFunction) or isinstance(
-            expr, GeneratorTableFunction
-        ):
+        elif isinstance(expr, (NamedArgumentsTableFunction, GeneratorTableFunction)):
             sql = named_arguments_function(
                 expr.func_name,
                 {key: self.analyze(value) for key, value in expr.args.items()},

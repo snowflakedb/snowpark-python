@@ -25,6 +25,7 @@ from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLEx
 from snowflake.snowpark.functions import (
     col,
     concat,
+    count,
     lit,
     seq1,
     table_function,
@@ -470,6 +471,11 @@ def test_generator_table_function(session):
         Row(pixel=-107, unicorn=3),
         Row(pixel=0, unicorn=3),
     ]
+    Utils.check_answer(df, expected_result)
+
+    # aggregation works
+    df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)
+    expected_result = [Row(rows=150)]
     Utils.check_answer(df, expected_result)
 
 

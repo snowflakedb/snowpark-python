@@ -8,7 +8,6 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
-    GeneratorTableFunction,
     NamedArgumentsTableFunction,
     PosArgumentsTableFunction,
     TableFunctionExpression,
@@ -234,17 +233,3 @@ def _get_cols_after_join_table(
         new_cols = [Column(col)._named() for col in new_cols]
 
     return old_cols, new_cols
-
-
-def _create_generator_function_expression(
-    *operators: ColumnOrName, **named_args: ColumnOrName
-):
-    args = {
-        arg_name: _to_col_if_str(arg, "generator function")._expression
-        for arg_name, arg in named_args.items()
-    }
-    operators = [
-        _to_col_if_str(operator, "generator function")._expression
-        for operator in operators
-    ]
-    return GeneratorTableFunction(args=args, operators=operators)

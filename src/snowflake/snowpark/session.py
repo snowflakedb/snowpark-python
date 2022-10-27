@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
+    GeneratorTableFunction,
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -103,7 +104,6 @@ from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
-    _create_generator_function_expression,
     _create_table_function_expression,
 )
 from snowflake.snowpark.types import (
@@ -981,6 +981,7 @@ class Session:
         See Also:
             - :meth:`DataFrame.join_table_function`, which lateral joins an existing :class:`DataFrame` and a SQL function.
             - :meth:`Session.generator`, which is used to instantiate a :class:`DataFrame` using Generator table function.
+                Generator functions are not supported with :meth:`Session.table_function`.
         """
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -1003,7 +1004,7 @@ class Session:
         return d
 
     def generator(
-        self, *columns: ColumnOrName, rowcount: int = 0, timelimit: int = 0
+        self, *columns: Column, rowcount: int = 0, timelimit: int = 0
     ) -> DataFrame:
         """Creates a new DataFrame using the Generator table function.
 
@@ -1041,12 +1042,12 @@ class Session:
             <BLANKLINE>
 
         Note:
-            - When both rowcount and timelimit are specified, then:
+            - When both ``rowcount`` and ``timelimit`` are specified, then:
 
                 + if the ``rowcount`` is reached before the ``timelimit``, the resulting table with contain ``rowcount`` rows.
                 + if the ``timelimit`` is reached before the ``rowcount``, the table will contain as many rows generated within this time.
 
-            - If both rowcount and timelimit are not specified, 0 rows will be generated.
+            - If both ``rowcount`` and ``timelimit`` are not specified, 0 rows will be generated.
 
         Returns:
             A new :class:`DataFrame` with data from calling the generator table function.
@@ -1055,14 +1056,12 @@ class Session:
             raise ValueError("Columns cannot be empty for generator table function")
         named_args = {}
         if rowcount != 0:
-            named_args["rowcount"] = lit(rowcount)
+            named_args["rowcount"] = lit(rowcount)._expression
         if timelimit != 0:
-            named_args["timelimit"] = lit(timelimit)
+            named_args["timelimit"] = lit(timelimit)._expression
 
-        func_expr = _create_generator_function_expression(*columns, **named_args)
-        func_expr.operators = [
-            self._analyzer.analyze(operator) for operator in func_expr.operators
-        ]
+        operators = [self._analyzer.analyze(col._expression) for col in columns]
+        func_expr = GeneratorTableFunction(args=named_args, operators=operators)
 
         if self.sql_simplifier_enabled:
             d = DataFrame(
