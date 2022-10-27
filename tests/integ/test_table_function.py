@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import (
     call_table_function,
@@ -54,7 +56,7 @@ def test_query_over_clause(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST))'
-        in df2.queries["queries"][0]
+        in df3.queries["queries"][0]
     )
     assert df3.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
 
@@ -65,9 +67,45 @@ def test_query_over_clause(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST))'
-        in df2.queries["queries"][0]
+        in df4.queries["queries"][0]
     )
     assert df4.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
+
+    df5 = df.join_table_function(
+        split_to_table("text", lit(" ")).over(
+            partition_by=["partition"], order_by=["seq", "text"]
+        )
+    )
+    assert (
+        'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST, "TEXT" ASC NULLS FIRST))'
+        in df5.queries["queries"][0]
+    )
+    assert df5.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
+
+    df6 = df.join_table_function(
+        split_to_table("text", lit(" ")).over(
+            partition_by=["partition"], order_by=[col("seq").desc()]
+        )
+    )
+    assert (
+        'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" DESC NULLS LAST)'
+        in df6.queries["queries"][0]
+    )
+    assert df6.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
+
+
+def test_query_over_clause_negative(session):
+    split_to_table = table_function("split_to_table")
+    df = session.create_dataframe(
+        [["Hello World", "p1", 1], ["Hello Python", "p2", 2]],
+        schema=["text", "partition", "seq"],
+    )
+    with pytest.raises(TypeError) as ex_info:
+        df.join_table_function(split_to_table("text", lit(" ")).over(order_by=[7]))
+    assert (
+        "Order By columns must be of column names in str, or a Column object."
+        in str(ex_info)
+    )
 
 
 def test_call_table_function(session):
@@ -113,3 +151,30 @@ def test_call_table_function(session):
         in df2.queries["queries"][0]
     )
     assert df4.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
+
+
+def test_table_function(session):
+    df = session.create_dataframe(
+        [["Hello World", "p1", 1], ["Hello Python", "p2", 2]],
+        schema=["text", "partition", "seq"],
+    )
+    df1 = df.join_table_function(["test", "name"])
+    assert "JOIN TABLE (test.name() )" in df1.queries["queries"][0]
+
+
+def test_table_function_negative(session):
+    split_to_table = table_function("split_to_table")
+    df = session.create_dataframe(
+        [["Hello World", "p1", 1], ["Hello Python", "p2", 2]],
+        schema=["text", "partition", "seq"],
+    )
+    with pytest.raises(ValueError) as ex_info:
+        df.join_table_function(split_to_table("text", lit(" "), breaking_arg=1))
+    assert "A table function shouldn't have both args and named args" in str(ex_info)
+
+    with pytest.raises(ValueError) as ex_info:
+        df.join_table_function(split_to_table("text", lit(" ")), "breaking_arg")
+    assert (
+        "'args' and 'named_args' shouldn't be used if a TableFunction instance is used"
+        in str(ex_info)
+    )
