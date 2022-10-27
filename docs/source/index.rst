@@ -14,7 +14,7 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
    :maxdepth: 2
 
    session
-   IO
+   io
    dataframe
    column
    types

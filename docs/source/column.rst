@@ -56,8 +56,3 @@ Column
     Column.substring
     Column.try_cast
     Column.within_group
-
-
-
-
-
