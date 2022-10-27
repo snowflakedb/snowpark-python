@@ -378,6 +378,7 @@ def test_use_secondary_roles(session):
     session.use_secondary_roles(current_role[1:-1])
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Can't create a session in SP")
 def test_sql_simplifier_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
         assert new_session.sql_simplifier_enabled is False
