@@ -71,6 +71,13 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
 
+class GeneratorTableFunction(TableFunctionExpression):
+    def __init__(self, args: Dict[str, Expression], operators: List) -> None:
+        super().__init__("generator")
+        self.args = args
+        self.operators = operators
+
+
 class TableFunctionRelation(LogicalPlan):
     def __init__(self, table_function: TableFunctionExpression) -> None:
         super().__init__()
