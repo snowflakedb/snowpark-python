@@ -204,7 +204,7 @@ class ServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        if is_in_stored_procedure():
+        if is_in_stored_procedure():  # pragma: no cover
             file_name = os.path.basename(path)
             target_path = _build_target_path(stage_location, dest_prefix)
             try:
@@ -247,7 +247,7 @@ class ServerConnection:
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
-            if is_in_stored_procedure():
+            if is_in_stored_procedure():  # pragma: no cover
                 input_stream.seek(0)
                 target_path = _build_target_path(stage_location, dest_prefix)
                 try:
@@ -399,7 +399,7 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
-        if is_in_stored_procedure() and not block:
+        if is_in_stored_procedure() and not block:  # pragma: no cover
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
