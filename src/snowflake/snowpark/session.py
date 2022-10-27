@@ -86,6 +86,7 @@ from snowflake.snowpark.functions import (
     array_agg,
     col,
     column,
+    lit,
     parse_json,
     to_array,
     to_date,
@@ -102,6 +103,7 @@ from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
+    _create_generator_function_expression,
     _create_table_function_expression,
 )
 from snowflake.snowpark.types import (
@@ -978,6 +980,7 @@ class Session:
 
         See Also:
             - :meth:`DataFrame.join_table_function`, which lateral joins an existing :class:`DataFrame` and a SQL function.
+            - :meth:`Session.generator`, which is used to instantiate a :class:`DataFrame` using Generator table function.
         """
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
@@ -997,6 +1000,66 @@ class Session:
                 TableFunctionRelation(func_expr),
             )
         set_api_call_source(d, "Session.table_function")
+        return d
+
+    def generator(self, *columns: ColumnOrName, rowcount: int = 0, timelimit: int = 0) -> DataFrame:
+        """Creates a new DataFrame using the Generator table function.
+
+        References: `Snowflake Generator function <https://docs.snowflake.com/en/sql-reference/functions/generator.html>` -.
+
+        Args:
+            rowcount: Resulting table with contain `rowcount` rows if only this argument is specified. Defaults to 0.
+            timelimit: The query runs for `timelimit` seconds, generating as many rows as possible within the time frame. The
+            exact row count depends on the system speed. Defaults to 0.
+            columns: List of data generation function that work in tandem with generator table function.
+
+        Examples::
+            >>> from snowflake.snowpark.functions import seq1, uniform
+            >>> df = session.generator(seq1(1).as_("sequence one"), uniform(1, 10, 2).as_("uniform"), rowcount=3)
+            >>> df.show()
+            ------------------------------
+            |"sequence one"  |"UNIFORM"  |
+            ------------------------------
+            |0               |3          |
+            |1               |3          |
+            |2               |3          |
+            ------------------------------
+            <BLANKLINE>
+
+        Note:
+            When both rowcount and timelimit are specified, then:
+                - if the `rowcount` is reached before the `timelimit`, the resulting table with contain `rowcount` rows.
+                - if the `timelimit` is reached before the `rowcount`, the table will contain as many rows generated within this time.
+            If both rowcount and timelimit are not specified, 0 rows will be generated.
+
+        Returns:
+            A new :class:`DataFrame` with data from calling the generator table function.
+        """
+        if not columns:
+            raise ValueError("Columns cannot be empty for generator table function")
+        named_args = {}
+        if rowcount != 0:
+            named_args["rowcount"] = lit(rowcount)
+        if timelimit != 0:
+            named_args["timelimit"] = lit(timelimit)
+
+        func_expr = _create_generator_function_expression(*columns, **named_args)
+        func_expr.operators = [self._analyzer.analyze(operator) for operator in func_expr.operators]
+
+        if self.sql_simplifier_enabled:
+            d = DataFrame(
+                self,
+                SelectStatement(
+                    from_=SelectTableFunction(func_expr=func_expr, analyzer=self._analyzer),
+                    analyzer=self._analyzer
+                )
+            )
+        else:
+            d = DataFrame(
+                self,
+                TableFunctionRelation(func_expr),
+            )
+        set_api_call_source(d, "Session.generator")
         return d
 
     def sql(self, query: str) -> DataFrame:
@@ -1847,7 +1910,7 @@ class Session:
             return self._run_query(f"explain using text {query}")[0][0]
         # return None for queries which can't be explained
         except ProgrammingError:
-            _logger.warning("query '%s' cannot be explained")
+            _logger.warning(f"query '{query}' cannot be explained")
             return None
 
     createDataFrame = create_dataframe

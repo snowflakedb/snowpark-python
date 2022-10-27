@@ -325,8 +325,8 @@ def join_table_function_statement(func: str, child: str) -> str:
     )
 
 
-def table_function_statement(func: str) -> str:
-    return project_statement([], table(func))
+def table_function_statement(func: str, operators: Optional[List[str]] = []) -> str:
+    return project_statement(operators, table(func))
 
 
 def case_when_expression(branches: List[Tuple[str, str]], else_value: str) -> str:

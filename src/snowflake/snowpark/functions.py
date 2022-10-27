@@ -778,6 +778,30 @@ def uniform(
     return builtin("uniform")(min_col, max_col, gen_col)
 
 
+def seq1(sign: Optional[int] = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 1 byte"""
+    return builtin("seq1")(Literal(sign))
+
+
+def seq2(sign: Optional[int] = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 2 byte"""
+    return builtin("seq2")(Literal(sign))
+
+
+def seq4(sign: Optional[int] = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 4 byte"""
+    return builtin("seq4")(Literal(sign))
+
+
+def seq8(sign: Optional[int] = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 8 byte"""
+    return builtin("seq8")(Literal(sign))
+
+
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal."""
     c = _to_col_if_str(e, "to_decimal")

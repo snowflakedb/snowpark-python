@@ -9,6 +9,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.table_function import (
+    GeneratorTableFunction,
     TableFunctionExpression,
     TableFunctionJoin,
     TableFunctionRelation,

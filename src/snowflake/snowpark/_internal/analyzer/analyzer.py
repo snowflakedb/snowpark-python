@@ -93,6 +93,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
+    GeneratorTableFunction,
     Lateral,
     NamedArgumentsTableFunction,
     PosArgumentsTableFunction,
@@ -344,14 +345,15 @@ class Analyzer:
             sql = function_expression(
                 expr.func_name, [self.analyze(x) for x in expr.args], False
             )
-        elif isinstance(expr, NamedArgumentsTableFunction):
+        elif isinstance(expr, NamedArgumentsTableFunction) or isinstance(expr, GeneratorTableFunction):
             sql = named_arguments_function(
                 expr.func_name,
                 {key: self.analyze(value) for key, value in expr.args.items()},
             )
         else:
             raise TypeError(
-                "A table function expression should be any of PosArgumentsTableFunction, NamedArgumentsTableFunction, or FlattenFunction."
+                "A table function expression should be any of PosArgumentsTableFunction, "
+                "NamedArgumentsTableFunction, GeneratorTableFunction, or FlattenFunction."
             )
         partition_spec_sql = (
             self.analyze(expr.partition_spec) if expr.partition_spec else ""
@@ -468,7 +470,8 @@ class Analyzer:
 
         if isinstance(logical_plan, TableFunctionRelation):
             return self.plan_builder.from_table_function(
-                self.analyze(logical_plan.table_function)
+                self.analyze(logical_plan.table_function),
+                logical_plan
             )
 
         if isinstance(logical_plan, Lateral):
