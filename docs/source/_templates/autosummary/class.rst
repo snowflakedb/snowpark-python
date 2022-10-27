@@ -4,7 +4,7 @@
 
 {% block methods %}
 
-{% if methods and methods|length > 0 %}
+{% if methods %}
    .. rubric:: Methods
 
    .. autosummary::
