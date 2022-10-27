@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-
 import math
 
 import pytest
@@ -9,6 +8,7 @@ import pytest
 from snowflake.snowpark._internal.code_generation import (
     extract_submodule_imports,
     generate_source_code,
+    get_class_references,
     get_func_references,
     get_lambda_code_text,
     remove_function_udf_annotation,
@@ -322,6 +322,26 @@ def test():
 """
     )
 
+    before_code = """\
+@udff
+def test():
+    pass\
+"""
+    assert remove_function_udf_annotation(before_code) == before_code
+
+    before_code = """\
+@udf((1=2))
+def test():
+    pass\
+"""
+    assert (
+        remove_function_udf_annotation(before_code)
+        == """\
+def test():
+    pass\
+"""
+    )
+
     with pytest.raises(TypeError):
         remove_function_udf_annotation(
             """\
@@ -339,6 +359,11 @@ def test_lambda_code_extraction():
     assert get_lambda_code_text(register_code) == "lambda x, y: x + y"
 
     register_code = "session.udf.register(lambda x, y: x + y, 'a', 'b', 'c', d=1, e=2)"
+    assert get_lambda_code_text(register_code) == "lambda x, y: x + y"
+
+    register_code = """\
+session.udf.register(
+    lambda x, y: x + y)"""
     assert get_lambda_code_text(register_code) == "lambda x, y: x + y"
 
     register_code = """\
@@ -372,6 +397,9 @@ session.udf.register(
 )\
 """
     assert get_lambda_code_text(register_code) == "lambda x, y: x + y"
+
+    with pytest.raises(TypeError, match="lambda function can not be extracted"):
+        get_lambda_code_text("def f(): pass")
 
 
 def test_import_module():
@@ -492,6 +520,22 @@ def test_get_func_references():
 # func = func\
 """
     )
+
+
+def test_get_class_references():
+
+    from tests.unit.mock_module import Parent
+
+    class AnotherChild(Parent):
+        pass
+
+    def f():
+        AnotherChild
+
+    ref_objects = {}
+    # TODO: SNOW-684509 fix this
+    with pytest.raises(KeyError):
+        get_class_references(AnotherChild, f, ref_objects, [])
 
 
 def test_import_multilevel_and_alias_modules():
