@@ -1,4 +1,4 @@
-snowflake.snowpark.stored\_procedure
+Stored Procedures
 ====================================
 Stored procedures in Snowpark.
 

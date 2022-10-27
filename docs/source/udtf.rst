@@ -1,4 +1,4 @@
-snowflake.snowpark.udtf
+UDTF
 =======================
 User-defined table functions (UDTFs) in Snowpark.
 

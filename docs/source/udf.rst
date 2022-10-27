@@ -1,4 +1,4 @@
-snowflake.snowpark.udf 
+UDF
 ======================
 User-defined functions (UDFs) in Snowpark.
 

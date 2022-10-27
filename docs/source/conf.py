@@ -47,7 +47,7 @@ extensions = [
 autosummary_generate = True
 autoclass_content="class"
 autodoc_default_options = {
-    "members": True,  # Include all methods.
+    #"members": True,  # Include all methods.
     "member-order": "alphabetical",  # 'alphabetical', by member type ('groupwise') or source order (value 'bysource')
     "undoc-members": True,  # If set, autodoc will also generate document for the members not having docstrings
     "show-inheritance": True,
@@ -91,5 +91,3 @@ html_show_sourcelink = False  # Hide "view page source" link
 
 # Disable footer message "Built with Sphinx using a theme provided by Read the Docs."
 html_show_sphinx = False
-
-add_module_names = False

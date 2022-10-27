@@ -1,4 +1,5 @@
-snowflake.snowpark.table_function
+====================================
+Table Function
 ====================================
 Contains table function related classes.
 

@@ -1,4 +1,4 @@
-snowflake.snowpark 
+Core Classes
 =============================
 Contains core classes of Snowpark.
 
@@ -16,20 +16,10 @@ Contains core classes of Snowpark.
     DataFrameReader
     DataFrameStatFunctions
     DataFrameWriter
-    GroupingSets
     RelationalGroupedDataFrame
+    GroupingSets
     Row
     Session
     FileOperation
-    PutResult
-    GetResult
     Window
-    WindowSpec
     Table
-    UpdateResult
-    DeleteResult
-    MergeResult
-    WhenMatchedClause
-    WhenNotMatchedClause
-    QueryHistory
-    QueryRecord

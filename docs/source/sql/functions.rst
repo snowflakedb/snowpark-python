@@ -1,5 +1,7 @@
-snowflake.snowpark.functions
-================================
+=============
+Functions
+=============
+
 Provides utility and SQL functions that generate :class:`~snowflake.snowpark.Column` expressions that you can pass to :class:`~snowflake.snowpark.DataFrame` transformation methods.
 
 These utility functions generate references to columns, literals, and SQL expressions (e.g. "c + 1").

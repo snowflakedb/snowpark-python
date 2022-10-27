@@ -1,5 +1,7 @@
-snowflake.snowpark.types
-========================
+=============================
+Data Types
+=============================
+
 This package contains all Snowpark logical types.
 
 .. currentmodule:: snowflake.snowpark.types
@@ -37,12 +39,3 @@ This package contains all Snowpark logical types.
     TimestampType
     Variant
     VariantType
-   
-   
-
-   
-   
-   
-
-
-
