@@ -1966,3 +1966,5 @@ def test_secure_udf(session):
         session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b").select(echo("a")),
         [Row(1), Row(3)],
     )
+    ddl_sql = f"select get_ddl('function', '{echo.name}(int)')"
+    assert "SECURE" in session.sql(ddl_sql).collect()[0][0]

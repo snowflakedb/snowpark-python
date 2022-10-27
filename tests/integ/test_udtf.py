@@ -206,3 +206,5 @@ def test_secure_udtf(session):
         df,
         [Row(1)],
     )
+    ddl_sql = f"select get_ddl('function', '{UDTFEcho.name}(int)')"
+    assert "SECURE" in session.sql(ddl_sql).collect()[0][0]
