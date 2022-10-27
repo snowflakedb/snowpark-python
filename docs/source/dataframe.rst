@@ -4,6 +4,15 @@ DataFrame
 
 .. currentmodule:: snowflake.snowpark
 
+.. rubric:: Classes
+
+.. autosummary::
+    :toctree: api/
+
+    DataFrame
+    DataFrameNaFunctions
+    DataFrameStatFunctions
+
 .. rubric:: Methods
 
 .. autosummary::

@@ -6,6 +6,13 @@ This package contains all Snowpark logical types.
 
 .. currentmodule:: snowflake.snowpark
 
+.. rubric:: Classes
+
+.. autosummary::
+    :toctree: api/
+
+    Row
+
 .. rubric:: Methods
 
 .. autosummary::

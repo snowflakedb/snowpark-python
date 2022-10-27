@@ -13,7 +13,17 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
 .. toctree::
    :maxdepth: 2
 
-   sql/index
+   session
+   IO
+   dataframe
+   column
+   types
+   row
+   functions 
+   window 
+   grouping 
+   table_function
+   table
    stored_procedures
    udf
    udtf

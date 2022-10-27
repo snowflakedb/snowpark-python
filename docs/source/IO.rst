@@ -4,6 +4,16 @@ Input/Output
 
 .. currentmodule:: snowflake.snowpark
 
+.. rubric:: Classes
+    
+.. autosummary::
+    :toctree: api/
+
+    DataFrameReader
+    DataFrameWriter
+    FileOperation
+    PutResult
+    GetResult
  
 .. rubric:: Methods
 

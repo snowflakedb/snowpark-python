@@ -4,7 +4,13 @@ Table
 
 .. currentmodule:: snowflake.snowpark
 
-   
+.. rubric:: Classes
+
+.. autosummary::
+    :toctree: api/
+
+    Table
+
 .. rubric:: Methods
 
 .. autosummary::

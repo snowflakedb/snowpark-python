@@ -4,6 +4,13 @@ Window
 
 .. currentmodule:: snowflake.snowpark
 
+.. rubric:: Classes
+
+.. autosummary::
+    :toctree: api/
+
+    Window
+
 .. rubric:: Methods
 
 .. autosummary::

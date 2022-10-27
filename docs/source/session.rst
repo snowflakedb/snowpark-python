@@ -4,6 +4,13 @@ Snowpark Session
 
 .. currentmodule:: snowflake.snowpark
 
+.. rubric:: Session
+
+.. autosummary::
+    :toctree: api/
+
+    Session
+
 .. rubric:: Methods
  
 .. autosummary::
