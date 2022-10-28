@@ -62,7 +62,7 @@ class SnowflakeFile(RawIOBase):
         """
         return
 
-    def detach(self) -> None:  # pr
+    def detach(self) -> None:
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def fileno(self) -> None:
