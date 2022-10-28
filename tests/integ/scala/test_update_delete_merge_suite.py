@@ -436,8 +436,6 @@ def test_merge_clause_negative(session):
     target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
     target = session.table(table_name)
     source = session.createDataFrame([(10, "new")], schema=["id", "desc"])
-    match_clause = when_matched()
-    match_clause._clause = True
 
     with pytest.raises(TypeError) as ex_info:
         target.merge(

@@ -221,7 +221,11 @@ def test_struct_field_name():
         str(StructField(column_identifier, IntegerType(), False))
         == "StructField('identifier', IntegerType(), nullable=False)"
     )
+
+    # check that we cover __eq__ works with types other than str and ColumnIdentifier
     assert (column_identifier == 7) is False
+
+    # check StructField name setter works
     sf = StructField(column_identifier, IntegerType(), False)
     sf.name = "integer type"
     assert sf.column_identifier.name == "integer type"

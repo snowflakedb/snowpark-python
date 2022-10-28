@@ -24,6 +24,7 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session._packages = []
     fake_session.udtf = UDTFRegistration(fake_session)
     with pytest.raises(SnowparkSQLException) as ex_info:
+
         @udtf(output_schema=["num"], session=fake_session)
         class UDTFProgrammingErrorTester:
             def process(self, n: int) -> Iterable[Tuple[int]]:
@@ -32,9 +33,12 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     assert ex_info.value.error_code == "1304"
     cleanup_registration_patch.assert_called()
 
-    fake_session._run_query = mock.Mock(side_effect=BaseException())
+    fake_session._run_query = mock.Mock(
+        side_effect=BaseException("Test BaseException code path")
+    )
     fake_session.udtf = UDTFRegistration(fake_session)
-    with pytest.raises(BaseException):
+    with pytest.raises(BaseException, match="Test BaseException code path"):
+
         @udtf(output_schema=["num"], session=fake_session)
         class UDTFBaseExceptionTester:
             def process(self, n: int) -> Iterable[Tuple[int]]:

@@ -27,8 +27,10 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     assert ex_info.value.error_code == "1304"
     cleanup_registration_patch.assert_called()
 
-    fake_session._run_query = mock.Mock(side_effect=BaseException())
+    fake_session._run_query = mock.Mock(
+        side_effect=BaseException("Test BaseException code path")
+    )
     fake_session.udf = UDFRegistration(fake_session)
-    with pytest.raises(BaseException):
+    with pytest.raises(BaseException, match="Test BaseException code path"):
         udf(lambda: 1, session=fake_session, return_type=IntegerType(), packages=[])
     cleanup_registration_patch.assert_called()

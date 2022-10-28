@@ -168,13 +168,13 @@ def test_table_function_negative(session):
         [["Hello World", "p1", 1], ["Hello Python", "p2", 2]],
         schema=["text", "partition", "seq"],
     )
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(
+        ValueError, match="A table function shouldn't have both args and named args"
+    ):
         df.join_table_function(split_to_table("text", lit(" "), breaking_arg=1))
-    assert "A table function shouldn't have both args and named args" in str(ex_info)
 
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(
+        ValueError,
+        match="'args' and 'named_args' shouldn't be used if a TableFunction instance is used",
+    ):
         df.join_table_function(split_to_table("text", lit(" ")), "breaking_arg")
-    assert (
-        "'args' and 'named_args' shouldn't be used if a TableFunction instance is used"
-        in str(ex_info)
-    )
