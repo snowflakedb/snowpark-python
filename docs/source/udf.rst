@@ -1,4 +1,4 @@
-UDF
+User-Defined Function
 ======================
 User-defined functions (UDFs) in Snowpark.
 
