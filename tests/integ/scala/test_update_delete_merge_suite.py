@@ -410,6 +410,46 @@ def test_match_clause_negative(session):
     )
 
 
+def test_update_clause_negative(session):
+    target_df = session.createDataFrame(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
+    )
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
+    source = session.createDataFrame([(10, "new")], schema=["id", "desc"])
+    match_clause = when_matched()
+    match_clause._clause = True
+
+    with pytest.raises(SnowparkTableException) as ex_info:
+        target.merge(
+            source,
+            target["id"] == source["id"],
+            [match_clause.update({"desc": source["desc"]})],
+        )
+    assert ex_info.value.error_code == "1115"
+
+
+def test_merge_clause_negative(session):
+    target_df = session.createDataFrame(
+        [(10, "old"), (10, "too_old"), (11, "old")], schema=["id", "desc"]
+    )
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
+    source = session.createDataFrame([(10, "new")], schema=["id", "desc"])
+    match_clause = when_matched()
+    match_clause._clause = True
+
+    with pytest.raises(TypeError) as ex_info:
+        target.merge(
+            source,
+            target["id"] == source["id"],
+            [None],
+        )
+    assert "clauses only accepts WhenMatchedClause or WhenNotMatchedClause" in str(
+        ex_info
+    )
+
+
 def test_update_with_large_dataframe(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
