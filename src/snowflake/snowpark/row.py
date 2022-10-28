@@ -169,16 +169,17 @@ class Row(tuple):
         return _restore_row_from_pickle(self, self._named_values, self._fields)
 
     def __repr__(self):
-        if self._named_values:
-            return "Row({})".format(
-                ", ".join(f"{k}={v!r}" for k, v in self._named_values.items())
-            )
-        elif (
-            self._fields
-        ):  # when there are duplicate fields, _named_values is None then this brach is reached.
+        if self._fields:
             return "Row({})".format(
                 ", ".join(f"{k}={v!r}" for k, v in zip(self._fields, self))
             )
+        elif self._named_values:  # pragma: no cover
+            # this might not be reachable because when there is self._named_values, there is always self._fields
+            # Need to review later.
+            return "Row({})".format(
+                ", ".join(f"{k}={v!r}" for k, v in self._named_values.items())
+            )
+
         else:
             return "Row({})".format(", ".join(f"{v!r}" for v in self))
 
