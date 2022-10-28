@@ -522,6 +522,7 @@ def test_get_func_references():
     )
 
 
+@pytest.mark.xfail(reason="SNOW-684509", strict=True)
 def test_get_class_references():
 
     from tests.unit.mock_module import Parent
@@ -533,9 +534,7 @@ def test_get_class_references():
         AnotherChild
 
     ref_objects = {}
-    # TODO: SNOW-684509 fix this
-    with pytest.raises(KeyError):
-        get_class_references(AnotherChild, f, ref_objects, [])
+    get_class_references(AnotherChild, f, ref_objects, [])
 
 
 def test_import_multilevel_and_alias_modules():
