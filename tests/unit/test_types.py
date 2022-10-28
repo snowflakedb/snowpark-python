@@ -191,6 +191,29 @@ def test_sf_datatype_names():
     assert str(DecimalType(1, 2)) == "DecimalType(1, 2)"
 
 
+def test_sf_datatype_hashes():
+    assert hash(DataType()) == hash("DataType()")
+    assert hash(MapType(BinaryType(), FloatType())) == hash(
+        "MapType(BinaryType(), FloatType())"
+    )
+    assert hash(VariantType()) == hash("VariantType()")
+    assert hash(BinaryType()) == hash("BinaryType()")
+    assert hash(BooleanType()) == hash("BooleanType()")
+    assert hash(DateType()) == hash("DateType()")
+    assert hash(StringType()) == hash("StringType()")
+    assert hash(_NumericType()) == hash("_NumericType()")
+    assert hash(_IntegralType()) == hash("_IntegralType()")
+    assert hash(_FractionalType()) == hash("_FractionalType()")
+    assert hash(TimeType()) == hash("TimeType()")
+    assert hash(ByteType()) == hash("ByteType()")
+    assert hash(ShortType()) == hash("ShortType()")
+    assert hash(IntegerType()) == hash("IntegerType()")
+    assert hash(LongType()) == hash("LongType()")
+    assert hash(FloatType()) == hash("FloatType()")
+    assert hash(DoubleType()) == hash("DoubleType()")
+    assert hash(DecimalType(1, 2)) == hash("DecimalType(1, 2)")
+
+
 def test_struct_field_name():
     column_identifier = ColumnIdentifier("identifier")
     assert StructField(column_identifier, IntegerType(), False).name == "identifier"
@@ -198,6 +221,10 @@ def test_struct_field_name():
         str(StructField(column_identifier, IntegerType(), False))
         == "StructField('identifier', IntegerType(), nullable=False)"
     )
+    assert (column_identifier == 7) is False
+    sf = StructField(column_identifier, IntegerType(), False)
+    sf.name = "integer type"
+    assert sf.column_identifier.name == "integer type"
 
 
 def test_strip_unnecessary_quotes():
