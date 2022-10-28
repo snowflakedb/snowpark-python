@@ -1850,7 +1850,7 @@ class Session:
             return self._run_query(f"explain using text {query}")[0][0]
         # return None for queries which can't be explained
         except ProgrammingError:
-            _logger.warning("query '%s' cannot be explained")
+            _logger.warning("query `%s` cannot be explained", query)
             return None
 
     createDataFrame = create_dataframe
