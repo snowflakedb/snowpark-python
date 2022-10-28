@@ -1,4 +1,4 @@
-snowflake.snowpark.exceptions
+Exceptions
 =============================
 This package contains all Snowpark client-side exceptions.
 
