@@ -321,7 +321,7 @@ def test():
     pass\
 """
     )
-
+    # test a user-provided decorator starting from @udf but it's not @udf
     before_code = """\
 @udff
 def test():
