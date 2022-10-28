@@ -1016,6 +1016,13 @@ class Session:
             timelimit: The query runs for ``timelimit`` seconds, generating as many rows as possible within the time frame. The
                 exact row count depends on the system speed. Defaults to 0.
 
+        Usage Notes:
+                - When both ``rowcount`` and ``timelimit`` are specified, then:
+
+                    + if the ``rowcount`` is reached before the ``timelimit``, the resulting table with contain ``rowcount`` rows.
+                    + if the ``timelimit`` is reached before the ``rowcount``, the table will contain as many rows generated within this time.
+                - If both ``rowcount`` and ``timelimit`` are not specified, 0 rows will be generated.
+
         Example 1
             >>> from snowflake.snowpark.functions import seq1, seq8, uniform
             >>> df = session.generator(seq1(1).as_("sequence one"), uniform(1, 10, 2).as_("uniform"), rowcount=3)
@@ -1040,14 +1047,6 @@ class Session:
             |2          |3                    |
             -----------------------------------
             <BLANKLINE>
-
-        Note:
-            - When both ``rowcount`` and ``timelimit`` are specified, then:
-
-                + if the ``rowcount`` is reached before the ``timelimit``, the resulting table with contain ``rowcount`` rows.
-                + if the ``timelimit`` is reached before the ``rowcount``, the table will contain as many rows generated within this time.
-
-            - If both ``rowcount`` and ``timelimit`` are not specified, 0 rows will be generated.
 
         Returns:
             A new :class:`DataFrame` with data from calling the generator table function.

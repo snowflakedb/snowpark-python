@@ -782,6 +782,10 @@ def seq1(sign: int = 0) -> Column:
     """Returns a sequence of monotonically increasing integers, with wrap-around
     which happens after largest representable integer of integer width 1 byte.
 
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 1 byte integer. Defaults to 0.
+
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq1` to
             generate sequences.
@@ -792,6 +796,10 @@ def seq1(sign: int = 0) -> Column:
 def seq2(sign: int = 0) -> Column:
     """Returns a sequence of monotonically increasing integers, with wrap-around
     which happens after largest representable integer of integer width 2 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 2 byte integer. Defaults to 0.
 
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq2` to
@@ -804,6 +812,10 @@ def seq4(sign: int = 0) -> Column:
     """Returns a sequence of monotonically increasing integers, with wrap-around
     which happens after largest representable integer of integer width 4 byte.
 
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 4 byte integer. Defaults to 0.
+
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq4` to
             generate sequences.
@@ -814,6 +826,10 @@ def seq4(sign: int = 0) -> Column:
 def seq8(sign: int = 0) -> Column:
     """Returns a sequence of monotonically increasing integers, with wrap-around
     which happens after largest representable integer of integer width 8 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 8 byte integer. Defaults to 0.
 
     See Also:
         - :meth:`Session.generator`, which can be used to generate in tandem with `seq8` to
