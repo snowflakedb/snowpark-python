@@ -81,7 +81,7 @@ def _to_col_if_lit(
         return col
     elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
         return Column(Literal(col))
-    else:
+    else:  # pragma: no cover
         raise TypeError(
             f"'{func_name}' expected Column, DataFrame, Iterable or LiteralType, got: {type(col)}"
         )
@@ -116,7 +116,7 @@ def _to_col_if_str_or_int(col: Union[ColumnOrName, int], func_name: str) -> "Col
         return Column(col)
     elif isinstance(col, int):
         return Column(Literal(col))
-    else:
+    else:  # pragma: no cover
         raise TypeError(
             f"'{func_name.upper()}' expected Column, int or str, got: {type(col)}"
         )
@@ -218,7 +218,7 @@ class Column:
                 self._expression = UnresolvedAttribute(quote_name(expr))
         elif isinstance(expr, Expression):
             self._expression = expr
-        else:
+        else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
 
     def __getitem__(self, field: Union[str, int]) -> "Column":
@@ -226,7 +226,7 @@ class Column:
             return Column(SubfieldString(self._expression, field))
         elif isinstance(field, int):
             return Column(SubfieldInt(self._expression, field))
-        else:
+        else:  # pragma: no cover
             raise TypeError(f"Unexpected item type: {type(field)}")
 
     # overload operators
@@ -454,14 +454,14 @@ class Column:
         return Column(And(self._expression, Column._to_expr(other)))
 
     def __rand__(self, other: "Column") -> "Column":
-        return Column(And(Column._to_expr(other), self._expression))
+        return Column(And(Column._to_expr(other), self._expression))  # pragma: no cover
 
     def __or__(self, other: "Column") -> "Column":
         """Or."""
         return Column(Or(self._expression, Column._to_expr(other)))
 
     def __ror__(self, other: "Column") -> "Column":
-        return Column(And(Column._to_expr(other), self._expression))
+        return Column(And(Column._to_expr(other), self._expression))  # pragma: no cover
 
     def __invert__(self) -> "Column":
         """Unary not."""
@@ -605,7 +605,7 @@ class Column:
         return f"Column[{self._expression}]"
 
     def __repr__(self):
-        return f"Column({self._expression})"
+        return f"Column({self._expression})"  # pragma: no cover
 
     def as_(self, alias: str) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
