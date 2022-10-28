@@ -1,5 +1,5 @@
 User-Defined Table Functions
-=======================
+==============================
 User-defined table functions (UDTFs) in Snowpark.
 
 .. currentmodule:: snowflake.snowpark.udtf

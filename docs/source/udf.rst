@@ -1,5 +1,5 @@
 User-Defined Functions
-======================
+========================
 User-defined functions (UDFs) in Snowpark.
 
 .. currentmodule:: snowflake.snowpark.udf
