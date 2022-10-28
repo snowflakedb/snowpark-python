@@ -226,7 +226,7 @@ class Column:
             return Column(SubfieldString(self._expression, field))
         elif isinstance(field, int):
             return Column(SubfieldInt(self._expression, field))
-        else:
+        else:  # pragma: no cover
             raise TypeError(f"Unexpected item type: {type(field)}")
 
     # overload operators
