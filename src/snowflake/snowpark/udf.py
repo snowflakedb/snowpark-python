@@ -462,6 +462,7 @@ class UDFRegistration:
         parallel: int = 4,
         max_batch_size: Optional[int] = None,
         strict: bool = False,
+        secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -528,6 +529,8 @@ class UDFRegistration:
             strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
                 null. Instead, a null value will always be returned for that row. Note that the UDF might
                 still return null for non-null inputs.
+            secure: Whether the created UDF is secure. For more information about secure functions,
+                see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             source_code_display: Display the source code of the UDF `func` as comments in the generated script.
                 The source code is dynamically generated therefore it may not be identical to how the
@@ -564,6 +567,7 @@ class UDFRegistration:
             max_batch_size,
             _from_pandas,
             strict,
+            secure,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -584,6 +588,7 @@ class UDFRegistration:
         replace: bool = False,
         parallel: int = 4,
         strict: bool = False,
+        secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -649,6 +654,8 @@ class UDFRegistration:
             strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
                 null. Instead, a null value will always be returned for that row. Note that the UDF might
                 still return null for non-null inputs.
+            secure: Whether the created UDF is secure. For more information about secure functions,
+                see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             source_code_display: Display the source code of the UDF `func` as comments in the generated script.
                 The source code is dynamically generated therefore it may not be identical to how the
@@ -682,6 +689,7 @@ class UDFRegistration:
             replace,
             parallel,
             strict,
+            secure,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
@@ -701,6 +709,7 @@ class UDFRegistration:
         max_batch_size: Optional[int] = None,
         from_pandas_udf_function: bool = False,
         strict: bool = False,
+        secure: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -769,6 +778,7 @@ class UDFRegistration:
                 inline_python_code=code,
                 api_call_source=api_call_source,
                 strict=strict,
+                secure=secure,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
