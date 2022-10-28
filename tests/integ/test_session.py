@@ -347,7 +347,8 @@ def test_get_current_schema(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="use secondary role is not allowed in stored proc (owner mode)"
+    IS_IN_STORED_PROC,
+    reason="use secondary role is not allowed in stored proc (owner mode)",
 )
 def test_use_secondary_roles(session):
     session.use_secondary_roles("all")
@@ -371,3 +372,10 @@ def test_use_secondary_roles(session):
 
     # after stripping the quotes actually it works - but it's not documented in Snowflake
     session.use_secondary_roles(current_role[1:-1])
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SP doesn't allow to close a session.")
+def test_close_session_twice(db_parameters):
+    new_session = Session.builder.configs(db_parameters).create()
+    new_session.close()
+    new_session.close()  # no exception

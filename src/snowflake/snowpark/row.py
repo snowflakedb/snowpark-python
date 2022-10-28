@@ -144,9 +144,7 @@ class Row(tuple):
             new_row = Row(**self._named_values)
             for input_key, input_value in kwargs.items():
                 if input_key not in self._named_values:
-                    raise ValueError(
-                        f"Wrong keyword argument {input_key} for Row f{self}"
-                    )
+                    raise ValueError(f"Wrong keyword argument {input_key} for {self}")
                 new_row._named_values[input_key] = input_value
             return new_row
         elif self._fields and self._check_if_having_duplicates():
@@ -163,7 +161,7 @@ class Row(tuple):
                 not isinstance(value, str) for value in self
             ):
                 raise ValueError(
-                    "The called Row object with and input values must have the same size."
+                    "The called Row object and input values must have the same size and the called Row object shouldn't have any non-str fields."
                 )
             return Row(**{k: v for k, v in zip(self, args)})
 
@@ -171,13 +169,15 @@ class Row(tuple):
         return _restore_row_from_pickle(self, self._named_values, self._fields)
 
     def __repr__(self):
-        if self._fields:
-            return "Row({})".format(
-                ", ".join(f"{k}={v!r}" for k, v in zip(self._fields, self))
-            )
-        elif self._named_values:
+        if self._named_values:
             return "Row({})".format(
                 ", ".join(f"{k}={v!r}" for k, v in self._named_values.items())
+            )
+        elif (
+            self._fields
+        ):  # when there are duplicate fields, _named_values is None then this brach is reached.
+            return "Row({})".format(
+                ", ".join(f"{k}={v!r}" for k, v in zip(self._fields, self))
             )
         else:
             return "Row({})".format(", ".join(f"{v!r}" for v in self))

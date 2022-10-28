@@ -17,6 +17,7 @@ from snowflake.snowpark.functions import (
     approx_percentile_accumulate,
     approx_percentile_combine,
     approx_percentile_estimate,
+    col,
     corr,
     covar_pop,
     covar_samp,
@@ -24,6 +25,7 @@ from snowflake.snowpark.functions import (
     get_path,
     lit,
     object_keys,
+    sha2,
     typeof,
     xmlget,
 )
@@ -107,6 +109,14 @@ def test_create_table_function_expression_named_wrong_table_name():
         "'func' should be a function name in str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
         == ve.value.args[0]
     )
+
+
+def test_sha2_negative():
+    num_bits = 2
+    with pytest.raises(
+        ValueError, match=f"num_bits {num_bits} is not in the permitted values"
+    ):
+        sha2(col("a"), num_bits)
 
 
 def test_functions_alias():

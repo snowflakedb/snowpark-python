@@ -182,7 +182,7 @@ class RelationalGroupedDataFrame:
                 agg_exprs,
                 self._df._select_statement or self._df._plan,
             )
-        else:
+        else:  # pragma: no cover
             raise TypeError(f"Wrong group by type {self._group_type}")
 
         if self._df._select_statement:

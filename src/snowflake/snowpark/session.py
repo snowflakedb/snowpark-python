@@ -146,7 +146,10 @@ def _add_session(session: "Session") -> None:
 
 def _remove_session(session: "Session") -> None:
     with _session_management_lock:
-        _active_sessions.remove(session)
+        try:
+            _active_sessions.remove(session)
+        except KeyError:
+            pass
 
 
 class Session:
