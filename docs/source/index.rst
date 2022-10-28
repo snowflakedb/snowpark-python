@@ -24,11 +24,11 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
    grouping 
    table_function
    table
+   async_job
    stored_procedures
    udf
    udtf
-   exceptions
    observability
-   async_job
+   exceptions
 
 :ref:`genindex`
