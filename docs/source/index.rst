@@ -13,13 +13,22 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
 .. toctree::
    :maxdepth: 2
 
-   snowpark_classes
-   functions
-   table_function
-   stored_procedures
+   session
+   io
+   dataframe
+   column
    types
+   row
+   functions 
+   window 
+   grouping 
+   table_function
+   table
+   async_job
+   stored_procedures
    udf
    udtf
+   observability
    exceptions
 
 :ref:`genindex`
