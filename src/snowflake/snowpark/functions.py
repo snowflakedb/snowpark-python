@@ -780,25 +780,45 @@ def uniform(
 
 def seq1(sign: int = 0) -> Column:
     """Returns a sequence of monotonically increasing integers, with wrap-around
-    which happens after largest representable integer of integer width 1 byte"""
+    which happens after largest representable integer of integer width 1 byte.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq1` to
+            generate sequences.
+    """
     return builtin("seq1")(Literal(sign))
 
 
 def seq2(sign: int = 0) -> Column:
     """Returns a sequence of monotonically increasing integers, with wrap-around
-    which happens after largest representable integer of integer width 2 byte"""
+    which happens after largest representable integer of integer width 2 byte.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq2` to
+            generate sequences.
+    """
     return builtin("seq2")(Literal(sign))
 
 
 def seq4(sign: int = 0) -> Column:
     """Returns a sequence of monotonically increasing integers, with wrap-around
-    which happens after largest representable integer of integer width 4 byte"""
+    which happens after largest representable integer of integer width 4 byte.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq4` to
+            generate sequences.
+    """
     return builtin("seq4")(Literal(sign))
 
 
 def seq8(sign: int = 0) -> Column:
     """Returns a sequence of monotonically increasing integers, with wrap-around
-    which happens after largest representable integer of integer width 8 byte"""
+    which happens after largest representable integer of integer width 8 byte.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq8` to
+            generate sequences.
+    """
     return builtin("seq8")(Literal(sign))
 
 
