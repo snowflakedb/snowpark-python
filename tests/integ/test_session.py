@@ -16,7 +16,11 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
 )
-from snowflake.snowpark.session import _active_sessions, _get_active_session
+from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
+    _active_sessions,
+    _get_active_session,
+)
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
@@ -379,3 +383,20 @@ def test_close_session_twice(db_parameters):
     new_session = Session.builder.configs(db_parameters).create()
     new_session.close()
     new_session.close()  # no exception
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
+def test_sql_simplifier_enabled_on_session(db_parameters):
+    with Session.builder.configs(db_parameters).create() as new_session:
+        assert new_session.sql_simplifier_enabled is False
+        new_session.sql_simplifier_enabled = True
+        assert new_session.sql_simplifier_enabled
+        new_session.sql_simplifier_enabled = False
+        assert new_session.sql_simplifier_enabled is False
+
+    parameters = db_parameters.copy()
+    parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING: True
+    }
+    with Session.builder.configs(parameters).create() as new_session2:
+        assert new_session2.sql_simplifier_enabled

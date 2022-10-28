@@ -1955,3 +1955,16 @@ def test_strict_udf(session):
         TestData.all_nulls(session).to_df(["a"]).select(echo("a")),
         [Row(None), Row(None), Row(None), Row(None)],
     )
+
+
+def test_secure_udf(session):
+    @udf(secure=True)
+    def echo(num: int) -> int:
+        return num
+
+    Utils.check_answer(
+        session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b").select(echo("a")),
+        [Row(1), Row(3)],
+    )
+    ddl_sql = f"select get_ddl('function', '{echo.name}(int)')"
+    assert "SECURE" in session.sql(ddl_sql).collect()[0][0]
