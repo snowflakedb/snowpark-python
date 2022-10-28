@@ -1,4 +1,5 @@
-snowflake.snowpark.table_function
+====================================
+Table Function
 ====================================
 Contains table function related classes.
 
@@ -10,3 +11,26 @@ Contains table function related classes.
     :toctree: api/
 
     TableFunctionCall
+
+
+.. rubric:: Methods
+
+.. autosummary::
+    :toctree: api/
+
+    TableFunctionCall.alias
+    TableFunctionCall.as_
+    TableFunctionCall.over
+
+
+
+
+
+.. rubric:: Attributes
+
+.. autosummary::
+    :toctree: api/
+
+    TableFunctionCall.name
+    TableFunctionCall.arguments
+    TableFunctionCall.named_arguments
