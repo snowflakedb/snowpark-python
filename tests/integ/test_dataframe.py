@@ -28,6 +28,8 @@ from snowflake.snowpark.functions import (
     count,
     lit,
     seq1,
+    seq2,
+    seq4,
     table_function,
     udtf,
     uniform,
@@ -437,10 +439,10 @@ def test_generator_table_function(session):
     Utils.check_answer(df, expected_result)
 
     # works with timelimit
-    expected_result = [Row(-128, 3), Row(-128, 3), Row(-128, 3)]
+    expected_result = [Row(0, 3), Row(0, 3), Row(0, 3)]
     df = (
-        session.generator(seq1(1), uniform(1, 10, 2), timelimit=1)
-        .order_by(seq1(1))
+        session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
+        .order_by(seq2(0))
         .limit(3)
     )
     Utils.check_answer(df, expected_result)
@@ -455,7 +457,7 @@ def test_generator_table_function(session):
     Utils.check_answer(df, expected_result)
 
     # works without both
-    df = session.generator(seq1(1), uniform(1, 10, 2))
+    df = session.generator(seq4(1), uniform(1, 10, 2))
     Utils.check_answer(df, [])
 
     # aliasing works
