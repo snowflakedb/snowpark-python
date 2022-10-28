@@ -934,6 +934,7 @@ def test_udtf_call_and_invoke(session, resources_path):
     }
 
 
+# @pytest.mark.skip("This is broken because server doesn't have parameter PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER yet. Enable it after server releases it.")
 def test_sql_simplifier_enabled(session):
     telemetry_tracker = TelemetryDataTracker(session)
     original_value = session.sql_simplifier_enabled
