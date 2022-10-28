@@ -340,7 +340,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> UpdateResult:
-        ...
+        ...    # pragma: no cover
 
     @overload
     def update(
@@ -352,7 +352,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> "snowflake.snowpark.AsyncJob":
-        ...
+        ...    # pragma: no cover
 
     def update(
         self,
@@ -445,7 +445,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> DeleteResult:
-        ...
+        ...    # pragma: no cover
 
     @overload
     def delete(
@@ -456,7 +456,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> "snowflake.snowpark.AsyncJob":
-        ...
+        ...    # pragma: no cover
 
     def delete(
         self,
@@ -540,7 +540,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> MergeResult:
-        ...
+        ...    # pragma: no cover
 
     @overload
     def merge(
@@ -552,7 +552,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> "snowflake.snowpark.AsyncJob":
-        ...
+        ...    # pragma: no cover
 
     def merge(
         self,
