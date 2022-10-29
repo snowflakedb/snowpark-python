@@ -258,6 +258,7 @@ class Table(DataFrame):
         super().__init__(
             session, session._analyzer.resolve(UnresolvedRelation(table_name))
         )
+        self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
 
         if self._session.sql_simplifier_enabled:
@@ -339,7 +340,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> UpdateResult:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def update(
@@ -351,7 +352,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> "snowflake.snowpark.AsyncJob":
-        ...
+        ...  # pragma: no cover
 
     def update(
         self,
@@ -444,7 +445,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> DeleteResult:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def delete(
@@ -455,7 +456,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> "snowflake.snowpark.AsyncJob":
-        ...
+        ...  # pragma: no cover
 
     def delete(
         self,
@@ -539,7 +540,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> MergeResult:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def merge(
@@ -551,7 +552,7 @@ class Table(DataFrame):
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> "snowflake.snowpark.AsyncJob":
-        ...
+        ...  # pragma: no cover
 
     def merge(
         self,

@@ -10,20 +10,25 @@ Snowpark simplifies the process of building complex data pipelines and allows yo
 Snowflake directly without moving data to the system where your application code runs. For more
 information, see the `Snowpark Developer Guide for Python <https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html>`_.
 
-.. rubric:: Modules
+.. toctree::
+   :maxdepth: 2
 
-.. autosummary::
-   :toctree: _autosummary
-   :template: module.rst
-
-   snowflake.snowpark
-   snowflake.snowpark.functions
-   snowflake.snowpark.table_function
-   snowflake.snowpark.stored_procedure
-   snowflake.snowpark.types
-   snowflake.snowpark.udf
-   snowflake.snowpark.udtf
-   snowflake.snowpark.exceptions
+   session
+   io
+   dataframe
+   column
+   types
+   row
+   functions 
+   window 
+   grouping 
+   table_function
+   table
+   async_job
+   stored_procedures
+   udf
+   udtf
+   observability
+   exceptions
 
 :ref:`genindex`
-

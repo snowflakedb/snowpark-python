@@ -1959,7 +1959,7 @@ def _timestamp_from_parts_internal(
     elif 6 <= num_args <= 8:
         # parts mode
         y, m, d, h, min_, s = _columns_from_timestamp_parts(func_name, *args[:6])
-        ns_arg = args[6] if num_args == 7 else kwargs.get("nanoseconds")
+        ns_arg = args[6] if num_args >= 7 else kwargs.get("nanoseconds")
         # Timezone is only accepted in timestamp_from_parts function
         tz_arg = args[7] if num_args == 8 else kwargs.get("timezone")
         if tz_arg is not None and func_name != "timestamp_from_parts":
@@ -2016,7 +2016,7 @@ def time_from_parts(
 
 @overload
 def timestamp_from_parts(date_expr: ColumnOrName, time_expr: ColumnOrName) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 @overload
@@ -2030,7 +2030,7 @@ def timestamp_from_parts(
     nanosecond: Optional[Union[ColumnOrName, int]] = None,
     timezone: Optional[ColumnOrLiteralStr] = None,
 ) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 def timestamp_from_parts(*args, **kwargs) -> Column:
@@ -2105,7 +2105,7 @@ def timestamp_ltz_from_parts(
 def timestamp_ntz_from_parts(
     date_expr: ColumnOrName, time_expr: ColumnOrName
 ) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 @overload
@@ -2118,7 +2118,7 @@ def timestamp_ntz_from_parts(
     second: Union[ColumnOrName, int],
     nanosecond: Optional[Union[ColumnOrName, int]] = None,
 ) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 def timestamp_ntz_from_parts(*args, **kwargs) -> Column:
@@ -3009,6 +3009,7 @@ def udf(
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
     strict: bool = False,
+    secure: bool = False,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -3078,6 +3079,8 @@ def udf(
         strict: Whether the created UDF is strict. A strict UDF will not invoke the UDF if any input is
             null. Instead, a null value will always be returned for that row. Note that the UDF might
             still return null for non-null inputs.
+        secure: Whether the created UDF is secure. For more information about secure functions,
+            see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3137,6 +3140,7 @@ def udf(
             statement_params=statement_params,
             source_code_display=source_code_display,
             strict=strict,
+            secure=secure,
         )
     else:
         return session.udf.register(
@@ -3154,6 +3158,7 @@ def udf(
             statement_params=statement_params,
             source_code_display=source_code_display,
             strict=strict,
+            secure=secure,
         )
 
 
@@ -3172,6 +3177,7 @@ def udtf(
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
     strict: bool = False,
+    secure: bool = False,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -3227,6 +3233,8 @@ def udtf(
         strict: Whether the created UDTF is strict. A strict UDTF will not invoke the UDTF if any input is
             null. Instead, a null value will always be returned for that row. Note that the UDTF might
             still return null for non-null inputs.
+        secure: Whether the created UDTF is secure. For more information about secure functions,
+            see `Secure UDFs <https://docs.snowflake.com/en/sql-reference/udf-secure.html>`_.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -3273,6 +3281,7 @@ def udtf(
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
+            secure=secure,
         )
     else:
         return session.udtf.register(
@@ -3288,6 +3297,7 @@ def udtf(
             parallel=parallel,
             statement_params=statement_params,
             strict=strict,
+            secure=secure,
         )
 
 

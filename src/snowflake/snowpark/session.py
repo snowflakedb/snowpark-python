@@ -129,6 +129,7 @@ _active_sessions: Set["Session"] = set()
 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
     "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
 )
+_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
 
 
 def _get_active_session() -> Optional["Session"]:
@@ -148,7 +149,10 @@ def _add_session(session: "Session") -> None:
 
 def _remove_session(session: "Session") -> None:
     with _session_management_lock:
-        _active_sessions.remove(session)
+        try:
+            _active_sessions.remove(session)
+        except KeyError:
+            pass
 
 
 class Session:
@@ -264,22 +268,19 @@ class Session:
         self._plan_builder = SnowflakePlanBuilder(self)
         self._last_action_id = 0
         self._last_canceled_id = 0
-        # consider making _session_parameters check a helpful function
-        self._use_scoped_temp_objects = bool(
+        self._use_scoped_temp_objects: bool = (
             _use_scoped_temp_objects
-            and (
-                conn._conn._session_parameters.get(
-                    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
-                )
-                if conn._conn._session_parameters
-                else True
+            and self._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
 
         self._file = FileOperation(self)
 
         self._analyzer = Analyzer(self)
-        self._sql_simplifier_enabled: bool = False
+        self._sql_simplifier_enabled: bool = self._get_client_side_session_parameter(
+            _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, False
+        )
         _logger.info("Snowpark Session information: %s", self._session_info)
 
     def __enter__(self):
@@ -332,6 +333,12 @@ class Session:
         self._conn._telemetry_client.send_sql_simplifier_telemetry(
             self._session_id, value
         )
+        try:
+            self._conn.run_query(
+                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+            )
+        except Exception:
+            pass
         self._sql_simplifier_enabled = value
 
     def cancel_all(self) -> None:
@@ -1928,7 +1935,17 @@ class Session:
             return self._run_query(f"explain using text {query}")[0][0]
         # return None for queries which can't be explained
         except ProgrammingError:
-            _logger.warning(f"query '{query}' cannot be explained")
+            _logger.warning("query `%s` cannot be explained", query)
             return None
+
+    def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
+        """It doesn't go to Snowflake to retrieve the session parameter.
+        Use this only when you know the Snowflake session parameter is sent to the client when a session/connection is created.
+        """
+        return (
+            self._conn._conn._session_parameters.get(name, default_value)
+            if self._conn._conn._session_parameters
+            else default_value
+        )
 
     createDataFrame = create_dataframe

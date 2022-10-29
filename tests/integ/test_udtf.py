@@ -4,6 +4,8 @@
 import decimal
 from typing import Iterable, Tuple
 
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark.functions import lit, udtf
 from snowflake.snowpark.types import (
@@ -143,7 +145,7 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
     )
 
 
-def test_strict_utdf(session):
+def test_strict_udtf(session):
     @udtf(output_schema=["num"], strict=True)
     class UDTFEcho:
         def process(
@@ -159,3 +161,66 @@ def test_strict_utdf(session):
         df,
         [Row(None)],
     )
+
+
+def test_udtf_negative(session):
+    with pytest.raises(TypeError, match="Invalid function: not a function or callable"):
+        udtf(
+            1,
+            output_schema=StructType([StructField("col1", IntegerType())]),
+            input_types=[IntegerType()],
+        )
+
+    with pytest.raises(
+        ValueError, match="'output_schema' must be a list of column names or StructType"
+    ):
+
+        @udtf(output_schema=18)
+        class UDTFOutputSchemaTest:
+            def process(self, num: int) -> Iterable[Tuple[int]]:
+                return (num,)
+
+    with pytest.raises(
+        ValueError, match="name must be specified for permanent table function"
+    ):
+
+        @udtf(output_schema=["num"], is_permanent=True)
+        class UDTFEcho:
+            def process(
+                self,
+                num: int,
+            ) -> Iterable[Tuple[int]]:
+                return [(num,)]
+
+    with pytest.raises(ValueError, match="file_path.*does not exist"):
+        session.udtf.register_from_file(
+            "fake_path",
+            "MyUDTFWithTypeHints",
+            output_schema=[
+                "int_",
+                "float_",
+                "bool_",
+                "decimal_",
+                "str_",
+                "bytes_",
+                "bytearray_",
+            ],
+        )
+
+
+def test_secure_udtf(session):
+    @udtf(output_schema=["num"], secure=True)
+    class UDTFEcho:
+        def process(
+            self,
+            num: int,
+        ) -> Iterable[Tuple[int]]:
+            return [(num,)]
+
+    df = session.table_function(UDTFEcho(lit(1)))
+    Utils.check_answer(
+        df,
+        [Row(1)],
+    )
+    ddl_sql = f"select get_ddl('function', '{UDTFEcho.name}(int)')"
+    assert "SECURE" in session.sql(ddl_sql).collect()[0][0]
