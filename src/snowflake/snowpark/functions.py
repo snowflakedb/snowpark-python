@@ -2706,7 +2706,7 @@ def get(col1: ColumnOrName, col2: ColumnOrName) -> Column:
     return builtin("get")(c1, c2)
 
 
-def when(condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]) -> CaseExpr:
+def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
     """Works like a cascading if-then-else statement.
     A series of conditions are evaluated in sequence.
     When a condition evaluates to TRUE, the evaluation stops and the associated
@@ -2733,8 +2733,8 @@ def when(condition: ColumnOrSqlExpr, value: Union[ColumnOrLiteral]) -> CaseExpr:
 
 def iff(
     condition: ColumnOrSqlExpr,
-    expr1: Union[ColumnOrLiteral],
-    expr2: Union[ColumnOrLiteral],
+    expr1: ColumnOrLiteral,
+    expr2: ColumnOrLiteral,
 ) -> Column:
     """
     Returns one of two specified expressions, depending on a condition.
@@ -2848,7 +2848,7 @@ def row_number() -> Column:
 def lag(
     e: ColumnOrName,
     offset: int = 1,
-    default_value: Optional[Union[ColumnOrLiteral]] = None,
+    default_value: Optional[ColumnOrLiteral] = None,
     ignore_nulls: bool = False,
 ) -> Column:
     """
