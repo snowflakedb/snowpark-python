@@ -1899,7 +1899,7 @@ def _timestamp_from_parts_internal(
     elif 6 <= num_args <= 8:
         # parts mode
         y, m, d, h, min_, s = _columns_from_timestamp_parts(func_name, *args[:6])
-        ns_arg = args[6] if num_args == 7 else kwargs.get("nanoseconds")
+        ns_arg = args[6] if num_args >= 7 else kwargs.get("nanoseconds")
         # Timezone is only accepted in timestamp_from_parts function
         tz_arg = args[7] if num_args == 8 else kwargs.get("timezone")
         if tz_arg is not None and func_name != "timestamp_from_parts":
@@ -1956,7 +1956,7 @@ def time_from_parts(
 
 @overload
 def timestamp_from_parts(date_expr: ColumnOrName, time_expr: ColumnOrName) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 @overload
@@ -1970,7 +1970,7 @@ def timestamp_from_parts(
     nanosecond: Optional[Union[ColumnOrName, int]] = None,
     timezone: Optional[ColumnOrLiteralStr] = None,
 ) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 def timestamp_from_parts(*args, **kwargs) -> Column:
@@ -2045,7 +2045,7 @@ def timestamp_ltz_from_parts(
 def timestamp_ntz_from_parts(
     date_expr: ColumnOrName, time_expr: ColumnOrName
 ) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 @overload
@@ -2058,7 +2058,7 @@ def timestamp_ntz_from_parts(
     second: Union[ColumnOrName, int],
     nanosecond: Optional[Union[ColumnOrName, int]] = None,
 ) -> Column:
-    ...
+    ...  # pragma: no cover
 
 
 def timestamp_ntz_from_parts(*args, **kwargs) -> Column:

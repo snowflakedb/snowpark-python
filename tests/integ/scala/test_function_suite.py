@@ -11,6 +11,8 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
+    _columns_from_timestamp_parts,
+    _timestamp_from_parts_internal,
     abs,
     acos,
     approx_count_distinct,
@@ -169,6 +171,8 @@ from snowflake.snowpark.functions import (
     sum_distinct,
     tan,
     tanh,
+    time_from_parts,
+    timestamp_tz_from_parts,
     to_array,
     to_date,
     to_geography,
@@ -576,6 +580,11 @@ def test_datediff(session):
     )
 
 
+def test_datediff_negative(session):
+    with pytest.raises(ValueError, match="part must be a string"):
+        TestData.timestamp1(session).select(dateadd(7, lit(1), col("a")))
+
+
 def test_dateadd(session):
     Utils.check_answer(
         [Row(date(2021, 8, 1)), Row(date(2011, 12, 1))],
@@ -589,6 +598,11 @@ def test_dateadd(session):
         TestData.date1(session).select(dateadd("year", lit(1), "a")),
         sort=False,
     )
+
+
+def test_dateadd_negative(session):
+    with pytest.raises(ValueError, match="part must be a string"):
+        TestData.date1(session).select(dateadd(7, lit(1), "a"))
 
 
 def test_to_timestamp(session):
@@ -2212,6 +2226,177 @@ def test_as_object(session):
         [Row('{\n  "Tree": "Pine"\n}', None, None)],
         sort=False,
     )
+
+
+def test_timestamp_tz_from_parts(session):
+    df = session.create_dataframe(
+        [[2022, 4, 1, 11, 11, 0, "America/Los_Angeles"]],
+        schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
+    )
+
+    Utils.check_answer(
+        df.select(
+            timestamp_tz_from_parts(
+                "year",
+                "month",
+                "day",
+                "hour",
+                "minute",
+                "second",
+                nanoseconds=987654321,
+                timezone="timezone",
+            )
+        ),
+        [
+            Row(
+                datetime.strptime(
+                    "2022-04-01 11:11:00.987654 -07:00", "%Y-%m-%d %H:%M:%S.%f %z"
+                )
+            )
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(
+            timestamp_tz_from_parts(
+                "year",
+                "month",
+                "day",
+                "hour",
+                "minute",
+                "second",
+                nanoseconds=987654321,
+            )
+        ),
+        [
+            Row(
+                datetime.strptime(
+                    "2022-04-01 11:11:00.987654 -07:00", "%Y-%m-%d %H:%M:%S.%f %z"
+                )
+            )
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(
+            timestamp_tz_from_parts(
+                "year", "month", "day", "hour", "minute", "second", timezone="timezone"
+            )
+        ),
+        [Row(datetime.strptime("2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"))],
+    )
+
+    Utils.check_answer(
+        df.select(
+            timestamp_tz_from_parts("year", "month", "day", "hour", "minute", "second")
+        ),
+        [Row(datetime.strptime("2022-04-01 11:11:00 -07:00", "%Y-%m-%d %H:%M:%S %z"))],
+    )
+
+
+def test_time_from_parts(session):
+    df = session.create_dataframe(
+        [[11, 11, 0, 987654321]], schema=["hour", "minute", "second", "nanoseconds"]
+    )
+
+    Utils.check_answer(
+        df.select(
+            time_from_parts("hour", "minute", "second", nanoseconds="nanoseconds")
+        ),
+        [Row(time(11, 11, 0, 987654))],
+    )
+
+    Utils.check_answer(
+        df.select(time_from_parts("hour", "minute", "second")), [Row(time(11, 11, 0))]
+    )
+
+
+def test_columns_from_timestamp_parts():
+    func_name = "test _columns_from_timestamp_parts"
+    y, m, d = _columns_from_timestamp_parts(func_name, "year", "month", 8)
+    assert y._expression.name == '"YEAR"'
+    assert m._expression.name == '"MONTH"'
+    assert d._expression.value == 8
+
+    y, m, d, h, min_, s = _columns_from_timestamp_parts(
+        func_name, "year", "month", "day", 24, 60, 17
+    )
+    assert y._expression.name == '"YEAR"'
+    assert m._expression.name == '"MONTH"'
+    assert d._expression.name == '"DAY"'
+    assert h._expression.value == 24
+    assert min_._expression.value == 60
+    assert s._expression.value == 17
+
+
+def test_columns_from_timestamp_parts_negative():
+    with pytest.raises(ValueError, match="Incorrect number of args passed"):
+        _columns_from_timestamp_parts("neg test", "year", "month")
+
+
+def test_timestamp_from_parts_internal():
+    func_name = "test _timestamp_from_parts_internal"
+    date_expr, time_expr = _timestamp_from_parts_internal(func_name, "date", "time")
+    assert date_expr._expression.name == '"DATE"'
+    assert time_expr._expression.name == '"TIME"'
+
+    # ns and tz active
+    y, m, d, h, min_, s, ns, tz = _timestamp_from_parts_internal(
+        "timestamp_from_parts", "y", "m", "d", "h", "min", "s", "ns", "tz"
+    )
+    assert y._expression.name == '"Y"'
+    assert m._expression.name == '"M"'
+    assert d._expression.name == '"D"'
+    assert h._expression.name == '"H"'
+    assert min_._expression.name == '"MIN"'
+    assert s._expression.name == '"S"'
+    assert ns._expression.name == '"NS"'
+    assert tz._expression.name == "tz"
+
+    # ns active | tz non-active
+    y, m, d, h, min_, s, ns = _timestamp_from_parts_internal(
+        func_name, "y", "m", "d", "h", "min", "s", "ns"
+    )
+    assert y._expression.name == '"Y"'
+    assert m._expression.name == '"M"'
+    assert d._expression.name == '"D"'
+    assert h._expression.name == '"H"'
+    assert min_._expression.name == '"MIN"'
+    assert s._expression.name == '"S"'
+    assert ns._expression.name == '"NS"'
+
+    # ns non-active | tz active
+    y, m, d, h, min_, s, ns, tz = _timestamp_from_parts_internal(
+        "timestamp_from_parts", "y", "m", "d", "h", "min", "s", timezone="tz"
+    )
+    assert y._expression.name == '"Y"'
+    assert m._expression.name == '"M"'
+    assert d._expression.name == '"D"'
+    assert h._expression.name == '"H"'
+    assert min_._expression.name == '"MIN"'
+    assert s._expression.name == '"S"'
+    assert ns._expression.value == 0
+    assert tz._expression.name == "tz"
+
+    # ns non-active | tz non-active
+    y, m, d, h, min_, s = _timestamp_from_parts_internal(
+        func_name, "y", "m", "d", "h", "min", "s"
+    )
+    assert y._expression.name == '"Y"'
+    assert m._expression.name == '"M"'
+    assert d._expression.name == '"D"'
+    assert h._expression.name == '"H"'
+    assert min_._expression.name == '"MIN"'
+    assert s._expression.name == '"S"'
+
+
+def test_timestamp_from_parts_internal_negative():
+    func_name = "negative test"
+    with pytest.raises(ValueError, match="expected 2 or 6 required arguments"):
+        _timestamp_from_parts_internal(func_name, 1)
+
+    with pytest.raises(ValueError, match="does not accept timezone as an argument"):
+        _timestamp_from_parts_internal(func_name, 1, 2, 3, 4, 5, 6, 7, 8)
 
 
 def test_as_time(session):
