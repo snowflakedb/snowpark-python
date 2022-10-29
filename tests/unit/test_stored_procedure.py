@@ -6,11 +6,13 @@ from unittest import mock
 
 import pytest
 
+from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import TelemetryClient
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.types import IntegerType
@@ -61,3 +63,23 @@ def test_negative_execute_as():
             session=fake_session,
             execute_as="invalid EXECUTE AS",
         )
+
+
+@mock.patch("snowflake.snowpark.stored_procedure.cleanup_failed_permanent_registration")
+def test_do_register_sp_negative(cleanup_registration_patch):
+    fake_session = mock.create_autospec(Session)
+    fake_session.get_fully_qualified_current_schema = mock.Mock(
+        return_value="database.schema"
+    )
+    fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
+    fake_session.sproc = StoredProcedureRegistration(fake_session)
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        sproc(lambda: 1, session=fake_session, return_type=IntegerType(), packages=[])
+    assert ex_info.value.error_code == "1304"
+    cleanup_registration_patch.assert_called()
+
+    fake_session._run_query = mock.Mock(side_effect=BaseException())
+    fake_session.sproc = StoredProcedureRegistration(fake_session)
+    with pytest.raises(BaseException):
+        sproc(lambda: 1, session=fake_session, return_type=IntegerType(), packages=[])
+    cleanup_registration_patch.assert_called()
