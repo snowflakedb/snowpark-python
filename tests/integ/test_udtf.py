@@ -164,6 +164,22 @@ def test_strict_udtf(session):
 
 
 def test_udtf_negative(session):
+    with pytest.raises(TypeError, match="Invalid function: not a function or callable"):
+        udtf(
+            1,
+            output_schema=StructType([StructField("col1", IntegerType())]),
+            input_types=[IntegerType()],
+        )
+
+    with pytest.raises(
+        ValueError, match="'output_schema' must be a list of column names or StructType"
+    ):
+
+        @udtf(output_schema=18)
+        class UDTFOutputSchemaTest:
+            def process(self, num: int) -> Iterable[Tuple[int]]:
+                return (num,)
+
     with pytest.raises(
         ValueError, match="name must be specified for permanent table function"
     ):
