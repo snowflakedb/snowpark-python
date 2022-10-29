@@ -378,6 +378,13 @@ def test_use_secondary_roles(session):
     session.use_secondary_roles(current_role[1:-1])
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SP doesn't allow to close a session.")
+def test_close_session_twice(db_parameters):
+    new_session = Session.builder.configs(db_parameters).create()
+    new_session.close()
+    new_session.close()  # no exception
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
 def test_sql_simplifier_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
