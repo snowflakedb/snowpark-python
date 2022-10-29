@@ -849,8 +849,14 @@ def test_sample_negative(session):
         df.sample(frac=1.01)
 
     table = session.table("non_existing_table")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="'frac' and 'n' cannot both be None"):
         table.sample(sampling_method="InvalidValue")
+
+    with pytest.raises(
+        ValueError,
+        match="must be None or one of 'BERNOULLI', 'ROW', 'SYSTEM', or 'BLOCK'",
+    ):
+        table.sample(frac=0.1, sampling_method="InvalidValue")
 
 
 def test_sample_on_join(session):
