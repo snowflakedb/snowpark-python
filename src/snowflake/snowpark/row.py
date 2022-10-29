@@ -144,9 +144,7 @@ class Row(tuple):
             new_row = Row(**self._named_values)
             for input_key, input_value in kwargs.items():
                 if input_key not in self._named_values:
-                    raise ValueError(
-                        f"Wrong keyword argument {input_key} for Row f{self}"
-                    )
+                    raise ValueError(f"Wrong keyword argument {input_key} for {self}")
                 new_row._named_values[input_key] = input_value
             return new_row
         elif self._fields and self._check_if_having_duplicates():
@@ -163,7 +161,7 @@ class Row(tuple):
                 not isinstance(value, str) for value in self
             ):
                 raise ValueError(
-                    "The called Row object with and input values must have the same size."
+                    "The called Row object and input values must have the same size and the called Row object shouldn't have any non-str fields."
                 )
             return Row(**{k: v for k, v in zip(self, args)})
 
@@ -175,10 +173,13 @@ class Row(tuple):
             return "Row({})".format(
                 ", ".join(f"{k}={v!r}" for k, v in zip(self._fields, self))
             )
-        elif self._named_values:
+        elif self._named_values:  # pragma: no cover
+            # this might not be reachable because when there is self._named_values, there is always self._fields
+            # Need to review later.
             return "Row({})".format(
                 ", ".join(f"{k}={v!r}" for k, v in self._named_values.items())
             )
+
         else:
             return "Row({})".format(", ".join(f"{v!r}" for v in self))
 
