@@ -147,7 +147,10 @@ def _add_session(session: "Session") -> None:
 
 def _remove_session(session: "Session") -> None:
     with _session_management_lock:
-        _active_sessions.remove(session)
+        try:
+            _active_sessions.remove(session)
+        except KeyError:
+            pass
 
 
 class Session:
@@ -1851,7 +1854,7 @@ class Session:
             return self._run_query(f"explain using text {query}")[0][0]
         # return None for queries which can't be explained
         except ProgrammingError:
-            _logger.warning("query '%s' cannot be explained")
+            _logger.warning("query `%s` cannot be explained", query)
             return None
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
