@@ -778,6 +778,66 @@ def uniform(
     return builtin("uniform")(min_col, max_col, gen_col)
 
 
+def seq1(sign: int = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 1 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 1 byte integer. Defaults to 0.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq1` to
+            generate sequences.
+    """
+    return builtin("seq1")(Literal(sign))
+
+
+def seq2(sign: int = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 2 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 2 byte integer. Defaults to 0.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq2` to
+            generate sequences.
+    """
+    return builtin("seq2")(Literal(sign))
+
+
+def seq4(sign: int = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 4 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 4 byte integer. Defaults to 0.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq4` to
+            generate sequences.
+    """
+    return builtin("seq4")(Literal(sign))
+
+
+def seq8(sign: int = 0) -> Column:
+    """Returns a sequence of monotonically increasing integers, with wrap-around
+    which happens after largest representable integer of integer width 8 byte.
+
+    Args:
+        sign: When 0, the sequence continues at 0 after wrap-around. When 1, the sequence
+            continues at smallest representable 8 byte integer. Defaults to 0.
+
+    See Also:
+        - :meth:`Session.generator`, which can be used to generate in tandem with `seq8` to
+            generate sequences.
+    """
+    return builtin("seq8")(Literal(sign))
+
+
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal."""
     c = _to_col_if_str(e, "to_decimal")

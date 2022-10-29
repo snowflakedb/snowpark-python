@@ -909,7 +909,7 @@ class DataFrame:
 
             >>> from snowflake.snowpark.functions import table_function
             >>> split_to_table = table_function("split_to_table")
-            >>> df_selected = df.select(df.col1, split_to_table(df.col2, lit(" ")), df.col("col3")).show()
+            >>> df.select(df.col1, split_to_table(df.col2, lit(" ")), df.col("col3")).show()
             -----------------------------------------------
             |"COL1"  |"SEQ"  |"INDEX"  |"VALUE"  |"COL3"  |
             -----------------------------------------------

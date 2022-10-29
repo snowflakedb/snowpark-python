@@ -8,6 +8,8 @@ import uuid
 from functools import cached_property, reduce
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Tuple
 
+from snowflake.snowpark._internal.analyzer.table_function import GeneratorTableFunction
+
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
@@ -992,7 +994,14 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def from_table_function(self, func: str) -> SnowflakePlan:
+    def from_table_function(
+        self, func: str, source_plan: Optional[LogicalPlan]
+    ) -> SnowflakePlan:
+        if isinstance(source_plan.table_function, GeneratorTableFunction):
+            return self.query(
+                table_function_statement(func, source_plan.table_function.operators),
+                source_plan,
+            )
         return self.query(table_function_statement(func), None)
 
     def join_table_function(

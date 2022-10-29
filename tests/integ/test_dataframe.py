@@ -22,7 +22,19 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_sta
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
-from snowflake.snowpark.functions import col, concat, lit, table_function, udtf, when
+from snowflake.snowpark.functions import (
+    col,
+    concat,
+    count,
+    lit,
+    seq1,
+    seq2,
+    seq4,
+    table_function,
+    udtf,
+    uniform,
+    when,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -414,6 +426,66 @@ def test_select_table_function(session):
         df.select(col("a"), table_func(col("b"), lit(" "))), expected_result
     )
     Utils.check_answer(df.select(df.a, table_func(df.b, lit(" "))), expected_result)
+
+
+def test_generator_table_function(session):
+    # works with rowcount
+    expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
+    df = (
+        session.generator(seq1(1), uniform(1, 10, 2), rowcount=150)
+        .order_by(seq1(1))
+        .limit(3, offset=20)
+    )
+    Utils.check_answer(df, expected_result)
+
+    # works with timelimit
+    expected_result = [Row(0, 3), Row(0, 3), Row(0, 3)]
+    df = (
+        session.generator(seq2(0), uniform(1, 10, 2), timelimit=1)
+        .order_by(seq2(0))
+        .limit(3)
+    )
+    Utils.check_answer(df, expected_result)
+
+    # works with combination of both
+    expected_result = [Row(-108, 3), Row(-107, 3), Row(0, 3)]
+    df = (
+        session.generator(seq1(1), uniform(1, 10, 2), timelimit=1, rowcount=150)
+        .order_by(seq1(1))
+        .limit(3, offset=20)
+    )
+    Utils.check_answer(df, expected_result)
+
+    # works without both
+    df = session.generator(seq4(1), uniform(1, 10, 2))
+    Utils.check_answer(df, [])
+
+    # aliasing works
+    df = (
+        session.generator(
+            seq1(1).as_("pixel"), uniform(1, 10, 2).as_("unicorn"), rowcount=150
+        )
+        .order_by("pixel")
+        .limit(3, offset=20)
+    )
+    expected_result = [
+        Row(pixel=-108, unicorn=3),
+        Row(pixel=-107, unicorn=3),
+        Row(pixel=0, unicorn=3),
+    ]
+    Utils.check_answer(df, expected_result)
+
+    # aggregation works
+    df = session.generator(count(seq1(0)).as_("rows"), rowcount=150)
+    expected_result = [Row(rows=150)]
+    Utils.check_answer(df, expected_result)
+
+
+def test_generator_table_function_negative(session):
+    # fails when no operators added
+    with pytest.raises(ValueError) as ex_info:
+        _ = session.generator(rowcount=10)
+    assert "Columns cannot be empty for generator table function" in str(ex_info)
 
 
 def test_select_table_function_negative(session):
