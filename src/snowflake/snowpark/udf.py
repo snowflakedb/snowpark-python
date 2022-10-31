@@ -120,8 +120,10 @@ class UDFRegistration:
     Note:
         Before creating a UDF, think about whether you want to create a vectorized UDF (also referred to as `Python UDF Batch API`) or a regular UDF.
         The advantages of a vectorized UDF are:
+
           - The potential for better performance if your Python code operates efficiently on batches of rows.
           - Less transformation logic is required if you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
+
         Refer to `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`__ for more details.
         The following text explains how to create a regular UDF and a vectorized UDF by using the Snowpark Python APIs.
 
