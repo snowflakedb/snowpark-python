@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-"""User-defined functions (UDFs) in Snowpark."""
+"""User-defined functions (UDFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for details and sample code."""
 import sys
 from types import ModuleType
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union

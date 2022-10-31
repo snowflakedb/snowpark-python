@@ -177,12 +177,16 @@ class Session:
         ...     "role": "<role_name>",
         ...     "warehouse": "<warehouse_name>",
         ...     "database": "<database_name>",
-        ...     "schema": "<schema1_name>",
+        ...     "schema": "<schema_name>",
         ... }
         >>> session = Session.builder.configs(connection_parameters).create() # doctest: +SKIP
 
+    To create a :class:`Session` object from an existing Python Connector connection::
+
+        >>> session = Session.builder.configs(connection=<your python connector connection>).create() # doctest: +SKIP
+
     :class:`Session` contains functions to construct a :class:`DataFrame` like :meth:`table`,
-    :meth:`sql` and :attr:`read`.
+    :meth:`sql` and :attr:`read`, etc.
 
     A :class:`Session` object is not thread-safe.
     """

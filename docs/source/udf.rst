@@ -1,6 +1,6 @@
 User-Defined Functions
 ========================
-User-defined functions (UDFs) in Snowpark.
+User-defined functions (UDFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for details and sample code.
 
 .. currentmodule:: snowflake.snowpark.udf
 
