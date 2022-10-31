@@ -442,9 +442,7 @@ def test_get_negative_test(session, temp_stage, temp_target_directory, path1):
     assert "does not exist or not authorized." in str(exec_info)
 
     # If stage name exists but prefix doesn't exist, download nothing
-    get_results = session.file.get(
-        f"@{temp_stage}/not_exist_prefix_test/", str(temp_target_directory)
-    )
+    get_results = session.file.get(stage_with_prefix + "*", "not_exist_target_test/")
     assert len(get_results) == 0
 
     put_results = session.file.put(path1, stage_with_prefix)
