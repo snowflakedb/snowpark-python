@@ -117,6 +117,14 @@ class UDFRegistration:
     permanently. The methods that register a UDF return a :class:`UserDefinedFunction` object,
     which you can also use in :class:`~snowflake.snowpark.Column` expressions.
 
+    Note:
+        Before creating a UDF, think about whether you want to create a vectorized UDF (also referred to as `Python UDF Batch API`) or a regular UDF.
+        The advantages of a vectorized UDF includes:
+          - The potential for better performance if your Python code operates efficiently on batches of rows.
+          - Less transformation logic required if you are calling into libraries that operate on Pandas DataFrames or Pandas arrays.
+        Refer to `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`__ for more details.
+        The following text explains how to create a regular UDF and a vectorized UDF by using the Snowpark Python APIs.
+
     There are two ways to register a UDF with Snowpark:
 
         - Use :func:`~snowflake.snowpark.functions.udf` or :meth:`register`. By pointing to a
@@ -125,8 +133,9 @@ class UDFRegistration:
           function on the Snowflake server during UDF creation. During the serialization, the
           global variables used in the Python function will be serialized into the bytecode,
           but only the name of the module object or any objects from a module that are used in the
-          Python function will be serialized. During the deserialization, Python will look up the
-          corresponding modules and objects by names. For example::
+          Python function will be serialized. If the size of the serialized bytecode is over 8K bytes, it's uploaded to a stage location.
+          If it's under 8K, it's added to the `UDF in-line code <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-creating.html#udfs-with-in-line-code-vs-udfs-with-code-uploaded-from-a-stage>`__.
+          During the deserialization, Python will look up the corresponding modules and objects by names. For example::
 
                 >>> import numpy
                 >>> from resources.test_udf_dir.test_udf_file import mod5

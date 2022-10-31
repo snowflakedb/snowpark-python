@@ -87,10 +87,10 @@ class WhenMatchedClause:
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new")], schema=["key", "value"])
-            >>> target.merge(source, target["key"] == source["key"], [when_matched().update({"value": source["value"]})])
-            MergeResult(rows_inserted=0, rows_updated=2, rows_deleted=0)
+            >>> target.merge(source, (target["key"] == source["key"]) & (source["value"] == lit("too_old")), [when_matched().update({"value": source["value"]})])
+            MergeResult(rows_inserted=0, rows_updated=1, rows_deleted=0)
             >>> target.collect() # the value in the table is updated
-            [Row(KEY=10, VALUE='new'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
+            [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
 
         Note:
             An exception will be raised if this method or :meth:`WhenMatchedClause.delete`
