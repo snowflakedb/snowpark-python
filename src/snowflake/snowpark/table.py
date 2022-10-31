@@ -82,12 +82,12 @@ class WhenMatchedClause:
             >>> # if its key is equal to the key of any row in target.
             >>> # For all such rows, update its value to the value of the
             >>> # corresponding row in source.
-            >>> from snowflake.snowpark.functions import when_matched
+            >>> from snowflake.snowpark.functions import when_matched, lit
             >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=["key", "value"])
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
             >>> source = session.create_dataframe([(10, "new")], schema=["key", "value"])
-            >>> target.merge(source, (target["key"] == source["key"]) & (source["value"] == lit("too_old")), [when_matched().update({"value": source["value"]})])
+            >>> target.merge(source, (target["key"] == source["key"]) & (target["value"] == lit("too_old")), [when_matched().update({"value": source["value"]})])
             MergeResult(rows_inserted=0, rows_updated=1, rows_deleted=0)
             >>> target.collect() # the value in the table is updated
             [Row(KEY=10, VALUE='old'), Row(KEY=10, VALUE='new'), Row(KEY=11, VALUE='old')]
