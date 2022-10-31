@@ -37,7 +37,7 @@ setup(
     keywords="Snowflake db database cloud analytics warehouse",
     url="https://www.snowflake.com/",
     project_urls={
-        "Documentation": "https://docs.snowflake.com/en/developer-guide/snowpark/reference/python",
+        "Documentation": "https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html",
         "Source": "https://github.com/snowflakedb/snowpark-python",
         "Issues": "https://github.com/snowflakedb/snowpark-python/issues",
         "Changelog": "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md",
@@ -48,7 +48,7 @@ setup(
         "wheel",
         "cloudpickle>=1.6.0,<=2.0.0",
         f"snowflake-connector-python>={CONNECTOR_DEPENDENCY_VERSION}, <3.0.0",
-        "typing-extensions>=4.1.0",
+        "typing-extensions>=4.1.0, <5.0.0",
     ],
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here

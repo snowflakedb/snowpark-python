@@ -2,7 +2,7 @@
 ## 1.0.0 (2012-11-01)
 ### New Features
 - Added `Session.generator()` to create a new `DataFrame` using the Generator table function.
-- Added a parameter `secure` to the functions that create a UDF or UDTF.
+- Added a parameter `secure` to the functions that create a secure UDF or UDTF.
 
 
 ## 0.12.0 (2022-10-14)
