@@ -47,7 +47,7 @@ setup(
         "setuptools>=40.6.0",
         "wheel",
         "cloudpickle>=1.6.0,<=2.0.0",
-        f"snowflake-connector-python>={CONNECTOR_DEPENDENCY_VERSION}",
+        f"snowflake-connector-python>={CONNECTOR_DEPENDENCY_VERSION}, <3.0.0",
         "typing-extensions>=4.1.0",
     ],
     namespace_packages=["snowflake"],
@@ -79,7 +79,7 @@ setup(
         ],
     },
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Environment :: Console",
         "Environment :: Other Environment",
         "Intended Audience :: Developers",

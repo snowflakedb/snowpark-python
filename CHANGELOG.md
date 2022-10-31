@@ -1,4 +1,10 @@
 # Release History
+## 1.0.0 (2012-11-01)
+### New Features
+- Added `Session.generator()` to
+- Added a parameter `secure` to the functions that create a UDF or UDTF.
+
+
 ## 0.12.0 (2022-10-14)
 ### New Features
 - Added new APIs for async job:
