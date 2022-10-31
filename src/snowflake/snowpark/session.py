@@ -334,7 +334,7 @@ class Session:
             self._session_id, value
         )
         try:
-            self._conn.run_query(
+            self._conn._cursor.execute(
                 f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
             )
         except Exception:
