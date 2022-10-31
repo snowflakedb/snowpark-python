@@ -108,8 +108,8 @@ class StoredProcedureRegistration:
           function on the Snowflake server during stored procedure creation. During the serialization, the
           global variables used in the Python function will be serialized into the bytecode,
           but only the name of the module object or any objects from a module that are used in the
-          Python function will be serialized. If the size of the serialized bytecode is over 8K bytes, it's uploaded to a stage location.
-          If it's under 8K, it's added to the `Stored Procedure in-line code <https://docs.snowflake.com/en/sql-reference/stored-procedures-python.html#choosing-to-create-a-stored-procedure-with-in-line-code-or-with-code-uploaded-from-a-stage>`__.
+          Python function will be serialized. If the size of the serialized bytecode is over 8K bytes, it will be uploaded to a stage location as a Python file.
+          If it's under 8K, it will be added to the `Stored Procedure in-line code <https://docs.snowflake.com/en/sql-reference/stored-procedures-python.html#choosing-to-create-a-stored-procedure-with-in-line-code-or-with-code-uploaded-from-a-stage>`__.
 
           During the deserialization, Python will look up the
           corresponding modules and objects by names.
