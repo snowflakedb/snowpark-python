@@ -83,9 +83,8 @@ class SnowparkSQLException(SnowparkClientException):
         self.sfqid: Optional[str] = sfqid
         self.telemetry_message: str = message
 
-        log_sfqid = _logger.getEffectiveLevel() in (logging.INFO, logging.DEBUG)
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
-        pretty_sfqid = f"{self.sfqid}: " if self.sfqid and log_sfqid else ""
+        pretty_sfqid = f"{self.sfqid}: " if self.sfqid else ""
         self._pretty_msg = f"{pretty_error_code}{pretty_sfqid}{self.message}"
 
     def __repr__(self):
