@@ -65,17 +65,14 @@ def test_no_default_session():
         _active_sessions.update(sessions_backup)
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="SNOW-544808: Use same connection to create session"
-)
-def test_create_session_in_sp(session, db_parameters):
+def test_create_session_in_sp(session):
     import snowflake.snowpark._internal.utils as internal_utils
 
     original_platform = internal_utils.PLATFORM
     internal_utils.PLATFORM = "XP"
     try:
         with pytest.raises(SnowparkSessionException) as exec_info:
-            Session.builder.configs(db_parameters).create()
+            Session(session._conn)
         assert exec_info.value.error_code == "1410"
     finally:
         internal_utils.PLATFORM = original_platform
@@ -347,7 +344,8 @@ def test_get_current_schema(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="use secondary role is not allowed in stored proc (owner mode)"
+    IS_IN_STORED_PROC,
+    reason="use secondary role is not allowed in stored proc (owner mode)",
 )
 def test_use_secondary_roles(session):
     session.use_secondary_roles("all")
