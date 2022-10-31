@@ -121,6 +121,9 @@ class GroupingSets:
 class RelationalGroupedDataFrame:
     """Represents an underlying DataFrame with rows that are grouped by common values.
     Can be used to define aggregations on these grouped DataFrames.
+
+    See also:
+        :meth:`snowflake.snowpark.DataFrame.agg`.
     """
 
     def __init__(

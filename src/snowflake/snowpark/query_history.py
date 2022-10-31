@@ -14,7 +14,11 @@ class QueryRecord(NamedTuple):
 
 
 class QueryHistory:
-    """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database."""
+    """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database.
+
+    See also:
+        :meth:`snowflake.snowpark.Session.query_history`.
+    """
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
