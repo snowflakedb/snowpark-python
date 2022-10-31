@@ -127,6 +127,14 @@ class DataFrameNaFunctions:
             |4.0  |NULL  |
             --------------
             <BLANKLINE>
+            >>> df.na.drop(subset="a").show()
+            --------------
+            |"A"  |"B"   |
+            --------------
+            |1.0  |1     |
+            |4.0  |NULL  |
+            --------------
+            <BLANKLINE>
 
         See Also:
             :func:`DataFrame.dropna`
@@ -137,7 +145,9 @@ class DataFrameNaFunctions:
         # iff(non_float_col is null, 0, 1) >= thresh
 
         if how is not None and how not in ["any", "all"]:
-            raise ValueError("how ('" + how + "') should be 'any' or 'all'")
+            raise ValueError(
+                "how ('" + how + "') should be 'any' or 'all'"
+            )  # pragma: no cover
 
         # if subset is not provided, drop will be applied to all columns
         if subset is None:
@@ -231,6 +241,18 @@ class DataFrameNaFunctions:
             ---------------
             <BLANKLINE>
             >>> # fill null and NaN values in column "a"
+            >>> df.na.fill(3.14, subset="a").show()
+            ---------------
+            |"A"   |"B"   |
+            ---------------
+            |1.0   |1     |
+            |3.14  |2     |
+            |3.14  |3     |
+            |4.0   |NULL  |
+            |3.14  |NULL  |
+            ---------------
+            <BLANKLINE>
+            >>> # fill null and NaN values in column "a"
             >>> df.na.fill({"a": 3.14}).show()
             ---------------
             |"A"   |"B"   |
@@ -282,7 +304,9 @@ class DataFrameNaFunctions:
 
         if isinstance(value, dict):
             if not all([isinstance(k, str) for k in value.keys()]):
-                raise ValueError("All keys in value should be column names (str)")
+                raise ValueError(
+                    "All keys in value should be column names (str)"
+                )  # pragma: no cover
             value_dict = value
         else:
             value_dict = {col_name: value for col_name in subset}
@@ -296,7 +320,7 @@ class DataFrameNaFunctions:
                 for v in value_dict.values()
             ]
         ):
-            raise ValueError(
+            raise ValueError(  # pragma: no cover
                 "All values in value should be in one of "
                 f"{VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
             )
@@ -471,14 +495,14 @@ class DataFrameNaFunctions:
             new_df = copy.copy(self._df)
             add_api_call(new_df, "DataFrameNaFunctions.replace")
             return new_df
-        if not all(
+        if not all(  # pragma: no cover
             [
                 isinstance(k, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
                 and isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
                 for k, v in replacement.items()
             ]
         ):
-            raise ValueError(
+            raise ValueError(  # pragma: no cover
                 "All keys and values in value should be in one of "
                 f"{VALID_PYTHON_TYPES_FOR_LITERAL_VALUE} types"
             )

@@ -142,7 +142,7 @@ from snowflake.snowpark.table_function import (
 from snowflake.snowpark.types import StringType, StructType, _NumericType
 
 if TYPE_CHECKING:
-    from table import Table
+    from table import Table  # pragma: no cover
 
 _logger = getLogger(__name__)
 
@@ -158,13 +158,9 @@ def _generate_prefix(prefix: str) -> str:
 def _get_unaliased(col_name: str) -> List[str]:
     unaliased = []
     c = col_name
-    while True:
-        match = _UNALIASED_REGEX.match(c)
-        if match:
-            c = match.group(1)
-            unaliased.append(c)
-        else:
-            break
+    while match := _UNALIASED_REGEX.match(c):
+        c = match.group(1)
+        unaliased.append(c)
 
     return unaliased
 
@@ -522,13 +518,13 @@ class DataFrame:
     def collect(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> List[Row]:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def collect(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def collect(
@@ -610,13 +606,13 @@ class DataFrame:
     def to_local_iterator(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> Iterator[Row]:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def to_local_iterator(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def to_local_iterator(
@@ -656,7 +652,7 @@ class DataFrame:
         return DataFrame(self._session, copy.copy(self._plan))
 
     if installed_pandas:
-        import pandas
+        import pandas  # pragma: no cover
 
         @overload
         def to_pandas(
@@ -666,7 +662,7 @@ class DataFrame:
             block: bool = True,
             **kwargs: Dict[str, Any],
         ) -> pandas.DataFrame:
-            ...
+            ...  # pragma: no cover
 
     @overload
     def to_pandas(
@@ -676,7 +672,7 @@ class DataFrame:
         block: bool = False,
         **kwargs: Dict[str, Any],
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def to_pandas(
@@ -734,7 +730,7 @@ class DataFrame:
             block: bool = True,
             **kwargs: Dict[str, Any],
         ) -> Iterator[pandas.DataFrame]:
-            ...
+            ...  # pragma: no cover
 
     @overload
     def to_pandas_batches(
@@ -744,7 +740,7 @@ class DataFrame:
         block: bool = False,
         **kwargs: Dict[str, Any],
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     def to_pandas_batches(
@@ -813,7 +809,7 @@ class DataFrame:
         """
         col_names = parse_positional_args_to_list(*names)
         if not all(isinstance(n, str) for n in col_names):
-            raise TypeError(
+            raise TypeError(  # pragma: no cover
                 "Invalid input type in to_df(), expected str or a list of strs."
             )
 
@@ -840,12 +836,12 @@ class DataFrame:
         elif isinstance(item, int):
             return self.__getitem__(self.columns[item])
         else:
-            raise TypeError(f"Unexpected item type: {type(item)}")
+            raise TypeError(f"Unexpected item type: {type(item)}")  # pragma: no cover
 
     def __getattr__(self, name):
         # Snowflake DB ignores cases when there is no quotes.
         if name.lower() not in [c.lower() for c in self.columns]:
-            raise AttributeError(
+            raise AttributeError(  # pragma: no cover
                 f"{self.__class__.__name__} object has no attribute {name}"
             )
         return self.col(name)
@@ -956,7 +952,7 @@ class DataFrame:
                 )
                 names.extend(new_cols)
             else:
-                raise TypeError(
+                raise TypeError(  # pragma: no cover
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
         if self._select_statement:
@@ -1038,7 +1034,7 @@ class DataFrame:
         """
         # an empty list should be accept, as dropping nothing
         if not cols:
-            raise ValueError("The input of drop() cannot be empty")
+            raise ValueError("The input of drop() cannot be empty")  # pragma: no cover
         exprs = parse_positional_args_to_list(*cols)
 
         names = []
@@ -2006,7 +2002,7 @@ class DataFrame:
             elif not isinstance(using_columns, list):
                 raise TypeError(
                     f"Invalid input type for join column: {type(using_columns)}"
-                )
+                )  # pragma: no cover
 
             return self._join_dataframes(
                 right,
@@ -2016,7 +2012,7 @@ class DataFrame:
                 rsuffix=rsuffix,
             )
 
-        raise TypeError("Invalid type for join. Must be Dataframe")
+        raise TypeError("Invalid type for join. Must be Dataframe")  # pragma: no cover
 
     @df_api_usage
     def join_table_function(
@@ -2440,13 +2436,13 @@ class DataFrame:
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
     ) -> int:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = False
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     def count(
         self, *, statement_params: Optional[Dict[str, str]] = None, block: bool = True
@@ -2869,7 +2865,7 @@ class DataFrame:
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
             formatted_name = ".".join(name)
         else:
-            raise TypeError(
+            raise TypeError(  # pragma: no cover
                 "The input of create_or_replace_view() can only a str or list of strs."
             )
 
@@ -2942,7 +2938,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> Union[Optional[Row], List[Row]]:
-        ...
+        ...  # pragma: no cover
 
     @overload
     def first(
@@ -2952,7 +2948,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> AsyncJob:
-        ...
+        ...  # pragma: no cover
 
     def first(
         self,
@@ -3176,7 +3172,9 @@ class DataFrame:
                     f"Unable to rename column {existing} because it doesn't exist."
                 )
         else:
-            raise TypeError("'exisitng' must be a column name or Column object.")
+            raise TypeError(
+                "'exisitng' must be a column name or Column object."
+            )  # pragma: no cover
 
         to_be_renamed = [x for x in self._output if x.name.upper() == old_name.upper()]
         if not to_be_renamed:
@@ -3374,7 +3372,7 @@ Query List:
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{self._plan.queries[0].sql} can't be explained"
+                msg = f"{self._plan.queries[0].sql} can't be explained"  # pragma: no cover
 
         return f"{msg}\n--------------------------------------------"
 
