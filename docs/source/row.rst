@@ -2,8 +2,6 @@
 Row
 =============================
 
-This package contains all Snowpark logical types.
-
 .. currentmodule:: snowflake.snowpark
 
 .. rubric:: Classes

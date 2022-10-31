@@ -10,6 +10,7 @@ Column
     :toctree: api/
 
     Column
+    CaseExpr
 
 .. rubric:: Methods
 
@@ -56,3 +57,5 @@ Column
     Column.substring
     Column.try_cast
     Column.within_group
+    CaseExpr.when
+    CaseExpr.otherwise

@@ -28,6 +28,7 @@ Snowpark Session
       Session.create_async_job
       Session.create_dataframe
       Session.flatten
+      Session.generator
       Session.get_current_account
       Session.get_current_database
       Session.get_current_role

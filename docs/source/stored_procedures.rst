@@ -1,6 +1,6 @@
 Stored Procedures
 ====================================
-Stored procedures in Snowpark.
+Stored procedures in Snowpark. Refer to :class:`~snowflake.snowpark.stored_procedure.StoredProcedure` for details and sample code.
 
 .. currentmodule:: snowflake.snowpark.stored_procedure
  

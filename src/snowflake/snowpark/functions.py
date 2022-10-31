@@ -79,19 +79,7 @@ or call the SQL function directly:
     ---------------------------
     <BLANKLINE>
 
-A user-defined function (UDF) can be called by its name with :func:`call_udf`:
-
-    >>> # Call a user-defined function (UDF) by name.
-    >>> from snowflake.snowpark.types import IntegerType
-    >>> add_one_udf = udf(lambda x: x + 1, name="add_one", input_types=[IntegerType()], return_type=IntegerType())
-    >>> df.select(call_udf("add_one", col("a")).as_("call_udf_add_one")).sort("call_udf_add_one").show()
-    ----------------------
-    |"CALL_UDF_ADD_ONE"  |
-    ----------------------
-    |2                   |
-    |4                   |
-    ----------------------
-    <BLANKLINE>
+Similarly, to call a table function, you can use :func:`~snowflake.snowpark.functions.table_function`, or :func:`~snowflake.snowpark.functions.call_table_function`.
 
 **How to find help on input parameters of the Python functions for SQL functions**
 The Python functions have the same name as the corresponding `SQL functions <https://docs.snowflake.com/en/sql-reference-functions.html>`_.
