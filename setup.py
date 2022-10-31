@@ -65,10 +65,10 @@ setup(
     },
     extras_require={
         "pandas": [
-            f"snowflake-connector-python[pandas]>={CONNECTOR_DEPENDENCY_VERSION}",
+            f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
         ],
         "secure-local-storage": [
-            f"snowflake-connector-python[secure-local-storage]>={CONNECTOR_DEPENDENCY_VERSION}",
+            f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
         ],
         "development": [
             "pytest",
