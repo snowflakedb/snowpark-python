@@ -29,6 +29,7 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
    udf
    udtf
    observability
+   context
    exceptions
 
 :ref:`genindex`

@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
 #
-"""Stored procedures in Snowpark."""
+"""Stored procedures in Snowpark. Refer to :class:`~snowflake.snowpark.stored_procedure.StoredProcedure` for details and sample code."""
 import sys
 import typing
 from types import ModuleType

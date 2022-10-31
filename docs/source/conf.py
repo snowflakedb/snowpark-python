@@ -40,7 +40,6 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.coverage",
-    # "sphinx_autodoc_typehints",
 ]
 
 # -- Options for autodoc --------------------------------------------------
