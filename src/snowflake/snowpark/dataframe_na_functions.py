@@ -495,7 +495,7 @@ class DataFrameNaFunctions:
             new_df = copy.copy(self._df)
             add_api_call(new_df, "DataFrameNaFunctions.replace")
             return new_df
-        if not all(  # pragma: no cover
+        if not all(
             [
                 isinstance(k, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
                 and isinstance(v, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE)
